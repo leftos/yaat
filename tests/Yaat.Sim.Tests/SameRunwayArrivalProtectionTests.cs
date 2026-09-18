@@ -96,7 +96,13 @@ public class SameRunwayArrivalProtectionTests
     {
         // 0.5 nm of runway left braking from 60 kt to an 18 kt exit is flown at the 39 kt mean = 46.2 s, then 0.05 nm
         // of exit at 18 kt = 10 s, on top of 30 s already elapsed since the leader crossed the threshold.
-        var rollout = Rollout(brakingLegNm: 0.5, entrySpeedKts: 60.0, exitSpeedKts: 18.0, steadyLegNm: 0.05, elapsedSeconds: 30.0);
+        SameRunwayArrivalProtection.LeaderRollout rollout = Rollout(
+            brakingLegNm: 0.5,
+            entrySpeedKts: 60.0,
+            exitSpeedKts: 18.0,
+            steadyLegNm: 0.05,
+            elapsedSeconds: 30.0
+        );
 
         double required = SameRunwayArrivalProtection.RequiredThresholdIntervalSeconds(
             AircraftCategory.Jet,
@@ -113,7 +119,13 @@ public class SameRunwayArrivalProtectionTests
     {
         // A jet nearly at its exit needs far less than the 70 s airborne constant — but the required interval is still
         // floored by 3 NM of radar separation, so the refinement can only ever tighten spacing down to that.
-        var rollout = Rollout(brakingLegNm: 0.05, entrySpeedKts: 40.0, exitSpeedKts: 18.0, steadyLegNm: 0.02, elapsedSeconds: 5.0);
+        SameRunwayArrivalProtection.LeaderRollout rollout = Rollout(
+            brakingLegNm: 0.05,
+            entrySpeedKts: 40.0,
+            exitSpeedKts: 18.0,
+            steadyLegNm: 0.02,
+            elapsedSeconds: 5.0
+        );
 
         double occupancy = 5.0 + SameRunwayArrivalProtection.SecondsToRunwayClear(rollout);
         double required = SameRunwayArrivalProtection.RequiredThresholdIntervalSeconds(
@@ -130,7 +142,13 @@ public class SameRunwayArrivalProtectionTests
     [Fact]
     public void WakeFloor_AlsoFloorsTheLandedRegime()
     {
-        var rollout = Rollout(brakingLegNm: 0.05, entrySpeedKts: 40.0, exitSpeedKts: 18.0, steadyLegNm: 0.02, elapsedSeconds: 5.0);
+        SameRunwayArrivalProtection.LeaderRollout rollout = Rollout(
+            brakingLegNm: 0.05,
+            entrySpeedKts: 40.0,
+            exitSpeedKts: 18.0,
+            steadyLegNm: 0.02,
+            elapsedSeconds: 5.0
+        );
 
         double required = SameRunwayArrivalProtection.RequiredThresholdIntervalSeconds(
             AircraftCategory.Jet,
@@ -148,7 +166,13 @@ public class SameRunwayArrivalProtectionTests
         // LandingPhase brakes the rollout to the exit's turn-off speed by the branch point, so the leg is covered at
         // the mean of the two, not at the speed the leader is doing now: 0.5 nm at 74 kt braking to a 20 kt exit is
         // 38.3 s, where holding 74 kt the whole way reports 24.3 s — the ~1.6x optimism that read a blocker clear.
-        var braking = Rollout(brakingLegNm: 0.5, entrySpeedKts: 74.0, exitSpeedKts: 20.0, steadyLegNm: 0.0, elapsedSeconds: 0.0);
+        SameRunwayArrivalProtection.LeaderRollout braking = Rollout(
+            brakingLegNm: 0.5,
+            entrySpeedKts: 74.0,
+            exitSpeedKts: 20.0,
+            steadyLegNm: 0.0,
+            elapsedSeconds: 0.0
+        );
 
         double atTheMean = SameRunwayArrivalProtection.SecondsToRunwayClear(braking);
         double atTheCurrentSpeed = 0.5 / 74.0 * 3600.0;
@@ -162,7 +186,13 @@ public class SameRunwayArrivalProtectionTests
     {
         // A leader already slower than its exit's turn-off speed will not speed up for it; taking a mean against the
         // higher figure would report it clear early.
-        var slow = Rollout(brakingLegNm: 0.1, entrySpeedKts: 12.0, exitSpeedKts: 20.0, steadyLegNm: 0.0, elapsedSeconds: 0.0);
+        SameRunwayArrivalProtection.LeaderRollout slow = Rollout(
+            brakingLegNm: 0.1,
+            entrySpeedKts: 12.0,
+            exitSpeedKts: 20.0,
+            steadyLegNm: 0.0,
+            elapsedSeconds: 0.0
+        );
 
         Assert.Equal(0.1 / 12.0 * 3600.0, SameRunwayArrivalProtection.SecondsToRunwayClear(slow), 3);
     }
@@ -176,8 +206,14 @@ public class SameRunwayArrivalProtectionTests
         double tail = SameRunwayArrivalProtection.TailClearanceNm("B738");
         Assert.True(tail > 0.0, "a B738 has a fuselage to get across the bar");
 
-        var toTheBar = Rollout(brakingLegNm: 0.0, entrySpeedKts: 30.0, exitSpeedKts: 20.0, steadyLegNm: 0.05, elapsedSeconds: 0.0);
-        var allPartsAcross = toTheBar with { SteadyLegNm = 0.05 + tail };
+        SameRunwayArrivalProtection.LeaderRollout toTheBar = Rollout(
+            brakingLegNm: 0.0,
+            entrySpeedKts: 30.0,
+            exitSpeedKts: 20.0,
+            steadyLegNm: 0.05,
+            elapsedSeconds: 0.0
+        );
+        SameRunwayArrivalProtection.LeaderRollout allPartsAcross = toTheBar with { SteadyLegNm = 0.05 + tail };
 
         double added = SameRunwayArrivalProtection.SecondsToRunwayClear(allPartsAcross) - SameRunwayArrivalProtection.SecondsToRunwayClear(toTheBar);
 
@@ -190,7 +226,13 @@ public class SameRunwayArrivalProtectionTests
     {
         // The interval carries the time already spent since the threshold crossing; the time-from-now question the
         // occupied-runway go-around asks must not.
-        var rollout = Rollout(brakingLegNm: 0.5, entrySpeedKts: 60.0, exitSpeedKts: 18.0, steadyLegNm: 0.05, elapsedSeconds: 20.0);
+        SameRunwayArrivalProtection.LeaderRollout rollout = Rollout(
+            brakingLegNm: 0.5,
+            entrySpeedKts: 60.0,
+            exitSpeedKts: 18.0,
+            steadyLegNm: 0.05,
+            elapsedSeconds: 20.0
+        );
 
         Assert.Equal((0.5 / 39.0 * 3600.0) + 10.0, SameRunwayArrivalProtection.SecondsToRunwayClear(rollout), 3);
     }
@@ -201,7 +243,13 @@ public class SameRunwayArrivalProtectionTests
         // An aircraft stopped on the runway does not clear it at its present speed — the go-around's fail-closed
         // case, and the unbounded required interval the spacing pass floors its ceiling on. A stopped aircraft is not
         // decelerating either, so the planned turn-off speed must not resurrect it through the mean.
-        var stopped = Rollout(brakingLegNm: 0.3, entrySpeedKts: 0.0, exitSpeedKts: 18.0, steadyLegNm: 0.05, elapsedSeconds: 10.0);
+        SameRunwayArrivalProtection.LeaderRollout stopped = Rollout(
+            brakingLegNm: 0.3,
+            entrySpeedKts: 0.0,
+            exitSpeedKts: 18.0,
+            steadyLegNm: 0.05,
+            elapsedSeconds: 10.0
+        );
 
         Assert.Equal(double.PositiveInfinity, SameRunwayArrivalProtection.SecondsToRunwayClear(stopped));
     }
@@ -256,23 +304,23 @@ public class SameRunwayArrivalProtectionTests
     /// </summary>
     private static AircraftState? ExitingLeader(double remainderFt, double groundSpeedKts)
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return null;
         }
 
-        var pair = FindExitPair(layout, "28R");
+        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
         if (pair is null)
         {
             return null;
         }
 
-        var (branch, holdShort, taxiway) = pair.Value;
+        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
         double tailFt = SameRunwayArrivalProtection.TailClearanceNm(ExitingLeaderType) * GeoMath.FeetPerNm;
         double toHoldShortFt = Math.Max(0.0, remainderFt - tailFt);
         double bearingToBranch = GeoMath.BearingTo(holdShort.Position, branch.Position);
-        var (lat, lon) = GeoMath.ProjectPoint(holdShort.Position, new TrueHeading(bearingToBranch), toHoldShortFt / GeoMath.FeetPerNm);
+        (double lat, double lon) = GeoMath.ProjectPoint(holdShort.Position, new TrueHeading(bearingToBranch), toHoldShortFt / GeoMath.FeetPerNm);
 
         var dto = new RunwayExitPhaseDto
         {
@@ -309,16 +357,16 @@ public class SameRunwayArrivalProtectionTests
     /// </summary>
     private static (GroundNode Branch, GroundNode HoldShort, string Taxiway)? FindExitPair(AirportGroundLayout layout, string runwayId)
     {
-        foreach (var holdShort in layout.GetRunwayHoldShortNodes(runwayId))
+        foreach (GroundNode holdShort in layout.GetRunwayHoldShortNodes(runwayId))
         {
-            foreach (var edge in holdShort.Edges)
+            foreach (IGroundEdge edge in holdShort.Edges)
             {
                 if (string.IsNullOrEmpty(edge.TaxiwayName))
                 {
                     continue;
                 }
 
-                foreach (var node in edge.Nodes)
+                foreach (GroundNode node in edge.Nodes)
                 {
                     if (node.Id != holdShort.Id)
                     {
@@ -346,13 +394,13 @@ public class SameRunwayArrivalProtectionTests
         // — ~1,134 ft steady (22.4 s) plus a 152 ft / 6 s stop — so modelling the whole remainder as one braking
         // leg from the present speed (the entry/2 mean, 51 s here) is ~23 s pessimistic, and the go-around it feeds
         // fires for a leader that will be clear.
-        var leader = ExitingLeader(remainderFt: 1286.0, groundSpeedKts: ExitCeilingKts);
+        AircraftState? leader = ExitingLeader(remainderFt: 1286.0, groundSpeedKts: ExitCeilingKts);
         if (leader is null)
         {
             return;
         }
 
-        var rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, elapsedSinceThresholdSeconds: 0.0);
+        SameRunwayArrivalProtection.LeaderRollout? rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, elapsedSinceThresholdSeconds: 0.0);
         Assert.NotNull(rollout);
 
         double predicted = SameRunwayArrivalProtection.SecondsToRunwayClear(rollout.Value);
@@ -372,13 +420,13 @@ public class SameRunwayArrivalProtectionTests
     {
         // The ceiling is a cap, not a target: a leader already below it will not accelerate to it, so the steady
         // leg is flown at the speed it is actually doing.
-        var leader = ExitingLeader(remainderFt: 1286.0, groundSpeedKts: 18.0);
+        AircraftState? leader = ExitingLeader(remainderFt: 1286.0, groundSpeedKts: 18.0);
         if (leader is null)
         {
             return;
         }
 
-        var rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, elapsedSinceThresholdSeconds: 0.0);
+        SameRunwayArrivalProtection.LeaderRollout? rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, elapsedSinceThresholdSeconds: 0.0);
         Assert.NotNull(rollout);
 
         double predicted = SameRunwayArrivalProtection.SecondsToRunwayClear(rollout.Value);
@@ -398,13 +446,13 @@ public class SameRunwayArrivalProtectionTests
         // pieces together take exactly the time of one brake from the entry speed to zero, whatever sits between them.
         // Reading the stopping distance from the ceiling instead would grant a steady leg the aircraft cannot hold.
         const double entryKts = 37.0;
-        var leader = ExitingLeader(remainderFt: 1286.0, groundSpeedKts: entryKts);
+        AircraftState? leader = ExitingLeader(remainderFt: 1286.0, groundSpeedKts: entryKts);
         if (leader is null)
         {
             return;
         }
 
-        var rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, elapsedSinceThresholdSeconds: 0.0);
+        SameRunwayArrivalProtection.LeaderRollout? rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, elapsedSinceThresholdSeconds: 0.0);
         Assert.NotNull(rollout);
 
         double stoppingFt = entryKts * entryKts / (2.0 * ExitDecelKtsPerSec) / 3600.0 * GeoMath.FeetPerNm;
@@ -423,13 +471,13 @@ public class SameRunwayArrivalProtectionTests
     {
         // Inside the stopping distance there is no steady leg left: the whole remainder is flown braking from the
         // speed the leader is doing now, at the constant-deceleration mean of that speed and zero.
-        var leader = ExitingLeader(remainderFt: 100.0, groundSpeedKts: ExitCeilingKts);
+        AircraftState? leader = ExitingLeader(remainderFt: 100.0, groundSpeedKts: ExitCeilingKts);
         if (leader is null)
         {
             return;
         }
 
-        var rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, elapsedSinceThresholdSeconds: 0.0);
+        SameRunwayArrivalProtection.LeaderRollout? rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, elapsedSinceThresholdSeconds: 0.0);
         Assert.NotNull(rollout);
 
         double stoppingFt = ExitCeilingKts * ExitCeilingKts / (2.0 * ExitDecelKtsPerSec) / 3600.0 * GeoMath.FeetPerNm;

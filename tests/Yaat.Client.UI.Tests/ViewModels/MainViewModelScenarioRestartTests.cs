@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Core.Services;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
@@ -53,7 +54,7 @@ public class MainViewModelScenarioRestartTests
     [AvaloniaFact]
     public void OnScenarioRestarted_DropsAircraftMissingFromTheManifest()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         vm.ApplyScenarioBootstrap(
             new ScenarioBootstrap(
                 "scenario-1",
@@ -77,7 +78,7 @@ public class MainViewModelScenarioRestartTests
     [AvaloniaFact]
     public void OnScenarioRestarted_RestoresStaleAircraftToTheirManifestState()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("UAL202", "Active")]));
         Assert.False(vm.Aircraft[0].IsDelayed);
 
@@ -85,7 +86,7 @@ public class MainViewModelScenarioRestartTests
         // its abandoned-run position.
         vm.ApplyScenarioRestart([MakeAircraft("UAL202", "Delayed (120s)")]);
 
-        var restored = Assert.Single(vm.Aircraft);
+        AircraftModel restored = Assert.Single(vm.Aircraft);
         Assert.Equal("UAL202", restored.Callsign);
         Assert.True(restored.IsDelayed);
     }
@@ -98,7 +99,7 @@ public class MainViewModelScenarioRestartTests
     [AvaloniaFact]
     public void OnScenarioRestarted_RecomputesDelayedSpawnCounters()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("SWA101", "Active")]));
         Assert.Equal(0, vm.InitialDelayedSpawnCount);
         Assert.Equal(0, vm.PendingDelayedSpawnCount);
@@ -122,7 +123,7 @@ public class MainViewModelScenarioRestartTests
     [AvaloniaFact]
     public void ScenarioRewound_ReplacesAircraftButKeepsBookmarks()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         vm.ApplyScenarioBootstrap(
             new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("SWA101", "Active"), MakeAircraft("FDX303", "Active")])
         );
@@ -139,7 +140,7 @@ public class MainViewModelScenarioRestartTests
     [AvaloniaFact]
     public void ScenarioRestarted_DropsBookmarksWithTheTape()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("SWA101", "Active")]));
         vm.ApplyBookmarks([new TimelineBookmarkDto("bm-1", 120, "Before the go-around", "JD")]);
         Assert.True(vm.HasBookmarks);

@@ -22,36 +22,36 @@ public class GroundViewModelTaxiVariantsTests
     [Fact]
     public void BuildTaxiCrossingVariants_TaxiSpot_EmitsDollarPrefix()
     {
-        var vm = MakeViewModel();
-        var route = EmptyRoute();
+        GroundViewModel vm = MakeViewModel();
+        TaxiRoute route = EmptyRoute();
         var spot = new TaxiSpotDestination("I8L", IsTaxiSpot: true);
 
-        var variants = vm.BuildTaxiCrossingVariants(route, spot, pathOverride: null);
+        List<(string Label, string Command, TaxiRoute Preview)> variants = vm.BuildTaxiCrossingVariants(route, spot, pathOverride: null);
 
-        var single = Assert.Single(variants);
+        (string Label, string Command, TaxiRoute Preview) single = Assert.Single(variants);
         Assert.Equal("TAXI $I8L", single.Command);
     }
 
     [Fact]
     public void BuildTaxiCrossingVariants_Parking_EmitsAtPrefix()
     {
-        var vm = MakeViewModel();
-        var route = EmptyRoute();
+        GroundViewModel vm = MakeViewModel();
+        TaxiRoute route = EmptyRoute();
         var spot = new TaxiSpotDestination("A12", IsTaxiSpot: false);
 
-        var variants = vm.BuildTaxiCrossingVariants(route, spot, pathOverride: null);
+        List<(string Label, string Command, TaxiRoute Preview)> variants = vm.BuildTaxiCrossingVariants(route, spot, pathOverride: null);
 
-        var single = Assert.Single(variants);
+        (string Label, string Command, TaxiRoute Preview) single = Assert.Single(variants);
         Assert.Equal("TAXI @A12", single.Command);
     }
 
     [Fact]
     public void BuildTaxiCrossingVariants_NoSpot_ReturnsEmpty()
     {
-        var vm = MakeViewModel();
-        var route = EmptyRoute();
+        GroundViewModel vm = MakeViewModel();
+        TaxiRoute route = EmptyRoute();
 
-        var variants = vm.BuildTaxiCrossingVariants(route, spot: null, pathOverride: null);
+        List<(string Label, string Command, TaxiRoute Preview)> variants = vm.BuildTaxiCrossingVariants(route, spot: null, pathOverride: null);
 
         Assert.Empty(variants);
     }

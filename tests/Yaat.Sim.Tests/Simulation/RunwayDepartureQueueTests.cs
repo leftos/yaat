@@ -48,7 +48,7 @@ public class RunwayDepartureQueueTests
     /// </summary>
     private AircraftState HoldingShortNamed(string callsign, GroundNode node, string targetName)
     {
-        var ac = MakeGroundAircraft(callsign, node.Position);
+        AircraftState ac = MakeGroundAircraft(callsign, node.Position);
         ac.Phases!.Add(
             new HoldingShortPhase(
                 new HoldShortPoint
@@ -64,7 +64,7 @@ public class RunwayDepartureQueueTests
 
     private AircraftState TaxiingToward(string callsign, GroundNode node, double distanceNm)
     {
-        var ac = MakeGroundAircraft(callsign, GeoMath.ProjectPoint(node.Position, new TrueHeading(90), distanceNm));
+        AircraftState ac = MakeGroundAircraft(callsign, GeoMath.ProjectPoint(node.Position, new TrueHeading(90), distanceNm));
         ac.Phases!.Add(new TaxiingPhase());
         BindDestination(ac, node);
         return ac;
@@ -82,7 +82,7 @@ public class RunwayDepartureQueueTests
     /// </summary>
     private AircraftState FollowingAt(string callsign, string leaderCallsign, GroundNode near, double distanceFt)
     {
-        var ac = MakeGroundAircraft(callsign, GeoMath.ProjectPoint(near.Position, new TrueHeading(90), distanceFt / FeetPerNm));
+        AircraftState ac = MakeGroundAircraft(callsign, GeoMath.ProjectPoint(near.Position, new TrueHeading(90), distanceFt / FeetPerNm));
         ac.Phases!.Add(new FollowingPhase(leaderCallsign));
         return ac;
     }
@@ -107,7 +107,7 @@ public class RunwayDepartureQueueTests
 
     private AircraftState LinedUp(string callsign, GroundNode node)
     {
-        var ac = MakeGroundAircraft(callsign, node.Position);
+        AircraftState ac = MakeGroundAircraft(callsign, node.Position);
         ac.Phases!.Add(new LinedUpAndWaitingPhase());
         return ac;
     }
@@ -133,14 +133,14 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void HoldingShortLead_AndTaxiingTrailer_AreNumberedOneAndTwo()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
         {
             return;
         }
 
-        var lead = HoldingShort("LEAD", nodes[0]);
-        var trailer = TaxiingToward("TRAIL", nodes[0], 0.05);
+        AircraftState lead = HoldingShort("LEAD", nodes[0]);
+        AircraftState trailer = TaxiingToward("TRAIL", nodes[0], 0.05);
 
         RunwayDepartureQueue.UpdatePositions([lead, trailer]);
 
@@ -153,15 +153,15 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void TaxiingBeyondProximityGate_GetsNoNumber()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
         {
             return;
         }
 
-        var lead = HoldingShort("LEAD", nodes[0]);
-        var near = TaxiingToward("NEAR", nodes[0], 0.05);
-        var far = TaxiingToward("FAR", nodes[0], 0.3);
+        AircraftState lead = HoldingShort("LEAD", nodes[0]);
+        AircraftState near = TaxiingToward("NEAR", nodes[0], 0.05);
+        AircraftState far = TaxiingToward("FAR", nodes[0], 0.3);
 
         RunwayDepartureQueue.UpdatePositions([lead, near, far]);
 
@@ -174,13 +174,13 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void LoneAircraftInLine_GetsNumberOneWithRunway()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
         {
             return;
         }
 
-        var solo = HoldingShort("SOLO", nodes[0]);
+        AircraftState solo = HoldingShort("SOLO", nodes[0]);
 
         RunwayDepartureQueue.UpdatePositions([solo]);
 
@@ -197,15 +197,15 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void HoldShortNamedByPavementId_IsLabelledWithTheDepartureEnd()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
         {
             return;
         }
 
-        var lead = HoldingShortNamed("LEAD", nodes[0], $"10L/{Runway}");
+        AircraftState lead = HoldingShortNamed("LEAD", nodes[0], $"10L/{Runway}");
         BindDestination(lead, nodes[0]);
-        var trailer = TaxiingToward("TRAIL", nodes[0], 0.05);
+        AircraftState trailer = TaxiingToward("TRAIL", nodes[0], 0.05);
 
         RunwayDepartureQueue.UpdatePositions([lead, trailer]);
 
@@ -218,16 +218,16 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void TwoHoldShortNodes_AreRankedIndependently()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count < 2)
         {
             return;
         }
 
-        var leadA = HoldingShort("LEADA", nodes[0]);
-        var trailA = TaxiingToward("TRAILA", nodes[0], 0.05);
-        var leadB = HoldingShort("LEADB", nodes[1]);
-        var trailB = TaxiingToward("TRAILB", nodes[1], 0.05);
+        AircraftState leadA = HoldingShort("LEADA", nodes[0]);
+        AircraftState trailA = TaxiingToward("TRAILA", nodes[0], 0.05);
+        AircraftState leadB = HoldingShort("LEADB", nodes[1]);
+        AircraftState trailB = TaxiingToward("TRAILB", nodes[1], 0.05);
 
         RunwayDepartureQueue.UpdatePositions([leadA, trailA, leadB, trailB]);
 
@@ -240,14 +240,14 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void IntersectionDepartureLine_NamesItsEntryTaxiway()
     {
-        var echo = HoldShortsOn("E");
+        List<GroundNode> echo = HoldShortsOn("E");
         if (echo.Count == 0)
         {
             return;
         }
 
-        var lead = HoldingShort("LEAD", echo[0]);
-        var trailer = TaxiingToward("TRAIL", echo[0], 0.05);
+        AircraftState lead = HoldingShort("LEAD", echo[0]);
+        AircraftState trailer = TaxiingToward("TRAIL", echo[0], 0.05);
 
         RunwayDepartureQueue.UpdatePositions([lead, trailer]);
 
@@ -260,13 +260,13 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void FullLengthDepartureLine_HasNoEntryTaxiway()
     {
-        var bravo = HoldShortsOn("B");
+        List<GroundNode> bravo = HoldShortsOn("B");
         if (bravo.Count == 0)
         {
             return;
         }
 
-        var lead = HoldingShort("LEAD", bravo[0]);
+        AircraftState lead = HoldingShort("LEAD", bravo[0]);
 
         RunwayDepartureQueue.UpdatePositions([lead]);
 
@@ -278,15 +278,15 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void LinedUpAircraft_LeavesTheLine_TaxiingTrailersRankFromOne()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
         {
             return;
         }
 
-        var linedUp = LinedUp("LUAW", nodes[0]);
-        var near = TaxiingToward("NEAR", nodes[0], 0.05);
-        var far = TaxiingToward("FAR", nodes[0], 0.08);
+        AircraftState linedUp = LinedUp("LUAW", nodes[0]);
+        AircraftState near = TaxiingToward("NEAR", nodes[0], 0.05);
+        AircraftState far = TaxiingToward("FAR", nodes[0], 0.08);
 
         RunwayDepartureQueue.UpdatePositions([linedUp, near, far]);
 
@@ -303,14 +303,14 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void Follower_RanksDirectlyBehindItsLeader()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
         {
             return;
         }
 
-        var lead = HoldingShort("LEAD", nodes[0]);
-        var follower = FollowingAt("FOLLOW", "LEAD", nodes[0], 300);
+        AircraftState lead = HoldingShort("LEAD", nodes[0]);
+        AircraftState follower = FollowingAt("FOLLOW", "LEAD", nodes[0], 300);
         BindDestination(follower, nodes[0]);
 
         RunwayDepartureQueue.UpdatePositions([lead, follower]);
@@ -329,14 +329,14 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void Follower_BeyondProximityGate_Stays0()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
         {
             return;
         }
 
-        var lead = HoldingShort("LEAD", nodes[0]);
-        var follower = FollowingAt("FOLLOW", "LEAD", nodes[0], 0.15 * FeetPerNm);
+        AircraftState lead = HoldingShort("LEAD", nodes[0]);
+        AircraftState follower = FollowingAt("FOLLOW", "LEAD", nodes[0], 0.15 * FeetPerNm);
         BindDestination(follower, nodes[0]);
 
         RunwayDepartureQueue.UpdatePositions([lead, follower]);
@@ -354,14 +354,14 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void ArrivalFollower_WithNoDepartureRoute_Stays0()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
         {
             return;
         }
 
-        var lead = HoldingShort("LEAD", nodes[0]);
-        var follower = FollowingAt("FOLLOW", "LEAD", nodes[0], 200);
+        AircraftState lead = HoldingShort("LEAD", nodes[0]);
+        AircraftState follower = FollowingAt("FOLLOW", "LEAD", nodes[0], 200);
 
         RunwayDepartureQueue.UpdatePositions([lead, follower]);
 
@@ -378,14 +378,14 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void Follower_BoundForADifferentBar_DoesNotInheritTheLeadersLine()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count < 2)
         {
             return;
         }
 
-        var lead = HoldingShort("LEAD", nodes[0]);
-        var follower = FollowingAt("FOLLOW", "LEAD", nodes[1], 150);
+        AircraftState lead = HoldingShort("LEAD", nodes[0]);
+        AircraftState follower = FollowingAt("FOLLOW", "LEAD", nodes[1], 150);
         BindDestination(follower, nodes[1]);
 
         RunwayDepartureQueue.UpdatePositions([lead, follower]);
@@ -401,15 +401,15 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void FollowerOfFollower_RanksThird()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
         {
             return;
         }
 
-        var lead = HoldingShort("LEAD", nodes[0]);
-        var first = FollowingAt("FOLLOW1", "LEAD", nodes[0], 200);
-        var second = FollowingAt("FOLLOW2", "FOLLOW1", nodes[0], 400);
+        AircraftState lead = HoldingShort("LEAD", nodes[0]);
+        AircraftState first = FollowingAt("FOLLOW1", "LEAD", nodes[0], 200);
+        AircraftState second = FollowingAt("FOLLOW2", "FOLLOW1", nodes[0], 400);
         BindDestination(first, nodes[0]);
         BindDestination(second, nodes[0]);
 
@@ -431,14 +431,14 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void Follower_WithLeaderNotInLine_RanksByItsOwnRoute()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
         {
             return;
         }
 
-        var linedUp = LinedUp("LUAW", nodes[0]);
-        var follower = FollowingAt("FOLLOW", "LUAW", nodes[0], 150);
+        AircraftState linedUp = LinedUp("LUAW", nodes[0]);
+        AircraftState follower = FollowingAt("FOLLOW", "LUAW", nodes[0], 150);
         BindDestination(follower, nodes[0]);
 
         RunwayDepartureQueue.UpdatePositions([linedUp, follower]);
@@ -457,14 +457,14 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void ArrivedFollower_HoldingShortWithQueuedFollow_RanksBehindItsLeader()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
         {
             return;
         }
 
-        var lead = HoldingShort("LEAD", nodes[0]);
-        var follower = MakeGroundAircraft("FOLLOW", GeoMath.ProjectPoint(nodes[0].Position, new TrueHeading(90), 100 / FeetPerNm));
+        AircraftState lead = HoldingShort("LEAD", nodes[0]);
+        AircraftState follower = MakeGroundAircraft("FOLLOW", GeoMath.ProjectPoint(nodes[0].Position, new TrueHeading(90), 100 / FeetPerNm));
         follower.Phases!.Add(
             new HoldingShortPhase(
                 new HoldShortPoint
@@ -493,16 +493,16 @@ public class RunwayDepartureQueueTests
     [Fact]
     public void Follower_RanksAheadOfFartherTaxier()
     {
-        var nodes = HoldShortNodes();
+        List<GroundNode> nodes = HoldShortNodes();
         if (nodes.Count == 0)
         {
             return;
         }
 
-        var lead = HoldingShort("LEAD", nodes[0]);
-        var follower = FollowingAt("FOLLOW", "LEAD", nodes[0], 200);
+        AircraftState lead = HoldingShort("LEAD", nodes[0]);
+        AircraftState follower = FollowingAt("FOLLOW", "LEAD", nodes[0], 200);
         BindDestination(follower, nodes[0]);
-        var taxier = TaxiingToward("TAXI", nodes[0], 0.09);
+        AircraftState taxier = TaxiingToward("TAXI", nodes[0], 0.09);
 
         RunwayDepartureQueue.UpdatePositions([lead, taxier, follower]);
 

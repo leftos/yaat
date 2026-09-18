@@ -59,7 +59,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void OnWarnings(List<(string Callsign, string Warning)> warnings)
     {
-        foreach (var (callsign, warning) in warnings)
+        foreach ((string? callsign, string? warning) in warnings)
         {
             _engine.FireWarningEmitted(callsign, warning);
         }
@@ -67,7 +67,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void OnNotifications(List<(string Callsign, string Notification)> notifications)
     {
-        foreach (var (callsign, notification) in notifications)
+        foreach ((string? callsign, string? notification) in notifications)
         {
             _engine.EmitTerminal("Response", callsign, notification);
         }
@@ -75,7 +75,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void OnPilotSpeech(List<(string Callsign, string PilotSpeech)> speech)
     {
-        foreach (var (callsign, line) in speech)
+        foreach ((string? callsign, string? line) in speech)
         {
             _engine.EmitTerminal("PilotSpeech", callsign, line);
             _engine.FirePilotSpeechEmitted(callsign, line);
@@ -84,7 +84,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void OnPilotReadbacks(List<(string Callsign, string Readback)> readbacks)
     {
-        foreach (var (callsign, readback) in readbacks)
+        foreach ((string? callsign, string? readback) in readbacks)
         {
             _engine.EmitTerminal("SayReadback", callsign, readback);
         }
@@ -92,7 +92,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void OnPilotTransmissions(List<PilotTransmission> transmissions)
     {
-        foreach (var transmission in transmissions)
+        foreach (PilotTransmission transmission in transmissions)
         {
             _engine.EmitTerminal(SimulationEngine.ToSayKind(transmission), transmission.Callsign, transmission.Text);
         }

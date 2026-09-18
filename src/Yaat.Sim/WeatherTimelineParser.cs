@@ -36,9 +36,9 @@ public static class WeatherTimelineParser
 
         using (doc)
         {
-            var root = doc.RootElement;
+            JsonElement root = doc.RootElement;
 
-            if (root.TryGetProperty("periods", out var periodsEl) && periodsEl.ValueKind == JsonValueKind.Array)
+            if (root.TryGetProperty("periods", out JsonElement periodsEl) && periodsEl.ValueKind == JsonValueKind.Array)
             {
                 return ParseV2(json, periodsEl);
             }

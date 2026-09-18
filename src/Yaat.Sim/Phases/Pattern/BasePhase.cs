@@ -92,7 +92,7 @@ public sealed class BasePhase : Phase
         if (FinalDistanceNm is not null)
         {
             TrueHeading reciprocal = Waypoints.FinalHeading.ToReciprocal();
-            var target = GeoMath.ProjectPoint(Waypoints.ThresholdLat, Waypoints.ThresholdLon, reciprocal, FinalDistanceNm.Value);
+            (double Lat, double Lon) target = GeoMath.ProjectPoint(Waypoints.ThresholdLat, Waypoints.ThresholdLon, reciprocal, FinalDistanceNm.Value);
             _thresholdLat = target.Lat;
             _thresholdLon = target.Lon;
         }
@@ -231,7 +231,7 @@ public sealed class BasePhase : Phase
         {
             double baseline = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-            var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
+            double? adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
             if (adjusted is not null)
             {
                 // Spacing only ever SLOWS the follower below the leg baseline; it never

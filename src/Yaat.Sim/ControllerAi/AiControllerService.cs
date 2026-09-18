@@ -1,4 +1,5 @@
 using Yaat.Sim.ControllerAi.Knowledge;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.ControllerAi;
 
@@ -38,13 +39,13 @@ public sealed class AiControllerService
     public void Tick(AiTickInputs inputs)
     {
         Staffing.Refresh();
-        var active = Staffing.ActivePositions;
-        var scenario = inputs.Scenario;
+        IReadOnlyList<AiPositionConfig> active = Staffing.ActivePositions;
+        SimScenarioState scenario = inputs.Scenario;
         scenario.SetAiStaffedPositions(active);
 
         double now = scenario.ElapsedSeconds;
-        var outcomes = Sink.DrainOutcomes();
-        foreach (var outcome in outcomes)
+        IReadOnlyList<AiCommandOutcome> outcomes = Sink.DrainOutcomes();
+        foreach (AiCommandOutcome outcome in outcomes)
         {
             if (!outcome.Success)
             {
@@ -80,7 +81,7 @@ public sealed class AiControllerService
             RunwayInUse = RunwayInUse,
         };
 
-        foreach (var brain in Brains)
+        foreach (IPositionBrain brain in Brains)
         {
             if (active.Any(p => p.PositionId == brain.Position.PositionId))
             {
@@ -95,7 +96,7 @@ public sealed class AiControllerService
     {
         AiRng = new SerializableRandom(Config.Seed);
         RunwayInUse.Clear();
-        foreach (var brain in Brains)
+        foreach (IPositionBrain brain in Brains)
         {
             brain.Reset();
         }

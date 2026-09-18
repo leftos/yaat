@@ -1,4 +1,5 @@
 using Avalonia.Threading;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Sim.Data.Vnas;
 
@@ -31,14 +32,14 @@ public partial class MainViewModel
         _atpaResults = pairs ?? [];
 
         var pairByCallsign = new Dictionary<string, AtpaPairDto>(StringComparer.Ordinal);
-        foreach (var p in _atpaResults)
+        foreach (AtpaPairDto p in _atpaResults)
         {
             pairByCallsign[p.Callsign] = p;
         }
 
-        foreach (var ac in Aircraft)
+        foreach (AircraftModel ac in Aircraft)
         {
-            if (pairByCallsign.TryGetValue(ac.Callsign, out var pair))
+            if (pairByCallsign.TryGetValue(ac.Callsign, out AtpaPairDto? pair))
             {
                 ac.AtpaLeadCallsign = pair.LeadCallsign;
                 ac.AtpaAllowedSeparationNm = pair.AllowedSeparationNm;
@@ -60,7 +61,7 @@ public partial class MainViewModel
     /// </summary>
     private void SeedAtpaResult(Models.AircraftModel ac)
     {
-        foreach (var p in _atpaResults)
+        foreach (AtpaPairDto p in _atpaResults)
         {
             if (string.Equals(p.Callsign, ac.Callsign, StringComparison.Ordinal))
             {

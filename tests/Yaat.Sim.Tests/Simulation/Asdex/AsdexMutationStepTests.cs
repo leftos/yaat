@@ -148,7 +148,7 @@ public class AsdexMutationStepTests
     /// <summary>A recording of everything the engine has run so far, carrying the ARTCC the replay re-initialises from.</summary>
     private SessionRecording Recording(SimulationEngine engine)
     {
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         return new SessionRecording
         {
             ScenarioJson = TwoAtOak,
@@ -249,7 +249,7 @@ public class AsdexMutationStepTests
 
         Assert.True(engine.Actions.ApplyRecorded(edit, host).Success);
 
-        var stars = engine.FindAircraft(Parked)!.Stars;
+        AircraftStarsState stars = engine.FindAircraft(Parked)!.Stars;
         Assert.Equal("OVRCS", stars.AsdexCallsignOverride);
         Assert.Equal("1200", stars.AsdexBeaconCodeOverride);
         Assert.Equal("OVR", stars.AsdexCategoryOverride);
@@ -280,7 +280,7 @@ public class AsdexMutationStepTests
         }
 
         var host = new AttendanceActionHost();
-        var aircraft = engine.FindAircraft(Parked)!;
+        AircraftState aircraft = engine.FindAircraft(Parked)!;
         TrackEngine.SetAsdexField(aircraft, field, "AB");
         Assert.Equal("AB", AsdexValue(aircraft.Stars, field));
 
@@ -300,7 +300,7 @@ public class AsdexMutationStepTests
         }
 
         var host = new AttendanceActionHost();
-        var aircraft = engine.FindAircraft(Parked)!;
+        AircraftState aircraft = engine.FindAircraft(Parked)!;
         TrackEngine.SetSaidField(aircraft, field, "AB");
         Assert.Equal("AB", SaidValue(aircraft.Stars, field));
 
@@ -341,7 +341,7 @@ public class AsdexMutationStepTests
         }
 
         var host = new AttendanceActionHost();
-        var aircraft = engine.FindAircraft(Parked)!;
+        AircraftState aircraft = engine.FindAircraft(Parked)!;
         aircraft.Cid = "123";
 
         Assert.True(engine.Actions.ApplyRecorded(Asdex("Terminate", aircraft.Cid), host).Success);
@@ -419,7 +419,7 @@ public class AsdexMutationStepTests
 
         Assert.True(engine.Actions.ApplyRecorded(edit, host).Success);
 
-        var stars = engine.FindAircraft(Parked)!.Stars;
+        AircraftStarsState stars = engine.FindAircraft(Parked)!.Stars;
         Assert.Equal("OVRCS", stars.SaidCallsignOverride);
         Assert.Equal("1200", stars.SaidBeaconCodeOverride);
         Assert.Equal("OVR", stars.SaidCategoryOverride);
@@ -449,7 +449,7 @@ public class AsdexMutationStepTests
         Assert.True(engine.Actions.ApplyRecorded(Asdex("InhibitAlerts", Parked), host).Success);
         Assert.True(engine.Actions.ApplyRecorded(Asdex("InhibitAlerts", OnFinal), host).Success);
 
-        var result = engine.Actions.Issue(new ActionInput("", "ASDXALERTS", "conn-1", "XX", Baked: null), host).Result;
+        CommandResult result = engine.Actions.Issue(new ActionInput("", "ASDXALERTS", "conn-1", "XX", Baked: null), host).Result;
 
         Assert.True(result.Success, result.Message);
         Assert.False(engine.FindAircraft(Parked)!.Stars.AsdexAlertsInhibited);
@@ -495,7 +495,7 @@ public class AsdexMutationStepTests
             engine.TickOneSecond();
         }
 
-        var elapsed = engine.Scenario!.ElapsedSeconds;
+        double elapsed = engine.Scenario!.ElapsedSeconds;
         var edit = new RecordedAsdexMutation(elapsed, "EditDbFields", Parked, null, null, null, null, null, "AB", null);
         var suspend = new RecordedAsdexMutation(elapsed, "Suspend", Parked, null, null, null, null, null, null, null);
         var saidTerminate = new RecordedSaidMutation(elapsed, "Terminate", Parked, null, null, null, null, null, null, null);
@@ -503,12 +503,12 @@ public class AsdexMutationStepTests
         Assert.True(engine.Actions.IssueDerived(suspend, host).Success);
         Assert.True(engine.Actions.IssueDerived(saidTerminate, host).Success);
 
-        var recording = Recording(engine);
+        SessionRecording recording = Recording(engine);
 
         var replayed = new SimulationEngine(new TestAirportGroundData());
         replayed.Replay(recording, elapsed + 5);
 
-        var stars = replayed.FindAircraft(Parked)!.Stars;
+        AircraftStarsState stars = replayed.FindAircraft(Parked)!.Stars;
         Assert.Equal("AB", stars.AsdexScratchpad1);
         Assert.True(stars.AsdexSuspended);
         Assert.True(stars.SaidTerminated);

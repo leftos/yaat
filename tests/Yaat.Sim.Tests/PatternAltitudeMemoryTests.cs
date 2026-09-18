@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -13,7 +14,7 @@ public class PatternAltitudeMemoryTests
 
     private static AircraftState MakePatternAircraft(Phase currentPhase)
     {
-        var runway = DefaultRunway();
+        RunwayInfo runway = DefaultRunway();
         var ac = new AircraftState
         {
             Callsign = "N123AB",
@@ -26,7 +27,7 @@ public class PatternAltitudeMemoryTests
             FlightPlan = new AircraftFlightPlan { Departure = "KTEST", Destination = "KTEST" },
         };
 
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
             "",
@@ -52,7 +53,7 @@ public class PatternAltitudeMemoryTests
     [Fact]
     public void ClimbMaintain_DuringDownwind_SetsPatternAltitudeOverride()
     {
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             DefaultRunway(),
             AircraftCategory.Piston,
             "",
@@ -63,7 +64,7 @@ public class PatternAltitudeMemoryTests
             null,
             authoredRunway: null
         );
-        var ac = MakePatternAircraft(new DownwindPhase { Waypoints = waypoints });
+        AircraftState ac = MakePatternAircraft(new DownwindPhase { Waypoints = waypoints });
 
         FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(1500), ac);
 
@@ -73,7 +74,7 @@ public class PatternAltitudeMemoryTests
     [Fact]
     public void DescendMaintain_DuringUpwind_SetsPatternAltitudeOverride()
     {
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             DefaultRunway(),
             AircraftCategory.Piston,
             "",
@@ -84,7 +85,7 @@ public class PatternAltitudeMemoryTests
             null,
             authoredRunway: null
         );
-        var ac = MakePatternAircraft(new UpwindPhase { Waypoints = waypoints });
+        AircraftState ac = MakePatternAircraft(new UpwindPhase { Waypoints = waypoints });
 
         FlightCommandHandler.ApplyDescendMaintain(new DescendMaintainCommand(800), ac);
 
@@ -98,7 +99,7 @@ public class PatternAltitudeMemoryTests
     [Fact]
     public void ClimbMaintain_DuringDownwind_DoesNotClearPattern()
     {
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             DefaultRunway(),
             AircraftCategory.Piston,
             "",
@@ -110,17 +111,17 @@ public class PatternAltitudeMemoryTests
             authoredRunway: null
         );
         var dw = new DownwindPhase { Waypoints = waypoints };
-        var ac = MakePatternAircraft(dw);
+        AircraftState ac = MakePatternAircraft(dw);
 
         // CanAcceptCommand should return Allowed for CM
-        var acceptance = dw.CanAcceptCommand(CanonicalCommandType.ClimbMaintain);
+        CommandAcceptance acceptance = dw.CanAcceptCommand(CanonicalCommandType.ClimbMaintain);
         Assert.Equal(CommandAcceptance.Allowed, acceptance);
     }
 
     [Fact]
     public void DescendMaintain_DuringBase_DoesNotClearPattern()
     {
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             DefaultRunway(),
             AircraftCategory.Piston,
             "",
@@ -132,16 +133,16 @@ public class PatternAltitudeMemoryTests
             authoredRunway: null
         );
         var bp = new BasePhase { Waypoints = waypoints };
-        var ac = MakePatternAircraft(bp);
+        AircraftState ac = MakePatternAircraft(bp);
 
-        var acceptance = bp.CanAcceptCommand(CanonicalCommandType.DescendMaintain);
+        CommandAcceptance acceptance = bp.CanAcceptCommand(CanonicalCommandType.DescendMaintain);
         Assert.Equal(CommandAcceptance.Allowed, acceptance);
     }
 
     [Fact]
     public void ClimbMaintain_AllPatternPhases_ReturnAllowed()
     {
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             DefaultRunway(),
             AircraftCategory.Piston,
             "",
@@ -192,8 +193,8 @@ public class PatternAltitudeMemoryTests
     [Fact]
     public void PatternGeometry_Compute_UsesAltitudeOverride()
     {
-        var runway = DefaultRunway();
-        var waypoints = PatternGeometry.Compute(
+        RunwayInfo runway = DefaultRunway();
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
             "",
@@ -211,8 +212,8 @@ public class PatternAltitudeMemoryTests
     [Fact]
     public void PatternGeometry_Compute_DefaultAltitude_WhenNoOverride()
     {
-        var runway = DefaultRunway();
-        var waypoints = PatternGeometry.Compute(
+        RunwayInfo runway = DefaultRunway();
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
             "",
@@ -248,7 +249,7 @@ public class PatternAltitudeMemoryTests
             Pattern = new AircraftPattern { AltitudeOverrideFt = 1500 },
         };
 
-        var dto = ac.ToSnapshot();
+        AircraftSnapshotDto dto = ac.ToSnapshot();
         Assert.Equal(1500, dto.Pattern.AltitudeOverrideFt);
 
         var restored = AircraftState.FromSnapshot(dto, null);
@@ -270,7 +271,7 @@ public class PatternAltitudeMemoryTests
             return; // Skip if test data not available
         }
 
-        var runway = TestVnasData.NavigationDb.GetRunway("KOAK", "28L");
+        RunwayInfo? runway = TestVnasData.NavigationDb.GetRunway("KOAK", "28L");
         if (runway is null)
         {
             return;
@@ -288,7 +289,7 @@ public class PatternAltitudeMemoryTests
             FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KOAK" },
             Pattern = new AircraftPattern { AltitudeOverrideFt = 1500 },
         };
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
             "",
@@ -306,7 +307,7 @@ public class PatternAltitudeMemoryTests
         ac.Phases = phases;
 
         // Changing to 28R (different runway) should clear the altitude override
-        var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, "28R", null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, "28R", null);
         Assert.True(result.Success);
         Assert.Null(ac.Pattern.AltitudeOverrideFt);
     }
@@ -320,7 +321,7 @@ public class PatternAltitudeMemoryTests
             return;
         }
 
-        var runway = TestVnasData.NavigationDb.GetRunway("KOAK", "28L");
+        RunwayInfo? runway = TestVnasData.NavigationDb.GetRunway("KOAK", "28L");
         if (runway is null)
         {
             return;
@@ -338,7 +339,7 @@ public class PatternAltitudeMemoryTests
             FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KOAK" },
             Pattern = new AircraftPattern { AltitudeOverrideFt = 1500 },
         };
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
             "",
@@ -356,7 +357,7 @@ public class PatternAltitudeMemoryTests
         ac.Phases = phases;
 
         // Changing direction only (no new runway) should keep the altitude override
-        var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, null, null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, null, null);
         Assert.True(result.Success);
         Assert.Equal(1500, ac.Pattern.AltitudeOverrideFt);
     }

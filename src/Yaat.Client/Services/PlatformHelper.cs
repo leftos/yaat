@@ -64,7 +64,7 @@ public static class PlatformHelper
     private static SKTypeface ResolveTypeface(SKFontStyleWeight weight)
     {
         string[] families = ["Consolas", "Menlo", "DejaVu Sans Mono", "monospace"];
-        foreach (var family in families)
+        foreach (string family in families)
         {
             var typeface = SKTypeface.FromFamilyName(family, weight, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
             if (typeface.FamilyName != SKTypeface.Default.FamilyName || family == typeface.FamilyName)

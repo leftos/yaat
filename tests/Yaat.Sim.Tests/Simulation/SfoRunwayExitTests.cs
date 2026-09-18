@@ -1,5 +1,7 @@
 ﻿using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -26,7 +28,7 @@ public class SfoRunwayExitTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -46,7 +48,7 @@ public class SfoRunwayExitTests(ITestOutputHelper output)
     [Fact]
     public void HybridReplay_SKW3398_ExitsOnT()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -54,8 +56,8 @@ public class SfoRunwayExitTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -65,7 +67,7 @@ public class SfoRunwayExitTests(ITestOutputHelper output)
             engine.Replay(recording, 0);
 
             // Restore snapshot at t=380 (just before EL T at t=382)
-            var snapshot = archive.ReadSnapshotAt(380);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(380);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=380, skipping hybrid replay");
@@ -81,7 +83,7 @@ public class SfoRunwayExitTests(ITestOutputHelper output)
 
             engine.ReplayRange(startTime, endTime, recording.Actions);
 
-            var aircraft = engine.FindAircraft("SKW3398");
+            AircraftState? aircraft = engine.FindAircraft("SKW3398");
             Assert.NotNull(aircraft);
 
             output.WriteLine(

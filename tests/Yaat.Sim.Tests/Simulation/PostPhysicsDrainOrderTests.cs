@@ -96,7 +96,7 @@ public class PostPhysicsDrainOrderTests
         // Filtered to the seeded markers: the detectors and the proactive pass emit their own lines, and this
         // test is about the relative order of the drains, not about what else a tick says. The strip step applies
         // its dispatch inside the engine, so its line is the refusal that names the marker id.
-        var seeded = new[] { WarningMarker, NotificationMarker, SpeechMarker, ReadbackMarker, StripMarker };
+        string[] seeded = new[] { WarningMarker, NotificationMarker, SpeechMarker, ReadbackMarker, StripMarker };
         var ordered = emissions.Where(e => seeded.Any(marker => e.Contains(marker, StringComparison.Ordinal))).ToList();
         Assert.Equal([WarningMarker, NotificationMarker, SpeechMarker, ReadbackMarker], ordered[..^1]);
         Assert.Contains(StripMarker, ordered[^1], StringComparison.Ordinal);

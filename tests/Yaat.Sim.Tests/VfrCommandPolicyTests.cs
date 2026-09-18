@@ -14,10 +14,10 @@ public class VfrCommandPolicyTests(ITestOutputHelper output)
 {
     private ParsedCommand ParseSingle(string text)
     {
-        var result = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound(text);
         Assert.True(result.IsSuccess, $"Parse failed for '{text}': {result.Reason}");
-        var block = Assert.Single(result.Value!.Blocks);
-        var command = Assert.Single(block.Commands);
+        ParsedBlock block = Assert.Single(result.Value!.Blocks);
+        ParsedCommand command = Assert.Single(block.Commands);
         output.WriteLine($"{text} -> {command.GetType().Name}");
         return command;
     }
@@ -71,7 +71,7 @@ public class VfrCommandPolicyTests(ITestOutputHelper output)
     [InlineData("HPP")]
     public void RequiresVfr_CoversThePatternSet(string commandText)
     {
-        var command = ParseSingle(commandText);
+        ParsedCommand command = ParseSingle(commandText);
 
         Assert.True(VfrCommandPolicy.RequiresVfr(command), $"'{commandText}' should be VFR-gated");
         Assert.True(VfrCommandPolicy.IsVfrOnly(command));
@@ -92,7 +92,7 @@ public class VfrCommandPolicyTests(ITestOutputHelper output)
     [InlineData("CTO MLT")]
     public void IsVfrOnly_CoversTheNonPatternGates(string commandText)
     {
-        var command = ParseSingle(commandText);
+        ParsedCommand command = ParseSingle(commandText);
 
         Assert.True(VfrCommandPolicy.IsVfrOnly(command), $"'{commandText}' should be VFR-only");
     }
@@ -117,7 +117,7 @@ public class VfrCommandPolicyTests(ITestOutputHelper output)
     [InlineData("GA")]
     public void IsVfrOnly_LeavesEverythingElseAlone(string commandText)
     {
-        var command = ParseSingle(commandText);
+        ParsedCommand command = ParseSingle(commandText);
 
         Assert.False(VfrCommandPolicy.IsVfrOnly(command), $"'{commandText}' should not be VFR-only");
         Assert.True(VfrCommandPolicy.AllowsForIfr(command, VfrCommandsForIfr.None));
@@ -143,7 +143,7 @@ public class VfrCommandPolicyTests(ITestOutputHelper output)
     [InlineData("CTO MRC")]
     public void AllowsForIfr_EnterFinalOnly_BlocksEverythingButEf(string commandText)
     {
-        var command = ParseSingle(commandText);
+        ParsedCommand command = ParseSingle(commandText);
 
         Assert.False(VfrCommandPolicy.AllowsForIfr(command, VfrCommandsForIfr.None));
         Assert.False(VfrCommandPolicy.AllowsForIfr(command, VfrCommandsForIfr.EnterFinalOnly));

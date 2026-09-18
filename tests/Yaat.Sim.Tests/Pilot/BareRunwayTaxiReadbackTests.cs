@@ -19,8 +19,8 @@ public class BareRunwayTaxiReadbackTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         var taxi = new TaxiCommand([], [], "1L");
 
-        var spoken = PhraseologyVerbalizer.Verbalize(taxi);
-        var terminal = PhraseologyVerbalizer.VerbalizeTerminal(taxi);
+        string? spoken = PhraseologyVerbalizer.Verbalize(taxi);
+        string? terminal = PhraseologyVerbalizer.VerbalizeTerminal(taxi);
         output.WriteLine($"spoken:   {spoken}");
         output.WriteLine($"terminal: {terminal}");
 
@@ -32,7 +32,7 @@ public class BareRunwayTaxiReadbackTests(ITestOutputHelper output)
     public void Verbalize_TaxiAuto_ReadsBackLikePathlessTaxi()
     {
         TestVnasData.EnsureInitialized();
-        var spoken = PhraseologyVerbalizer.Verbalize(new TaxiAutoCommand("28R", null, null));
+        string? spoken = PhraseologyVerbalizer.Verbalize(new TaxiAutoCommand("28R", null, null));
         output.WriteLine($"spoken: {spoken}");
 
         Assert.Equal("taxi to runway two eight right", spoken);
@@ -42,7 +42,7 @@ public class BareRunwayTaxiReadbackTests(ITestOutputHelper output)
     public void Verbalize_TaxiWithRouteAndRunway_StillVoicesTheRoute()
     {
         TestVnasData.EnsureInitialized();
-        var spoken = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["A", "B"], [], "28R"));
+        string? spoken = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["A", "B"], [], "28R"));
         output.WriteLine($"spoken: {spoken}");
 
         Assert.Contains("runway two eight right", spoken);

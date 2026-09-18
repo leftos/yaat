@@ -85,12 +85,12 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void GroundConflict_ShadowIsAnObstacle_NeverASubject()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
-        var shadow = Shadow("LIVE1", OnRunway(2000), Runway28R.ElevationFt, 15, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        AircraftState shadow = Shadow("LIVE1", OnRunway(2000), Runway28R.ElevationFt, 15, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
         shadow.Position = GeoMath.ProjectPoint(shadow.Position, Runway28R.TrueHeading + 90, 0.2);
         shadow.TrueHeading = Runway28R.TrueHeading;
-        var ahead = GeoMath.ProjectPoint(shadow.Position, Runway28R.TrueHeading, 150 / GeoMath.FeetPerNm);
-        var taxiing = Simulated("SIM1", ahead, Runway28R.TrueHeading.Degrees + 180, 10, onGround: true, new TaxiingPhase());
+        LatLon ahead = GeoMath.ProjectPoint(shadow.Position, Runway28R.TrueHeading, 150 / GeoMath.FeetPerNm);
+        AircraftState taxiing = Simulated("SIM1", ahead, Runway28R.TrueHeading.Degrees + 180, 10, onGround: true, new TaxiingPhase());
 
         GroundConflictDetector.ApplySpeedLimits([shadow, taxiing], layout, 0.25);
 
@@ -101,14 +101,14 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void GroundConflict_CoastingSurfaceShadow_StopsBeingAnObstacle()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
-        var shadow = Shadow("LIVE1", OnRunway(2000), Runway28R.ElevationFt, 15, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        AircraftState shadow = Shadow("LIVE1", OnRunway(2000), Runway28R.ElevationFt, 15, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
         shadow.Position = GeoMath.ProjectPoint(shadow.Position, Runway28R.TrueHeading + 90, 0.2);
         shadow.LiveTraffic!.IsCoasting = true;
         shadow.LiveTraffic.DeliverySilenceSeconds =
             (GroundConflictDetector.ExternalCoastGraceFraction * LiveTrafficKinematics.RemovalAfterSeconds(LiveTrafficSource.Asdex)) + 1;
-        var ahead = GeoMath.ProjectPoint(shadow.Position, Runway28R.TrueHeading, 150 / GeoMath.FeetPerNm);
-        var taxiing = Simulated("SIM1", ahead, Runway28R.TrueHeading.Degrees + 180, 10, onGround: true, new TaxiingPhase());
+        LatLon ahead = GeoMath.ProjectPoint(shadow.Position, Runway28R.TrueHeading, 150 / GeoMath.FeetPerNm);
+        AircraftState taxiing = Simulated("SIM1", ahead, Runway28R.TrueHeading.Degrees + 180, 10, onGround: true, new TaxiingPhase());
 
         GroundConflictDetector.ApplySpeedLimits([shadow, taxiing], layout, 0.25);
 
@@ -118,11 +118,11 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void GroundConflict_ShadowOnTheRunway_HasPriorityOverACrosser()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
-        var rolling = Shadow("LIVE1", OnRunway(3000), Runway28R.ElevationFt, 60, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
-        var ahead = GeoMath.ProjectPoint(rolling.Position, Runway28R.TrueHeading, 120 / GeoMath.FeetPerNm);
-        var crosser = Simulated("SIM1", ahead, Runway28R.TrueHeading.Degrees + 90, 8, onGround: true, new TaxiingPhase());
+        AircraftState rolling = Shadow("LIVE1", OnRunway(3000), Runway28R.ElevationFt, 60, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
+        LatLon ahead = GeoMath.ProjectPoint(rolling.Position, Runway28R.TrueHeading, 120 / GeoMath.FeetPerNm);
+        AircraftState crosser = Simulated("SIM1", ahead, Runway28R.TrueHeading.Degrees + 90, 8, onGround: true, new TaxiingPhase());
 
         GroundConflictDetector.ApplySpeedLimits([rolling, crosser], layout, 0.25);
 
@@ -138,12 +138,12 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void LandingClearance_WarnsForAShadowLinedUpOnTheRunway()
     {
-        var linedUp = Shadow("LIVE1", OnRunway(300), Runway28R.ElevationFt, 0, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
-        var arrival = Simulated("ARR1", OnFinal(4), Runway28R.TrueHeading.Degrees, 140, onGround: false, new FinalApproachPhase());
+        AircraftState linedUp = Shadow("LIVE1", OnRunway(300), Runway28R.ElevationFt, 0, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
+        AircraftState arrival = Simulated("ARR1", OnFinal(4), Runway28R.TrueHeading.Degrees, 140, onGround: false, new FinalApproachPhase());
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, Runway28R, Ctx(arrival, linedUp));
 
-        var warning = Assert.Single(arrival.PendingWarnings);
+        string warning = Assert.Single(arrival.PendingWarnings);
         Assert.Contains("LIVE1", warning);
         Assert.Contains("3-10-5.e", warning);
         Assert.DoesNotContain("3-10-3.a.1", warning);
@@ -154,8 +154,16 @@ public class LiveTrafficParticipationTests
     {
         // Over the pavement below threshold-crossing height the shadow has not touched down and is not clear of the
         // runway (P/CG CLEAR OF THE RUNWAY) — for a rotorcraft that descent can last a minute.
-        var flaring = Shadow("LIVE1", OnRunway(300), Runway28R.ElevationFt + 30, 130, Runway28R.TrueHeading.Degrees, -300, LiveTrafficSource.Stars);
-        var arrival = Simulated("ARR1", OnFinal(4), Runway28R.TrueHeading.Degrees, 140, onGround: false, new FinalApproachPhase());
+        AircraftState flaring = Shadow(
+            "LIVE1",
+            OnRunway(300),
+            Runway28R.ElevationFt + 30,
+            130,
+            Runway28R.TrueHeading.Degrees,
+            -300,
+            LiveTrafficSource.Stars
+        );
+        AircraftState arrival = Simulated("ARR1", OnFinal(4), Runway28R.TrueHeading.Degrees, 140, onGround: false, new FinalApproachPhase());
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, Runway28R, Ctx(arrival, flaring));
 
@@ -165,12 +173,12 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void LandingClearance_WarnsForALiveDepartureRollingOnTheRunway_WithTheLandmarkWording()
     {
-        var rolling = Shadow("LIVE1", OnRunway(300), Runway28R.ElevationFt, 60, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
-        var arrival = Simulated("ARR1", OnFinal(4), Runway28R.TrueHeading.Degrees, 140, onGround: false, new FinalApproachPhase());
+        AircraftState rolling = Shadow("LIVE1", OnRunway(300), Runway28R.ElevationFt, 60, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
+        AircraftState arrival = Simulated("ARR1", OnFinal(4), Runway28R.TrueHeading.Degrees, 140, onGround: false, new FinalApproachPhase());
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, Runway28R, Ctx(arrival, rolling));
 
-        var warning = Assert.Single(arrival.PendingWarnings);
+        string warning = Assert.Single(arrival.PendingWarnings);
         Assert.Contains("LIVE1", warning);
         Assert.Contains("3-10-3.a.2", warning);
     }
@@ -178,14 +186,14 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void LandingClearance_DesignatorOnly_WarnsForAShadowOnTheRunwaySurface()
     {
-        var rollout = Shadow("LIVE1", OnRunway(2500), Runway28R.ElevationFt, 60, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
+        AircraftState rollout = Shadow("LIVE1", OnRunway(2500), Runway28R.ElevationFt, 60, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
         rollout.LiveTraffic!.LandedOnRunway = true;
-        var arrival = Simulated("ARR1", OnFinal(6), Runway28R.TrueHeading.Degrees, 150, onGround: false, new FinalApproachPhase());
+        AircraftState arrival = Simulated("ARR1", OnFinal(6), Runway28R.TrueHeading.Degrees, 150, onGround: false, new FinalApproachPhase());
         arrival.FlightPlan.Destination = "KOAK";
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, "28R", Ctx(arrival, rollout));
 
-        var warning = Assert.Single(arrival.PendingWarnings);
+        string warning = Assert.Single(arrival.PendingWarnings);
         Assert.Contains("LIVE1", warning);
         Assert.Contains("3-10-3.a.1", warning);
     }
@@ -193,7 +201,7 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void LandingClearance_AShadowOnShortFinalIsSequencing_NotAnOccupant()
     {
-        var shortFinal = Shadow(
+        AircraftState shortFinal = Shadow(
             "LIVE1",
             OnFinal(1.2),
             Runway28R.ElevationFt + 400,
@@ -202,7 +210,7 @@ public class LiveTrafficParticipationTests
             -600,
             LiveTrafficSource.Stars
         );
-        var arrival = Simulated("ARR1", OnFinal(6), Runway28R.TrueHeading.Degrees, 150, onGround: false, new FinalApproachPhase());
+        AircraftState arrival = Simulated("ARR1", OnFinal(6), Runway28R.TrueHeading.Degrees, 150, onGround: false, new FinalApproachPhase());
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, Runway28R, Ctx(arrival, shortFinal));
 
@@ -212,11 +220,19 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void LineUpAndWait_OnFinalAdvisory_ReportsTheClosestRunwayOnly_ForParallels()
     {
-        var runway28L = NavigationDatabase.Instance.GetRunway("OAK", "28L")!;
+        RunwayInfo runway28L = NavigationDatabase.Instance.GetRunway("OAK", "28L")!;
         var threshold28L = new LatLon(runway28L.ThresholdLatitude, runway28L.ThresholdLongitude);
-        var on28L = GeoMath.ProjectPoint(threshold28L, runway28L.TrueHeading.ToReciprocal(), 4);
-        var shadow = Shadow("LIVE1", on28L, runway28L.ElevationFt + 1300, 140, runway28L.TrueHeading.Degrees, -700, LiveTrafficSource.Stars);
-        var departure = Simulated("DEP1", OnRunway(0), Runway28R.TrueHeading.Degrees, 0, onGround: true, new LinedUpAndWaitingPhase());
+        LatLon on28L = GeoMath.ProjectPoint(threshold28L, runway28L.TrueHeading.ToReciprocal(), 4);
+        AircraftState shadow = Shadow(
+            "LIVE1",
+            on28L,
+            runway28L.ElevationFt + 1300,
+            140,
+            runway28L.TrueHeading.Degrees,
+            -700,
+            LiveTrafficSource.Stars
+        );
+        AircraftState departure = Simulated("DEP1", OnRunway(0), Runway28R.TrueHeading.Degrees, 0, onGround: true, new LinedUpAndWaitingPhase());
 
         RunwaySafetyAdvisor.WarnIfTrafficOnFinal(departure, Runway28R, Ctx(departure, shadow));
 
@@ -226,8 +242,16 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void LandingClearance_IgnoresAShadowCrossingTheRunway()
     {
-        var crossing = Shadow("LIVE1", OnRunway(6000), Runway28R.ElevationFt, 15, Runway28R.TrueHeading.Degrees + 90, 0, LiveTrafficSource.Asdex);
-        var arrival = Simulated("ARR1", OnFinal(4), Runway28R.TrueHeading.Degrees, 140, onGround: false, new FinalApproachPhase());
+        AircraftState crossing = Shadow(
+            "LIVE1",
+            OnRunway(6000),
+            Runway28R.ElevationFt,
+            15,
+            Runway28R.TrueHeading.Degrees + 90,
+            0,
+            LiveTrafficSource.Asdex
+        );
+        AircraftState arrival = Simulated("ARR1", OnFinal(4), Runway28R.TrueHeading.Degrees, 140, onGround: false, new FinalApproachPhase());
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, Runway28R, Ctx(arrival, crossing));
 
@@ -237,13 +261,29 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void LineUpAndWait_WarnsForLiveTrafficOnFinal_WithinSixMiles()
     {
-        var onFinal = Shadow("LIVE1", OnFinal(4.5), Runway28R.ElevationFt + 1400, 150, Runway28R.TrueHeading.Degrees, -700, LiveTrafficSource.Stars);
-        var farOut = Shadow("LIVE2", OnFinal(9), Runway28R.ElevationFt + 2800, 170, Runway28R.TrueHeading.Degrees, -700, LiveTrafficSource.Stars);
-        var departure = Simulated("DEP1", OnRunway(0), Runway28R.TrueHeading.Degrees, 0, onGround: true, new LinedUpAndWaitingPhase());
+        AircraftState onFinal = Shadow(
+            "LIVE1",
+            OnFinal(4.5),
+            Runway28R.ElevationFt + 1400,
+            150,
+            Runway28R.TrueHeading.Degrees,
+            -700,
+            LiveTrafficSource.Stars
+        );
+        AircraftState farOut = Shadow(
+            "LIVE2",
+            OnFinal(9),
+            Runway28R.ElevationFt + 2800,
+            170,
+            Runway28R.TrueHeading.Degrees,
+            -700,
+            LiveTrafficSource.Stars
+        );
+        AircraftState departure = Simulated("DEP1", OnRunway(0), Runway28R.TrueHeading.Degrees, 0, onGround: true, new LinedUpAndWaitingPhase());
 
         RunwaySafetyAdvisor.WarnIfTrafficOnFinal(departure, Runway28R, Ctx(departure, onFinal, farOut));
 
-        var warning = Assert.Single(departure.PendingWarnings);
+        string warning = Assert.Single(departure.PendingWarnings);
         Assert.Contains("traffic, LIVE1, 4.5 mile final", warning);
         Assert.DoesNotContain("LIVE2", warning);
         Assert.Contains("3-9-4.d", warning);
@@ -252,8 +292,16 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void LineUpAndWait_ThroughTheDispatcher_CarriesTheOnFinalAdvisory()
     {
-        var onFinal = Shadow("LIVE1", OnFinal(3), Runway28R.ElevationFt + 950, 140, Runway28R.TrueHeading.Degrees, -700, LiveTrafficSource.Stars);
-        var departure = Simulated("DEP1", OnRunway(0), Runway28R.TrueHeading.Degrees, 0, onGround: true, null);
+        AircraftState onFinal = Shadow(
+            "LIVE1",
+            OnFinal(3),
+            Runway28R.ElevationFt + 950,
+            140,
+            Runway28R.TrueHeading.Degrees,
+            -700,
+            LiveTrafficSource.Stars
+        );
+        AircraftState departure = Simulated("DEP1", OnRunway(0), Runway28R.TrueHeading.Degrees, 0, onGround: true, null);
         departure.Position = GeoMath.ProjectPoint(OnRunway(0), Runway28R.TrueHeading - 90, 300 / GeoMath.FeetPerNm);
         departure.Phases = new PhaseList();
         departure.Phases.Add(
@@ -268,9 +316,9 @@ public class LiveTrafficParticipationTests
         );
         departure.Phases.Start(CommandDispatcher.BuildMinimalContext(departure));
 
-        var parsed = CommandParser.ParseCompound("LUAW");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("LUAW");
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, departure, Ctx(departure, onFinal));
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, departure, Ctx(departure, onFinal));
 
         Assert.True(result.Success, result.Message);
         Assert.Contains(
@@ -284,10 +332,10 @@ public class LiveTrafficParticipationTests
     [Fact]
     public void Evaluator_DepartureBehindALiveArrivalStillOnTheRunway_RecordsTheWakeEvent()
     {
-        var lead = Shadow("LIVE1", OnRunway(1500), Runway28R.ElevationFt, 40, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
+        AircraftState lead = Shadow("LIVE1", OnRunway(1500), Runway28R.ElevationFt, 40, Runway28R.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex);
         lead.AircraftType = "C172";
         lead.LiveTraffic!.LandedOnRunway = true;
-        var follower = Simulated("N222BB", OnRunway(0), Runway28R.TrueHeading.Degrees, 0, onGround: true, new LinedUpAndWaitingPhase());
+        AircraftState follower = Simulated("N222BB", OnRunway(0), Runway28R.TrueHeading.Degrees, 0, onGround: true, new LinedUpAndWaitingPhase());
         follower.AircraftType = "C172";
         follower.FlightPlan.FlightRules = "VFR";
         var evaluator = new SoloTrainingEvaluator();
@@ -298,9 +346,9 @@ public class LiveTrafficParticipationTests
         follower.Phases.CurrentPhase!.Status = PhaseStatus.Active;
         follower.IndicatedAirspeed = 40;
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 21, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 21, AirspaceDatabase.Default);
 
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Contains("clear of the runway", notice.RequiredText);
     }
 
@@ -308,12 +356,20 @@ public class LiveTrafficParticipationTests
     public void Evaluator_ArrivalBehindAJustDepartedShadow_IsScoredAfterLiftoff()
     {
         // The departure latch keeps the shadow a Departing on 28R after liftoff, inside the §3-9-6 landmarks.
-        var lead = Shadow("LIVE1", OnRunway(2500), Runway28R.ElevationFt + 150, 150, Runway28R.TrueHeading.Degrees, 1_500, LiveTrafficSource.Stars);
+        AircraftState lead = Shadow(
+            "LIVE1",
+            OnRunway(2500),
+            Runway28R.ElevationFt + 150,
+            150,
+            Runway28R.TrueHeading.Degrees,
+            1_500,
+            LiveTrafficSource.Stars
+        );
         lead.LiveTraffic!.DepartedOnRunway = true;
         lead.LiveTraffic.LatchedRunwayAirport = "OAK";
         lead.LiveTraffic.LatchedRunwayDesignator = "28R";
         lead.LiveTraffic.LastRunwayUse = RunwayUseKind.Departing;
-        var arrival = Simulated("AAL2", OnFinal(0.6), Runway28R.TrueHeading.Degrees, 130, onGround: false, new FinalApproachPhase());
+        AircraftState arrival = Simulated("AAL2", OnFinal(0.6), Runway28R.TrueHeading.Degrees, 130, onGround: false, new FinalApproachPhase());
         arrival.Altitude = Runway28R.ElevationFt + 200;
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, arrival], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
@@ -324,7 +380,7 @@ public class LiveTrafficParticipationTests
         arrival.Phases.Add(new LandingPhase());
         arrival.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
-        var notices = evaluator.Evaluate([lead, arrival], scenarioElapsedSeconds: 21, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, arrival], scenarioElapsedSeconds: 21, AirspaceDatabase.Default);
 
         Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
     }
@@ -345,8 +401,16 @@ public class LiveTrafficParticipationTests
                 PrimaryAirportId = "KOAK",
             },
         };
-        var overThreshold = OnRunway(200);
-        var spawn = Shadow("LIVE1", overThreshold, Runway28R.ElevationFt + 30, 130, Runway28R.TrueHeading.Degrees, -300, LiveTrafficSource.Stars);
+        LatLon overThreshold = OnRunway(200);
+        AircraftState spawn = Shadow(
+            "LIVE1",
+            overThreshold,
+            Runway28R.ElevationFt + 30,
+            130,
+            Runway28R.TrueHeading.Degrees,
+            -300,
+            LiveTrafficSource.Stars
+        );
         engine.World.AddAircraft(spawn);
 
         engine.TickOneSecond();

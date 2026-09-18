@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Proto;
 
 namespace Yaat.Sim.Tests;
 
@@ -25,27 +26,27 @@ public class NavigationDatabaseAirportSidecarsTests
     [Fact]
     public void NavigationDatabase_FullConstructor_LoadsSidecarsFromBaseDir()
     {
-        var navDbPath = Path.Combine("TestData", "NavData.dat");
+        string navDbPath = Path.Combine("TestData", "NavData.dat");
         if (!File.Exists(navDbPath))
         {
             return;
         }
 
-        var cifpPath = TestVnasData.GetCifpPath();
+        string? cifpPath = TestVnasData.GetCifpPath();
         if (cifpPath is null)
         {
             return;
         }
 
-        var bytes = File.ReadAllBytes(navDbPath);
-        var navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
+        byte[] bytes = File.ReadAllBytes(navDbPath);
+        NavDataSet navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
 
         // Point at the test fixture directory so we don't depend on the production bundled JSONs.
         string artccsDir = Path.Combine(AppContext.BaseDirectory, "TestData", "ARTCCs");
 
         var db = new NavigationDatabase(navData, cifpPath, artccsBaseDir: artccsDir);
 
-        var koakRoutes = db.AirportSidecars.GetTaxiRoutes("KOAK");
+        IReadOnlyList<TaxiRouteDefinition> koakRoutes = db.AirportSidecars.GetTaxiRoutes("KOAK");
         Assert.Equal(3, koakRoutes.Count);
         Assert.Contains(koakRoutes, r => r.Name == "DEP 30 via W");
     }

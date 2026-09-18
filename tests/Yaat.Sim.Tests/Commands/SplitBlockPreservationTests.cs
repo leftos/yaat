@@ -95,14 +95,14 @@ public class SplitBlockPreservationTests : IDisposable
             },
         };
 
-        var ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false);
-        var parsed = CommandParser.ParseCompound("AT OAK FH 270, HO 2W");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("AT OAK FH 270, HO 2W");
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        CommandResult dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
         Assert.True(dispatchResult.Success, dispatchResult.Message);
 
-        var original = Assert.Single(ac.Queue.Blocks);
-        var sourceText = original.SourceCommandText;
+        CommandBlock original = Assert.Single(ac.Queue.Blocks);
+        string? sourceText = original.SourceCommandText;
         Assert.False(string.IsNullOrEmpty(sourceText));
 
         // Distinctive runtime state the rebuild must carry over verbatim.
@@ -114,18 +114,18 @@ public class SplitBlockPreservationTests : IDisposable
         original.TrackApplied = true;
 
         // Fresh immediate lateral supersede: conflicts with the FH half only → block is split.
-        var supersede = CommandParser.ParseCompound("FH 090");
+        ParseResult<CompoundCommand> supersede = CommandParser.ParseCompound("FH 090");
         Assert.True(supersede.IsSuccess, supersede.Reason);
-        var supersedeResult = CommandDispatcher.DispatchCompound(supersede.Value!, ac, ctx);
+        CommandResult supersedeResult = CommandDispatcher.DispatchCompound(supersede.Value!, ac, ctx);
         Assert.True(supersedeResult.Success, supersedeResult.Message);
 
-        var survivor = Assert.Single(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
+        CommandBlock survivor = Assert.Single(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
         Assert.NotSame(original, survivor);
 
         // Re-derived by CreateBlock from the surviving HO:
         Assert.NotNull(survivor.ApplyAction);
         Assert.NotNull(survivor.ParsedCommands);
-        var kept = Assert.Single(survivor.ParsedCommands!);
+        ParsedCommand kept = Assert.Single(survivor.ParsedCommands!);
         Assert.True(TrackEngine.IsTrackCommand(kept));
         Assert.True(survivor.HasTrackCommand);
         Assert.False(survivor.HasDeleteCommand);

@@ -38,7 +38,7 @@ public class ForcedLandingTests : IDisposable
     private static AircraftState MakeAircraftOnFinal(RunwayInfo rwy, double distNm, double agl, double ias)
     {
         var threshold = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
-        var startPos = GeoMath.ProjectPoint(threshold, rwy.TrueHeading.ToReciprocal(), distNm);
+        LatLon startPos = GeoMath.ProjectPoint(threshold, rwy.TrueHeading.ToReciprocal(), distNm);
         return new AircraftState
         {
             Callsign = "TEST1",
@@ -111,10 +111,10 @@ public class ForcedLandingTests : IDisposable
     [Fact]
     public void ForcedLanding_TooHighOnFinal_LandsInsteadOfGoingAround()
     {
-        var rwy = MakeRunway();
+        RunwayInfo rwy = MakeRunway();
         // 3000 ft high at 2 nm — impossible to make on a normal glidepath, so without the
         // override the too-high-at-MAP trigger fires a go-around.
-        var ac = MakeAircraftOnFinal(rwy, distNm: 2.0, agl: 3000, ias: 220);
+        AircraftState ac = MakeAircraftOnFinal(rwy, distNm: 2.0, agl: 3000, ias: 220);
         ac.Phases = new PhaseList { AssignedRunway = rwy, ForceLanding = true };
         ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         ac.Phases.Add(new LandingPhase());
@@ -123,7 +123,7 @@ public class ForcedLandingTests : IDisposable
         var world = new SimulationWorld();
         world.AddAircraft(ac);
 
-        var result = Run(world, ac, PreTick);
+        RunResult result = Run(world, ac, PreTick);
         Assert.False(result.WentAround, "forced landing must suppress the automatic go-around");
         Assert.True(result.Landed, "forced landing must drive the aircraft to a touchdown");
     }
@@ -131,8 +131,8 @@ public class ForcedLandingTests : IDisposable
     [Fact]
     public void WithoutForceLanding_TooHighOnFinal_GoesAround()
     {
-        var rwy = MakeRunway();
-        var ac = MakeAircraftOnFinal(rwy, distNm: 2.0, agl: 3000, ias: 220);
+        RunwayInfo rwy = MakeRunway();
+        AircraftState ac = MakeAircraftOnFinal(rwy, distNm: 2.0, agl: 3000, ias: 220);
         ac.Phases = new PhaseList { AssignedRunway = rwy, ForceLanding = false };
         ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         ac.Phases.Add(new LandingPhase());
@@ -141,16 +141,16 @@ public class ForcedLandingTests : IDisposable
         var world = new SimulationWorld();
         world.AddAircraft(ac);
 
-        var result = Run(world, ac, PreTick);
+        RunResult result = Run(world, ac, PreTick);
         Assert.True(result.WentAround, "an aircraft this high should auto-go-around without the override");
     }
 
     [Fact]
     public void ForcedLanding_UnstableInLandingPhase_SuppressesGoAround()
     {
-        var rwy = MakeRunway();
+        RunwayInfo rwy = MakeRunway();
         // Already in the landing phase, well above 1.3·Vref (overspeed gate failure).
-        var ac = MakeAircraftOnFinal(rwy, distNm: 1.0, agl: 200, ias: 200);
+        AircraftState ac = MakeAircraftOnFinal(rwy, distNm: 1.0, agl: 200, ias: 200);
         ac.Phases = new PhaseList { AssignedRunway = rwy, ForceLanding = true };
         ac.Phases.Add(new LandingPhase());
         ac.Targets.TargetSpeed = ac.IndicatedAirspeed;
@@ -159,7 +159,7 @@ public class ForcedLandingTests : IDisposable
         var world = new SimulationWorld();
         world.AddAircraft(ac);
 
-        var result = Run(world, ac, PreTick, maxSeconds: 60);
+        RunResult result = Run(world, ac, PreTick, maxSeconds: 60);
         Assert.False(result.WentAround, "forced landing must suppress the unstable-approach go-around");
         Assert.True(result.Landed, "forced landing must reach a touchdown");
     }
@@ -167,10 +167,10 @@ public class ForcedLandingTests : IDisposable
     [Fact]
     public void ForcedLanding_NoLandingClearance_SuppressesGoAroundAndLands()
     {
-        var rwy = MakeRunway();
+        RunwayInfo rwy = MakeRunway();
         // No landing clearance at all (AutoClearedToLand off, no CLAND). Normally the
         // no-clearance go-around fires by 200 ft AGL; ForceLanding must suppress it and land.
-        var ac = MakeAircraftOnFinal(rwy, distNm: 2.0, agl: 1500, ias: 160);
+        AircraftState ac = MakeAircraftOnFinal(rwy, distNm: 2.0, agl: 1500, ias: 160);
         ac.Phases = new PhaseList { AssignedRunway = rwy, ForceLanding = true };
         ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         ac.Phases.Add(new LandingPhase());
@@ -179,7 +179,7 @@ public class ForcedLandingTests : IDisposable
         var world = new SimulationWorld();
         world.AddAircraft(ac);
 
-        var result = Run(world, ac, PreTickNoAutoClear);
+        RunResult result = Run(world, ac, PreTickNoAutoClear);
         Assert.False(result.WentAround, "forced landing must suppress the no-clearance go-around");
         Assert.True(result.Landed, "forced landing must reach a touchdown without a clearance");
     }

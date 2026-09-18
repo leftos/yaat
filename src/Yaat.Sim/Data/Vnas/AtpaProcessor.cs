@@ -56,13 +56,13 @@ public sealed partial class AtpaProcessor
         }
 
         // Pre-build ULID → "SubsetSectorId" map once per call
-        var tcpCodeByUlid = BuildTcpCodeMap(starsConfig.Tcps);
+        Dictionary<string, string> tcpCodeByUlid = BuildTcpCodeMap(starsConfig.Tcps);
 
         // vNAS disables a volume by repointing its airportId at an unrelated airport (e.g. the SFO side-by
         // volumes set to OVE) while leaving the threshold at the real runway. Such a volume resolves no
         // runway; drop it so it neither captures traffic nor competes in best-fit association.
         var activeVolumes = new List<AtpaVolumeConfig>(volumes.Count);
-        foreach (var volume in volumes)
+        foreach (AtpaVolumeConfig volume in volumes)
         {
             if (AtpaVolumeGeometry.IsActiveVolume(volume))
             {
@@ -85,15 +85,15 @@ public sealed partial class AtpaProcessor
             members[v] = [];
         }
 
-        foreach (var ac in snapshot)
+        foreach (AircraftState ac in snapshot)
         {
-            var best = -1;
-            var bestScore = double.MaxValue;
-            var bestScratchpadMatch = false;
-            var bestSubjectEligible = true;
+            int best = -1;
+            double bestScore = double.MaxValue;
+            bool bestScratchpadMatch = false;
+            bool bestSubjectEligible = true;
             for (int v = 0; v < activeVolumes.Count; v++)
             {
-                var volume = activeVolumes[v];
+                AtpaVolumeConfig volume = activeVolumes[v];
                 if (!AtpaVolumeGeometry.IsInside(volume, ac))
                 {
                     continue;
@@ -104,7 +104,7 @@ public sealed partial class AtpaProcessor
                     continue;
                 }
 
-                var disposition = ClassifyScratchpad(volume, ac);
+                ScratchpadDisposition disposition = ClassifyScratchpad(volume, ac);
                 if (disposition == ScratchpadDisposition.Excluded)
                 {
                     continue;
@@ -115,8 +115,8 @@ public sealed partial class AtpaProcessor
                     continue;
                 }
 
-                var score = FitScore(volume, ac);
-                var scratchpadMatch = ScratchpadMatchesVolumeRunway(ac, volume);
+                double score = FitScore(volume, ac);
+                bool scratchpadMatch = ScratchpadMatchesVolumeRunway(ac, volume);
                 if (IsBetterFit(best, score, scratchpadMatch, bestScore, bestScratchpadMatch))
                 {
                     best = v;
@@ -165,8 +165,8 @@ public sealed partial class AtpaProcessor
         // Resolve TCP lists for this volume once. vNAS adapts each TCP with AtpaConeType
         // { Alert, AlertAndMonitor } (Data/Facilities/AtpaConeType.cs): AlertAndMonitor positions
         // display the monitor cone; both Alert and AlertAndMonitor positions display alert/warning cones.
-        var monitorTcpCodes = ResolveTcpCodes(volume.Tcps, monitorList: true, tcpCodeByUlid);
-        var alertTcpCodes = ResolveTcpCodes(volume.Tcps, monitorList: false, tcpCodeByUlid);
+        List<string> monitorTcpCodes = ResolveTcpCodes(volume.Tcps, monitorList: true, tcpCodeByUlid);
+        List<string> alertTcpCodes = ResolveTcpCodes(volume.Tcps, monitorList: false, tcpCodeByUlid);
 
         // Each aircraft (except the lead) gets a result referencing the aircraft ahead. An "Ineligible"
         // scratchpad track stays in the chain — it can be the lead/reference for the track behind it — but
@@ -178,13 +178,13 @@ public sealed partial class AtpaProcessor
                 continue;
             }
 
-            var follower = inVolume[i].Ac;
-            var lead = inVolume[i - 1].Ac;
+            AircraftState follower = inVolume[i].Ac;
+            AircraftState lead = inVolume[i - 1].Ac;
 
-            var actual = GeoMath.DistanceNm(follower.Position, lead.Position);
-            var required = ComputeRequiredSeparation(lead, follower, volume, inVolume[i].DistFromThreshold);
-            var closureKt = follower.GroundSpeed - lead.GroundSpeed;
-            var coneState = DetermineConeState(actual, required, closureKt);
+            double actual = GeoMath.DistanceNm(follower.Position, lead.Position);
+            double required = ComputeRequiredSeparation(lead, follower, volume, inVolume[i].DistFromThreshold);
+            double closureKt = follower.GroundSpeed - lead.GroundSpeed;
+            AtpaConeState coneState = DetermineConeState(actual, required, closureKt);
 
             // The monitor/alert TCP code lists are static volume adaptation (who is allowed to see the
             // cone); the live cone state above is what drives Monitor vs Warning vs Alert rendering.
@@ -223,8 +223,8 @@ public sealed partial class AtpaProcessor
     /// </summary>
     private static double FitScore(AtpaVolumeConfig volume, AircraftState ac)
     {
-        var headingDev = Math.Abs(AtpaVolumeGeometry.HeadingDelta(ac.TrueTrack.Degrees, AtpaVolumeGeometry.VolumeTrueHeadingDeg(volume)));
-        var cross = Math.Abs(AtpaVolumeGeometry.CrossTrackNm(volume, ac));
+        double headingDev = Math.Abs(AtpaVolumeGeometry.HeadingDelta(ac.TrueTrack.Degrees, AtpaVolumeGeometry.VolumeTrueHeadingDeg(volume)));
+        double cross = Math.Abs(AtpaVolumeGeometry.CrossTrackNm(volume, ac));
         return (headingDev / HeadingFitReferenceDeg) + (cross / CrossTrackFitReferenceNm);
     }
 
@@ -240,7 +240,7 @@ public sealed partial class AtpaProcessor
             return true;
         }
 
-        var diff = score - bestScore;
+        double diff = score - bestScore;
         if (diff < -FitTieEpsilon)
         {
             return true;
@@ -269,20 +269,20 @@ public sealed partial class AtpaProcessor
     /// </summary>
     internal static bool ScratchpadMatchesVolumeRunway(AircraftState ac, AtpaVolumeConfig volume)
     {
-        var scratchpadRunway = ParseRunwayToken(ac.Stars.Scratchpad1);
+        string? scratchpadRunway = ParseRunwayToken(ac.Stars.Scratchpad1);
         if (scratchpadRunway is null)
         {
             return false;
         }
 
-        var volumeRunway = AtpaVolumeGeometry.VolumeRunwayDesignator(volume);
+        string? volumeRunway = AtpaVolumeGeometry.VolumeRunwayDesignator(volume);
         if (string.IsNullOrEmpty(volumeRunway))
         {
             return false;
         }
 
-        var sp = RunwayIdentifier.ToDisplayDesignator(scratchpadRunway);
-        var vol = RunwayIdentifier.ToDisplayDesignator(volumeRunway);
+        string sp = RunwayIdentifier.ToDisplayDesignator(scratchpadRunway);
+        string vol = RunwayIdentifier.ToDisplayDesignator(volumeRunway);
         return vol.Equals(sp, StringComparison.OrdinalIgnoreCase) || vol.EndsWith(sp, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -294,7 +294,7 @@ public sealed partial class AtpaProcessor
             return null;
         }
 
-        var match = ScratchpadRunwayRegex().Match(scratchpad.Trim());
+        Match match = ScratchpadRunwayRegex().Match(scratchpad.Trim());
         return match.Success ? match.Groups[1].Value : null;
     }
 
@@ -312,9 +312,9 @@ public sealed partial class AtpaProcessor
         // minimum. Reduced 2.5 NM final separation (7110.65 5-5-4) applies only when the volume enables it AND
         // the trailing aircraft is within the configured distance of the threshold; outside that the floor is
         // 3.0 NM. Wake still binds under reduced separation (5-5-4 para 10).
-        var reducedApplies = volume.TwoPointFiveApproachEnabled && (followerDistanceFromThresholdNm <= volume.TwoPointFiveApproachDistance);
-        var radarFloor = reducedApplies ? 2.5 : 3.0;
-        var wake = WakeTurbulenceData.OnApproachWakeSeparationNm(
+        bool reducedApplies = volume.TwoPointFiveApproachEnabled && (followerDistanceFromThresholdNm <= volume.TwoPointFiveApproachDistance);
+        double radarFloor = reducedApplies ? 2.5 : 3.0;
+        double wake = WakeTurbulenceData.OnApproachWakeSeparationNm(
             lead.AircraftType,
             AircraftCategorization.Categorize(lead.AircraftType),
             follower.AircraftType,
@@ -351,7 +351,7 @@ public sealed partial class AtpaProcessor
             return AtpaConeState.Monitor;
         }
 
-        var secondsToViolation = (actualNm - allowedNm) / (closureKt / 3600.0);
+        double secondsToViolation = (actualNm - allowedNm) / (closureKt / 3600.0);
         if (secondsToViolation <= AlertHorizonSeconds)
         {
             return AtpaConeState.Alert;
@@ -367,7 +367,7 @@ public sealed partial class AtpaProcessor
 
     private static bool IsExcludedByTcp(AtpaVolumeConfig volume, AircraftState ac, Dictionary<string, string> tcpCodeByUlid)
     {
-        var owner = ac.Track.Owner;
+        TrackOwner? owner = ac.Track.Owner;
         if (volume.ExcludedTcpIds.Count == 0 || owner is null)
         {
             return false;
@@ -378,10 +378,10 @@ public sealed partial class AtpaProcessor
         // same projection BuildTcpCodeMap produces for the monitor/alert cones) and match it
         // against the owner's TCP code. A null Subset (non-STARS owner) yields a code that no
         // real STARS TCP produces, so it simply never matches.
-        var ownerCode = $"{owner.Subset}{owner.SectorId}";
-        foreach (var ulid in volume.ExcludedTcpIds)
+        string ownerCode = $"{owner.Subset}{owner.SectorId}";
+        foreach (string ulid in volume.ExcludedTcpIds)
         {
-            if (tcpCodeByUlid.TryGetValue(ulid, out var code) && code.Equals(ownerCode, StringComparison.Ordinal))
+            if (tcpCodeByUlid.TryGetValue(ulid, out string? code) && code.Equals(ownerCode, StringComparison.Ordinal))
             {
                 return true;
             }
@@ -412,15 +412,15 @@ public sealed partial class AtpaProcessor
     /// </summary>
     private static ScratchpadDisposition ClassifyScratchpad(AtpaVolumeConfig volume, AircraftState ac)
     {
-        foreach (var sp in volume.Scratchpads)
+        foreach (AtpaScratchpadConfig sp in volume.Scratchpads)
         {
-            var entry = sp.Entry;
+            string entry = sp.Entry;
             if (string.IsNullOrEmpty(entry))
             {
                 continue;
             }
 
-            var scratchpadToCheck = sp.ScratchPadNumber.Equals("Two", StringComparison.OrdinalIgnoreCase)
+            string? scratchpadToCheck = sp.ScratchPadNumber.Equals("Two", StringComparison.OrdinalIgnoreCase)
                 ? ac.Stars.Scratchpad2
                 : ac.Stars.Scratchpad1;
 
@@ -446,16 +446,16 @@ public sealed partial class AtpaProcessor
     private static List<string> ResolveTcpCodes(List<AtpaVolumeTcpConfig> volumeTcps, bool monitorList, Dictionary<string, string> tcpCodeByUlid)
     {
         var codes = new List<string>();
-        foreach (var vtcp in volumeTcps)
+        foreach (AtpaVolumeTcpConfig vtcp in volumeTcps)
         {
-            var isMonitor = vtcp.ConeType.Equals(ConeTypeAlertAndMonitor, StringComparison.OrdinalIgnoreCase);
-            var isAlert = isMonitor || vtcp.ConeType.Equals(ConeTypeAlert, StringComparison.OrdinalIgnoreCase);
+            bool isMonitor = vtcp.ConeType.Equals(ConeTypeAlertAndMonitor, StringComparison.OrdinalIgnoreCase);
+            bool isAlert = isMonitor || vtcp.ConeType.Equals(ConeTypeAlert, StringComparison.OrdinalIgnoreCase);
             if (monitorList ? !isMonitor : !isAlert)
             {
                 continue;
             }
 
-            if (tcpCodeByUlid.TryGetValue(vtcp.TcpId, out var code))
+            if (tcpCodeByUlid.TryGetValue(vtcp.TcpId, out string? code))
             {
                 codes.Add(code);
             }
@@ -467,7 +467,7 @@ public sealed partial class AtpaProcessor
     private static Dictionary<string, string> BuildTcpCodeMap(List<TcpConfig> tcps)
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var tcp in tcps)
+        foreach (TcpConfig tcp in tcps)
         {
             if (!string.IsNullOrEmpty(tcp.Id))
             {

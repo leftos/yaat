@@ -20,7 +20,7 @@ internal static class RejectedTakeoffTestRig
 
     internal static RunwayInfo Runway28R()
     {
-        var end = GeoMath.ProjectPoint(37.72, -122.22, new TrueHeading(270), PavementLengthNm);
+        (double Lat, double Lon) end = GeoMath.ProjectPoint(37.72, -122.22, new TrueHeading(270), PavementLengthNm);
         return TestRunwayFactory.Make(
             designator: "28R",
             airportId: "OAK",
@@ -53,7 +53,7 @@ internal static class RejectedTakeoffTestRig
 
     internal static AircraftState MakeLuawOccupant(RunwayInfo runway, double downfieldFt)
     {
-        var occ = MakeOnRunwayAircraft("OCC1", runway, downfieldFt, runway.TrueHeading, iasKts: 0);
+        AircraftState occ = MakeOnRunwayAircraft("OCC1", runway, downfieldFt, runway.TrueHeading, iasKts: 0);
         occ.Phases = new PhaseList { AssignedRunway = runway };
         occ.Phases.Add(new LinedUpAndWaitingPhase());
         occ.Phases.Start(CommandDispatcher.BuildMinimalContext(occ));
@@ -67,7 +67,7 @@ internal static class RejectedTakeoffTestRig
     /// </summary>
     internal static AircraftState MakeRollingLeader(RunwayInfo runway, double downfieldFt, double groundSpeedKts, bool rejecting)
     {
-        var lead = MakeOnRunwayAircraft("LEAD1", runway, downfieldFt, runway.TrueHeading, groundSpeedKts);
+        AircraftState lead = MakeOnRunwayAircraft("LEAD1", runway, downfieldFt, runway.TrueHeading, groundSpeedKts);
         lead.Phases = new PhaseList { AssignedRunway = runway };
         lead.Phases.Add(rejecting ? new RejectedTakeoffPhase(rollElapsedSeconds: 0) : new TakeoffPhase());
         lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead));
@@ -82,7 +82,7 @@ internal static class RejectedTakeoffTestRig
     /// </summary>
     internal static AircraftState MakeAirborneLeader(RunwayInfo runway, double downfieldFt, double iasKts, double aglFt)
     {
-        var lead = MakeRollingLeader(runway, downfieldFt, iasKts, rejecting: false);
+        AircraftState lead = MakeRollingLeader(runway, downfieldFt, iasKts, rejecting: false);
         lead.IsOnGround = false;
         lead.Altitude = runway.ElevationFt + aglFt;
         lead.VerticalSpeed = 2000;
@@ -97,8 +97,8 @@ internal static class RejectedTakeoffTestRig
     internal static AircraftState MakeOpposingLeader(RunwayInfo runway, double downfieldFt, double groundSpeedKts)
     {
         string oppositeEnd = runway.IsActiveEnd(runway.Id.End1) ? runway.Id.End2 : runway.Id.End1;
-        var opposing = runway.ForApproach(oppositeEnd);
-        var lead = MakeOnRunwayAircraft("LEAD1", runway, downfieldFt, opposing.TrueHeading, groundSpeedKts);
+        RunwayInfo opposing = runway.ForApproach(oppositeEnd);
+        AircraftState lead = MakeOnRunwayAircraft("LEAD1", runway, downfieldFt, opposing.TrueHeading, groundSpeedKts);
         lead.Phases = new PhaseList { AssignedRunway = opposing };
         lead.Phases.Add(new TakeoffPhase());
         lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead));
@@ -157,13 +157,23 @@ internal static class RejectedTakeoffTestRig
             return;
         }
 
-        var moved = GeoMath.ProjectPoint(departure.Position.Lat, departure.Position.Lon, departure.TrueHeading, departure.GroundSpeed / 3600.0);
+        (double Lat, double Lon) moved = GeoMath.ProjectPoint(
+            departure.Position.Lat,
+            departure.Position.Lon,
+            departure.TrueHeading,
+            departure.GroundSpeed / 3600.0
+        );
         departure.Position = new LatLon(moved.Lat, moved.Lon);
     }
 
     private static AircraftState MakeOnRunwayAircraft(string callsign, RunwayInfo runway, double downfieldFt, TrueHeading heading, double iasKts)
     {
-        var pos = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading, downfieldFt / GeoMath.FeetPerNm);
+        (double Lat, double Lon) pos = GeoMath.ProjectPoint(
+            runway.ThresholdLatitude,
+            runway.ThresholdLongitude,
+            runway.TrueHeading,
+            downfieldFt / GeoMath.FeetPerNm
+        );
         return new AircraftState
         {
             Callsign = callsign,

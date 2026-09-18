@@ -29,9 +29,9 @@ public static class HoldShortResolver
     public static List<GroundNode> Find(AirportGroundLayout layout, string runwayId, string taxiway)
     {
         var result = new List<GroundNode>();
-        foreach (var node in layout.GetRunwayHoldShortNodes(runwayId))
+        foreach (GroundNode node in layout.GetRunwayHoldShortNodes(runwayId))
         {
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway(taxiway))
                 {
@@ -64,7 +64,7 @@ public static class HoldShortResolver
         double bestBehindAlongNm = double.MinValue;
         double bestBehindStraightNm = 0;
         bool anyAhead = false;
-        foreach (var n in er.HoldShortNodes)
+        foreach (GroundNode n in er.HoldShortNodes)
         {
             double alongNm = GeoMath.AlongTrackDistanceNm(n.Position, new LatLon(lat, lon), refLine.Heading);
             double straightNm = GeoMath.DistanceNm(new LatLon(lat, lon), n.Position);

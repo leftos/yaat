@@ -173,7 +173,7 @@ public sealed class AircraftLiveTraffic
             LatchedRunwayAirport = dto.LatchedRunwayAirport,
             LatchedRunwayDesignator = dto.LatchedRunwayDesignator,
         };
-        foreach (var h in dto.History ?? [])
+        foreach (LiveTrafficHistoryPointDto h in dto.History ?? [])
         {
             lt.History.Add(new LiveTrafficHistoryPoint(h.ObservedAtSimSeconds, h.Lat, h.Lon, h.AltitudeFt, h.TrueTrackDeg, h.GroundSpeedKts));
         }

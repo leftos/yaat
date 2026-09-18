@@ -46,7 +46,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
     [InlineData("W5")]
     public void OAK30_B738_ExitsSmoothly(string? exitTaxiway)
     {
-        var result = RunExitTest("OAK", "30", "B738", 130, 1.0, exitTaxiway, Rwy30ExitsThresholdOrder);
+        ExitResult? result = RunExitTest("OAK", "30", "B738", 130, 1.0, exitTaxiway, Rwy30ExitsThresholdOrder);
         if (result is null)
         {
             return;
@@ -71,7 +71,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
     [InlineData("C1")]
     public void OAK28R_C172_ExitsSmoothly(string? exitTaxiway)
     {
-        var result = RunExitTest("OAK", "28R", "C172", 70, 0.5, exitTaxiway, Rwy28RExitsThresholdOrder);
+        ExitResult? result = RunExitTest("OAK", "28R", "C172", 70, 0.5, exitTaxiway, Rwy28RExitsThresholdOrder);
         if (result is null)
         {
             return;
@@ -117,19 +117,19 @@ public class OakAllExitsTests(ITestOutputHelper output)
         string[] thresholdOrder
     )
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return null;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var runway = navDb.GetRunway(airportId, runwayId);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? runway = navDb.GetRunway(airportId, runwayId);
         Assert.NotNull(runway);
 
         // Spawn on short final
         double reciprocal = (runway.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, finalDistNm);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, finalDistNm);
 
         // Altitude: ~3° glide slope
         double altAboveField = finalDistNm * 318;
@@ -152,7 +152,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
             },
         };
 
-        var layout = new TestAirportGroundData().GetLayout(airportId);
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(airportId);
         Assert.NotNull(layout);
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
@@ -162,7 +162,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
         aircraft.Phases.Add(new HoldingAfterExitPhase());
         aircraft.Ground.Layout = layout;
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
@@ -174,12 +174,12 @@ public class OakAllExitsTests(ITestOutputHelper output)
             PrimaryAirportId = airportId,
         };
 
-        var clearResult = engine.SendCommand("TSTAC", "CLAND");
+        CommandResult clearResult = engine.SendCommand("TSTAC", "CLAND");
         Assert.True(clearResult.Success, $"CLAND failed: {clearResult.Message}");
 
         if (exitTaxiway is not null)
         {
-            var exitResult = engine.SendCommand("TSTAC", $"EXIT {exitTaxiway}");
+            CommandResult exitResult = engine.SendCommand("TSTAC", $"EXIT {exitTaxiway}");
             Assert.True(exitResult.Success, $"EXIT {exitTaxiway} failed: {exitResult.Message}");
         }
 
@@ -237,7 +237,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
         double maxDeviationFt = 0;
         int maxDeviationTime = 0;
         double sumDeviationFt = 0;
-        foreach (var (time, dev) in deviationSamples)
+        foreach ((int time, double dev) in deviationSamples)
         {
             sumDeviationFt += dev;
             if (dev > maxDeviationFt)

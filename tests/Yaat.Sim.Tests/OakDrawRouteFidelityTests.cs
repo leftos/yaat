@@ -39,7 +39,7 @@ public class OakDrawRouteFidelityTests
     private static List<int> DenseNodeIds(TaxiRoute route)
     {
         var ids = new List<int>();
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             if (ids.Count == 0 || ids[^1] != seg.ToNodeId)
             {
@@ -53,7 +53,7 @@ public class OakDrawRouteFidelityTests
     private static HashSet<int> NodeIdSet(TaxiRoute route)
     {
         var set = new HashSet<int>();
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             set.Add(seg.FromNodeId);
             set.Add(seg.ToNodeId);
@@ -65,7 +65,7 @@ public class OakDrawRouteFidelityTests
     [Fact]
     public void DenseNodePath_ReproducesPreviewRoute_OnRealGeometry()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
@@ -73,7 +73,7 @@ public class OakDrawRouteFidelityTests
 
         // Route the length of taxiway V — the cross-field corridor that runs parallel to U,
         // exactly where the sparse draw tool substituted U for V.
-        var vNodes = layout.GetNodesOnTaxiway("V");
+        List<GroundNode> vNodes = layout.GetNodesOnTaxiway("V");
         if (vNodes.Count < 2)
         {
             return;
@@ -82,9 +82,9 @@ public class OakDrawRouteFidelityTests
         GroundNode a = vNodes[0];
         GroundNode b = vNodes[0];
         double best = -1;
-        foreach (var p in vNodes)
+        foreach (GroundNode p in vNodes)
         {
-            foreach (var q in vNodes)
+            foreach (GroundNode q in vNodes)
             {
                 double d = GeoMath.DistanceNm(p.Position, q.Position);
                 if (d > best)
@@ -99,13 +99,13 @@ public class OakDrawRouteFidelityTests
         const AircraftCategory cat = AircraftCategory.Jet;
 
         // What the draw tool previews (and what the user sees and shapes).
-        var preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat);
+        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat);
         Assert.NotNull(preview);
         Assert.NotEmpty(preview!.Segments);
 
         // What the server executes when the full node list is committed.
         var densePath = DenseNodeIds(preview).Select(id => $"#{id}").ToList();
-        var resolved = TaxiPathfinder.ResolveExplicitPath(layout, a.Id, densePath, out var fail, new ExplicitPathOptions(), cat);
+        TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(layout, a.Id, densePath, out string? fail, new ExplicitPathOptions(), cat);
 
         Assert.True(resolved is not null, $"dense path failed to resolve: {fail}");
         // Faithful: the dense command visits exactly the previewed nodes — no parallel-taxiway
@@ -126,21 +126,21 @@ public class OakDrawRouteFidelityTests
     [Fact]
     public void DenseNodePath_WithDriftedStart_DropsThePassedPrefix()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
         }
 
-        var parking = layout.FindParkingByName("8B");
-        var holdShorts = layout.GetRunwayHoldShortNodes("28R");
+        GroundNode? parking = layout.FindParkingByName("8B");
+        List<GroundNode> holdShorts = layout.GetRunwayHoldShortNodes("28R");
         if (parking is null || holdShorts.Count == 0)
         {
             return;
         }
 
         const AircraftCategory cat = AircraftCategory.Jet;
-        var preview = TaxiPathfinder.FindRoute(layout, holdShorts[0].Id, parking.Id, cat);
+        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, holdShorts[0].Id, parking.Id, cat);
         if (preview is null || preview.Segments.Count < 10)
         {
             return;
@@ -151,15 +151,15 @@ public class OakDrawRouteFidelityTests
         // Simulate the drift: the aircraft has already reached the endpoint of segment 3 and is
         // heading along that segment, so the first four drawn nodes are behind it.
         const int DriftedSegmentIndex = 3;
-        var drifted = preview.Segments[DriftedSegmentIndex];
-        var driftedNode = layout.Nodes[drifted.ToNodeId];
+        TaxiRouteSegment drifted = preview.Segments[DriftedSegmentIndex];
+        GroundNode driftedNode = layout.Nodes[drifted.ToNodeId];
         double heading = GeoMath.BearingTo(layout.Nodes[drifted.FromNodeId].Position, driftedNode.Position);
 
-        var ac = MakeGroundAircraft(driftedNode.Position.Lat, driftedNode.Position.Lon, heading);
-        var result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(densePath, [], DestinationParking: "8B"), layout);
+        AircraftState ac = MakeGroundAircraft(driftedNode.Position.Lat, driftedNode.Position.Lon, heading);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(densePath, [], DestinationParking: "8B"), layout);
         Assert.True(result.Success, result.Message);
 
-        var resolved = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? resolved = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(resolved);
         _output.WriteLine($"drifted to #{driftedNode.Id} hdg={heading:F0}; preview {preview.Segments.Count} segs: {preview.ToSummary()}");
         _output.WriteLine($"resolved {resolved.Segments.Count} segs: {resolved.ToSummary()}");
@@ -186,25 +186,25 @@ public class OakDrawRouteFidelityTests
     [Fact]
     public void DenseNodePath_ImplausiblyLongResolution_IsRejected()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
         }
 
-        var vNodes = layout.GetNodesOnTaxiway("V");
+        List<GroundNode> vNodes = layout.GetNodesOnTaxiway("V");
         if (vNodes.Count < 2)
         {
             return;
         }
 
-        var preview = TaxiPathfinder.FindRoute(layout, vNodes[0].Id, vNodes[^1].Id, AircraftCategory.Jet);
+        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, vNodes[0].Id, vNodes[^1].Id, AircraftCategory.Jet);
         if (preview is null || preview.Segments.Count == 0)
         {
             return;
         }
 
-        var denseIds = DenseNodeIds(preview);
+        List<int> denseIds = DenseNodeIds(preview);
         var dense = new TaxiCommand(denseIds.Select(id => $"#{id}").ToList(), []);
         Assert.True(GroundCommandHandler.IsPlausibleNodeRefResolution(layout, dense, preview));
 
@@ -226,28 +226,28 @@ public class OakDrawRouteFidelityTests
     [Fact]
     public void DenseNodePathToParking_ClaimsStandOnlyWithToken()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
         }
 
-        var parking = layout.FindParkingByName("8B");
+        GroundNode? parking = layout.FindParkingByName("8B");
         if (parking is null)
         {
             return;
         }
 
         // Anchor the taxi at a 28R hold-short and draw a route to stand 8B.
-        var holdShorts = layout.GetRunwayHoldShortNodes("28R");
+        List<GroundNode> holdShorts = layout.GetRunwayHoldShortNodes("28R");
         if (holdShorts.Count == 0)
         {
             return;
         }
 
-        var start = holdShorts[0];
+        GroundNode start = holdShorts[0];
         const AircraftCategory cat = AircraftCategory.Jet;
-        var preview = TaxiPathfinder.FindRoute(layout, start.Id, parking.Id, cat);
+        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, start.Id, parking.Id, cat);
         if (preview is null || preview.Segments.Count == 0)
         {
             return;
@@ -257,16 +257,16 @@ public class OakDrawRouteFidelityTests
         Assert.Equal(parking.Id, preview.Segments[^1].ToNodeId);
 
         // With the @8B token the aircraft claims the stand.
-        var withToken = MakeGroundAircraft(start.Position.Lat, start.Position.Lon, 280);
-        var resultWith = GroundCommandHandler.TryTaxi(withToken, new TaxiCommand(densePath, [], DestinationParking: "8B"), layout);
+        AircraftState withToken = MakeGroundAircraft(start.Position.Lat, start.Position.Lon, 280);
+        CommandResult resultWith = GroundCommandHandler.TryTaxi(withToken, new TaxiCommand(densePath, [], DestinationParking: "8B"), layout);
         Assert.True(resultWith.Success, resultWith.Message);
         Assert.NotNull(withToken.Ground.AssignedTaxiRoute);
         Assert.Equal("8B", withToken.Ground.AssignedTaxiRoute!.DestinationParking);
         Assert.Equal(parking.Id, withToken.Ground.AssignedTaxiRoute.Segments[^1].ToNodeId);
 
         // Without the token the same path taxis to the node but does NOT claim the stand.
-        var noToken = MakeGroundAircraft(start.Position.Lat, start.Position.Lon, 280);
-        var resultNo = GroundCommandHandler.TryTaxi(noToken, new TaxiCommand(densePath, []), layout);
+        AircraftState noToken = MakeGroundAircraft(start.Position.Lat, start.Position.Lon, 280);
+        CommandResult resultNo = GroundCommandHandler.TryTaxi(noToken, new TaxiCommand(densePath, []), layout);
         Assert.True(resultNo.Success, resultNo.Message);
         Assert.Null(noToken.Ground.AssignedTaxiRoute!.DestinationParking);
     }
@@ -279,7 +279,7 @@ public class OakDrawRouteFidelityTests
     [Fact]
     public void ReadableTaxiPath_CleanNamesReproduceDrawnRoute_NonCrossing()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
@@ -291,16 +291,16 @@ public class OakDrawRouteFidelityTests
         var failures = new System.Text.StringBuilder();
 
         var nodes = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.TaxiwayIntersection).OrderBy(n => n.Id).Take(70).ToList();
-        foreach (var a in nodes)
+        foreach (GroundNode? a in nodes)
         {
-            foreach (var b in nodes)
+            foreach (GroundNode? b in nodes)
             {
                 if (a.Id >= b.Id)
                 {
                     continue;
                 }
 
-                var preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat);
+                TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat);
                 if (preview is null || preview.Segments.Count == 0)
                 {
                     continue;
@@ -314,7 +314,7 @@ public class OakDrawRouteFidelityTests
                     continue;
                 }
 
-                var names = TaxiRouteFormatter.CleanTaxiwaySequence(preview);
+                List<string> names = TaxiRouteFormatter.CleanTaxiwaySequence(preview);
                 if (names.Count < 2)
                 {
                     continue; // require at least one taxiway-to-taxiway transition
@@ -325,11 +325,11 @@ public class OakDrawRouteFidelityTests
                 // Composite junction labels ("W - W6") and runway names must never leak into the readable form.
                 Assert.DoesNotContain(names, n => n.Contains(" - ") || n.Contains("RWY", StringComparison.OrdinalIgnoreCase) || n.Contains('#'));
 
-                var path = TaxiRouteFormatter
+                List<string> path = TaxiRouteFormatter
                     .BuildReadableTaxiPath(preview, hasNamedTerminus: false)
                     .Split(' ', StringSplitOptions.RemoveEmptyEntries)
                     .ToList();
-                var resolved = TaxiPathfinder.ResolveExplicitPath(layout, a.Id, path, out var fail, new ExplicitPathOptions(), cat);
+                TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(layout, a.Id, path, out string? fail, new ExplicitPathOptions(), cat);
                 if (resolved is null || !NodeIdSet(preview).SetEquals(NodeIdSet(resolved)))
                 {
                     broken++;
@@ -348,44 +348,44 @@ public class OakDrawRouteFidelityTests
     [Fact]
     public void ReadableTaxiPath_ToParking_ReachesStandWithoutOvershoot()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
         }
 
-        var parking = layout.FindParkingByName("8B");
+        GroundNode? parking = layout.FindParkingByName("8B");
         if (parking is null)
         {
             return;
         }
 
-        var holdShorts = layout.GetRunwayHoldShortNodes("28R");
+        List<GroundNode> holdShorts = layout.GetRunwayHoldShortNodes("28R");
         if (holdShorts.Count == 0)
         {
             return;
         }
 
-        var start = holdShorts[0];
+        GroundNode start = holdShorts[0];
         const AircraftCategory cat = AircraftCategory.Jet;
-        var preview = TaxiPathfinder.FindRoute(layout, start.Id, parking.Id, cat);
+        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, start.Id, parking.Id, cat);
         if (preview is null || preview.Segments.Count == 0)
         {
             return;
         }
 
         // With a named terminus the @parking token pins the stop, so no node-ref is appended.
-        var path = TaxiRouteFormatter
+        List<string> path = TaxiRouteFormatter
             .BuildReadableTaxiPath(preview, hasNamedTerminus: true)
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .ToList();
         Assert.DoesNotContain(path, t => t.Contains(" - ") || t.StartsWith('#'));
 
-        var resolved = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(
             layout,
             start.Id,
             path,
-            out var fail,
+            out string? fail,
             new ExplicitPathOptions { DestinationHintNode = parking },
             cat
         );
@@ -396,7 +396,7 @@ public class OakDrawRouteFidelityTests
     [Fact]
     public void ReadableCommand_CrossingRoute_ReachesDrawnEndpoint()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
@@ -404,16 +404,16 @@ public class OakDrawRouteFidelityTests
 
         const AircraftCategory cat = AircraftCategory.Jet;
         var nodes = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.TaxiwayIntersection).OrderBy(n => n.Id).Take(90).ToList();
-        foreach (var a in nodes)
+        foreach (GroundNode? a in nodes)
         {
-            foreach (var b in nodes)
+            foreach (GroundNode? b in nodes)
             {
                 if (a.Id >= b.Id)
                 {
                     continue;
                 }
 
-                var preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat);
+                TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat);
                 if (preview is null || preview.Segments.Count == 0)
                 {
                     continue;
@@ -429,12 +429,12 @@ public class OakDrawRouteFidelityTests
                 }
 
                 // The command the draw tool copies for a crossing route: readable path + CROSS authorization.
-                var path = TaxiRouteFormatter
+                List<string> path = TaxiRouteFormatter
                     .BuildReadableTaxiPath(preview, hasNamedTerminus: false)
                     .Split(' ', StringSplitOptions.RemoveEmptyEntries)
                     .ToList();
-                var ac = MakeGroundAircraft(a.Position.Lat, a.Position.Lon, 280);
-                var result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(path, [], CrossRunways: crossings), layout);
+                AircraftState ac = MakeGroundAircraft(a.Position.Lat, a.Position.Lon, 280);
+                CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(path, [], CrossRunways: crossings), layout);
 
                 Assert.True(result.Success, $"{a.Id}->{b.Id} TAXI {string.Join(" ", path)} CROSS {string.Join(",", crossings)}: {result.Message}");
                 Assert.NotNull(ac.Ground.AssignedTaxiRoute);

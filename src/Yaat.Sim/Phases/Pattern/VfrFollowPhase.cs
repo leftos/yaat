@@ -97,7 +97,7 @@ public sealed class VfrFollowPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        var lead = ctx.AircraftLookup?.Invoke(TargetCallsign);
+        AircraftState? lead = ctx.AircraftLookup?.Invoke(TargetCallsign);
 
         // Remember the lead's landing runway while it is established on a straight-in
         // final/landing, so the follower can be sequenced onto that runway even after
@@ -200,13 +200,13 @@ public sealed class VfrFollowPhase : Phase
     private bool TryJoinLeadPattern(PhaseContext ctx, AircraftState lead, double gapToLeadNm)
     {
         // Extract pattern waypoints from the lead's current phase.
-        var leadWaypoints = ExtractPatternWaypoints(lead);
+        PatternWaypoints? leadWaypoints = ExtractPatternWaypoints(lead);
         if (leadWaypoints is null)
         {
             return false;
         }
 
-        var leadRunway = lead.Phases?.AssignedRunway;
+        RunwayInfo? leadRunway = lead.Phases?.AssignedRunway;
         if (leadRunway is null)
         {
             return false;
@@ -245,8 +245,8 @@ public sealed class VfrFollowPhase : Phase
 
         // Build the pattern circuit using the follower's own category (spacing
         // depends on what *we* can fly, not the lead).
-        var airportRunways = NavigationDatabase.Instance.GetRunways(leadRunway.AirportId);
-        var circuit = PatternBuilder.BuildCircuit(
+        IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(leadRunway.AirportId);
+        List<Phase> circuit = PatternBuilder.BuildCircuit(
             leadRunway,
             ctx.Category,
             ctx.Aircraft.AircraftType,
@@ -284,10 +284,10 @@ public sealed class VfrFollowPhase : Phase
         // clearance first: a CLAND issued while the follower was still pursuing its
         // lead set it on this pursuit phase list, and the rebuilt circuit must carry
         // it over (see ApplyArmedLandingClearance).
-        var phases = ctx.Aircraft.Phases ?? new PhaseList();
-        var armedClearance = phases.LandingClearance;
+        PhaseList phases = ctx.Aircraft.Phases ?? new PhaseList();
+        ClearanceType? armedClearance = phases.LandingClearance;
         string? armedClearedRunwayId = phases.ClearedRunwayId;
-        var patternRunway = CarryArmedPatternRunway(ctx.Aircraft, phases, leadRunway, leadWaypoints.Direction);
+        RunwayInfo patternRunway = CarryArmedPatternRunway(ctx.Aircraft, phases, leadRunway, leadWaypoints.Direction);
         phases.Clear(ctx);
         ctx.Aircraft.Phases = new PhaseList
         {
@@ -298,7 +298,12 @@ public sealed class VfrFollowPhase : Phase
         if (!alreadyOnDownwind)
         {
             TrueHeading reverseDownwind = leadWaypoints.DownwindHeading.ToReciprocal();
-            var leadIn = GeoMath.ProjectPoint(leadWaypoints.DownwindAbeamLat, leadWaypoints.DownwindAbeamLon, reverseDownwind, 1.0);
+            (double Lat, double Lon) leadIn = GeoMath.ProjectPoint(
+                leadWaypoints.DownwindAbeamLat,
+                leadWaypoints.DownwindAbeamLon,
+                reverseDownwind,
+                1.0
+            );
             var entry = new PatternEntryPhase
             {
                 EntryLat = leadWaypoints.DownwindAbeamLat,
@@ -317,7 +322,7 @@ public sealed class VfrFollowPhase : Phase
             };
             ctx.Aircraft.Phases.Add(entry);
         }
-        foreach (var p in circuit)
+        foreach (Phase p in circuit)
         {
             ctx.Aircraft.Phases.Add(p);
         }
@@ -417,7 +422,7 @@ public sealed class VfrFollowPhase : Phase
     {
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
         double followerCrossNm = GeoMath.SignedCrossTrackDistanceNm(followerPos, threshold, runway.TrueHeading);
-        foreach (var other in NavigationDatabase.Instance.GetRunways(runway.AirportId))
+        foreach (RunwayInfo other in NavigationDatabase.Instance.GetRunways(runway.AirportId))
         {
             // Skip the target's own pavement in either orientation (28R matches a stored 10L entry).
             bool samePavement =
@@ -433,7 +438,7 @@ public sealed class VfrFollowPhase : Phase
             {
                 continue;
             }
-            var otherOnCenterline = delta1 <= delta2 ? new LatLon(other.Lat1, other.Lon1) : new LatLon(other.Lat2, other.Lon2);
+            LatLon otherOnCenterline = delta1 <= delta2 ? new LatLon(other.Lat1, other.Lon1) : new LatLon(other.Lat2, other.Lon2);
             double otherCrossNm = GeoMath.SignedCrossTrackDistanceNm(otherOnCenterline, threshold, runway.TrueHeading);
             bool sameSideAsFollower = (Math.Sign(otherCrossNm) == Math.Sign(followerCrossNm)) && (Math.Abs(otherCrossNm) > 1e-3);
             if (sameSideAsFollower && (Math.Abs(otherCrossNm) < Math.Abs(followerCrossNm)))
@@ -462,20 +467,20 @@ public sealed class VfrFollowPhase : Phase
     private void SequenceOntoFinal(PhaseContext ctx, RunwayInfo runway)
     {
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        var finalCourse = runway.TrueHeading;
+        TrueHeading finalCourse = runway.TrueHeading;
         double crossTrack = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, threshold, finalCourse);
-        var direction = crossTrack >= 0 ? PatternDirection.Right : PatternDirection.Left;
+        PatternDirection direction = crossTrack >= 0 ? PatternDirection.Right : PatternDirection.Left;
 
         // Entry point on the extended centerline, led ahead of the follower's
         // perpendicular foot by its cross-track so the join is a ~45° intercept rather
         // than a square turn. Clamp so the entry never lands at/behind the threshold.
         double alongFinalNm = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, threshold, finalCourse.ToReciprocal());
         double entryDistNm = Math.Max(alongFinalNm - Math.Abs(crossTrack), MinFinalJoinDistNm);
-        var entry = GeoMath.ProjectPoint(threshold, finalCourse.ToReciprocal(), entryDistNm);
+        LatLon entry = GeoMath.ProjectPoint(threshold, finalCourse.ToReciprocal(), entryDistNm);
         double entryAltitude = GlideSlopeGeometry.AltitudeAtDistance(entryDistNm, runway.ElevationFt, ctx.Category);
 
-        var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-        var circuit = PatternBuilder.BuildCircuit(
+        IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+        List<Phase> circuit = PatternBuilder.BuildCircuit(
             runway,
             ctx.Category,
             ctx.Aircraft.AircraftType,
@@ -490,10 +495,10 @@ public sealed class VfrFollowPhase : Phase
             authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
         );
 
-        var phases = ctx.Aircraft.Phases ?? new PhaseList();
-        var armedClearance = phases.LandingClearance;
+        PhaseList phases = ctx.Aircraft.Phases ?? new PhaseList();
+        ClearanceType? armedClearance = phases.LandingClearance;
         string? armedClearedRunwayId = phases.ClearedRunwayId;
-        var patternRunway = CarryArmedPatternRunway(ctx.Aircraft, phases, runway, direction);
+        RunwayInfo patternRunway = CarryArmedPatternRunway(ctx.Aircraft, phases, runway, direction);
         phases.Clear(ctx);
         ctx.Aircraft.Phases = new PhaseList
         {
@@ -510,7 +515,7 @@ public sealed class VfrFollowPhase : Phase
                 Kind = PatternEntryKind.Final,
             }
         );
-        foreach (var p in circuit)
+        foreach (Phase p in circuit)
         {
             ctx.Aircraft.Phases.Add(p);
         }
@@ -645,8 +650,8 @@ public sealed class VfrFollowPhase : Phase
     /// </summary>
     private static PatternWaypoints? ExtractPatternWaypoints(AircraftState lead)
     {
-        var current = lead.Phases?.CurrentPhase;
-        var fromCurrent = WaypointsOf(current);
+        Phase? current = lead.Phases?.CurrentPhase;
+        PatternWaypoints? fromCurrent = WaypointsOf(current);
         if (fromCurrent is not null)
         {
             return fromCurrent;
@@ -661,7 +666,7 @@ public sealed class VfrFollowPhase : Phase
         {
             for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
             {
-                var waypoints = WaypointsOf(phases.Phases[i]);
+                PatternWaypoints? waypoints = WaypointsOf(phases.Phases[i]);
                 if (waypoints is not null)
                 {
                     return waypoints;
@@ -675,7 +680,7 @@ public sealed class VfrFollowPhase : Phase
         {
             for (int i = phases.CurrentIndex - 1; i >= 0; i--)
             {
-                var waypoints = WaypointsOf(phases.Phases[i]);
+                PatternWaypoints? waypoints = WaypointsOf(phases.Phases[i]);
                 if (waypoints is not null)
                 {
                     return waypoints;

@@ -31,7 +31,7 @@ public static class CommandSchemeFile
     public static string Serialize(CommandScheme scheme)
     {
         var verbs = new Dictionary<string, List<string>?>(StringComparer.Ordinal);
-        foreach (var (type, pattern) in scheme.Patterns.OrderBy(kvp => kvp.Key.ToString(), StringComparer.Ordinal))
+        foreach ((CanonicalCommandType type, CommandPattern? pattern) in scheme.Patterns.OrderBy(kvp => kvp.Key.ToString(), StringComparer.Ordinal))
         {
             verbs[type.ToString()] = [.. pattern.Aliases];
         }
@@ -52,7 +52,7 @@ public static class CommandSchemeFile
     /// <exception cref="JsonException">The text is not valid JSON, or it has no <c>verbs</c> object.</exception>
     public static CommandSchemeImport Deserialize(string json)
     {
-        var file = JsonSerializer.Deserialize<VerbFile>(json, UserPreferences.JsonOptions);
+        VerbFile? file = JsonSerializer.Deserialize<VerbFile>(json, UserPreferences.JsonOptions);
         if (file?.Verbs is null)
         {
             throw new JsonException("Command verb file has no 'verbs' object.");
@@ -61,9 +61,9 @@ public static class CommandSchemeFile
         var verbs = new Dictionary<CanonicalCommandType, List<string>>();
         var unknown = new List<string>();
 
-        foreach (var (name, aliases) in file.Verbs)
+        foreach ((string? name, List<string>? aliases) in file.Verbs)
         {
-            if (!Enum.TryParse<CanonicalCommandType>(name, ignoreCase: true, out var type) || !Enum.IsDefined(type))
+            if (!Enum.TryParse<CanonicalCommandType>(name, ignoreCase: true, out CanonicalCommandType type) || !Enum.IsDefined(type))
             {
                 unknown.Add(name);
                 continue;

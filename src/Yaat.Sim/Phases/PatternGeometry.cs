@@ -369,9 +369,9 @@ public static class PatternGeometry
         double turnOffset = direction == PatternDirection.Left ? -90.0 : 90.0;
 
         TrueHeading upwindHdg = rwyHdg;
-        TrueHeading crosswindHdg = new TrueHeading(rwyHdg.Degrees + turnOffset);
+        var crosswindHdg = new TrueHeading(rwyHdg.Degrees + turnOffset);
         TrueHeading downwindHdg = rwyHdg.ToReciprocal();
-        TrueHeading baseHdg = new TrueHeading(downwindHdg.Degrees + turnOffset);
+        var baseHdg = new TrueHeading(downwindHdg.Degrees + turnOffset);
         TrueHeading finalHdg = rwyHdg;
 
         double defaultSize = CategoryPerformance.PatternSizeNm(category);
@@ -411,19 +411,19 @@ public static class PatternGeometry
 
         // The landing threshold anchors everything the arrival flies to — downwind abeam, the base turn,
         // and the final's aim point. A displaced threshold moves all three downfield with it.
-        var threshold = LandingThreshold.Resolve(runway, authoredRunway);
+        LatLon threshold = LandingThreshold.Resolve(runway, authoredRunway);
 
         // Crosswind turn point: at the departure end anchor the caller supplied.
         (double Lat, double Lon) crosswindTurn = (depEndLat, depEndLon);
 
         // Downwind start: crosswind turn + offset perpendicular to runway
-        var downwindStart = GeoMath.ProjectPoint(crosswindTurn.Lat, crosswindTurn.Lon, crosswindHdg, patternSize);
+        (double Lat, double Lon) downwindStart = GeoMath.ProjectPoint(crosswindTurn.Lat, crosswindTurn.Lon, crosswindHdg, patternSize);
 
         // Downwind abeam: threshold offset perpendicular
-        var downwindAbeam = GeoMath.ProjectPoint(threshold.Lat, threshold.Lon, crosswindHdg, patternSize);
+        (double Lat, double Lon) downwindAbeam = GeoMath.ProjectPoint(threshold.Lat, threshold.Lon, crosswindHdg, patternSize);
 
         // Base turn point: downwind abeam + extension along downwind heading
-        var baseTurn = GeoMath.ProjectPoint(downwindAbeam.Lat, downwindAbeam.Lon, downwindHdg, baseExt);
+        (double Lat, double Lon) baseTurn = GeoMath.ProjectPoint(downwindAbeam.Lat, downwindAbeam.Lon, downwindHdg, baseExt);
 
         return new PatternWaypoints
         {
@@ -472,7 +472,7 @@ public static class PatternGeometry
 
         double result = patternSize;
 
-        foreach (var other in airportRunways)
+        foreach (RunwayInfo other in airportRunways)
         {
             // Skip the same physical runway
             if (other.Id == runway.Id)

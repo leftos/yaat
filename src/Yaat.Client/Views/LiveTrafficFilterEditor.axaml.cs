@@ -51,7 +51,7 @@ public partial class LiveTrafficFilterEditor : UserControl
     /// <summary>Loads a canonical filter string into the fields; an unparseable one loads as no filtering.</summary>
     public void SetFilterText(string? text)
     {
-        if (!LiveTrafficFilter.TryParse(text, out var filter, out _))
+        if (!LiveTrafficFilter.TryParse(text, out LiveTrafficFilter? filter, out _))
         {
             filter = LiveTrafficFilter.None;
         }
@@ -75,7 +75,7 @@ public partial class LiveTrafficFilterEditor : UserControl
             parts.Add(_rulesBox.SelectedIndex == 1 ? "RULES=VFR" : "RULES=IFR");
         }
 
-        var airports = (_airportsBox.Text ?? "").Trim();
+        string airports = (_airportsBox.Text ?? "").Trim();
         if (airports.Length > 0)
         {
             parts.Add($"APT={airports}");
@@ -94,7 +94,7 @@ public partial class LiveTrafficFilterEditor : UserControl
             }
         }
 
-        var center = (_centerBox.Text ?? "").Trim();
+        string center = (_centerBox.Text ?? "").Trim();
         double radius = (double)(_radiusBox.Value ?? 0);
         if ((center.Length > 0) != (radius > 0))
         {
@@ -108,7 +108,7 @@ public partial class LiveTrafficFilterEditor : UserControl
             parts.Add($"RADIUS={radius.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}");
         }
 
-        if (!LiveTrafficFilter.TryParse(string.Join(';', parts), out var filter, out error))
+        if (!LiveTrafficFilter.TryParse(string.Join(';', parts), out LiveTrafficFilter? filter, out error))
         {
             return false;
         }
@@ -125,7 +125,7 @@ public partial class LiveTrafficFilterEditor : UserControl
 
     private void RefreshError()
     {
-        TryGetFilterText(out _, out var error);
+        TryGetFilterText(out _, out string? error);
         _errorText.Text = error ?? "";
         _errorText.IsVisible = error is not null;
     }

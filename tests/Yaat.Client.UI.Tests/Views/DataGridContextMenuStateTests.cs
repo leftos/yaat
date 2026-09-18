@@ -30,7 +30,7 @@ public class DataGridContextMenuStateTests
     [AvaloniaFact]
     public void AirborneIfrOnFinal_ShowsLandingAndGoAround_NotDepartures()
     {
-        var menu = Build(
+        ContextMenu menu = Build(
             new AircraftModel
             {
                 Callsign = "AAL123",
@@ -41,7 +41,7 @@ public class DataGridContextMenuStateTests
             }
         );
 
-        var headers = Headers(menu);
+        List<string> headers = Headers(menu);
         Assert.Contains("Cleared to land 28R", headers);
         Assert.Contains("Go around 28R", headers);
 
@@ -59,7 +59,7 @@ public class DataGridContextMenuStateTests
     [AvaloniaFact]
     public void AirborneVfrOnFinal_ShowsOptionClearances()
     {
-        var menu = Build(
+        ContextMenu menu = Build(
             new AircraftModel
             {
                 Callsign = "N12345",
@@ -70,7 +70,7 @@ public class DataGridContextMenuStateTests
             }
         );
 
-        var headers = Headers(menu);
+        List<string> headers = Headers(menu);
         Assert.Contains("Cleared to land 28L", headers);
         Assert.Contains("Touch and go 28L", headers);
         Assert.Contains("Stop and go 28L", headers);
@@ -81,7 +81,7 @@ public class DataGridContextMenuStateTests
     [AvaloniaFact]
     public void AirborneDeparture_ShowsNoTowerClearances()
     {
-        var menu = Build(
+        ContextMenu menu = Build(
             new AircraftModel
             {
                 Callsign = "UAL456",
@@ -92,7 +92,7 @@ public class DataGridContextMenuStateTests
             }
         );
 
-        var headers = Headers(menu);
+        List<string> headers = Headers(menu);
         Assert.DoesNotContain(headers, h => h.StartsWith("Line up and wait", StringComparison.Ordinal));
         Assert.DoesNotContain(headers, h => h.StartsWith("Cleared for takeoff", StringComparison.Ordinal));
         Assert.DoesNotContain(headers, h => h.StartsWith("Cleared to land", StringComparison.Ordinal));
@@ -103,7 +103,7 @@ public class DataGridContextMenuStateTests
     [AvaloniaFact]
     public void GroundDeparture_ShowsTakeoffClearances_NotLanding()
     {
-        var menu = Build(
+        ContextMenu menu = Build(
             new AircraftModel
             {
                 Callsign = "SWA789",
@@ -114,7 +114,7 @@ public class DataGridContextMenuStateTests
             }
         );
 
-        var headers = Headers(menu);
+        List<string> headers = Headers(menu);
         Assert.Contains("Cleared for takeoff 30", headers);
         Assert.Contains("Cancel takeoff clearance", headers);
         Assert.DoesNotContain(headers, h => h.StartsWith("Cleared to land", StringComparison.Ordinal));
@@ -123,7 +123,7 @@ public class DataGridContextMenuStateTests
     [AvaloniaFact]
     public void Landing_ShowsExits_NotTowerClearances()
     {
-        var menu = Build(
+        ContextMenu menu = Build(
             new AircraftModel
             {
                 Callsign = "DAL111",
@@ -134,7 +134,7 @@ public class DataGridContextMenuStateTests
             }
         );
 
-        var headers = Headers(menu);
+        List<string> headers = Headers(menu);
         Assert.Contains("Exit left", headers);
         Assert.Contains("Exit right", headers);
         Assert.DoesNotContain(headers, h => h.StartsWith("Line up and wait", StringComparison.Ordinal));

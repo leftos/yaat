@@ -29,12 +29,12 @@ public sealed class CfrAlertMonitor
         }
 
         var window = new ReleaseWindow(startUtc.Value, endUtc.Value);
-        if (!_state.TryGetValue(callsign, out var s) || s.Start != window.StartUtc || s.End != window.EndUtc)
+        if (!_state.TryGetValue(callsign, out State s) || s.Start != window.StartUtc || s.End != window.EndUtc)
         {
             s = new State(CfrAlertKind.None, window.StartUtc, window.EndUtc);
         }
 
-        var kind = CfrAlertEvaluator.Evaluate(window, nowUtc, isOnGround, wasOnGround, s.Fired);
+        CfrAlertKind? kind = CfrAlertEvaluator.Evaluate(window, nowUtc, isOnGround, wasOnGround, s.Fired);
         if (kind is { } fired)
         {
             s = s with { Fired = s.Fired | fired };

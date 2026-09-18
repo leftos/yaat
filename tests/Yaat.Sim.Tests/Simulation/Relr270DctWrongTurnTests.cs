@@ -60,8 +60,8 @@ public class Relr270DctWrongTurnTests(ITestOutputHelper output)
     [Fact]
     public void N85439_TurnsShortWayToOak30numAfterRelr270()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -70,10 +70,10 @@ public class Relr270DctWrongTurnTests(ITestOutputHelper output)
 
         engine.Replay(recording, DctAppliedTime);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
-        var fix = ac.Targets.NavigationRoute.FirstOrDefault(n => n.Name == "OAK30NUM");
+        NavigationTarget? fix = ac.Targets.NavigationRoute.FirstOrDefault(n => n.Name == "OAK30NUM");
         Assert.NotNull(fix); // DCT should have installed the direct-to-fix route
 
         // Secondary: the relative turn's right-turn bias must be cleared once DCT takes over
@@ -96,7 +96,7 @@ public class Relr270DctWrongTurnTests(ITestOutputHelper output)
             ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
-            var liveFix = ac.Targets.NavigationRoute.FirstOrDefault(n => n.Name == "OAK30NUM");
+            NavigationTarget? liveFix = ac.Targets.NavigationRoute.FirstOrDefault(n => n.Name == "OAK30NUM");
             if (liveFix is null)
             {
                 break; // fix sequenced — stop measuring

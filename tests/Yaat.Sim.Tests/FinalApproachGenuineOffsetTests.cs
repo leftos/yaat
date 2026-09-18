@@ -64,7 +64,7 @@ public class FinalApproachGenuineOffsetTests
         // Aircraft starts established on the published FAC at 1500 ft AGL — comfortably
         // above the genuine-offset ramp start window (~700–1000 ft AGL).
         var fac = new TrueHeading(facDeg);
-        var (startLat, startLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, fac.ToReciprocal(), 4.5);
+        (double startLat, double startLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, fac.ToReciprocal(), 4.5);
 
         var ac = new AircraftState
         {
@@ -144,7 +144,7 @@ public class FinalApproachGenuineOffsetTests
         {
             world.Tick(dt, tick * dt, PreTick);
 
-            foreach (var (callsign, warning) in world.DrainAllWarnings())
+            foreach ((string? callsign, string? warning) in world.DrainAllWarnings())
             {
                 _output.WriteLine($"# tick {tick} warning: {callsign}: {warning}");
                 if (warning.Contains("going around", StringComparison.OrdinalIgnoreCase))

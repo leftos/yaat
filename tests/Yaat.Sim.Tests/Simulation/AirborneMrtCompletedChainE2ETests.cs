@@ -1,7 +1,9 @@
 using Xunit;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -64,7 +66,7 @@ public class AirborneMrtCompletedChainE2ETests(ITestOutputHelper output)
     [Fact]
     public void N248ZV_AirborneMrtAfterCompletedDepartureChain_FliesRightTrafficNotOldGroundPhases()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -72,7 +74,7 @@ public class AirborneMrtCompletedChainE2ETests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             TestVnasData.EnsureInitialized();
             if (TestVnasData.NavigationDb is null)
             {
@@ -82,7 +84,7 @@ public class AirborneMrtCompletedChainE2ETests(ITestOutputHelper output)
             var engine = new SimulationEngine(new TestAirportGroundData());
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreTime);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreTime);
             if (snapshot is null)
             {
                 return;
@@ -90,7 +92,7 @@ public class AirborneMrtCompletedChainE2ETests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
 
             // Sanity: N248ZV is airborne with a fully completed departure chain (no current phase).
-            var pre = engine.FindAircraft(Callsign);
+            AircraftState? pre = engine.FindAircraft(Callsign);
             Assert.NotNull(pre);
             Assert.False(pre.IsOnGround);
             Assert.Null(pre.Phases?.CurrentPhase);
@@ -99,9 +101,9 @@ public class AirborneMrtCompletedChainE2ETests(ITestOutputHelper output)
             // Replay the recorded MRT (t=570) with current code.
             engine.FastForwardTo(AfterMrtTime, recording.Actions);
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
-            var afterMrtPhase = ac.Phases?.CurrentPhase;
+            Phase? afterMrtPhase = ac.Phases?.CurrentPhase;
             output.WriteLine(
                 $"t={AfterMrtTime}: phase={afterMrtPhase?.GetType().Name ?? "(none)"} alt={ac.Altitude:F0} ias={ac.IndicatedAirspeed:F0}"
             );
@@ -122,7 +124,7 @@ public class AirborneMrtCompletedChainE2ETests(ITestOutputHelper output)
                 ac = engine.FindAircraft(Callsign);
                 Assert.NotNull(ac);
 
-                var phase = ac.Phases?.CurrentPhase;
+                Phase? phase = ac.Phases?.CurrentPhase;
                 string phaseName = phase?.GetType().Name ?? "(none)";
                 Assert.False(
                     IsGroundPhase(phase),

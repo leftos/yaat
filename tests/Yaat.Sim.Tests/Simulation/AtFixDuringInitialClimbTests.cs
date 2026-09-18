@@ -48,8 +48,8 @@ public class AtFixDuringInitialClimbTests(ITestOutputHelper output)
     [Fact]
     public void AtFixConditional_DoesNotCancelInitialClimb()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -60,7 +60,7 @@ public class AtFixDuringInitialClimbTests(ITestOutputHelper output)
         // A few extra seconds give the warning a chance to drain into PendingWarnings.
         engine.Replay(recording, 432);
 
-        var aircraft = engine.FindAircraft("N172SP");
+        AircraftState? aircraft = engine.FindAircraft("N172SP");
         Assert.NotNull(aircraft);
 
         output.WriteLine(
@@ -70,14 +70,14 @@ public class AtFixDuringInitialClimbTests(ITestOutputHelper output)
                 + $"warnings={aircraft.PendingWarnings.Count}"
         );
 
-        foreach (var w in aircraft.PendingWarnings)
+        foreach (string w in aircraft.PendingWarnings)
         {
             output.WriteLine($"  WRN: {w}");
         }
 
-        foreach (var b in aircraft.Queue.Blocks)
+        foreach (CommandBlock b in aircraft.Queue.Blocks)
         {
-            var triggerDesc = b.Trigger is null ? "(none)" : $"{b.Trigger.Type} fix={b.Trigger.FixName} alt={b.Trigger.Altitude}";
+            string triggerDesc = b.Trigger is null ? "(none)" : $"{b.Trigger.Type} fix={b.Trigger.FixName} alt={b.Trigger.Altitude}";
             output.WriteLine($"  BLOCK trigger={triggerDesc} applied={b.IsApplied} dims={b.Dimensions}");
         }
 
@@ -93,7 +93,7 @@ public class AtFixDuringInitialClimbTests(ITestOutputHelper output)
 
         // The conditional block is queued with a ReachFix(OAK30NUM) trigger,
         // unapplied, waiting for the trigger to fire on fix sequencing.
-        var queued = aircraft.Queue.Blocks.SingleOrDefault(b =>
+        CommandBlock? queued = aircraft.Queue.Blocks.SingleOrDefault(b =>
             b.Trigger is { Type: BlockTriggerType.ReachFix } t && string.Equals(t.FixName, "OAK30NUM", StringComparison.OrdinalIgnoreCase)
         );
         Assert.NotNull(queued);

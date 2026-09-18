@@ -25,13 +25,13 @@ public class GroundCanvasDataBlockHitTests
     [AvaloniaFact]
     public void FindDataBlockAtPoint_AirborneAircraft_ClickOnAltitudeLine_Hits()
     {
-        var ac = MakeAircraft(onGround: false, altitude: 1500);
-        var canvas = MakeCanvas(ac);
+        AircraftModel ac = MakeAircraft(onGround: false, altitude: 1500);
+        GroundCanvas canvas = MakeCanvas(ac);
 
-        var (sx, sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        (float sx, float sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
         var click = new Point(sx + OffsetX + 1f, sy + OffsetY + AltitudeRowY);
 
-        var hit = canvas.FindDataBlockAtPoint(click);
+        AircraftModel? hit = canvas.FindDataBlockAtPoint(click);
 
         Assert.NotNull(hit);
         Assert.Equal("UAL238", hit!.Callsign);
@@ -41,10 +41,10 @@ public class GroundCanvasDataBlockHitTests
     public void FindDataBlockAtPoint_OnGroundAircraft_ClickBelowBlock_Misses()
     {
         // Control: the same screen point is below the shorter on-ground block, so it must not hit.
-        var ac = MakeAircraft(onGround: true, altitude: 0);
-        var canvas = MakeCanvas(ac);
+        AircraftModel ac = MakeAircraft(onGround: true, altitude: 0);
+        GroundCanvas canvas = MakeCanvas(ac);
 
-        var (sx, sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        (float sx, float sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
         var click = new Point(sx + OffsetX + 1f, sy + OffsetY + AltitudeRowY);
 
         Assert.Null(canvas.FindDataBlockAtPoint(click));

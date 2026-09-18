@@ -33,7 +33,7 @@ public partial class MainViewModel
         }
 
         // Existing entry? Just dock it back if it was popped out.
-        var existing = TdlsEntries.FirstOrDefault(e => e.Vm.FacilityId == facilityId);
+        VTdlsDockEntryViewModel? existing = TdlsEntries.FirstOrDefault(e => e.Vm.FacilityId == facilityId);
         if (existing is not null)
         {
             existing.IsPoppedOut = false;
@@ -57,7 +57,7 @@ public partial class MainViewModel
     public void ApplyTdlsZoomPercent(int percent)
     {
         double scale = percent / 100.0;
-        foreach (var entry in TdlsEntries)
+        foreach (VTdlsDockEntryViewModel entry in TdlsEntries)
         {
             entry.Vm.ZoomScale = scale;
         }
@@ -75,7 +75,7 @@ public partial class MainViewModel
 
         // Fan out to every other open vTDLS tab so they stay in sync — upstream
         // treats Dark Mode as a per-user global, not per-tab.
-        foreach (var entry in TdlsEntries)
+        foreach (VTdlsDockEntryViewModel entry in TdlsEntries)
         {
             if (entry.Vm.IsDarkMode != changed.IsDarkMode)
             {

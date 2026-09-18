@@ -55,13 +55,13 @@ public static class AutoScratchpadResolver
             return null;
         }
 
-        var destination = ResolveDisplayAirportId(ac.FlightPlan.Destination);
+        string destination = ResolveDisplayAirportId(ac.FlightPlan.Destination);
         if (string.IsNullOrWhiteSpace(destination))
         {
             return null;
         }
 
-        var classification = Classify(ac, starsConfig, area);
+        StarsFlightClassification classification = Classify(ac, starsConfig, area);
         bool showDestination = classification switch
         {
             { IsPrimaryArrival: true } => area.ShowDestinationPrimaryArrivals,
@@ -89,8 +89,8 @@ public static class AutoScratchpadResolver
     /// </summary>
     public static StarsFlightClassification Classify(AircraftState ac, StarsConfig starsConfig, StarsAreaConfig area)
     {
-        var departure = ResolveDisplayAirportId(ac.FlightPlan.Departure);
-        var destination = ResolveDisplayAirportId(ac.FlightPlan.Destination);
+        string departure = ResolveDisplayAirportId(ac.FlightPlan.Departure);
+        string destination = ResolveDisplayAirportId(ac.FlightPlan.Destination);
 
         bool isDeparture = IsFacilityAirport(departure, starsConfig.InternalAirports);
         bool isArrival = IsFacilityAirport(destination, starsConfig.InternalAirports);
@@ -98,7 +98,7 @@ public static class AutoScratchpadResolver
         bool isPrimaryArrival = false;
         if (isArrival && area.TowerListConfigurations.Count > 0)
         {
-            var primaryAirport = area.TowerListConfigurations[0].AirportId;
+            string primaryAirport = area.TowerListConfigurations[0].AirportId;
             isPrimaryArrival = NavigationDatabase.AirportIdsMatch(destination, primaryAirport);
         }
 
@@ -112,7 +112,7 @@ public static class AutoScratchpadResolver
             return false;
         }
 
-        foreach (var internalAirport in internalAirports)
+        foreach (string internalAirport in internalAirports)
         {
             if (NavigationDatabase.AirportIdsMatch(airportId, internalAirport))
             {
@@ -134,8 +134,8 @@ public static class AutoScratchpadResolver
             return string.Empty;
         }
 
-        var navDb = NavigationDatabase.InstanceOrNull;
-        if (navDb is not null && navDb.TryResolveFaaId(filedId, out var faaId))
+        NavigationDatabase? navDb = NavigationDatabase.InstanceOrNull;
+        if (navDb is not null && navDb.TryResolveFaaId(filedId, out string? faaId))
         {
             return faaId;
         }

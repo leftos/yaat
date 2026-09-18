@@ -39,8 +39,8 @@ public class ControlTargetsSpeedProvenanceTests
     private static AircraftState AfterDispatch(ParsedCommand command, bool isScenarioScripted)
     {
         TestVnasData.EnsureInitialized();
-        var aircraft = Arrival();
-        var result = Dispatch(aircraft, command, isScenarioScripted);
+        AircraftState aircraft = Arrival();
+        CommandResult result = Dispatch(aircraft, command, isScenarioScripted);
         Assert.True(result.Success, result.Message);
         return aircraft;
     }
@@ -48,7 +48,7 @@ public class ControlTargetsSpeedProvenanceTests
     /// <summary>An arrival already carrying an instructor's speed assignment — both flags set.</summary>
     private static AircraftState WithControllerIssuedSpeed()
     {
-        var aircraft = AfterDispatch(new SpeedCommand(180), isScenarioScripted: false);
+        AircraftState aircraft = AfterDispatch(new SpeedCommand(180), isScenarioScripted: false);
         Assert.True(aircraft.Targets.SpeedCommandIsControllerIssued);
         return aircraft;
     }
@@ -58,7 +58,7 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void ScriptedSpeed_SetsExplicitFlag_ButNotControllerProvenance()
     {
-        var aircraft = AfterDispatch(new SpeedCommand(180), isScenarioScripted: true);
+        AircraftState aircraft = AfterDispatch(new SpeedCommand(180), isScenarioScripted: true);
 
         Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
         Assert.False(aircraft.Targets.SpeedCommandIsControllerIssued);
@@ -67,7 +67,7 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void ControllerSpeed_SetsBothFlags()
     {
-        var aircraft = AfterDispatch(new SpeedCommand(180), isScenarioScripted: false);
+        AircraftState aircraft = AfterDispatch(new SpeedCommand(180), isScenarioScripted: false);
 
         Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
         Assert.True(aircraft.Targets.SpeedCommandIsControllerIssued);
@@ -76,7 +76,7 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void ScriptedReduceToFinalApproachSpeed_SetsExplicitFlag_ButNotControllerProvenance()
     {
-        var aircraft = AfterDispatch(new ReduceToFinalApproachSpeedCommand(), isScenarioScripted: true);
+        AircraftState aircraft = AfterDispatch(new ReduceToFinalApproachSpeedCommand(), isScenarioScripted: true);
 
         Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
         Assert.False(aircraft.Targets.SpeedCommandIsControllerIssued);
@@ -85,7 +85,7 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void ControllerReduceToFinalApproachSpeed_SetsBothFlags()
     {
-        var aircraft = AfterDispatch(new ReduceToFinalApproachSpeedCommand(), isScenarioScripted: false);
+        AircraftState aircraft = AfterDispatch(new ReduceToFinalApproachSpeedCommand(), isScenarioScripted: false);
 
         Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
         Assert.True(aircraft.Targets.SpeedCommandIsControllerIssued);
@@ -94,7 +94,7 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void ScriptedMach_SetsExplicitFlag_ButNotControllerProvenance()
     {
-        var aircraft = AfterDispatch(new MachCommand(0.78), isScenarioScripted: true);
+        AircraftState aircraft = AfterDispatch(new MachCommand(0.78), isScenarioScripted: true);
 
         Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
         Assert.False(aircraft.Targets.SpeedCommandIsControllerIssued);
@@ -103,7 +103,7 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void ControllerMach_SetsBothFlags()
     {
-        var aircraft = AfterDispatch(new MachCommand(0.78), isScenarioScripted: false);
+        AircraftState aircraft = AfterDispatch(new MachCommand(0.78), isScenarioScripted: false);
 
         Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
         Assert.True(aircraft.Targets.SpeedCommandIsControllerIssued);
@@ -112,7 +112,7 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void ScriptedForceSpeed_SetsExplicitFlag_ButNotControllerProvenance()
     {
-        var aircraft = AfterDispatch(new ForceSpeedCommand(180), isScenarioScripted: true);
+        AircraftState aircraft = AfterDispatch(new ForceSpeedCommand(180), isScenarioScripted: true);
 
         Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
         Assert.False(aircraft.Targets.SpeedCommandIsControllerIssued);
@@ -121,7 +121,7 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void ControllerForceSpeed_SetsBothFlags()
     {
-        var aircraft = AfterDispatch(new ForceSpeedCommand(180), isScenarioScripted: false);
+        AircraftState aircraft = AfterDispatch(new ForceSpeedCommand(180), isScenarioScripted: false);
 
         Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
         Assert.True(aircraft.Targets.SpeedCommandIsControllerIssued);
@@ -132,9 +132,9 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void ResumeNormalSpeed_ClearsBothFlags()
     {
-        var aircraft = WithControllerIssuedSpeed();
+        AircraftState aircraft = WithControllerIssuedSpeed();
 
-        var result = Dispatch(aircraft, new ResumeNormalSpeedCommand(), isScenarioScripted: false);
+        CommandResult result = Dispatch(aircraft, new ResumeNormalSpeedCommand(), isScenarioScripted: false);
 
         Assert.True(result.Success, result.Message);
         Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
@@ -144,9 +144,9 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void ClimbMaintain_ClearsBothFlags()
     {
-        var aircraft = WithControllerIssuedSpeed();
+        AircraftState aircraft = WithControllerIssuedSpeed();
 
-        var result = Dispatch(aircraft, new ClimbMaintainCommand(10000, AltitudeAssignmentModifier.None), isScenarioScripted: false);
+        CommandResult result = Dispatch(aircraft, new ClimbMaintainCommand(10000, AltitudeAssignmentModifier.None), isScenarioScripted: false);
 
         Assert.True(result.Success, result.Message);
         Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
@@ -156,9 +156,9 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void DescendMaintain_ClearsBothFlags()
     {
-        var aircraft = WithControllerIssuedSpeed();
+        AircraftState aircraft = WithControllerIssuedSpeed();
 
-        var result = Dispatch(aircraft, new DescendMaintainCommand(4000), isScenarioScripted: false);
+        CommandResult result = Dispatch(aircraft, new DescendMaintainCommand(4000), isScenarioScripted: false);
 
         Assert.True(result.Success, result.Message);
         Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
@@ -168,9 +168,9 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void VfrAltitudeRestriction_ClearsBothFlags()
     {
-        var aircraft = WithControllerIssuedSpeed();
+        AircraftState aircraft = WithControllerIssuedSpeed();
 
-        var result = Dispatch(aircraft, new ClimbMaintainCommand(8000, AltitudeAssignmentModifier.AtOrBelow), isScenarioScripted: false);
+        CommandResult result = Dispatch(aircraft, new ClimbMaintainCommand(8000, AltitudeAssignmentModifier.AtOrBelow), isScenarioScripted: false);
 
         Assert.True(result.Success, result.Message);
         Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
@@ -190,8 +190,8 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void ManeuverSpeedBorrow_LeavesControllerProvenanceAlone()
     {
-        var aircraft = WithControllerIssuedSpeed();
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        AircraftState aircraft = WithControllerIssuedSpeed();
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         var maneuver = new MakeTurnPhase { Direction = TurnDirection.Right, TargetDegrees = 360 };
 
         maneuver.OnStart(ctx);
@@ -214,8 +214,8 @@ public class ControlTargetsSpeedProvenanceTests
     [Fact]
     public void ManeuverSpeedBorrow_DoesNotManufactureControllerProvenance()
     {
-        var aircraft = AfterDispatch(new SpeedCommand(180), isScenarioScripted: true);
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        AircraftState aircraft = AfterDispatch(new SpeedCommand(180), isScenarioScripted: true);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         var maneuver = new MakeTurnPhase { Direction = TurnDirection.Left, TargetDegrees = 360 };
 
         maneuver.OnStart(ctx);

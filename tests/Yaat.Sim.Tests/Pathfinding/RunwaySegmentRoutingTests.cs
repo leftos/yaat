@@ -25,7 +25,7 @@ public class RunwaySegmentRoutingTests
 
     private AirportGroundLayout? OakLayout()
     {
-        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
         if (layout is null || TestVnasData.NavigationDb is null)
         {
             _output.WriteLine("oak layout / navdata unavailable — skipping");
@@ -51,12 +51,12 @@ public class RunwaySegmentRoutingTests
     private void DumpRoute(TaxiRoute route)
     {
         _output.WriteLine($"Route: {route.Segments.Count} segments");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             _output.WriteLine($"  {seg.TaxiwayName, -14} #{seg.FromNodeId} -> #{seg.ToNodeId}");
         }
 
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             _output.WriteLine($"  HS {hs.Reason} {hs.TargetName} @#{hs.NodeId}");
         }
@@ -65,17 +65,17 @@ public class RunwaySegmentRoutingTests
     [Fact]
     public void Oak_Taxi28R_G_D_RoutesAlongCenterlineThenGThenD()
     {
-        var layout = OakLayout();
+        AirportGroundLayout? layout = OakLayout();
         if (layout is null)
         {
             return;
         }
 
         // Start at the 28R landing-threshold (east) end of the centerline.
-        var start = NearestCenterlineNode(layout, 37.724848, -122.204848);
+        GroundNode start = NearestCenterlineNode(layout, 37.724848, -122.204848);
         _output.WriteLine($"start node = {start.Id}");
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             start.Id,
             ["28R", "G", "D"],
@@ -96,7 +96,7 @@ public class RunwaySegmentRoutingTests
         int rwyIdx = route.Segments.FindIndex(s => s.Edge.Edge.IsRunwayCenterline && s.Edge.Edge.MatchesRunway("28R"));
         int gIdx = route.Segments.FindIndex(s => s.TaxiwayName == "G");
         Assert.True(rwyIdx >= 0 && gIdx > rwyIdx, $"expected 28R(centerline)#{rwyIdx} < G#{gIdx} in segment order");
-        var lastNode = layout.Nodes[route.Segments[^1].ToNodeId];
+        GroundNode lastNode = layout.Nodes[route.Segments[^1].ToNodeId];
         Assert.True(lastNode.Edges.Any(e => e.MatchesTaxiway("D")), $"expected the route to hold at a G/D junction, ended at #{lastNode.Id}");
 
         // The cleared runway is taxied straight onto — no hold-short at its entry.
@@ -106,16 +106,16 @@ public class RunwaySegmentRoutingTests
     [Fact]
     public void Oak_Taxi28R_NonIntersectingTaxiway_FailsCleanly()
     {
-        var layout = OakLayout();
+        AirportGroundLayout? layout = OakLayout();
         if (layout is null)
         {
             return;
         }
 
         // W is on the west/north field and never touches runway 28R, so "28R W" cannot resolve.
-        var start = NearestCenterlineNode(layout, 37.724848, -122.204848);
+        GroundNode start = NearestCenterlineNode(layout, 37.724848, -122.204848);
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             start.Id,
             ["28R", "W"],
@@ -135,7 +135,7 @@ public class RunwaySegmentRoutingTests
     [Fact]
     public void Oak_TaxiRunwayFirstToken_BridgesOntoCenterlineFromTaxiway()
     {
-        var layout = OakLayout();
+        AirportGroundLayout? layout = OakLayout();
         if (layout is null)
         {
             return;
@@ -143,10 +143,10 @@ public class RunwaySegmentRoutingTests
 
         // Start on taxiway B just south of the 28R hold-short, cleared "28R G D" — the bridge must get
         // the aircraft from B onto the 28R centerline before the centerline walk begins.
-        var start = NearestNodeOnTaxiway(layout, "B", 37.723668, -122.205446);
+        GroundNode start = NearestNodeOnTaxiway(layout, "B", 37.723668, -122.205446);
         _output.WriteLine($"start node = {start.Id}");
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             start.Id,
             ["28R", "G", "D"],

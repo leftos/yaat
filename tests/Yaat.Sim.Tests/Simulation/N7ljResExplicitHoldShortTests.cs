@@ -1,4 +1,6 @@
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -35,7 +37,7 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -55,8 +57,8 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
     [Fact]
     public void Res_ClearsExplicitHoldShort_AndAircraftResumesTaxi()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -64,7 +66,7 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
 
         engine.Replay(recording, 1216);
 
-        var ac = engine.FindAircraft("N7LJ");
+        AircraftState? ac = engine.FindAircraft("N7LJ");
         Assert.NotNull(ac);
 
         var holdPhase = ac.Phases?.CurrentPhase as HoldingShortPhase;
@@ -74,7 +76,7 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
         Assert.Equal(507, holdPhase.HoldShort.NodeId);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, holdPhase.HoldShort.Reason);
 
-        var result = engine.SendCommand("N7LJ", "RES");
+        CommandResult result = engine.SendCommand("N7LJ", "RES");
         output.WriteLine($"RES (Explicit) result: success={result.Success} msg={result.Message}");
         Assert.True(result.Success, $"RES should clear explicit hold-short, got: {result.Message}");
 
@@ -97,8 +99,8 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
     [Fact]
     public void Res_ClearsRunwayCrossingHoldShort_AndAircraftResumesTaxi()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -106,7 +108,7 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
 
         engine.Replay(recording, 1300);
 
-        var ac = engine.FindAircraft("N7LJ");
+        AircraftState? ac = engine.FindAircraft("N7LJ");
         Assert.NotNull(ac);
 
         var holdPhase = ac.Phases?.CurrentPhase as HoldingShortPhase;
@@ -119,7 +121,7 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
 
         int preSegIndex = ac.Ground.AssignedTaxiRoute?.CurrentSegmentIndex ?? -1;
 
-        var result = engine.SendCommand("N7LJ", "RES");
+        CommandResult result = engine.SendCommand("N7LJ", "RES");
         output.WriteLine($"RES (RunwayCrossing) result: success={result.Success} msg={result.Message}");
 
         Assert.True(result.Success, $"RES should clear crossing-runway hold-short, got: {result.Message}");
@@ -160,8 +162,8 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
     [Fact]
     public void ResCross_ClearsCrossing_ResponseNamesRunway()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -169,13 +171,13 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
 
         engine.Replay(recording, 1300);
 
-        var ac = engine.FindAircraft("N7LJ");
+        AircraftState? ac = engine.FindAircraft("N7LJ");
         Assert.NotNull(ac);
         var holdPhase = ac.Phases?.CurrentPhase as HoldingShortPhase;
         Assert.NotNull(holdPhase);
         Assert.Equal("28L/10R", holdPhase.HoldShort.TargetName);
 
-        var result = engine.SendCommand("N7LJ", "RES CROSS 28L");
+        CommandResult result = engine.SendCommand("N7LJ", "RES CROSS 28L");
         output.WriteLine($"RES CROSS 28L result: success={result.Success} msg={result.Message}");
 
         Assert.True(result.Success, $"RES CROSS 28L should clear the crossing, got: {result.Message}");

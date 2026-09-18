@@ -129,7 +129,7 @@ public static class RecordedCommandClassifier
     /// </summary>
     public static Classification Classify(string commandText)
     {
-        var result = CommandParser.Parse(commandText);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(commandText);
         if (!result.IsSuccess || result.Value is null)
         {
             return new Classification(RecordedCommandKind.Compound, ActionScope.Aircraft, null);
@@ -144,7 +144,7 @@ public static class RecordedCommandClassifier
     /// </summary>
     public static Classification ClassifyParsed(ParsedCommand parsed)
     {
-        var kind = KindOf(parsed);
+        RecordedCommandKind kind = KindOf(parsed);
         return new Classification(kind, ScopeOf(kind), parsed);
     }
 

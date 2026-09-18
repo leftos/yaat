@@ -127,7 +127,7 @@ public static class Program
 
             if (sidId is not null)
             {
-                var match = FindSid(sids, sidId);
+                CifpSidProcedure? match = FindSid(sids, sidId);
                 if (match is null)
                 {
                     Console.Error.WriteLine($"SID not found: {sidId}");
@@ -162,7 +162,7 @@ public static class Program
 
             if (starId is not null)
             {
-                var match = FindStar(stars, starId);
+                CifpStarProcedure? match = FindStar(stars, starId);
                 if (match is null)
                 {
                     Console.Error.WriteLine($"STAR not found: {starId}");
@@ -201,7 +201,7 @@ public static class Program
 
         if (approachId is not null)
         {
-            var match = FindApproach(approaches, approachId);
+            CifpApproachProcedure? match = FindApproach(approaches, approachId);
             if (match is null)
             {
                 Console.Error.WriteLine($"Approach not found: {approachId}");
@@ -213,7 +213,7 @@ public static class Program
 
         if (finalCourseApproachId is not null)
         {
-            var match = FindApproach(approaches, finalCourseApproachId);
+            CifpApproachProcedure? match = FindApproach(approaches, finalCourseApproachId);
             if (match is null)
             {
                 Console.Error.WriteLine($"Approach not found: {finalCourseApproachId}");
@@ -225,8 +225,8 @@ public static class Program
 
         if (compareA is not null && compareB is not null)
         {
-            var a = FindApproach(approaches, compareA);
-            var b = FindApproach(approaches, compareB);
+            CifpApproachProcedure? a = FindApproach(approaches, compareA);
+            CifpApproachProcedure? b = FindApproach(approaches, compareB);
             if (a is null)
             {
                 Console.Error.WriteLine($"Approach not found: {compareA}");
@@ -249,7 +249,7 @@ public static class Program
     private static CifpApproachProcedure? FindApproach(IReadOnlyList<CifpApproachProcedure> approaches, string id)
     {
         // Exact match first
-        foreach (var a in approaches)
+        foreach (CifpApproachProcedure a in approaches)
         {
             if (a.ApproachId.Equals(id, StringComparison.OrdinalIgnoreCase))
             {
@@ -257,7 +257,7 @@ public static class Program
             }
         }
         // Case-insensitive after trimming (handles trailing space padding from CIFP records)
-        foreach (var a in approaches)
+        foreach (CifpApproachProcedure a in approaches)
         {
             if (a.ApproachId.Trim().Equals(id, StringComparison.OrdinalIgnoreCase))
             {
@@ -289,7 +289,7 @@ public static class Program
 
         Console.WriteLine($"{"ID", -10} {"Type", -12} {"Runway", -8} {"#legs", 6} {"#trans", 7} HiLo");
         Console.WriteLine(new string('-', 50));
-        foreach (var a in approaches.OrderBy(a => a.ApproachId, StringComparer.Ordinal))
+        foreach (CifpApproachProcedure? a in approaches.OrderBy(a => a.ApproachId, StringComparer.Ordinal))
         {
             Console.WriteLine(
                 $"{a.ApproachId, -10} {a.ApproachTypeName, -12} {a.Runway ?? "?", -8} {a.CommonLegs.Count, 6} {a.Transitions.Count, 7} {(a.HasHoldInLieu ? "yes" : "no")}"
@@ -319,7 +319,7 @@ public static class Program
         {
             Console.WriteLine();
             Console.WriteLine($"Transitions ({a.Transitions.Count}):");
-            foreach (var (name, t) in a.Transitions)
+            foreach ((string? name, CifpTransition? t) in a.Transitions)
             {
                 Console.WriteLine($"  [{name}] ({t.Legs.Count} legs):");
                 PrintLegTable(t.Legs, indent: "    ");
@@ -349,7 +349,7 @@ public static class Program
     private static void PrintLegTable(IReadOnlyList<CifpLeg> legs, string indent = "  ")
     {
         Console.WriteLine($"{indent}{"seq", 3} {"fix", -7} {"role", -5} {"pt", -3} {"course", -7} {"dist", -6} {"arcR", -6} {"alt", -18} flags");
-        foreach (var leg in legs)
+        foreach (CifpLeg leg in legs)
         {
             string course = leg.OutboundCourse?.ToString("F1") ?? "-";
             string dist = leg.LegDistanceNm?.ToString("F1") ?? "-";
@@ -384,10 +384,10 @@ public static class Program
         // Identify the "final approach leg" using a few candidate strategies and report each.
         // The "Extractor (MAP leg itself)" strategy mirrors what FinalApproachCourseExtractor
         // actually uses in production — the others are diagnostic alternatives.
-        var finalByExtractor = ExtractorMapLeg(a);
-        var finalByMahp = FinalLegBeforeMap(a);
-        var finalByRwFix = FinalLegToRwFix(a);
-        var finalByLastBeforeCa = FinalLegBeforeCa(a);
+        CifpLeg? finalByExtractor = ExtractorMapLeg(a);
+        CifpLeg? finalByMahp = FinalLegBeforeMap(a);
+        CifpLeg? finalByRwFix = FinalLegToRwFix(a);
+        CifpLeg? finalByLastBeforeCa = FinalLegBeforeCa(a);
 
         if (json)
         {
@@ -456,7 +456,7 @@ public static class Program
     /// </summary>
     private static CifpLeg? ExtractorMapLeg(CifpApproachProcedure a)
     {
-        foreach (var leg in a.CommonLegs)
+        foreach (CifpLeg leg in a.CommonLegs)
         {
             if (leg.FixRole == CifpFixRole.MAP)
             {
@@ -490,7 +490,7 @@ public static class Program
     {
         for (int i = a.CommonLegs.Count - 1; i >= 0; i--)
         {
-            var leg = a.CommonLegs[i];
+            CifpLeg leg = a.CommonLegs[i];
             if (leg.FixIdentifier.StartsWith("RW", StringComparison.Ordinal))
             {
                 // The leg-to-RW is itself the final leg; return the one with course info if any.
@@ -518,14 +518,14 @@ public static class Program
 
     private static CifpSidProcedure? FindSid(IReadOnlyList<CifpSidProcedure> sids, string id)
     {
-        foreach (var s in sids)
+        foreach (CifpSidProcedure s in sids)
         {
             if (s.ProcedureId.Equals(id, StringComparison.OrdinalIgnoreCase))
             {
                 return s;
             }
         }
-        foreach (var s in sids)
+        foreach (CifpSidProcedure s in sids)
         {
             if (s.ProcedureId.Trim().Equals(id, StringComparison.OrdinalIgnoreCase))
             {
@@ -536,7 +536,7 @@ public static class Program
         string baseTarget = StripTrailingDigits(id);
         if (baseTarget != id)
         {
-            foreach (var s in sids)
+            foreach (CifpSidProcedure s in sids)
             {
                 if (StripTrailingDigits(s.ProcedureId).Equals(baseTarget, StringComparison.OrdinalIgnoreCase))
                 {
@@ -549,14 +549,14 @@ public static class Program
 
     private static CifpStarProcedure? FindStar(IReadOnlyList<CifpStarProcedure> stars, string id)
     {
-        foreach (var s in stars)
+        foreach (CifpStarProcedure s in stars)
         {
             if (s.ProcedureId.Equals(id, StringComparison.OrdinalIgnoreCase))
             {
                 return s;
             }
         }
-        foreach (var s in stars)
+        foreach (CifpStarProcedure s in stars)
         {
             if (s.ProcedureId.Trim().Equals(id, StringComparison.OrdinalIgnoreCase))
             {
@@ -566,7 +566,7 @@ public static class Program
         string baseTarget = StripTrailingDigits(id);
         if (baseTarget != id)
         {
-            foreach (var s in stars)
+            foreach (CifpStarProcedure s in stars)
             {
                 if (StripTrailingDigits(s.ProcedureId).Equals(baseTarget, StringComparison.OrdinalIgnoreCase))
                 {
@@ -606,7 +606,7 @@ public static class Program
 
         Console.WriteLine($"{"ID", -10} {"#common", 8} {"RW trans", -24} {"Enroute trans", -30} RV?");
         Console.WriteLine(new string('-', 90));
-        foreach (var s in sids.OrderBy(s => s.ProcedureId, StringComparer.Ordinal))
+        foreach (CifpSidProcedure? s in sids.OrderBy(s => s.ProcedureId, StringComparer.Ordinal))
         {
             string rwTrans = string.Join(",", s.RunwayTransitions.Keys);
             string enTrans = string.Join(",", s.EnrouteTransitions.Keys);
@@ -638,7 +638,7 @@ public static class Program
         if (s.RunwayTransitions.Count > 0)
         {
             Console.WriteLine($"Runway transitions ({s.RunwayTransitions.Count}):");
-            foreach (var (name, t) in s.RunwayTransitions)
+            foreach ((string? name, CifpTransition? t) in s.RunwayTransitions)
             {
                 Console.WriteLine($"  [{name}] ({t.Legs.Count} legs):");
                 PrintLegTable(t.Legs, indent: "    ");
@@ -660,7 +660,7 @@ public static class Program
         {
             Console.WriteLine();
             Console.WriteLine($"Enroute transitions ({s.EnrouteTransitions.Count}):");
-            foreach (var (name, t) in s.EnrouteTransitions)
+            foreach ((string? name, CifpTransition? t) in s.EnrouteTransitions)
             {
                 Console.WriteLine($"  [{name}] ({t.Legs.Count} legs):");
                 PrintLegTable(t.Legs, indent: "    ");
@@ -687,7 +687,7 @@ public static class Program
 
         Console.WriteLine($"{"ID", -10} {"#common", 8} {"Enroute trans", -30} {"RW trans", -24}");
         Console.WriteLine(new string('-', 80));
-        foreach (var s in stars.OrderBy(s => s.ProcedureId, StringComparer.Ordinal))
+        foreach (CifpStarProcedure? s in stars.OrderBy(s => s.ProcedureId, StringComparer.Ordinal))
         {
             string enTrans = string.Join(",", s.EnrouteTransitions.Keys);
             string rwTrans = string.Join(",", s.RunwayTransitions.Keys);
@@ -710,7 +710,7 @@ public static class Program
         if (s.EnrouteTransitions.Count > 0)
         {
             Console.WriteLine($"Enroute transitions ({s.EnrouteTransitions.Count}):");
-            foreach (var (name, t) in s.EnrouteTransitions)
+            foreach ((string? name, CifpTransition? t) in s.EnrouteTransitions)
             {
                 Console.WriteLine($"  [{name}] ({t.Legs.Count} legs):");
                 PrintLegTable(t.Legs, indent: "    ");
@@ -732,7 +732,7 @@ public static class Program
         {
             Console.WriteLine();
             Console.WriteLine($"Runway transitions ({s.RunwayTransitions.Count}):");
-            foreach (var (name, t) in s.RunwayTransitions)
+            foreach ((string? name, CifpTransition? t) in s.RunwayTransitions)
             {
                 Console.WriteLine($"  [{name}] ({t.Legs.Count} legs):");
                 PrintLegTable(t.Legs, indent: "    ");
@@ -794,7 +794,7 @@ public static class Program
 
     private static string DecompressGzip(string gzPath)
     {
-        var decompressedPath = Path.Combine(Path.GetTempPath(), $"yaat-cifpinspector-{Path.GetFileNameWithoutExtension(gzPath)}");
+        string decompressedPath = Path.Combine(Path.GetTempPath(), $"yaat-cifpinspector-{Path.GetFileNameWithoutExtension(gzPath)}");
         if (File.Exists(decompressedPath))
         {
             // Reuse if newer than source
@@ -803,9 +803,9 @@ public static class Program
                 return decompressedPath;
             }
         }
-        using var inputStream = File.OpenRead(gzPath);
+        using FileStream inputStream = File.OpenRead(gzPath);
         using var gzipStream = new GZipStream(inputStream, CompressionMode.Decompress);
-        using var outputStream = File.Create(decompressedPath);
+        using FileStream outputStream = File.Create(decompressedPath);
         gzipStream.CopyTo(outputStream);
         return decompressedPath;
     }
@@ -817,9 +817,9 @@ public static class Program
         {
             if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
             {
-                var testData = Path.Combine(dir.FullName, "tests", "Yaat.Sim.Tests", "TestData");
-                var bundledGz = Path.Combine(testData, "FAACIFP18.gz");
-                var manifest = Path.Combine(testData, "cifp-manifest.json");
+                string testData = Path.Combine(dir.FullName, "tests", "Yaat.Sim.Tests", "TestData");
+                string bundledGz = Path.Combine(testData, "FAACIFP18.gz");
+                string manifest = Path.Combine(testData, "cifp-manifest.json");
                 return CifpPathResolver.EnsureCurrentCycle(
                     new CifpResolveOptions(
                         BundledGzPath: File.Exists(bundledGz) ? bundledGz : null,

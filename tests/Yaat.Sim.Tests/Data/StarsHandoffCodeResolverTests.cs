@@ -110,7 +110,7 @@ public sealed class StarsHandoffCodeResolverTests
         string expectedSector
     )
     {
-        var owner = Config().ResolveStarsHandoffCode("NCT", code);
+        TrackOwner? owner = Config().ResolveStarsHandoffCode("NCT", code);
 
         Assert.NotNull(owner);
         Assert.Equal(TrackOwnerType.Stars, owner.OwnerType);

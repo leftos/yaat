@@ -24,9 +24,9 @@ public class TargetRendererAtpaColorTests
     [Fact]
     public void AtpaConeColorFor_EscalatesDistinctly()
     {
-        var monitor = TargetRenderer.AtpaConeColorFor(AtpaConeState.Monitor);
-        var warning = TargetRenderer.AtpaConeColorFor(AtpaConeState.Warning);
-        var alert = TargetRenderer.AtpaConeColorFor(AtpaConeState.Alert);
+        SKColor monitor = TargetRenderer.AtpaConeColorFor(AtpaConeState.Monitor);
+        SKColor warning = TargetRenderer.AtpaConeColorFor(AtpaConeState.Warning);
+        SKColor alert = TargetRenderer.AtpaConeColorFor(AtpaConeState.Alert);
 
         Assert.NotEqual(monitor, warning);
         Assert.NotEqual(warning, alert);

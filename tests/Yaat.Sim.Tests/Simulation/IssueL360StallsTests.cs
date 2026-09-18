@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -55,8 +56,8 @@ public class IssueL360StallsTests(ITestOutputHelper output)
     [Fact]
     public void N44444_L360_CompletesFullLoop()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -65,18 +66,18 @@ public class IssueL360StallsTests(ITestOutputHelper output)
 
         engine.Replay(recording, L360DispatchTime - 1);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         double startHeading = ac.TrueHeading.Degrees;
         output.WriteLine($"t={L360DispatchTime - 1}: {Callsign} hdg={startHeading:F2} alt={ac.Altitude:F0} ias={ac.IndicatedAirspeed:F0}");
 
-        var dispatch = engine.SendCommand(Callsign, "L360");
+        CommandResult dispatch = engine.SendCommand(Callsign, "L360");
         Assert.True(dispatch.Success, $"L360 dispatch should succeed: {dispatch.Message}");
         output.WriteLine($"L360 dispatch: {dispatch.Message}");
 
         ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
-        var phase0 = FindMakeTurnPhase(ac);
+        MakeTurnPhase? phase0 = FindMakeTurnPhase(ac);
         Assert.NotNull(phase0);
         Assert.Equal(TurnDirection.Left, phase0.Direction);
         Assert.Equal(360.0, phase0.TargetDegrees);
@@ -96,7 +97,7 @@ public class IssueL360StallsTests(ITestOutputHelper output)
             ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
-            var p = FindMakeTurnPhase(ac);
+            MakeTurnPhase? p = FindMakeTurnPhase(ac);
             double cumulative = p is null ? previousCumulative : ((MakeTurnPhaseDto)p.ToSnapshot()).CumulativeTurn;
 
             if (p is not null && (cumulative + 1e-3 < previousCumulative))
@@ -167,7 +168,7 @@ public class IssueL360StallsTests(ITestOutputHelper output)
             return null;
         }
 
-        foreach (var p in ac.Phases.Phases)
+        foreach (Phase p in ac.Phases.Phases)
         {
             if (p is MakeTurnPhase mt && mt.Status == PhaseStatus.Active)
             {

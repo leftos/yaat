@@ -4,8 +4,8 @@ internal static class JunctionClassifier
 {
     public static JunctionPlan Classify(GroundNode node, bool preserveNode, HashSet<int> manualArcNodes)
     {
-        var arms = TaxiwayArmBuilder.BuildArms(node, manualArcNodes);
-        var (corners, collinear) = CornerPlanner.PlanCorners(node, arms);
+        IReadOnlyList<TaxiwayArm> arms = TaxiwayArmBuilder.BuildArms(node, manualArcNodes);
+        (IReadOnlyList<CornerSpec>? corners, IReadOnlyList<(int, int)>? collinear) = CornerPlanner.PlanCorners(node, arms);
 
         JunctionKind kind;
         if (corners.Count == 0 && collinear.Count == 0)

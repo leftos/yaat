@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -35,7 +36,7 @@ public class HandoffAcceptDatablockColorE2ETests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 
         return new SimulationEngine(groundData);
@@ -44,20 +45,20 @@ public class HandoffAcceptDatablockColorE2ETests(ITestOutputHelper output)
     [Fact]
     public void ManualAccept_PreviousOwnerKeepsWhiteFullDatablock()
     {
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
             return;
         }
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
 
         // Restore the recorded pre-accept state: at t=170 N569SX is owned by the student OAK_TWR (3O),
         // with a handoff to OAK_DEP (4R) already pending.
-        var snap = archive.ReadSnapshotAt(170);
+        TimedSnapshot? snap = archive.ReadSnapshotAt(170);
         if (snap is null)
         {
             output.WriteLine("No snapshot near t=170, skipping");
@@ -66,14 +67,14 @@ public class HandoffAcceptDatablockColorE2ETests(ITestOutputHelper output)
 
         engine.RestoreFromSnapshot(snap.State);
 
-        var scenario = engine.Scenario;
+        SimScenarioState? scenario = engine.Scenario;
         Assert.NotNull(scenario);
         Assert.NotNull(scenario.StudentPosition);
         Assert.NotNull(scenario.StudentTcp);
 
         // The student (OAK_TWR / 3O) owns the track and is about to hand it off — it becomes the
         // previous owner once 4R accepts, and its scope is the one the bug regresses.
-        var restored = engine.FindAircraft("N569SX");
+        AircraftState? restored = engine.FindAircraft("N569SX");
         Assert.NotNull(restored);
         Assert.Equal(scenario.StudentPosition.Callsign, restored.Track.Owner?.Callsign);
 
@@ -85,7 +86,7 @@ public class HandoffAcceptDatablockColorE2ETests(ITestOutputHelper output)
         // Replay just the RPO's "ACCEPT" (t=171) with current code.
         engine.ReplayRange((int)snap.ElapsedSeconds, 172, recording.Actions);
 
-        var ac = engine.FindAircraft("N569SX");
+        AircraftState? ac = engine.FindAircraft("N569SX");
         Assert.NotNull(ac);
 
         // The accept applied: OAK_DEP (4R) now owns the track.
@@ -94,11 +95,11 @@ public class HandoffAcceptDatablockColorE2ETests(ITestOutputHelper output)
 
         // The student (the previous owner) must keep a white FDB: WasPreviouslyOwned set on its TCP.
         Assert.True(
-            ac.Stars.SharedState.TryGetValue(scenario.StudentTcp.Id, out var shared) && shared.WasPreviouslyOwned,
+            ac.Stars.SharedState.TryGetValue(scenario.StudentTcp.Id, out StarsTrackSharedState? shared) && shared.WasPreviouslyOwned,
             "Student (previous owner) should have WasPreviouslyOwned set after the RPO's manual accept"
         );
 
-        var view = StarsDatablockClassifier.Classify(ac, scenario.StudentTcp, scenario.StudentPosition);
+        StarsScopeView view = StarsDatablockClassifier.Classify(ac, scenario.StudentTcp, scenario.StudentPosition);
 
         output.WriteLine($"student={scenario.StudentPosition.Callsign} owner={ac.Track.Owner.Callsign} color={view.Color} level={view.Level}");
 

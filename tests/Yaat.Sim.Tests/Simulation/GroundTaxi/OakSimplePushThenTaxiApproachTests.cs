@@ -59,7 +59,7 @@ public class OakSimplePushThenTaxiApproachTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout(AirportId);
+        AirportGroundLayout? layout = groundData.GetLayout(AirportId);
         if (layout is null)
         {
             return null;
@@ -67,7 +67,7 @@ public class OakSimplePushThenTaxiApproachTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
         var engine = new SimulationEngine(groundData);
-        var aircraft = MakeAircraft(layout);
+        AircraftState aircraft = MakeAircraft(layout);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
         {
@@ -79,12 +79,12 @@ public class OakSimplePushThenTaxiApproachTests(ITestOutputHelper output)
             AutoCrossRunway = true,
         };
 
-        var result = engine.SendCommand(Callsign, Command);
+        CommandResult result = engine.SendCommand(Callsign, Command);
         Assert.True(result.Success, $"'{Command}' failed: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
-        var first = route.Segments[0];
+        TaxiRouteSegment first = route.Segments[0];
         output.WriteLine($"result: {result.Message}");
         output.WriteLine(
             $"route: {route.ToSummary()} ({route.Segments.Count} segments); "
@@ -98,7 +98,7 @@ public class OakSimplePushThenTaxiApproachTests(ITestOutputHelper output)
             samples.Add(Capture(t, aircraft));
         }
 
-        foreach (var s in samples)
+        foreach (Sample s in samples)
         {
             output.WriteLine(
                 $"t+{s.Second, 2}: pos=({s.Position.Lat:F7},{s.Position.Lon:F7}) ias={s.IndicatedAirspeed, 5:F1} "
@@ -143,7 +143,7 @@ public class OakSimplePushThenTaxiApproachTests(ITestOutputHelper output)
     [Fact]
     public void TaxiAfterSimplePush_NeverTeleports()
     {
-        var samples = RunTaxi();
+        List<Sample>? samples = RunTaxi();
         if (samples is null)
         {
             return;
@@ -189,7 +189,7 @@ public class OakSimplePushThenTaxiApproachTests(ITestOutputHelper output)
     [Fact]
     public void TaxiAfterSimplePush_PhysicallyReachesStartNode()
     {
-        var samples = RunTaxi();
+        List<Sample>? samples = RunTaxi();
         if (samples is null)
         {
             return;
@@ -198,7 +198,7 @@ public class OakSimplePushThenTaxiApproachTests(ITestOutputHelper output)
         var startNode = new LatLon(StartNodeLat, StartNodeLon);
         double closestFt = double.MaxValue;
         int closestSecond = -1;
-        foreach (var s in samples)
+        foreach (Sample s in samples)
         {
             if (s.SegmentIndex > 1)
             {
@@ -226,7 +226,7 @@ public class OakSimplePushThenTaxiApproachTests(ITestOutputHelper output)
     [Fact]
     public void TaxiAfterSimplePush_MakesProgress()
     {
-        var samples = RunTaxi();
+        List<Sample>? samples = RunTaxi();
         if (samples is null)
         {
             return;

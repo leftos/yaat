@@ -16,7 +16,7 @@ public static class CfrWindowResolver
     /// </summary>
     public static ReleaseWindow Resolve(int? hhmm, DateTime nowUtc)
     {
-        var assigned = hhmm is null
+        DateTime assigned = hhmm is null
             ? nowUtc.AddSeconds(CfrWindow.WindowBeforeSeconds)
             : ResolveNearestUtc(hhmm.Value / 100, hhmm.Value % 100, nowUtc);
         return new ReleaseWindow(assigned.AddSeconds(-CfrWindow.WindowBeforeSeconds), assigned.AddSeconds(CfrWindow.WindowAfterSeconds));
@@ -30,8 +30,8 @@ public static class CfrWindowResolver
     internal static DateTime ResolveNearestUtc(int hours, int minutes, DateTime nowUtc)
     {
         var onDay = new DateTime(nowUtc.Year, nowUtc.Month, nowUtc.Day, hours, minutes, 0, DateTimeKind.Utc);
-        var best = onDay;
-        foreach (var candidate in new[] { onDay.AddDays(-1), onDay.AddDays(1) })
+        DateTime best = onDay;
+        foreach (DateTime candidate in new[] { onDay.AddDays(-1), onDay.AddDays(1) })
         {
             if (Math.Abs((candidate - nowUtc).Ticks) < Math.Abs((best - nowUtc).Ticks))
             {

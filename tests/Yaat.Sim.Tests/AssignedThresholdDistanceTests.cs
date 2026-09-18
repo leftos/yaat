@@ -28,7 +28,7 @@ public class AssignedThresholdDistanceTests
     private static RunwayInfo MakeRunway()
     {
         var threshold = new LatLon(37.0, -122.0);
-        var end = GeoMath.ProjectPoint(threshold, new TrueHeading(280), RunwayLengthFt / GeoMath.FeetPerNm);
+        LatLon end = GeoMath.ProjectPoint(threshold, new TrueHeading(280), RunwayLengthFt / GeoMath.FeetPerNm);
         return TestRunwayFactory.Make(
             designator: "28",
             thresholdLat: threshold.Lat,
@@ -58,7 +58,7 @@ public class AssignedThresholdDistanceTests
     [Fact]
     public void StraightIn_MeasuresToTheLandingThreshold()
     {
-        var ac = Arrival(distanceOutNm: 4.0, trackDeg: 280);
+        AircraftState ac = Arrival(distanceOutNm: 4.0, trackDeg: 280);
 
         double assigned = RunwayOccupancy.DistanceToAssignedThresholdNm(ac, Runway, layout: null);
 
@@ -69,7 +69,7 @@ public class AssignedThresholdDistanceTests
     public void Downwind_StillMeasuresToTheLandingThreshold_NotTheReciprocalEnd()
     {
         // Same point in space as the straight-in case — only the track differs, as on a downwind leg.
-        var ac = Arrival(distanceOutNm: 4.0, trackDeg: 100);
+        AircraftState ac = Arrival(distanceOutNm: 4.0, trackDeg: 100);
 
         double assigned = RunwayOccupancy.DistanceToAssignedThresholdNm(ac, Runway, layout: null);
 
@@ -79,7 +79,7 @@ public class AssignedThresholdDistanceTests
     [Fact]
     public void Downwind_TrackDerivedDatumGoesNegative_WhichIsWhyTheAssignedDatumExists()
     {
-        var ac = Arrival(distanceOutNm: 4.0, trackDeg: 100);
+        AircraftState ac = Arrival(distanceOutNm: 4.0, trackDeg: 100);
 
         double trackDerived = RunwayOccupancy.DistanceToLandingThresholdNm(ac, Runway, layout: null);
         double assigned = RunwayOccupancy.DistanceToAssignedThresholdNm(ac, Runway, layout: null);
@@ -94,8 +94,8 @@ public class AssignedThresholdDistanceTests
     [Fact]
     public void Downwind_EtaStaysPositive_SoTheAircraftDoesNotSortAheadOfTrafficOnFinal()
     {
-        var downwind = Arrival(distanceOutNm: 8.0, trackDeg: 100);
-        var onFinal = Arrival(distanceOutNm: 3.0, trackDeg: 280);
+        AircraftState downwind = Arrival(distanceOutNm: 8.0, trackDeg: 100);
+        AircraftState onFinal = Arrival(distanceOutNm: 3.0, trackDeg: 280);
 
         double downwindEta = RunwayOccupancy.SecondsToAssignedThreshold(downwind, Runway, layout: null);
         double finalEta = RunwayOccupancy.SecondsToAssignedThreshold(onFinal, Runway, layout: null);
@@ -110,7 +110,7 @@ public class AssignedThresholdDistanceTests
     [Fact]
     public void Stopped_HasNoEta()
     {
-        var ac = Arrival(distanceOutNm: 4.0, trackDeg: 280);
+        AircraftState ac = Arrival(distanceOutNm: 4.0, trackDeg: 280);
         ac.IndicatedAirspeed = 0;
 
         Assert.True(double.IsPositiveInfinity(RunwayOccupancy.SecondsToAssignedThreshold(ac, Runway, layout: null)));

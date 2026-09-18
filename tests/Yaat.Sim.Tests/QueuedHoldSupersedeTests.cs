@@ -45,22 +45,26 @@ public class QueuedHoldSupersedeTests
     [Fact]
     public void FreshVector_CancelsQueuedHoldOrbit()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         // Queue a conditional hold: when the aircraft reaches 5000 ft, orbit right in place.
         // (Altitude condition keeps the repro free of any nav-fix lookup.)
-        var holdCompound = CommandParser.ParseCompound("AT 5000 HPPR");
+        ParseResult<CompoundCommand> holdCompound = CommandParser.ParseCompound("AT 5000 HPPR");
         Assert.True(holdCompound.IsSuccess, $"Hold parse failed: {holdCompound.Reason}");
 
-        var holdResult = CommandDispatcher.DispatchCompound(holdCompound.Value!, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
+        CommandResult holdResult = CommandDispatcher.DispatchCompound(
+            holdCompound.Value!,
+            ac,
+            TestDispatch.Context(Random.Shared, validateDctFixes: false)
+        );
         Assert.True(holdResult.Success, $"Hold dispatch failed: {holdResult.Message}");
         Assert.True(HasQueuedHold(ac), "Precondition: the conditional hold should be sitting in the queue.");
 
         // Controller changes the plan before the hold fires: a fresh lateral vector.
-        var vectorCompound = CommandParser.ParseCompound("FH 270");
+        ParseResult<CompoundCommand> vectorCompound = CommandParser.ParseCompound("FH 270");
         Assert.True(vectorCompound.IsSuccess, $"Vector parse failed: {vectorCompound.Reason}");
 
-        var vectorResult = CommandDispatcher.DispatchCompound(
+        CommandResult vectorResult = CommandDispatcher.DispatchCompound(
             vectorCompound.Value!,
             ac,
             TestDispatch.Context(Random.Shared, validateDctFixes: false)

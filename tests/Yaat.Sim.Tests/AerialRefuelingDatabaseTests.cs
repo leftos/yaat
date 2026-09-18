@@ -39,13 +39,13 @@ public sealed class AerialRefuelingDatabaseTests
     [Fact]
     public void Ar1_MatchesThePublishedTrackDescription()
     {
-        var route = Db.Get("AR1");
+        MilitaryRoute? route = Db.Get("AR1");
 
         Assert.NotNull(route);
         Assert.Equal(MilitaryRouteArKind.Track, route!.ArKind);
         // AP/1B page 5-1: ARIP BAM 060/30, ARCP MLD 225/94, check points MLD 090/10 and BOY 227/92,
         // exit OCS 008/118, flown eastbound at FL240/FL310.
-        var variant = Assert.Single(route.Variants);
+        MilitaryRouteVariant variant = Assert.Single(route.Variants);
         Assert.Equal("East", variant.Direction);
         Assert.Equal(
             [
@@ -69,14 +69,14 @@ public sealed class AerialRefuelingDatabaseTests
         // AR4A's two directions are laterally offset parallels, not one line flown backwards: the
         // southbound ARIP is ~50 NM from the northbound exit. Collapsing them into one point list
         // would fly half the traffic down the wrong track.
-        var route = Db.Get("AR4A");
+        MilitaryRoute? route = Db.Get("AR4A");
 
         Assert.NotNull(route);
         Assert.Equal(2, route!.Variants.Count);
         Assert.Equal(["North", "South"], route.Variants.Select(v => v.Direction));
 
-        var northboundExit = route.Variants[0].Points[^1].Position;
-        var southboundArip = route.Variants[1].Points[0].Position;
+        LatLon northboundExit = route.Variants[0].Points[^1].Position;
+        LatLon southboundArip = route.Variants[1].Points[0].Position;
         Assert.True(GeoMath.DistanceNm(northboundExit, southboundArip) > 20);
     }
 
@@ -85,12 +85,12 @@ public sealed class AerialRefuelingDatabaseTests
     {
         // Both directions share one designator, so an undecorated label would map a single
         // synthetic fix name to two positions far apart.
-        foreach (var route in Refueling.Where(r => r.Variants.Count > 1))
+        foreach (MilitaryRoute? route in Refueling.Where(r => r.Variants.Count > 1))
         {
             var byName = new Dictionary<string, LatLon>(StringComparer.OrdinalIgnoreCase);
-            foreach (var point in route.AllPoints)
+            foreach (MilitaryRoutePoint point in route.AllPoints)
             {
-                if (byName.TryGetValue(point.Name, out var seen))
+                if (byName.TryGetValue(point.Name, out LatLon seen))
                 {
                     Assert.True(GeoMath.DistanceNm(seen, point.Position) < 1.0, $"{route.Designator} reuses {point.Name} for two positions");
                     continue;
@@ -108,7 +108,7 @@ public sealed class AerialRefuelingDatabaseTests
 
         // AR662V is a VFR helicopter refueling area and genuinely publishes no orbit pattern; every
         // other anchor does.
-        var withoutPattern = anchors.Where(a => a.Variants.All(v => v.Pattern.Count == 0)).Select(a => a.Designator);
+        IEnumerable<string> withoutPattern = anchors.Where(a => a.Variants.All(v => v.Pattern.Count == 0)).Select(a => a.Designator);
         Assert.Equal(["AR662V"], withoutPattern);
         Assert.All(anchors.SelectMany(a => a.Variants).SelectMany(v => v.Pattern), p => Assert.Equal(MilitaryRoutePointRole.PatternCorner, p.Role));
     }
@@ -116,11 +116,11 @@ public sealed class AerialRefuelingDatabaseTests
     [Fact]
     public void Ar601_CarriesItsAnchorPointAndAtcAssignedAirspace()
     {
-        var route = Db.Get("AR601");
+        MilitaryRoute? route = Db.Get("AR601");
 
         Assert.NotNull(route);
         Assert.Equal(MilitaryRouteArKind.Anchor, route!.ArKind);
-        var variant = Assert.Single(route.Variants);
+        MilitaryRouteVariant variant = Assert.Single(route.Variants);
         Assert.Contains(variant.Points, p => p.Role == MilitaryRoutePointRole.AnchorPoint);
         Assert.Equal(4, variant.Pattern.Count);
         // AP/1B prints a 14-vertex ATC Assigned Airspace polygon for AR601.
@@ -165,17 +165,17 @@ public sealed class AerialRefuelingDatabaseTests
     public void FiledAnchors_SelectThePublishedDirection()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = NavigationDatabase.Instance;
-        var route = navDb.GetMilitaryRoute("AR4A");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        MilitaryRoute? route = navDb.GetMilitaryRoute("AR4A");
         Assert.NotNull(route);
         Assert.Equal(2, route!.Variants.Count);
 
         // Filing the northbound ARIP and exit must pick North; filing the southbound pair must pick
         // South. The two directions are offset parallels, so only scoring the anchor *pair* tells
         // them apart.
-        foreach (var expected in route.Variants)
+        foreach (MilitaryRouteVariant expected in route.Variants)
         {
-            var selected = MilitaryRouteExpander.SelectVariant(route, expected.Points[0].Name, expected.Points[^1].Name, navDb);
+            MilitaryRouteVariant? selected = MilitaryRouteExpander.SelectVariant(route, expected.Points[0].Name, expected.Points[^1].Name, navDb);
 
             Assert.NotNull(selected);
             Assert.Equal(expected.Direction, selected!.Direction);
@@ -186,11 +186,11 @@ public sealed class AerialRefuelingDatabaseTests
     public void Expand_TwoDirectionTrack_FliesTheDirectionItsAnchorsDescribe()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = NavigationDatabase.Instance;
-        var route = navDb.GetMilitaryRoute("AR4A")!;
-        var southbound = route.Variants[1];
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        MilitaryRoute route = navDb.GetMilitaryRoute("AR4A")!;
+        MilitaryRouteVariant southbound = route.Variants[1];
 
-        var names = MilitaryRouteExpander.Expand("AR4A", southbound.Points[0].Name, southbound.Points[^1].Name, navDb);
+        IReadOnlyList<string> names = MilitaryRouteExpander.Expand("AR4A", southbound.Points[0].Name, southbound.Points[^1].Name, navDb);
 
         Assert.Equal(southbound.Points.Select(p => p.Name), names);
     }
@@ -201,7 +201,7 @@ public sealed class AerialRefuelingDatabaseTests
         // FrdResolver.ParseFrd reads a name as an FRD when its last three or six characters are all
         // digits. Every refueling label is alphabetic or alphanumeric-with-a-leading-letter, so a
         // minted name can never collide with that rule.
-        foreach (var point in Refueling.SelectMany(r => r.AllPoints))
+        foreach (MilitaryRoutePoint? point in Refueling.SelectMany(r => r.AllPoints))
         {
             Assert.False(point.Name[^3..].All(char.IsDigit), point.Name);
             Assert.False(point.Name.Length >= 6 && point.Name[^6..].All(char.IsDigit), point.Name);

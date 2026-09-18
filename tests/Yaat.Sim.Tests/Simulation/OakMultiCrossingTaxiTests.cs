@@ -33,16 +33,16 @@ public sealed class OakMultiCrossingTaxiTests(ITestOutputHelper output)
             return;
         }
 
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
         }
 
-        var layout = archive.ReadLayout("oak");
-        var category = AircraftCategorization.Categorize("E45X");
+        AirportGroundLayout layout = archive.ReadLayout("oak");
+        AircraftCategory category = AircraftCategorization.Categorize("E45X");
 
-        var jsx1 = layout.FindParkingByName("JSX1");
+        GroundNode? jsx1 = layout.FindParkingByName("JSX1");
         Assert.NotNull(jsx1);
         output.WriteLine($"JSX1 = node {jsx1.Id}");
 
@@ -53,15 +53,15 @@ public sealed class OakMultiCrossingTaxiTests(ITestOutputHelper output)
 
             DiagnosticLog = m => output.WriteLine("  " + m),
         };
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, jsx1.Id, ["C", "B", "W"], out var fail, opts, category);
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(layout, jsx1.Id, ["C", "B", "W"], out string? fail, opts, category);
 
         output.WriteLine($"failReason={fail ?? "(null)"}");
         Assert.NotNull(route);
 
         int terminalNodeId = route.Segments[^1].ToNodeId;
-        var terminalNode = layout.Nodes[terminalNodeId];
+        GroundNode terminalNode = layout.Nodes[terminalNodeId];
         output.WriteLine($"route segs={route.Segments.Count} terminal={terminalNodeId} ({terminalNode.Type} rwy={terminalNode.RunwayId})");
-        foreach (var p in route.HoldShortPoints)
+        foreach (HoldShortPoint p in route.HoldShortPoints)
         {
             output.WriteLine($"  HSP node={p.NodeId} target={p.TargetName} reason={p.Reason}");
         }
@@ -71,12 +71,12 @@ public sealed class OakMultiCrossingTaxiTests(ITestOutputHelper output)
         Assert.True(terminalNode.RunwayId?.Contains("30") ?? false, $"route should end at a runway-30 hold-short, ended at {terminalNode.RunwayId}");
 
         // Both parallels are en-route hold-shorts: 28R (explicitly named) and 28L (an implicit crossing).
-        var hs28R = route.HoldShortPoints.FirstOrDefault(p => p.TargetName is { } n && RunwayIdentifier.Parse(n).Contains("28R"));
+        HoldShortPoint? hs28R = route.HoldShortPoints.FirstOrDefault(p => p.TargetName is { } n && RunwayIdentifier.Parse(n).Contains("28R"));
         Assert.NotNull(hs28R);
         Assert.NotEqual(terminalNodeId, hs28R.NodeId);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, hs28R.Reason);
 
-        var hs28L = route.HoldShortPoints.FirstOrDefault(p => p.TargetName is { } n && RunwayIdentifier.Parse(n).Contains("28L"));
+        HoldShortPoint? hs28L = route.HoldShortPoints.FirstOrDefault(p => p.TargetName is { } n && RunwayIdentifier.Parse(n).Contains("28L"));
         Assert.NotNull(hs28L);
         Assert.NotEqual(terminalNodeId, hs28L.NodeId);
 

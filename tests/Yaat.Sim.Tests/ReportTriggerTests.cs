@@ -20,7 +20,7 @@ public class ReportTriggerTests
     [Fact]
     public void AtFix_Fires_AndClears_WhenReached()
     {
-        var ac = MakeAircraft(37.75, -122.0);
+        AircraftState ac = MakeAircraft(37.75, -122.0);
         ac.Approach.ReportAtFixName = "SUNOL";
         ac.Approach.ReportAtFixLat = 37.75;
         ac.Approach.ReportAtFixLon = -122.0;
@@ -28,14 +28,14 @@ public class ReportTriggerTests
         PilotProactive.TickReportTriggers(ac, MakeScenario());
 
         Assert.Null(ac.Approach.ReportAtFixName);
-        var tx = Assert.Single(ac.PendingPilotTransmissions);
+        PilotTransmission tx = Assert.Single(ac.PendingPilotTransmissions);
         Assert.Contains("passing SUNOL", tx.Text, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public void AtFix_DoesNotFire_WhenFarAway()
     {
-        var ac = MakeAircraft(38.5, -122.0);
+        AircraftState ac = MakeAircraft(38.5, -122.0);
         ac.Approach.ReportAtFixName = "SUNOL";
         ac.Approach.ReportAtFixLat = 37.75;
         ac.Approach.ReportAtFixLon = -122.0;
@@ -49,7 +49,7 @@ public class ReportTriggerTests
     [Fact]
     public void MileFinal_Fires_AndClears_WhenInsideDistance()
     {
-        var ac = MakeAircraft(37.788, -122.221); // ~4 nm north of the 28R threshold
+        AircraftState ac = MakeAircraft(37.788, -122.221); // ~4 nm north of the 28R threshold
         ac.Phases = new PhaseList { AssignedRunway = MakeRunway() };
         ac.Phases.Add(new FinalApproachPhase()); // makes the aircraft inbound-to-land
         ac.Approach.ReportFinalMileTarget = 5;
@@ -57,7 +57,7 @@ public class ReportTriggerTests
         PilotProactive.TickReportTriggers(ac, MakeScenario());
 
         Assert.Null(ac.Approach.ReportFinalMileTarget);
-        var tx = Assert.Single(ac.PendingPilotTransmissions);
+        PilotTransmission tx = Assert.Single(ac.PendingPilotTransmissions);
         Assert.Contains("5-mile final", tx.Text, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -65,7 +65,7 @@ public class ReportTriggerTests
     public void MileFinal_DoesNotFire_WhenNotInbound()
     {
         // No FinalApproachPhase → not inbound-to-land → a same-runway departure never reports final.
-        var ac = MakeAircraft(37.788, -122.221);
+        AircraftState ac = MakeAircraft(37.788, -122.221);
         ac.Phases = new PhaseList { AssignedRunway = MakeRunway() };
         ac.Approach.ReportFinalMileTarget = 5;
 
@@ -78,12 +78,12 @@ public class ReportTriggerTests
     [Fact]
     public void PatternLeg_Fires_WhenArmed_AndStaysArmedForNextLap()
     {
-        var ac = MakeAircraft(37.75, -122.221);
+        AircraftState ac = MakeAircraft(37.75, -122.221);
         ac.Approach.ReportArmedBase = true;
 
         PatternReportHelper.EmitTurningLeg(MakePhaseContext(ac), ReportTrigger.Base);
 
-        var tx = Assert.Single(ac.PendingPilotTransmissions);
+        PilotTransmission tx = Assert.Single(ac.PendingPilotTransmissions);
         Assert.Contains("turning base", tx.Text, StringComparison.OrdinalIgnoreCase);
         // Pattern-leg reports persist so they re-arm on the next circuit.
         Assert.True(ac.Approach.ReportArmedBase);
@@ -92,7 +92,7 @@ public class ReportTriggerTests
     [Fact]
     public void PatternLeg_Silent_WhenNotArmed()
     {
-        var ac = MakeAircraft(37.75, -122.221);
+        AircraftState ac = MakeAircraft(37.75, -122.221);
 
         PatternReportHelper.EmitTurningLeg(MakePhaseContext(ac), ReportTrigger.Base);
 

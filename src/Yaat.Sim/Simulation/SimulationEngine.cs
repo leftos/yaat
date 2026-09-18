@@ -117,13 +117,13 @@ public sealed partial class SimulationEngine
     /// </summary>
     public CommandResult SelectPosition(string connectionId, string tcpCode)
     {
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null)
         {
             return new CommandResult(false, "No scenario loaded");
         }
 
-        var owner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+        TrackOwner? owner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
         if (owner is null)
         {
             return new CommandResult(false, $"Unknown position: {tcpCode}");
@@ -269,7 +269,7 @@ public sealed partial class SimulationEngine
     /// </param>
     public void DeleteAircraft(string callsign, string completionDetail)
     {
-        var ac = World.FindAircraft(callsign);
+        AircraftState? ac = World.FindAircraft(callsign);
         if (ac is { CompletionReason: CompletionReason.Active })
         {
             ac.CompletedAtSeconds = Scenario?.ElapsedSeconds;

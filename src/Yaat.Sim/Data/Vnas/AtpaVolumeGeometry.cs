@@ -1,6 +1,7 @@
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Vnas;
 
@@ -24,16 +25,16 @@ public static class AtpaVolumeGeometry
     /// </summary>
     private static VolumeRunwayMatch ResolveVolumeRunway(AtpaVolumeConfig volume)
     {
-        var navDb = NavigationDatabase.InstanceOrNull;
+        NavigationDatabase? navDb = NavigationDatabase.InstanceOrNull;
         if (navDb is not null)
         {
             var threshold = new LatLon(volume.RunwayThreshold.Lat, volume.RunwayThreshold.Lon);
-            var bestDistNm = RunwayThresholdMatchNm;
+            double bestDistNm = RunwayThresholdMatchNm;
             double? bestHeading = null;
             string? bestDesignator = null;
-            foreach (var runway in navDb.GetRunways(volume.AirportId))
+            foreach (RunwayInfo runway in navDb.GetRunways(volume.AirportId))
             {
-                var d1 = GeoMath.DistanceNm(threshold, new LatLon(runway.Lat1, runway.Lon1));
+                double d1 = GeoMath.DistanceNm(threshold, new LatLon(runway.Lat1, runway.Lon1));
                 if (d1 < bestDistNm)
                 {
                     bestDistNm = d1;
@@ -41,7 +42,7 @@ public static class AtpaVolumeGeometry
                     bestDesignator = runway.Id.End1;
                 }
 
-                var d2 = GeoMath.DistanceNm(threshold, new LatLon(runway.Lat2, runway.Lon2));
+                double d2 = GeoMath.DistanceNm(threshold, new LatLon(runway.Lat2, runway.Lon2));
                 if (d2 < bestDistNm)
                 {
                     bestDistNm = d2;
@@ -107,32 +108,32 @@ public static class AtpaVolumeGeometry
     public static bool IsInside(AtpaVolumeConfig volume, AircraftState ac)
     {
         // Altitude check: floor/ceiling are in hundreds of feet
-        var altHundreds = (int)(ac.Altitude / 100);
+        int altHundreds = (int)(ac.Altitude / 100);
         if (altHundreds < volume.Floor || altHundreds > volume.Ceiling)
         {
             return false;
         }
 
-        var volumeTrueHeading = VolumeTrueHeadingDeg(volume);
+        double volumeTrueHeading = VolumeTrueHeadingDeg(volume);
 
         // Heading deviation check: aircraft fly the approach course inbound, so compare the aircraft's
         // true track against the volume's true approach heading.
-        var hdgDiff = Math.Abs(HeadingDelta(ac.TrueTrack.Degrees, volumeTrueHeading));
+        double hdgDiff = Math.Abs(HeadingDelta(ac.TrueTrack.Degrees, volumeTrueHeading));
         if (hdgDiff > volume.MaximumHeadingDeviation)
         {
             return false;
         }
 
         var threshold = new LatLon(volume.RunwayThreshold.Lat, volume.RunwayThreshold.Lon);
-        var distNm = GeoMath.DistanceNm(threshold, ac.Position);
-        var bearingToAc = GeoMath.BearingTo(threshold, ac.Position);
+        double distNm = GeoMath.DistanceNm(threshold, ac.Position);
+        double bearingToAc = GeoMath.BearingTo(threshold, ac.Position);
 
         // The volume extends OUTBOUND from the threshold — back up the final, opposite the landing
         // direction — because aircraft established on the approach sit behind the threshold relative to
         // the approach course. Project along that reciprocal so on-final arrivals read positive along-track.
-        var angleDiff = (bearingToAc - OutboundTrueHeadingDeg(volumeTrueHeading)) * Math.PI / 180.0;
-        var alongTrack = distNm * Math.Cos(angleDiff);
-        var crossTrack = distNm * Math.Sin(angleDiff);
+        double angleDiff = (bearingToAc - OutboundTrueHeadingDeg(volumeTrueHeading)) * Math.PI / 180.0;
+        double alongTrack = distNm * Math.Cos(angleDiff);
+        double crossTrack = distNm * Math.Sin(angleDiff);
 
         // Along-track: must be between 0 (threshold) and volume length
         if (alongTrack < 0 || alongTrack > volume.Length)
@@ -141,7 +142,7 @@ public static class AtpaVolumeGeometry
         }
 
         // Cross-track: widthLeft/widthRight are in feet
-        var crossTrackFeet = crossTrack * GeoMath.FeetPerNm;
+        double crossTrackFeet = crossTrack * GeoMath.FeetPerNm;
         if (crossTrackFeet < -volume.WidthLeft || crossTrackFeet > volume.WidthRight)
         {
             return false;
@@ -154,9 +155,9 @@ public static class AtpaVolumeGeometry
     public static double DistanceFromThreshold(AtpaVolumeConfig volume, AircraftState ac)
     {
         var threshold = new LatLon(volume.RunwayThreshold.Lat, volume.RunwayThreshold.Lon);
-        var bearingToAc = GeoMath.BearingTo(threshold, ac.Position);
-        var distNm = GeoMath.DistanceNm(threshold, ac.Position);
-        var angleDiff = (bearingToAc - OutboundTrueHeadingDeg(VolumeTrueHeadingDeg(volume))) * Math.PI / 180.0;
+        double bearingToAc = GeoMath.BearingTo(threshold, ac.Position);
+        double distNm = GeoMath.DistanceNm(threshold, ac.Position);
+        double angleDiff = (bearingToAc - OutboundTrueHeadingDeg(VolumeTrueHeadingDeg(volume))) * Math.PI / 180.0;
         return distNm * Math.Cos(angleDiff);
     }
 
@@ -168,9 +169,9 @@ public static class AtpaVolumeGeometry
     public static double CrossTrackNm(AtpaVolumeConfig volume, AircraftState ac)
     {
         var threshold = new LatLon(volume.RunwayThreshold.Lat, volume.RunwayThreshold.Lon);
-        var bearingToAc = GeoMath.BearingTo(threshold, ac.Position);
-        var distNm = GeoMath.DistanceNm(threshold, ac.Position);
-        var angleDiff = (bearingToAc - OutboundTrueHeadingDeg(VolumeTrueHeadingDeg(volume))) * Math.PI / 180.0;
+        double bearingToAc = GeoMath.BearingTo(threshold, ac.Position);
+        double distNm = GeoMath.DistanceNm(threshold, ac.Position);
+        double angleDiff = (bearingToAc - OutboundTrueHeadingDeg(VolumeTrueHeadingDeg(volume))) * Math.PI / 180.0;
         return distNm * Math.Sin(angleDiff);
     }
 
@@ -203,7 +204,7 @@ public static class AtpaVolumeGeometry
             return false;
         }
 
-        var hdgDiff = Math.Abs(HeadingDelta(ac.TrueTrack.Degrees, VolumeTrueHeadingDeg(volume)));
+        double hdgDiff = Math.Abs(HeadingDelta(ac.TrueTrack.Degrees, VolumeTrueHeadingDeg(volume)));
         if (hdgDiff > ApproachHeadingTolerance)
         {
             return false;

@@ -69,11 +69,11 @@ public static class PhoneticFixMatcher
             return null;
         }
 
-        var normalizedToken = token.Trim().ToUpperInvariant();
-        var tokenPhonetic = Phonetize(normalizedToken);
+        string normalizedToken = token.Trim().ToUpperInvariant();
+        string tokenPhonetic = Phonetize(normalizedToken);
 
         // Pass 1: programmed fixes (generous threshold).
-        var best = FindBest(normalizedToken, tokenPhonetic, programmedFixes, ProgrammedFixMaxDistance);
+        string? best = FindBest(normalizedToken, tokenPhonetic, programmedFixes, ProgrammedFixMaxDistance);
         if (best is not null)
         {
             return best;
@@ -84,7 +84,7 @@ public static class PhoneticFixMatcher
         {
             try
             {
-                var allFixes = NavigationDatabase.Instance?.AllFixNames;
+                string[]? allFixes = NavigationDatabase.Instance?.AllFixNames;
                 if (allFixes is not null && allFixes.Length > 0)
                 {
                     best = FindBest(normalizedToken, tokenPhonetic, allFixes, FullDatabaseMaxDistance);
@@ -113,14 +113,14 @@ public static class PhoneticFixMatcher
     private static string? FindBest(string token, string tokenPhonetic, IEnumerable<string> candidates, int maxDistance)
     {
         string? best = null;
-        var bestDistance = int.MaxValue;
-        foreach (var candidate in candidates)
+        int bestDistance = int.MaxValue;
+        foreach (string candidate in candidates)
         {
             if (string.IsNullOrEmpty(candidate))
             {
                 continue;
             }
-            var upperCandidate = candidate.ToUpperInvariant();
+            string upperCandidate = candidate.ToUpperInvariant();
 
             // Fast path: exact match.
             if (upperCandidate == token)
@@ -128,10 +128,10 @@ public static class PhoneticFixMatcher
                 return upperCandidate;
             }
 
-            var rawDistance = Levenshtein(token, upperCandidate);
-            var phoneticDistance = Levenshtein(tokenPhonetic, Phonetize(upperCandidate));
+            int rawDistance = Levenshtein(token, upperCandidate);
+            int phoneticDistance = Levenshtein(tokenPhonetic, Phonetize(upperCandidate));
             // Require both to be close — prevents short phonetic codes from colliding.
-            var combined = Math.Max(rawDistance, phoneticDistance);
+            int combined = Math.Max(rawDistance, phoneticDistance);
 
             if (combined < bestDistance)
             {
@@ -158,19 +158,19 @@ public static class PhoneticFixMatcher
         }
 
         // Two rows are enough for the recurrence; reuse to avoid allocating a full matrix.
-        var prev = new int[b.Length + 1];
-        var curr = new int[b.Length + 1];
-        for (var j = 0; j <= b.Length; j++)
+        int[] prev = new int[b.Length + 1];
+        int[] curr = new int[b.Length + 1];
+        for (int j = 0; j <= b.Length; j++)
         {
             prev[j] = j;
         }
 
-        for (var i = 1; i <= a.Length; i++)
+        for (int i = 1; i <= a.Length; i++)
         {
             curr[0] = i;
-            for (var j = 1; j <= b.Length; j++)
+            for (int j = 1; j <= b.Length; j++)
             {
-                var cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                int cost = a[i - 1] == b[j - 1] ? 0 : 1;
                 curr[j] = Math.Min(Math.Min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
             }
             (prev, curr) = (curr, prev);
@@ -198,13 +198,13 @@ public static class PhoneticFixMatcher
             return "";
         }
 
-        var upper = word.ToUpperInvariant();
+        string upper = word.ToUpperInvariant();
         var sb = new System.Text.StringBuilder(upper.Length);
 
-        for (var i = 0; i < upper.Length; i++)
+        for (int i = 0; i < upper.Length; i++)
         {
-            var c = upper[i];
-            var next = i + 1 < upper.Length ? upper[i + 1] : '\0';
+            char c = upper[i];
+            char next = i + 1 < upper.Length ? upper[i + 1] : '\0';
 
             // Silent leading K, P, W, G before N: "KNOT" → "NOT", "PNEUMATIC" → "NEUMATIC"
             if (sb.Length == 0 && next == 'N' && (c == 'K' || c == 'P' || c == 'G' || c == 'W'))
@@ -310,8 +310,8 @@ public static class PhoneticFixMatcher
 
         // Collapse adjacent duplicates: "BETTER" → "BTR" (already after vowel drop).
         var result = new System.Text.StringBuilder(sb.Length);
-        var last = '\0';
-        foreach (var c in sb.ToString())
+        char last = '\0';
+        foreach (char c in sb.ToString())
         {
             if (c != last)
             {

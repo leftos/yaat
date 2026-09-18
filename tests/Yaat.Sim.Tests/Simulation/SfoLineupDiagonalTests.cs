@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -56,8 +57,8 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
     [Fact]
     public void N346G_LineUp28R_CompletesWithOnCenterlineAlignedStop()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("SKIP: recording or navdata not available");
@@ -68,9 +69,9 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         // coordinates — the test fails loudly if SFO 28R changes in
         // NavData.dat rather than silently drifting against stale
         // constants.
-        var runway = TestVnasData.NavigationDb!.GetRunway("KSFO", "28R");
+        RunwayInfo? runway = TestVnasData.NavigationDb!.GetRunway("KSFO", "28R");
         Assert.NotNull(runway);
-        var rwyHdg = runway.TrueHeading;
+        TrueHeading rwyHdg = runway.TrueHeading;
         double rwyThreshLat = runway.ThresholdLatitude;
         double rwyThreshLon = runway.ThresholdLongitude;
 
@@ -78,7 +79,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         // transition into LineUpPhase on the next tick.
         engine.Replay(recording, 249);
 
-        var ac = engine.FindAircraft("N346G");
+        AircraftState? ac = engine.FindAircraft("N346G");
         Assert.NotNull(ac);
         bool enteredLineUp = false;
         bool exitedLineUp = false;
@@ -111,7 +112,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
             ac = engine.FindAircraft("N346G");
             Assert.NotNull(ac);
 
-            var phase = ac.Phases?.CurrentPhase;
+            Phase? phase = ac.Phases?.CurrentPhase;
 
             if (!enteredLineUp && phase is LineUpPhase)
             {

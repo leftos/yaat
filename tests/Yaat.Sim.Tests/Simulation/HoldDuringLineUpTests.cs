@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -62,10 +64,10 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
     /// </summary>
     private bool TryRestoreHoldingShort(RecordingArchive archive, SimulationEngine engine)
     {
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
 
-        var snapshot = archive.ReadSnapshotAt(RestoreAt);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAt);
         if (snapshot is null)
         {
             output.WriteLine($"No snapshot near t={RestoreAt} — skipping");
@@ -73,7 +75,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
         }
         engine.RestoreFromSnapshot(snapshot.State);
 
-        var pre = engine.FindAircraft(Callsign);
+        AircraftState? pre = engine.FindAircraft(Callsign);
         if (pre?.Phases?.CurrentPhase is not HoldingShortPhase)
         {
             output.WriteLine($"{Callsign} not holding short at t={RestoreAt} (phase={pre?.Phases?.CurrentPhase?.Name}) — skipping");
@@ -89,7 +91,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
         for (int t = 1; t <= 20; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             if (ac?.Phases?.CurrentPhase is LineUpPhase && ac.IndicatedAirspeed > 2.0)
             {
                 return true;
@@ -101,7 +103,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
     [Fact]
     public void Hold_DuringLineUp_StopsImmediately_StaysInLineUp()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -109,7 +111,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null || !TryRestoreHoldingShort(archive, engine))
             {
                 return;
@@ -117,11 +119,11 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
 
             Assert.True(DriveIntoLineUp(engine), $"{Callsign} never started rolling into the line-up after LUAW");
 
-            var moving = engine.FindAircraft(Callsign);
-            var holdPos = moving!.Position;
+            AircraftState? moving = engine.FindAircraft(Callsign);
+            LatLon holdPos = moving!.Position;
             output.WriteLine($"lining up: IAS={moving.IndicatedAirspeed:F1} pos=({holdPos.Lat:F6},{holdPos.Lon:F6})");
 
-            var hold = engine.SendCommand(Callsign, "HOLD");
+            CommandResult hold = engine.SendCommand(Callsign, "HOLD");
             Assert.True(hold.Success, $"HOLD rejected: {hold.Message}");
 
             // The aircraft must brake to a stop where it is and stay in LineUp —
@@ -133,7 +135,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
                 engine.TickOneSecond();
             }
 
-            var held = engine.FindAircraft(Callsign);
+            AircraftState? held = engine.FindAircraft(Callsign);
             Assert.NotNull(held);
             double rolledFt = GeoMath.DistanceNm(holdPos, held.Position) * GeoMath.FeetPerNm;
             output.WriteLine($"held: phase={held.Phases?.CurrentPhase?.Name} IAS={held.IndicatedAirspeed:F1} rolled={rolledFt:F0}ft");
@@ -142,7 +144,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
             Assert.True(held.IndicatedAirspeed < 1.0, $"{Callsign} should be stopped (hold position) but IAS={held.IndicatedAirspeed:F1}");
             Assert.True(rolledFt < 120.0, $"{Callsign} should stop where it is but rolled {rolledFt:F0}ft onto the runway");
 
-            var lineup = held.Phases?.Phases.OfType<LineUpPhase>().FirstOrDefault();
+            LineUpPhase? lineup = held.Phases?.Phases.OfType<LineUpPhase>().FirstOrDefault();
             Assert.True(lineup!.HoldPosition, "LineUpPhase.HoldPosition should be set by HOLD");
         }
     }
@@ -150,7 +152,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
     [Fact]
     public void Hold_ThenLuaw_ResumesLineUp()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -158,7 +160,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null || !TryRestoreHoldingShort(archive, engine))
             {
                 return;
@@ -170,13 +172,13 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
             {
                 engine.TickOneSecond();
             }
-            var held = engine.FindAircraft(Callsign);
+            AircraftState? held = engine.FindAircraft(Callsign);
             Assert.IsType<LineUpPhase>(held!.Phases?.CurrentPhase);
             Assert.True(held.IndicatedAirspeed < 1.0);
 
             // Re-issuing LUAW lifts the hold and resumes the line-up; the aircraft
             // finishes lining up and waits (LinedUpAndWaitingPhase).
-            var luaw = engine.SendCommand(Callsign, "LUAW");
+            CommandResult luaw = engine.SendCommand(Callsign, "LUAW");
             Assert.True(luaw.Success, $"LUAW (resume) rejected: {luaw.Message}");
             Assert.False(held.Phases?.Phases.OfType<LineUpPhase>().First().HoldPosition, "LUAW should lift the hold");
 
@@ -184,7 +186,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
             for (int t = 1; t <= 40; t++)
             {
                 engine.TickOneSecond();
-                var ac = engine.FindAircraft(Callsign);
+                AircraftState? ac = engine.FindAircraft(Callsign);
                 if (ac?.Phases?.CurrentPhase is LinedUpAndWaitingPhase)
                 {
                     linedUp = true;
@@ -205,7 +207,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
     [Fact]
     public void Hold_OnTheLineUpFillet_ThenLuaw_KeepsTheAircraftOnTheCurve()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -213,7 +215,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null || !TryRestoreHoldingShort(archive, engine))
             {
                 return;
@@ -249,19 +251,19 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
                 engine.TickOneSecond();
             }
 
-            var held = engine.FindAircraft(Callsign);
+            AircraftState? held = engine.FindAircraft(Callsign);
             Assert.NotNull(held);
             Assert.IsType<LineUpPhase>(held.Phases?.CurrentPhase);
             Assert.True(held.IndicatedAirspeed < 1.0, $"{Callsign} should be stopped by HOLD but IAS={held.IndicatedAirspeed:F1}kt");
 
-            var releasePos = held.Position;
-            var releaseHdg = held.TrueHeading;
+            LatLon releasePos = held.Position;
+            TrueHeading releaseHdg = held.TrueHeading;
 
             Assert.True(engine.SendCommand(Callsign, "LUAW").Success);
 
             // The tick that used to write the frozen playback pose.
             engine.TickOneSecond();
-            var resumed = engine.FindAircraft(Callsign);
+            AircraftState? resumed = engine.FindAircraft(Callsign);
             Assert.NotNull(resumed);
             double forwardFt = GeoMath.AlongTrackDistanceNm(resumed.Position, releasePos, releaseHdg) * GeoMath.FeetPerNm;
             output.WriteLine($"first tick after LUAW: forward={forwardFt:F1}ft ias={resumed.IndicatedAirspeed:F1}kt");
@@ -280,7 +282,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
     [Fact]
     public void Hold_ThenCto_ResumesAndDeparts()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -288,7 +290,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null || !TryRestoreHoldingShort(archive, engine))
             {
                 return;
@@ -300,18 +302,18 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
             {
                 engine.TickOneSecond();
             }
-            var held = engine.FindAircraft(Callsign);
+            AircraftState? held = engine.FindAircraft(Callsign);
             Assert.IsType<LineUpPhase>(held!.Phases?.CurrentPhase);
             double fieldElev = held.Altitude;
 
-            var cto = engine.SendCommand(Callsign, "CTO");
+            CommandResult cto = engine.SendCommand(Callsign, "CTO");
             Assert.True(cto.Success, $"CTO rejected: {cto.Message}");
 
             bool airborne = false;
             for (int t = 1; t <= 120; t++)
             {
                 engine.TickOneSecond();
-                var ac = engine.FindAircraft(Callsign);
+                AircraftState? ac = engine.FindAircraft(Callsign);
                 if (ac is null)
                 {
                     break;
@@ -329,7 +331,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
     [Fact]
     public void Hold_ThenRes_IsRejected_AircraftStaysHeld()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -337,7 +339,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null || !TryRestoreHoldingShort(archive, engine))
             {
                 return;
@@ -351,14 +353,14 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
             }
 
             // RES does not resume a held line-up — the user must use LUAW or CTO.
-            var res = engine.SendCommand(Callsign, "RES");
+            CommandResult res = engine.SendCommand(Callsign, "RES");
             Assert.False(res.Success, $"RES should not resume a held line-up but succeeded: {res.Message}");
 
             for (int t = 1; t <= 10; t++)
             {
                 engine.TickOneSecond();
             }
-            var stillHeld = engine.FindAircraft(Callsign);
+            AircraftState? stillHeld = engine.FindAircraft(Callsign);
             Assert.IsType<LineUpPhase>(stillHeld!.Phases?.CurrentPhase);
             Assert.True(stillHeld.IndicatedAirspeed < 1.0, $"{Callsign} should remain held after RES but IAS={stillHeld.IndicatedAirspeed:F1}");
             Assert.True(stillHeld.Phases?.Phases.OfType<LineUpPhase>().First().HoldPosition, "hold should persist after RES");
@@ -368,7 +370,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
     [Fact]
     public void Hold_OnTakeoffRoll_IsRejected()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -376,7 +378,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null || !TryRestoreHoldingShort(archive, engine))
             {
                 return;
@@ -389,7 +391,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
             for (int t = 1; t <= 60; t++)
             {
                 engine.TickOneSecond();
-                var ac = engine.FindAircraft(Callsign);
+                AircraftState? ac = engine.FindAircraft(Callsign);
                 if (ac is { IsOnGround: true } && ac.Phases?.CurrentPhase is TakeoffPhase && ac.IndicatedAirspeed > 20.0)
                 {
                     rolling = true;
@@ -398,8 +400,8 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
             }
             Assert.True(rolling, $"{Callsign} never reached the takeoff roll");
 
-            var before = engine.FindAircraft(Callsign)!.IndicatedAirspeed;
-            var hold = engine.SendCommand(Callsign, "HOLD");
+            double before = engine.FindAircraft(Callsign)!.IndicatedAirspeed;
+            CommandResult hold = engine.SendCommand(Callsign, "HOLD");
             Assert.False(hold.Success, $"HOLD on the takeoff roll should be rejected but succeeded: {hold.Message}");
             Assert.Contains("takeoff roll", hold.Message!, System.StringComparison.OrdinalIgnoreCase);
 
@@ -408,7 +410,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
             {
                 engine.TickOneSecond();
             }
-            var after = engine.FindAircraft(Callsign);
+            AircraftState? after = engine.FindAircraft(Callsign);
             Assert.NotNull(after);
             Assert.True(
                 after.IndicatedAirspeed > before,

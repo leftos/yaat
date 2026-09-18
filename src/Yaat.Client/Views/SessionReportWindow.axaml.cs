@@ -25,20 +25,20 @@ public partial class SessionReportWindow : Window
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _refreshTimer.Tick += async (_, _) => await RefreshAsync();
 
-        var closeBtn = this.FindControl<Button>("CloseButton");
+        Button? closeBtn = this.FindControl<Button>("CloseButton");
         if (closeBtn is not null)
         {
             closeBtn.Click += (_, _) => Close();
         }
 
-        var refreshBtn = this.FindControl<Button>("RefreshButton");
+        Button? refreshBtn = this.FindControl<Button>("RefreshButton");
         if (refreshBtn is not null)
         {
             refreshBtn.Click += async (_, _) => await RefreshAsync();
         }
 
-        var aircraftGrid = this.FindControl<DataGrid>("AircraftDebriefsGrid");
-        var showOnTimelineBtn = this.FindControl<Button>("ShowOnTimelineButton");
+        DataGrid? aircraftGrid = this.FindControl<DataGrid>("AircraftDebriefsGrid");
+        Button? showOnTimelineBtn = this.FindControl<Button>("ShowOnTimelineButton");
         if (aircraftGrid is not null && showOnTimelineBtn is not null)
         {
             aircraftGrid.SelectionChanged += (_, _) =>
@@ -73,7 +73,7 @@ public partial class SessionReportWindow : Window
         _refreshing = true;
         try
         {
-            var report = await _reportLoader();
+            SessionReportDto? report = await _reportLoader();
             if (report is not null)
             {
                 LoadReport(report);
@@ -109,7 +109,7 @@ public partial class SessionReportWindow : Window
         SetItems("ApproachScoresGrid", report.ApproachReport.Approaches);
         SetItems("RunwayStatsGrid", report.ApproachReport.RunwayStats);
 
-        var hint = this.FindControl<TextBlock>("AircraftSelectionHint");
+        TextBlock? hint = this.FindControl<TextBlock>("AircraftSelectionHint");
         if (hint is not null)
         {
             hint.Text =
@@ -121,7 +121,7 @@ public partial class SessionReportWindow : Window
 
     private void SetText(string controlName, string value)
     {
-        var text = this.FindControl<TextBlock>(controlName);
+        TextBlock? text = this.FindControl<TextBlock>(controlName);
         if (text is not null)
         {
             text.Text = value;

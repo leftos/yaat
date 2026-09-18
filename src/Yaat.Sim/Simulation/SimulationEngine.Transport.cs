@@ -27,7 +27,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     internal bool DrainSimStateChanged()
     {
-        var changed = SimStateChanged;
+        bool changed = SimStateChanged;
         SimStateChanged = false;
         return changed;
     }
@@ -71,7 +71,7 @@ public sealed partial class SimulationEngine
             return new CommandResult(false, "No active scenario");
         }
 
-        var clampedRate = Math.Clamp(rate, 1, 16);
+        int clampedRate = Math.Clamp(rate, 1, 16);
         if ((clampedRate > 1) && scenario.LiveTrafficEnabled)
         {
             return new CommandResult(false, "WARP is unavailable while live traffic is on — real traffic cannot be accelerated");

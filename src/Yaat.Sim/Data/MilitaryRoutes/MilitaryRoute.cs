@@ -131,7 +131,7 @@ public sealed record MilitaryRoute
             return null;
         }
 
-        foreach (var span in Widths)
+        foreach (MilitaryRouteWidthSpan span in Widths)
         {
             if (span.FromPoint is null || span.ToPoint is null)
             {

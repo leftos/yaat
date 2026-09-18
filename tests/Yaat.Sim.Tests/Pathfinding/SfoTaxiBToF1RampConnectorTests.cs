@@ -51,27 +51,27 @@ public class SfoTaxiBToF1RampConnectorTests
 
     private static bool SegmentIncludesTaxiway(string taxiwayName, string target)
     {
-        var parts = taxiwayName.Split(" - ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = taxiwayName.Split(" - ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         return parts.Any(part => string.Equals(part, target, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
     public void TaxiB_ToF1_JoinsT9RampConnector_NotCrossFieldLoop()
     {
-        var layout = new PinnedSfoGroundData(PinnedSfoPath).GetLayout("SFO");
+        AirportGroundLayout? layout = new PinnedSfoGroundData(PinnedSfoPath).GetLayout("SFO");
         if (layout is null || TestVnasData.NavigationDb is null)
         {
             _output.WriteLine("SFO layout / navdata unavailable — skipping");
             return;
         }
 
-        var f1 = layout.FindParkingByName("F1");
+        GroundNode? f1 = layout.FindParkingByName("F1");
         Assert.NotNull(f1);
 
-        var start = NearestNodeOnTaxiway(layout, "B", StartLat, StartLon);
+        GroundNode start = NearestNodeOnTaxiway(layout, "B", StartLat, StartLon);
         _output.WriteLine($"start node = {start.Id} on B, F1 = {f1.Id}");
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             start.Id,
             ["B"],
@@ -97,7 +97,7 @@ public class SfoTaxiBToF1RampConnectorTests
         // The cross-field loop signature: it wanders through terminal-area letter taxiways (L, C, Z, Q)
         // and the B1 connector on its way back to the F ramp. The correct route stays on B, joins the T9
         // ramp connector, and takes RAMP into the gate — it never touches any of these.
-        foreach (var strayTaxiway in new[] { "L", "C", "Z", "Q", "B1" })
+        foreach (string? strayTaxiway in new[] { "L", "C", "Z", "Q", "B1" })
         {
             Assert.DoesNotContain(route.Segments, s => SegmentIncludesTaxiway(s.TaxiwayName, strayTaxiway));
         }

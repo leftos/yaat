@@ -47,7 +47,7 @@ public sealed class AirspaceVolume
             return false;
         }
 
-        foreach (var ring in Rings)
+        foreach (IReadOnlyList<LatLon> ring in Rings)
         {
             if (GeoMath.PointInRing(position, ring))
             {
@@ -68,7 +68,7 @@ public sealed class AirspaceVolume
             return false;
         }
 
-        foreach (var hit in FindLateralIntersections(from, to))
+        foreach (LatLon hit in FindLateralIntersections(from, to))
         {
             intersection = hit;
             return true;
@@ -84,7 +84,7 @@ public sealed class AirspaceVolume
             yield break;
         }
 
-        foreach (var ring in Rings)
+        foreach (IReadOnlyList<LatLon> ring in Rings)
         {
             if (ring.Count < 2)
             {
@@ -93,9 +93,9 @@ public sealed class AirspaceVolume
 
             for (int i = 0; i < ring.Count - 1; i++)
             {
-                var a = ring[i];
-                var b = ring[i + 1];
-                var hit = GeoMath.SegmentsIntersect(from, to, a, b, excludeEndpoints: false);
+                LatLon a = ring[i];
+                LatLon b = ring[i + 1];
+                (LatLon Point, double T, double U)? hit = GeoMath.SegmentsIntersect(from, to, a, b, excludeEndpoints: false);
                 if (hit is not null)
                 {
                     yield return hit.Value.Point;

@@ -52,16 +52,16 @@ public class DimensionAwareCommandReclassifyTests : IDisposable
 
     private static void DispatchOk(AircraftState ac, string text)
     {
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx());
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx());
         Assert.True(result.Success, result.Message);
     }
 
     [Fact]
     public void Rns_DropsQueuedSpeed_PreservesQueuedNavigation()
     {
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
 
         DispatchOk(ac, "DCT OAK; SPD 100");
         Assert.Equal(2, ac.Queue.Blocks.Count);
@@ -77,7 +77,7 @@ public class DimensionAwareCommandReclassifyTests : IDisposable
     [Fact]
     public void Dsr_DropsQueuedSpeed_PreservesQueuedNavigation()
     {
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
 
         DispatchOk(ac, "DCT OAK; SPD 100");
         Assert.Equal(2, ac.Queue.Blocks.Count);
@@ -91,7 +91,7 @@ public class DimensionAwareCommandReclassifyTests : IDisposable
     [Fact]
     public void Fph_DropsQueuedNavigation_PreservesQueuedAltitudeAndSpeed()
     {
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
         ac.Targets.TargetAltitude = 5000; // so AT-altitude validation passes
 
         // Queue: CM 050 (Vertical), SPD 100 (Speed), DCT OAK (Lateral).

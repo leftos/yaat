@@ -72,10 +72,10 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
     {
         try
         {
-            using var zip = ZipFile.OpenRead(zipPath);
+            using ZipArchive zip = ZipFile.OpenRead(zipPath);
             if (zip.GetEntry("manifest.json") is { } direct)
             {
-                using var stream = direct.Open();
+                using Stream stream = direct.Open();
                 return JsonSerializer.Deserialize<RecordingManifest>(stream, RecordingJsonOptions.Default);
             }
 
@@ -84,7 +84,7 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
                 return null;
             }
 
-            using var nestedStream = nested.Open();
+            using Stream nestedStream = nested.Open();
             using var buffer = new MemoryStream();
             nestedStream.CopyTo(buffer);
             buffer.Position = 0;
@@ -94,7 +94,7 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
                 return null;
             }
 
-            using var innerStream = innerManifest.Open();
+            using Stream innerStream = innerManifest.Open();
             return JsonSerializer.Deserialize<RecordingManifest>(innerStream, RecordingJsonOptions.Default);
         }
         catch (InvalidDataException)
@@ -131,7 +131,7 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
     [Fact]
     public void RunwayOnlyFixtures_MatchTheCommittedList()
     {
-        var shortIds = CommittedGeoJsonShortIds();
+        List<string> shortIds = CommittedGeoJsonShortIds();
         if (shortIds.Count == 0)
         {
             return;
@@ -154,7 +154,7 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
     [Fact]
     public void RecordingsDeclaringAGroundLayout_ResolveToATaxiCapableFixture()
     {
-        var declared = DeclaredLayoutAirports();
+        List<(string Recording, string AirportId)> declared = DeclaredLayoutAirports();
         if (declared.Count == 0)
         {
             return;
@@ -164,7 +164,7 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
         SortedSet<string> degraded = new(StringComparer.OrdinalIgnoreCase);
         foreach ((string recording, string airportId) in declared)
         {
-            var layout = groundData.GetLayout(airportId);
+            AirportGroundLayout? layout = groundData.GetLayout(airportId);
             if (layout is null)
             {
                 output.WriteLine($"{recording}: {airportId} has NO committed geojson — replays with GroundLayout == null");

@@ -25,9 +25,9 @@ public sealed class MilitaryRouteCommandTests
     /// <summary>An aircraft positioned just before IR-149's entry point A, heading down the route.</summary>
     private static AircraftState AircraftOnIr149()
     {
-        var route = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!;
-        var entry = route.Points[0].Position;
-        var next = route.Points[1].Position;
+        MilitaryRoute route = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!;
+        LatLon entry = route.Points[0].Position;
+        LatLon next = route.Points[1].Position;
         return new AircraftState
         {
             Callsign = "TREND21",
@@ -41,7 +41,7 @@ public sealed class MilitaryRouteCommandTests
 
     private static CommandResult Apply(AircraftState aircraft, string text)
     {
-        var parsed = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         return CommandDispatcher.Dispatch(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
     }
@@ -52,8 +52,8 @@ public sealed class MilitaryRouteCommandTests
     /// </summary>
     private static void TickPhase(AircraftState aircraft)
     {
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
-        foreach (var phase in aircraft.Phases!.Phases)
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        foreach (Phase phase in aircraft.Phases!.Phases)
         {
             phase.Status = PhaseStatus.Active;
             phase.OnTick(ctx);
@@ -74,9 +74,9 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void Cmtr_ClearsTheAircraftIntoTheRouteAndLoadsIt()
     {
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
 
-        var result = Apply(aircraft, "CMTR IR149");
+        CommandResult result = Apply(aircraft, "CMTR IR149");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("IR149", aircraft.MilitaryRoute.Designator);
@@ -89,7 +89,7 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void Cmtr_UnknownRoute_IsRejected()
     {
-        var result = Apply(AircraftOnIr149(), "CMTR IR999999");
+        CommandResult result = Apply(AircraftOnIr149(), "CMTR IR999999");
 
         Assert.False(result.Success);
         Assert.Contains("Unknown military route", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -98,9 +98,9 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void Cmtr_WithAltitude_AssignsItInsteadOfThePublishedBlock()
     {
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
 
-        var result = Apply(aircraft, "CMTR IR149 50");
+        CommandResult result = Apply(aircraft, "CMTR IR149 50");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(MilitaryRouteAltitudeSource.AssignedAltitude, aircraft.MilitaryRoute.AltitudeSource);
@@ -111,9 +111,9 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void Cmtr_WithBPrefix_IsAnAtOrBelowRestriction()
     {
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
 
-        var result = Apply(aircraft, "CMTR IR149 B50");
+        CommandResult result = Apply(aircraft, "CMTR IR149 B50");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(MilitaryRouteAltitudeSource.AtOrBelow, aircraft.MilitaryRoute.AltitudeSource);
@@ -124,10 +124,10 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void Mtra_RestoresThePublishedBlockAfterAnAssignedAltitude()
     {
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         Apply(aircraft, "CMTR IR149 50");
 
-        var result = Apply(aircraft, "MTRA");
+        CommandResult result = Apply(aircraft, "MTRA");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(MilitaryRouteAltitudeSource.RouteAltitudes, aircraft.MilitaryRoute.AltitudeSource);
@@ -138,7 +138,7 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void Mtra_WhenNotOnARoute_IsRejected()
     {
-        var result = Apply(AircraftOnIr149(), "MTRA");
+        CommandResult result = Apply(AircraftOnIr149(), "MTRA");
 
         Assert.False(result.Success);
     }
@@ -146,12 +146,12 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void Xmtr_EndsTheClearanceAndClearsTheBlock()
     {
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         Apply(aircraft, "CMTR IR149");
         aircraft.Targets.AltitudeFloor = 500;
         aircraft.Targets.AltitudeCeiling = 6000;
 
-        var result = Apply(aircraft, "XMTR KLRD");
+        CommandResult result = Apply(aircraft, "XMTR KLRD");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(MilitaryRouteStatus.Exited, aircraft.MilitaryRoute.Status);
@@ -163,10 +163,10 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void Xmtr_WithViaRoute_LoadsTheRouteOfFlight()
     {
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         Apply(aircraft, "CMTR IR149");
 
-        var result = Apply(aircraft, "XMTR KLRD VIA LRD");
+        CommandResult result = Apply(aircraft, "XMTR KLRD VIA LRD");
 
         Assert.True(result.Success, result.Message);
         Assert.Contains("via", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -181,7 +181,7 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void Cmtr_ParserRejectsAnInvalidAltitude()
     {
-        var parsed = CommandParser.Parse("CMTR IR149 banana");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("CMTR IR149 banana");
 
         Assert.False(parsed.IsSuccess);
         Assert.Contains("altitude", parsed.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -197,7 +197,7 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void SpeedLimitWaiver_AppliesOnRouteButNotToSlowRoutes()
     {
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         aircraft.MilitaryRoute.Designator = "IR149";
         aircraft.MilitaryRoute.Status = MilitaryRouteStatus.Established;
 
@@ -221,7 +221,7 @@ public sealed class MilitaryRouteCommandTests
         // >250 kt is the defining characteristic of the MTR program (P/CG "Military Training
         // Routes", AIM 3-5-2.c). The 91.117(a) waiver lifts the cap but supplies no speed, so
         // without a commanded one the aircraft transits at whatever it arrived with.
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         Apply(aircraft, "CMTR IR149");
         TickPhase(aircraft);
         Assert.Null(aircraft.Targets.TargetSpeed);
@@ -235,7 +235,7 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void RouteSpeed_IsOverriddenByAnExplicitAssignment()
     {
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         Apply(aircraft, "CMTR IR149");
         TickPhase(aircraft);
         SequenceToSecondPoint(aircraft);
@@ -251,8 +251,8 @@ public sealed class MilitaryRouteCommandTests
     {
         // §9-2-6 hangs its structure on the published entry fix, so an aircraft positioned before
         // the route should join there rather than at whichever point happens to be nearest.
-        var route = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!;
-        var aircraft = AircraftOnIr149();
+        MilitaryRoute route = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!;
+        AircraftState aircraft = AircraftOnIr149();
 
         Apply(aircraft, "CMTR IR149");
 
@@ -264,14 +264,14 @@ public sealed class MilitaryRouteCommandTests
     {
         // AP/1B routes are one-way and course reversals are prohibited (chapter 1 §V.B.1). DCT
         // clears the phase before it can object, so the guard has to sit in the DCT path itself.
-        var aircraft = AircraftOnIr149();
-        var route = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!;
+        AircraftState aircraft = AircraftOnIr149();
+        MilitaryRoute route = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!;
         Apply(aircraft, "CMTR IR149");
         TickPhase(aircraft);
         SequenceToSecondPoint(aircraft);
         SequenceToSecondPoint(aircraft);
 
-        var result = Apply(aircraft, $"DCTF {route.Points[0].Name}");
+        CommandResult result = Apply(aircraft, $"DCTF {route.Points[0].Name}");
 
         Assert.False(result.Success);
         Assert.Contains("one-way", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -280,13 +280,13 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void DirectTo_APointStillAhead_IsAllowed()
     {
-        var aircraft = AircraftOnIr149();
-        var route = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!;
+        AircraftState aircraft = AircraftOnIr149();
+        MilitaryRoute route = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!;
         Apply(aircraft, "CMTR IR149");
         TickPhase(aircraft);
         SequenceToSecondPoint(aircraft);
 
-        var result = Apply(aircraft, $"DCTF {route.Points[^1].Name}");
+        CommandResult result = Apply(aircraft, $"DCTF {route.Points[^1].Name}");
 
         Assert.True(result.Success, result.Message);
     }
@@ -296,9 +296,9 @@ public sealed class MilitaryRouteCommandTests
     {
         // IR-149's segments are published as an AGL floor under a 3,000 ft MSL ceiling, so 10,000
         // is outside the block the aircraft is being cleared into.
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
 
-        var result = Apply(aircraft, "CMTR IR149 100");
+        CommandResult result = Apply(aircraft, "CMTR IR149 100");
 
         Assert.True(result.Success, result.Message);
         Assert.Contains(aircraft.PendingWarnings, w => w.Contains("above", StringComparison.OrdinalIgnoreCase));
@@ -307,7 +307,7 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void Cmtr_AltitudeInsideThePublishedBlock_RaisesNoWarning()
     {
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
 
         Apply(aircraft, "CMTR IR149 25");
 
@@ -318,15 +318,15 @@ public sealed class MilitaryRouteCommandTests
     public void Cmtr_SecondAircraftIntoAnOccupiedRoute_WarnsTheInstructor()
     {
         // §9-2-6.a leaves separation on the controller for aircraft sharing a route.
-        var first = AircraftOnIr149();
+        AircraftState first = AircraftOnIr149();
         first.Callsign = "TREND21";
         Apply(first, "CMTR IR149");
 
-        var second = AircraftOnIr149();
+        AircraftState second = AircraftOnIr149();
         second.Callsign = "TREND22";
-        var parsed = CommandParser.Parse("CMTR IR149");
-        var ctx = TestDispatch.Context(Random.Shared) with { ListAircraft = () => [first, second] };
-        var result = CommandDispatcher.Dispatch(parsed.Value!, second, ctx);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("CMTR IR149");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared) with { ListAircraft = () => [first, second] };
+        CommandResult result = CommandDispatcher.Dispatch(parsed.Value!, second, ctx);
 
         Assert.True(result.Success, result.Message);
         Assert.Contains(second.PendingWarnings, w => w.Contains("TREND21", StringComparison.OrdinalIgnoreCase));
@@ -337,13 +337,13 @@ public sealed class MilitaryRouteCommandTests
     {
         // §9-2-6.d makes the corridor the controller's continuing responsibility, and AP/1B
         // publishes it asymmetrically about the centerline, so it cannot be drawn as a buffer.
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         Apply(aircraft, "CMTR IR149");
         TickPhase(aircraft);
 
-        var shapes = NavRouteOverlayProjector.BuildShapes(aircraft);
+        List<NavRouteShapeDto> shapes = NavRouteOverlayProjector.BuildShapes(aircraft);
 
-        var corridor = Assert.Single(shapes);
+        NavRouteShapeDto corridor = Assert.Single(shapes);
         Assert.Equal(NavRouteShapeKind.MilitaryRouteCorridor, corridor.Kind);
 
         // A closed polygon: both edges plus the point that closes it back onto the first.
@@ -352,7 +352,7 @@ public sealed class MilitaryRouteCommandTests
         Assert.Equal(corridor.Points[0], corridor.Points[^1]);
 
         // Every vertex sits off the centerline by roughly the published half-width.
-        var width = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!.WidthAt("B")!;
+        MilitaryRouteWidthSpan width = NavigationDatabase.Instance.GetMilitaryRoute("IR149")!.WidthAt("B")!;
         double offset = GeoMath.DistanceNm(aircraft.Targets.NavigationRoute[0].Position, new LatLon(corridor.Points[0][0], corridor.Points[0][1]));
         Assert.InRange(offset, Math.Min(width.LeftNm, width.RightNm) * 0.5, Math.Max(width.LeftNm, width.RightNm) * 1.5);
     }
@@ -376,12 +376,12 @@ public sealed class MilitaryRouteCommandTests
     [Fact]
     public void BuildExitFixEstimate_ReportsTheExitPointOrDeclines()
     {
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         Assert.Contains("not on a military", PilotSayBuilder.BuildExitFixEstimate(aircraft, SessionInstant), StringComparison.OrdinalIgnoreCase);
 
         Apply(aircraft, "CMTR IR149");
         aircraft.MilitaryRoute.ExitPointId = "I";
-        var spoken = PilotSayBuilder.BuildExitFixEstimate(aircraft, SessionInstant);
+        string spoken = PilotSayBuilder.BuildExitFixEstimate(aircraft, SessionInstant);
 
         Assert.Contains("IR149", spoken, StringComparison.Ordinal);
         Assert.Contains("I", spoken, StringComparison.Ordinal);
@@ -390,9 +390,9 @@ public sealed class MilitaryRouteCommandTests
     /// <summary>The four HHmm digits of the "at HHmm" estimate, as minutes past midnight.</summary>
     private static int SpokenClockMinutes(string spoken)
     {
-        var marker = spoken.IndexOf("at ", StringComparison.Ordinal);
+        int marker = spoken.IndexOf("at ", StringComparison.Ordinal);
         Assert.True(marker >= 0, $"no clock time in: {spoken}");
-        var digits = spoken.Substring(marker + 3, 4);
+        string digits = spoken.Substring(marker + 3, 4);
         return (int.Parse(digits[..2]) * 60) + int.Parse(digits[2..]);
     }
 
@@ -401,7 +401,7 @@ public sealed class MilitaryRouteCommandTests
     {
         // §9-2-6.g runs the nonreceipt timer against this estimate, so a replayed SAYEXIT must answer the
         // clock time the live session answered — the session clock, never the wall clock the replay runs at.
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         Apply(aircraft, "CMTR IR149");
         aircraft.MilitaryRoute.ExitPointId = "I";
 
@@ -414,8 +414,8 @@ public sealed class MilitaryRouteCommandTests
         // session is an hour later in the answer, over the route the clearance actually installed.
         Apply(aircraft, "CMTR IR149");
         aircraft.MilitaryRoute.ExitPointId = "I";
-        var early = SpokenClockMinutes(PilotSayBuilder.BuildExitFixEstimate(aircraft, SessionInstant));
-        var late = SpokenClockMinutes(PilotSayBuilder.BuildExitFixEstimate(aircraft, SessionInstant.AddHours(1)));
+        int early = SpokenClockMinutes(PilotSayBuilder.BuildExitFixEstimate(aircraft, SessionInstant));
+        int late = SpokenClockMinutes(PilotSayBuilder.BuildExitFixEstimate(aircraft, SessionInstant.AddHours(1)));
         Assert.Equal(60, late - early);
     }
 
@@ -426,7 +426,7 @@ public sealed class MilitaryRouteCommandTests
         // release from the route's published profile — the floors are the segment's minimum IFR
         // altitudes. Regression: ReArmBlock once gated on RouteAltitudes alone, which made the
         // at-or-below branch unreachable and let the aircraft descend below the floor unopposed.
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         Apply(aircraft, "CMTR IR149 B120");
         TickPhase(aircraft);
         SequenceToSecondPoint(aircraft);
@@ -442,7 +442,7 @@ public sealed class MilitaryRouteCommandTests
     {
         // Regression: XMTR used to null aircraft.Phases outright, which skips OnEnd — so a VR
         // aircraft kept squawking 4000 forever and PreRouteSquawk was lost on the next clearance.
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         aircraft.Transponder.Code = 1234;
         Apply(aircraft, "CMTR VR1257");
         TickPhase(aircraft);
@@ -459,9 +459,9 @@ public sealed class MilitaryRouteCommandTests
     {
         // §9-2-6 is IFR-only; ATC issues no clearance into a VR. The aircraft can still be placed
         // on one as traffic, but the readback must not say "cleared into".
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
 
-        var result = Apply(aircraft, "CMTR VR1257");
+        CommandResult result = Apply(aircraft, "CMTR VR1257");
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain("cleared into", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -474,13 +474,13 @@ public sealed class MilitaryRouteCommandTests
         // AIM 3-5-2: MTRs exist for low level tactical training, and on a scope the traffic is
         // recognisable by Mode C working through the block. Holding on whichever bound the aircraft
         // happened to reach is the opposite of that.
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         Apply(aircraft, "CMTR IR149");
         TickPhase(aircraft);
         SequenceToSecondPoint(aircraft);
 
-        var floor = aircraft.Targets.AltitudeFloor;
-        var ceiling = aircraft.Targets.AltitudeCeiling;
+        double? floor = aircraft.Targets.AltitudeFloor;
+        double? ceiling = aircraft.Targets.AltitudeCeiling;
         Assert.NotNull(floor);
         Assert.NotNull(ceiling);
         Assert.NotNull(aircraft.Targets.TargetAltitude);
@@ -492,12 +492,12 @@ public sealed class MilitaryRouteCommandTests
     {
         // §9-2-13.e: "Altitude or course changes issued will automatically void MARSA." The
         // amendment is accepted rather than refused; MARSA drops and the instructor is told.
-        var aircraft = AircraftOnIr149();
+        AircraftState aircraft = AircraftOnIr149();
         Apply(aircraft, "CMTR IR149");
         TickPhase(aircraft);
         aircraft.MilitaryRoute.Marsa = true;
 
-        var phase = aircraft.Phases!.Phases.OfType<MilitaryRoutePhase>().Single();
+        MilitaryRoutePhase phase = aircraft.Phases!.Phases.OfType<MilitaryRoutePhase>().Single();
         Assert.Equal(CommandAcceptanceStatus.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain).Status);
 
         phase.OnCommandAccepted(CanonicalCommandType.ClimbMaintain, CommandDispatcher.BuildMinimalContext(aircraft));

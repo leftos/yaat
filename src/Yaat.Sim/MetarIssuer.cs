@@ -38,27 +38,27 @@ public sealed class MetarIssuer
     )
     {
         _sessionStartUtc = sessionStartUtc;
-        var observationUtc = sessionStartUtc.AddSeconds(elapsedSeconds);
+        DateTime observationUtc = sessionStartUtc.AddSeconds(elapsedSeconds);
 
         // The most recent routine instant counts as already issued so construction never re-stamps
         // every station at the upcoming :53 twice. A routine that fell inside this session was issued
         // by the session being rebuilt, so it is composed here (an issuer rebuilt after a rewind
         // resumes the grid rather than reverting to the loaded string); one from before the session
         // started was never issued here, and the loaded report stands.
-        var routineInstant = MostRecentRoutineInstant(observationUtc);
+        DateTime routineInstant = MostRecentRoutineInstant(observationUtc);
         bool carriesRoutine = routineInstant >= sessionStartUtc;
 
-        var obs = WindObservation.Observe(weather, elapsedSeconds);
-        foreach (var raw in weather.Metars)
+        ObservedWind? obs = WindObservation.Observe(weather, elapsedSeconds);
+        foreach (string raw in weather.Metars)
         {
-            var parsed = MetarParser.Parse(raw);
+            MetarParser.ParsedMetar? parsed = MetarParser.Parse(raw);
             if (parsed is null || _stations.ContainsKey(parsed.StationId))
             {
                 continue;
             }
 
-            var baseMetar = raw.Trim();
-            var conditions = Sample(parsed.StationId, weather, stationLocator, obs, elapsedSeconds, observationUtc);
+            string baseMetar = raw.Trim();
+            ReportedConditions conditions = Sample(parsed.StationId, weather, stationLocator, obs, elapsedSeconds, observationUtc);
             _stationOrder.Add(parsed.StationId);
             _stations[parsed.StationId] = new StationReport(
                 carriesRoutine ? MetarComposer.Compose(baseMetar, conditions, routineInstant, isSpeci: false) : baseMetar,
@@ -76,7 +76,7 @@ public sealed class MetarIssuer
         get
         {
             var reports = new List<string>(_stationOrder.Count);
-            foreach (var id in _stationOrder)
+            foreach (string id in _stationOrder)
             {
                 reports.Add(_stations[id].CurrentReport);
             }
@@ -91,8 +91,8 @@ public sealed class MetarIssuer
     /// </summary>
     public bool Tick(double elapsedSeconds, WeatherProfile weather, Func<string, (double Lat, double Lon)?> stationLocator)
     {
-        var observationUtc = _sessionStartUtc.AddSeconds(elapsedSeconds);
-        var routineInstant = MostRecentRoutineInstant(observationUtc);
+        DateTime observationUtc = _sessionStartUtc.AddSeconds(elapsedSeconds);
+        DateTime routineInstant = MostRecentRoutineInstant(observationUtc);
         bool routineDue = routineInstant > _lastRoutineInstantUtc;
 
         // The surface-wind observation is station-independent (one ARTCC-wide surface
@@ -100,15 +100,15 @@ public sealed class MetarIssuer
         // observations bound the SPECI wind criteria in time (a shift/squall must happen
         // within its window, not merely since a report that may be an hour old); the
         // field is a pure function of elapsed time, so past sampling is free.
-        var obsNow = WindObservation.Observe(weather, elapsedSeconds);
-        var obsShiftBaseline = WindObservation.Observe(weather, elapsedSeconds - SpeciCriteria.WindShiftWindowSeconds);
-        var obsSquallBaseline = WindObservation.Observe(weather, elapsedSeconds - SpeciCriteria.SquallWindowSeconds);
+        ObservedWind? obsNow = WindObservation.Observe(weather, elapsedSeconds);
+        ObservedWind? obsShiftBaseline = WindObservation.Observe(weather, elapsedSeconds - SpeciCriteria.WindShiftWindowSeconds);
+        ObservedWind? obsSquallBaseline = WindObservation.Observe(weather, elapsedSeconds - SpeciCriteria.SquallWindowSeconds);
 
         bool changed = false;
-        foreach (var id in _stationOrder)
+        foreach (string id in _stationOrder)
         {
-            var state = _stations[id];
-            var current = Sample(id, weather, stationLocator, obsNow, elapsedSeconds, observationUtc);
+            StationReport state = _stations[id];
+            ReportedConditions current = Sample(id, weather, stationLocator, obsNow, elapsedSeconds, observationUtc);
 
             bool isSpeci = !routineDue && SpeciCriteria.IsSpeciWorthy(state.LastIssued, current, obsNow, obsShiftBaseline, obsSquallBaseline);
             if (!routineDue && !isSpeci)
@@ -116,8 +116,8 @@ public sealed class MetarIssuer
                 continue;
             }
 
-            var baseMetar = FindBaseMetar(weather, id) ?? state.CurrentReport;
-            var report = MetarComposer.Compose(baseMetar, current, observationUtc, isSpeci);
+            string baseMetar = FindBaseMetar(weather, id) ?? state.CurrentReport;
+            string report = MetarComposer.Compose(baseMetar, current, observationUtc, isSpeci);
             _stations[id] = state with { CurrentReport = report, LastIssued = current, LastIssuedUtc = observationUtc };
             changed = true;
         }
@@ -138,9 +138,9 @@ public sealed class MetarIssuer
 
     private static string? FindBaseMetar(WeatherProfile weather, string stationId)
     {
-        foreach (var raw in weather.Metars)
+        foreach (string raw in weather.Metars)
         {
-            var parsed = MetarParser.Parse(raw);
+            MetarParser.ParsedMetar? parsed = MetarParser.Parse(raw);
             if (parsed is not null && parsed.StationId.Equals(stationId, StringComparison.OrdinalIgnoreCase))
             {
                 return raw.Trim();
@@ -159,8 +159,8 @@ public sealed class MetarIssuer
         DateTime observationUtc
     )
     {
-        var parsed = weather.GetWeatherForAirport(stationId);
-        var wind = SampleWind(stationId, weather, parsed, stationLocator, obs, elapsedSeconds, observationUtc);
+        MetarParser.ParsedMetar? parsed = weather.GetWeatherForAirport(stationId);
+        ReportedConditions wind = SampleWind(stationId, weather, parsed, stationLocator, obs, elapsedSeconds, observationUtc);
 
         return wind with
         {
@@ -206,7 +206,7 @@ public sealed class MetarIssuer
             // intensity, one unknown) but would fabricate METAR groups nobody observed
             // (a gust group from a spread-only wind, a 100°+ arc from a gust-only wind),
             // and the physics amplitude clamp must not rewrite a loaded real report.
-            var surface = weather.WindLayers[0];
+            WindLayer surface = weather.WindLayers[0];
             bool layerVariable = surface.Variable ?? false;
             double halfSpread = surface.DirectionVariabilityDeg ?? 0;
             double spread = 2.0 * halfSpread;
@@ -226,7 +226,7 @@ public sealed class MetarIssuer
                 gust = (int)Math.Round(authoredGust, MidpointRounding.AwayFromZero);
             }
 
-            var wind = WindOnly(
+            ReportedConditions wind = WindOnly(
                 calm: false,
                 dirTrue: RoundToTen(ToTrue(obs.MeanDirectionMagDeg)),
                 speed: meanSpeed,

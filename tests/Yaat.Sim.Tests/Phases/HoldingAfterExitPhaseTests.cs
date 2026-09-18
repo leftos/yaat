@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Tests.PhaseTests;
 
@@ -37,13 +38,13 @@ public class HoldingAfterExitPhaseTests
     [Fact]
     public void OnStart_SoloTowerStudent_QueuesDelayedSayAndTts()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null);
 
         phase.OnStart(MakeContext(ac, "TWR"));
 
         Assert.Empty(ac.PendingNotifications);
-        var transmission = Assert.Single(ac.PendingPilotTransmissions);
+        PilotTransmission transmission = Assert.Single(ac.PendingPilotTransmissions);
         Assert.Equal("clear of runway 28R at E.", transmission.Text);
         Assert.Contains("clear of runway two eight right", transmission.SpeechText);
         Assert.Empty(ac.PendingWarnings);
@@ -52,7 +53,7 @@ public class HoldingAfterExitPhaseTests
     [Fact]
     public void OnStart_SoloGroundStudent_TerminalWarningOnly_NoTts()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null);
 
         phase.OnStart(MakeContext(ac, "GND"));
@@ -60,14 +61,14 @@ public class HoldingAfterExitPhaseTests
         // Ground student isn't on tower frequency when this transmission would fire.
         Assert.Empty(ac.PendingNotifications);
         Assert.Empty(ac.PendingPilotTransmissions);
-        var warning = Assert.Single(ac.PendingWarnings);
+        string warning = Assert.Single(ac.PendingWarnings);
         Assert.Contains("clear of runway 28R at E", warning);
     }
 
     [Fact]
     public void OnStart_RpoMode_NoTtsByDefault()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null);
         var ctx = new PhaseContext
         {

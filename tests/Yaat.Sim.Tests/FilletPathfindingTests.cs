@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 
@@ -34,17 +35,19 @@ public class FilletPathfindingTests
     [Fact]
     public void OAK_Filleted_AStarFindsRoute_ParkingToRunway30()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
         }
 
         // Find a parking node and a runway hold-short node
-        var parking = layout.FindParkingByName("NEW7");
+        GroundNode? parking = layout.FindParkingByName("NEW7");
         Assert.NotNull(parking);
 
-        var holdShort = layout.Nodes.Values.FirstOrDefault(n => n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } r && r.Contains("30"));
+        GroundNode? holdShort = layout.Nodes.Values.FirstOrDefault(n =>
+            n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } r && r.Contains("30")
+        );
 
         if (holdShort is null)
         {
@@ -52,12 +55,12 @@ public class FilletPathfindingTests
             return;
         }
 
-        var route = TaxiPathfinder.FindRoute(layout, parking.Id, holdShort.Id, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, parking.Id, holdShort.Id, AircraftCategory.Jet);
         Assert.NotNull(route);
         Assert.True(route.Segments.Count > 0);
 
         _output.WriteLine($"Route: {route.Segments.Count} segments, {route.TotalDistanceNm:F3}nm");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             string edgeType = seg.Edge.Edge is GroundArc ? "ARC" : "EDGE";
             _output.WriteLine($"  {edgeType} {seg.TaxiwayName}: {seg.FromNodeId} -> {seg.ToNodeId}");
@@ -67,7 +70,7 @@ public class FilletPathfindingTests
     [Fact]
     public void OAK_Filleted_AllNodesReachable()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
@@ -80,7 +83,7 @@ public class FilletPathfindingTests
         while (remaining.Count > 0)
         {
             componentCount++;
-            var seed = remaining.First();
+            int seed = remaining.First();
             var cq = new Queue<int>();
             cq.Enqueue(seed);
             remaining.Remove(seed);
@@ -88,12 +91,12 @@ public class FilletPathfindingTests
             while (cq.Count > 0)
             {
                 int cid = cq.Dequeue();
-                if (!layout.Nodes.TryGetValue(cid, out var cn))
+                if (!layout.Nodes.TryGetValue(cid, out GroundNode? cn))
                 {
                     continue;
                 }
 
-                foreach (var ce in cn.Edges)
+                foreach (IGroundEdge ce in cn.Edges)
                 {
                     int oid = ce.OtherNodeId(cid);
                     if (remaining.Remove(oid))
@@ -113,7 +116,7 @@ public class FilletPathfindingTests
         _output.WriteLine($"Components: {componentCount}, largest: {largestComponent}");
 
         // BFS from the most-connected node
-        var startNode = layout.Nodes.Values.OrderByDescending(n => n.Edges.Count).First();
+        GroundNode startNode = layout.Nodes.Values.OrderByDescending(n => n.Edges.Count).First();
         var visited = new HashSet<int>();
         var queue = new Queue<int>();
         queue.Enqueue(startNode.Id);
@@ -122,12 +125,12 @@ public class FilletPathfindingTests
         while (queue.Count > 0)
         {
             int id = queue.Dequeue();
-            if (!layout.Nodes.TryGetValue(id, out var node))
+            if (!layout.Nodes.TryGetValue(id, out GroundNode? node))
             {
                 continue;
             }
 
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 int otherId = edge.OtherNodeId(id);
                 if (visited.Add(otherId))
@@ -148,7 +151,7 @@ public class FilletPathfindingTests
 
         // Check if edge node references match dictionary
         int brokenEdges = 0;
-        foreach (var edge in layout.AllEdges)
+        foreach (IGroundEdge edge in layout.AllEdges)
         {
             bool a = layout.Nodes.ContainsKey(edge.Nodes[0].Id);
             bool b = layout.Nodes.ContainsKey(edge.Nodes[1].Id);
@@ -166,12 +169,12 @@ public class FilletPathfindingTests
 
         // Debug: show some unreachable nodes and their edges
         int shown = 0;
-        foreach (var n in layout.Nodes.Values)
+        foreach (GroundNode n in layout.Nodes.Values)
         {
             if (!visited.Contains(n.Id) && (shown < 5))
             {
                 _output.WriteLine($"Unreachable node {n.Id} ({n.Type}): {n.Edges.Count} edges");
-                foreach (var e in n.Edges)
+                foreach (IGroundEdge e in n.Edges)
                 {
                     string type = e is GroundArc ? "ARC" : "EDGE";
                     _output.WriteLine($"  {type} {e.TaxiwayName}: {e.Nodes[0].Id}-{e.Nodes[1].Id}");
@@ -181,7 +184,7 @@ public class FilletPathfindingTests
         }
 
         // Trace connectivity from an unreachable node
-        var probe = layout.Nodes.Values.FirstOrDefault(n => !visited.Contains(n.Id) && n.Edges.Count > 0);
+        GroundNode? probe = layout.Nodes.Values.FirstOrDefault(n => !visited.Contains(n.Id) && n.Edges.Count > 0);
         if (probe is not null)
         {
             _output.WriteLine($"--- Tracing from unreachable node {probe.Id} ---");
@@ -192,12 +195,12 @@ public class FilletPathfindingTests
             while (traceQueue.Count > 0 && traceVisited.Count < 20)
             {
                 int tid = traceQueue.Dequeue();
-                if (!layout.Nodes.TryGetValue(tid, out var tn))
+                if (!layout.Nodes.TryGetValue(tid, out GroundNode? tn))
                 {
                     continue;
                 }
 
-                foreach (var e in tn.Edges)
+                foreach (IGroundEdge e in tn.Edges)
                 {
                     int oid = e.OtherNodeId(tid);
                     string type = e is GroundArc ? "ARC" : "EDGE";
@@ -218,7 +221,7 @@ public class FilletPathfindingTests
     [Fact]
     public void OAK_Filleted_RunwayCenterlineWalkWorks()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
@@ -226,20 +229,20 @@ public class FilletPathfindingTests
 
         // Find a runway 30 centerline node and walk ahead
         var rwy30Heading = new TrueHeading(300);
-        var centerlineNode = layout.FindNearestCenterlineNode(37.7213, -122.2208, rwy30Heading, "30");
+        GroundNode? centerlineNode = layout.FindNearestCenterlineNode(37.7213, -122.2208, rwy30Heading, "30");
 
         Assert.NotNull(centerlineNode);
 
         // Debug: what edges does this node have?
         _output.WriteLine($"Centerline node {centerlineNode.Id}: {centerlineNode.Edges.Count} edges");
-        foreach (var e in centerlineNode.Edges)
+        foreach (IGroundEdge e in centerlineNode.Edges)
         {
             string type = e is GroundArc ? "ARC" : "EDGE";
             _output.WriteLine($"  {type} {e.TaxiwayName}: {e.Nodes[0].Id}-{e.Nodes[1].Id} ({e.DistanceNm:F4}nm)");
         }
 
         // Walk ahead along centerline
-        var next = layout.FindCenterlineNeighborAhead(centerlineNode, rwy30Heading, "30");
+        GroundNode? next = layout.FindCenterlineNeighborAhead(centerlineNode, rwy30Heading, "30");
         _output.WriteLine($"Centerline start: {centerlineNode.Id}, next: {next?.Id.ToString() ?? "null"}");
 
         // Should be able to walk at least one step
@@ -249,17 +252,18 @@ public class FilletPathfindingTests
     [Fact]
     public void OAK_Filleted_FindExitFromCenterline_Works()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
         }
 
         var rwy30Heading = new TrueHeading(300);
-        var centerlineNode = layout.FindNearestCenterlineNode(37.7213, -122.2208, rwy30Heading, "30");
+        GroundNode? centerlineNode = layout.FindNearestCenterlineNode(37.7213, -122.2208, rwy30Heading, "30");
         Assert.NotNull(centerlineNode);
 
-        var exit = layout.FindExitFromCenterline(centerlineNode.Position.Lat, centerlineNode.Position.Lon, rwy30Heading, "30", null);
+        (GroundNode HoldShort, string Taxiway, List<GroundNode> Path, double ExitAngle, ExitSide Side, GroundNode WalkCenterline)? exit =
+            layout.FindExitFromCenterline(centerlineNode.Position.Lat, centerlineNode.Position.Lon, rwy30Heading, "30", null);
 
         Assert.NotNull(exit);
         _output.WriteLine($"Exit found: taxiway={exit.Value.Taxiway}, holdShort={exit.Value.HoldShort.Id}, path length={exit.Value.Path.Count}");
@@ -268,7 +272,7 @@ public class FilletPathfindingTests
     [Fact]
     public void SFO_Filleted_AStarFindsRoute()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
@@ -282,7 +286,7 @@ public class FilletPathfindingTests
             return;
         }
 
-        var route = TaxiPathfinder.FindRoute(layout, nodes[0].Id, nodes[1].Id, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, nodes[0].Id, nodes[1].Id, AircraftCategory.Jet);
         Assert.NotNull(route);
         _output.WriteLine($"SFO route: {route.Segments.Count} segments");
     }

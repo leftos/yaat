@@ -7,6 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -58,7 +59,7 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
     [Fact]
     public void Mlt28L_OnDownwind28R_BeforeMidfield_CrossesOverAtMidfield()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -66,36 +67,42 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            var aircraft = RestoreOnDownwind(engine, archive, BeforeMidfieldSnapshotTime, beforeMidfield: true);
+            AircraftState? aircraft = RestoreOnDownwind(engine, archive, BeforeMidfieldSnapshotTime, beforeMidfield: true);
             if (aircraft is null)
             {
                 return;
             }
 
-            var rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
-            var oldWaypoints = ((DownwindPhase)aircraft.Phases!.CurrentPhase!).Waypoints!;
+            RunwayInfo rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
+            PatternWaypoints oldWaypoints = ((DownwindPhase)aircraft.Phases!.CurrentPhase!).Waypoints!;
             double midfieldAlongTrack = PatternGeometry.MidfieldAlongTrackNm(oldWaypoints);
 
-            var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, "28L", null, aircraft.Ground.Layout);
+            CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+                aircraft,
+                PatternDirection.Left,
+                "28L",
+                null,
+                aircraft.Ground.Layout
+            );
             Assert.True(result.Success, $"MLT 28L was refused: {result.Message}");
             // The RPO reads only this line; an unannounced field crossing is the AIM 4-3-5 surprise.
             Assert.Contains("crossing midfield", result.Message ?? "", StringComparison.Ordinal);
 
-            var chain = aircraft.Phases?.Phases ?? [];
+            List<Phase> chain = aircraft.Phases?.Phases ?? [];
             output.WriteLine($"chain=[{string.Join(",", chain.Select(p => $"{p.GetType().Name}:{p.Status}"))}]");
 
-            var exitLeg = Assert.IsType<DownwindPhase>(chain.ElementAtOrDefault(0));
+            DownwindPhase exitLeg = Assert.IsType<DownwindPhase>(chain.ElementAtOrDefault(0));
             Assert.True(exitLeg.ExitAtMidfield, "the leading downwind must exit at midfield for the crossover");
-            var crossing = Assert.IsType<MidfieldCrossingPhase>(chain.ElementAtOrDefault(1));
+            MidfieldCrossingPhase crossing = Assert.IsType<MidfieldCrossingPhase>(chain.ElementAtOrDefault(1));
             Assert.True(crossing.CrossAtPatternAltitude, "an in-pattern crossover crosses at TPA, not the entry height");
             Assert.Equal(TurnDirection.Right, crossing.InitialTurn);
-            var rejoin = Assert.IsType<DownwindPhase>(chain.ElementAtOrDefault(2));
+            DownwindPhase rejoin = Assert.IsType<DownwindPhase>(chain.ElementAtOrDefault(2));
             Assert.True(rejoin.RejoinTrack, "the new downwind must re-intercept its track after the crossing");
             Assert.IsType<BasePhase>(chain.ElementAtOrDefault(3));
             Assert.IsType<FinalApproachPhase>(chain.ElementAtOrDefault(4));
@@ -109,7 +116,7 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
     [Fact]
     public void Mlt28L_OnDownwind28R_PastMidfield_CrossesNow()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -117,31 +124,37 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            var aircraft = RestoreOnDownwind(engine, archive, PastMidfieldSnapshotTime, beforeMidfield: false);
+            AircraftState? aircraft = RestoreOnDownwind(engine, archive, PastMidfieldSnapshotTime, beforeMidfield: false);
             if (aircraft is null)
             {
                 return;
             }
 
-            var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, "28L", null, aircraft.Ground.Layout);
+            CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+                aircraft,
+                PatternDirection.Left,
+                "28L",
+                null,
+                aircraft.Ground.Layout
+            );
             Assert.True(result.Success, $"MLT 28L was refused: {result.Message}");
             Assert.Contains("crossing midfield", result.Message ?? "", StringComparison.Ordinal);
 
-            var chain = aircraft.Phases?.Phases ?? [];
+            List<Phase> chain = aircraft.Phases?.Phases ?? [];
             output.WriteLine($"chain=[{string.Join(",", chain.Select(p => $"{p.GetType().Name}:{p.Status}"))}]");
 
             // Past midfield there is nothing left of the old downwind to fly — the crossover starts now.
-            var crossing = Assert.IsType<MidfieldCrossingPhase>(chain.ElementAtOrDefault(0));
+            MidfieldCrossingPhase crossing = Assert.IsType<MidfieldCrossingPhase>(chain.ElementAtOrDefault(0));
             Assert.True(crossing.CrossAtPatternAltitude, "an in-pattern crossover crosses at TPA, not the entry height");
             Assert.Equal(TurnDirection.Right, crossing.InitialTurn);
             Assert.DoesNotContain(chain, p => p is DownwindPhase { ExitAtMidfield: true });
-            var rejoin = chain.OfType<DownwindPhase>().FirstOrDefault();
+            DownwindPhase? rejoin = chain.OfType<DownwindPhase>().FirstOrDefault();
             Assert.NotNull(rejoin);
             Assert.True(rejoin.RejoinTrack, "the new downwind must re-intercept its track after the crossing");
         }
@@ -150,7 +163,7 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
     [Fact]
     public void Mrt28L_OnDownwind28R_SameSide_RejoinsTheParallelDownwind()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -158,32 +171,38 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            var aircraft = RestoreOnDownwind(engine, archive, BeforeMidfieldSnapshotTime, beforeMidfield: true);
+            AircraftState? aircraft = RestoreOnDownwind(engine, archive, BeforeMidfieldSnapshotTime, beforeMidfield: true);
             if (aircraft is null)
             {
                 return;
             }
 
-            var rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
+            RunwayInfo rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
 
-            var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, "28L", null, aircraft.Ground.Layout);
+            CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+                aircraft,
+                PatternDirection.Right,
+                "28L",
+                null,
+                aircraft.Ground.Layout
+            );
             Assert.True(result.Success, $"MRT 28L was refused: {result.Message}");
             // Same-side rebuild: no field crossing, so the readback must not announce one.
             Assert.DoesNotContain("crossing midfield", result.Message ?? "", StringComparison.Ordinal);
 
-            var chain = aircraft.Phases?.Phases ?? [];
+            List<Phase> chain = aircraft.Phases?.Phases ?? [];
             output.WriteLine($"chain=[{string.Join(",", chain.Select(p => $"{p.GetType().Name}:{p.Status}"))}]");
             Assert.DoesNotContain(chain, p => p is MidfieldCrossingPhase);
 
-            var downwind = Assert.IsType<DownwindPhase>(aircraft.Phases?.CurrentPhase);
+            DownwindPhase downwind = Assert.IsType<DownwindPhase>(aircraft.Phases?.CurrentPhase);
             Assert.True(downwind.RejoinTrack, "the parallel's downwind is laterally offset, so the leg must re-intercept its track");
-            var waypoints = downwind.Waypoints;
+            PatternWaypoints? waypoints = downwind.Waypoints;
             Assert.NotNull(waypoints);
             Assert.Equal(PatternDirection.Right, waypoints.Direction);
             Assert.True(
@@ -197,7 +216,7 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
             for (int i = 0; i < 60; i++)
             {
                 engine.TickOneSecond();
-                var ac = engine.FindAircraft(Callsign);
+                AircraftState? ac = engine.FindAircraft(Callsign);
                 Assert.NotNull(ac);
                 if (ac.Phases?.CurrentPhase is not DownwindPhase leg || leg.Waypoints is null)
                 {
@@ -223,7 +242,7 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
     {
         engine.Replay(archive.ToBaseSessionRecording(), 0);
 
-        var snapshot = archive.ReadSnapshotAt(snapshotTime);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(snapshotTime);
         if (snapshot is null)
         {
             output.WriteLine($"No snapshot near t={snapshotTime} — skipping");
@@ -231,13 +250,13 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
         }
         engine.RestoreFromSnapshot(snapshot.State);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
-        var downwind = Assert.IsType<DownwindPhase>(aircraft.Phases?.CurrentPhase);
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(aircraft.Phases?.CurrentPhase);
         Assert.Equal("28R", aircraft.Phases!.AssignedRunway?.Designator);
         Assert.Equal(PatternDirection.Right, aircraft.Phases.TrafficDirection);
 
-        var waypoints = downwind.Waypoints;
+        PatternWaypoints? waypoints = downwind.Waypoints;
         Assert.NotNull(waypoints);
         double alongTrack = AlongTrackOnLeg(waypoints, aircraft.Position);
         double midfield = PatternGeometry.MidfieldAlongTrackNm(waypoints);
@@ -280,7 +299,7 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
         for (int i = 0; i < MaxTicksAfterCommand; i++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
             switch (ac.Phases?.CurrentPhase)

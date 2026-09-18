@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -32,7 +33,7 @@ public class S2Oak5VfrMergedNoCaTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -44,7 +45,7 @@ public class S2Oak5VfrMergedNoCaTests(ITestOutputHelper output)
     [Fact]
     public void MergedVfrPair_SameAltitude_RaisesConflictAlert()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -52,8 +53,8 @@ public class S2Oak5VfrMergedNoCaTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -61,7 +62,7 @@ public class S2Oak5VfrMergedNoCaTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 output.WriteLine($"No snapshot near t={RestoreAtSeconds} — skipping");
@@ -71,9 +72,9 @@ public class S2Oak5VfrMergedNoCaTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             output.WriteLine($"Restored snapshot at t={snapshot.ElapsedSeconds}");
 
-            var aircraft = engine.World.GetSnapshot();
-            var a = aircraft.SingleOrDefault(x => x.Callsign == CallsignA);
-            var b = aircraft.SingleOrDefault(x => x.Callsign == CallsignB);
+            List<AircraftState> aircraft = engine.World.GetSnapshot();
+            AircraftState? a = aircraft.SingleOrDefault(x => x.Callsign == CallsignA);
+            AircraftState? b = aircraft.SingleOrDefault(x => x.Callsign == CallsignB);
             Assert.NotNull(a);
             Assert.NotNull(b);
 
@@ -90,10 +91,10 @@ public class S2Oak5VfrMergedNoCaTests(ITestOutputHelper output)
             Assert.True(horizontalNm < 3.0, $"Expected merged (<3 nm) but was {horizontalNm:F2} nm");
             Assert.True(verticalFt < 1000, $"Expected co-altitude (<1000 ft) but was {verticalFt:F0} ft");
 
-            var corridors = ConflictAlertDetector.BuildCorridors(["OAK"], NavigationDatabase.Instance);
+            IReadOnlyList<RunwayCorridor> corridors = ConflictAlertDetector.BuildCorridors(["OAK"], NavigationDatabase.Instance);
             Assert.NotEmpty(corridors);
 
-            var conflicts = ConflictAlertDetector.Detect(aircraft, new ConflictAlertContext([], corridors));
+            List<ConflictAlertDetector.ConflictPair> conflicts = ConflictAlertDetector.Detect(aircraft, new ConflictAlertContext([], corridors));
             output.WriteLine($"Conflicts: {string.Join(", ", conflicts.Select(c => $"{c.CallsignA}/{c.CallsignB}"))}");
 
             Assert.Contains(

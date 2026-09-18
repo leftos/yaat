@@ -24,7 +24,7 @@ internal static class RouteGeometryAsserts
 {
     public static void AssertNoSquarePivotWhereFilletExists(TaxiRoute route, string context)
     {
-        var violations = FindSquarePivotsWhereFilletExists(route);
+        List<string> violations = FindSquarePivotsWhereFilletExists(route);
         Assert.True(
             violations.Count == 0,
             $"{context}: route pivots square through a junction the fillet generator rounded — {string.Join("; ", violations)}"
@@ -41,14 +41,14 @@ internal static class RouteGeometryAsserts
         var violations = new List<string>();
         for (int i = 0; i + 1 < route.Segments.Count; i++)
         {
-            var into = route.Segments[i].Edge;
-            var outOf = route.Segments[i + 1].Edge;
+            DirectionalEdge into = route.Segments[i].Edge;
+            DirectionalEdge outOf = route.Segments[i + 1].Edge;
             if (into.Edge is GroundArc || outOf.Edge is GroundArc || into.ToNodeId != outOf.FromNodeId)
             {
                 continue;
             }
 
-            var a = into.FromNode;
+            GroundNode a = into.FromNode;
             int b = into.ToNodeId;
             int c = outOf.ToNodeId;
             if (stops.Contains(b) || a.Id == c)
@@ -57,7 +57,7 @@ internal static class RouteGeometryAsserts
             }
 
             double bendDeg = GeoMath.AbsBearingDifference(into.ArrivalBearing, outOf.DepartureBearing);
-            var arc = a.Edges.OfType<GroundArc>().FirstOrDefault(e => e.OtherNodeId(a.Id) == c);
+            GroundArc? arc = a.Edges.OfType<GroundArc>().FirstOrDefault(e => e.OtherNodeId(a.Id) == c);
             if (
                 arc is null
                 || (arc.MinRadiusOfCurvatureFt < GeometricAdmissibility.MinSteerableArcRadiusFt)

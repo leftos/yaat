@@ -9,9 +9,9 @@ public class FavoriteSetEditorModelTests
     [Fact]
     public void MoveUp_SingleItem_SwapsWithPredecessor()
     {
-        var list = Favs("A", "B", "C");
+        List<FavoriteCommand> list = Favs("A", "B", "C");
 
-        var moved = FavoriteSetEditorModel.MoveUp(list, [2]);
+        List<int> moved = FavoriteSetEditorModel.MoveUp(list, [2]);
 
         Assert.Equal(["A", "C", "B"], list.Select(f => f.Label));
         Assert.Equal([1], moved);
@@ -20,9 +20,9 @@ public class FavoriteSetEditorModelTests
     [Fact]
     public void MoveUp_MultiSelection_PreservesRelativeOrder()
     {
-        var list = Favs("A", "B", "C", "D");
+        List<FavoriteCommand> list = Favs("A", "B", "C", "D");
 
-        var moved = FavoriteSetEditorModel.MoveUp(list, [1, 3]);
+        List<int> moved = FavoriteSetEditorModel.MoveUp(list, [1, 3]);
 
         Assert.Equal(["B", "A", "D", "C"], list.Select(f => f.Label));
         Assert.Equal([0, 2], moved);
@@ -31,9 +31,9 @@ public class FavoriteSetEditorModelTests
     [Fact]
     public void MoveUp_BlockAtTop_StaysPut()
     {
-        var list = Favs("A", "B", "C");
+        List<FavoriteCommand> list = Favs("A", "B", "C");
 
-        var moved = FavoriteSetEditorModel.MoveUp(list, [0, 1]);
+        List<int> moved = FavoriteSetEditorModel.MoveUp(list, [0, 1]);
 
         Assert.Equal(["A", "B", "C"], list.Select(f => f.Label));
         Assert.Equal([0, 1], moved);
@@ -42,9 +42,9 @@ public class FavoriteSetEditorModelTests
     [Fact]
     public void MoveDown_SingleItem_SwapsWithSuccessor()
     {
-        var list = Favs("A", "B", "C");
+        List<FavoriteCommand> list = Favs("A", "B", "C");
 
-        var moved = FavoriteSetEditorModel.MoveDown(list, [0]);
+        List<int> moved = FavoriteSetEditorModel.MoveDown(list, [0]);
 
         Assert.Equal(["B", "A", "C"], list.Select(f => f.Label));
         Assert.Equal([1], moved);
@@ -53,9 +53,9 @@ public class FavoriteSetEditorModelTests
     [Fact]
     public void MoveDown_BlockAtBottom_StaysPut()
     {
-        var list = Favs("A", "B", "C");
+        List<FavoriteCommand> list = Favs("A", "B", "C");
 
-        var moved = FavoriteSetEditorModel.MoveDown(list, [1, 2]);
+        List<int> moved = FavoriteSetEditorModel.MoveDown(list, [1, 2]);
 
         Assert.Equal(["A", "B", "C"], list.Select(f => f.Label));
         Assert.Equal([1, 2], moved);
@@ -64,9 +64,9 @@ public class FavoriteSetEditorModelTests
     [Fact]
     public void MoveDown_MultiSelection_PreservesRelativeOrder()
     {
-        var list = Favs("A", "B", "C", "D");
+        List<FavoriteCommand> list = Favs("A", "B", "C", "D");
 
-        var moved = FavoriteSetEditorModel.MoveDown(list, [0, 2]);
+        List<int> moved = FavoriteSetEditorModel.MoveDown(list, [0, 2]);
 
         Assert.Equal(["B", "A", "D", "C"], list.Select(f => f.Label));
         Assert.Equal([1, 3], moved);
@@ -75,7 +75,7 @@ public class FavoriteSetEditorModelTests
     [Fact]
     public void OutOfRangeIndices_AreIgnored()
     {
-        var source = Favs("A");
+        List<FavoriteCommand> source = Favs("A");
 
         FavoriteSetEditorModel.MoveUp(source, [-1, 5]);
         FavoriteSetEditorModel.MoveDown(source, [-1, 5]);

@@ -56,7 +56,7 @@ public static class AirlineFleets
     /// <summary>Convenience: just the type-to-count map for an airline.</summary>
     public static bool TryGetTypes(string airlineIcao, [NotNullWhen(true)] out IReadOnlyDictionary<string, int>? types)
     {
-        if (TryGetAirline(airlineIcao, out var info))
+        if (TryGetAirline(airlineIcao, out AirlineFleetInfo? info))
         {
             types = info.Types;
             return true;
@@ -81,7 +81,7 @@ public static class AirlineFleets
     /// <summary>True if the given airline is recorded as operating the given aircraft type (≥1 airframe).</summary>
     public static bool Operates(string airlineIcao, string typeIcao)
     {
-        return TryGetTypes(airlineIcao, out var types) && types.ContainsKey(typeIcao.ToUpperInvariant());
+        return TryGetTypes(airlineIcao, out IReadOnlyDictionary<string, int>? types) && types.ContainsKey(typeIcao.ToUpperInvariant());
     }
 
     /// <summary>All airline ICAOs in the map, in insertion order (alphabetical from generator).</summary>
@@ -92,7 +92,7 @@ public static class AirlineFleets
 
     private static Data Load()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Data", "airline-fleets.json");
+        string path = Path.Combine(AppContext.BaseDirectory, "Data", "airline-fleets.json");
         if (!File.Exists(path))
         {
             Log.LogWarning("airline-fleets.json not found at {Path}; airline-fleet map will be empty", path);
@@ -101,8 +101,8 @@ public static class AirlineFleets
 
         try
         {
-            using var stream = File.OpenRead(path);
-            var root = JsonSerializer.Deserialize<JsonRoot>(stream, JsonOptions);
+            using FileStream stream = File.OpenRead(path);
+            JsonRoot? root = JsonSerializer.Deserialize<JsonRoot>(stream, JsonOptions);
             if (root is null)
             {
                 Log.LogWarning("airline-fleets.json at {Path} deserialized to null; map will be empty", path);
@@ -110,14 +110,14 @@ public static class AirlineFleets
             }
 
             var byAirline = new Dictionary<string, AirlineFleetInfo>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (icao, entry) in root.ByAirline ?? [])
+            foreach ((string? icao, JsonAirlineEntry? entry) in root.ByAirline ?? [])
             {
                 if (string.IsNullOrWhiteSpace(icao) || entry is null)
                 {
                     continue;
                 }
 
-                var types = entry.Types ?? new Dictionary<string, int>();
+                Dictionary<string, int> types = entry.Types ?? new Dictionary<string, int>();
                 byAirline[icao.ToUpperInvariant()] = new AirlineFleetInfo(
                     icao.ToUpperInvariant(),
                     entry.Name ?? "",
@@ -127,7 +127,7 @@ public static class AirlineFleets
             }
 
             var byType = new Dictionary<string, IReadOnlyDictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (typeIcao, airlines) in root.ByType ?? [])
+            foreach ((string? typeIcao, Dictionary<string, int>? airlines) in root.ByType ?? [])
             {
                 if (string.IsNullOrWhiteSpace(typeIcao) || airlines is null)
                 {
@@ -137,8 +137,8 @@ public static class AirlineFleets
                 byType[typeIcao.ToUpperInvariant()] = new Dictionary<string, int>(airlines, StringComparer.OrdinalIgnoreCase);
             }
 
-            var source = root.Metadata?.Source ?? "";
-            var sourceDate = root.Metadata?.SourceDate ?? "";
+            string source = root.Metadata?.Source ?? "";
+            string sourceDate = root.Metadata?.SourceDate ?? "";
 
             Log.LogInformation(
                 "Loaded {AirlineCount} airlines / {TypeCount} aircraft types from {Source} ({Date})",

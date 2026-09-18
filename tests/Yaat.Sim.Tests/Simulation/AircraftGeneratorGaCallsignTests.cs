@@ -43,7 +43,7 @@ public class AircraftGeneratorGaCallsignTests(ITestOutputHelper output)
                 PreferredAirlineAirportId = "OAK",
             };
 
-            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng, new BeaconCodePool());
+            (AircraftState? state, string? error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng, new BeaconCodePool());
             Assert.Null(error);
             Assert.NotNull(state);
 

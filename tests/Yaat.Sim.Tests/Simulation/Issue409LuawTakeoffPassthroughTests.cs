@@ -53,8 +53,8 @@ public class Issue409LuawTakeoffPassthroughTests(ITestOutputHelper output)
     [Fact]
     public void ClearedForTakeoff_BehindLuawOccupant_StopsInsteadOfPassingThrough()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -63,8 +63,8 @@ public class Issue409LuawTakeoffPassthroughTests(ITestOutputHelper output)
         // Replay to just before DAL802's CTO (t=877); N630LT received LUAW at t=853.
         engine.Replay(recording, 875);
 
-        var dal = engine.FindAircraft("DAL802");
-        var luaw = engine.FindAircraft("N630LT");
+        AircraftState? dal = engine.FindAircraft("DAL802");
+        AircraftState? luaw = engine.FindAircraft("N630LT");
         Assert.NotNull(dal);
         Assert.NotNull(luaw);
         output.WriteLine($"t=875 precondition: DAL802 phase={dal.Phases?.CurrentPhase?.Name} N630LT phase={luaw.Phases?.CurrentPhase?.Name}");

@@ -17,7 +17,7 @@ internal static class TaxiwayGraphBuilder
 
         for (int i = 0; i < tw.Coords.Count; i++)
         {
-            var (lat, lon) = tw.Coords[i];
+            (double lat, double lon) = tw.Coords[i];
 
             int? existing = coordIndex.FindNearest(lat, lon);
             if (existing is not null)
@@ -71,14 +71,14 @@ internal static class TaxiwayGraphBuilder
                 continue;
             }
 
-            if (!layout.Nodes.TryGetValue(fromId, out var fromNode) || !layout.Nodes.TryGetValue(toId, out var toNode))
+            if (!layout.Nodes.TryGetValue(fromId, out GroundNode? fromNode) || !layout.Nodes.TryGetValue(toId, out GroundNode? toNode))
             {
                 continue;
             }
 
             // Check for duplicate edge
             bool exists = false;
-            foreach (var e in layout.Edges)
+            foreach (GroundEdge e in layout.Edges)
             {
                 if (e.HasNode(fromId) && e.HasNode(toId))
                 {
@@ -122,7 +122,7 @@ internal static class TaxiwayGraphBuilder
         {
             for (int b = 0; b < tw2.Coords.Count - 1; b++)
             {
-                var result = GeoMath.SegmentsIntersect(
+                (double Lat, double Lon, double T, double U)? result = GeoMath.SegmentsIntersect(
                     tw1.Coords[a].Lat,
                     tw1.Coords[a].Lon,
                     tw1.Coords[a + 1].Lat,
@@ -183,7 +183,7 @@ internal static class TaxiwayGraphBuilder
 
         tw.NodeIds.Insert(insertAt, nodeId);
 
-        if (layout.Nodes.TryGetValue(nodeId, out var node))
+        if (layout.Nodes.TryGetValue(nodeId, out GroundNode? node))
         {
             tw.Coords.Insert(insertAt, (node.Position.Lat, node.Position.Lon));
         }

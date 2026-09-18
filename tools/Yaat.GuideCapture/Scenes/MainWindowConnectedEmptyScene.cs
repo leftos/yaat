@@ -36,7 +36,7 @@ internal sealed class MainWindowConnectedEmptyScene : Scene
         // AutoConnectAsync retries every 2s up to 30 times. Locally the server
         // is already listening, so the first attempt should succeed in <1s.
         // Cap at 15s to fail fast if SignalR negotiate breaks.
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
         while (!vm.IsConnected && DateTime.UtcNow < deadline)
         {
             await Task.Delay(50);

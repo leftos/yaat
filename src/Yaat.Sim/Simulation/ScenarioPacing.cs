@@ -14,19 +14,19 @@ public static class ScenarioPacing
 
     public static double EffectiveParkingInitialCallupIntervalSeconds(int ratePercent)
     {
-        var rate = ClampParkingInitialCallupPercent(ratePercent);
+        int rate = ClampParkingInitialCallupPercent(ratePercent);
         return rate <= 0 ? double.PositiveInfinity : ParkingInitialCallupBaseIntervalSeconds * (100.0 / rate);
     }
 
     public static double EffectiveArrivalGeneratorIntervalSeconds(int intervalTime, int ratePercent)
     {
-        var rate = ClampArrivalGeneratorPercent(ratePercent);
+        int rate = ClampArrivalGeneratorPercent(ratePercent);
         return rate <= 0 ? double.PositiveInfinity : intervalTime * (100.0 / rate);
     }
 
     public static bool TryReserveParkingInitialCallupSlot(SimScenarioState scenario, double nowSeconds)
     {
-        var rate = ClampParkingInitialCallupPercent(scenario.SoloParkingInitialCallupRatePercent);
+        int rate = ClampParkingInitialCallupPercent(scenario.SoloParkingInitialCallupRatePercent);
         if (rate <= 0)
         {
             return false;

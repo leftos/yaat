@@ -65,10 +65,10 @@ public class ZoaParseFixTests : IDisposable
     public void ParseCompound_FH_CM_ReturnsTwoCommands()
     {
         // First verify expansion works
-        var expanded = CommandSchemeParser.ExpandMultiCommand("FH 270 CM 5000");
+        string expanded = CommandSchemeParser.ExpandMultiCommand("FH 270 CM 5000");
         Assert.Equal("FH 270, CM 5000", expanded);
 
-        var result = CommandParser.ParseCompound("FH 270 CM 5000");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("FH 270 CM 5000");
 
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
@@ -100,7 +100,7 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void ParseCompound_WaitThenHeading_ReturnsTwoBlocks()
     {
-        var result = CommandParser.ParseCompound("WAIT 5 FH 270");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("WAIT 5 FH 270");
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value!.Blocks.Count);
@@ -113,7 +113,7 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_CF_ReturnsCrossFixCommand()
     {
-        var result = CommandParser.Parse("CF SUNOL 050");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("CF SUNOL 050");
         Assert.NotNull(result.Value);
         Assert.IsType<CrossFixCommand>(result.Value);
     }
@@ -123,7 +123,7 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_Hold_RightAlias()
     {
-        var result = CommandParser.Parse("HOLD SUNOL 090 10 RIGHT");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HOLD SUNOL 090 10 RIGHT");
         Assert.NotNull(result.Value);
         Assert.IsType<HoldingPatternCommand>(result.Value);
     }
@@ -131,7 +131,7 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_Hold_LeftAlias()
     {
-        var result = CommandParser.Parse("HOLD SUNOL 090 10 LEFT");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HOLD SUNOL 090 10 LEFT");
         Assert.NotNull(result.Value);
         Assert.IsType<HoldingPatternCommand>(result.Value);
     }
@@ -141,12 +141,12 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void ParseCompound_SayWithComma_DoesNotSplit()
     {
-        var result = CommandParser.ParseCompound("SAY hello, world");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("SAY hello, world");
 
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.Single(result.Value!.Blocks[0].Commands);
-        var say = Assert.IsType<SayCommand>(result.Value!.Blocks[0].Commands[0]);
+        SayCommand say = Assert.IsType<SayCommand>(result.Value!.Blocks[0].Commands[0]);
         Assert.Equal("hello, world", say.Text);
     }
 
@@ -162,13 +162,13 @@ public class ZoaParseFixTests : IDisposable
             + "IF THAT IS THE CASE, TYPE THE CALLSIGN SOMEWHERE ON YOUR SCREEN. "
             + "WAIT FOR THE TAG TO \"DISAPPEAR\", AND THEN, TYPE F4 (CALLSIGN) ENTER.";
 
-        var result = CommandParser.ParseCompound($"WAIT 1 SAY {message}");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound($"WAIT 1 SAY {message}");
 
         Assert.True(result.IsSuccess, result.Reason);
         Assert.Equal(2, result.Value!.Blocks.Count);
-        var wait = Assert.IsType<WaitCommand>(result.Value!.Blocks[0].Commands[0]);
+        WaitCommand wait = Assert.IsType<WaitCommand>(result.Value!.Blocks[0].Commands[0]);
         Assert.Equal(1, wait.Seconds);
-        var say = Assert.IsType<SayCommand>(Assert.Single(result.Value!.Blocks[1].Commands));
+        SayCommand say = Assert.IsType<SayCommand>(Assert.Single(result.Value!.Blocks[1].Commands));
         Assert.Equal(message, say.Text);
     }
 
@@ -177,18 +177,18 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_BareCapp_ReturnsNullApproachId()
     {
-        var result = CommandParser.Parse("CAPP");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("CAPP");
         Assert.NotNull(result.Value);
-        var capp = Assert.IsType<ClearedApproachCommand>(result.Value);
+        ClearedApproachCommand capp = Assert.IsType<ClearedApproachCommand>(result.Value);
         Assert.Null(capp.ApproachId);
     }
 
     [Fact]
     public void Parse_BareJfac_ReturnsNullApproachId()
     {
-        var result = CommandParser.Parse("JFAC");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("JFAC");
         Assert.NotNull(result.Value);
-        var jfac = Assert.IsType<JoinFinalApproachCourseCommand>(result.Value);
+        JoinFinalApproachCourseCommand jfac = Assert.IsType<JoinFinalApproachCourseCommand>(result.Value);
         Assert.Null(jfac.ApproachId);
     }
 
@@ -197,9 +197,9 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_TaxiDollarPrefix_ParsesAsSpot()
     {
-        var result = CommandParser.Parse("TAXI Y $10");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("TAXI Y $10");
         Assert.NotNull(result.Value);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
         Assert.Equal("10", taxi.DestinationSpot);
         Assert.Null(taxi.DestinationParking);
     }
@@ -207,9 +207,9 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_TaxiAtPrefix_ParsesAsParking()
     {
-        var result = CommandParser.Parse("TAXI Y @A10");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("TAXI Y @A10");
         Assert.NotNull(result.Value);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
         Assert.Equal("A10", taxi.DestinationParking);
         Assert.Null(taxi.DestinationSpot);
     }
@@ -231,7 +231,7 @@ public class ZoaParseFixTests : IDisposable
     [InlineData("PH", typeof(LineUpAndWaitCommand))]
     public void Parse_NewAliases(string input, Type expectedType)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.NotNull(result.Value);
         Assert.IsType(expectedType, result.Value);
     }
@@ -241,7 +241,7 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void ParseCompound_GW_WithTaxi_AsCondition()
     {
-        var result = CommandParser.ParseCompound("GW UAL123 TAXI T U W");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("GW UAL123 TAXI T U W");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.IsType<GiveWayCondition>(result.Value!.Blocks[0].Condition);
@@ -252,7 +252,7 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void ParseCompound_GW_WithRwyTaxi_AsCondition()
     {
-        var result = CommandParser.ParseCompound("GW UAL123 RWY 17L TAXI T U W");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("GW UAL123 RWY 17L TAXI T U W");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.IsType<GiveWayCondition>(result.Value!.Blocks[0].Condition);
@@ -261,11 +261,11 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void ParseCompound_GW_WithLocation()
     {
-        var result = CommandParser.ParseCompound("GW AAL1944 G");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("GW AAL1944 G");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.Null(result.Value!.Blocks[0].Condition);
-        var gw = Assert.IsType<GiveWayCommand>(result.Value!.Blocks[0].Commands[0]);
+        GiveWayCommand gw = Assert.IsType<GiveWayCommand>(result.Value!.Blocks[0].Commands[0]);
         Assert.Equal("AAL1944", gw.TargetCallsign);
         Assert.Equal("G", gw.Location);
     }
@@ -273,28 +273,28 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void ParseCompound_GW_WithPush_AsCondition()
     {
-        var result = CommandParser.ParseCompound("BEHIND UAL1744 PUSH T9");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("BEHIND UAL1744 PUSH T9");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.IsType<GiveWayCondition>(result.Value!.Blocks[0].Condition);
         var cond = (GiveWayCondition)result.Value!.Blocks[0].Condition!;
         Assert.Equal("UAL1744", cond.TargetCallsign);
         Assert.Single(result.Value!.Blocks[0].Commands);
-        var push = Assert.IsType<PushbackCommand>(result.Value!.Blocks[0].Commands[0]);
+        PushbackCommand push = Assert.IsType<PushbackCommand>(result.Value!.Blocks[0].Commands[0]);
         Assert.Equal("T9", push.Taxiway);
     }
 
     [Fact]
     public void ParseCompound_GW_WithFollowG_AsCondition()
     {
-        var result = CommandParser.ParseCompound("BEHIND UAL1744 FOLLOWG SWA123");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("BEHIND UAL1744 FOLLOWG SWA123");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.IsType<GiveWayCondition>(result.Value!.Blocks[0].Condition);
         var cond = (GiveWayCondition)result.Value!.Blocks[0].Condition!;
         Assert.Equal("UAL1744", cond.TargetCallsign);
         Assert.Single(result.Value!.Blocks[0].Commands);
-        var follow = Assert.IsType<FollowGroundCommand>(result.Value!.Blocks[0].Commands[0]);
+        FollowGroundCommand follow = Assert.IsType<FollowGroundCommand>(result.Value!.Blocks[0].Commands[0]);
         Assert.Equal("SWA123", follow.TargetCallsign);
     }
 
@@ -303,7 +303,7 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_Ctomrt()
     {
-        var result = CommandParser.Parse("CTOMRT");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("CTOMRT");
         Assert.NotNull(result.Value);
         Assert.IsType<ClearedForTakeoffCommand>(result.Value);
     }
@@ -311,7 +311,7 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_Ctomlt()
     {
-        var result = CommandParser.Parse("CTOMLT");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("CTOMLT");
         Assert.NotNull(result.Value);
         Assert.IsType<ClearedForTakeoffCommand>(result.Value);
     }
@@ -321,18 +321,18 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_TrackWithTcp_ReturnsTcpCode()
     {
-        var result = CommandParser.Parse("TRACK OAK_41_CTR");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("TRACK OAK_41_CTR");
         Assert.NotNull(result.Value);
-        var track = Assert.IsType<TrackAircraftCommand>(result.Value);
+        TrackAircraftCommand track = Assert.IsType<TrackAircraftCommand>(result.Value);
         Assert.Equal("OAK_41_CTR", track.TcpCode);
     }
 
     [Fact]
     public void Parse_TrackBare_ReturnsNullTcpCode()
     {
-        var result = CommandParser.Parse("TRACK");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("TRACK");
         Assert.NotNull(result.Value);
-        var track = Assert.IsType<TrackAircraftCommand>(result.Value);
+        TrackAircraftCommand track = Assert.IsType<TrackAircraftCommand>(result.Value);
         Assert.Null(track.TcpCode);
     }
 
@@ -341,9 +341,9 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_AcceptWithCallsign_ReturnsCallsign()
     {
-        var result = CommandParser.Parse("ACCEPT JBU33");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("ACCEPT JBU33");
         Assert.NotNull(result.Value);
-        var accept = Assert.IsType<AcceptHandoffCommand>(result.Value);
+        AcceptHandoffCommand accept = Assert.IsType<AcceptHandoffCommand>(result.Value);
         Assert.Equal("JBU33", accept.Callsign);
     }
 
@@ -352,9 +352,9 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_SP_Alias_ReturnsScratchpad1()
     {
-        var result = CommandParser.Parse("SP OA1");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SP OA1");
         Assert.NotNull(result.Value);
-        var sp = Assert.IsType<Scratchpad1Command>(result.Value);
+        Scratchpad1Command sp = Assert.IsType<Scratchpad1Command>(result.Value);
         Assert.Equal("OA1", sp.Text);
     }
 
@@ -363,19 +363,19 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void ParseCompound_AT_Track_WithTcp()
     {
-        var result = CommandParser.ParseCompound("AT OAK TRACK OAK_41_CTR");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("AT OAK TRACK OAK_41_CTR");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.IsType<AtFixCondition>(result.Value!.Blocks[0].Condition);
         Assert.Single(result.Value!.Blocks[0].Commands);
-        var track = Assert.IsType<TrackAircraftCommand>(result.Value!.Blocks[0].Commands[0]);
+        TrackAircraftCommand track = Assert.IsType<TrackAircraftCommand>(result.Value!.Blocks[0].Commands[0]);
         Assert.Equal("OAK_41_CTR", track.TcpCode);
     }
 
     [Fact]
     public void ParseCompound_AT_SP_Scratchpad()
     {
-        var result = CommandParser.ParseCompound("AT ARCHI SP +RGT");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("AT ARCHI SP +RGT");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.IsType<AtFixCondition>(result.Value!.Blocks[0].Condition);
@@ -388,18 +388,18 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_TG_WithRunway()
     {
-        var result = CommandParser.Parse("TG 31");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("TG 31");
         Assert.NotNull(result.Value);
-        var tg = Assert.IsType<TouchAndGoCommand>(result.Value);
+        TouchAndGoCommand tg = Assert.IsType<TouchAndGoCommand>(result.Value);
         Assert.Equal("31", tg.RunwayId);
     }
 
     [Fact]
     public void Parse_TG_Bare()
     {
-        var result = CommandParser.Parse("TG");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("TG");
         Assert.NotNull(result.Value);
-        var tg = Assert.IsType<TouchAndGoCommand>(result.Value);
+        TouchAndGoCommand tg = Assert.IsType<TouchAndGoCommand>(result.Value);
         Assert.Null(tg.RunwayId);
     }
 
@@ -417,9 +417,9 @@ public class ZoaParseFixTests : IDisposable
     public void Parse_Hold_4Tokens_NoDirection_DefaultsRight()
     {
         // HOLD VPBCK 080 10 → fix=VPBCK, course=080, leg=10nm, direction=Right (default)
-        var result = CommandParser.Parse("HOLD VPBCK 080 10");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HOLD VPBCK 080 10");
         Assert.NotNull(result.Value);
-        var hold = Assert.IsType<HoldingPatternCommand>(result.Value);
+        HoldingPatternCommand hold = Assert.IsType<HoldingPatternCommand>(result.Value);
         Assert.Equal("VPBCK", hold.FixName);
         Assert.Equal(80, hold.InboundCourse);
         Assert.Equal(10, hold.LegLength);
@@ -430,9 +430,9 @@ public class ZoaParseFixTests : IDisposable
     public void Parse_Hold_3Tokens_Direction_DefaultsLeg1M()
     {
         // HOLD RBL 341 RIGHT → fix=RBL, course=341, direction=Right, leg=1M (default)
-        var result = CommandParser.Parse("HOLD RBL 341 RIGHT");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HOLD RBL 341 RIGHT");
         Assert.NotNull(result.Value);
-        var hold = Assert.IsType<HoldingPatternCommand>(result.Value);
+        HoldingPatternCommand hold = Assert.IsType<HoldingPatternCommand>(result.Value);
         Assert.Equal("RBL", hold.FixName);
         Assert.Equal(341, hold.InboundCourse);
         Assert.Equal(TurnDirection.Right, hold.Direction);
@@ -444,9 +444,9 @@ public class ZoaParseFixTests : IDisposable
     public void Parse_Hold_4Tokens_Standard_StillWorks()
     {
         // Regression: HOLD SUNOL 090 10 RIGHT → standard 4-token form
-        var result = CommandParser.Parse("HOLD SUNOL 090 10 RIGHT");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HOLD SUNOL 090 10 RIGHT");
         Assert.NotNull(result.Value);
-        var hold = Assert.IsType<HoldingPatternCommand>(result.Value);
+        HoldingPatternCommand hold = Assert.IsType<HoldingPatternCommand>(result.Value);
         Assert.Equal("SUNOL", hold.FixName);
         Assert.Equal(90, hold.InboundCourse);
         Assert.Equal(10, hold.LegLength);
@@ -462,7 +462,7 @@ public class ZoaParseFixTests : IDisposable
         // WAIT OAK WAIT 100 DM 5000 → AT OAK WAIT 100 DM 5000
         // (AT prefix is not a WAIT verb, so ExpandWait passes it through;
         //  the AT condition extraction + second ExpandWait in ParseBlockToCanonical does the rest)
-        var expanded = CommandSchemeParser.ExpandWait("WAIT OAK WAIT 100 DM 5000");
+        string expanded = CommandSchemeParser.ExpandWait("WAIT OAK WAIT 100 DM 5000");
         Assert.Equal("AT OAK WAIT 100 DM 5000", expanded);
     }
 
@@ -471,7 +471,7 @@ public class ZoaParseFixTests : IDisposable
     {
         // End-to-end: WAIT OAK WAIT 100 DM 5000 → AT OAK condition + WAIT 100 + DM 5000
         var scheme = CommandScheme.Default();
-        var result = CommandSchemeParser.ParseCompound("WAIT OAK WAIT 100 DM 5000", scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("WAIT OAK WAIT 100 DM 5000", scheme);
         Assert.NotNull(result);
         Assert.Contains("AT OAK", result.CanonicalString);
     }
@@ -481,7 +481,7 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void ParseCompound_AT_Bare_ConditionOnly()
     {
-        var result = CommandParser.ParseCompound("AT BRIXX");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("AT BRIXX");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.IsType<AtFixCondition>(result.Value!.Blocks[0].Condition);
@@ -494,7 +494,7 @@ public class ZoaParseFixTests : IDisposable
     public void ParseCompound_Wait_Hold_3Tokens()
     {
         // WAIT 150 HOLD RBL 341 RIGHT → WAIT 150; HOLD RBL 341 RIGHT
-        var result = CommandParser.ParseCompound("WAIT 150 HOLD RBL 341 RIGHT");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("WAIT 150 HOLD RBL 341 RIGHT");
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value!.Blocks.Count);
         Assert.IsType<WaitCommand>(result.Value!.Blocks[0].Commands[0]);
@@ -506,16 +506,16 @@ public class ZoaParseFixTests : IDisposable
     [Fact]
     public void Parse_PO_Bare_ReturnsNullTcpCode()
     {
-        var result = CommandParser.Parse("PO");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("PO");
         Assert.NotNull(result.Value);
-        var po = Assert.IsType<PointOutCommand>(result.Value);
+        PointOutCommand po = Assert.IsType<PointOutCommand>(result.Value);
         Assert.Null(po.TcpCode);
     }
 
     [Fact]
     public void ParseCompound_AT_PO_Bare()
     {
-        var result = CommandParser.ParseCompound("AT BESSA PO");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("AT BESSA PO");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.IsType<AtFixCondition>(result.Value!.Blocks[0].Condition);
@@ -539,7 +539,7 @@ public class ZoaParseFixTests : IDisposable
     public void ParseDirectTo_RejectsUnknownFixNames()
     {
         // "DCT VPCOL NOTAFIX" must fail — NOTAFIX is not in the navdb
-        var result = CommandParser.Parse("DCT VPCOL NOTAFIX");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("DCT VPCOL NOTAFIX");
         Assert.False(result.IsSuccess);
         Assert.Contains("NOTAFIX", result.Reason!);
     }
@@ -548,8 +548,8 @@ public class ZoaParseFixTests : IDisposable
     public void ParseCompound_DCT_DM_WithoutComma_MatchesWithComma()
     {
         // "DCT VPCOL DM 020; ERD 28R" must behave like "DCT VPCOL, DM 020; ERD 28R"
-        var withComma = CommandParser.ParseCompound("DCT VPCOL, DM 020; ERD 28R");
-        var withoutComma = CommandParser.ParseCompound("DCT VPCOL DM 020; ERD 28R");
+        ParseResult<CompoundCommand> withComma = CommandParser.ParseCompound("DCT VPCOL, DM 020; ERD 28R");
+        ParseResult<CompoundCommand> withoutComma = CommandParser.ParseCompound("DCT VPCOL DM 020; ERD 28R");
 
         Assert.True(withComma.IsSuccess, $"With comma: {withComma.Reason}");
         Assert.True(withoutComma.IsSuccess, $"Without comma: {withoutComma.Reason}");

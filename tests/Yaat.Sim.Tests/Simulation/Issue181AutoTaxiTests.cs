@@ -51,8 +51,8 @@ public class Issue181AutoTaxiTests(ITestOutputHelper output)
     [InlineData("N69WS", 120)]
     public void DepartureWithConditionalPresets_LeavesParking(string callsign, int waitSeconds)
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -62,7 +62,7 @@ public class Issue181AutoTaxiTests(ITestOutputHelper output)
         int target = waitSeconds + 45;
         engine.Replay(recording, target);
 
-        var ac = engine.FindAircraft(callsign);
+        AircraftState? ac = engine.FindAircraft(callsign);
         Assert.NotNull(ac);
 
         output.WriteLine(

@@ -46,9 +46,9 @@ public partial class ArrivalGeneratorsEditorWindow : Window
 
         try
         {
-            var json = vm.BuildJson();
-            var result = await _applyCallback(json);
-            var total = vm.Generators.Count + vm.VfrArrivalGenerators.Count + vm.OverflightGenerators.Count;
+            string json = vm.BuildJson();
+            CommandResultDto result = await _applyCallback(json);
+            int total = vm.Generators.Count + vm.VfrArrivalGenerators.Count + vm.OverflightGenerators.Count;
             vm.StatusMessage = result.Success
                 ? $"Applied {total} generator(s)" + (result.Message is not null ? $" — {result.Message}" : "")
                 : $"Apply failed: {result.Message}";
@@ -67,7 +67,7 @@ public partial class ArrivalGeneratorsEditorWindow : Window
             return;
         }
 
-        var path = await _filePicker.SaveFileAsync(
+        string? path = await _filePicker.SaveFileAsync(
             new SaveFileOptions(
                 Title: "Save Scenario As…",
                 SuggestedFileName: "scenario",
@@ -83,7 +83,7 @@ public partial class ArrivalGeneratorsEditorWindow : Window
 
         try
         {
-            var sourceJson = _scenarioJsonProvider?.Invoke();
+            string? sourceJson = _scenarioJsonProvider?.Invoke();
             if (string.IsNullOrEmpty(sourceJson))
             {
                 vm.StatusMessage = "Save As needs the originally-loaded scenario JSON; none is available";
@@ -105,7 +105,7 @@ public partial class ArrivalGeneratorsEditorWindow : Window
                 return;
             }
 
-            foreach (var key in (string[])["aircraftGenerators", "vfrArrivalGenerators", "overflightGenerators"])
+            foreach (string key in (string[])["aircraftGenerators", "vfrArrivalGenerators", "overflightGenerators"])
             {
                 obj[key] = payload[key]?.DeepClone();
             }

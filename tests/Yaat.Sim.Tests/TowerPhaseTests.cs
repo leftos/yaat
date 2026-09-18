@@ -92,10 +92,10 @@ public class TowerPhaseTests
     [Fact]
     public void LinedUpAndWaiting_OnStart_SetsSpeedZeroAndRunwayHeading()
     {
-        var ac = MakeAircraft(heading: 100);
-        var rwy = DefaultRunway();
+        AircraftState ac = MakeAircraft(heading: 100);
+        RunwayInfo rwy = DefaultRunway();
         var phase = new LinedUpAndWaitingPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
 
@@ -107,9 +107,9 @@ public class TowerPhaseTests
     [Fact]
     public void LinedUpAndWaiting_HoldsUntilClearedForTakeoff()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var phase = new LinedUpAndWaitingPhase();
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -141,10 +141,10 @@ public class TowerPhaseTests
     [Fact]
     public void GoAround_OnStart_SetsClimbAndRunwayHeading()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, onGround: false);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 100, onGround: false);
         var phase = new GoAroundPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
 
@@ -163,11 +163,11 @@ public class TowerPhaseTests
     [Fact]
     public void GoAround_OnStart_ClearsStaleApproachSpeedCeiling()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 600, onGround: false, ias: 130);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 600, onGround: false, ias: 130);
         ac.Targets.SpeedCeiling = 130; // left by the 5nm-final gate
         var phase = new GoAroundPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
 
@@ -184,12 +184,12 @@ public class TowerPhaseTests
     [Fact]
     public void TouchAndGo_OnStart_ClearsStaleApproachSpeedCeiling()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, onGround: true, ias: 70);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 100, onGround: true, ias: 70);
         ac.Targets.SpeedFloor = 90;
         ac.Targets.SpeedCeiling = 90; // left by the 5nm-final gate before touchdown
         var phase = new TouchAndGoPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
 
@@ -200,10 +200,10 @@ public class TowerPhaseTests
     [Fact]
     public void GoAround_CompletesAt2000AGL()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, onGround: false);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 100, onGround: false);
         var phase = new GoAroundPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
 
@@ -219,10 +219,10 @@ public class TowerPhaseTests
     [Fact]
     public void GoAround_WithAssignedHeading_TurnsAfter400AGL()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, onGround: false);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 100, onGround: false);
         var phase = new GoAroundPhase { AssignedMagneticHeading = new MagneticHeading(360) };
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
         Assert.Equal(280, ac.Targets.TargetTrueHeading?.Degrees); // runway heading initially
@@ -241,10 +241,10 @@ public class TowerPhaseTests
     [Fact]
     public void GoAround_WithTargetAltitude_CompletesAtThatAltitude()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, onGround: false);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 100, onGround: false);
         var phase = new GoAroundPhase { TargetAltitude = 3000 };
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
         Assert.Equal(3000, ac.Targets.TargetAltitude);
@@ -279,9 +279,9 @@ public class TowerPhaseTests
     [Fact]
     public void TouchAndGo_OnStart_OnGroundAndDecelerating()
     {
-        var ac = MakeAircraft(onGround: false);
+        AircraftState ac = MakeAircraft(onGround: false);
         var phase = new TouchAndGoPhase();
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -293,10 +293,10 @@ public class TowerPhaseTests
     [Fact]
     public void TouchAndGo_Rollout_ThenReaccelerate_ThenAirborne()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, onGround: false, ias: 130);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 100, onGround: false, ias: 130);
         var phase = new TouchAndGoPhase();
-        var ctx = Ctx(ac, rwy, dt: 1.0);
+        PhaseContext ctx = Ctx(ac, rwy, dt: 1.0);
 
         phase.OnStart(ctx);
 
@@ -344,9 +344,9 @@ public class TowerPhaseTests
     [Fact]
     public void StopAndGo_OnStart_DecelerateToZero()
     {
-        var ac = MakeAircraft(onGround: false);
+        AircraftState ac = MakeAircraft(onGround: false);
         var phase = new StopAndGoPhase();
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -357,10 +357,10 @@ public class TowerPhaseTests
     [Fact]
     public void StopAndGo_FullStop_ThenPause_ThenReaccelerate()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, onGround: true, ias: 2);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 100, onGround: true, ias: 2);
         var phase = new StopAndGoPhase();
-        var ctx = Ctx(ac, rwy, dt: 1.0);
+        PhaseContext ctx = Ctx(ac, rwy, dt: 1.0);
 
         phase.OnStart(ctx);
 
@@ -413,10 +413,10 @@ public class TowerPhaseTests
     [Fact]
     public void StopAndGo_TriggerGo_BypassesPauseTimer()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, onGround: true, ias: 2);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 100, onGround: true, ias: 2);
         var phase = new StopAndGoPhase();
-        var ctx = Ctx(ac, rwy, dt: 1.0);
+        PhaseContext ctx = Ctx(ac, rwy, dt: 1.0);
 
         phase.OnStart(ctx);
 
@@ -443,10 +443,10 @@ public class TowerPhaseTests
     [Fact]
     public void LowApproach_OnStart_SetsRunwayHeadingAndApproachSpeed()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 500, onGround: false, ias: 140);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 500, onGround: false, ias: 140);
         var phase = new LowApproachPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
 
@@ -457,10 +457,10 @@ public class TowerPhaseTests
     [Fact]
     public void LowApproach_ClimbsOutAndCompletesAt1500AGL()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 180, onGround: false, ias: 140);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 180, onGround: false, ias: 140);
         var phase = new LowApproachPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
 
@@ -494,16 +494,16 @@ public class TowerPhaseTests
     [Fact]
     public void FinalApproach_PublishedMinimums_NoLandingClearance_WarnsAtMinimumsPlus1000()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
-        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
-        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
+        FinalApproachPhase phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
+        PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
         ac.Phases!.Start(ctx);
         ac.PendingPilotTransmissions.Clear();
 
         phase.OnTick(ctx);
 
-        var tx = Assert.Single(ac.PendingPilotTransmissions);
+        PilotTransmission tx = Assert.Single(ac.PendingPilotTransmissions);
         Assert.Equal(PilotTransmissionKind.Proactive, tx.Kind);
         Assert.Contains("approaching minimums", tx.Text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("no landing clearance", tx.Text, StringComparison.OrdinalIgnoreCase);
@@ -513,29 +513,29 @@ public class TowerPhaseTests
     [Fact]
     public void FinalApproach_PublishedMinimums_NoLandingClearanceWarning_RoundTripsSnapshot()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
-        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
-        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
+        FinalApproachPhase phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
+        PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
         ac.Phases!.Start(ctx);
         ac.PendingPilotTransmissions.Clear();
         phase.OnTick(ctx);
 
-        var dto = Assert.IsType<FinalApproachPhaseDto>(phase.ToSnapshot());
+        FinalApproachPhaseDto dto = Assert.IsType<FinalApproachPhaseDto>(phase.ToSnapshot());
         Assert.True(dto.NoClearanceWarningIssued);
 
         var restored = FinalApproachPhase.FromSnapshot(dto);
-        var restoredDto = Assert.IsType<FinalApproachPhaseDto>(restored.ToSnapshot());
+        FinalApproachPhaseDto restoredDto = Assert.IsType<FinalApproachPhaseDto>(restored.ToSnapshot());
         Assert.True(restoredDto.NoClearanceWarningIssued);
     }
 
     [Fact]
     public void FinalApproach_PublishedMinimums_LandingClearanceAfterWarning_PreventsGoAroundAtMinimums()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
-        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
-        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
+        FinalApproachPhase phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
+        PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
         ac.Phases!.Start(ctx);
         ac.PendingPilotTransmissions.Clear();
         phase.OnTick(ctx);
@@ -552,13 +552,13 @@ public class TowerPhaseTests
     [Fact]
     public void FinalApproach_PublishedMinimums_NoLandingClearance_GoesAroundAtMinimums()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 595, onGround: false, ias: 140);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 595, onGround: false, ias: 140);
         AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
-        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
+        PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
         ac.Phases!.Start(ctx);
         ac.PendingPilotTransmissions.Clear();
-        var phase = Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
+        FinalApproachPhase phase = Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
 
         phase.OnTick(ctx);
 
@@ -570,10 +570,10 @@ public class TowerPhaseTests
     [Fact]
     public void FinalApproach_NoPublishedMinimums_KeepsCurrentNoClearanceFallback()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 301, onGround: false, ias: 140);
-        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
-        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 301, onGround: false, ias: 140);
+        FinalApproachPhase phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
+        PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
         ac.Phases!.Start(ctx);
 
         phase.OnTick(ctx);
@@ -594,10 +594,10 @@ public class TowerPhaseTests
     [Fact]
     public void FinalApproach_PublishedMinimums_NoLandingClearance_SetsWarningActive()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
-        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
-        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
+        FinalApproachPhase phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
+        PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
         ac.Phases!.Start(ctx);
 
         Assert.False(ac.NoLandingClearanceWarningActive);
@@ -610,13 +610,13 @@ public class TowerPhaseTests
     [Fact]
     public void FinalApproach_NoPublishedMinimums_NoLandingClearance_SetsWarningActiveAt1Nm()
     {
-        var rwy = DefaultRunway(100);
+        RunwayInfo rwy = DefaultRunway(100);
         // Position aircraft ~0.5 nm from threshold along the runway centerline (heading 280).
         // 0.5 nm at 60 nm/deg ≈ 0.0083° latitude.
-        var ac = MakeAircraft(lat: 37.0, lon: -121.99, altitude: 400, onGround: false, ias: 110);
-        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
+        AircraftState ac = MakeAircraft(lat: 37.0, lon: -121.99, altitude: 400, onGround: false, ias: 110);
+        FinalApproachPhase phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
         // Override the anchor lat/lon so the runway is at (37, -122) and the aircraft is east of it.
-        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
+        PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
         ac.Phases!.Start(ctx);
 
         Assert.False(ac.NoLandingClearanceWarningActive);
@@ -629,12 +629,12 @@ public class TowerPhaseTests
     [Fact]
     public void FinalApproach_NoPublishedMinimums_FlashActivatesAt2Nm_BeforePilotShortFinalCallout()
     {
-        var rwy = DefaultRunway(100);
+        RunwayInfo rwy = DefaultRunway(100);
         // ~1.5 nm east of the threshold (37, -122): inside the 2 nm datablock-flash gate but
         // still outside the 1 nm pilot short-final callout gate.
-        var ac = MakeAircraft(lat: 37.0, lon: -121.9687, altitude: 700, onGround: false, ias: 130);
-        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
-        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
+        AircraftState ac = MakeAircraft(lat: 37.0, lon: -121.9687, altitude: 700, onGround: false, ias: 130);
+        FinalApproachPhase phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
+        PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
         ac.Phases!.Start(ctx);
         ac.PendingPilotTransmissions.Clear();
 
@@ -642,7 +642,7 @@ public class TowerPhaseTests
 
         // RPO-facing flash is on at 2 nm ...
         Assert.True(ac.NoLandingClearanceWarningActive);
-        var dto = Assert.IsType<FinalApproachPhaseDto>(phase.ToSnapshot());
+        FinalApproachPhaseDto dto = Assert.IsType<FinalApproachPhaseDto>(phase.ToSnapshot());
         Assert.True(dto.NoClearanceFlashIssued);
         // ... but the AI pilot's short-final reminder still waits for 1 nm (decoupled).
         Assert.False(dto.NoClearanceWarningIssued);
@@ -651,45 +651,45 @@ public class TowerPhaseTests
     [Fact]
     public void FinalApproach_NoPublishedMinimums_NoFlashOutside2Nm()
     {
-        var rwy = DefaultRunway(100);
+        RunwayInfo rwy = DefaultRunway(100);
         // ~2.5 nm east of the threshold (37, -122): outside the 2 nm datablock-flash gate.
-        var ac = MakeAircraft(lat: 37.0, lon: -121.9478, altitude: 900, onGround: false, ias: 130);
-        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
-        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
+        AircraftState ac = MakeAircraft(lat: 37.0, lon: -121.9478, altitude: 900, onGround: false, ias: 130);
+        FinalApproachPhase phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
+        PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
         ac.Phases!.Start(ctx);
 
         phase.OnTick(ctx);
 
         Assert.False(ac.NoLandingClearanceWarningActive);
-        var dto = Assert.IsType<FinalApproachPhaseDto>(phase.ToSnapshot());
+        FinalApproachPhaseDto dto = Assert.IsType<FinalApproachPhaseDto>(phase.ToSnapshot());
         Assert.False(dto.NoClearanceFlashIssued);
     }
 
     [Fact]
     public void FinalApproach_FlashIssued_RoundTripsSnapshot()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(lat: 37.0, lon: -121.9687, altitude: 700, onGround: false, ias: 130);
-        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
-        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(lat: 37.0, lon: -121.9687, altitude: 700, onGround: false, ias: 130);
+        FinalApproachPhase phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
+        PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
         ac.Phases!.Start(ctx);
         phase.OnTick(ctx);
 
-        var dto = Assert.IsType<FinalApproachPhaseDto>(phase.ToSnapshot());
+        FinalApproachPhaseDto dto = Assert.IsType<FinalApproachPhaseDto>(phase.ToSnapshot());
         Assert.True(dto.NoClearanceFlashIssued);
 
         var restored = FinalApproachPhase.FromSnapshot(dto);
-        var restoredDto = Assert.IsType<FinalApproachPhaseDto>(restored.ToSnapshot());
+        FinalApproachPhaseDto restoredDto = Assert.IsType<FinalApproachPhaseDto>(restored.ToSnapshot());
         Assert.True(restoredDto.NoClearanceFlashIssued);
     }
 
     [Fact]
     public void FinalApproach_LandingClearanceAfterWarning_ClearsWarningActive()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
-        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
-        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
+        FinalApproachPhase phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
+        PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
         ac.Phases!.Start(ctx);
         phase.OnTick(ctx);
         Assert.True(ac.NoLandingClearanceWarningActive);
@@ -704,12 +704,12 @@ public class TowerPhaseTests
     [Fact]
     public void FinalApproach_GoAroundAtMinimums_ClearsWarningActive()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 595, onGround: false, ias: 140);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 595, onGround: false, ias: 140);
         AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: 600);
-        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
+        PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
         ac.Phases!.Start(ctx);
-        var phase = Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
+        FinalApproachPhase phase = Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
 
         phase.OnTick(ctx);
 
@@ -720,10 +720,10 @@ public class TowerPhaseTests
     [Fact]
     public void AircraftState_NoLandingClearanceWarningActive_RoundTripsSnapshot()
     {
-        var ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
+        AircraftState ac = MakeAircraft(altitude: 1595, onGround: false, ias: 140);
         ac.NoLandingClearanceWarningActive = true;
 
-        var dto = ac.ToSnapshot();
+        AircraftSnapshotDto dto = ac.ToSnapshot();
         Assert.True(dto.NoLandingClearanceWarningActive);
 
         var restored = AircraftState.FromSnapshot(dto, groundLayout: null);
@@ -737,10 +737,10 @@ public class TowerPhaseTests
     [Fact]
     public void Landing_TouchdownSetsOnGround()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 110, onGround: false, ias: 140);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 110, onGround: false, ias: 140);
         var phase = new LandingPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
         Assert.Equal(100.0, ac.Targets.TargetAltitude);
@@ -762,10 +762,10 @@ public class TowerPhaseTests
     [Fact]
     public void Landing_Rollout_CompletesAt20Kts()
     {
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, onGround: false, ias: 140);
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 100, onGround: false, ias: 140);
         var phase = new LandingPhase();
-        var ctx = Ctx(ac, rwy, dt: 1.0);
+        PhaseContext ctx = Ctx(ac, rwy, dt: 1.0);
 
         phase.OnStart(ctx);
 
@@ -812,7 +812,7 @@ public class TowerPhaseTests
     [Fact]
     public void VfrHold_AtFix_OnStart_NavigatesToFix()
     {
-        var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200);
+        AircraftState ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200);
         var phase = new VfrHoldPhase
         {
             FixName = "EDDYY",
@@ -820,7 +820,7 @@ public class TowerPhaseTests
             FixLon = -122.5,
             OrbitDirection = TurnDirection.Right,
         };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -831,7 +831,7 @@ public class TowerPhaseTests
     [Fact]
     public void VfrHold_AtFix_ArrivesAtFix_ClearsRouteAndOrbits()
     {
-        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200, heading: 90);
+        AircraftState ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200, heading: 90);
         var phase = new VfrHoldPhase
         {
             FixName = "EDDYY",
@@ -839,7 +839,7 @@ public class TowerPhaseTests
             FixLon = -122.5,
             OrbitDirection = TurnDirection.Right,
         };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx); // dist < 0.5nm → arrives
@@ -853,7 +853,7 @@ public class TowerPhaseTests
     [Fact]
     public void VfrHold_AtFix_OrbitTargetStaysAhead_AcrossTicks()
     {
-        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200, heading: 90);
+        AircraftState ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200, heading: 90);
         var phase = new VfrHoldPhase
         {
             FixName = "EDDYY",
@@ -861,7 +861,7 @@ public class TowerPhaseTests
             FixLon = -122.5,
             OrbitDirection = TurnDirection.Left,
         };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx); // arrive at fix
@@ -882,7 +882,7 @@ public class TowerPhaseTests
     [Fact]
     public void VfrHold_AtFix_NeverSelfCompletes()
     {
-        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200);
+        AircraftState ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200);
         var phase = new VfrHoldPhase
         {
             FixName = "EDDYY",
@@ -890,7 +890,7 @@ public class TowerPhaseTests
             FixLon = -122.5,
             OrbitDirection = TurnDirection.Right,
         };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -903,7 +903,7 @@ public class TowerPhaseTests
     [Fact]
     public void VfrHold_AtFix_HelicopterHover_ZeroSpeed()
     {
-        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 80);
+        AircraftState ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 80);
         var phase = new VfrHoldPhase
         {
             FixName = "EDDYY",
@@ -911,7 +911,7 @@ public class TowerPhaseTests
             FixLon = -122.5,
             OrbitDirection = null, // helicopter hover
         };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx); // arrive
@@ -967,8 +967,8 @@ public class TowerPhaseTests
         Assert.Equal("ProceedToFix", phase.Name);
 
         // After arriving, name changes
-        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200);
-        var ctx = Ctx(ac);
+        AircraftState ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200);
+        PhaseContext ctx = Ctx(ac);
         phase.OnStart(ctx);
         phase.OnTick(ctx); // arrive
 
@@ -982,9 +982,9 @@ public class TowerPhaseTests
     [Fact]
     public void VfrHold_PresentPosition_Orbit_SetsPreferredTurn()
     {
-        var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200, heading: 90);
+        AircraftState ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200, heading: 90);
         var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Left };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -997,9 +997,9 @@ public class TowerPhaseTests
     [Fact]
     public void VfrHold_PresentPosition_OrbitTargetStaysAhead_AcrossTicks()
     {
-        var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200, heading: 90);
+        AircraftState ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200, heading: 90);
         var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Right };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -1021,9 +1021,9 @@ public class TowerPhaseTests
     [Fact]
     public void VfrHold_PresentPosition_CumulativeTurnTracking()
     {
-        var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200, heading: 0);
+        AircraftState ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200, heading: 0);
         var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Right };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -1041,9 +1041,9 @@ public class TowerPhaseTests
     [Fact]
     public void VfrHold_PresentPosition_HelicopterHover_ZeroSpeed()
     {
-        var ac = MakeAircraft(altitude: 500, onGround: false, ias: 80, heading: 180);
+        AircraftState ac = MakeAircraft(altitude: 500, onGround: false, ias: 80, heading: 180);
         var phase = new VfrHoldPhase { OrbitDirection = null };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -1054,9 +1054,9 @@ public class TowerPhaseTests
     [Fact]
     public void VfrHold_PresentPosition_NeverSelfCompletes()
     {
-        var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200);
+        AircraftState ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200);
         var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Right };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -1104,10 +1104,10 @@ public class TowerPhaseTests
     {
         // Locks in: in Rollout state, GA is Allowed when IAS >= RejectedLandingMinSpeed
         // (60 kts for jets per AircraftCategory.cs:417). _canGoAround is set in TickRollout.
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, onGround: true, ias: 80, type: "B738");
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 100, onGround: true, ias: 80, type: "B738");
         var phase = new LandingPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
         Assert.Equal(LandingPhase.State.Rollout, phase.CurrentState);
@@ -1123,10 +1123,10 @@ public class TowerPhaseTests
     {
         // Locks in: in Rollout state, GA is Rejected when IAS < RejectedLandingMinSpeed.
         // Below the energy threshold the aircraft cannot safely re-accelerate to Vlof.
-        var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, onGround: true, ias: 30, type: "B738");
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 100, onGround: true, ias: 30, type: "B738");
         var phase = new LandingPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
         Assert.Equal(LandingPhase.State.Rollout, phase.CurrentState);

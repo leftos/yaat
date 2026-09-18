@@ -23,7 +23,7 @@ internal static class NaturalCommandNormalizer
             return null;
         }
 
-        var result = await SpeechRecognitionService
+        TranscriptMapResult result = await SpeechRecognitionService
             .MapTranscriptAsync(transcript, context, ruleMapper, llmMapper, callsignResolver, cancellationToken)
             .ConfigureAwait(false);
 

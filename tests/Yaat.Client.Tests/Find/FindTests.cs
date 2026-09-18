@@ -26,15 +26,15 @@ public class FindMatcherTests
     [InlineData("\t")]
     public void BlankQueryMatchesNothing(string query)
     {
-        var matches = FindMatcher.ComputeMatches(Items("UAL123", "AAL456"), query);
+        List<IFindableItem> matches = FindMatcher.ComputeMatches(Items("UAL123", "AAL456"), query);
         Assert.Empty(matches);
     }
 
     [Fact]
     public void SingleTokenIsCaseInsensitiveSubstring()
     {
-        var items = Items("UAL123", "AAL456", "ual789");
-        var matches = FindMatcher.ComputeMatches(items, "ual");
+        IReadOnlyList<IFindableItem> items = Items("UAL123", "AAL456", "ual789");
+        List<IFindableItem> matches = FindMatcher.ComputeMatches(items, "ual");
         Assert.Equal(2, matches.Count);
         Assert.Same(items[0], matches[0]);
         Assert.Same(items[2], matches[1]);
@@ -43,7 +43,7 @@ public class FindMatcherTests
     [Fact]
     public void MultipleTokensAreAndedAcrossTheText()
     {
-        var items = Items("UAL123 KOAK KSFO", "UAL999 KOAK KLAX");
+        IReadOnlyList<IFindableItem> items = Items("UAL123 KOAK KSFO", "UAL999 KOAK KLAX");
         Assert.Single(FindMatcher.ComputeMatches(items, "ual ksfo"));
         Assert.Equal(2, FindMatcher.ComputeMatches(items, "ual koak").Count);
         Assert.Empty(FindMatcher.ComputeMatches(items, "ual kjfk"));
@@ -52,8 +52,8 @@ public class FindMatcherTests
     [Fact]
     public void PreservesInputOrder()
     {
-        var items = Items("b UAL", "a UAL", "c UAL");
-        var matches = FindMatcher.ComputeMatches(items, "ual");
+        IReadOnlyList<IFindableItem> items = Items("b UAL", "a UAL", "c UAL");
+        List<IFindableItem> matches = FindMatcher.ComputeMatches(items, "ual");
         Assert.Equal(new[] { items[0], items[1], items[2] }, matches);
     }
 }
@@ -71,7 +71,7 @@ public class FindControllerTests
     [Fact]
     public void OpeningAndTypingFlagsMatchesAndSelectsFirst()
     {
-        var (ctrl, snap, scrolled) = Build("UAL123", "AAL456", "UAL789");
+        (FindController? ctrl, List<IFindableItem>? snap, List<IFindableItem>? scrolled) = Build("UAL123", "AAL456", "UAL789");
 
         ctrl.Open();
         ctrl.Query = "UAL";
@@ -88,7 +88,7 @@ public class FindControllerTests
     [Fact]
     public void NextAndPreviousWrapAround()
     {
-        var (ctrl, snap, _) = Build("UAL1", "AAL", "UAL2");
+        (FindController? ctrl, List<IFindableItem>? snap, List<IFindableItem> _) = Build("UAL1", "AAL", "UAL2");
         ctrl.Open();
         ctrl.Query = "UAL";
 
@@ -109,7 +109,7 @@ public class FindControllerTests
     [Fact]
     public void NoMatchesClearsFlagsAndReportsNoMatches()
     {
-        var (ctrl, snap, _) = Build("UAL1", "UAL2");
+        (FindController? ctrl, List<IFindableItem>? snap, List<IFindableItem> _) = Build("UAL1", "UAL2");
         ctrl.Open();
         ctrl.Query = "ZZZ";
 
@@ -121,7 +121,7 @@ public class FindControllerTests
     [Fact]
     public void ClosingClearsEveryFlagAndSummary()
     {
-        var (ctrl, snap, _) = Build("UAL1", "UAL2");
+        (FindController? ctrl, List<IFindableItem>? snap, List<IFindableItem> _) = Build("UAL1", "UAL2");
         ctrl.Open();
         ctrl.Query = "UAL";
 
@@ -136,7 +136,7 @@ public class FindControllerTests
     [Fact]
     public void BlankQueryShowsNoHighlightAndEmptySummary()
     {
-        var (ctrl, snap, _) = Build("UAL1", "UAL2");
+        (FindController? ctrl, List<IFindableItem>? snap, List<IFindableItem> _) = Build("UAL1", "UAL2");
         ctrl.Open();
         ctrl.Query = "   ";
 
@@ -147,10 +147,10 @@ public class FindControllerTests
     [Fact]
     public void RefreshClearsFlagsOnItemsThatLeftTheSnapshot()
     {
-        var (ctrl, snap, _) = Build("UAL1", "UAL2");
+        (FindController? ctrl, List<IFindableItem>? snap, List<IFindableItem> _) = Build("UAL1", "UAL2");
         ctrl.Open();
         ctrl.Query = "UAL";
-        var left = snap[1];
+        IFindableItem left = snap[1];
         Assert.True(left.IsFindMatch);
 
         snap.RemoveAt(1);
@@ -164,7 +164,7 @@ public class FindControllerTests
     [Fact]
     public void RefreshPreservesCurrentMatchWhenStillPresent()
     {
-        var (ctrl, snap, _) = Build("UAL1", "UAL2", "UAL3");
+        (FindController? ctrl, List<IFindableItem>? snap, List<IFindableItem> _) = Build("UAL1", "UAL2", "UAL3");
         ctrl.Open();
         ctrl.Query = "UAL";
         ctrl.Next(); // current -> snap[1]
@@ -179,7 +179,7 @@ public class FindControllerTests
     [Fact]
     public void NextDoesNothingWhileHidden()
     {
-        var (ctrl, _, scrolled) = Build("UAL1", "UAL2");
+        (FindController? ctrl, List<IFindableItem> _, List<IFindableItem>? scrolled) = Build("UAL1", "UAL2");
         ctrl.Query = "UAL"; // set while hidden
 
         ctrl.Next();
@@ -190,7 +190,7 @@ public class FindControllerTests
     [Fact]
     public void ReopeningRestoresTheLastQuery()
     {
-        var (ctrl, snap, _) = Build("UAL1", "AAL", "UAL2");
+        (FindController? ctrl, List<IFindableItem>? snap, List<IFindableItem> _) = Build("UAL1", "AAL", "UAL2");
         ctrl.Open();
         ctrl.Query = "UAL";
         ctrl.Close();

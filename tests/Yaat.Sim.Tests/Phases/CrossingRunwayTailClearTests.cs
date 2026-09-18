@@ -64,7 +64,7 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
             int nodeId = route.Segments[i].ToNodeId;
             if (
                 (nodeId != entryNode.Id)
-                && layout.Nodes.TryGetValue(nodeId, out var node)
+                && layout.Nodes.TryGetValue(nodeId, out GroundNode? node)
                 && (node.Type == GroundNodeType.RunwayHoldShort)
                 && (node.RunwayId is { } nodeRunway)
                 && (entryNode.RunwayId is { } entryRunway)
@@ -85,18 +85,18 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
     /// </summary>
     private CrossingFixture? BuildFixture()
     {
-        var layout = LoadSfoLayout();
+        AirportGroundLayout? layout = LoadSfoLayout();
         if (layout is null)
         {
             return null;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(EntryHoldShortNodeId, out var entryNode), $"SFO layout has no node {EntryHoldShortNodeId}");
+        Assert.True(layout.Nodes.TryGetValue(EntryHoldShortNodeId, out GroundNode? entryNode), $"SFO layout has no node {EntryHoldShortNodeId}");
         Assert.Equal(GroundNodeType.RunwayHoldShort, entryNode.Type);
 
         // Face across the runway: the nearest hold-short of the same runway on the far side is the node the
         // crossing exits at, so its bearing is the crossing direction.
-        var farSide = layout
+        GroundNode? farSide = layout
             .Nodes.Values.Where(n =>
                 (n.Id != entryNode.Id)
                 && (n.Type == GroundNodeType.RunwayHoldShort)
@@ -128,10 +128,10 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
         };
 
         var taxi = new TaxiCommand(Path: ["G", "B", "M1", "M5"], HoldShorts: [], DestinationParking: "A6S");
-        var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TAXI G B M1 M5 @A6S failed: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         int entryIndex = route.Segments.FindIndex(s => s.FromNodeId == EntryHoldShortNodeId);
@@ -144,7 +144,7 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
 
         for (int i = Math.Max(0, entryIndex - 1); i < Math.Min(route.Segments.Count, exitIndex + 4); i++)
         {
-            var seg = route.Segments[i];
+            TaxiRouteSegment seg = route.Segments[i];
             output.WriteLine(
                 $"  route[{i}] {seg.FromNodeId} -> {seg.ToNodeId} on {seg.TaxiwayName} ({seg.Edge.DistanceNm * GeoMath.FeetPerNm:F0}ft)"
             );
@@ -183,7 +183,7 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
         double best = double.MaxValue;
         for (int i = exitIndex + 1; i < route.Segments.Count; i++)
         {
-            var seg = route.Segments[i];
+            TaxiRouteSegment seg = route.Segments[i];
             best = Math.Min(best, GeoMath.DistanceToSegmentFt(point, seg.Edge.FromNode.Position, seg.Edge.ToNode.Position));
         }
 
@@ -197,21 +197,21 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
     [Fact]
     public void TailClearance_EndsOnTheRoutesOwnContinuation_NotTheGraphsStraightOne()
     {
-        var fixture = BuildFixture();
+        CrossingFixture? fixture = BuildFixture();
         if (fixture is null)
         {
             return;
         }
 
-        var slice = fixture.Phase.CrossingRoute;
+        TaxiRoute? slice = fixture.Phase.CrossingRoute;
         Assert.NotNull(slice);
-        foreach (var seg in slice.Segments)
+        foreach (TaxiRouteSegment seg in slice.Segments)
         {
             output.WriteLine($"  slice {seg.FromNodeId} -> {seg.ToNodeId} on {seg.TaxiwayName} ({seg.Edge.DistanceNm * GeoMath.FeetPerNm:F0}ft)");
         }
 
-        var exitNode = fixture.Layout.Nodes[fixture.ExitNodeId];
-        var tailClearEnd = slice.Segments[^1].Edge.ToNode.Position;
+        GroundNode exitNode = fixture.Layout.Nodes[fixture.ExitNodeId];
+        LatLon tailClearEnd = slice.Segments[^1].Edge.ToNode.Position;
         double pastExitFt = GeoMath.DistanceNm(exitNode.Position, tailClearEnd) * GeoMath.FeetPerNm;
         double offRouteFt = DistanceToRouteAheadFt(fixture.Route, fixture.ExitIndex, tailClearEnd);
         output.WriteLine($"tail-clear end is {pastExitFt:F1}ft past the exit bar, {offRouteFt:F1}ft off the route ahead");
@@ -232,7 +232,7 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
     [Fact]
     public void CrossingCompletion_LeavesTheRouteOnTheSegmentTheAircraftStandsOn()
     {
-        var fixture = BuildFixture();
+        CrossingFixture? fixture = BuildFixture();
         if (fixture is null)
         {
             return;
@@ -252,13 +252,17 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
 
         Assert.True(complete, $"the crossing never completed within {ticks * TickSeconds:F0}s");
 
-        var route = fixture.Route;
+        TaxiRoute route = fixture.Route;
         int idx = route.CurrentSegmentIndex;
         output.WriteLine($"crossing completed after {ticks * TickSeconds:F1}s, route index {idx}/{route.Segments.Count}");
         Assert.InRange(idx, 0, route.Segments.Count - 1);
 
-        var seg = route.Segments[idx];
-        var (foot, alongNm, _) = GeoMath.FootOfPerpendicular(fixture.Aircraft.Position, seg.Edge.FromNode.Position, seg.Edge.ToNode.Position);
+        TaxiRouteSegment seg = route.Segments[idx];
+        (LatLon foot, double alongNm, bool _) = GeoMath.FootOfPerpendicular(
+            fixture.Aircraft.Position,
+            seg.Edge.FromNode.Position,
+            seg.Edge.ToNode.Position
+        );
         double alongFt = alongNm * GeoMath.FeetPerNm;
         double segFt = GeoMath.DistanceNm(seg.Edge.FromNode.Position, seg.Edge.ToNode.Position) * GeoMath.FeetPerNm;
         double offFt = GeoMath.DistanceNm(fixture.Aircraft.Position, foot) * GeoMath.FeetPerNm;
@@ -297,15 +301,15 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
     [Fact]
     public void UnclearedRunwayHoldShortJustPastTheExit_SuppressesTheTailClearance()
     {
-        var layout = LoadSfoLayout();
+        AirportGroundLayout? layout = LoadSfoLayout();
         if (layout is null)
         {
             return;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(MEntryHoldShortNodeId, out var entryNode), $"SFO layout has no node {MEntryHoldShortNodeId}");
-        Assert.True(layout.Nodes.TryGetValue(MExitHoldShortNodeId, out var exitNode), $"SFO layout has no node {MExitHoldShortNodeId}");
-        Assert.True(layout.Nodes.TryGetValue(MNextRunwayBarNodeId, out var nextBar), $"SFO layout has no node {MNextRunwayBarNodeId}");
+        Assert.True(layout.Nodes.TryGetValue(MEntryHoldShortNodeId, out GroundNode? entryNode), $"SFO layout has no node {MEntryHoldShortNodeId}");
+        Assert.True(layout.Nodes.TryGetValue(MExitHoldShortNodeId, out GroundNode? exitNode), $"SFO layout has no node {MExitHoldShortNodeId}");
+        Assert.True(layout.Nodes.TryGetValue(MNextRunwayBarNodeId, out GroundNode? nextBar), $"SFO layout has no node {MNextRunwayBarNodeId}");
         Assert.Equal(GroundNodeType.RunwayHoldShort, entryNode.Type);
         Assert.Equal(GroundNodeType.RunwayHoldShort, exitNode.Type);
         Assert.Equal(GroundNodeType.RunwayHoldShort, nextBar.Type);
@@ -324,10 +328,10 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
             FlightPlan = new AircraftFlightPlan { Departure = "KSFO", Destination = "RJAA" },
         };
 
-        var result = GroundCommandHandler.TryTaxi(aircraft, new TaxiCommand(Path: ["M"], HoldShorts: [], DestinationRunway: null), layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, new TaxiCommand(Path: ["M"], HoldShorts: [], DestinationRunway: null), layout);
         Assert.True(result.Success, $"TAXI M failed: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         output.WriteLine(
@@ -350,7 +354,7 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
             exitHs.IsCleared = true;
         }
 
-        var nextHs = route.GetHoldShortAt(MNextRunwayBarNodeId);
+        HoldShortPoint? nextHs = route.GetHoldShortAt(MNextRunwayBarNodeId);
         Assert.NotNull(nextHs);
         Assert.False(nextHs.IsCleared, $"the fixture needs an UNCLEARED hold-short at node {MNextRunwayBarNodeId}");
 
@@ -372,14 +376,14 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
         var phase = new CrossingRunwayPhase(MEntryHoldShortNodeId, MExitHoldShortNodeId, entryNode.RunwayId?.ToString());
         phase.OnStart(ctx);
 
-        var slice = phase.CrossingRoute;
+        TaxiRoute? slice = phase.CrossingRoute;
         Assert.NotNull(slice);
-        foreach (var seg in slice.Segments)
+        foreach (TaxiRouteSegment seg in slice.Segments)
         {
             output.WriteLine($"  slice {seg.FromNodeId} -> {seg.ToNodeId} on {seg.TaxiwayName} ({seg.Edge.DistanceNm * GeoMath.FeetPerNm:F0}ft)");
         }
 
-        var last = slice.Segments[^1];
+        TaxiRouteSegment last = slice.Segments[^1];
         double pastExitFt = GeoMath.DistanceNm(exitNode.Position, last.Edge.ToNode.Position) * GeoMath.FeetPerNm;
         Assert.True(
             last.ToNodeId == MExitHoldShortNodeId,

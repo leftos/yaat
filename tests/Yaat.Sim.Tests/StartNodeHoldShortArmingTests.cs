@@ -58,20 +58,20 @@ public sealed class StartNodeHoldShortArmingTests(ITestOutputHelper output)
 
     private void AssertHoldsShortOf10R(double startOffsetFt, double startIasKts)
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var nearBar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "F");
-        var farBar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "C");
+        GroundNode? nearBar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "F");
+        GroundNode? farBar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "C");
         if (nearBar is null || farBar is null)
         {
             return;
         }
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: nearBar.Id,
             taxiwayNames: ["F", "C"],
@@ -85,13 +85,17 @@ public sealed class StartNodeHoldShortArmingTests(ITestOutputHelper output)
 
         // Place the aircraft short of the bar along the route's own departure axis, pointed at it.
         double departureBearing = route.Segments[0].Edge.DepartureBearing;
-        var position = GeoMath.ProjectPoint(nearBar.Position, new TrueHeading((departureBearing + 180.0) % 360.0), startOffsetFt / GeoMath.FeetPerNm);
+        LatLon position = GeoMath.ProjectPoint(
+            nearBar.Position,
+            new TrueHeading((departureBearing + 180.0) % 360.0),
+            startOffsetFt / GeoMath.FeetPerNm
+        );
 
-        var aircraft = Aircraft(position, departureBearing, startIasKts);
+        AircraftState aircraft = Aircraft(position, departureBearing, startIasKts);
         aircraft.Ground.AssignedTaxiRoute = route;
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new TaxiingPhase());
-        var ctx = Context(aircraft, layout);
+        PhaseContext ctx = Context(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         double barSpanFt = GeoMath.DistanceNm(nearBar.Position, farBar.Position) * GeoMath.FeetPerNm;
@@ -123,7 +127,7 @@ public sealed class StartNodeHoldShortArmingTests(ITestOutputHelper output)
                 + $"distFromNearBar={distFromBarFt:F0} ft, closest approach to far bar {minFarBarFt:F0} ft (bar span {barSpanFt:F0} ft)"
         );
 
-        var hold = Assert.IsType<HoldingShortPhase>(aircraft.Phases.CurrentPhase);
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(aircraft.Phases.CurrentPhase);
         Assert.Contains("10R", hold.HoldShort.TargetName ?? "");
         Assert.True(aircraft.IndicatedAirspeed < 1.0, $"should be stopped at the bar; ias={aircraft.IndicatedAirspeed:F1}");
 

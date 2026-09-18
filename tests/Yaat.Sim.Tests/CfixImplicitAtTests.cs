@@ -24,7 +24,7 @@ public class CfixImplicitAtTests : IDisposable
     [Fact]
     public void CfixWithSubsequentCommand_InjectsAtCondition()
     {
-        var result = CommandSchemeParser.ParseCompound("CFIX CEPIN 3000 210; CAPP 28R", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("CFIX CEPIN 3000 210; CAPP 28R", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("CFIX CEPIN 3000 210; AT CEPIN CAPP 28R", result.CanonicalString);
@@ -33,7 +33,7 @@ public class CfixImplicitAtTests : IDisposable
     [Fact]
     public void CfixWithMultipleSubsequentBlocks_InjectsAtOnAll()
     {
-        var result = CommandSchemeParser.ParseCompound("CFIX CEPIN 3000 210; CAPP 28R; SPD 180", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("CFIX CEPIN 3000 210; CAPP 28R; SPD 180", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("CFIX CEPIN 3000 210; AT CEPIN CAPP 28R; AT CEPIN SPD 180", result.CanonicalString);
@@ -42,7 +42,7 @@ public class CfixImplicitAtTests : IDisposable
     [Fact]
     public void CfixWithParallelSubsequentCommands_InjectsAtOnBlock()
     {
-        var result = CommandSchemeParser.ParseCompound("CFIX CEPIN 3000 210; CAPP 28R, SPD 180", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("CFIX CEPIN 3000 210; CAPP 28R, SPD 180", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("CFIX CEPIN 3000 210; AT CEPIN CAPP 28R, SPD 180", result.CanonicalString);
@@ -51,7 +51,7 @@ public class CfixImplicitAtTests : IDisposable
     [Fact]
     public void CfixWithExplicitAtCondition_DoesNotDoubleInject()
     {
-        var result = CommandSchemeParser.ParseCompound("CFIX CEPIN 3000 210; AT CEPIN CAPP 28R", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("CFIX CEPIN 3000 210; AT CEPIN CAPP 28R", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("CFIX CEPIN 3000 210; AT CEPIN CAPP 28R", result.CanonicalString);
@@ -60,7 +60,7 @@ public class CfixImplicitAtTests : IDisposable
     [Fact]
     public void CfixWithMixedConditionAndBare_InjectsOnlyOnBare()
     {
-        var result = CommandSchemeParser.ParseCompound("CFIX CEPIN 3000 210; AT CEPIN CAPP 28R; SPD 180", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("CFIX CEPIN 3000 210; AT CEPIN CAPP 28R; SPD 180", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("CFIX CEPIN 3000 210; AT CEPIN CAPP 28R; AT CEPIN SPD 180", result.CanonicalString);
@@ -69,7 +69,7 @@ public class CfixImplicitAtTests : IDisposable
     [Fact]
     public void CfixAlone_NoChange()
     {
-        var result = CommandSchemeParser.ParseCompound("CFIX CEPIN 3000 210", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("CFIX CEPIN 3000 210", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("CFIX CEPIN 3000 210", result.CanonicalString);
@@ -78,7 +78,7 @@ public class CfixImplicitAtTests : IDisposable
     [Fact]
     public void NonCfixCompound_NoInjection()
     {
-        var result = CommandSchemeParser.ParseCompound("FH 270; SPD 210", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("FH 270; SPD 210", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("FH 270; SPD 210", result.CanonicalString);

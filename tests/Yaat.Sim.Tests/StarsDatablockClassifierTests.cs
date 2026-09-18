@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Tests;
 
@@ -31,10 +32,10 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void OwnedByStudent_IsWhiteFullBlock()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = StudentPosition;
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Owned, view.Color);
         Assert.Equal(StarsDatablockLevel.Full, view.Level);
@@ -43,10 +44,10 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void OwnedByAnother_IsGreenPartialBlock()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Unowned, view.Color);
         Assert.Equal(StarsDatablockLevel.Partial, view.Level);
@@ -55,9 +56,9 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void Unassociated_IsGreenLimitedBlock()
     {
-        var ac = Aircraft(); // Track.Owner stays null
+        AircraftState ac = Aircraft(); // Track.Owner stays null
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Unowned, view.Color);
         Assert.Equal(StarsDatablockLevel.Limited, view.Level);
@@ -66,11 +67,11 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void PointoutToStudent_IsYellowFullBlock()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
         ac.Track.Pointout = new StarsPointout(StudentTcp, OtherTcp) { Status = StarsPointoutStatus.Pending };
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Pointout, view.Color);
         Assert.Equal(StarsDatablockLevel.Full, view.Level);
@@ -79,11 +80,11 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void PointoutToOther_DoesNotAffectStudentView()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
         ac.Track.Pointout = new StarsPointout(OtherTcp, StudentTcp) { Status = StarsPointoutStatus.Pending };
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Unowned, view.Color);
         Assert.Equal(StarsDatablockLevel.Partial, view.Level);
@@ -96,11 +97,11 @@ public class StarsDatablockClassifierTests
         // IsRecentlyAcceptedIncomingPointout flag is back to false), the accepted point-out must
         // not keep the recipient track yellow. CRC (DisplayElementTracks) colors the recipient
         // yellow only on a pending point-out or the transient flag — never on Accepted alone.
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
         ac.Track.Pointout = new StarsPointout(StudentTcp, OtherTcp) { Status = StarsPointoutStatus.Accepted };
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Unowned, view.Color);
         Assert.Equal(StarsDatablockLevel.Partial, view.Level);
@@ -113,16 +114,16 @@ public class StarsDatablockClassifierTests
         // yellow (forced full) until they slew a second time to clear. TrackEngine.HandleAcknowledge
         // sets the recipient's IsRecentlyAcceptedIncomingPointout flag, so the classifier (and CRC,
         // which reads the same flag from the track DTO) keeps the track yellow.
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
         ac.Track.Pointout = new StarsPointout(StudentTcp, OtherTcp) { Status = StarsPointoutStatus.Pending };
 
-        var result = Yaat.Sim.Commands.TrackEngine.HandleAcknowledge(ac);
+        CommandResult result = Yaat.Sim.Commands.TrackEngine.HandleAcknowledge(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(StarsPointoutStatus.Accepted, ac.Track.Pointout!.Status);
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Pointout, view.Color);
         Assert.Equal(StarsDatablockLevel.Full, view.Level);
@@ -135,11 +136,11 @@ public class StarsDatablockClassifierTests
         // The classifier must look up by the same key, not by ToString() ("{Subset}{SectorId}").
         Assert.NotEqual(StudentTcp.Id, StudentTcp.ToString());
 
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
         ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { IsHighlighted = true };
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Highlighted, view.Color);
     }
@@ -147,11 +148,11 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void HighlightedByStudent_IsCyan()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
         ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { IsHighlighted = true };
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Highlighted, view.Color);
     }
@@ -159,11 +160,11 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void HighlightOverridesOwnedColor()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = StudentPosition;
         ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { IsHighlighted = true };
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Highlighted, view.Color);
         Assert.Equal(StarsDatablockLevel.Full, view.Level);
@@ -172,11 +173,11 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void RecentlyAcceptedPointout_IsYellowFullBlock()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
         ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { IsRecentlyAcceptedIncomingPointout = true };
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Pointout, view.Color);
         Assert.Equal(StarsDatablockLevel.Full, view.Level);
@@ -187,11 +188,11 @@ public class StarsDatablockClassifierTests
     {
         // A track the student owns stays white even if the recently-accepted flag lingers — CRC only
         // colors an owned track yellow for a forced pointout, which YAAT does not model.
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = StudentPosition;
         ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { IsRecentlyAcceptedIncomingPointout = true };
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Owned, view.Color);
         Assert.Equal(StarsDatablockLevel.Full, view.Level);
@@ -200,11 +201,11 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void HighlightOverridesRecentlyAcceptedPointout()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
         ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { IsRecentlyAcceptedIncomingPointout = true, IsHighlighted = true };
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Highlighted, view.Color);
     }
@@ -212,11 +213,11 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void IncomingHandoffToStudent_IsWhiteFullBlock()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
         ac.Track.HandoffPeer = StudentPosition;
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Owned, view.Color);
         Assert.Equal(StarsDatablockLevel.Full, view.Level);
@@ -225,11 +226,11 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void WasPreviouslyOwnedByStudent_IsWhiteFullBlock()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
         ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { WasPreviouslyOwned = true };
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Owned, view.Color);
         Assert.Equal(StarsDatablockLevel.Full, view.Level);
@@ -238,11 +239,11 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void ForceFdbByStudent_PromotesPartialToFull_StaysGreen()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
         ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { ForceFdb = true };
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Unowned, view.Color);
         Assert.Equal(StarsDatablockLevel.Full, view.Level);
@@ -251,12 +252,12 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void GlobalLeaderDirection_TakesPrecedence()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = StudentPosition;
         ac.Stars.GlobalLeaderDirection = 8; // N
         ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { LeaderDirection = 2 }; // S
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(8, view.LeaderDirection);
     }
@@ -264,11 +265,11 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void PerTcpLeaderDirection_UsedWhenNoGlobal()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = StudentPosition;
         ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { LeaderDirection = 6 }; // E
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(6, view.LeaderDirection);
     }
@@ -276,10 +277,10 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void LeaderDirection_DefaultsWhenUnset()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = StudentPosition;
 
-        var view = Classify(ac);
+        StarsScopeView view = Classify(ac);
 
         Assert.Equal(StarsDatablockClassifier.DefaultLeaderDirection, view.LeaderDirection);
     }
@@ -287,10 +288,10 @@ public class StarsDatablockClassifierTests
     [Fact]
     public void NoStudentPosition_ReturnsNeutralDefault()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = OtherPosition;
 
-        var view = StarsDatablockClassifier.Classify(ac, null, null);
+        StarsScopeView view = StarsDatablockClassifier.Classify(ac, null, null);
 
         Assert.Equal(StarsDatablockColor.Unowned, view.Color);
         Assert.Equal(StarsDatablockLevel.Full, view.Level);

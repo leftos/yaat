@@ -43,13 +43,13 @@ public sealed class TimelineMarkerCanvas : Panel
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        foreach (var child in Children)
+        foreach (Control child in Children)
         {
             child.Measure(availableSize);
         }
         // Adopt the parent's allotted width and a fixed minimal height; markers are thin.
         double height = 0;
-        foreach (var child in Children)
+        foreach (Control child in Children)
         {
             if (child.DesiredSize.Height > height)
             {
@@ -66,7 +66,7 @@ public sealed class TimelineMarkerCanvas : Panel
     {
         double maxTime = MaxTime;
         double usableWidth = Math.Max(0, finalSize.Width - (2 * EdgeInsetPx));
-        foreach (var child in Children)
+        foreach (Control child in Children)
         {
             double t = GetTime(child);
             double x;

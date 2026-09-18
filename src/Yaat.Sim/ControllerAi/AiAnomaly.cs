@@ -66,7 +66,7 @@ public sealed class AiAnomalyLog
     /// <summary>Opens the episode unless it is already open.</summary>
     public void Open(AiAnomalyKind kind, string positionId, string subjectKey, double nowSeconds, string detail)
     {
-        var key = (kind, positionId, subjectKey);
+        (AiAnomalyKind kind, string positionId, string subjectKey) key = (kind, positionId, subjectKey);
         if (_open.ContainsKey(key))
         {
             return;
@@ -79,8 +79,8 @@ public sealed class AiAnomalyLog
     /// <summary>Closes the episode when it is open; a no-op otherwise.</summary>
     public void Close(AiAnomalyKind kind, string positionId, string subjectKey, double nowSeconds)
     {
-        var key = (kind, positionId, subjectKey);
-        if (!_open.Remove(key, out var openedAt))
+        (AiAnomalyKind kind, string positionId, string subjectKey) key = (kind, positionId, subjectKey);
+        if (!_open.Remove(key, out double openedAt))
         {
             return;
         }

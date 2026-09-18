@@ -13,7 +13,7 @@ public class SpawnParserRunwayRouteTests
     [Fact]
     public void Parse_RunwayWithDotJoinedRoute_SetsRunwayPositionAndSpaceSeparatedRoute()
     {
-        var (request, error) = SpawnParser.Parse("I S P 28R NIMI6.OAK.SAU");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I S P 28R NIMI6.OAK.SAU");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -25,7 +25,7 @@ public class SpawnParserRunwayRouteTests
     [Fact]
     public void Parse_BareRunway_HasEmptyRoute()
     {
-        var (request, error) = SpawnParser.Parse("I S P 28R");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I S P 28R");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -36,7 +36,7 @@ public class SpawnParserRunwayRouteTests
     [Fact]
     public void Parse_RunwayWithNumericSecondToken_IsOnFinalNotRoute()
     {
-        var (request, error) = SpawnParser.Parse("I S P 28R 5");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I S P 28R 5");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -48,7 +48,7 @@ public class SpawnParserRunwayRouteTests
     [Fact]
     public void Parse_RunwayRouteWithTrailingType_KeepsRouteAndType()
     {
-        var (request, error) = SpawnParser.Parse("I S P 28R NIMI6.OAK.SAU C421");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I S P 28R NIMI6.OAK.SAU C421");
 
         Assert.Null(error);
         Assert.NotNull(request);

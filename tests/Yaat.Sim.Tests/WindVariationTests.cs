@@ -21,8 +21,8 @@ public class WindVariationTests
     {
         for (int t = 0; t < 300; t += 7)
         {
-            var a = WindVariation.Compute(GustyInputs, t, 123.45);
-            var b = WindVariation.Compute(GustyInputs, t, 123.45);
+            WindAtAltitude a = WindVariation.Compute(GustyInputs, t, 123.45);
+            WindAtAltitude b = WindVariation.Compute(GustyInputs, t, 123.45);
             Assert.Equal(a, b);
         }
     }
@@ -32,9 +32,9 @@ public class WindVariationTests
     {
         // Live path evaluates at integer seconds; sub-tick replay at t + 0.25k. Both
         // must see the same wind within a second or replays diverge.
-        var atWhole = WindVariation.Compute(GustyInputs, 42.0, 0);
-        var atQuarter = WindVariation.Compute(GustyInputs, 42.25, 0);
-        var atThreeQuarters = WindVariation.Compute(GustyInputs, 42.75, 0);
+        WindAtAltitude atWhole = WindVariation.Compute(GustyInputs, 42.0, 0);
+        WindAtAltitude atQuarter = WindVariation.Compute(GustyInputs, 42.25, 0);
+        WindAtAltitude atThreeQuarters = WindVariation.Compute(GustyInputs, 42.75, 0);
         Assert.Equal(atWhole, atQuarter);
         Assert.Equal(atWhole, atThreeQuarters);
     }
@@ -67,8 +67,8 @@ public class WindVariationTests
         int differing = 0;
         for (int t = 0; t < 300; t += 10)
         {
-            var a = WindVariation.Compute(GustyInputs, t, 0);
-            var b = WindVariation.Compute(GustyInputs, t, 1800);
+            WindAtAltitude a = WindVariation.Compute(GustyInputs, t, 0);
+            WindAtAltitude b = WindVariation.Compute(GustyInputs, t, 1800);
             if (Math.Abs(a.SpeedKts - b.SpeedKts) > 0.1)
             {
                 differing++;
@@ -116,7 +116,7 @@ public class WindVariationTests
         {
             for (int t = 0; t < 3600; t++)
             {
-                var wind = WindVariation.Compute(GustyInputs, t, phase);
+                WindAtAltitude wind = WindVariation.Compute(GustyInputs, t, phase);
                 double diff = Math.Abs(((wind.DirectionDeg - 210 + 540) % 360) - 180);
                 Assert.True(diff <= 30 + 1e-9, $"t={t} phase={phase}: direction {wind.DirectionDeg} left the 180V240 arc");
                 maxDev = Math.Max(maxDev, diff);
@@ -129,11 +129,11 @@ public class WindVariationTests
     [Fact]
     public void Compute_ArcContainment_WrapsThroughNorth()
     {
-        var inputs = GustyInputs with { MeanDirectionDeg = 10, HalfSpreadDeg = 40 };
+        WindPerturbationInputs inputs = GustyInputs with { MeanDirectionDeg = 10, HalfSpreadDeg = 40 };
         bool crossedNorth = false;
         for (int t = 0; t < 3600; t++)
         {
-            var wind = WindVariation.Compute(inputs, t, 0);
+            WindAtAltitude wind = WindVariation.Compute(inputs, t, 0);
             double diff = Math.Abs(((wind.DirectionDeg - 10 + 540) % 360) - 180);
             Assert.True(diff <= 40 + 1e-9, $"t={t}: direction {wind.DirectionDeg} left the 330V050 arc");
             if (wind.DirectionDeg > 180)
@@ -155,7 +155,7 @@ public class WindVariationTests
         var inputs = new WindPerturbationInputs(270, 12, GustExcessKts: 0, HalfSpreadDeg: 0, Variable: false, HeightAglFt: 0);
         for (int t = 0; t < 100; t += 13)
         {
-            var wind = WindVariation.Compute(inputs, t, 77);
+            WindAtAltitude wind = WindVariation.Compute(inputs, t, 77);
             Assert.Equal(270, wind.DirectionDeg);
             Assert.Equal(12, wind.SpeedKts);
         }
@@ -164,7 +164,7 @@ public class WindVariationTests
     [Fact]
     public void ResolveAmplitudes_NothingAuthored_ReturnsZero()
     {
-        var (gust, spread) = WindVariation.ResolveAmplitudes(15, null, null, variable: false);
+        (double gust, double spread) = WindVariation.ResolveAmplitudes(15, null, null, variable: false);
         Assert.Equal(0, gust);
         Assert.Equal(0, spread);
     }
@@ -176,10 +176,10 @@ public class WindVariationTests
     [Fact]
     public void Compute_AboveTaperTop_BitIdenticalMean()
     {
-        var inputs = GustyInputs with { HeightAglFt = 3000 };
+        WindPerturbationInputs inputs = GustyInputs with { HeightAglFt = 3000 };
         for (int t = 0; t < 100; t += 9)
         {
-            var wind = WindVariation.Compute(inputs, t, 0);
+            WindAtAltitude wind = WindVariation.Compute(inputs, t, 0);
             Assert.Equal(210, wind.DirectionDeg);
             Assert.Equal(15, wind.SpeedKts);
         }
@@ -198,8 +198,8 @@ public class WindVariationTests
     [Fact]
     public void Compute_MidTaper_ReducedButNonZeroPerturbation()
     {
-        var surface = GustyInputs;
-        var mid = GustyInputs with { HeightAglFt = 2000 };
+        WindPerturbationInputs surface = GustyInputs;
+        WindPerturbationInputs mid = GustyInputs with { HeightAglFt = 2000 };
 
         double maxSurfaceDev = 0;
         double maxMidDev = 0;
@@ -221,7 +221,7 @@ public class WindVariationTests
     public void ResolveAmplitudes_BothAuthored_UsedVerbatim()
     {
         // Gust and spread measure different components; never cross-derive over an authored value.
-        var (gust, spread) = WindVariation.ResolveAmplitudes(15, 25, 30, variable: false);
+        (double gust, double spread) = WindVariation.ResolveAmplitudes(15, 25, 30, variable: false);
         Assert.Equal(10, gust, 6);
         Assert.Equal(30, spread, 6);
     }
@@ -229,7 +229,7 @@ public class WindVariationTests
     [Fact]
     public void ResolveAmplitudes_GustOnly_DerivesSpread()
     {
-        var (gust, spread) = WindVariation.ResolveAmplitudes(15, 25, null, variable: false);
+        (double gust, double spread) = WindVariation.ResolveAmplitudes(15, 25, null, variable: false);
         Assert.Equal(10, gust, 6);
         // σ_u = 10/2.75 = 3.64; σ_θ = 0.9·3.64/15 rad = 12.5°; half-spread = 12.5·4/2 = 25°.
         Assert.Equal(25.0, spread, 0.5);
@@ -238,7 +238,7 @@ public class WindVariationTests
     [Fact]
     public void ResolveAmplitudes_SpreadOnly_DerivesGust()
     {
-        var (gust, spread) = WindVariation.ResolveAmplitudes(15, null, 30, variable: false);
+        (double gust, double spread) = WindVariation.ResolveAmplitudes(15, null, 30, variable: false);
         Assert.Equal(30, spread, 6);
         // σ_θ = 60/4 = 15° = 0.262 rad; σ_v = 3.93 kt; σ_u = 4.36; gust excess = 12.0 kt.
         Assert.Equal(12.0, gust, 0.5);
@@ -248,14 +248,14 @@ public class WindVariationTests
     public void ResolveAmplitudes_GustClampedToMaxGustFactor()
     {
         // 10G40 would be a 4× gust factor — gust-front territory; clamp to 2.5× (excess 15).
-        var (gust, _) = WindVariation.ResolveAmplitudes(10, 40, null, variable: false);
+        (double gust, double _) = WindVariation.ResolveAmplitudes(10, 40, null, variable: false);
         Assert.Equal(15, gust, 6);
     }
 
     [Fact]
     public void ResolveAmplitudes_CalmMean_NoPerturbation()
     {
-        var (gust, spread) = WindVariation.ResolveAmplitudes(0, 10, 30, variable: false);
+        (double gust, double spread) = WindVariation.ResolveAmplitudes(0, 10, 30, variable: false);
         Assert.Equal(0, gust);
         Assert.Equal(0, spread);
     }
@@ -269,10 +269,10 @@ public class WindVariationTests
     {
         var inputs = new WindPerturbationInputs(270, 4, GustExcessKts: 0, HalfSpreadDeg: 0, Variable: true, HeightAglFt: 0);
 
-        var buckets = new bool[8];
+        bool[] buckets = new bool[8];
         for (int t = 0; t < 1800; t += 5)
         {
-            var wind = WindVariation.Compute(inputs, t, 0);
+            WindAtAltitude wind = WindVariation.Compute(inputs, t, 0);
             buckets[(int)(wind.DirectionDeg / 45.0) % 8] = true;
         }
 
@@ -290,7 +290,7 @@ public class WindVariationTests
         int n = 0;
         for (int t = 0; t < 1800; t += 3)
         {
-            var wind = WindVariation.Compute(inputs, t, 0);
+            WindAtAltitude wind = WindVariation.Compute(inputs, t, 0);
             Assert.InRange(wind.SpeedKts, 2 - 1e-9, 6 + 1e-9);
             sum += wind.SpeedKts;
             n++;
@@ -303,8 +303,8 @@ public class WindVariationTests
     public void Compute_Vrb_Deterministic()
     {
         var inputs = new WindPerturbationInputs(180, 5, GustExcessKts: 0, HalfSpreadDeg: 0, Variable: true, HeightAglFt: 0);
-        var a = WindVariation.Compute(inputs, 600, 42);
-        var b = WindVariation.Compute(inputs, 600, 42);
+        WindAtAltitude a = WindVariation.Compute(inputs, 600, 42);
+        WindAtAltitude b = WindVariation.Compute(inputs, 600, 42);
         Assert.Equal(a, b);
     }
 }

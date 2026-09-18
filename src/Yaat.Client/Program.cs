@@ -33,7 +33,7 @@ public static class Program
 
         YaatPaths.Initialize("yaat");
         AppLog.Initialize("yaat-client.log");
-        var log = AppLog.CreateLogger("Program");
+        ILogger log = AppLog.CreateLogger("Program");
         log.LogInformation("{BuildSummary}", BuildInfo.LogSummary);
         log.LogInformation("Log file: {LogPath}", AppLog.LogPath);
 
@@ -88,7 +88,7 @@ public static class Program
         // .env file, falling back to empty string (Community Edition). LM-Kit picks the backend
         // (CUDA / Vulkan / CPU) at model load time based on the NuGet packages present plus the
         // BackendDirectory override set above.
-        var licenseResult = LmKitLicense.Initialize();
+        LmKitLicenseInitResult licenseResult = LmKitLicense.Initialize();
         if (licenseResult.Error is { } licenseError)
         {
             log.LogWarning(licenseError, "LM-Kit license setup failed (non-fatal; will run with defaults)");
@@ -167,7 +167,7 @@ public static class Program
 
     public static AppBuilder BuildAvaloniaApp()
     {
-        var builder = AppBuilder.Configure<App>().UsePlatformDetect();
+        AppBuilder builder = AppBuilder.Configure<App>().UsePlatformDetect();
 
         // macOS is the only backend where the renderer choice matters: the default OpenGL path is
         // emulated over Metal and saturates a CPU core on Apple Silicon. Windows and Linux keep

@@ -12,13 +12,13 @@ public static class NearestNodeHelper
 {
     public static string Describe(AircraftState aircraft, AirportGroundLayout layout, int count = 3)
     {
-        var ranked = layout
+        IEnumerable<(GroundNode Node, double Dist)> ranked = layout
             .Nodes.Values.Select(n => (Node: n, Dist: GeoMath.DistanceNm(aircraft.Position, n.Position)))
             .OrderBy(x => x.Dist)
             .Take(count);
 
         var parts = new List<string>();
-        foreach (var (node, dist) in ranked)
+        foreach ((GroundNode? node, double dist) in ranked)
         {
             string type = node.Type switch
             {

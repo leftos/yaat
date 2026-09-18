@@ -1,5 +1,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -49,7 +51,7 @@ internal static class GoAroundHelper
         bool isPattern = ctx.Aircraft.Phases.TrafficDirection is not null;
 
         // For instrument approaches with MAP data, queue the published missed-approach phases.
-        var missedApproachPhases = isPattern ? [] : ApproachCommandHandler.BuildMissedApproachPhases(ctx.Aircraft);
+        List<Phase> missedApproachPhases = isPattern ? [] : ApproachCommandHandler.BuildMissedApproachPhases(ctx.Aircraft);
 
         var goAround = new GoAroundPhase
         {
@@ -78,7 +80,7 @@ internal static class GoAroundHelper
     /// </summary>
     internal static PatternDirection? ResolvePatternIntent(AircraftState aircraft)
     {
-        var phases = aircraft.Phases;
+        PhaseList? phases = aircraft.Phases;
         if (phases is null)
         {
             return null;
@@ -107,9 +109,9 @@ internal static class GoAroundHelper
     /// </summary>
     private static PatternDirection? InferDirectionFromPatternLegs(PhaseList phases)
     {
-        foreach (var phase in phases.Phases)
+        foreach (Phase phase in phases.Phases)
         {
-            var direction = phase switch
+            PatternDirection? direction = phase switch
             {
                 UpwindPhase { Waypoints: { } up } => up.Direction,
                 CrosswindPhase { Waypoints: { } cw } => cw.Direction,
@@ -140,7 +142,7 @@ internal static class GoAroundHelper
     {
         if (missedApproachPhases.Count > 0)
         {
-            var mapFixes = ctx.Aircraft.Phases!.ActiveApproach!.MissedApproachFixes;
+            IReadOnlyList<ApproachFix> mapFixes = ctx.Aircraft.Phases!.ActiveApproach!.MissedApproachFixes;
             return ApproachCommandHandler.GetMissedApproachAltitude(mapFixes);
         }
 
@@ -170,8 +172,8 @@ internal static class GoAroundHelper
             return ctx.FieldElevation + categoryAglFt;
         }
 
-        var layout = ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout;
-        var (_, altitudeOverrideFt) = PatternGeometry.ResolveAuthoredOverrides(
+        AirportGroundLayout? layout = ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout;
+        (double? _, double? altitudeOverrideFt) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             layout?.FindRunway(runway.Designator),
             ctx.Category,
@@ -189,7 +191,7 @@ internal static class GoAroundHelper
     /// </summary>
     internal static void InstallGoAroundPhases(PhaseContext ctx, GoAroundPhase goAround, IReadOnlyList<Phase> missedApproachPhases)
     {
-        var phaseList = ctx.Aircraft.Phases!;
+        PhaseList phaseList = ctx.Aircraft.Phases!;
 
         // Any go-around off a visual approach voids the clearance (7110.65 §7-4-1: handled as
         // any go-around; a visual has no missed approach segment, so nothing survives to fly).
@@ -232,7 +234,7 @@ internal static class GoAroundHelper
     {
         for (int i = list.Phases.Count - 1; i >= 0; i--)
         {
-            var phase = list.Phases[i];
+            Phase phase = list.Phases[i];
             if (phase.Status != PhaseStatus.Pending)
             {
                 continue;
@@ -272,7 +274,7 @@ internal static class GoAroundHelper
             return null;
         }
 
-        var (number, suffix) = SplitDesignator(runway.Designator);
+        (string? number, char? suffix) = SplitDesignator(runway.Designator);
         if (suffix is not ('L' or 'R') || number is null)
         {
             return null;
@@ -281,13 +283,13 @@ internal static class GoAroundHelper
         // GetRunways returns one entry per physical runway; the active Designator
         // can be either End1 or End2 (whichever was loaded as the default). Check
         // both ends to find the sibling.
-        var siblings = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+        IReadOnlyList<RunwayInfo> siblings = NavigationDatabase.Instance.GetRunways(runway.AirportId);
         char siblingSuffix = suffix == 'L' ? 'R' : 'L';
         bool hasSibling = false;
-        foreach (var rwy in siblings)
+        foreach (RunwayInfo rwy in siblings)
         {
-            var (end1Num, end1Sfx) = SplitDesignator(rwy.Id.End1);
-            var (end2Num, end2Sfx) = SplitDesignator(rwy.Id.End2);
+            (string? end1Num, char? end1Sfx) = SplitDesignator(rwy.Id.End1);
+            (string? end2Num, char? end2Sfx) = SplitDesignator(rwy.Id.End2);
             if ((end1Num == number && end1Sfx == siblingSuffix) || (end2Num == number && end2Sfx == siblingSuffix))
             {
                 hasSibling = true;

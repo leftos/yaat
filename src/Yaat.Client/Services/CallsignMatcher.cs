@@ -34,7 +34,7 @@ internal static class CallsignMatcher
         IReadOnlyCollection<AircraftModel> aircraft
     )
     {
-        foreach (var ac in aircraft)
+        foreach (AircraftModel ac in aircraft)
         {
             if (string.Equals(ac.Callsign, token, StringComparison.OrdinalIgnoreCase))
             {
@@ -43,7 +43,7 @@ internal static class CallsignMatcher
         }
 
         var matches = new List<AircraftModel>();
-        foreach (var ac in aircraft)
+        foreach (AircraftModel ac in aircraft)
         {
             if (ac.Callsign.Contains(token, StringComparison.OrdinalIgnoreCase))
             {
@@ -78,7 +78,7 @@ internal static class CallsignMatcher
     /// </summary>
     internal static string FormatAmbiguityMessage(string token, IReadOnlyList<AircraftModel> candidates)
     {
-        var names = string.Join(", ", candidates.Select(a => a.Callsign).Take(5));
+        string names = string.Join(", ", candidates.Select(a => a.Callsign).Take(5));
         return $"\"{token}\" matches multiple aircraft: {names}";
     }
 }

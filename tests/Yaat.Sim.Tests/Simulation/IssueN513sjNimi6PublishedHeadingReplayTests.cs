@@ -39,8 +39,8 @@ public class IssueN513sjNimi6PublishedHeadingReplayTests(ITestOutputHelper outpu
     [Fact]
     public void Replay_N513SJ_InitialClimbAppliesPublishedHeading315()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -57,14 +57,14 @@ public class IssueN513sjNimi6PublishedHeadingReplayTests(ITestOutputHelper outpu
 
         // Bare CTO is at t=2821; replay just past it.
         engine.Replay(recording, 2835);
-        var ac = engine.FindAircraft("N513SJ");
+        AircraftState? ac = engine.FindAircraft("N513SJ");
         if (ac is null)
         {
             output.WriteLine("N513SJ not present at t=2835, skipping");
             return;
         }
 
-        var climb = ac.Phases?.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
+        InitialClimbPhase? climb = ac.Phases?.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
         Assert.NotNull(climb);
         var dto = (InitialClimbPhaseDto)climb!.ToSnapshot();
 

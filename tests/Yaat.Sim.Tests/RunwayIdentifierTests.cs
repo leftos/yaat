@@ -53,8 +53,8 @@ public class RunwayIdentifierTests
         // (leading-zero-stripped) spellings — the same contract Contains_SingleDigit_MatchesTwoDigit
         // asserts for the primary end. Ground pathfinding and CROSS/hold-short matching rely on it.
         var id = new RunwayIdentifier(highEnd);
-        var oppositePadded = id.End2; // e.g. "01", "09L", "03C"
-        var oppositeFaa = RunwayIdentifier.ToDisplayDesignator(oppositePadded); // e.g. "1", "9L", "3C"
+        string oppositePadded = id.End2; // e.g. "01", "09L", "03C"
+        string oppositeFaa = RunwayIdentifier.ToDisplayDesignator(oppositePadded); // e.g. "1", "9L", "3C"
 
         Assert.True(id.Contains(oppositePadded), $"Contains('{oppositePadded}') should match stored End2");
         Assert.True(id.Contains(oppositeFaa), $"Contains('{oppositeFaa}') should match stored End2");
@@ -200,7 +200,7 @@ public class RunwayIdentifierTests
     [Fact]
     public void ToDisplayDesignator_IsInverseOfNormalize()
     {
-        foreach (var faa in new[] { "8R", "9", "1L", "28R", "10", "36C" })
+        foreach (string? faa in new[] { "8R", "9", "1L", "28R", "10", "36C" })
         {
             Assert.Equal(faa, RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.NormalizeDesignator(faa)));
         }

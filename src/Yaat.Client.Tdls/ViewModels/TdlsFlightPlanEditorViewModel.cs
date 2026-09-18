@@ -194,35 +194,35 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 
         // Resolved, never config.Sids: a facility that enabled operational configurations ships an
         // empty facility-level SID array and keeps every SID inside the active config.
-        foreach (var sid in config.ResolveSids(opConfigId))
+        foreach (TdlsSidDto sid in config.ResolveSids(opConfigId))
         {
             Sids.Add(sid);
         }
-        foreach (var v in config.Climbouts)
+        foreach (TdlsClearanceValueDto v in config.Climbouts)
         {
             Climbouts.Add(v);
         }
-        foreach (var v in config.Climbvias)
+        foreach (TdlsClearanceValueDto v in config.Climbvias)
         {
             Climbvias.Add(v);
         }
-        foreach (var v in config.InitialAlts)
+        foreach (TdlsClearanceValueDto v in config.InitialAlts)
         {
             InitialAlts.Add(v);
         }
-        foreach (var v in config.DepFreqs)
+        foreach (TdlsClearanceValueDto v in config.DepFreqs)
         {
             DepFreqs.Add(v);
         }
-        foreach (var v in config.Expects)
+        foreach (TdlsClearanceValueDto v in config.Expects)
         {
             Expects.Add(v);
         }
-        foreach (var v in config.ContactInfos)
+        foreach (TdlsClearanceValueDto v in config.ContactInfos)
         {
             ContactInfos.Add(v);
         }
-        foreach (var v in config.LocalInfos)
+        foreach (TdlsClearanceValueDto v in config.LocalInfos)
         {
             LocalInfos.Add(v);
         }
@@ -237,7 +237,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         _suppressDefaults = true;
         try
         {
-            var (filedSidId, filedTransitionId) = MatchSidFromFiledRoute(config, flightPlan?.Route, opConfigId);
+            (string? filedSidId, string? filedTransitionId) = MatchSidFromFiledRoute(config, flightPlan?.Route, opConfigId);
 
             _selectedSid = ResolveSid(seed?.Sid ?? filedSidId ?? config.ResolveDefaultSidId(opConfigId));
             RebuildTransitions(_selectedSid);
@@ -286,7 +286,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// </summary>
     public void ApplyAmendedFlightPlan(TdlsFlightPlanInfoDto? plan)
     {
-        var previousRoute = FlightPlan?.Route;
+        string? previousRoute = FlightPlan?.Route;
         FlightPlan = plan;
 
         if (IsReadOnly || string.Equals(previousRoute, plan?.Route, StringComparison.Ordinal))
@@ -294,7 +294,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             return;
         }
 
-        var (filedSidId, filedTransitionId) = MatchSidFromFiledRoute(_config, plan?.Route, _opConfigId);
+        (string? filedSidId, string? filedTransitionId) = MatchSidFromFiledRoute(_config, plan?.Route, _opConfigId);
         if (ResolveSid(filedSidId) is not { } sid)
         {
             Log.LogDebug(
@@ -407,7 +407,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         {
             return (null, null);
         }
-        var tokens = route.Split([' ', '.', '+'], StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = route.Split([' ', '.', '+'], StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return (null, null);
@@ -416,20 +416,20 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         // Some flight plans encode SID + transition as "SID.TRANS" (e.g. "OAK6.OAK").
         // Walk the first token's '.' components alongside the route tokens so both
         // "OAK6 OAK V107 LAX" and "OAK6.OAK V107 LAX" route in the same path.
-        var firstParts = tokens[0].Split('.', StringSplitOptions.RemoveEmptyEntries);
-        var sidToken = firstParts[0];
-        var transitionHint =
+        string[] firstParts = tokens[0].Split('.', StringSplitOptions.RemoveEmptyEntries);
+        string sidToken = firstParts[0];
+        string? transitionHint =
             firstParts.Length > 1 ? firstParts[1]
             : tokens.Length > 1 ? tokens[1]
             : null;
 
-        var sid = config.ResolveSids(opConfigId).FirstOrDefault(s => string.Equals(s.Name, sidToken, StringComparison.OrdinalIgnoreCase));
+        TdlsSidDto? sid = config.ResolveSids(opConfigId).FirstOrDefault(s => string.Equals(s.Name, sidToken, StringComparison.OrdinalIgnoreCase));
         if (sid is null)
         {
             return (null, null);
         }
 
-        var transition = transitionHint is null ? null : MatchTransitionToHint(sid, transitionHint);
+        TdlsSidTransitionDto? transition = transitionHint is null ? null : MatchTransitionToHint(sid, transitionHint);
 
         return (sid.Id, transition?.Id);
     }
@@ -485,24 +485,27 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             return null;
         }
 
-        var candidates = items as IReadOnlyList<TdlsClearanceValueDto> ?? items.ToList();
+        IReadOnlyList<TdlsClearanceValueDto> candidates = items as IReadOnlyList<TdlsClearanceValueDto> ?? items.ToList();
 
-        var exact = candidates.FirstOrDefault(i => string.Equals(i.Value, wantedValue, StringComparison.Ordinal));
+        TdlsClearanceValueDto? exact = candidates.FirstOrDefault(i => string.Equals(i.Value, wantedValue, StringComparison.Ordinal));
         if (exact is not null)
         {
             return exact;
         }
 
-        var wantedTrimmed = wantedValue.Trim();
-        var loose = candidates.FirstOrDefault(i => string.Equals(i.Value?.Trim(), wantedTrimmed, StringComparison.OrdinalIgnoreCase));
+        string wantedTrimmed = wantedValue.Trim();
+        TdlsClearanceValueDto? loose = candidates.FirstOrDefault(i =>
+            string.Equals(i.Value?.Trim(), wantedTrimmed, StringComparison.OrdinalIgnoreCase)
+        );
         if (loose is not null)
         {
             return loose;
         }
 
-        var numeric = decimal.TryParse(wantedTrimmed, NumberStyles.Number, CultureInfo.InvariantCulture, out var wantedNumber)
+        TdlsClearanceValueDto? numeric = decimal.TryParse(wantedTrimmed, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal wantedNumber)
             ? candidates.FirstOrDefault(i =>
-                decimal.TryParse(i.Value?.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var candidate) && (candidate == wantedNumber)
+                decimal.TryParse(i.Value?.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out decimal candidate)
+                && (candidate == wantedNumber)
             )
             : null;
 
@@ -525,7 +528,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         {
             return;
         }
-        foreach (var t in sid.Transitions)
+        foreach (TdlsSidTransitionDto t in sid.Transitions)
         {
             Transitions.Add(t);
         }
@@ -545,7 +548,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         {
             return;
         }
-        foreach (var field in TransitionDefaultFields(transition))
+        foreach (TransitionDefaultField field in TransitionDefaultFields(transition))
         {
             if (!string.IsNullOrWhiteSpace(field.Default) && !field.Suppressed())
             {
@@ -565,7 +568,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         {
             return;
         }
-        foreach (var field in TransitionDefaultFields(transition))
+        foreach (TransitionDefaultField field in TransitionDefaultFields(transition))
         {
             if ((field.Current is null) && !field.Suppressed())
             {

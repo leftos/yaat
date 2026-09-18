@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -62,7 +63,7 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
 
     private void LogState(string label, AircraftState aircraft)
     {
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         output.WriteLine(
             $"{label} {aircraft.Callsign}: phase={aircraft.Phases?.CurrentPhase?.GetType().Name} "
                 + $"depRwy={aircraft.Procedure.DepartureRunway} assigned={aircraft.Phases?.AssignedRunway?.Designator} "
@@ -75,17 +76,17 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
     [Fact]
     public void Diagnostic_LogSpawnRoutes()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 0);
-        foreach (var callsign in new[] { "SWA701", "ASA315", "DLH455", "ACA569" })
+        foreach (string? callsign in new[] { "SWA701", "ASA315", "DLH455", "ACA569" })
         {
-            var aircraft = engine.FindAircraft(callsign);
+            AircraftState? aircraft = engine.FindAircraft(callsign);
             Assert.NotNull(aircraft);
             LogState("t=0", aircraft);
         }
@@ -95,9 +96,9 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
             engine.ReplayOneSecond();
             if (t % 10 == 0)
             {
-                foreach (var callsign in new[] { "SWA701", "ASA315", "DLH455" })
+                foreach (string? callsign in new[] { "SWA701", "ASA315", "DLH455" })
                 {
-                    var aircraft = engine.FindAircraft(callsign);
+                    AircraftState? aircraft = engine.FindAircraft(callsign);
                     if (aircraft is not null)
                     {
                         LogState($"t={t}", aircraft);
@@ -113,8 +114,8 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
     [InlineData("DLH455", "28L", "F", "28L", false)]
     public void BareTaxiRunwayPreset_HoldsShortOfItsOwnRunway(string callsign, string runway, string taxiway, string expectedDesignator, bool linesUp)
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -122,22 +123,22 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
 
         engine.Replay(recording, 0);
 
-        var aircraft = engine.FindAircraft(callsign);
+        AircraftState? aircraft = engine.FindAircraft(callsign);
         Assert.NotNull(aircraft);
         LogState("t=0", aircraft);
 
-        var layout = aircraft.Ground.Layout;
+        AirportGroundLayout? layout = aircraft.Ground.Layout;
         Assert.NotNull(layout);
-        var bar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, runway, taxiway);
+        GroundNode? bar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, runway, taxiway);
         Assert.NotNull(bar);
 
         Assert.Equal(expectedDesignator, aircraft.Procedure.DepartureRunway);
         Assert.Equal(expectedDesignator, aircraft.Phases?.AssignedRunway?.Designator);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         Assert.False(IsOnRunwaySurface(route, runway), $"route must not taxi along runway {runway}: {route.ToSummary()}");
-        var destination = Assert.Single(route.HoldShortPoints, h => h.Reason == HoldShortReason.DestinationRunway);
+        HoldShortPoint destination = Assert.Single(route.HoldShortPoints, h => h.Reason == HoldShortReason.DestinationRunway);
         Assert.Equal(bar.Id, destination.NodeId);
 
         if (linesUp)
@@ -145,7 +146,7 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
             Assert.Equal(ClearanceType.LineUpAndWait, aircraft.Phases?.DepartureClearance?.Type);
         }
 
-        var runwayInfo = aircraft.Phases?.AssignedRunway;
+        RunwayInfo? runwayInfo = aircraft.Phases?.AssignedRunway;
         Assert.NotNull(runwayInfo);
         bool reachedGoal = false;
         for (int t = 1; t <= ObserveSeconds; t++)
@@ -160,7 +161,7 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
             Assert.True(fromBarFt < 600, $"t={t}: {callsign} is {fromBarFt:F0} ft from the {runway} bar on {taxiway}");
             Assert.Equal(expectedDesignator, aircraft.Procedure.DepartureRunway);
 
-            var phase = aircraft.Phases?.CurrentPhase;
+            Phase? phase = aircraft.Phases?.CurrentPhase;
             if (linesUp ? phase is LinedUpAndWaitingPhase : phase is HoldingShortPhase)
             {
                 reachedGoal = true;
@@ -180,19 +181,19 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
     [Fact]
     public void BareTaxiRunway_AwayFromTheRunway_IsRejected_TaxiAutoStillRoutes()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 0);
-        var aircraft = engine.FindAircraft("SKW4775");
+        AircraftState? aircraft = engine.FindAircraft("SKW4775");
         Assert.NotNull(aircraft);
         LogState("t=0", aircraft);
 
-        var bare = engine.SendCommand("SKW4775", "TAXI 1L");
+        CommandResult bare = engine.SendCommand("SKW4775", "TAXI 1L");
         output.WriteLine($"TAXI 1L: {bare.Success} {bare.Message}");
         Assert.False(bare.Success);
         Assert.Contains("not at runway 1L", bare.Message);
@@ -205,7 +206,7 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
         Assert.NotNull(aircraft.Ground.AssignedTaxiRoute);
         Assert.Contains("M1", aircraft.Ground.AssignedTaxiRoute.ToSummary());
 
-        var auto = engine.SendCommand("SKW4775", "TAXIAUTO 1L");
+        CommandResult auto = engine.SendCommand("SKW4775", "TAXIAUTO 1L");
         output.WriteLine($"TAXIAUTO 1L: {auto.Success} {auto.Message}");
         Assert.True(auto.Success, auto.Message);
     }
@@ -217,23 +218,23 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
     [Fact]
     public void BareTaxiRunway_ShortOfTheBarOnItsTaxiway_TaxisUpAndHoldsShort()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 0);
-        var aircraft = engine.FindAircraft("SWA701");
+        AircraftState? aircraft = engine.FindAircraft("SWA701");
         Assert.NotNull(aircraft);
-        var layout = aircraft.Ground.Layout;
+        AirportGroundLayout? layout = aircraft.Ground.Layout;
         Assert.NotNull(layout);
-        var bar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "1L", "M1");
+        GroundNode? bar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "1L", "M1");
         Assert.NotNull(bar);
 
         // A node on M1 between 150 and 500 ft back from the bar — beyond the at-the-bar radius, inside the short run.
-        var start = layout
+        GroundNode? start = layout
             .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("M1")))
             .Select(n => (Node: n, Ft: GeoMath.DistanceNm(n.Position, bar.Position) * GeoMath.FeetPerNm))
             .Where(x => (x.Ft >= 150) && (x.Ft <= 500))
@@ -246,7 +247,7 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
         aircraft.TrueHeading = new TrueHeading(GeoMath.BearingTo(start.Position, bar.Position));
         aircraft.IndicatedAirspeed = 0;
 
-        var result = engine.SendCommand("SWA701", "TAXI 1L");
+        CommandResult result = engine.SendCommand("SWA701", "TAXI 1L");
         output.WriteLine(
             $"TAXI 1L from {GeoMath.DistanceNm(start.Position, bar.Position) * GeoMath.FeetPerNm:F0} ft: {result.Success} {result.Message}"
         );
@@ -254,11 +255,11 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
 
         aircraft = engine.FindAircraft("SWA701");
         Assert.NotNull(aircraft);
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         Assert.NotEmpty(route.Segments);
         Assert.All(route.Segments, s => Assert.Equal("M1", s.TaxiwayName));
-        var destination = Assert.Single(route.HoldShortPoints);
+        HoldShortPoint destination = Assert.Single(route.HoldShortPoints);
         Assert.Equal(HoldShortReason.DestinationRunway, destination.Reason);
         Assert.Equal(bar.Id, destination.NodeId);
 
@@ -286,25 +287,25 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
     [Fact]
     public void BareTaxiRunway_AcrossAnotherRunway_IsRejected()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 0);
-        var aircraft = engine.FindAircraft("SWA701");
+        AircraftState? aircraft = engine.FindAircraft("SWA701");
         Assert.NotNull(aircraft);
-        var layout = aircraft.Ground.Layout;
+        AirportGroundLayout? layout = aircraft.Ground.Layout;
         Assert.NotNull(layout);
         // Both taxiways carry bars at both runway ends; take the F(28L) / C(28R) pair that sits together.
-        var pair = TestLayoutNodes
+        (GroundNode NearBar, GroundNode FarBar28R) pair = TestLayoutNodes
             .RunwayHoldShortsOnTaxiway(layout, "10R", "F")
             .SelectMany(f => TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "C").Select(c => (NearBar: f, FarBar28R: c)))
             .MinBy(x => GeoMath.DistanceNm(x.NearBar.Position, x.FarBar28R.Position));
-        var nearBar = pair.NearBar;
-        var farBar28R = pair.FarBar28R;
+        GroundNode nearBar = pair.NearBar;
+        GroundNode farBar28R = pair.FarBar28R;
         Assert.NotNull(nearBar);
         Assert.NotNull(farBar28R);
         output.WriteLine($"28L bar on F -> 28R bar on C: {GeoMath.DistanceNm(nearBar.Position, farBar28R.Position) * GeoMath.FeetPerNm:F0} ft");
@@ -313,7 +314,7 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
         aircraft.TrueHeading = new TrueHeading(GeoMath.BearingTo(nearBar.Position, farBar28R.Position));
         aircraft.IndicatedAirspeed = 0;
 
-        var result = engine.SendCommand("SWA701", "TAXI 28R");
+        CommandResult result = engine.SendCommand("SWA701", "TAXI 28R");
         output.WriteLine($"TAXI 28R: {result.Success} {result.Message}");
         Assert.False(result.Success);
         Assert.Contains("not at runway 28R", result.Message);

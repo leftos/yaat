@@ -76,15 +76,15 @@ public sealed class SpeechSampleStoreTests : IDisposable
     public void Add_Persists_Audio_And_Session_Json()
     {
         var store = new SpeechSampleStore(MakePrefs(50), _root);
-        var id = store.Add(MakeSession(DateTime.UtcNow), MakeAudio(0.5));
+        string? id = store.Add(MakeSession(DateTime.UtcNow), MakeAudio(0.5));
         Assert.NotNull(id);
         Assert.Single(store.Entries);
 
-        var folder = Path.Combine(_root, id!);
+        string folder = Path.Combine(_root, id!);
         Assert.True(File.Exists(Path.Combine(folder, "audio.wav")), "audio.wav should be written");
         Assert.True(File.Exists(Path.Combine(folder, "session.json")), "session.json should be written");
 
-        var entry = store.Entries[0];
+        SpeechSampleEntry entry = store.Entries[0];
         Assert.Equal(id, entry.Id);
         Assert.Equal(id, entry.Session.SampleId);
         Assert.True(entry.TotalBytes > 0);
@@ -94,7 +94,7 @@ public sealed class SpeechSampleStoreTests : IDisposable
     public void Add_Rejects_Empty_Audio_Buffer()
     {
         var store = new SpeechSampleStore(MakePrefs(50), _root);
-        var id = store.Add(MakeSession(DateTime.UtcNow), audioSamples: []);
+        string? id = store.Add(MakeSession(DateTime.UtcNow), audioSamples: []);
         Assert.Null(id);
         Assert.Empty(store.Entries);
     }
@@ -107,7 +107,7 @@ public sealed class SpeechSampleStoreTests : IDisposable
         // monotonically increasing timestamps and expect the oldest to be evicted first.
         var store = new SpeechSampleStore(MakePrefs(capMb: 1), _root);
         var baseTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        for (var i = 0; i < 10; i++)
+        for (int i = 0; i < 10; i++)
         {
             store.Add(MakeSession(baseTime.AddSeconds(i)), MakeAudio(5));
         }
@@ -125,8 +125,8 @@ public sealed class SpeechSampleStoreTests : IDisposable
     public void Delete_Removes_Single_Entry_And_Folder()
     {
         var store = new SpeechSampleStore(MakePrefs(50), _root);
-        var id1 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.5));
-        var id2 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc)), MakeAudio(0.5));
+        string? id1 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.5));
+        string? id2 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc)), MakeAudio(0.5));
         Assert.Equal(2, store.Entries.Count);
 
         store.Delete(id1!);
@@ -139,7 +139,7 @@ public sealed class SpeechSampleStoreTests : IDisposable
     public void DeleteAll_Removes_Every_Entry()
     {
         var store = new SpeechSampleStore(MakePrefs(50), _root);
-        for (var i = 0; i < 3; i++)
+        for (int i = 0; i < 3; i++)
         {
             store.Add(MakeSession(DateTime.UtcNow.AddSeconds(i)), MakeAudio(0.2));
         }
@@ -156,7 +156,7 @@ public sealed class SpeechSampleStoreTests : IDisposable
     [Fact]
     public void Rescan_Repopulates_From_Disk()
     {
-        var prefs = MakePrefs(50);
+        UserPreferences prefs = MakePrefs(50);
         var first = new SpeechSampleStore(prefs, _root);
         first.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.3));
         first.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc)), MakeAudio(0.3));
@@ -171,24 +171,24 @@ public sealed class SpeechSampleStoreTests : IDisposable
     public void ExportBundle_Single_Sample_Produces_Zip_With_Subfolder_Layout()
     {
         var store = new SpeechSampleStore(MakePrefs(50), _root);
-        var id = store.Add(MakeSession(DateTime.UtcNow), MakeAudio(0.5));
+        string? id = store.Add(MakeSession(DateTime.UtcNow), MakeAudio(0.5));
         Assert.NotNull(id);
 
-        var zipPath = Path.Combine(_root, "export.zip");
-        var written = store.ExportBundle([id!], zipPath);
+        string zipPath = Path.Combine(_root, "export.zip");
+        int written = store.ExportBundle([id!], zipPath);
         Assert.Equal(1, written);
         Assert.True(File.Exists(zipPath));
 
-        using var fs = File.OpenRead(zipPath);
+        using FileStream fs = File.OpenRead(zipPath);
         using var zip = new ZipArchive(fs, ZipArchiveMode.Read);
         var names = zip.Entries.Select(e => e.FullName).ToHashSet();
         Assert.Contains("manifest.json", names);
         Assert.Contains($"samples/{id}/audio.wav", names);
         Assert.Contains($"samples/{id}/session.json", names);
 
-        var manifestEntry = zip.GetEntry("manifest.json")!;
-        using var manifestStream = manifestEntry.Open();
-        var manifest = JsonSerializer.Deserialize<JsonDocument>(manifestStream);
+        ZipArchiveEntry manifestEntry = zip.GetEntry("manifest.json")!;
+        using Stream manifestStream = manifestEntry.Open();
+        JsonDocument? manifest = JsonSerializer.Deserialize<JsonDocument>(manifestStream);
         Assert.NotNull(manifest);
         Assert.Equal(2, manifest.RootElement.GetProperty("schemaVersion").GetInt32());
         var samples = manifest.RootElement.GetProperty("samples").EnumerateArray().ToList();
@@ -196,14 +196,14 @@ public sealed class SpeechSampleStoreTests : IDisposable
         Assert.Equal(id, samples[0].GetProperty("id").GetString());
         Assert.Equal("CommandAccepted", samples[0].GetProperty("outcome").GetString());
 
-        var sessionEntry = zip.GetEntry($"samples/{id}/session.json")!;
-        using var sessionStream = sessionEntry.Open();
+        ZipArchiveEntry sessionEntry = zip.GetEntry($"samples/{id}/session.json")!;
+        using Stream sessionStream = sessionEntry.Open();
         var jsonOpts = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             Converters = { new JsonStringEnumConverter() },
         };
-        var sessionRoundTrip = JsonSerializer.Deserialize<SpeechSession>(sessionStream, jsonOpts);
+        SpeechSession? sessionRoundTrip = JsonSerializer.Deserialize<SpeechSession>(sessionStream, jsonOpts);
         Assert.NotNull(sessionRoundTrip);
         Assert.Equal(id, sessionRoundTrip!.SampleId);
         Assert.Equal("FH 270", sessionRoundTrip.CanonicalCommand);
@@ -215,23 +215,23 @@ public sealed class SpeechSampleStoreTests : IDisposable
     public void ExportBundle_Multiple_Samples_Contains_All_Subfolders()
     {
         var store = new SpeechSampleStore(MakePrefs(50), _root);
-        var id1 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.3))!;
-        var id2 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc), canonical: null), MakeAudio(0.3))!;
-        var id3 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 2, DateTimeKind.Utc)), MakeAudio(0.3))!;
+        string id1 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.3))!;
+        string id2 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc), canonical: null), MakeAudio(0.3))!;
+        string id3 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 2, DateTimeKind.Utc)), MakeAudio(0.3))!;
 
-        var zipPath = Path.Combine(_root, "bundle.zip");
+        string zipPath = Path.Combine(_root, "bundle.zip");
         // Pick two of three; the third must not appear in the zip.
-        var written = store.ExportBundle([id1, id3], zipPath);
+        int written = store.ExportBundle([id1, id3], zipPath);
         Assert.Equal(2, written);
 
-        using var fs = File.OpenRead(zipPath);
+        using FileStream fs = File.OpenRead(zipPath);
         using var zip = new ZipArchive(fs, ZipArchiveMode.Read);
         var names = zip.Entries.Select(e => e.FullName).ToHashSet();
         Assert.Contains($"samples/{id1}/audio.wav", names);
         Assert.Contains($"samples/{id3}/audio.wav", names);
         Assert.DoesNotContain($"samples/{id2}/audio.wav", names);
 
-        var manifest = JsonSerializer.Deserialize<JsonDocument>(zip.GetEntry("manifest.json")!.Open())!;
+        JsonDocument manifest = JsonSerializer.Deserialize<JsonDocument>(zip.GetEntry("manifest.json")!.Open())!;
         var sampleIds = manifest.RootElement.GetProperty("samples").EnumerateArray().Select(s => s.GetProperty("id").GetString()).ToList();
         Assert.Equal(new[] { id1, id3 }, sampleIds);
     }
@@ -240,8 +240,8 @@ public sealed class SpeechSampleStoreTests : IDisposable
     public void ExportBundle_Skips_Unknown_Ids_Without_Writing_File()
     {
         var store = new SpeechSampleStore(MakePrefs(50), _root);
-        var zipPath = Path.Combine(_root, "noop.zip");
-        var written = store.ExportBundle(["does-not-exist", "also-missing"], zipPath);
+        string zipPath = Path.Combine(_root, "noop.zip");
+        int written = store.ExportBundle(["does-not-exist", "also-missing"], zipPath);
         Assert.Equal(0, written);
         Assert.False(File.Exists(zipPath));
     }

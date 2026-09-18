@@ -64,7 +64,7 @@ public class AircraftListSortRefreshTests
     [AvaloniaFact]
     public void NewActiveAircraft_SortsIntoPosition_WhenOnlyActiveFilterOn()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
 
         // Active aircraft plus delayed placeholders so the "only active" filter actually shrinks
         // the view relative to the source collection — that size gap is what triggers the bug.
@@ -102,7 +102,7 @@ public class AircraftListSortRefreshTests
     {
         // The bug and the fix are column-agnostic: every column wraps GroupStableSortComparer.
         // Sort by Destination instead of Callsign and confirm a fresh row still slots in by that key.
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
 
         vm.ApplyScenarioBootstrap(
             new ScenarioBootstrap(
@@ -139,7 +139,7 @@ public class AircraftListSortRefreshTests
         // Guard for the pre-existing path: a delayed placeholder (already in the collection, hidden
         // by the filter) flipping to active goes through the known-callsign branch, which already
         // calls RefreshAircraftView(). This must stay correctly sorted.
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
 
         vm.ApplyScenarioBootstrap(
             new ScenarioBootstrap(

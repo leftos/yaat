@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -50,8 +51,8 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
     /// </summary>
     private (CommandResult Result, TaxiRoute Route)? IssueTaxi(int restoreAtSeconds, string callsign, string command)
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             return null;
@@ -59,19 +60,19 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(restoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(restoreAtSeconds);
             Assert.NotNull(snapshot);
             engine.RestoreFromSnapshot(snapshot.State);
 
-            var result = engine.SendCommand(callsign, command);
+            CommandResult result = engine.SendCommand(callsign, command);
             output.WriteLine($"{callsign} '{command}' -> success={result.Success} message: {result.Message}");
 
-            var ac = engine.FindAircraft(callsign);
+            AircraftState? ac = engine.FindAircraft(callsign);
             Assert.NotNull(ac);
-            var route = ac.Ground?.AssignedTaxiRoute;
+            TaxiRoute? route = ac.Ground?.AssignedTaxiRoute;
             Assert.NotNull(route);
             output.WriteLine($"installed route: {route.Segments.Count} segments, summary: {route.ToSummary()}");
             output.WriteLine($"segments: {string.Join(" ", route.Segments.Select(s => $"{s.FromNodeId}-{s.ToNodeId}({s.TaxiwayName})"))}");
@@ -83,11 +84,11 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
     private static HashSet<string> TraversedTaxiways(TaxiRoute route)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             if (seg.Edge.Edge is GroundArc arc)
             {
-                foreach (var n in arc.TaxiwayNames)
+                foreach (string n in arc.TaxiwayNames)
                 {
                     names.Add(n);
                 }
@@ -104,19 +105,19 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
     [Fact]
     public void TaxiCD_AfterExit_ResponseNamesOnlyTraversedTaxiways()
     {
-        var issued = IssueTaxi(2255, "N622JQ", "TAXI C D");
+        (CommandResult Result, TaxiRoute Route)? issued = IssueTaxi(2255, "N622JQ", "TAXI C D");
         if (issued is null)
         {
             return;
         }
 
-        var (result, route) = issued.Value;
+        (CommandResult? result, TaxiRoute? route) = issued.Value;
         Assert.True(result.Success, result.Message);
         Assert.NotNull(result.Message);
 
         // The response's route summary must only name taxiways the installed route actually
         // touches — the recorded bug echoed "Taxi via G C" for a route that never goes near G.
-        var traversed = TraversedTaxiways(route);
+        HashSet<string> traversed = TraversedTaxiways(route);
         string summaryPart = result.Message["Taxi via ".Length..];
         int cutoff = summaryPart.IndexOfAny(['[', '(', '—']);
         if (cutoff >= 0)
@@ -124,7 +125,7 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
             summaryPart = summaryPart[..cutoff];
         }
 
-        foreach (var token in summaryPart.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        foreach (string token in summaryPart.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
             if (token.StartsWith('@') || token.StartsWith('$') || token is "on" or "RWY" or "HS")
             {
@@ -142,13 +143,13 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
     [Fact]
     public void TaxiCD_AfterExit_StopsAtTheCDJunction()
     {
-        var issued = IssueTaxi(2255, "N622JQ", "TAXI C D");
+        (CommandResult Result, TaxiRoute Route)? issued = IssueTaxi(2255, "N622JQ", "TAXI C D");
         if (issued is null)
         {
             return;
         }
 
-        var (_, route) = issued.Value;
+        (CommandResult _, TaxiRoute? route) = issued.Value;
 
         // "TAXI C D" gives no onward target after D, so the route must stop where C meets D —
         // not walk the full length of D to its far end at the 15/33 boundary.
@@ -166,13 +167,13 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
     [Fact]
     public void TaxiF33_WithHs33_ArmsHoldShortBeforeEnteringTheRunway()
     {
-        var issued = IssueTaxi(1845, "N8312H", "TAXI F 33 D C B RWY 28R HS 33");
+        (CommandResult Result, TaxiRoute Route)? issued = IssueTaxi(1845, "N8312H", "TAXI F 33 D C B RWY 28R HS 33");
         if (issued is null)
         {
             return;
         }
 
-        var (result, route) = issued.Value;
+        (CommandResult? result, TaxiRoute? route) = issued.Value;
         Assert.True(result.Success, result.Message);
 
         // The commanded back-taxi on 15/33 is preserved.
@@ -181,7 +182,7 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
 
         // HS 33 arms an uncleared hold-short at the runway entry — at or before the first
         // along-runway segment.
-        var hs33 = route.HoldShortPoints.Find(h =>
+        HoldShortPoint? hs33 = route.HoldShortPoints.Find(h =>
             (h.Reason == HoldShortReason.ExplicitHoldShort) && (h.TargetName is not null) && h.TargetName.Contains("33", StringComparison.Ordinal)
         );
         if (hs33 is null)
@@ -216,13 +217,13 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
     [Fact]
     public void TaxiCDToGa1_NeverRoutesAlongARunway_AndWarnsAboutDroppedD()
     {
-        var issued = IssueTaxi(1280, "N124QR", "TAXI C D @GA1");
+        (CommandResult Result, TaxiRoute Route)? issued = IssueTaxi(1280, "N124QR", "TAXI C D @GA1");
         if (issued is null)
         {
             return;
         }
 
-        var (result, route) = issued.Value;
+        (CommandResult? result, TaxiRoute? route) = issued.Value;
         Assert.True(result.Success, result.Message);
 
         // The route must never travel along a runway the controller didn't put in the path.
@@ -247,17 +248,17 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
     [Fact]
     public void TaxiDCB_WhileHeld_TurnsAroundInsteadOfDetouring()
     {
-        var issued = IssueTaxi(1875, "N8312H", "TAXI D C B RWY 28R");
+        (CommandResult Result, TaxiRoute Route)? issued = IssueTaxi(1875, "N8312H", "TAXI D C B RWY 28R");
         if (issued is null)
         {
             return;
         }
 
-        var (result, route) = issued.Value;
+        (CommandResult? result, TaxiRoute? route) = issued.Value;
         Assert.True(result.Success, result.Message);
 
         // The held aircraft turns around and taxis D C B directly — no unauthorized detour via K/F.
-        var traversed = TraversedTaxiways(route);
+        HashSet<string> traversed = TraversedTaxiways(route);
         Assert.False(traversed.Contains("K"), $"route detours via K: {route.ToSummary()}");
         Assert.False(traversed.Contains("F"), $"route detours via F: {route.ToSummary()}");
         Assert.DoesNotContain(route.Warnings, w => w.Contains("not in the route issued", StringComparison.OrdinalIgnoreCase));
@@ -273,8 +274,8 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
     [Fact]
     public void TaxiDCB_WhileHeld_AircraftActuallyTaxisTheReversedRoute()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             return;
@@ -283,23 +284,23 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
         using (archive)
         {
             engine.Replay(archive.ToBaseSessionRecording(), 0);
-            var snapshot = archive.ReadSnapshotAt(1875);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(1875);
             Assert.NotNull(snapshot);
             engine.RestoreFromSnapshot(snapshot.State);
 
-            var result = engine.SendCommand("N8312H", "TAXI D C B RWY 28R");
+            CommandResult result = engine.SendCommand("N8312H", "TAXI D C B RWY 28R");
             Assert.True(result.Success, result.Message);
 
-            var ac = engine.FindAircraft("N8312H");
+            AircraftState? ac = engine.FindAircraft("N8312H");
             Assert.NotNull(ac);
-            var startPos = ac.Position;
+            LatLon startPos = ac.Position;
 
             for (int t = 0; t < 120; t++)
             {
                 engine.TickOneSecond();
             }
 
-            var route = ac.Ground.AssignedTaxiRoute;
+            TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
             Assert.NotNull(route);
             output.WriteLine(
                 $"after 120s: segment {route.CurrentSegmentIndex}/{route.Segments.Count}, moved {GeoMath.DistanceNm(startPos, ac.Position) * GeoMath.FeetPerNm:F0} ft"
@@ -311,13 +312,13 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
     [Fact]
     public void TaxiCD_AfterExit_ResponseSaysWhereTheAircraftWillHold()
     {
-        var issued = IssueTaxi(2255, "N622JQ", "TAXI C D");
+        (CommandResult Result, TaxiRoute Route)? issued = IssueTaxi(2255, "N622JQ", "TAXI C D");
         if (issued is null)
         {
             return;
         }
 
-        var (result, _) = issued.Value;
+        (CommandResult? result, TaxiRoute _) = issued.Value;
         Assert.NotNull(result.Message);
         Assert.Contains("C/D intersection", result.Message, StringComparison.OrdinalIgnoreCase);
     }

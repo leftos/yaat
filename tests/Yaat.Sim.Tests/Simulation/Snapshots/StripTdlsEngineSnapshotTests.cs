@@ -55,7 +55,7 @@ public class StripTdlsEngineSnapshotTests
     private static SimulationEngine Load()
     {
         var engine = new SimulationEngine(new TestAirportGroundData());
-        var warnings = engine.LoadScenario(ScenarioJson, 42, SessionStart);
+        List<string> warnings = engine.LoadScenario(ScenarioJson, 42, SessionStart);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
         return engine;
     }
@@ -103,7 +103,7 @@ public class StripTdlsEngineSnapshotTests
     [Fact]
     public void AFreshEngine_StartsWithNoStripsAndNoPdcs()
     {
-        var engine = Load();
+        SimulationEngine engine = Load();
 
         Assert.Empty(engine.Strips.Items);
         Assert.Empty(engine.Strips.Bays);
@@ -114,13 +114,13 @@ public class StripTdlsEngineSnapshotTests
     [Fact]
     public void ASnapshot_CarriesTheStripsAndThePdc_ToAFreshEngine()
     {
-        var engine = Load();
+        SimulationEngine engine = Load();
         Seed(engine);
 
-        var snapshot = engine.CaptureSnapshot(actionIndex: 0);
-        var serialized = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot))!;
+        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto serialized = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot))!;
 
-        var restored = Load();
+        SimulationEngine restored = Load();
         restored.RestoreFromSnapshot(serialized);
 
         Assert.True(restored.Strips.Items.ContainsKey("STRIP_AAL100"));
@@ -130,7 +130,7 @@ public class StripTdlsEngineSnapshotTests
         Assert.Equal(4, restored.Strips.NextBlankId);
 
         Assert.True(restored.Tdls.Items.ContainsKey("TDLS_1"));
-        var pdc = restored.Tdls.Items["TDLS_1"];
+        TdlsItemRecord pdc = restored.Tdls.Items["TDLS_1"];
         Assert.Equal(TdlsItemStatus.Sent, pdc.Status);
         Assert.Equal(Clearance, pdc.SentPayload);
         Assert.Equal(SessionStart.AddSeconds(8), restored.Tdls.ScheduledWilcoAt["TDLS_1"]);
@@ -140,9 +140,9 @@ public class StripTdlsEngineSnapshotTests
     [Fact]
     public void ASnapshotWithNoStripOrTdlsSection_RestoresEmpty()
     {
-        var engine = Load();
+        SimulationEngine engine = Load();
         Seed(engine);
-        var snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
 
         // A pre-feature snapshot: the server section is there, its strip and TDLS slices are not.
         var preFeature = new StateSnapshotDto
@@ -173,7 +173,7 @@ public class StripTdlsEngineSnapshotTests
     [Fact]
     public void ASnapshotWithNoStripSection_KeepsTheBaysRackSlots()
     {
-        var engine = Load();
+        SimulationEngine engine = Load();
         Seed(engine);
         // The load re-derives the rack skeleton before the restore runs, exactly as PopulateRoom does.
         engine.Strips.InitializeFromArtcc([
@@ -185,7 +185,7 @@ public class StripTdlsEngineSnapshotTests
             },
         ]);
 
-        var snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
         var preFeature = new StateSnapshotDto
         {
             SchemaVersion = snapshot.SchemaVersion,
@@ -217,7 +217,7 @@ public class StripTdlsEngineSnapshotTests
               "Server": { "AttendedPositionIds": [] }
             }
             """;
-        var snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+        StateSnapshotDto snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
 
         SnapshotSchemaMigrator.Migrate(snapshot);
 
@@ -225,7 +225,7 @@ public class StripTdlsEngineSnapshotTests
         Assert.Null(snapshot.Server!.Strips);
         Assert.Null(snapshot.Server.Tdls);
 
-        var engine = Load();
+        SimulationEngine engine = Load();
         Seed(engine);
         engine.RestoreFromSnapshot(snapshot);
 
@@ -242,7 +242,7 @@ public class StripTdlsEngineSnapshotTests
     [Fact]
     public void AReplayFromSecondZero_RebuildsTheLoadTimePdcAndInheritsNothing()
     {
-        var engine = Load();
+        SimulationEngine engine = Load();
         Seed(engine);
         engine.Tdls.Configs["OAK"] = new TdlsConfig { MandatoryExpect = true };
 
@@ -253,7 +253,7 @@ public class StripTdlsEngineSnapshotTests
 
         // Nothing of the seeded run survives: its Sent status, its clearance and its scheduled WILCO are gone, and the
         // id counter went back to 1 before the hook spent it again.
-        var item = Assert.Single(engine.Tdls.Items.Values);
+        TdlsItemRecord item = Assert.Single(engine.Tdls.Items.Values);
         Assert.Equal("TDLS_1", item.Id);
         Assert.Equal(TdlsItemStatus.Pending, item.Status);
         Assert.Null(item.SentPayload);

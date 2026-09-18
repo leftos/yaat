@@ -12,7 +12,7 @@ public class ArtccBoundaryDatabaseTests
     [Fact]
     public void BundledFixture_LoadsEveryContinentalCenter()
     {
-        var db = ArtccBoundaryDatabase.Default;
+        ArtccBoundaryDatabase db = ArtccBoundaryDatabase.Default;
 
         Assert.True(db.Boundaries.Count >= 20, $"expected the bundled boundary set, got {db.Boundaries.Count}");
         Assert.NotNull(db.FindById("ZOA"));
@@ -23,7 +23,7 @@ public class ArtccBoundaryDatabaseTests
     [Fact]
     public void Zoa_ContainsOakland_AndNotKennedy()
     {
-        var zoa = ArtccBoundaryDatabase.Default.FindById("ZOA")!;
+        ArtccBoundary zoa = ArtccBoundaryDatabase.Default.FindById("ZOA")!;
 
         Assert.True(zoa.Contains(Oakland));
         Assert.False(zoa.Contains(Kennedy));
@@ -53,7 +53,7 @@ public class ArtccBoundaryDatabaseTests
 
         var db = ArtccBoundaryDatabase.FromGeoJson(json);
 
-        var only = Assert.Single(db.Boundaries);
+        ArtccBoundary only = Assert.Single(db.Boundaries);
         Assert.Equal("ZAA", only.Id);
         Assert.True(only.Contains(new LatLon(1, 0)));
         Assert.False(only.Contains(new LatLon(3, 0)));

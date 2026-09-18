@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim;
@@ -44,7 +45,7 @@ public static class RunwayDepartureQueue
 
     public static void UpdatePositions(IReadOnlyList<AircraftState> aircraft)
     {
-        foreach (var ac in aircraft)
+        foreach (AircraftState ac in aircraft)
         {
             ac.Ground.RunwayQueuePosition = 0;
             ac.Ground.RunwayQueueRunway = "";
@@ -54,7 +55,7 @@ public static class RunwayDepartureQueue
         // Pass 1 — everyone whose own phase and route put them in a line.
         var lines = new Dictionary<(string Airport, int NodeId), List<Member>>();
         var ranked = new Dictionary<string, Member>(StringComparer.OrdinalIgnoreCase);
-        foreach (var ac in aircraft)
+        foreach (AircraftState ac in aircraft)
         {
             if (Classify(ac) is { } member)
             {
@@ -65,7 +66,7 @@ public static class RunwayDepartureQueue
         // Pass 2 — everyone whose place in a line comes from the aircraft they are following.
         RankFollowers(aircraft, lines, ranked);
 
-        foreach (var (_, members) in lines)
+        foreach (((string Airport, int NodeId) _, List<Member>? members) in lines)
         {
             members.Sort(CompareMembers);
             PublishLine(members);
@@ -78,7 +79,7 @@ public static class RunwayDepartureQueue
         // resolving it once also guarantees everyone in the same line shows the same label. The front
         // aircraft is the one physically at the node, so its taxiway is the authoritative tie-breaker, and
         // its runway end labels the whole line for the same reason — one line at one bar is one runway.
-        var front = members[0];
+        Member front = members[0];
         string runway = front.Runway;
         string intersection = RunwayEntryPoint.Resolve(front.Layout, front.NodeId, runway, front.Aircraft.Ground.CurrentTaxiway) ?? "";
 
@@ -103,8 +104,8 @@ public static class RunwayDepartureQueue
 
     private static void AddToLine(Dictionary<(string Airport, int NodeId), List<Member>> lines, Dictionary<string, Member> ranked, Member member)
     {
-        var key = (member.AirportId, member.NodeId);
-        if (!lines.TryGetValue(key, out var members))
+        (string AirportId, int NodeId) key = (member.AirportId, member.NodeId);
+        if (!lines.TryGetValue(key, out List<Member>? members))
         {
             members = [];
             lines[key] = members;
@@ -144,7 +145,7 @@ public static class RunwayDepartureQueue
         for (int pass = 0; pass < aircraft.Count; pass++)
         {
             bool placedAny = false;
-            foreach (var ac in aircraft)
+            foreach (AircraftState ac in aircraft)
             {
                 if (ranked.ContainsKey(ac.Callsign) || ClassifyInheritedFollower(ac, ranked) is not { } member)
                 {
@@ -161,7 +162,7 @@ public static class RunwayDepartureQueue
             }
         }
 
-        foreach (var ac in aircraft)
+        foreach (AircraftState ac in aircraft)
         {
             if (ranked.ContainsKey(ac.Callsign) || ClassifyStrandedFollower(ac) is not { } member)
             {
@@ -223,7 +224,7 @@ public static class RunwayDepartureQueue
 
     private static Member? InheritLeaderLine(AircraftState ac, AirportGroundLayout layout, string leaderCallsign, Dictionary<string, Member> ranked)
     {
-        if (!ranked.TryGetValue(leaderCallsign, out var leader))
+        if (!ranked.TryGetValue(leaderCallsign, out Member leader))
         {
             return null;
         }
@@ -237,7 +238,7 @@ public static class RunwayDepartureQueue
 
         // The same gate a taxiing aircraft faces, measured on the follower's own distance to the bar rather
         // than on the gap to its leader: a follower half a mile back is not in the line yet.
-        if (!TryNodePosition(layout, leader.NodeId, out var barPosition))
+        if (!TryNodePosition(layout, leader.NodeId, out LatLon barPosition))
         {
             return null;
         }
@@ -299,16 +300,16 @@ public static class RunwayDepartureQueue
             return null;
         }
 
-        var phase = ac.Phases?.CurrentPhase;
+        Phase? phase = ac.Phases?.CurrentPhase;
 
         // Tier 0 — holding short of the destination runway: at the hold-short node, front of its line.
         if (phase is HoldingShortPhase { HoldShort: { Reason: HoldShortReason.DestinationRunway } holdShort })
         {
-            if (!TryNodePosition(layout, holdShort.NodeId, out var pos))
+            if (!TryNodePosition(layout, holdShort.NodeId, out LatLon pos))
             {
                 return null;
             }
-            var runway = DepartureDesignator(ac, holdShort.TargetName);
+            string runway = DepartureDesignator(ac, holdShort.TargetName);
             return new Member(
                 ac,
                 layout,
@@ -339,7 +340,7 @@ public static class RunwayDepartureQueue
     /// </summary>
     private static Member? ClassifyByOwnRoute(AircraftState ac, AirportGroundLayout layout)
     {
-        if (DestinationBarOf(ac) is not { } destination || !TryNodePosition(layout, destination.NodeId, out var pos))
+        if (DestinationBarOf(ac) is not { } destination || !TryNodePosition(layout, destination.NodeId, out LatLon pos))
         {
             return null;
         }
@@ -350,7 +351,7 @@ public static class RunwayDepartureQueue
             return null;
         }
 
-        var runway = DepartureDesignator(ac, destination.TargetName);
+        string runway = DepartureDesignator(ac, destination.TargetName);
         return new Member(ac, layout, layout.AirportId, destination.NodeId, runway, Tier: 1, distanceNm, ac.Ground.StationarySeconds);
     }
 
@@ -408,7 +409,7 @@ public static class RunwayDepartureQueue
 
     private static bool TryNodePosition(AirportGroundLayout layout, int nodeId, out LatLon position)
     {
-        if (layout.Nodes.TryGetValue(nodeId, out var node))
+        if (layout.Nodes.TryGetValue(nodeId, out GroundNode? node))
         {
             position = node.Position;
             return true;

@@ -39,14 +39,21 @@ public class RadarCanvasFilterTests
         bool alwaysShowGroundBubbles = false
     )
     {
-        var result = RadarCanvas.FilterAircraft(aircraft, showTopDown, showSpeechBubbles, alwaysShowGroundBubbles, groundShownAirportId, Now);
+        IReadOnlyList<AircraftModel> result = RadarCanvas.FilterAircraft(
+            aircraft,
+            showTopDown,
+            showSpeechBubbles,
+            alwaysShowGroundBubbles,
+            groundShownAirportId,
+            Now
+        );
         return result.Select(a => a.Callsign).ToList();
     }
 
     [Fact]
     public void GroundAircraft_NoBubble_HiddenOnRadar()
     {
-        var list = Filter([Ground("N1", "OAK")], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
+        List<string> list = Filter([Ground("N1", "OAK")], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
         Assert.Empty(list);
     }
 
@@ -54,14 +61,14 @@ public class RadarCanvasFilterTests
     public void GroundAircraft_ActiveBubble_GroundViewNotShowingAirport_Surfaced()
     {
         // Ground view shows SFO (or nothing); the talking aircraft is at OAK → surface on radar.
-        var list = Filter([Ground("N1", "OAK", ActiveBubble())], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: "SFO");
+        List<string> list = Filter([Ground("N1", "OAK", ActiveBubble())], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: "SFO");
         Assert.Equal(["N1"], list);
     }
 
     [Fact]
     public void GroundAircraft_ActiveBubble_NoGroundViewOpen_Surfaced()
     {
-        var list = Filter([Ground("N1", "OAK", ActiveBubble())], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
+        List<string> list = Filter([Ground("N1", "OAK", ActiveBubble())], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
         Assert.Equal(["N1"], list);
     }
 
@@ -69,28 +76,28 @@ public class RadarCanvasFilterTests
     public void GroundAircraft_ActiveBubble_GroundViewShowingItsAirport_Hidden()
     {
         // Ground view already shows OAK → don't duplicate the bubble onto the radar.
-        var list = Filter([Ground("N1", "OAK", ActiveBubble())], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: "OAK");
+        List<string> list = Filter([Ground("N1", "OAK", ActiveBubble())], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: "OAK");
         Assert.Empty(list);
     }
 
     [Fact]
     public void GroundAircraft_ActiveBubble_AirportMatchIsCaseInsensitive_Hidden()
     {
-        var list = Filter([Ground("N1", "oak", ActiveBubble())], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: "OAK");
+        List<string> list = Filter([Ground("N1", "oak", ActiveBubble())], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: "OAK");
         Assert.Empty(list);
     }
 
     [Fact]
     public void GroundAircraft_ExpiredBubble_Hidden()
     {
-        var list = Filter([Ground("N1", "OAK", ExpiredBubble())], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: "SFO");
+        List<string> list = Filter([Ground("N1", "OAK", ExpiredBubble())], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: "SFO");
         Assert.Empty(list);
     }
 
     [Fact]
     public void GroundAircraft_ActiveBubble_MasterToggleOff_Hidden()
     {
-        var list = Filter([Ground("N1", "OAK", ActiveBubble())], showTopDown: false, showSpeechBubbles: false, groundShownAirportId: "SFO");
+        List<string> list = Filter([Ground("N1", "OAK", ActiveBubble())], showTopDown: false, showSpeechBubbles: false, groundShownAirportId: "SFO");
         Assert.Empty(list);
     }
 
@@ -98,21 +105,21 @@ public class RadarCanvasFilterTests
     public void GroundAircraft_UnknownAirport_ActiveBubble_Surfaced()
     {
         // Can't match an unknown airport to any ground view → surface rather than risk missing it.
-        var list = Filter([Ground("N1", null, ActiveBubble())], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
+        List<string> list = Filter([Ground("N1", null, ActiveBubble())], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
         Assert.Equal(["N1"], list);
     }
 
     [Fact]
     public void GroundAircraft_TopDown_AlwaysShown()
     {
-        var list = Filter([Ground("N1", "OAK")], showTopDown: true, showSpeechBubbles: false, groundShownAirportId: null);
+        List<string> list = Filter([Ground("N1", "OAK")], showTopDown: true, showSpeechBubbles: false, groundShownAirportId: null);
         Assert.Equal(["N1"], list);
     }
 
     [Fact]
     public void GroundAircraft_ActiveBubble_ButDelayed_Hidden()
     {
-        var list = Filter(
+        List<string> list = Filter(
             [Ground("N1", "OAK", ActiveBubble(), status: "Delayed")],
             showTopDown: false,
             showSpeechBubbles: true,
@@ -125,7 +132,7 @@ public class RadarCanvasFilterTests
     public void GroundAircraft_ActiveBubble_AlwaysShowOption_SurfacedEvenWhenGroundViewShowsAirport()
     {
         // "Always show ground bubbles on radar" overrides the airport-match gate.
-        var list = Filter(
+        List<string> list = Filter(
             [Ground("N1", "OAK", ActiveBubble())],
             showTopDown: false,
             showSpeechBubbles: true,
@@ -139,7 +146,7 @@ public class RadarCanvasFilterTests
     public void GroundAircraft_NoBubble_AlwaysShowOption_StillHidden()
     {
         // The always-show option only surfaces aircraft that actually have an active bubble.
-        var list = Filter(
+        List<string> list = Filter(
             [Ground("N1", "OAK")],
             showTopDown: false,
             showSpeechBubbles: true,
@@ -152,7 +159,7 @@ public class RadarCanvasFilterTests
     [Fact]
     public void GroundAircraft_ActiveBubble_AlwaysShowOption_MasterToggleOff_Hidden()
     {
-        var list = Filter(
+        List<string> list = Filter(
             [Ground("N1", "OAK", ActiveBubble())],
             showTopDown: false,
             showSpeechBubbles: false,
@@ -172,7 +179,7 @@ public class RadarCanvasFilterTests
             IsOnGround = false,
             Status = "Active",
         };
-        var list = Filter([airborne], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
+        List<string> list = Filter([airborne], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
         Assert.Equal(["N2"], list);
     }
 
@@ -191,14 +198,24 @@ public class RadarCanvasFilterTests
     {
         // Just lifted off and the displayed altitude still rounds to 000 — withheld until acquisition,
         // matching CRC STARS.
-        var list = Filter([Airborne("N3", belowDisplayFloor: true)], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
+        List<string> list = Filter(
+            [Airborne("N3", belowDisplayFloor: true)],
+            showTopDown: false,
+            showSpeechBubbles: true,
+            groundShownAirportId: null
+        );
         Assert.Empty(list);
     }
 
     [Fact]
     public void AirborneAircraft_AboveDisplayFloor_ShownOnRadar()
     {
-        var list = Filter([Airborne("N3", belowDisplayFloor: false)], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
+        List<string> list = Filter(
+            [Airborne("N3", belowDisplayFloor: false)],
+            showTopDown: false,
+            showSpeechBubbles: true,
+            groundShownAirportId: null
+        );
         Assert.Equal(["N3"], list);
     }
 
@@ -206,7 +223,12 @@ public class RadarCanvasFilterTests
     public void AirborneAircraft_BelowDisplayFloor_TopDown_StillShown()
     {
         // Top-down (ground) mode keeps low traffic visible.
-        var list = Filter([Airborne("N3", belowDisplayFloor: true)], showTopDown: true, showSpeechBubbles: false, groundShownAirportId: null);
+        List<string> list = Filter(
+            [Airborne("N3", belowDisplayFloor: true)],
+            showTopDown: true,
+            showSpeechBubbles: false,
+            groundShownAirportId: null
+        );
         Assert.Equal(["N3"], list);
     }
 }

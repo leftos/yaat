@@ -38,7 +38,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void AddBookmark()
     {
-        var timeSeconds = ScenarioElapsedSeconds;
+        double timeSeconds = ScenarioElapsedSeconds;
         BookmarkNamePromptRequested?.Invoke(
             new BookmarkNamePrompt(
                 InitialName: null,
@@ -105,7 +105,7 @@ public partial class MainViewModel
                 await SeekPrevBookmarkAsync();
                 return true;
             case BookmarkAction.Goto:
-                var target = Bookmarks.FirstOrDefault(b => b.Id == bookmark.Id);
+                TimelineBookmarkVm? target = Bookmarks.FirstOrDefault(b => b.Id == bookmark.Id);
                 if (target is null)
                 {
                     StatusText = $"No bookmark {bookmark.Id}";
@@ -131,10 +131,10 @@ public partial class MainViewModel
             return;
         }
 
-        foreach (var b in Bookmarks)
+        foreach (TimelineBookmarkVm b in Bookmarks)
         {
-            var name = string.IsNullOrWhiteSpace(b.Name) ? "(unnamed)" : b.Name;
-            var creator = string.IsNullOrWhiteSpace(b.CreatorInitials) ? "" : $" — {b.CreatorInitials}";
+            string name = string.IsNullOrWhiteSpace(b.Name) ? "(unnamed)" : b.Name;
+            string creator = string.IsNullOrWhiteSpace(b.CreatorInitials) ? "" : $" — {b.CreatorInitials}";
             AddSystemEntry($"{b.Id}  {b.TimeText}  {name}{creator}");
         }
     }
@@ -153,7 +153,7 @@ public partial class MainViewModel
         Bookmarks.Clear();
         if (bookmarks is not null)
         {
-            foreach (var b in bookmarks.OrderBy(b => b.TimeSeconds).Take(MaxBookmarks))
+            foreach (TimelineBookmarkDto? b in bookmarks.OrderBy(b => b.TimeSeconds).Take(MaxBookmarks))
             {
                 Bookmarks.Add(NewBookmarkVm(b.Id, b.TimeSeconds, b.Name, b.CreatorInitials));
             }
@@ -181,7 +181,7 @@ public partial class MainViewModel
 
         try
         {
-            var result = await _connection.AddBookmarkAsync(timeSeconds, name, _preferences.UserInitials);
+            CommandResultDto result = await _connection.AddBookmarkAsync(timeSeconds, name, _preferences.UserInitials);
             StatusText = result.Success ? $"Bookmark added at {FormatTime(timeSeconds)}" : (result.Message ?? "Add bookmark failed");
         }
         catch (Exception ex)
@@ -218,7 +218,7 @@ public partial class MainViewModel
 
         try
         {
-            var result = await _connection.DeleteBookmarkAsync(id);
+            CommandResultDto result = await _connection.DeleteBookmarkAsync(id);
             if (result.Success)
             {
                 StatusText = "Bookmark deleted";

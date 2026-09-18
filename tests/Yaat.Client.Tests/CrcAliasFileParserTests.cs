@@ -10,9 +10,9 @@ public class CrcAliasFileParserTests
     [Fact]
     public void AliasLine_IsParsedIntoNameAndBody()
     {
-        var aliases = Parse(".C172 .echo DESIGNATOR: C172 | RECAT: I");
+        List<CrcAlias> aliases = Parse(".C172 .echo DESIGNATOR: C172 | RECAT: I");
 
-        var alias = Assert.Single(aliases);
+        CrcAlias alias = Assert.Single(aliases);
         Assert.Equal(".C172", alias.Name);
         Assert.Equal(".echo DESIGNATOR: C172 | RECAT: I", alias.ReplacementText);
         Assert.Equal("test.txt", alias.SourceFile);
@@ -26,7 +26,7 @@ public class CrcAliasFileParserTests
     [Fact]
     public void HeaderTextCommentsAndBlankLines_AreSkipped()
     {
-        var aliases = Parse(
+        List<CrcAlias> aliases = Parse(
             "BASIC OAKLAND ARTCC ON VATSIM CONTROLLERS ALIAS LIST",
             "Amendments by several authors",
             "AIRAC 2604",
@@ -55,7 +55,7 @@ public class CrcAliasFileParserTests
     [Fact]
     public void IndentedAlias_IsLoaded()
     {
-        var alias = Assert.Single(Parse("   .REF .openurl https://reference.oakartcc.org"));
+        CrcAlias alias = Assert.Single(Parse("   .REF .openurl https://reference.oakartcc.org"));
         Assert.Equal(".REF", alias.Name);
     }
 
@@ -77,7 +77,7 @@ public class CrcAliasFileParserTests
     [Fact]
     public void LaterDefinitions_AreReturnedInFileOrder()
     {
-        var aliases = Parse(".A .echo first", ".B .echo second", ".A .echo third");
+        List<CrcAlias> aliases = Parse(".A .echo first", ".B .echo second", ".A .echo third");
 
         Assert.Equal([".A", ".B", ".A"], aliases.Select(a => a.Name));
         Assert.Equal([1, 2, 3], aliases.Select(a => a.LineNumber));

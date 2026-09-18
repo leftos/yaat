@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
@@ -135,12 +136,12 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var ac = SfoGroundHarness.SpawnParked(ground, "PSH9", AircraftType, Gate);
-        var result = ground.Engine.SendCommand(ac.Callsign, PushCommand);
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "PSH9", AircraftType, Gate);
+        CommandResult result = ground.Engine.SendCommand(ac.Callsign, PushCommand);
         output.WriteLine($"{Gate} stand heading {ac.TrueHeading.Degrees:F1}° — '{PushCommand}' → success={result.Success} \"{result.Message}\"");
         Assert.True(result.Success, $"'{PushCommand}' off {Gate} was refused: {result.Message}");
 
-        var run = TickMove(ground, ac, MoveBudgetSeconds);
+        MoveRun run = TickMove(ground, ac, MoveBudgetSeconds);
 
         Assert.True(run.CompletedSecond > 0, $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)})");
         AssertKinds(run, PushbackLegKind.Push, PushbackLegKind.Push, PushbackLegKind.Pull);
@@ -163,12 +164,12 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var ac = SfoGroundHarness.SpawnParked(ground, "PSM1", AircraftType, Gate);
-        var result = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "PSM1", AircraftType, Gate);
+        CommandResult result = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
         output.WriteLine($"{Gate} stand heading {ac.TrueHeading.Degrees:F1}° — '{MoveCommand}' → success={result.Success} \"{result.Message}\"");
         Assert.True(result.Success, $"'{MoveCommand}' off {Gate} was refused: {result.Message}");
 
-        var run = TickMove(ground, ac, MoveBudgetSeconds);
+        MoveRun run = TickMove(ground, ac, MoveBudgetSeconds);
 
         Assert.True(run.CompletedSecond > 0, $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)})");
         AssertTugMotion(run);
@@ -191,13 +192,14 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var ac = SfoGroundHarness.SpawnParked(ground, "PSM8", AircraftType, Gate);
-        var result = ground.Engine.SendCommand(ac.Callsign, StandMoveCommand);
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "PSM8", AircraftType, Gate);
+        CommandResult result = ground.Engine.SendCommand(ac.Callsign, StandMoveCommand);
         output.WriteLine($"'{StandMoveCommand}' off {Gate} → success={result.Success} \"{result.Message}\"");
         Assert.True(result.Success, $"'{StandMoveCommand}' off {Gate} was refused: {result.Message}");
 
-        var run = TickMove(ground, ac, MoveBudgetSeconds);
-        var endGate = ground.Layout.FindParkingByName(EndGate) ?? throw new InvalidOperationException($"the SFO layout has no gate '{EndGate}'");
+        MoveRun run = TickMove(ground, ac, MoveBudgetSeconds);
+        GroundNode endGate =
+            ground.Layout.FindParkingByName(EndGate) ?? throw new InvalidOperationException($"the SFO layout has no gate '{EndGate}'");
         output.WriteLine(
             $"at rest {DistanceFt(ac.Position, endGate.Position):F2} ft off {EndGate}, nose {ac.TrueHeading.Degrees:F2}° vs the stand's "
                 + $"{DescribeHeading(endGate.TrueHeading?.Degrees)}"
@@ -221,9 +223,9 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var ac = SfoGroundHarness.SpawnParked(ground, "PSM9", AircraftType, Gate);
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "PSM9", AircraftType, Gate);
         string command = $"{StandMoveCommand} FACE E";
-        var result = ground.Engine.SendCommand(ac.Callsign, command);
+        CommandResult result = ground.Engine.SendCommand(ac.Callsign, command);
         output.WriteLine($"'{command}' off {Gate} → success={result.Success} \"{result.Message}\"");
 
         Assert.False(result.Success, $"'{command}' was accepted");
@@ -245,16 +247,16 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var ac = SfoGroundHarness.SpawnParked(ground, "PSM2", AircraftType, Gate);
-        var result = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "PSM2", AircraftType, Gate);
+        CommandResult result = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
         Assert.True(result.Success, $"'{MoveCommand}' off {Gate} was refused: {result.Message}");
 
         AssertStandPushOffLeg(ac);
 
-        var run = TickMove(ground, ac, MoveBudgetSeconds);
+        MoveRun run = TickMove(ground, ac, MoveBudgetSeconds);
 
         AssertKinds(run, PushbackLegKind.Push, PushbackLegKind.Push, PushbackLegKind.Pull, PushbackLegKind.Push, PushbackLegKind.Pull);
-        foreach (var sample in run.Samples.Where(s => s.Phase is not null))
+        foreach (Sample? sample in run.Samples.Where(s => s.Phase is not null))
         {
             bool push = sample.Phase!.Kind == PushbackLegKind.Push;
             Assert.True(
@@ -302,16 +304,16 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var from = Spot(ground.Layout, EndSpot);
-        var toward = Spot(ground.Layout, AlleySpot);
+        GroundNode from = Spot(ground.Layout, EndSpot);
+        GroundNode toward = Spot(ground.Layout, AlleySpot);
         var facing = new TrueHeading(GeoMath.BearingTo(from.Position, toward.Position));
-        var ac = SfoGroundHarness.SpawnAt(ground, "PSM3", AircraftType, (from, facing), new HoldingAfterPushbackPhase());
+        AircraftState ac = SfoGroundHarness.SpawnAt(ground, "PSM3", AircraftType, (from, facing), new HoldingAfterPushbackPhase());
 
-        var result = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
+        CommandResult result = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
         output.WriteLine($"holding in the alley facing {facing.Degrees:F0}° — '{MoveCommand}' → success={result.Success} \"{result.Message}\"");
         Assert.True(result.Success, $"'{MoveCommand}' from the alley was refused: {result.Message}");
 
-        var run = TickMove(ground, ac, MoveBudgetSeconds);
+        MoveRun run = TickMove(ground, ac, MoveBudgetSeconds);
 
         Assert.NotEmpty(run.Moves);
         Assert.Equal(PushbackLegKind.Pull, run.Moves[0].Kind);
@@ -334,13 +336,13 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var ac = SfoGroundHarness.SpawnParked(ground, "PSM4", AircraftType, Gate);
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "PSM4", AircraftType, Gate);
         Assert.True(ground.Engine.SendCommand(ac.Callsign, MoveCommand) is { Success: true });
         int cueSecond = TickUntilCue(ground, ac, "a move rolling mid-move with another queued", () => (MidMove(ac) is not null) && IsRolling(ac));
 
-        var running = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        PushbackPhase running = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
         double speedAtHold = ac.GroundSpeed;
-        var hold = ground.Engine.SendCommand(ac.Callsign, "HOLD");
+        CommandResult hold = ground.Engine.SendCommand(ac.Callsign, "HOLD");
         Assert.True(hold.Success, $"'HOLD' during the tug move was refused: {hold.Message}");
 
         // The hold brakes the tow at the towbar rate rather than freezing it where it stands: a second later the
@@ -356,7 +358,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         int stoppedSecond = SfoGroundHarness.TickUntil(ground.Engine, () => !IsRolling(ac), HoldStopBudgetSeconds, null);
         Assert.True(stoppedSecond > 0, $"the held aircraft was still rolling at {ac.GroundSpeed:F2} kt {HoldStopBudgetSeconds}s after HOLD");
 
-        var heldAt = ac.Position;
+        LatLon heldAt = ac.Position;
         SfoGroundHarness.TickUntil(ground.Engine, () => false, HoldObservationSeconds, null);
         double driftFt = DistanceFt(ac.Position, heldAt);
         output.WriteLine(
@@ -367,12 +369,12 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         Assert.True(driftFt <= FrozenToleranceFt, $"the held aircraft drifted {driftFt:F1} ft — HOLD stops the tug");
         Assert.Same(running, ac.Phases?.CurrentPhase);
 
-        var resume = ground.Engine.SendCommand(ac.Callsign, "RES");
+        CommandResult resume = ground.Engine.SendCommand(ac.Callsign, "RES");
         Assert.True(resume.Success, $"'RES' after the hold was refused: {resume.Message}");
         Assert.Same(running, ac.Phases?.CurrentPhase);
 
-        var run = TickMove(ground, ac, MoveBudgetSeconds);
-        var rest = SpotRest(ground.Layout, EndSpot);
+        MoveRun run = TickMove(ground, ac, MoveBudgetSeconds);
+        (LatLon Position, double OutHeadingDeg) rest = SpotRest(ground.Layout, EndSpot);
         double offRestFt = DistanceFt(ac.Position, rest.Position);
         output.WriteLine($"resumed: finished t={run.CompletedSecond}s, {offRestFt:F1} ft off the {EndSpot} rest point");
 
@@ -395,7 +397,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var ac = SfoGroundHarness.SpawnParked(ground, "PSM5", AircraftType, Gate);
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "PSM5", AircraftType, Gate);
         Assert.True(ground.Engine.SendCommand(ac.Callsign, MoveCommand) is { Success: true });
         TickUntilCue(
             ground,
@@ -407,11 +409,11 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         int liveLegs = LiveTugLegs(ac).Count;
         Assert.True(liveLegs >= 2, $"the move only has {liveLegs} live tug leg(s) — this case needs a leg still pending behind the running one");
 
-        var taxi = ground.Engine.SendCommand(ac.Callsign, TaxiOutCommand);
+        CommandResult taxi = ground.Engine.SendCommand(ac.Callsign, TaxiOutCommand);
         output.WriteLine($"'{TaxiOutCommand}' mid-move → success={taxi.Success} \"{taxi.Message}\"");
         Assert.True(taxi.Success, $"'{TaxiOutCommand}' during the tug move was refused: {taxi.Message}");
 
-        var stillLive = LiveTugLegs(ac);
+        List<PushbackPhase> stillLive = LiveTugLegs(ac);
         Assert.True(stillLive.Count == 0, $"{stillLive.Count} tug leg(s) survived the taxi clearance — the remaining legs must go with the move");
 
         int reArmedSecond = SfoGroundHarness.TickUntil(ground.Engine, () => ac.Phases?.CurrentPhase is PushbackPhase, TaxiObservationSeconds, null);
@@ -433,7 +435,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var ac = SfoGroundHarness.SpawnParked(ground, "PSM7", AircraftType, Gate);
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "PSM7", AircraftType, Gate);
         Assert.True(ground.Engine.SendCommand(ac.Callsign, MoveCommand) is { Success: true });
         int cueSecond = TickUntilCue(ground, ac, "mid-move with another move queued", () => MidMove(ac) is not null);
 
@@ -444,7 +446,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             $"the move only queued {originalLegs.Count} tug leg(s) — this case needs a leg still pending behind the running one"
         );
 
-        var redirect = ground.Engine.SendCommand(ac.Callsign, RedirectCommand);
+        CommandResult redirect = ground.Engine.SendCommand(ac.Callsign, RedirectCommand);
         output.WriteLine($"'{RedirectCommand}' at t={cueSecond}s into '{MoveCommand}' → success={redirect.Success} \"{redirect.Message}\"");
         Assert.True(redirect.Success, $"'{RedirectCommand}' during the tug move was refused: {redirect.Message}");
 
@@ -454,8 +456,8 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             $"{survivors.Count} leg(s) of the original move survived the redirect — a fresh move replaces the one running and everything behind it"
         );
 
-        var run = TickMove(ground, ac, MoveBudgetSeconds);
-        var rest = SpotRest(ground.Layout, RedirectEndSpot);
+        MoveRun run = TickMove(ground, ac, MoveBudgetSeconds);
+        (LatLon Position, double OutHeadingDeg) rest = SpotRest(ground.Layout, RedirectEndSpot);
         double offRestFt = DistanceFt(ac.Position, rest.Position);
         double offOldEndFt = DistanceFt(ac.Position, SpotRest(ground.Layout, EndSpot).Position);
         output.WriteLine(
@@ -487,7 +489,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var ac = SfoGroundHarness.SpawnParked(ground, "PSM9", AircraftType, Gate);
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "PSM9", AircraftType, Gate);
         Assert.True(ground.Engine.SendCommand(ac.Callsign, MoveCommand) is { Success: true });
         TickUntilCue(
             ground,
@@ -499,18 +501,18 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
                 && (NextTugMove(ac) is { Kind: PushbackLegKind.Pull })
                 && (FirstMoveOfMoveCommandFromHere(ground.Layout, ac) == PushbackLegKind.Pull)
         );
-        var pushing = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        PushbackPhase pushing = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
         Assert.Equal(PushbackLegKind.Push, pushing.Kind);
         Assert.True(ac.GroundSpeed > AtRestSpeedKts, $"test setup: the push is not rolling ({ac.GroundSpeed:F2} kt)");
 
-        var redirect = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
+        CommandResult redirect = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
         Assert.True(redirect.Success, $"'{MoveCommand}' mid-push was refused: {redirect.Message}");
-        var first = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        PushbackPhase first = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
         output.WriteLine($"redirect → first move {first.Kind} {first.Move.Shape}, dwell before={first.Move.DwellBefore}");
         Assert.Equal(PushbackLegKind.Pull, first.Kind);
         Assert.True(first.Move.DwellBefore, "a pull replacing a running push is a reversal, so it dwells first");
 
-        var run = TickMove(ground, ac, MoveBudgetSeconds);
+        MoveRun run = TickMove(ground, ac, MoveBudgetSeconds);
 
         int firstPull = FirstForwardMotionIndex(run.Samples, first);
         Assert.True(firstPull > 0, "the redirected pull never moved the aircraft nose-first");
@@ -537,7 +539,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var ac = SfoGroundHarness.SpawnParked(ground, "PSM10", AircraftType, Gate);
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "PSM10", AircraftType, Gate);
         Assert.True(ground.Engine.SendCommand(ac.Callsign, MoveCommand) is { Success: true });
         var before = new List<Sample> { SampleOf(0, ac) };
         int redirectSecond = SfoGroundHarness.TickUntil(
@@ -547,20 +549,20 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             second => before.Add(SampleOf(second, ac))
         );
         Assert.True(redirectSecond > 0, "test setup: the move never reached a pull waiting out its dwell");
-        var dwelling = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        PushbackPhase dwelling = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
         output.WriteLine(
             $"at t={redirectSecond}s: {dwelling.Kind} {dwelling.Move.Shape} dwelling {before[^1].DwellSeconds:F2} s, moved={dwelling.HasMoved}"
         );
         Assert.False(dwelling.HasMoved, "test setup: the dwelling pull has already moved the aircraft");
 
-        var redirect = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
+        CommandResult redirect = ground.Engine.SendCommand(ac.Callsign, MoveCommand);
         Assert.True(redirect.Success, $"'{MoveCommand}' during the dwell was refused: {redirect.Message}");
-        var first = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        PushbackPhase first = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
         output.WriteLine($"redirect → first move {first.Kind} {first.Move.Shape}, dwell before={first.Move.DwellBefore}");
         Assert.Equal(PushbackLegKind.Pull, first.Kind);
         Assert.True(first.Move.DwellBefore, "the aircraft last moved in a push, so the redirected pull is a reversal and dwells first");
 
-        var run = TickMove(ground, ac, MoveBudgetSeconds);
+        MoveRun run = TickMove(ground, ac, MoveBudgetSeconds);
 
         // The run's first sample is the redirect second again, now with the redirected move running.
         var samples = before.Take(before.Count - 1).Concat(run.Samples.Select(s => s with { Second = s.Second + redirectSecond })).ToList();
@@ -586,12 +588,12 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var ac = SfoGroundHarness.SpawnParked(ground, "PSM6", AircraftType, Gate);
-        var before = Assert.IsType<AtParkingPhase>(ac.Phases?.CurrentPhase);
-        var bar = NearestRunwayHoldShort(ground.Layout, ac.Position);
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "PSM6", AircraftType, Gate);
+        AtParkingPhase before = Assert.IsType<AtParkingPhase>(ac.Phases?.CurrentPhase);
+        GroundNode bar = NearestRunwayHoldShort(ground.Layout, ac.Position);
 
         string command = $"PUSHM ${AlleySpot} #{bar.Id}";
-        var result = ground.Engine.SendCommand(ac.Callsign, command);
+        CommandResult result = ground.Engine.SendCommand(ac.Callsign, command);
         output.WriteLine(
             $"'{command}' (second point is the {bar.Name ?? "unnamed"} holding position) → success={result.Success} \"{result.Message}\""
         );
@@ -641,7 +643,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
         internal string Describe()
         {
-            var move = Phase.Move;
+            TugMove move = Phase.Move;
             string flags = $"{(move.DwellBefore ? " dwell" : "")}{(move.Tight ? " tight" : "")}{(move.Creep ? " creep" : "")}";
             return $"{move.Kind} {move.Shape}{flags}: t={FirstSecond}-{LastSecond}s ({LastSecond - FirstSecond + 1} s), path {PathFt:F1} ft, "
                 + $"dwell {DwellSeconds:F2} s, peak {PeakKts:F2} kt";
@@ -669,8 +671,8 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             budgetSeconds,
             second =>
             {
-                var previous = samples[^1];
-                var sample = SampleOf(second, ac);
+                Sample previous = samples[^1];
+                Sample sample = SampleOf(second, ac);
                 samples.Add(sample);
                 if (moves.FirstOrDefault(m => ReferenceEquals(m.Phase, previous.Phase)) is { } startedIn)
                 {
@@ -718,7 +720,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             moves.Add(new MoveTrace { Phase = phase, FirstSecond = sample.Second });
         }
 
-        var move = moves[^1];
+        MoveTrace move = moves[^1];
         move.LastSecond = sample.Second;
         move.PeakKts = Math.Max(move.PeakKts, sample.GroundSpeedKts);
         move.DwellSeconds = sample.DwellSeconds;
@@ -734,11 +736,11 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     private void AssertTugMotion(MoveRun run)
     {
         double tightRadiusFt = TugKinematics.TurnRadiusFt(AircraftType, tight: true);
-        var samples = run.Samples;
+        IReadOnlyList<Sample> samples = run.Samples;
         for (int i = 1; i < samples.Count; i++)
         {
-            var from = samples[i - 1];
-            var to = samples[i];
+            Sample from = samples[i - 1];
+            Sample to = samples[i];
             double movedFt = DistanceFt(from.Position, to.Position);
             double turnedDeg = new TrueHeading(from.NoseDeg).AbsAngleTo(new TrueHeading(to.NoseDeg));
             double boundRad = ((movedFt / tightRadiusFt) * CurvatureMargin) + CurvatureSlackRad;
@@ -756,8 +758,8 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
         for (int k = 1; k < run.Moves.Count; k++)
         {
-            var previous = run.Moves[k - 1];
-            var next = run.Moves[k];
+            MoveTrace previous = run.Moves[k - 1];
+            MoveTrace next = run.Moves[k];
             if (previous.Kind == next.Kind)
             {
                 continue;
@@ -804,7 +806,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// </summary>
     private void AssertRestsOnSpot(AirportGroundLayout layout, AircraftState ac, string spotName)
     {
-        var rest = SpotRest(layout, spotName);
+        (LatLon Position, double OutHeadingDeg) rest = SpotRest(layout, spotName);
         double offRestFt = DistanceFt(ac.Position, rest.Position);
         double offNoseOutDeg = new TrueHeading(rest.OutHeadingDeg).AbsAngleTo(ac.TrueHeading);
         output.WriteLine(
@@ -824,7 +826,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
     private static void AssertKinds(MoveRun run, params PushbackLegKind[] expected)
     {
-        var kinds = run.Moves.Select(m => m.Kind).ToArray();
+        PushbackLegKind[] kinds = run.Moves.Select(m => m.Kind).ToArray();
         Assert.True(
             expected.SequenceEqual(kinds),
             $"expected moves {string.Join(", ", expected)} but ran {string.Join(", ", run.Moves.Select(m => m.Describe()))}"
@@ -853,8 +855,8 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     {
         for (int i = 1; i < samples.Count; i++)
         {
-            var from = samples[i - 1];
-            var to = samples[i];
+            Sample from = samples[i - 1];
+            Sample to = samples[i];
             bool inPhase = ReferenceEquals(from.Phase, phase) && ReferenceEquals(to.Phase, phase);
             if (!inPhase || (StepFt(samples, i) < StillFt))
             {
@@ -954,7 +956,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// </summary>
     private static bool TaxiOutRoutes(AirportGroundLayout layout, AircraftState ac)
     {
-        var start = layout.FindNearestNodeForTaxi(ac.Position, ac.TrueHeading) ?? layout.FindNearestNode(ac.Position);
+        GroundNode? start = layout.FindNearestNodeForTaxi(ac.Position, ac.TrueHeading) ?? layout.FindNearestNode(ac.Position);
         if (start is null)
         {
             return false;
@@ -970,7 +972,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         }
 
         var options = new ExplicitPathOptions { StartHeadingTrue = ac.TrueHeading.Degrees };
-        var category = AircraftCategorization.Categorize(ac.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(ac.AircraftType);
         return TaxiPathfinder.ResolveExplicitPathDetailed(layout, start.Id, [TaxiOutTaxiway], out _, options, category) is not null;
     }
 
@@ -984,7 +986,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// <returns>The rest point and the spot's nose-out heading in degrees true.</returns>
     private static (LatLon Position, double OutHeadingDeg) SpotRest(AirportGroundLayout layout, string spotName)
     {
-        var spot = Spot(layout, spotName);
+        GroundNode spot = Spot(layout, spotName);
         Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outBearingDeg), $"spot '{spotName}' has no outbound heading in the layout");
         double halfLengthNm = ((FaaAircraftDatabase.Get(AircraftType)?.LengthFt ?? DefaultFuselageLengthFt) / 2.0) / GeoMath.FeetPerNm;
         return (GeoMath.ProjectPoint(spot.Position, new TrueHeading(outBearingDeg).ToReciprocal(), halfLengthNm), outBearingDeg);
@@ -998,7 +1000,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     {
         GroundNode? best = null;
         double bestNm = double.MaxValue;
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (node.Type != GroundNodeType.RunwayHoldShort)
             {

@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -30,11 +31,11 @@ public class AutoCrossRunwayToggleTests(ITestOutputHelper output)
     [Fact]
     public void Apply_ToggleOn_MarksUnclearedRunwayCrossings_AsClearedByAutoCross()
     {
-        var route = MakeRoute(MakeHs(100, HoldShortReason.RunwayCrossing, isCleared: false));
+        TaxiRoute route = MakeRoute(MakeHs(100, HoldShortReason.RunwayCrossing, isCleared: false));
 
         TaxiRouteAutoCross.Apply(route, autoCross: true);
 
-        var hs = route.HoldShortPoints[0];
+        HoldShortPoint hs = route.HoldShortPoints[0];
         Assert.True(hs.IsCleared);
         Assert.True(hs.ClearedByAutoCross);
     }
@@ -44,11 +45,11 @@ public class AutoCrossRunwayToggleTests(ITestOutputHelper output)
     {
         // Already cleared by some other path (first-crossing or explicit CROSS keyword);
         // ClearedByAutoCross stays false so a future toggle-OFF won't revert it.
-        var route = MakeRoute(MakeHs(100, HoldShortReason.RunwayCrossing, isCleared: true));
+        TaxiRoute route = MakeRoute(MakeHs(100, HoldShortReason.RunwayCrossing, isCleared: true));
 
         TaxiRouteAutoCross.Apply(route, autoCross: true);
 
-        var hs = route.HoldShortPoints[0];
+        HoldShortPoint hs = route.HoldShortPoints[0];
         Assert.True(hs.IsCleared);
         Assert.False(hs.ClearedByAutoCross);
     }
@@ -56,7 +57,7 @@ public class AutoCrossRunwayToggleTests(ITestOutputHelper output)
     [Fact]
     public void Apply_ToggleOn_DoesNotTouchExplicitOrDestinationHoldShorts()
     {
-        var route = MakeRoute(
+        TaxiRoute route = MakeRoute(
             MakeHs(100, HoldShortReason.ExplicitHoldShort, isCleared: false),
             MakeHs(101, HoldShortReason.DestinationRunway, isCleared: false)
         );
@@ -72,7 +73,7 @@ public class AutoCrossRunwayToggleTests(ITestOutputHelper output)
     [Fact]
     public void Apply_ToggleOff_RevertsOnlyAutoCrossClearedCrossings()
     {
-        var route = MakeRoute(
+        TaxiRoute route = MakeRoute(
             // Cleared by AutoCross — must revert.
             MakeHs(100, HoldShortReason.RunwayCrossing, isCleared: true, clearedByAutoCross: true),
             // Cleared by some other path (e.g. first-crossing resume) — must persist.
@@ -129,7 +130,7 @@ public class AutoCrossRunwayToggleTests(ITestOutputHelper output)
             return;
         }
 
-        var recording = RecordingLoader.Load("TestData/10797ffbbfea.zip");
+        SessionRecording? recording = RecordingLoader.Load("TestData/10797ffbbfea.zip");
         if (recording is null)
         {
             return;
@@ -145,15 +146,15 @@ public class AutoCrossRunwayToggleTests(ITestOutputHelper output)
         // first-crossing-resume clearance from the AutoCross blanket clearance.
         engine.Scenario!.AutoCrossRunway = false;
 
-        var result = engine.SendCommand("N342T", "TAXI B RWY 28L");
+        CommandResult result = engine.SendCommand("N342T", "TAXI B RWY 28L");
         Assert.True(result.Success, $"TAXI command failed: {result.Message}");
 
-        var aircraft = engine.FindAircraft("N342T");
+        AircraftState? aircraft = engine.FindAircraft("N342T");
         Assert.NotNull(aircraft);
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
-        var firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
+        HoldShortPoint? firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
         Assert.NotNull(firstCrossing);
         Assert.True(firstCrossing.IsCleared, "First-crossing-resume should clear the first RunwayCrossing");
         Assert.False(
@@ -192,7 +193,7 @@ public class AutoCrossRunwayToggleTests(ITestOutputHelper output)
             return;
         }
 
-        var recording = RecordingLoader.Load("TestData/10797ffbbfea.zip");
+        SessionRecording? recording = RecordingLoader.Load("TestData/10797ffbbfea.zip");
         if (recording is null)
         {
             return;
@@ -204,7 +205,7 @@ public class AutoCrossRunwayToggleTests(ITestOutputHelper output)
 
         engine.Replay(recording, 673);
 
-        var aircraft = engine.FindAircraft("N342T");
+        AircraftState? aircraft = engine.FindAircraft("N342T");
         Assert.NotNull(aircraft);
 
         // Precondition: the aircraft is in HoldingShortPhase at t=673.

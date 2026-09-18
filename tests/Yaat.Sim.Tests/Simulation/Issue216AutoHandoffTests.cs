@@ -37,7 +37,7 @@ public class Issue216AutoHandoffTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 
         return new SimulationEngine(groundData);
@@ -46,15 +46,15 @@ public class Issue216AutoHandoffTests(ITestOutputHelper output)
     [Fact]
     public void AtEpickHandoff_ToAutomatedNctPosition_Initiates()
     {
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
             return;
         }
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
 
         // Forward-replay to a point before EPICK is sequenced so ASA221's presets dispatch fresh and the
         // AT EPICK block is still pending with its ApplyAction intact (a snapshot restore would drop the
@@ -62,7 +62,7 @@ public class Issue216AutoHandoffTests(ITestOutputHelper output)
         // that still showed EPICK on the route.
         engine.Replay(recording, 475);
 
-        var ac = engine.FindAircraft("ASA221");
+        AircraftState? ac = engine.FindAircraft("ASA221");
         Assert.NotNull(ac);
 
         // Pure-Sim replay does not run the server-side autotrack step (TickProcessor.ApplyAutoTrack
@@ -100,18 +100,18 @@ public class Issue216AutoHandoffTests(ITestOutputHelper output)
     [Fact]
     public void AtEpickHandoff_SurvivesQueueSnapshotRoundTrip()
     {
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
             return;
         }
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 475);
 
-        var ac = engine.FindAircraft("ASA221");
+        AircraftState? ac = engine.FindAircraft("ASA221");
         Assert.NotNull(ac);
 
         // Round-trip the queue through a snapshot, dropping ParsedCommands/ApplyAction while keeping the

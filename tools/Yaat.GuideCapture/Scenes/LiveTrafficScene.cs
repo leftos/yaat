@@ -49,7 +49,7 @@ internal sealed class LiveTrafficScene : ScenarioSceneBase
     {
         await RadarViewScene.EnableLoWestSectorAsync(vm);
 
-        var store = ctx.ServerServices.GetRequiredService<LiveTrafficStore>();
+        LiveTrafficStore store = ctx.ServerServices.GetRequiredService<LiveTrafficStore>();
         store.ReportFeedState(connected: true, DateTimeOffset.UtcNow);
         PublishTracks(store);
 
@@ -64,7 +64,7 @@ internal sealed class LiveTrafficScene : ScenarioSceneBase
             await SceneActions.WaitUntilAsync(() => !vm.IsPaused, TimeSpan.FromSeconds(5), "sim to unpause");
         }
 
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
         while (vm.Aircraft.Count(a => a.IsLiveTraffic) < Tracks.Length)
         {
             if (DateTime.UtcNow > deadline)
@@ -90,8 +90,10 @@ internal sealed class LiveTrafficScene : ScenarioSceneBase
 
     private static void PublishTracks(LiveTrafficStore store)
     {
-        var now = DateTimeOffset.UtcNow;
-        foreach (var t in Tracks)
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        foreach (
+            (string Callsign, string Type, uint Beacon, double Lat, double Lon, double AltFt, double GsKt, double TrackDeg, double VsFpm) t in Tracks
+        )
         {
             var view = new LiveView(
                 LiveTrafficSource.Stars,

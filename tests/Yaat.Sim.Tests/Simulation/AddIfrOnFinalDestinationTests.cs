@@ -42,7 +42,7 @@ public class AddIfrOnFinalDestinationTests(ITestOutputHelper output)
             return;
         }
 
-        var (state, error) = AircraftGenerator.Generate(
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
             request: MakeOnFinalRequest(FlightRulesKind.Ifr),
             primaryAirportId: "OAK",
             existingAircraft: [],
@@ -67,7 +67,7 @@ public class AddIfrOnFinalDestinationTests(ITestOutputHelper output)
             return;
         }
 
-        var (state, error) = AircraftGenerator.Generate(
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
             request: MakeOnFinalRequest(FlightRulesKind.Ifr),
             primaryAirportId: "KOAK",
             existingAircraft: [],
@@ -102,7 +102,7 @@ public class AddIfrOnFinalDestinationTests(ITestOutputHelper output)
             FinalDistanceNm = 30,
         };
 
-        var (state, error) = AircraftGenerator.Generate(
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
             request,
             primaryAirportId: "OAK",
             existingAircraft: [],

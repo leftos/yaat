@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -70,16 +71,16 @@ public class VfrDestinationOnlyRunwayResolutionTests(ITestOutputHelper output)
     [Fact]
     public void ResolveRunway_OnGround_FiledDestinationElsewhere_UsesPhysicalAirport()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
 
-        var ac = MakeOnGroundDeparture(airportId: "OAK", filedDeparture: "", filedDestination: "KAPC");
+        AircraftState ac = MakeOnGroundDeparture(airportId: "OAK", filedDeparture: "", filedDestination: "KAPC");
 
-        var runway = CommandDispatcher.ResolveRunway(ac, "28R");
+        RunwayInfo? runway = CommandDispatcher.ResolveRunway(ac, "28R");
 
         Assert.NotNull(runway);
         Assert.Equal("OAK", runway.AirportId);
@@ -94,16 +95,16 @@ public class VfrDestinationOnlyRunwayResolutionTests(ITestOutputHelper output)
     [Fact]
     public void ResolveRunway_NoAirportContext_FiledDeparture_StillResolves()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
 
-        var ac = MakeOnGroundDeparture(airportId: "", filedDeparture: "OAK", filedDestination: "");
+        AircraftState ac = MakeOnGroundDeparture(airportId: "", filedDeparture: "OAK", filedDestination: "");
 
-        var runway = CommandDispatcher.ResolveRunway(ac, "28R");
+        RunwayInfo? runway = CommandDispatcher.ResolveRunway(ac, "28R");
 
         Assert.NotNull(runway);
         Assert.Equal("OAK", runway.AirportId);
@@ -118,16 +119,16 @@ public class VfrDestinationOnlyRunwayResolutionTests(ITestOutputHelper output)
     [Fact]
     public void Rwy_OnGround_FiledDestinationElsewhere_AssignsPhysicalRunway()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
 
-        var ac = MakeOnGroundDeparture(airportId: "OAK", filedDeparture: "", filedDestination: "KAPC");
+        AircraftState ac = MakeOnGroundDeparture(airportId: "OAK", filedDeparture: "", filedDestination: "KAPC");
 
-        var result = GroundCommandHandler.TryAssignRunway(ac, "28R");
+        CommandResult result = GroundCommandHandler.TryAssignRunway(ac, "28R");
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(ac.Phases?.AssignedRunway);

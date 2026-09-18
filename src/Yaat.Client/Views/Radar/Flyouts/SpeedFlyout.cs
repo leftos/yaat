@@ -74,9 +74,9 @@ internal static class SpeedFlyout
 
     internal static MenuItem BuildFasItem(AircraftModel aircraft, RadarViewModel radarVm, string initials)
     {
-        var category = AircraftCategorization.Categorize(aircraft.FiledAircraftType);
-        var fas = AircraftPerformance.ApproachSpeed(aircraft.FiledAircraftType, category);
-        var header = fas > 0 ? $"FAS - {fas:F0} kt" : "FAS";
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.FiledAircraftType);
+        double fas = AircraftPerformance.ApproachSpeed(aircraft.FiledAircraftType, category);
+        string header = fas > 0 ? $"FAS - {fas:F0} kt" : "FAS";
 
         var item = new MenuItem { Header = header };
         item.Click += async (_, _) => await radarVm.ReduceFinalApproachSpeedAsync(aircraft.Callsign, initials);

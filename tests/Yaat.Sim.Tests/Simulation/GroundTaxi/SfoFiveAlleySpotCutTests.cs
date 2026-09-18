@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -41,7 +42,7 @@ public class SfoFiveAlleySpotCutTests
     /// </summary>
     private void LogCutCandidates(AirportGroundLayout layout, GroundNode gate, GroundNode stand)
     {
-        var graph = TaxiPathfinder.FindRoute(layout, gate.Id, stand.Id, AircraftCategory.Jet);
+        TaxiRoute? graph = TaxiPathfinder.FindRoute(layout, gate.Id, stand.Id, AircraftCategory.Jet);
         if (graph is null)
         {
             return;
@@ -50,7 +51,7 @@ public class SfoFiveAlleySpotCutTests
         var rows = new List<string>();
         for (int i = 0; i <= graph.Segments.Count; i++)
         {
-            var node = i == 0 ? graph.Segments[0].Edge.FromNode : graph.Segments[i - 1].Edge.ToNode;
+            GroundNode node = i == 0 ? graph.Segments[0].Edge.FromNode : graph.Segments[i - 1].Edge.ToNode;
             double alongFt = graph.PrefixDistanceFt(i);
             double cutFt = GeoMath.DistanceNm(node.Position, stand.Position) * GeoMath.FeetPerNm;
             double remainingFt = graph.TotalDistanceFt - alongFt;
@@ -66,24 +67,24 @@ public class SfoFiveAlleySpotCutTests
     [Fact]
     public void GateD2_TaxiToSpot5A_CutsAcrossTheAlleyInsteadOfLoopingOutToAlpha()
     {
-        var built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
         if (built is null)
         {
             return;
         }
 
-        var ground = built.Value;
-        var spot5A = ground.Layout.FindSpotNodeByName("5A");
+        SfoGround ground = built.Value;
+        GroundNode? spot5A = ground.Layout.FindSpotNodeByName("5A");
         Assert.True(spot5A is not null, "SFO layout has no spot named '5A'");
-        var gate = ground.Layout.FindParkingByName("D2");
+        GroundNode? gate = ground.Layout.FindParkingByName("D2");
         Assert.True(gate is not null, "SFO layout has no parking named 'D2'");
 
-        var aircraft = SfoGroundHarness.SpawnParked(ground, "UAL1234", "B738", "D2");
-        var result = ground.Engine.SendCommand("UAL1234", "TAXI $5A");
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "UAL1234", "B738", "D2");
+        CommandResult result = ground.Engine.SendCommand("UAL1234", "TAXI $5A");
         _output.WriteLine($"result: {result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         double straightFt = GeoMath.DistanceNm(gate.Position, spot5A.Position) * GeoMath.FeetPerNm;
         _output.WriteLine($"gate D2 = #{gate.Id}, spot 5A = #{spot5A.Id}, straight line {straightFt:F0} ft");
@@ -96,9 +97,9 @@ public class SfoFiveAlleySpotCutTests
         Assert.Equal(spot5A.Id, route.Segments[^1].ToNodeId);
         Assert.DoesNotContain(route.Segments, TouchesAlpha);
 
-        var crossing = route.Segments[^1];
+        TaxiRouteSegment crossing = route.Segments[^1];
         double crossingFt = crossing.Edge.DistanceNm * GeoMath.FeetPerNm;
-        var spot5 = ground.Layout.FindSpotNodeByName("5");
+        GroundNode? spot5 = ground.Layout.FindSpotNodeByName("5");
         Assert.True(spot5 is not null, "SFO layout has no spot named '5'");
         _output.WriteLine($"crossing: #{crossing.FromNodeId}-#{crossing.ToNodeId}({crossing.TaxiwayName}) {crossingFt:F0} ft, spot 5 = #{spot5.Id}");
         // These two pin the smallest-crossing objective, which the total-length bound below cannot: minimising

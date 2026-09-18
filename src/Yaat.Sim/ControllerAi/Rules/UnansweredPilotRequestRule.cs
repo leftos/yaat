@@ -16,9 +16,9 @@ public sealed class UnansweredPilotRequestRule : IDecisionRule
     public void Evaluate(AiRuleScope scope)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var aircraft in scope.Jurisdiction)
+        foreach (AircraftState aircraft in scope.Jurisdiction)
         {
-            var request = aircraft.PendingPilotRequest;
+            PilotPendingRequest? request = aircraft.PendingPilotRequest;
             if (request is not { IsOpen: true } || !Answers(scope.Position.Role, request.Kind))
             {
                 continue;

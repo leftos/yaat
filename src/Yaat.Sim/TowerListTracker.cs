@@ -68,18 +68,18 @@ public sealed class TowerListTracker
             return false;
         }
 
-        var changed = false;
+        bool changed = false;
 
         var activeCallsigns = new HashSet<string>(snapshot.Count, StringComparer.OrdinalIgnoreCase);
-        foreach (var ac in snapshot)
+        foreach (AircraftState ac in snapshot)
         {
             activeCallsigns.Add(ac.Callsign);
         }
 
         // Remove entries for deleted aircraft
-        foreach (var (_, entries) in _entries)
+        foreach ((TowerListKey _, List<TowerListEntry>? entries) in _entries)
         {
-            var removed = entries.RemoveAll(e => !activeCallsigns.Contains(e.Callsign));
+            int removed = entries.RemoveAll(e => !activeCallsigns.Contains(e.Callsign));
             if (removed > 0)
             {
                 changed = true;
@@ -87,9 +87,9 @@ public sealed class TowerListTracker
         }
 
         // Update proximity for each tower list airport
-        foreach (var airport in _airports)
+        foreach (TowerListAirport airport in _airports)
         {
-            if (!_entries.TryGetValue(airport.Key, out var entries))
+            if (!_entries.TryGetValue(airport.Key, out List<TowerListEntry>? entries))
             {
                 entries = [];
                 _entries[airport.Key] = entries;
@@ -97,9 +97,9 @@ public sealed class TowerListTracker
 
             var inRangeCallsigns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var ac in snapshot)
+            foreach (AircraftState ac in snapshot)
             {
-                var dist = GeoMath.DistanceNm(ac.Position, new LatLon(airport.Lat, airport.Lon));
+                double dist = GeoMath.DistanceNm(ac.Position, new LatLon(airport.Lat, airport.Lon));
                 if (dist <= airport.RangeNm)
                 {
                     inRangeCallsigns.Add(ac.Callsign);
@@ -109,10 +109,10 @@ public sealed class TowerListTracker
             // Add newly-in-range aircraft. Ordered ordinally rather than in set order: two aircraft that come into
             // range in the same second carry the same dwell second, so the order they are appended in is the order
             // they render and snapshot in — and a hash set's is per-process, which a byte-identical replay cannot use.
-            foreach (var callsign in inRangeCallsigns.OrderBy(c => c, StringComparer.Ordinal))
+            foreach (string? callsign in inRangeCallsigns.OrderBy(c => c, StringComparer.Ordinal))
             {
-                var alreadyPresent = false;
-                foreach (var e in entries)
+                bool alreadyPresent = false;
+                foreach (TowerListEntry e in entries)
                 {
                     if (e.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase))
                     {
@@ -129,7 +129,7 @@ public sealed class TowerListTracker
             }
 
             // Remove aircraft that left the range
-            var leftRange = entries.RemoveAll(e => !inRangeCallsigns.Contains(e.Callsign));
+            int leftRange = entries.RemoveAll(e => !inRangeCallsigns.Contains(e.Callsign));
             if (leftRange > 0)
             {
                 changed = true;
@@ -145,7 +145,7 @@ public sealed class TowerListTracker
     /// </summary>
     public List<(string Callsign, double EnteredAtSeconds)> GetEntries(TowerListKey key)
     {
-        if (!_entries.TryGetValue(key, out var entries))
+        if (!_entries.TryGetValue(key, out List<TowerListEntry>? entries))
         {
             return [];
         }
@@ -204,7 +204,7 @@ public sealed class TowerListTracker
             // Collect this facility's P-lists in declaration order.
             // A P-list is a list with no coordinationChannel and sortField=DropZoneEntryTime.
             var pLists = new List<StarsListConfig>();
-            foreach (var list in stars.Lists)
+            foreach (StarsListConfig list in stars.Lists)
             {
                 if (list.CoordinationChannel is null && list.SortField == "DropZoneEntryTime")
                 {
@@ -216,20 +216,20 @@ public sealed class TowerListTracker
             {
                 // For each area, the N-th TowerListConfig maps to the N-th P-list of this
                 // facility's STARS config (by position order in the config).
-                var pListIndex = 0;
-                foreach (var area in stars.Areas)
+                int pListIndex = 0;
+                foreach (StarsAreaConfig area in stars.Areas)
                 {
-                    foreach (var towerListConfig in area.TowerListConfigurations)
+                    foreach (TowerListConfig towerListConfig in area.TowerListConfigurations)
                     {
                         if (pListIndex >= pLists.Count)
                         {
                             break;
                         }
 
-                        var listConfig = pLists[pListIndex];
+                        StarsListConfig listConfig = pLists[pListIndex];
                         pListIndex++;
 
-                        var pos = NavigationDatabase.Instance.GetFixPosition(towerListConfig.AirportId);
+                        (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetFixPosition(towerListConfig.AirportId);
                         if (pos is null)
                         {
                             continue;
@@ -255,7 +255,7 @@ public sealed class TowerListTracker
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
             CollectTowerListAirports(child);
         }

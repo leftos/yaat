@@ -9,7 +9,7 @@ public static class FilletArcGeneratorRegistry
 
     public static IFilletArcGenerator? GetById(string id)
     {
-        foreach (var generator in All)
+        foreach (IFilletArcGenerator generator in All)
         {
             if (string.Equals(generator.Id, id, StringComparison.OrdinalIgnoreCase))
             {

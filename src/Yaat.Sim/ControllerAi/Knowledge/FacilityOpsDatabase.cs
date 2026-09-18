@@ -62,7 +62,7 @@ public static class FacilityOpsDatabase
         }
 
         var files = new List<FacilityOps>();
-        foreach (var path in Directory.GetFiles(directory, "*.json").OrderBy(p => p, StringComparer.Ordinal))
+        foreach (string? path in Directory.GetFiles(directory, "*.json").OrderBy(p => p, StringComparer.Ordinal))
         {
             files.Add(Load(path, navigation));
         }
@@ -88,7 +88,7 @@ public static class FacilityOpsDatabase
             throw new FacilityOpsValidationException(Path.GetFileName(path), ["the file is empty"]);
         }
 
-        var errors = FacilityOpsValidator.Validate(ops, navigation);
+        IReadOnlyList<string> errors = FacilityOpsValidator.Validate(ops, navigation);
         if (errors.Count > 0)
         {
             throw new FacilityOpsValidationException(Path.GetFileName(path), errors);
@@ -118,7 +118,7 @@ public static class FacilityOpsValidator
         }
 
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var configuration in ops.RunwayConfigurations)
+        foreach (RunwayConfiguration configuration in ops.RunwayConfigurations)
         {
             ValidateConfiguration(errors, names, configuration, navigation);
         }
@@ -128,7 +128,7 @@ public static class FacilityOpsValidator
             ValidateSelection(errors, ops, selection, navigation);
         }
 
-        foreach (var rule in ops.RunwayAssignmentPolicy)
+        foreach (RunwayAssignmentRule rule in ops.RunwayAssignmentPolicy)
         {
             ValidateAssignmentRule(errors, ops, rule, navigation);
         }
@@ -167,7 +167,7 @@ public static class FacilityOpsValidator
             }
         }
 
-        foreach (var (airport, sets) in configuration.Runways)
+        foreach ((string? airport, ConfigurationRunways? sets) in configuration.Runways)
         {
             if (!navigation.TryResolveAirport(airport, out _))
             {
@@ -175,7 +175,7 @@ public static class FacilityOpsValidator
                 continue;
             }
 
-            foreach (var runway in sets.Departure.Concat(sets.Arrival))
+            foreach (string? runway in sets.Departure.Concat(sets.Arrival))
             {
                 if (navigation.GetRunway(airport, runway) is null)
                 {
@@ -199,12 +199,12 @@ public static class FacilityOpsValidator
             errors.Add("runwaySelection.windAlignedCandidates is empty");
         }
 
-        foreach (var candidate in selection.WindAlignedCandidates)
+        foreach (string candidate in selection.WindAlignedCandidates)
         {
             RequireConfiguration(errors, ops, candidate, "runwaySelection.windAlignedCandidates[]");
         }
 
-        foreach (var coupling in selection.PartnerCouplings)
+        foreach (PartnerCoupling coupling in selection.PartnerCouplings)
         {
             RequireText(errors, coupling.Source, "runwaySelection.partnerCouplings[].source");
             if (!navigation.TryResolveAirport(coupling.PartnerAirportId, out _))
@@ -229,7 +229,7 @@ public static class FacilityOpsValidator
             errors.Add($"runway assignment rule {rule.Id} names no runway");
         }
 
-        foreach (var runway in rule.Runways)
+        foreach (string runway in rule.Runways)
         {
             if (navigation.GetRunway(ops.AirportId, runway) is null)
             {

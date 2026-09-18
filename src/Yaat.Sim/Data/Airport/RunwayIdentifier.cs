@@ -26,7 +26,7 @@ public readonly partial struct RunwayIdentifier : IEquatable<RunwayIdentifier>
     /// </summary>
     public RunwayIdentifier(string designator)
     {
-        var norm = Normalize(designator);
+        string norm = Normalize(designator);
         End1 = norm;
         End2 = ComputeOpposite(norm);
     }
@@ -110,7 +110,7 @@ public readonly partial struct RunwayIdentifier : IEquatable<RunwayIdentifier>
     /// </summary>
     public bool Contains(string designator)
     {
-        var norm = Normalize(designator);
+        string norm = Normalize(designator);
         return string.Equals(End1, norm, StringComparison.OrdinalIgnoreCase) || string.Equals(End2, norm, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -174,7 +174,7 @@ public readonly partial struct RunwayIdentifier : IEquatable<RunwayIdentifier>
     /// </returns>
     public static string? FromApproachId(string approachId)
     {
-        var match = ApproachIdRunwayRegex().Match(approachId);
+        Match match = ApproachIdRunwayRegex().Match(approachId);
         return match.Success ? match.Groups[1].Value : null;
     }
 
@@ -199,7 +199,7 @@ public readonly partial struct RunwayIdentifier : IEquatable<RunwayIdentifier>
     /// </summary>
     public static string ToDisplayDesignator(string designator)
     {
-        var result = "";
+        string result = "";
         int start = 0;
         for (int i = 0; i <= designator.Length; i++)
         {

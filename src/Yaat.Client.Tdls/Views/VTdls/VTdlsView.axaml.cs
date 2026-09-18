@@ -119,8 +119,8 @@ public partial class VTdlsView : UserControl
     /// <summary>Handles the Find keys (Ctrl+F / F3 / Shift+F3 / Esc); returns true if consumed.</summary>
     private bool HandleFindKeys(KeyEventArgs e)
     {
-        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
-        var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
 
         if (ctrl && (e.Key == Key.F))
         {
@@ -226,7 +226,7 @@ public partial class VTdlsView : UserControl
         // Upstream renders only one clock (footer, HH:MM). We render seconds too
         // so the controller can verify the page is live; the format still fits
         // the same footer slot.
-        var now = DateTime.UtcNow;
+        DateTime now = DateTime.UtcNow;
         FooterZuluClock.Text = now.ToString(@"HH\:mm\:ss", System.Globalization.CultureInfo.InvariantCulture);
     }
 
@@ -242,13 +242,13 @@ public partial class VTdlsView : UserControl
         await vm.RefreshAccessibleFacilitiesAsync();
 
         var flyout = new MenuFlyout();
-        foreach (var facility in vm.AccessibleFacilities)
+        foreach (AccessibleFacilityDto facility in vm.AccessibleFacilities)
         {
             // A consolidated parent (upstream's merged page over its child TDLS
             // facilities) is marked so it reads apart from the children beside it.
-            var suffix = facility.IsConsolidated ? " (consolidated)" : "";
+            string suffix = facility.IsConsolidated ? " (consolidated)" : "";
             var item = new MenuItem { Header = $"{facility.FacilityId} — {facility.FacilityName}{suffix}" };
-            var capturedId = facility.FacilityId;
+            string capturedId = facility.FacilityId;
             item.Click += async (_, _) => await vm.SwitchFacilityAsync(capturedId);
             flyout.Items.Add(item);
         }
@@ -286,7 +286,8 @@ public partial class VTdlsView : UserControl
             return;
         }
 
-        var mono = this.TryFindResource("MonoFont", out var monoResource) && monoResource is FontFamily family ? family : FontFamily.Default;
+        FontFamily mono =
+            this.TryFindResource("MonoFont", out object? monoResource) && monoResource is FontFamily family ? family : FontFamily.Default;
 
         var picker = new ComboBox
         {

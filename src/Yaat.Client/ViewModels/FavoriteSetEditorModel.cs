@@ -14,8 +14,8 @@ public static class FavoriteSetEditorModel
     public static List<int> MoveUp<T>(List<T> list, IReadOnlyCollection<int> selectedIndices)
     {
         var moved = new List<int>();
-        var blocked = -1;
-        foreach (var index in selectedIndices.Distinct().Order())
+        int blocked = -1;
+        foreach (int index in selectedIndices.Distinct().Order())
         {
             if (index < 0 || index >= list.Count)
             {
@@ -44,8 +44,8 @@ public static class FavoriteSetEditorModel
     public static List<int> MoveDown<T>(List<T> list, IReadOnlyCollection<int> selectedIndices)
     {
         var moved = new List<int>();
-        var blocked = list.Count;
-        foreach (var index in selectedIndices.Distinct().OrderDescending())
+        int blocked = list.Count;
+        foreach (int index in selectedIndices.Distinct().OrderDescending())
         {
             if (index < 0 || index >= list.Count)
             {

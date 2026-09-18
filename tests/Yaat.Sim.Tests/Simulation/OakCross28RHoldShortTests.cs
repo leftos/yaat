@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -25,7 +26,7 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -56,8 +57,8 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
     [Fact]
     public void RerouteFrom28R_ExitSideHoldShort_NotAddedAsCrossing()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -66,24 +67,25 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
         // Replay to just after TAXI B 28L at t=823 — the route is now assigned
         engine.Replay(recording, 824);
 
-        var ac = engine.FindAircraft("N172SP");
+        AircraftState? ac = engine.FindAircraft("N172SP");
         Assert.NotNull(ac);
 
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
-        var layout = ac.Ground.Layout;
+        AirportGroundLayout? layout = ac.Ground.Layout;
         Assert.NotNull(layout);
 
         // Resolve the exit-side bar by geometry, not by id: B meets 28R/10L at a paired hold short, and
         // the exit side is simply the bar on the far side of the runway from where the aircraft sits.
-        var bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "B");
+        List<GroundNode> bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "B");
         Assert.Equal(2, bars.Count);
-        var exitSideBar = bars.OrderByDescending(n => GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, n.Position.Lat, n.Position.Lon)).First();
+        GroundNode exitSideBar = bars.OrderByDescending(n => GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, n.Position.Lat, n.Position.Lon))
+            .First();
 
         output.WriteLine($"Route: {route.ToSummary()}");
         output.WriteLine($"Starting node (first seg FromNodeId): {route.Segments[0].FromNodeId}");
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             output.WriteLine($"  HS: nodeId={hs.NodeId} reason={hs.Reason} target={hs.TargetName}");
         }

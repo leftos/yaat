@@ -26,12 +26,12 @@ public class GroundRendererTugTests
     [Fact]
     public void TowbarHeadingSet_PaintsTugBody()
     {
-        var vp = Viewport(pxPerFt: 1.5f);
-        var withTug = Aircraft(headingDeg: 0, towbarHeadingDeg: 0);
-        var (tx, ty) = TugCenter(vp, withTug, towbarHeadingDeg: 0);
+        MapViewport vp = Viewport(pxPerFt: 1.5f);
+        AircraftModel withTug = Aircraft(headingDeg: 0, towbarHeadingDeg: 0);
+        (float tx, float ty) = TugCenter(vp, withTug, towbarHeadingDeg: 0);
 
-        using var withTugBitmap = Render(vp, withTug);
-        using var withoutTugBitmap = Render(vp, Aircraft(headingDeg: 0, towbarHeadingDeg: null));
+        using SKBitmap withTugBitmap = Render(vp, withTug);
+        using SKBitmap withoutTugBitmap = Render(vp, Aircraft(headingDeg: 0, towbarHeadingDeg: null));
 
         Assert.NotEqual(BackgroundColor, PixelAt(withTugBitmap, tx, ty));
         Assert.Equal(BackgroundColor, PixelAt(withoutTugBitmap, tx, ty));
@@ -40,12 +40,12 @@ public class GroundRendererTugTests
     [Fact]
     public void TowbarHeadingLeftOfNose_PutsTugLeftOfTheNoseAxis()
     {
-        var vp = Viewport(pxPerFt: 1.5f);
-        var ac = Aircraft(headingDeg: 0, towbarHeadingDeg: 315);
-        var (tx, ty) = TugCenter(vp, ac, towbarHeadingDeg: 315);
-        var (noseX, _) = vp.LatLonToScreen(CenterLat, CenterLon);
+        MapViewport vp = Viewport(pxPerFt: 1.5f);
+        AircraftModel ac = Aircraft(headingDeg: 0, towbarHeadingDeg: 315);
+        (float tx, float ty) = TugCenter(vp, ac, towbarHeadingDeg: 315);
+        (float noseX, float _) = vp.LatLonToScreen(CenterLat, CenterLon);
 
-        using var bitmap = Render(vp, ac);
+        using SKBitmap bitmap = Render(vp, ac);
 
         // Aircraft heading is north and the view is unrotated, so "left of the nose axis" is screen-left.
         Assert.True(tx < noseX, $"tug centre {tx:F1} should be left of the nose axis {noseX:F1}");
@@ -59,11 +59,11 @@ public class GroundRendererTugTests
         const float pxPerFt = 0.2f;
         Assert.True(GroundRenderer.TugLengthFt * pxPerFt < GroundRenderer.MinTugPx, "test zoom must put the tug under the minimum size");
 
-        var vp = Viewport(pxPerFt);
-        var ac = Aircraft(headingDeg: 0, towbarHeadingDeg: 90);
-        var (tx, ty) = TugCenter(vp, ac, towbarHeadingDeg: 90);
+        MapViewport vp = Viewport(pxPerFt);
+        AircraftModel ac = Aircraft(headingDeg: 0, towbarHeadingDeg: 90);
+        (float tx, float ty) = TugCenter(vp, ac, towbarHeadingDeg: 90);
 
-        using var bitmap = Render(vp, ac);
+        using SKBitmap bitmap = Render(vp, ac);
 
         Assert.Equal(BackgroundColor, PixelAt(bitmap, tx, ty));
     }
@@ -111,8 +111,8 @@ public class GroundRendererTugTests
         float noseGearFt = (lengthFt * 0.5f) - (lengthFt * GroundRenderer.NoseGearSetbackFraction);
         float tugCenterFt = GroundRenderer.TowbarLengthFt + (GroundRenderer.TugLengthFt / 2f);
 
-        var (sx, sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-        var (nx, ny) = Offset(sx, sy, (float)(ac.Heading.Degrees - vp.RotationDeg), noseGearFt * pxPerFt);
+        (float sx, float sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        (float nx, float ny) = Offset(sx, sy, (float)(ac.Heading.Degrees - vp.RotationDeg), noseGearFt * pxPerFt);
         return Offset(nx, ny, (float)(towbarHeadingDeg - vp.RotationDeg), tugCenterFt * pxPerFt);
     }
 

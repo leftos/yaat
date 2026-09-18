@@ -34,7 +34,7 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
 
     private static PhaseContext Ctx(AircraftState ac, double dt = 1.0)
     {
-        var rwy = ac.Phases!.AssignedRunway!;
+        RunwayInfo rwy = ac.Phases!.AssignedRunway!;
         return new PhaseContext
         {
             Aircraft = ac,
@@ -50,10 +50,20 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
     [Fact]
     public void DownwindDroppedInsidePattern_ReintercptsAndRollsOutOnCenterline()
     {
-        var rwy = Rwy();
+        RunwayInfo rwy = Rwy();
         const double sizeNm = 0.5; // OAK 28L's real (unclamped) pattern width
 
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Left, sizeNm, null, null, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Piston,
+            "",
+            0,
+            PatternDirection.Left,
+            sizeNm,
+            null,
+            null,
+            authoredRunway: null
+        );
 
         // Simulate the cross-runway join outcome: the aircraft is on the downwind heading but INSIDE the
         // computed 0.5 NM downwind line (≈0.28 NM from the centerline), as N104NT was. The abeam point is
@@ -64,7 +74,7 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
         var abeamInside = LatLon.Lerp(threshold, abeam, 0.56);
         // Back up ~0.7 NM along the downwind (upwind of abeam) so the aircraft joins at the downwind
         // start with the full leg ahead to re-intercept the track, as it would after a real join.
-        var insidePos = GeoMath.ProjectPoint(abeamInside, wp.DownwindHeading.ToReciprocal(), 0.7);
+        LatLon insidePos = GeoMath.ProjectPoint(abeamInside, wp.DownwindHeading.ToReciprocal(), 0.7);
 
         var ac = new AircraftState
         {
@@ -80,7 +90,7 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
         };
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
 
-        var phases = PatternBuilder.BuildCircuit(
+        List<Phase> phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Piston,
             "",
@@ -97,7 +107,7 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
         // This aircraft was dropped inside its pattern by a cross-runway join, so its downwind is a
         // rejoin (as the wrong-side / cross-runway build paths mark it).
         ((DownwindPhase)phases[0]).RejoinTrack = true;
-        foreach (var p in phases)
+        foreach (Phase p in phases)
         {
             ac.Phases.Add(p);
         }
@@ -111,7 +121,7 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
 
         for (int i = 0; i < 400; i++)
         {
-            var cur = ac.Phases.CurrentPhase;
+            Phase? cur = ac.Phases.CurrentPhase;
             if (cur is null || ac.Phases.IsComplete)
             {
                 break;
@@ -119,7 +129,7 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
 
             bool onDownwind = cur is DownwindPhase;
 
-            var ctx = Ctx(ac);
+            PhaseContext ctx = Ctx(ac);
             FlightPhysics.Update(ac, ctx.DeltaSeconds);
             PhaseRunner.Tick(ac, ctx);
 

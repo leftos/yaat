@@ -36,7 +36,7 @@ public partial class VerbMappingRow : ObservableObject
 
     private string BuildExample()
     {
-        var primary = AliasesList.Count > 0 ? AliasesList[0] : "";
+        string primary = AliasesList.Count > 0 ? AliasesList[0] : "";
         return ArgMode switch
         {
             ArgMode.Required => $"{primary} {SampleArg}",
@@ -84,11 +84,11 @@ public partial class MacroRow : ObservableObject
         }
 
         var def = new MacroDefinition { Name = Name, Expansion = Expansion };
-        var baseName = def.BaseName;
-        var validationError = def.Validate();
-        var paramNames = def.ParameterNames;
-        var paramHint = paramNames.Count > 0 ? " " + string.Join(" ", paramNames.Select(n => $"&{n}")) : "";
-        var warning = validationError is not null ? $" ⚠ {validationError}" : "";
+        string baseName = def.BaseName;
+        string? validationError = def.Validate();
+        IReadOnlyList<string> paramNames = def.ParameterNames;
+        string paramHint = paramNames.Count > 0 ? " " + string.Join(" ", paramNames.Select(n => $"&{n}")) : "";
+        string warning = validationError is not null ? $" ⚠ {validationError}" : "";
         Preview = $"!{baseName}{paramHint} → {Expansion}{warning}";
     }
 }
@@ -647,7 +647,7 @@ public partial class SettingsViewModel : ObservableObject
         var outputDevices = new List<string> { DefaultAudioDeviceLabel };
         if (audioCapture is not null)
         {
-            foreach (var (_, name) in audioCapture.ListInputDevices())
+            foreach ((int _, string? name) in audioCapture.ListInputDevices())
             {
                 if (!inputDevices.Contains(name, StringComparer.Ordinal))
                 {
@@ -655,7 +655,7 @@ public partial class SettingsViewModel : ObservableObject
                 }
             }
 
-            foreach (var (_, name) in audioCapture.ListOutputDevices())
+            foreach ((int _, string? name) in audioCapture.ListOutputDevices())
             {
                 if (!outputDevices.Contains(name, StringComparer.Ordinal))
                 {
@@ -749,7 +749,7 @@ public partial class SettingsViewModel : ObservableObject
         _unassignedTintEnabled = _preferences.UnassignedTintEnabled;
         _unassignedTintColor = _preferences.UnassignedTintColor;
         _selectedColor = _preferences.SelectedColor;
-        var groundColors = _preferences.GroundColors;
+        GroundColorScheme groundColors = _preferences.GroundColors;
         _groundBackgroundColor = groundColors.Background;
         _groundTaxiwayColor = groundColors.Taxiway;
         _groundTaxiLabelColor = groundColors.TaxiLabel;
@@ -760,7 +760,7 @@ public partial class SettingsViewModel : ObservableObject
         _groundAircraftColor = groundColors.Aircraft;
         _groundDatablockTextColor = groundColors.DatablockText;
         _groundBrightness = groundColors.Brightness;
-        var terminalColors = _preferences.TerminalColors;
+        TerminalColorScheme terminalColors = _preferences.TerminalColors;
         _terminalCommandColor = terminalColors.Command;
         _terminalResponseColor = terminalColors.Response;
         _terminalSystemColor = terminalColors.System;
@@ -814,15 +814,15 @@ public partial class SettingsViewModel : ObservableObject
     {
         try
         {
-            var whisper = await Task.Run(LmKitModelCatalog.BuildWhisperCatalog).ConfigureAwait(true);
-            var llm = await Task.Run(LmKitModelCatalog.BuildLlmCatalog).ConfigureAwait(true);
-            var gpus = await Task.Run(LmKitGpuDetector.Detect).ConfigureAwait(true);
+            ObservableCollection<LmKitModelEntry> whisper = await Task.Run(LmKitModelCatalog.BuildWhisperCatalog).ConfigureAwait(true);
+            ObservableCollection<LmKitModelEntry> llm = await Task.Run(LmKitModelCatalog.BuildLlmCatalog).ConfigureAwait(true);
+            LmKitGpuSnapshot gpus = await Task.Run(LmKitGpuDetector.Detect).ConfigureAwait(true);
 
-            foreach (var entry in whisper)
+            foreach (LmKitModelEntry? entry in whisper)
             {
                 WhisperLmKitModels.Add(entry);
             }
-            foreach (var entry in llm)
+            foreach (LmKitModelEntry? entry in llm)
             {
                 LlmLmKitModels.Add(entry);
             }
@@ -854,7 +854,7 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void Save()
     {
-        var scheme = BuildSchemeFromRows();
+        CommandScheme scheme = BuildSchemeFromRows();
         _preferences.SetCommandScheme(scheme);
         _preferences.SetUserInitials(UserInitials);
         _preferences.SetAdminSettings(IsAdminMode, AdminPassword);
@@ -912,12 +912,12 @@ public partial class SettingsViewModel : ObservableObject
         // Extra Radar/Ground windows (RadarView#2, GroundView#3, …) follow their view's single
         // always-on-top setting, the same way the per-facility Strips windows do below.
         var extraRadarKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith(ViewInstanceOrdinals.RadarPrefix));
-        foreach (var key in extraRadarKeys)
+        foreach (string key in extraRadarKeys)
         {
             _preferences.SetWindowTopmost(key, RadarViewTopmost);
         }
         var extraGroundKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith(ViewInstanceOrdinals.GroundPrefix));
-        foreach (var key in extraGroundKeys)
+        foreach (string key in extraGroundKeys)
         {
             _preferences.SetWindowTopmost(key, GroundViewTopmost);
         }
@@ -925,7 +925,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetWindowTopmost("Terminal", TerminalTopmost);
         _preferences.SetWindowTopmost("VStripsView", VStripsTopmost);
         var perFacilityStripsKeys = new List<string>(_preferences.GetWindowGeometryKeysStartingWith("VStripsView:"));
-        foreach (var key in perFacilityStripsKeys)
+        foreach (string key in perFacilityStripsKeys)
         {
             _preferences.SetWindowTopmost(key, VStripsTopmost);
         }
@@ -1012,11 +1012,11 @@ public partial class SettingsViewModel : ObservableObject
     /// <param name="import">The parsed file, including any command names this build does not know.</param>
     public void ImportVerbs(CommandSchemeImport import)
     {
-        var applied = 0;
+        int applied = 0;
 
-        foreach (var (type, aliases) in import.Verbs)
+        foreach ((CanonicalCommandType type, List<string>? aliases) in import.Verbs)
         {
-            var row = VerbMappings.FirstOrDefault(r => r.CommandType == type);
+            VerbMappingRow? row = VerbMappings.FirstOrDefault(r => r.CommandType == type);
             if (row is null)
             {
                 continue;
@@ -1029,7 +1029,7 @@ public partial class SettingsViewModel : ObservableObject
         // Re-run the test input against the imported scheme
         OnTestCommandInputChanged(TestCommandInput);
 
-        var note = $"Imported {applied} verb mapping(s).";
+        string note = $"Imported {applied} verb mapping(s).";
         if (import.UnknownCommands.Count > 0)
         {
             note += $" Skipped unknown command(s): {string.Join(", ", import.UnknownCommands)}.";
@@ -1047,9 +1047,9 @@ public partial class SettingsViewModel : ObservableObject
     {
         VerbMappings.Clear();
 
-        foreach (var def in DisplayCommands)
+        foreach (CommandDefinition def in DisplayCommands)
         {
-            if (!scheme.Patterns.TryGetValue(def.Type, out var pattern))
+            if (!scheme.Patterns.TryGetValue(def.Type, out CommandPattern? pattern))
             {
                 continue;
             }
@@ -1075,16 +1075,16 @@ public partial class SettingsViewModel : ObservableObject
 
         var patterns = new Dictionary<CanonicalCommandType, CommandPattern>();
 
-        foreach (var (type, pattern) in baseScheme.Patterns)
+        foreach ((CanonicalCommandType type, CommandPattern? pattern) in baseScheme.Patterns)
         {
             patterns[type] = new CommandPattern { Aliases = [.. pattern.Aliases] };
         }
 
         // Override aliases from edited rows
-        foreach (var row in VerbMappings)
+        foreach (VerbMappingRow row in VerbMappings)
         {
-            var aliases = row.AliasesList;
-            if (aliases.Count > 0 && patterns.TryGetValue(row.CommandType, out var existing))
+            List<string> aliases = row.AliasesList;
+            if (aliases.Count > 0 && patterns.TryGetValue(row.CommandType, out CommandPattern? existing))
             {
                 existing.Aliases = aliases;
             }
@@ -1095,7 +1095,7 @@ public partial class SettingsViewModel : ObservableObject
 
     private static string BuildExample(CommandDefinition def, CommandPattern pattern)
     {
-        var primary = pattern.PrimaryVerb;
+        string primary = pattern.PrimaryVerb;
         return def.ArgMode switch
         {
             ArgMode.Required => $"{primary} {def.SampleArg}",
@@ -1121,9 +1121,9 @@ public partial class SettingsViewModel : ObservableObject
         var existingBaseNames = new HashSet<string>(MacroRows.Select(r => MacroDefinition.ExtractBaseName(r.Name)), StringComparer.OrdinalIgnoreCase);
 
         // Add non-conflicting macros
-        foreach (var m in result.NewMacros)
+        foreach (SavedMacro m in result.NewMacros)
         {
-            var baseName = MacroDefinition.ExtractBaseName(m.Name);
+            string baseName = MacroDefinition.ExtractBaseName(m.Name);
             if (!existingBaseNames.Contains(baseName))
             {
                 MacroRows.Add(
@@ -1139,14 +1139,14 @@ public partial class SettingsViewModel : ObservableObject
         }
 
         // Apply conflict resolutions
-        foreach (var conflict in result.Conflicts)
+        foreach (MacroConflictResolution conflict in result.Conflicts)
         {
             switch (conflict.Resolution)
             {
                 case ConflictResolution.Overwrite:
                 {
-                    var importBaseName = MacroDefinition.ExtractBaseName(conflict.Macro.Name);
-                    var existing = MacroRows.First(r =>
+                    string importBaseName = MacroDefinition.ExtractBaseName(conflict.Macro.Name);
+                    MacroRow existing = MacroRows.First(r =>
                         string.Equals(MacroDefinition.ExtractBaseName(r.Name), importBaseName, StringComparison.OrdinalIgnoreCase)
                     );
                     existing.Name = conflict.Macro.Name;
@@ -1159,9 +1159,9 @@ public partial class SettingsViewModel : ObservableObject
 
                 case ConflictResolution.Rename:
                 {
-                    var renamedName = conflict.RenamedName!;
+                    string renamedName = conflict.RenamedName!;
                     // Preserve parameter declarations from original name if the rename is just a base name
-                    var originalTokens = conflict.Macro.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    string[] originalTokens = conflict.Macro.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                     if (originalTokens.Length > 1 && !renamedName.Contains(' '))
                     {
                         renamedName = renamedName + " " + string.Join(" ", originalTokens.Skip(1));
@@ -1192,7 +1192,7 @@ public partial class SettingsViewModel : ObservableObject
     private void LoadMacros()
     {
         MacroRows.Clear();
-        foreach (var m in _preferences.Macros)
+        foreach (MacroDefinition m in _preferences.Macros)
         {
             MacroRows.Add(
                 new MacroRow
@@ -1262,38 +1262,38 @@ public partial class SettingsViewModel : ObservableObject
     private static List<string> CollectCommandLabels(string input, CommandScheme scheme)
     {
         var labels = new List<string>();
-        var blocks = input.Split(';');
+        string[] blocks = input.Split(';');
 
-        foreach (var blockStr in blocks)
+        foreach (string blockStr in blocks)
         {
-            var block = blockStr.Trim();
+            string block = blockStr.Trim();
             if (string.IsNullOrEmpty(block))
             {
                 continue;
             }
 
             // Strip condition prefixes (LV/AT/GIVEWAY/BEHIND + argument)
-            var upper = block.ToUpperInvariant();
-            var remaining = block;
+            string upper = block.ToUpperInvariant();
+            string remaining = block;
             if (upper.StartsWith("LV ") || upper.StartsWith("AT ") || upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND "))
             {
-                var tokens = block.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+                string[] tokens = block.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
                 remaining = tokens.Length >= 3 ? tokens[2] : "";
             }
 
-            var commands = remaining.Split(',');
-            foreach (var cmdStr in commands)
+            string[] commands = remaining.Split(',');
+            foreach (string cmdStr in commands)
             {
-                var cmd = cmdStr.Trim();
+                string cmd = cmdStr.Trim();
                 if (string.IsNullOrEmpty(cmd))
                 {
                     continue;
                 }
 
-                var parsed = CommandSchemeParser.Parse(cmd, scheme);
+                ParsedInput? parsed = CommandSchemeParser.Parse(cmd, scheme);
                 if (parsed is not null)
                 {
-                    var label = LabelForType(parsed.Type);
+                    string? label = LabelForType(parsed.Type);
                     if (label is not null)
                     {
                         labels.Add(label);
@@ -1400,7 +1400,7 @@ public partial class SettingsViewModel : ObservableObject
 
         // Modifier-only keys (RightCtrl, LeftShift, etc.) are normally rejected, but PTT is commonly
         // bound to a bare modifier — so accept it when the capture target is Ptt.
-        var isModifierOnly =
+        bool isModifierOnly =
             key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
         if (isModifierOnly && _captureTarget != "Ptt")
         {
@@ -1409,7 +1409,7 @@ public partial class SettingsViewModel : ObservableObject
 
         // For PTT modifier-only capture, store just the raw key name with no modifier prefix so
         // the combo round-trips cleanly through Enum.TryParse<Key> in KeyNameToDisplay.
-        var combo = isModifierOnly ? key.ToString() : BuildKeyCombo(key, modifiers);
+        string combo = isModifierOnly ? key.ToString() : BuildKeyCombo(key, modifiers);
         switch (_captureTarget)
         {
             case "AircraftSelect":
@@ -1475,7 +1475,7 @@ public partial class SettingsViewModel : ObservableObject
 
     internal static string KeyNameToDisplay(string keyName)
     {
-        if (!Enum.TryParse<Key>(keyName, out var key))
+        if (!Enum.TryParse<Key>(keyName, out Key key))
         {
             return keyName;
         }
@@ -1539,11 +1539,11 @@ public partial class SettingsViewModel : ObservableObject
 
     internal static string KeyComboToDisplay(string combo)
     {
-        var parts = combo.Split('+');
+        string[] parts = combo.Split('+');
         var display = new List<string>();
-        foreach (var part in parts)
+        foreach (string part in parts)
         {
-            var trimmed = part.Trim();
+            string trimmed = part.Trim();
             if (trimmed is "Ctrl" or "Alt" or "Shift")
             {
                 display.Add(trimmed);
@@ -1633,7 +1633,7 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void ResetAllColors()
     {
-        var d = GroundColorScheme.Default;
+        GroundColorScheme d = GroundColorScheme.Default;
         GroundBackgroundColor = d.Background;
         GroundTaxiwayColor = d.Taxiway;
         GroundTaxiLabelColor = d.TaxiLabel;
@@ -1649,7 +1649,7 @@ public partial class SettingsViewModel : ObservableObject
         UnassignedTintEnabled = false;
         UnassignedTintColor = "#888888";
         SelectedColor = "#FFFFFF";
-        var t = TerminalColorScheme.Default;
+        TerminalColorScheme t = TerminalColorScheme.Default;
         TerminalCommandColor = t.Command;
         TerminalResponseColor = t.Response;
         TerminalSystemColor = t.System;
@@ -1873,7 +1873,7 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void OpenSpeechSamplesFolder()
     {
-        var path = _speechSampleStore?.RootDirectory ?? YaatPaths.Combine("speech-samples");
+        string path = _speechSampleStore?.RootDirectory ?? YaatPaths.Combine("speech-samples");
         try
         {
             Directory.CreateDirectory(path);

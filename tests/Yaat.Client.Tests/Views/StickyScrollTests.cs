@@ -13,7 +13,7 @@ public class StickyScrollTests
     public void GrewWhileAtBottom_PinsToNewBottom()
     {
         // Was at bottom (prevOffset 26 == prevMax 26), content grew by 74; new max is 100.
-        var pinned = StickyScroll.PinnedBottomOffset(
+        double? pinned = StickyScroll.PinnedBottomOffset(
             offsetY: 26,
             extentHeight: 200,
             viewportHeight: 100,
@@ -30,7 +30,7 @@ public class StickyScrollTests
     public void GrewWhileScrolledUp_DoesNotPin()
     {
         // prevMax = (200-74) - 100 = 26; prevOffset 0 is not at the bottom.
-        var pinned = StickyScroll.PinnedBottomOffset(
+        double? pinned = StickyScroll.PinnedBottomOffset(
             offsetY: 0,
             extentHeight: 200,
             viewportHeight: 100,
@@ -46,7 +46,7 @@ public class StickyScrollTests
     [Fact]
     public void ContentShrank_DoesNotPin()
     {
-        var pinned = StickyScroll.PinnedBottomOffset(
+        double? pinned = StickyScroll.PinnedBottomOffset(
             offsetY: 26,
             extentHeight: 126,
             viewportHeight: 100,
@@ -63,7 +63,7 @@ public class StickyScrollTests
     public void AlreadyAtNewBottom_NoRepinNeeded()
     {
         // Was at bottom AND the current offset already equals the new max — nothing to do.
-        var pinned = StickyScroll.PinnedBottomOffset(
+        double? pinned = StickyScroll.PinnedBottomOffset(
             offsetY: 100,
             extentHeight: 200,
             viewportHeight: 100,

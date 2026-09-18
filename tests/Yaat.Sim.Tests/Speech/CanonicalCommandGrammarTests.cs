@@ -15,14 +15,14 @@ public class CanonicalCommandGrammarTests
     [Fact]
     public void BuildGbnf_HasRootProduction()
     {
-        var gbnf = CanonicalCommandGrammar.BuildGbnf();
+        string gbnf = CanonicalCommandGrammar.BuildGbnf();
         Assert.StartsWith("root ::=", gbnf, StringComparison.Ordinal);
     }
 
     [Fact]
     public void BuildGbnf_DefinesAllRequiredNonTerminals()
     {
-        var gbnf = CanonicalCommandGrammar.BuildGbnf();
+        string gbnf = CanonicalCommandGrammar.BuildGbnf();
         // Every non-terminal referenced by `root` and its descendants must have a production,
         // otherwise llama.cpp's parser will reject the grammar at load time. We assert by
         // substring match because the productions are written on their own lines.
@@ -38,7 +38,7 @@ public class CanonicalCommandGrammarTests
     [Fact]
     public void BuildGbnf_RootIsOptional()
     {
-        var gbnf = CanonicalCommandGrammar.BuildGbnf();
+        string gbnf = CanonicalCommandGrammar.BuildGbnf();
         // The `?` suffix on root's clauses production lets the model emit end-of-generation at
         // position zero when the transcript isn't a recognizable command. Validated against
         // gemma4:e4b — the model correctly picks EOG for garbled / chitchat inputs and
@@ -49,11 +49,11 @@ public class CanonicalCommandGrammarTests
     [Fact]
     public void BuildGbnf_IncludesEveryAliasFromCommandRegistry()
     {
-        var gbnf = CanonicalCommandGrammar.BuildGbnf();
+        string gbnf = CanonicalCommandGrammar.BuildGbnf();
         // Every alias the registry knows about must appear as a quoted literal in the verb
         // alternation. If a new command is added to CommandRegistry but the grammar generator
         // somehow filters it out, this test fails.
-        foreach (var alias in CommandRegistry.AliasToCanonicType.Keys)
+        foreach (string alias in CommandRegistry.AliasToCanonicType.Keys)
         {
             Assert.Contains($"\"{alias}\"", gbnf, StringComparison.Ordinal);
         }
@@ -62,7 +62,7 @@ public class CanonicalCommandGrammarTests
     [Fact]
     public void BuildGbnf_VerbAlternationIsSortedLongestFirst()
     {
-        var gbnf = CanonicalCommandGrammar.BuildGbnf();
+        string gbnf = CanonicalCommandGrammar.BuildGbnf();
         // Find the verb production line and check the alternatives are in non-increasing length
         // order. This matters because llama.cpp's pushdown automaton wants longer literals to be
         // tried first when prefixes overlap (e.g. "RELL" before "R", "FPH" before "F"). Without
@@ -71,14 +71,14 @@ public class CanonicalCommandGrammarTests
         //
         // Split on \n and TrimEnd carriage-return so CRLF line endings on Windows don't smuggle a
         // \r into the last alternative.
-        var verbLine = gbnf.Split('\n').First(line => line.StartsWith("verb ::=", StringComparison.Ordinal)).TrimEnd('\r');
+        string verbLine = gbnf.Split('\n').First(line => line.StartsWith("verb ::=", StringComparison.Ordinal)).TrimEnd('\r');
         var alternatives = verbLine
             .Substring("verb ::= ".Length)
             .Split(" | ", StringSplitOptions.RemoveEmptyEntries)
             .Select(literal => literal.Trim('"'))
             .ToList();
 
-        for (var i = 1; i < alternatives.Count; i++)
+        for (int i = 1; i < alternatives.Count; i++)
         {
             Assert.True(
                 alternatives[i].Length <= alternatives[i - 1].Length,
@@ -91,7 +91,7 @@ public class CanonicalCommandGrammarTests
     [Fact]
     public void BuildGbnf_ConditionPrefixesAreEncodedDirectly()
     {
-        var gbnf = CanonicalCommandGrammar.BuildGbnf();
+        string gbnf = CanonicalCommandGrammar.BuildGbnf();
         // AT and LV are not registry aliases — they're condition prefixes. They must be encoded
         // in the condition production, not the verb alternation, otherwise the grammar can't
         // accept "AT CEPIN CAPP" or "LV 5000 FH 270" style outputs that PhraseologyMapper produces.
@@ -102,7 +102,7 @@ public class CanonicalCommandGrammarTests
     [Fact]
     public void BuildGbnf_ArgCharsetIsCanonicalTokenSet()
     {
-        var gbnf = CanonicalCommandGrammar.BuildGbnf();
+        string gbnf = CanonicalCommandGrammar.BuildGbnf();
         // The arg charset must match LocalLlmCommandMapper.IsCanonicalToken: uppercase letters,
         // digits, plus, minus, dot, slash. Hyphen MUST be last inside the character class to be
         // a literal (otherwise it forms a range and can change the accepted set).
@@ -112,7 +112,7 @@ public class CanonicalCommandGrammarTests
     [Fact]
     public void BuildGbnf_FixnameAcceptsDigits()
     {
-        var gbnf = CanonicalCommandGrammar.BuildGbnf();
+        string gbnf = CanonicalCommandGrammar.BuildGbnf();
         // Condition fixes can carry digits (custom fixes, FRD-style names like OAK169001). A
         // letters-only fixname production would make the LLM unable to emit "AT OAK169001 ..."
         // even though PhraseologyMapper and the dispatcher both accept such fixes.

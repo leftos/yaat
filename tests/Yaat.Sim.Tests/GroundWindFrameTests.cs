@@ -33,7 +33,7 @@ public class GroundWindFrameTests
 
     private static RollResult RunGroundRoll(WeatherProfile? weather, double fieldElevationFt)
     {
-        var runway = TestRunwayFactory.Make(designator: "28", airportId: "KSFO", heading: RunwayHeading, elevationFt: fieldElevationFt);
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "28", airportId: "KSFO", heading: RunwayHeading, elevationFt: fieldElevationFt);
         var phase = new TakeoffPhase();
         var phaseList = new PhaseList { AssignedRunway = runway };
         var aircraft = new AircraftState
@@ -96,8 +96,8 @@ public class GroundWindFrameTests
     public void Headwind_RotatesAtLowerGroundspeed_ShorterRoll()
     {
         double vr = AircraftPerformance.RotationSpeed("B738", AircraftCategory.Jet);
-        var calm = RunGroundRoll(null, fieldElevationFt: 0);
-        var headwind = RunGroundRoll(SteadyWind(RunwayHeading, 20), fieldElevationFt: 0);
+        RollResult calm = RunGroundRoll(null, fieldElevationFt: 0);
+        RollResult headwind = RunGroundRoll(SteadyWind(RunwayHeading, 20), fieldElevationFt: 0);
 
         // Sea level: IAS ≈ TAS, so rotation groundspeed drops by the full headwind and
         // the roll shortens by the v² law (≈ (1 − 20/Vr)²).
@@ -110,8 +110,8 @@ public class GroundWindFrameTests
     public void Tailwind_RotatesAtHigherGroundspeed_LongerRoll()
     {
         double vr = AircraftPerformance.RotationSpeed("B738", AircraftCategory.Jet);
-        var calm = RunGroundRoll(null, fieldElevationFt: 0);
-        var tailwind = RunGroundRoll(SteadyWind((RunwayHeading + 180) % 360, 10), fieldElevationFt: 0);
+        RollResult calm = RunGroundRoll(null, fieldElevationFt: 0);
+        RollResult tailwind = RunGroundRoll(SteadyWind((RunwayHeading + 180) % 360, 10), fieldElevationFt: 0);
 
         Assert.Equal(vr + 10, tailwind.GroundSpeedAtRotation, 2.0);
         Assert.True(
@@ -124,8 +124,8 @@ public class GroundWindFrameTests
     [Fact]
     public void Crosswind_NoEffectOnRollOrTrack()
     {
-        var calm = RunGroundRoll(null, fieldElevationFt: 0);
-        var crosswind = RunGroundRoll(SteadyWind((RunwayHeading + 90) % 360, 25), fieldElevationFt: 0);
+        RollResult calm = RunGroundRoll(null, fieldElevationFt: 0);
+        RollResult crosswind = RunGroundRoll(SteadyWind((RunwayHeading + 90) % 360, 25), fieldElevationFt: 0);
 
         // cos 90° = 0: the roll length is unchanged (rotation groundspeed measured after
         // liftoff includes the crosswind drift vector, so the wheels-only invariants are
@@ -138,7 +138,7 @@ public class GroundWindFrameTests
     public void ZeroWeather_RollBehavesAsBefore()
     {
         double vr = AircraftPerformance.RotationSpeed("B738", AircraftCategory.Jet);
-        var calm = RunGroundRoll(null, fieldElevationFt: 0);
+        RollResult calm = RunGroundRoll(null, fieldElevationFt: 0);
 
         // Sea level, no wind: rotation groundspeed equals Vr indicated — bit-compatible
         // with the pre-wind behavior for windless scenarios and recordings.
@@ -149,7 +149,7 @@ public class GroundWindFrameTests
     public void HighElevationField_RollNeedsMoreGroundspeed()
     {
         double vr = AircraftPerformance.RotationSpeed("B738", AircraftCategory.Jet);
-        var highField = RunGroundRoll(null, fieldElevationFt: 5000);
+        RollResult highField = RunGroundRoll(null, fieldElevationFt: 5000);
 
         // Density correction: rotation at Vr indicated is a faster TAS (and GS) at altitude.
         double expectedGs = WindInterpolator.IasToTas(vr, 5000);
@@ -160,7 +160,7 @@ public class GroundWindFrameTests
     [Fact]
     public void Touchdown_ConvertsTasMinusHeadwindToWheelSpeed()
     {
-        var weather = SteadyWind(RunwayHeading, 15);
+        WeatherProfile weather = SteadyWind(RunwayHeading, 15);
         var aircraft = new AircraftState
         {
             Callsign = "LAND01",
@@ -185,7 +185,7 @@ public class GroundWindFrameTests
     public void Taxi_HeadwindDoesNotSlowTheAircraft()
     {
         // Wheel-driven motion: a 20 kt headwind must not affect a 15 kt taxi.
-        var weather = SteadyWind(90, 20);
+        WeatherProfile weather = SteadyWind(90, 20);
         var aircraft = new AircraftState
         {
             Callsign = "TAXI01",
@@ -197,7 +197,7 @@ public class GroundWindFrameTests
             IsOnGround = true,
         };
 
-        var start = aircraft.Position;
+        LatLon start = aircraft.Position;
         for (int t = 0; t < 60; t++)
         {
             FlightPhysics.Update(aircraft, 1.0, null, weather, simTimeSeconds: t);

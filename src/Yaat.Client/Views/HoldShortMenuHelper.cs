@@ -22,7 +22,7 @@ public static class HoldShortMenuHelper
         const string prefix = "Holding Short ";
         if (phase.StartsWith(prefix, StringComparison.Ordinal) && phase.Length > prefix.Length)
         {
-            var rwyPart = phase[prefix.Length..];
+            string rwyPart = phase[prefix.Length..];
             return RunwayIdentifier.Parse(rwyPart).End1;
         }
 

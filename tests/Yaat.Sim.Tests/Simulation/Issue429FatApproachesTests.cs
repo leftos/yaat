@@ -73,8 +73,8 @@ public class Issue429FatApproachesTests
     [Fact]
     public void Asa1054_Capp_OnHeading260_JoinsFinal()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             _output.WriteLine("Recording or NavData not available, skipping");
@@ -89,7 +89,7 @@ public class Issue429FatApproachesTests
 
         engine.Replay(recording, ReplayStartSeconds);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         string approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? "none";
         string flown = $"hdg={aircraft.TrueHeading.Degrees:F0} alt={aircraft.Altitude:F0} approach={approachId}";
@@ -123,8 +123,8 @@ public class Issue429FatApproachesTests
     [Fact]
     public void Ual1486_VectorOffCrossingRestriction_ResumesProfileDescent()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             _output.WriteLine("Recording or NavData not available, skipping");
@@ -133,7 +133,7 @@ public class Issue429FatApproachesTests
 
         engine.Replay(recording, VectoredStartSeconds);
 
-        var aircraft = engine.FindAircraft(VectoredCallsign);
+        AircraftState? aircraft = engine.FindAircraft(VectoredCallsign);
         Assert.NotNull(aircraft);
         string vertical = $"alt={aircraft.Altitude:F0} vs={aircraft.VerticalSpeed:F0} target={aircraft.Targets.TargetAltitude}";
         _output.WriteLine($"t={VectoredStartSeconds}: {vertical} route={aircraft.Targets.NavigationRoute.Count}");
@@ -164,8 +164,8 @@ public class Issue429FatApproachesTests
     [Fact]
     public void N200wm_LandsAtLayoutlessFat_IsAutoDeleted()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngineWith(new NullGroundData());
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngineWith(new NullGroundData());
         if (recording is null || engine is null)
         {
             _output.WriteLine("Recording or NavData not available, skipping");
@@ -174,7 +174,7 @@ public class Issue429FatApproachesTests
 
         engine.Replay(recording, LandingReplayStartSeconds);
 
-        var aircraft = engine.World.FindAircraft(LandingCallsign);
+        AircraftState? aircraft = engine.World.FindAircraft(LandingCallsign);
         Assert.NotNull(aircraft);
         _output.WriteLine(
             $"t={LandingReplayStartSeconds}: autoDelete={engine.Scenario?.EffectiveAutoDeleteMode ?? "none"} "
@@ -190,7 +190,7 @@ public class Issue429FatApproachesTests
         {
             engine.ReplayOneSecond();
 
-            foreach (var ac in engine.World.GetSnapshot())
+            foreach (AircraftState ac in engine.World.GetSnapshot())
             {
                 bool stuck = (ac.Phases?.CurrentPhase is RunwayExitPhase) && (ac.GroundSpeed < 1);
                 int run = stuck ? standstillRun.GetValueOrDefault(ac.Callsign) + 1 : 0;

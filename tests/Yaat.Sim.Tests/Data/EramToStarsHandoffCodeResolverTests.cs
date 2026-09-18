@@ -82,7 +82,7 @@ public sealed class EramToStarsHandoffCodeResolverTests
         string expectedSector
     )
     {
-        var owner = Config().ResolveEramToStarsHandoffCode(code);
+        TrackOwner? owner = Config().ResolveEramToStarsHandoffCode(code);
 
         Assert.NotNull(owner);
         Assert.Equal(TrackOwnerType.Stars, owner.OwnerType);
@@ -106,7 +106,7 @@ public sealed class EramToStarsHandoffCodeResolverTests
     public void ResolveTcpCode_BareTcp_StillResolvesDirectly()
     {
         // Sanity: the bare TCP path (no prefix) is unaffected — 2B resolves within NCT directly.
-        var owner = Config().ResolveTcpCode("NCT", "2B");
+        TrackOwner? owner = Config().ResolveTcpCode("NCT", "2B");
         Assert.NotNull(owner);
         Assert.Equal("NCT", owner.FacilityId);
         Assert.Equal(2, owner.Subset);

@@ -26,11 +26,11 @@ public class ControllerAiServiceTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var tower = TestAiPositions.OakTower(_zoa);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        AiPositionConfig tower = TestAiPositions.OakTower(_zoa);
         var engine = new SimulationEngine(new TestAirportGroundData());
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
         var order = new List<string>();
         var towerProbe = new ProbeBrain(tower, order);
@@ -58,7 +58,7 @@ public class ControllerAiServiceTests
             scenario.AiStaffedPositions.Select(p => p.PositionId)
         );
         Assert.True(scenario.PilotContacts.AnyAnswering);
-        var rejected = Assert.Single(scenario.AiAnomalies.Drain());
+        AiAnomalyEvent rejected = Assert.Single(scenario.AiAnomalies.Drain());
         Assert.Equal(AiAnomalyKind.CommandRejected, rejected.Kind);
         Assert.Equal(tower.PositionId, rejected.PositionId);
         Assert.StartsWith("CTO:", rejected.Detail, StringComparison.Ordinal);
@@ -73,10 +73,10 @@ public class ControllerAiServiceTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
         var engine = new SimulationEngine(new TestAirportGroundData());
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
         var order = new List<string>();
         var config = new ControllerAiConfig
@@ -116,11 +116,11 @@ public class ControllerAiServiceTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var tower = TestAiPositions.OakTower(_zoa);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        AiPositionConfig tower = TestAiPositions.OakTower(_zoa);
         var engine = new SimulationEngine(new TestAirportGroundData());
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
         scenario.SoloTrainingMode = true;
         scenario.StudentPosition = tower.Identity;
@@ -156,11 +156,11 @@ public class ControllerAiServiceTests
             return;
         }
 
-        var delivery = _zoa.FindPositionByCallsign("OAK_DEL")!.Id;
-        var ground = _zoa.FindPositionByCallsign("OAK_GND")!.Id;
+        string delivery = _zoa.FindPositionByCallsign("OAK_DEL")!.Id;
+        string ground = _zoa.FindPositionByCallsign("OAK_GND")!.Id;
         var engine = new SimulationEngine(new TestAirportGroundData());
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.ControllerAi = new ControllerAiConfig
         {
             Seed = 99,
@@ -171,8 +171,8 @@ public class ControllerAiServiceTests
         };
         scenario.AiAnomalies.Open(AiAnomalyKind.StuckAircraft, ground, "N1", 1, "");
 
-        var json = JsonSerializer.Serialize(engine.CaptureSnapshot(-1), RecordingJsonOptions.Default);
-        var restored = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot(-1), RecordingJsonOptions.Default);
+        StateSnapshotDto restored = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
         scenario.ControllerAi = null;
         engine.RestoreFromSnapshot(restored);
 
@@ -182,7 +182,7 @@ public class ControllerAiServiceTests
         Assert.Equal(ControlRole.Ground, scenario.ControllerAi.RoleOverrides[delivery]);
         Assert.Equal(0, scenario.AiAnomalies.OpenCount);
 
-        var preFeature = JsonSerializer.Deserialize<StateSnapshotDto>(
+        StateSnapshotDto preFeature = JsonSerializer.Deserialize<StateSnapshotDto>(
             json.Replace("\"ControllerAi\"", "\"ControllerAiRemoved\"", StringComparison.Ordinal),
             RecordingJsonOptions.Default
         )!;

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json.Serialization.Metadata;
 using Xunit;
 using Yaat.Client.Services;
 
@@ -27,20 +28,20 @@ public class HubJsonContractTests
     {
         var seen = new HashSet<Type>();
 
-        foreach (var method in typeof(ServerConnection).GetMethods(BindingFlags.Public | BindingFlags.Instance))
+        foreach (MethodInfo method in typeof(ServerConnection).GetMethods(BindingFlags.Public | BindingFlags.Instance))
         {
             if (method.IsSpecialName)
             {
                 continue;
             }
 
-            var returnType = method.ReturnType;
+            Type returnType = method.ReturnType;
             if (!returnType.IsGenericType || returnType.GetGenericTypeDefinition() != typeof(Task<>))
             {
                 continue;
             }
 
-            var payload = returnType.GetGenericArguments()[0];
+            Type payload = returnType.GetGenericArguments()[0];
             if (!IsOwnedByCore(payload) || !seen.Add(payload))
             {
                 continue;
@@ -54,7 +55,7 @@ public class HubJsonContractTests
     [MemberData(nameof(CoreInvokeReturnTypes))]
     public void EveryCoreInvokeReturnType_HasSourceGenMetadata(string methodName, Type payloadType)
     {
-        var info = YaatHubJsonContext.Default.GetTypeInfo(payloadType);
+        JsonTypeInfo? info = YaatHubJsonContext.Default.GetTypeInfo(payloadType);
 
         Assert.True(
             info is not null,
@@ -93,8 +94,8 @@ public class HubJsonContractTests
             return type.Name;
         }
 
-        var baseName = type.Name[..type.Name.IndexOf('`', StringComparison.Ordinal)];
-        var args = string.Join(", ", type.GetGenericArguments().Select(FriendlyName));
+        string baseName = type.Name[..type.Name.IndexOf('`', StringComparison.Ordinal)];
+        string args = string.Join(", ", type.GetGenericArguments().Select(FriendlyName));
         return $"{baseName}<{args}>";
     }
 }

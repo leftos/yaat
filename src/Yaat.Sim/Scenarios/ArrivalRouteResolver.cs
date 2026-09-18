@@ -24,14 +24,14 @@ internal static class ArrivalRouteResolver
             return;
         }
 
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
 
         // Expand route tokens into fix names. Flight-plan context: don't fabricate transitions on mismatch.
-        var expanded = RouteExpander.Expand(navigationPath, navDb, includeAllTransitionsOnMismatch: false);
+        List<string> expanded = RouteExpander.Expand(navigationPath, navDb, includeAllTransitionsOnMismatch: false);
 
         // Resolve positions and build ResolvedFix list
         var resolved = new List<ResolvedFix>();
-        foreach (var fixName in expanded)
+        foreach (string fixName in expanded)
         {
             if (resolved.Count > 0 && fixName.Equals(resolved[^1].Name, StringComparison.OrdinalIgnoreCase))
             {
@@ -41,7 +41,7 @@ internal static class ArrivalRouteResolver
             // ResolveFixOrFrd, not GetFixPosition: a filed route routinely names points as
             // fix/radial/distance — AP/1B files military route entry and exit that way
             // ("SAT263043 IR149 LRD040028") — and a bare fix lookup drops every one of them.
-            var pos = navDb.ResolveFixOrFrd(fixName);
+            (double Lat, double Lon)? pos = navDb.ResolveFixOrFrd(fixName);
             if (pos is null)
             {
                 warnings.Add($"{state.Callsign}: Could not resolve nav fix '{fixName}', skipping");
@@ -56,7 +56,7 @@ internal static class ArrivalRouteResolver
 
         RouteChainer.AppendRouteRemainder(resolved, state.FlightPlan.Route);
 
-        foreach (var fix in resolved)
+        foreach (ResolvedFix fix in resolved)
         {
             state.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
         }
@@ -73,35 +73,35 @@ internal static class ArrivalRouteResolver
             return;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        foreach (var token in tokens)
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string[] tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        foreach (string token in tokens)
         {
-            var parts = token.Split('.');
-            var rawName = parts[0];
+            string[] parts = token.Split('.');
+            string rawName = parts[0];
             string? runwayDesignator = parts.Length > 1 ? parts[1] : null;
 
-            var resolvedStarId = navDb.ResolveStarId(rawName);
+            string? resolvedStarId = navDb.ResolveStarId(rawName);
             if (resolvedStarId is null)
             {
                 continue;
             }
 
-            var star = navDb.GetStar(destination, resolvedStarId);
+            CifpStarProcedure? star = navDb.GetStar(destination, resolvedStarId);
             if (star is null)
             {
                 break;
             }
 
-            var rwTransitionLegs = FindRunwayTransition(star, runwayDesignator, destinationRunway: null);
+            IReadOnlyList<CifpLeg>? rwTransitionLegs = FindRunwayTransition(star, runwayDesignator, destinationRunway: null);
             if (rwTransitionLegs is null)
             {
                 break;
             }
 
             var existingNames = new HashSet<string>(resolved.Select(r => r.Name), StringComparer.OrdinalIgnoreCase);
-            var rwTargets = DepartureClearanceHandler.ResolveLegsToTargets(rwTransitionLegs);
-            foreach (var target in rwTargets)
+            List<NavigationTarget> rwTargets = DepartureClearanceHandler.ResolveLegsToTargets(rwTransitionLegs);
+            foreach (NavigationTarget target in rwTargets)
             {
                 if (existingNames.Contains(target.Name))
                 {
@@ -128,18 +128,18 @@ internal static class ArrivalRouteResolver
             return;
         }
 
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
 
         // Find the STAR token in the navigation path
-        var tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         string? starId = null;
         string? runwayDesignator = null;
 
-        foreach (var token in tokens)
+        foreach (string token in tokens)
         {
-            var parts = token.Split('.');
-            var rawName = parts[0];
-            var resolvedId = navDb.ResolveStarId(rawName);
+            string[] parts = token.Split('.');
+            string rawName = parts[0];
+            string? resolvedId = navDb.ResolveStarId(rawName);
             if (resolvedId is not null)
             {
                 starId = resolvedId;
@@ -151,9 +151,9 @@ internal static class ArrivalRouteResolver
         if (starId is null)
         {
             // Check if any token looks like a procedure name (has trailing digits) but wasn't found
-            foreach (var token in tokens)
+            foreach (string token in tokens)
             {
-                var rawName = token.Split('.')[0];
+                string rawName = token.Split('.')[0];
                 string baseName = NavigationDatabase.StripTrailingDigits(rawName);
                 if (baseName != rawName)
                 {
@@ -165,7 +165,7 @@ internal static class ArrivalRouteResolver
             return;
         }
 
-        var star = navDb.GetStar(state.FlightPlan.Destination, starId);
+        CifpStarProcedure? star = navDb.GetStar(state.FlightPlan.Destination, starId);
         if (star is null)
         {
             return;
@@ -175,7 +175,7 @@ internal static class ArrivalRouteResolver
         var orderedLegs = new List<CifpLeg>();
         orderedLegs.AddRange(star.CommonLegs);
 
-        var rwTransitionLegs = FindRunwayTransition(star, runwayDesignator, state.Procedure.DestinationRunway);
+        IReadOnlyList<CifpLeg>? rwTransitionLegs = FindRunwayTransition(star, runwayDesignator, state.Procedure.DestinationRunway);
         if (rwTransitionLegs is not null)
         {
             orderedLegs.AddRange(rwTransitionLegs);
@@ -186,20 +186,20 @@ internal static class ArrivalRouteResolver
             return;
         }
 
-        var constrainedTargets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs);
+        List<NavigationTarget> constrainedTargets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs);
 
         // Build a lookup of constraints by fix name
         var constraintsByFix = new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
-        foreach (var target in constrainedTargets)
+        foreach (NavigationTarget target in constrainedTargets)
         {
             constraintsByFix[target.Name] = target;
         }
 
         // Overlay constraints onto existing route targets
-        var route = state.Targets.NavigationRoute;
+        List<NavigationTarget> route = state.Targets.NavigationRoute;
         for (int i = 0; i < route.Count; i++)
         {
-            if (constraintsByFix.TryGetValue(route[i].Name, out var constrained))
+            if (constraintsByFix.TryGetValue(route[i].Name, out NavigationTarget? constrained))
             {
                 route[i] = new NavigationTarget
                 {
@@ -218,7 +218,7 @@ internal static class ArrivalRouteResolver
         // Apply the first constrained fix's restrictions immediately so the aircraft
         // starts descending toward the first STAR constraint at spawn, not after
         // sequencing through unconstrained fixes.
-        foreach (var target in route)
+        foreach (NavigationTarget target in route)
         {
             if (target.AltitudeRestriction is not null || target.SpeedRestriction is not null)
             {
@@ -241,7 +241,7 @@ internal static class ArrivalRouteResolver
         }
 
         // Try explicit designator from the nav path token (e.g., "ALWYS3.19L" → "19L")
-        var rwLegs = TryLookupRunwayTransition(star, explicitDesignator);
+        IReadOnlyList<CifpLeg>? rwLegs = TryLookupRunwayTransition(star, explicitDesignator);
         if (rwLegs is not null)
         {
             return rwLegs;
@@ -267,15 +267,15 @@ internal static class ArrivalRouteResolver
         }
 
         // CIFP runway-transition keys are zero-padded ("RW01R"); pad a single-digit designator first.
-        var padded = RunwayIdentifier.NormalizeDesignator(designator);
-        var rwKey = "RW" + padded;
-        if (star.RunwayTransitions.TryGetValue(rwKey, out var transition))
+        string padded = RunwayIdentifier.NormalizeDesignator(designator);
+        string rwKey = "RW" + padded;
+        if (star.RunwayTransitions.TryGetValue(rwKey, out CifpTransition? transition))
         {
             return transition.Legs;
         }
 
         // Fall back to "both" key (e.g., RW19B for RW19L/RW19R)
-        var bothKey = "RW" + padded.TrimEnd('L', 'R', 'C') + "B";
+        string bothKey = "RW" + padded.TrimEnd('L', 'R', 'C') + "B";
         if (star.RunwayTransitions.TryGetValue(bothKey, out transition))
         {
             return transition.Legs;

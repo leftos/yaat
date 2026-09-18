@@ -132,7 +132,7 @@ public static class EuroScopeTagLayout
 
         // Line 4: runway + scratchpads (only if at least one is set, to keep block compact)
         bool hasRwy = !string.IsNullOrEmpty(ac.AssignedRunway);
-        var effectiveSp1 = RadarDatablockLayout.EffectiveScratchpad1(ac);
+        string? effectiveSp1 = RadarDatablockLayout.EffectiveScratchpad1(ac);
         bool hasSp1 = !string.IsNullOrEmpty(effectiveSp1);
         bool hasSp2 = !string.IsNullOrEmpty(ac.Scratchpad2);
         bool hasHandoff = !string.IsNullOrEmpty(ac.HandoffDisplay);
@@ -295,8 +295,8 @@ public static class EuroScopeTagLayout
 
     private static string FormatTypeCwt(AircraftModel ac)
     {
-        var type = ac.DisplayAircraftType.Trim();
-        var cwt = ac.CwtCode.Trim();
+        string type = ac.DisplayAircraftType.Trim();
+        string cwt = ac.CwtCode.Trim();
         if (type.Length > 0 && cwt.Length > 0)
         {
             return $"{type}/{cwt}";

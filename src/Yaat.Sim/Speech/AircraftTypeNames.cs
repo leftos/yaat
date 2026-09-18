@@ -60,13 +60,13 @@ public static class AircraftTypeNames
         {
             return [];
         }
-        var key = icaoType.ToUpperInvariant();
+        string key = icaoType.ToUpperInvariant();
         var names = new List<string>(2);
-        if (_data.Value.Family.TryGetValue(key, out var family) && family.Length > 0)
+        if (_data.Value.Family.TryGetValue(key, out string? family) && family.Length > 0)
         {
             names.Add(family);
         }
-        if (_data.Value.Manufacturer.TryGetValue(key, out var mfr) && mfr.Length > 0 && !names.Contains(mfr))
+        if (_data.Value.Manufacturer.TryGetValue(key, out string? mfr) && mfr.Length > 0 && !names.Contains(mfr))
         {
             names.Add(mfr);
         }
@@ -75,7 +75,7 @@ public static class AircraftTypeNames
 
     private static Data Load()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Speech", "Data", "aircraft-types.tsv");
+        string path = Path.Combine(AppContext.BaseDirectory, "Speech", "Data", "aircraft-types.tsv");
         if (!File.Exists(path))
         {
             Log.LogWarning("aircraft-types.tsv not found at {Path}; type-name map will be empty", path);
@@ -85,24 +85,24 @@ public static class AircraftTypeNames
         var mfr = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var fam = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var line in File.ReadLines(path))
+        foreach (string line in File.ReadLines(path))
         {
             if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
             {
                 continue;
             }
-            var fields = line.Split('\t');
+            string[] fields = line.Split('\t');
             if (fields.Length < 2)
             {
                 continue;
             }
-            var designator = fields[0].Trim().ToUpperInvariant();
+            string designator = fields[0].Trim().ToUpperInvariant();
             if (designator.Length == 0)
             {
                 continue;
             }
 
-            var manufacturer = fields[1].Trim();
+            string manufacturer = fields[1].Trim();
             if (manufacturer.Length > 0)
             {
                 mfr[designator] = manufacturer;
@@ -110,7 +110,7 @@ public static class AircraftTypeNames
 
             if (fields.Length >= 3)
             {
-                var family = fields[2].Trim();
+                string family = fields[2].Trim();
                 if (family.Length > 0)
                 {
                     fam[designator] = family;

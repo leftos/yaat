@@ -22,7 +22,7 @@ public class RouteSplicerTests
     public void ReplaceBeginning_NewLeadingAnchor_KeepsDepAndTail()
     {
         // LOGAN4.SSOXS: LOGAN4 is new (splice after dep), SSOXS is the resume anchor.
-        var (dep, enroute, dest) = Splice("LOGAN4.SSOXS");
+        (string? dep, string? enroute, string? dest) = Splice("LOGAN4.SSOXS");
         Assert.Equal("KBOS", dep);
         Assert.Equal("LOGAN4 SSOXS SEY PARCH3", enroute);
         Assert.Equal("KJFK", dest);
@@ -32,7 +32,7 @@ public class RouteSplicerTests
     public void ReplaceMiddle_BothAnchorsPresent_ReplacesSpanBetween()
     {
         // SSOXS.BUZRD.SEY: insert BUZRD between the SSOXS and SEY anchors.
-        var (dep, enroute, dest) = Splice("SSOXS.BUZRD.SEY");
+        (string? dep, string? enroute, string? dest) = Splice("SSOXS.BUZRD.SEY");
         Assert.Equal("KBOS", dep);
         Assert.Equal("SSOXS BUZRD SEY PARCH3", enroute);
         Assert.Equal("KJFK", dest);
@@ -42,7 +42,7 @@ public class RouteSplicerTests
     public void ReplaceEnd_NewTrailingAnchor_KeepsFiledDestination()
     {
         // SEY.ROBER2: SEY anchors, ROBER2 is new → replace the enroute end, keep KJFK.
-        var (dep, enroute, dest) = Splice("SEY.ROBER2");
+        (string? dep, string? enroute, string? dest) = Splice("SEY.ROBER2");
         Assert.Equal("KBOS", dep);
         Assert.Equal("SSOXS SEY ROBER2", enroute);
         Assert.Equal("KJFK", dest);
@@ -52,7 +52,7 @@ public class RouteSplicerTests
     public void ReplaceEntireEnroute_BothAnchorsNew_KeepsDepAndDest()
     {
         // LOGAN4.BOSOX.JFK: neither LOGAN4 nor JFK is in the route (KJFK != JFK) → whole enroute replaced.
-        var (dep, enroute, dest) = Splice("LOGAN4.BOSOX.JFK");
+        (string? dep, string? enroute, string? dest) = Splice("LOGAN4.BOSOX.JFK");
         Assert.Equal("KBOS", dep);
         Assert.Equal("LOGAN4 BOSOX JFK", enroute);
         Assert.Equal("KJFK", dest);
@@ -64,7 +64,7 @@ public class RouteSplicerTests
     [InlineData("KBED")] // raw EramChar.UpArrow — what the CRC wire actually carries
     public void DepartureSwap_Arrow_ReplacesDepartureOnly(string spliceArg)
     {
-        var (dep, enroute, dest) = Splice(spliceArg);
+        (string? dep, string? enroute, string? dest) = Splice(spliceArg);
         Assert.Equal("KBED", dep);
         Assert.Equal("SSOXS SEY PARCH3", enroute);
         Assert.Equal("KJFK", dest);
@@ -76,7 +76,7 @@ public class RouteSplicerTests
     [InlineData("SEY.VALRE.HAARP3.KLGA")] // raw EramChar.DownArrow — the CRC wire form
     public void DestinationSwap_Arrow_SplicesFromAnchorAndSwapsDest(string spliceArg)
     {
-        var (dep, enroute, dest) = Splice(spliceArg);
+        (string? dep, string? enroute, string? dest) = Splice(spliceArg);
         Assert.Equal("KBOS", dep);
         Assert.Equal("SSOXS SEY VALRE HAARP3", enroute);
         Assert.Equal("KLGA", dest);
@@ -105,7 +105,7 @@ public class RouteSplicerTests
     [Fact]
     public void CaseInsensitiveAnchors_MatchExistingRoute()
     {
-        var (_, enroute, _) = Splice("ssoxs.buzrd.sey");
+        (string _, string? enroute, string _) = Splice("ssoxs.buzrd.sey");
         Assert.Equal("ssoxs buzrd sey PARCH3", enroute);
     }
 }

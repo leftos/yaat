@@ -39,13 +39,13 @@ public class PushbackCanonicalRoundTripTests(ITestOutputHelper output)
     [InlineData("PUSH $7A TAIL W", "PUSH $7A FACE E")]
     public void EveryAcceptedForm_CanonicalReParsesToTheSameCommand(string input, string expectedCanonical)
     {
-        var first = Parse(input);
-        var canonical = CommandDescriber.DescribeCommand(first);
+        PushbackCommand first = Parse(input);
+        string canonical = CommandDescriber.DescribeCommand(first);
         output.WriteLine($"{input} → {canonical}   ({CommandDescriber.DescribeNatural(first)})");
 
         Assert.Equal(expectedCanonical, canonical);
 
-        var second = Parse(canonical);
+        PushbackCommand second = Parse(canonical);
         Assert.Equal(first, second);
         Assert.Equal(canonical, CommandDescriber.DescribeCommand(second));
     }
@@ -63,7 +63,7 @@ public class PushbackCanonicalRoundTripTests(ITestOutputHelper output)
         {
             foreach (string form in new[] { $"FACE {cardinal}", $"TAIL {cardinal}", $">{cardinal}", $"<{cardinal}" })
             {
-                var push = Parse($"PUSH {form}");
+                PushbackCommand push = Parse($"PUSH {form}");
                 Assert.NotNull(push.MagneticHeading);
 
                 double degrees = push.MagneticHeading.Value.Degrees;
@@ -87,7 +87,7 @@ public class PushbackCanonicalRoundTripTests(ITestOutputHelper output)
     [InlineData("PUSH @4A TE FACE E")]
     public void StandDestinationWithAFacing_Refused(string input)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         output.WriteLine($"{input} → {result.Reason}");
 
         Assert.False(result.IsSuccess, $"'{input}' was accepted");
@@ -96,7 +96,7 @@ public class PushbackCanonicalRoundTripTests(ITestOutputHelper output)
 
     private static PushbackCommand Parse(string input)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.True(result.IsSuccess, $"'{input}' was refused: {result.Reason}");
         return Assert.IsType<PushbackCommand>(result.Value);
     }

@@ -1,4 +1,5 @@
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Phases;
@@ -49,7 +50,7 @@ public static class PilotProactive
             return;
         }
 
-        var positionType = scenario.StudentPositionType;
+        string? positionType = scenario.StudentPositionType;
         if (string.IsNullOrEmpty(positionType) || positionType == "GND")
         {
             return;
@@ -60,19 +61,19 @@ public static class PilotProactive
             return;
         }
 
-        var primaryAirport = scenario.PrimaryAirportId;
+        string? primaryAirport = scenario.PrimaryAirportId;
         if (string.IsNullOrEmpty(primaryAirport))
         {
             return;
         }
 
-        var airportPos = airportLookup(primaryAirport);
+        LatLon? airportPos = airportLookup(primaryAirport);
         if (airportPos is null)
         {
             return;
         }
 
-        var line = PilotResponder.BuildAirborneCheckIn(aircraft, scenario, airportPos.Value);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(aircraft, scenario, airportPos.Value);
         if (line is null)
         {
             return;
@@ -124,25 +125,27 @@ public static class PilotProactive
             return;
         }
 
-        var destination = !string.IsNullOrWhiteSpace(aircraft.FlightPlan.Destination) ? aircraft.FlightPlan.Destination : scenario.PrimaryAirportId;
+        string? destination = !string.IsNullOrWhiteSpace(aircraft.FlightPlan.Destination)
+            ? aircraft.FlightPlan.Destination
+            : scenario.PrimaryAirportId;
         if (string.IsNullOrWhiteSpace(destination))
         {
             return;
         }
 
-        var destinationPosition = airportLookup(destination);
+        LatLon? destinationPosition = airportLookup(destination);
         if (destinationPosition is null)
         {
             return;
         }
 
-        var distanceNm = GeoMath.DistanceNm(destinationPosition.Value, aircraft.Position);
+        double distanceNm = GeoMath.DistanceNm(destinationPosition.Value, aircraft.Position);
         if (distanceNm > 10.0)
         {
             return;
         }
 
-        var positionType = scenario.StudentPositionType;
+        string? positionType = scenario.StudentPositionType;
         if (string.IsNullOrWhiteSpace(positionType))
         {
             return;
@@ -153,11 +156,15 @@ public static class PilotProactive
             return;
         }
 
-        var facilityCallName = PilotResponder.ResolveStudentFacilityCallName(scenario, positionType, positionType == "CTR" ? "center" : "approach");
+        string facilityCallName = PilotResponder.ResolveStudentFacilityCallName(
+            scenario,
+            positionType,
+            positionType == "CTR" ? "center" : "approach"
+        );
         // The pilot does not speak a runway (ATC assigns it), but the pending-request context still
         // tracks the planned landing runway for follow-up matching.
-        var runwayId = aircraft.Procedure.DestinationRunway ?? aircraft.Phases?.AssignedRunway?.Designator;
-        var line = PilotResponder.BuildArrivalApproachRequest(aircraft);
+        string? runwayId = aircraft.Procedure.DestinationRunway ?? aircraft.Phases?.AssignedRunway?.Designator;
+        PilotSpeechText line = PilotResponder.BuildArrivalApproachRequest(aircraft);
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
         PilotRequestTracker.RecordRequest(
             aircraft,
@@ -186,7 +193,7 @@ public static class PilotProactive
             return;
         }
 
-        var approach = aircraft.Approach;
+        AircraftApproachState approach = aircraft.Approach;
 
         if (
             approach.ReportFinalMileTarget is { } miles
@@ -270,21 +277,21 @@ public static class PilotProactive
             return;
         }
 
-        var crossing = airspace.FindFirstProjectedEntry(aircraft, lookaheadSeconds: 60);
+        AirspaceBoundaryCrossing? crossing = airspace.FindFirstProjectedEntry(aircraft, lookaheadSeconds: 60);
         if (crossing is null || EntryGateSatisfied(aircraft, crossing.Volume.Class))
         {
             return;
         }
 
-        var volume = crossing.Volume;
-        var reference = airportLookup(volume.Ident) ?? airportLookup(volume.IcaoId) ?? crossing.Intersection;
+        AirspaceVolume volume = crossing.Volume;
+        LatLon reference = airportLookup(volume.Ident) ?? airportLookup(volume.IcaoId) ?? crossing.Intersection;
 
         // Already laterally inside the footprint means the entry can only be vertical, and no turn avoids
         // a shelf that is directly overhead — level off beneath it and stay on course instead.
         int? levelOffCeiling = volume.ContainsLateral(aircraft.Position)
             ? ResolveLevelOffCeiling(aircraft, volume, scenario.MagneticModelDateUtc)
             : null;
-        var mode = levelOffCeiling is null ? AirspaceHoldMode.Orbit : AirspaceHoldMode.LevelOff;
+        AirspaceHoldMode mode = levelOffCeiling is null ? AirspaceHoldMode.Orbit : AirspaceHoldMode.LevelOff;
 
         AnnounceUnableAssignedAltitude(aircraft, volume, levelOffCeiling);
 
@@ -322,7 +329,7 @@ public static class PilotProactive
         }
 
         string airspaceName = volume.Class == AirspaceClass.Bravo ? "bravo" : "charlie";
-        var line = PilotResponder.BuildUnableAirspaceAltitude(aircraft, (int)assigned, ceiling, airspaceName);
+        PilotSpeechText line = PilotResponder.BuildUnableAirspaceAltitude(aircraft, (int)assigned, ceiling, airspaceName);
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
     }
 
@@ -334,7 +341,7 @@ public static class PilotProactive
     /// </summary>
     private static int? ResolveLevelOffCeiling(AircraftState aircraft, AirspaceVolume volume, DateTime magneticModelDateUtc)
     {
-        var navDb = Data.NavigationDatabase.Instance;
+        NavigationDatabase? navDb = Data.NavigationDatabase.Instance;
         double surfaceElevation = navDb?.GetAirportElevation(volume.Ident) ?? navDb?.GetAirportElevation(volume.IcaoId) ?? 0;
         double magneticCourse = aircraft.TrueTrack.ToMagnetic(MagneticDeclination.GetDeclination(aircraft.Position, magneticModelDateUtc)).Degrees;
         return AirspaceAvoidance.LevelOffCeilingFt(volume.LowerFtMsl, magneticCourse, surfaceElevation);

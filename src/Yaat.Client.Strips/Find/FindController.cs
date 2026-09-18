@@ -50,7 +50,7 @@ public sealed partial class FindController : ObservableObject
             {
                 return "No matches";
             }
-            var ordinal = _currentItem is null ? 0 : _matches.IndexOf(_currentItem) + 1;
+            int ordinal = _currentItem is null ? 0 : _matches.IndexOf(_currentItem) + 1;
             return $"{ordinal}/{_matches.Count}";
         }
     }
@@ -80,7 +80,7 @@ public sealed partial class FindController : ObservableObject
             OnPropertyChanged(nameof(MatchSummary));
             return;
         }
-        var idx = _currentItem is null ? -1 : _matches.IndexOf(_currentItem);
+        int idx = _currentItem is null ? -1 : _matches.IndexOf(_currentItem);
         if (idx < 0)
         {
             idx = _matches.Count > 0 ? 0 : -1;
@@ -132,7 +132,7 @@ public sealed partial class FindController : ObservableObject
             SelectByIndex(-1);
             return;
         }
-        var currentIdx = _currentItem is null ? -1 : _matches.IndexOf(_currentItem);
+        int currentIdx = _currentItem is null ? -1 : _matches.IndexOf(_currentItem);
         int nextIdx;
         if (currentIdx < 0)
         {
@@ -140,7 +140,7 @@ public sealed partial class FindController : ObservableObject
         }
         else
         {
-            var n = _matches.Count;
+            int n = _matches.Count;
             nextIdx = ((currentIdx + delta) % n + n) % n;
         }
         SelectByIndex(nextIdx);
@@ -148,7 +148,7 @@ public sealed partial class FindController : ObservableObject
 
     private void RecomputeMatches()
     {
-        foreach (var item in _flagged)
+        foreach (IFindableItem item in _flagged)
         {
             item.IsFindMatch = false;
             item.IsCurrentFindMatch = false;
@@ -162,7 +162,7 @@ public sealed partial class FindController : ObservableObject
         }
 
         _matches = FindMatcher.ComputeMatches(_snapshot(), Query);
-        foreach (var match in _matches)
+        foreach (IFindableItem match in _matches)
         {
             match.IsFindMatch = true;
             _flagged.Add(match);

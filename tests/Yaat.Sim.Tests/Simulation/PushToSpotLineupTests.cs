@@ -37,7 +37,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {
             return;
@@ -45,8 +45,8 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).EnableCategory("PushbackPhase", LogLevel.Debug).InitializeSimLog();
 
-        var spot = layout.FindSpotNodeByName("7A");
-        var aJunction = layout.FindIntersectionNode("A", "T7A");
+        GroundNode? spot = layout.FindSpotNodeByName("7A");
+        GroundNode? aJunction = layout.FindIntersectionNode("A", "T7A");
         if (spot is null || aJunction is null)
         {
             return;
@@ -64,15 +64,15 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         // Off-axis is deliberate: pre-fix the reverse ends the aircraft facing start->spot's reciprocal
         // (not the sub-lane's out-heading), so the facing assertion is a real red/green discriminator.
         double startBearing = new TrueHeading(hdgOut - 45.0).Degrees;
-        var startPos = GeoMath.ProjectPoint(spot.Position, new TrueHeading(startBearing), 150.0 / GeoMath.FeetPerNm);
+        LatLon startPos = GeoMath.ProjectPoint(spot.Position, new TrueHeading(startBearing), 150.0 / GeoMath.FeetPerNm);
 
         var engine = new SimulationEngine(groundData);
         engine.Scenario = MakeScenario();
 
-        var ac = MakeGroundAircraft(Pushed, "CRJ2", startPos, new TrueHeading(hdgOut), layout, new AtParkingPhase());
+        AircraftState ac = MakeGroundAircraft(Pushed, "CRJ2", startPos, new TrueHeading(hdgOut), layout, new AtParkingPhase());
         engine.World.AddAircraft(ac);
 
-        var cmd = engine.SendCommand(Pushed, "PUSH $7A");
+        CommandResult cmd = engine.SendCommand(Pushed, "PUSH $7A");
         Assert.True(cmd.Success, $"PUSH command failed: {cmd.Message}");
 
         // Signed depth is negative out toward the taxiway (start side) and positive behind the spot in
@@ -83,7 +83,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         for (int t = 1; t <= 240; t++)
         {
             engine.TickOneSecond();
-            var a = engine.FindAircraft(Pushed);
+            AircraftState? a = engine.FindAircraft(Pushed);
             if (a is null)
             {
                 break;
@@ -145,7 +145,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {
             return;
@@ -153,19 +153,19 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var spot = layout.FindSpotNodeByName("7A");
-        var aJunction = layout.FindIntersectionNode("A", "T7A");
+        GroundNode? spot = layout.FindSpotNodeByName("7A");
+        GroundNode? aJunction = layout.FindIntersectionNode("A", "T7A");
         if (spot is null || aJunction is null)
         {
             return;
         }
 
         double hdgOut = GeoMath.BearingTo(spot.Position, aJunction.Position);
-        var startPos = GeoMath.ProjectPoint(spot.Position, new TrueHeading(hdgOut), 140.0 / GeoMath.FeetPerNm);
+        LatLon startPos = GeoMath.ProjectPoint(spot.Position, new TrueHeading(hdgOut), 140.0 / GeoMath.FeetPerNm);
 
         var engine = new SimulationEngine(groundData);
         engine.Scenario = MakeScenario();
-        var ac = MakeGroundAircraft(Pushed, "CRJ2", startPos, new TrueHeading(hdgOut), layout, new AtParkingPhase());
+        AircraftState ac = MakeGroundAircraft(Pushed, "CRJ2", startPos, new TrueHeading(hdgOut), layout, new AtParkingPhase());
         engine.World.AddAircraft(ac);
         Assert.True(engine.SendCommand(Pushed, "PUSH $7A").Success);
 
@@ -184,9 +184,9 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         }
 
         Assert.NotNull(creep);
-        var midDto = Assert.IsType<PushbackPhaseDto>(creep.ToSnapshot());
+        PushbackPhaseDto midDto = Assert.IsType<PushbackPhaseDto>(creep.ToSnapshot());
         var restored = PushbackPhase.FromSnapshot(midDto);
-        var reDto = Assert.IsType<PushbackPhaseDto>(restored.ToSnapshot());
+        PushbackPhaseDto reDto = Assert.IsType<PushbackPhaseDto>(restored.ToSnapshot());
         Assert.Equal(
             System.Text.Json.JsonSerializer.Serialize<PhaseDto>(midDto, RecordingJsonOptions.Default),
             System.Text.Json.JsonSerializer.Serialize<PhaseDto>(reDto, RecordingJsonOptions.Default)
@@ -198,7 +198,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         // as a restore leaves it, so it is not restarted.
         var twinEngine = new SimulationEngine(groundData);
         twinEngine.Scenario = MakeScenario();
-        var twin = MakeGroundAircraft("TWIN1", "CRJ2", ac.Position, ac.TrueHeading, layout, new HoldingAfterPushbackPhase());
+        AircraftState twin = MakeGroundAircraft("TWIN1", "CRJ2", ac.Position, ac.TrueHeading, layout, new HoldingAfterPushbackPhase());
         twin.Phases = new PhaseList();
         twin.Phases.Add(restored);
         twin.IndicatedAirspeed = ac.IndicatedAirspeed;
@@ -209,7 +209,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         }
 
         Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outboundDeg), "spot 7A has no outbound heading");
-        var (stop, _) = TugMovePlanner.SpotStopGeometry(spot, outboundDeg, "CRJ2");
+        (LatLon stop, LatLon _) = TugMovePlanner.SpotStopGeometry(spot, outboundDeg, "CRJ2");
         double offStopFt = GeoMath.DistanceNm(twin.Position, stop) * GeoMath.FeetPerNm;
         double offNoseDeg = new TrueHeading(outboundDeg).AbsAngleTo(twin.TrueHeading);
         output.WriteLine($"restored creep ended {offStopFt:F2} ft off the stop point, nose {offNoseDeg:F2}° off nose-out");
@@ -227,7 +227,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
     [Fact]
     public void PushToSpot_CompletesInHoldingAfterPushback_NotAtParking()
     {
-        var world = BuildSpotPushWorld();
+        SpotPushWorld? world = BuildSpotPushWorld();
         if (world is null)
         {
             return;
@@ -235,7 +235,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
 
         Assert.True(world.Value.Engine.SendCommand(Pushed, "PUSH $7A").Success);
 
-        var terminal = TickPushToRest(world.Value.Engine);
+        Phase? terminal = TickPushToRest(world.Value.Engine);
         Assert.True(terminal is not null, "the push never came to rest within 240s");
         Assert.IsType<HoldingAfterPushbackPhase>(terminal);
     }
@@ -248,16 +248,16 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
     [Fact]
     public void PushToSpot_ClearsOriginGateFromParkingSpot()
     {
-        var world = BuildSpotPushWorld();
+        SpotPushWorld? world = BuildSpotPushWorld();
         if (world is null)
         {
             return;
         }
 
-        var (engine, ac, layout, _) = world.Value;
+        (SimulationEngine? engine, AircraftState? ac, AirportGroundLayout? layout, GroundNode _) = world.Value;
 
         // The stand the aircraft is pushing off: the nearest real parking node to where it starts.
-        var originGate = layout
+        GroundNode? originGate = layout
             .Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && !string.IsNullOrWhiteSpace(n.Name))
             .OrderBy(n => GeoMath.DistanceNm(ac.Position, n.Position))
             .FirstOrDefault();
@@ -266,7 +266,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         output.WriteLine($"origin gate {originGate.Name} set as ParkingSpot before PUSH $7A");
 
         Assert.True(engine.SendCommand(Pushed, "PUSH $7A").Success);
-        var terminal = TickPushToRest(engine);
+        Phase? terminal = TickPushToRest(engine);
         Assert.True(terminal is not null, "the push never came to rest within 240s");
 
         Assert.True(
@@ -284,18 +284,18 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
     [Fact]
     public void PushToSpot_ThenPushAgainIsAccepted()
     {
-        var world = BuildSpotPushWorld();
+        SpotPushWorld? world = BuildSpotPushWorld();
         if (world is null)
         {
             return;
         }
 
-        var (engine, ac, layout, spot) = world.Value;
+        (SimulationEngine? engine, AircraftState? ac, AirportGroundLayout? layout, GroundNode? spot) = world.Value;
         Assert.True(engine.SendCommand(Pushed, "PUSH $7A").Success);
         Assert.True(TickPushToRest(engine) is not null, "the push never came to rest within 240s");
 
         // Any other named spot on the layout: the second push only has to be accepted, not to be short.
-        var nextSpot = layout
+        GroundNode? nextSpot = layout
             .Nodes.Values.Where(n =>
                 (n.Type == GroundNodeType.Spot)
                 && !string.IsNullOrWhiteSpace(n.Name)
@@ -305,7 +305,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
             .FirstOrDefault();
         Assert.True(nextSpot is not null, "the SFO layout has only one named spot node");
 
-        var again = engine.SendCommand(Pushed, $"PUSH ${nextSpot!.Name}");
+        CommandResult again = engine.SendCommand(Pushed, $"PUSH ${nextSpot!.Name}");
         output.WriteLine($"second push 'PUSH ${nextSpot.Name}' from {ac.Phases?.CurrentPhase?.Name}: {again.Message}");
         Assert.True(again.Success, $"a second PUSH after a spot push was refused: {again.Message}");
     }
@@ -328,7 +328,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {
             return null;
@@ -336,8 +336,8 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var spot = layout.FindSpotNodeByName("7A");
-        var aJunction = layout.FindIntersectionNode("A", "T7A");
+        GroundNode? spot = layout.FindSpotNodeByName("7A");
+        GroundNode? aJunction = layout.FindIntersectionNode("A", "T7A");
         if (spot is null || aJunction is null)
         {
             return null;
@@ -345,11 +345,11 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
 
         double hdgOut = GeoMath.BearingTo(spot.Position, aJunction.Position);
         double startBearing = new TrueHeading(hdgOut - 45.0).Degrees;
-        var startPos = GeoMath.ProjectPoint(spot.Position, new TrueHeading(startBearing), 150.0 / GeoMath.FeetPerNm);
+        LatLon startPos = GeoMath.ProjectPoint(spot.Position, new TrueHeading(startBearing), 150.0 / GeoMath.FeetPerNm);
 
         var engine = new SimulationEngine(groundData);
         engine.Scenario = MakeScenario();
-        var ac = MakeGroundAircraft(Pushed, "CRJ2", startPos, new TrueHeading(hdgOut), layout, new AtParkingPhase());
+        AircraftState ac = MakeGroundAircraft(Pushed, "CRJ2", startPos, new TrueHeading(hdgOut), layout, new AtParkingPhase());
         engine.World.AddAircraft(ac);
         return new SpotPushWorld(engine, ac, layout, spot);
     }
@@ -366,7 +366,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         for (int t = 1; t <= 240; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Pushed);
+            AircraftState? ac = engine.FindAircraft(Pushed);
             if (ac is null)
             {
                 break;

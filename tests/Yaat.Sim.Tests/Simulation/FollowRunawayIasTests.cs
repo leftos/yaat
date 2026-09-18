@@ -58,7 +58,7 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
     [Fact]
     public void N346G_DoesNotTripUnstabilizedGate_DuringFollowedApproach()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -66,8 +66,8 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -93,7 +93,7 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
             {
                 engine.ReplayOneSecond();
 
-                var ac = engine.FindAircraft(Follower);
+                AircraftState? ac = engine.FindAircraft(Follower);
                 if (ac is null)
                 {
                     continue;
@@ -111,7 +111,7 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
                     sawFinalApproach = true;
                     if (vref == 0)
                     {
-                        var cat = AircraftCategorization.Categorize(ac.AircraftType);
+                        AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
                         vref = AircraftPerformance.ApproachSpeed(ac.AircraftType, cat);
                         stabilizedGate = vref * 1.3;
                     }
@@ -123,7 +123,7 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
                 }
             }
 
-            var follower = engine.FindAircraft(Follower);
+            AircraftState? follower = engine.FindAircraft(Follower);
             Assert.NotNull(follower);
             output.WriteLine($"Max {Follower} IAS: {maxIas:F1} kt at t={maxIasTick}s (gate={stabilizedGate:F1})");
             Assert.True(sawFinalApproach, $"{Follower} never reached FinalApproach in the replay window");
@@ -144,7 +144,7 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
     [Fact]
     public void N346G_TargetSpeedStaysWithinFollowCeiling()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -152,8 +152,8 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -174,7 +174,7 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
             for (int t = 266; t <= 470; t++)
             {
                 engine.ReplayOneSecond();
-                var ac = engine.FindAircraft(Follower);
+                AircraftState? ac = engine.FindAircraft(Follower);
                 if (ac is null)
                 {
                     continue;

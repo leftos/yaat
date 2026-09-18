@@ -22,16 +22,16 @@ public class FacilityOpsTests
     [Fact]
     public void EveryCommittedFile_Validates_AndIsLookedUpByEitherAirportForm()
     {
-        var files = Directory.GetFiles(DataDirectory, "*.json");
+        string[] files = Directory.GetFiles(DataDirectory, "*.json");
         Assert.NotEmpty(files);
-        foreach (var file in files)
+        foreach (string file in files)
         {
-            var ops = FacilityOpsDatabase.Load(file, Navigation);
+            FacilityOps ops = FacilityOpsDatabase.Load(file, Navigation);
             Assert.Equal(FacilityOps.CurrentSchemaVersion, ops.SchemaVersion);
         }
 
         Assert.True(FacilityOpsDatabase.IsInitialized);
-        var oak = FacilityOpsDatabase.For("OAK");
+        FacilityOps? oak = FacilityOpsDatabase.For("OAK");
         Assert.NotNull(oak);
         Assert.Same(oak, FacilityOpsDatabase.For("KOAK"));
         Assert.Equal("OAK", oak.FacilityId);
@@ -42,9 +42,9 @@ public class FacilityOpsTests
     [Fact]
     public void Koak_RoundTrips()
     {
-        var ops = JsonSerializer.Deserialize<FacilityOps>(KoakJson, FacilityOpsJson.Options)!;
-        var once = JsonSerializer.Serialize(ops, FacilityOpsJson.Options);
-        var twice = JsonSerializer.Serialize(JsonSerializer.Deserialize<FacilityOps>(once, FacilityOpsJson.Options), FacilityOpsJson.Options);
+        FacilityOps ops = JsonSerializer.Deserialize<FacilityOps>(KoakJson, FacilityOpsJson.Options)!;
+        string once = JsonSerializer.Serialize(ops, FacilityOpsJson.Options);
+        string twice = JsonSerializer.Serialize(JsonSerializer.Deserialize<FacilityOps>(once, FacilityOpsJson.Options), FacilityOpsJson.Options);
 
         Assert.Equal(once, twice);
         Assert.Equal(["SFOW", "OAKE", "SFOE"], ops.RunwayConfigurations.Select(c => c.Name));
@@ -68,14 +68,14 @@ public class FacilityOpsTests
     )]
     public void ABrokenFile_FailsToLoad_NamingTheProblem(string find, string replaceWith, string expectedError)
     {
-        var json = KoakJson;
+        string json = KoakJson;
         Assert.Contains(find, json);
-        var broken = json.Replace(find, replaceWith);
-        var path = Path.Combine(Path.GetTempPath(), $"yaat-facility-ops-{Guid.NewGuid():N}.json");
+        string broken = json.Replace(find, replaceWith);
+        string path = Path.Combine(Path.GetTempPath(), $"yaat-facility-ops-{Guid.NewGuid():N}.json");
         File.WriteAllText(path, broken);
         try
         {
-            var error = Assert.Throws<FacilityOpsValidationException>(() => FacilityOpsDatabase.Load(path, Navigation));
+            FacilityOpsValidationException error = Assert.Throws<FacilityOpsValidationException>(() => FacilityOpsDatabase.Load(path, Navigation));
             Assert.Contains(expectedError, error.Message);
         }
         finally

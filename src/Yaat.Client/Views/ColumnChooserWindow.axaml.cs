@@ -51,7 +51,7 @@ public partial class ColumnChooserWindow : Window
         _sortDirection = sortDirection;
         _defaultOrder = defaultOrder;
 
-        foreach (var col in columns)
+        foreach (ColumnEntry col in columns)
         {
             Entries.Add(col);
         }
@@ -91,7 +91,7 @@ public partial class ColumnChooserWindow : Window
         }
 
         ColumnList.SelectedItems.Clear();
-        foreach (var item in items)
+        foreach (ColumnEntry item in items)
         {
             ColumnList.SelectedItems.Add(item);
         }
@@ -99,18 +99,18 @@ public partial class ColumnChooserWindow : Window
 
     private void OnMoveTop(object? sender, RoutedEventArgs e)
     {
-        var selected = GetSelectedEntriesInOrder();
+        List<ColumnEntry> selected = GetSelectedEntriesInOrder();
         if (selected.Count == 0)
         {
             return;
         }
 
-        foreach (var item in selected)
+        foreach (ColumnEntry item in selected)
         {
             Entries.Remove(item);
         }
 
-        for (var i = 0; i < selected.Count; i++)
+        for (int i = 0; i < selected.Count; i++)
         {
             Entries.Insert(i, selected[i]);
         }
@@ -120,7 +120,7 @@ public partial class ColumnChooserWindow : Window
 
     private void OnMoveUp(object? sender, RoutedEventArgs e)
     {
-        var selected = GetSelectedEntriesInOrder();
+        List<ColumnEntry> selected = GetSelectedEntriesInOrder();
         if (selected.Count == 0)
         {
             return;
@@ -132,9 +132,9 @@ public partial class ColumnChooserWindow : Window
             return;
         }
 
-        foreach (var item in selected)
+        foreach (ColumnEntry item in selected)
         {
-            var idx = Entries.IndexOf(item);
+            int idx = Entries.IndexOf(item);
             Entries.RemoveAt(idx);
             Entries.Insert(idx - 1, item);
         }
@@ -144,7 +144,7 @@ public partial class ColumnChooserWindow : Window
 
     private void OnMoveDown(object? sender, RoutedEventArgs e)
     {
-        var selected = GetSelectedEntriesInOrder();
+        List<ColumnEntry> selected = GetSelectedEntriesInOrder();
         if (selected.Count == 0)
         {
             return;
@@ -156,9 +156,9 @@ public partial class ColumnChooserWindow : Window
             return;
         }
 
-        for (var i = selected.Count - 1; i >= 0; i--)
+        for (int i = selected.Count - 1; i >= 0; i--)
         {
-            var idx = Entries.IndexOf(selected[i]);
+            int idx = Entries.IndexOf(selected[i]);
             Entries.RemoveAt(idx);
             Entries.Insert(idx + 1, selected[i]);
         }
@@ -168,18 +168,18 @@ public partial class ColumnChooserWindow : Window
 
     private void OnMoveLast(object? sender, RoutedEventArgs e)
     {
-        var selected = GetSelectedEntriesInOrder();
+        List<ColumnEntry> selected = GetSelectedEntriesInOrder();
         if (selected.Count == 0)
         {
             return;
         }
 
-        foreach (var item in selected)
+        foreach (ColumnEntry item in selected)
         {
             Entries.Remove(item);
         }
 
-        foreach (var item in selected)
+        foreach (ColumnEntry item in selected)
         {
             Entries.Add(item);
         }
@@ -189,14 +189,14 @@ public partial class ColumnChooserWindow : Window
 
     private void OnToggle(object? sender, RoutedEventArgs e)
     {
-        var selected = GetSelectedEntriesInOrder();
+        List<ColumnEntry> selected = GetSelectedEntriesInOrder();
         if (selected.Count == 0)
         {
             return;
         }
 
-        var allVisible = selected.All(item => item.IsVisible);
-        foreach (var item in selected)
+        bool allVisible = selected.All(item => item.IsVisible);
+        foreach (ColumnEntry item in selected)
         {
             item.IsVisible = !allVisible;
         }
@@ -213,7 +213,7 @@ public partial class ColumnChooserWindow : Window
             SortDirection = _sortDirection,
         };
 
-        var path = await _filePicker.SaveFileAsync(
+        string? path = await _filePicker.SaveFileAsync(
             new SaveFileOptions(
                 Title: "Export Grid Layout",
                 SuggestedFileName: "layout.yaat-grid-layout.json",
@@ -227,13 +227,13 @@ public partial class ColumnChooserWindow : Window
             return;
         }
 
-        await using var stream = File.Create(path);
+        await using FileStream stream = File.Create(path);
         await JsonSerializer.SerializeAsync(stream, layout, UserPreferences.JsonOptions);
     }
 
     private async void OnImport(object? sender, RoutedEventArgs e)
     {
-        var path = await _filePicker.OpenFileAsync(new OpenFileOptions("Import Grid Layout", [GridLayoutFileType]));
+        string? path = await _filePicker.OpenFileAsync(new OpenFileOptions("Import Grid Layout", [GridLayoutFileType]));
         if (path is null)
         {
             return;
@@ -242,7 +242,7 @@ public partial class ColumnChooserWindow : Window
         SavedGridLayout? layout;
         try
         {
-            await using var stream = File.OpenRead(path);
+            await using FileStream stream = File.OpenRead(path);
             layout = await JsonSerializer.DeserializeAsync<SavedGridLayout>(stream, UserPreferences.JsonOptions);
         }
         catch (JsonException)
@@ -259,7 +259,7 @@ public partial class ColumnChooserWindow : Window
         if (layout.ColumnOrder is { Count: > 0 })
         {
             var keyToEntry = new Dictionary<string, ColumnEntry>();
-            foreach (var entry in Entries)
+            foreach (ColumnEntry entry in Entries)
             {
                 keyToEntry[entry.Key] = entry;
             }
@@ -267,9 +267,9 @@ public partial class ColumnChooserWindow : Window
             var ordered = new List<ColumnEntry>();
             var used = new HashSet<string>();
 
-            foreach (var key in layout.ColumnOrder)
+            foreach (string key in layout.ColumnOrder)
             {
-                if (keyToEntry.TryGetValue(key, out var entry))
+                if (keyToEntry.TryGetValue(key, out ColumnEntry? entry))
                 {
                     ordered.Add(entry);
                     used.Add(key);
@@ -277,7 +277,7 @@ public partial class ColumnChooserWindow : Window
             }
 
             // Append any columns not mentioned in the import (keep relative order)
-            foreach (var entry in Entries)
+            foreach (ColumnEntry entry in Entries)
             {
                 if (!used.Contains(entry.Key))
                 {
@@ -286,15 +286,15 @@ public partial class ColumnChooserWindow : Window
             }
 
             Entries.Clear();
-            foreach (var entry in ordered)
+            foreach (ColumnEntry entry in ordered)
             {
                 Entries.Add(entry);
             }
         }
 
         // Update visibility
-        var hiddenSet = layout.HiddenColumns is { Count: > 0 } ? new HashSet<string>(layout.HiddenColumns) : null;
-        foreach (var entry in Entries)
+        HashSet<string>? hiddenSet = layout.HiddenColumns is { Count: > 0 } ? new HashSet<string>(layout.HiddenColumns) : null;
+        foreach (ColumnEntry entry in Entries)
         {
             entry.IsVisible = hiddenSet is null || !hiddenSet.Contains(entry.Key);
         }
@@ -306,7 +306,7 @@ public partial class ColumnChooserWindow : Window
     private void OnReset(object? sender, RoutedEventArgs e)
     {
         var keyToEntry = new Dictionary<string, ColumnEntry>();
-        foreach (var entry in Entries)
+        foreach (ColumnEntry entry in Entries)
         {
             keyToEntry[entry.Key] = entry;
         }
@@ -314,9 +314,9 @@ public partial class ColumnChooserWindow : Window
         var ordered = new List<ColumnEntry>();
         var used = new HashSet<string>();
 
-        foreach (var key in _defaultOrder)
+        foreach (string key in _defaultOrder)
         {
-            if (keyToEntry.TryGetValue(key, out var entry))
+            if (keyToEntry.TryGetValue(key, out ColumnEntry? entry))
             {
                 entry.IsVisible = true;
                 ordered.Add(entry);
@@ -324,7 +324,7 @@ public partial class ColumnChooserWindow : Window
             }
         }
 
-        foreach (var entry in Entries)
+        foreach (ColumnEntry entry in Entries)
         {
             if (!used.Contains(entry.Key))
             {
@@ -334,7 +334,7 @@ public partial class ColumnChooserWindow : Window
         }
 
         Entries.Clear();
-        foreach (var entry in ordered)
+        foreach (ColumnEntry entry in ordered)
         {
             Entries.Add(entry);
         }

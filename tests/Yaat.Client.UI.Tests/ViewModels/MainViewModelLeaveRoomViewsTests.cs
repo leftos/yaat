@@ -43,7 +43,7 @@ public class MainViewModelLeaveRoomViewsTests
     /// <summary>Feeds a strips VM the broadcasts a live session gives it: bay config, one racked strip, one waiting in the printer.</summary>
     private static void SeedStrips(VStripsViewModel strips, string stripId, string callsign)
     {
-        var printerId = stripId + "_PRINTER";
+        string printerId = stripId + "_PRINTER";
         strips.SetConnected(true);
         strips.ApplyBayConfig(OakConfig);
         Dispatcher.UIThread.RunJobs();
@@ -118,11 +118,11 @@ public class MainViewModelLeaveRoomViewsTests
         vm.ClearRoomState();
         Dispatcher.UIThread.RunJobs();
 
-        foreach (var entry in vm.StripsEntries)
+        foreach (VStripsDockEntryViewModel entry in vm.StripsEntries)
         {
             AssertStripsEmpty(entry.Vm);
         }
-        foreach (var entry in vm.TdlsEntries)
+        foreach (VTdlsDockEntryViewModel entry in vm.TdlsEntries)
         {
             AssertTdlsEmpty(entry.Vm);
         }
@@ -134,7 +134,7 @@ public class MainViewModelLeaveRoomViewsTests
         // The strips VM caches the broadcasts it received so a bay config arriving late still renders them.
         // Re-applying a config after the clear must therefore show empty racks, not the left room's strips.
         var vm = new MainViewModel(new FakeFilePickerService());
-        var strips = vm.StripsEntries[0].Vm;
+        VStripsViewModel strips = vm.StripsEntries[0].Vm;
         SeedStrips(strips, "S1", "UAL100");
 
         vm.ClearRoomState();
@@ -156,7 +156,7 @@ public class MainViewModelLeaveRoomViewsTests
         // content the unloaded scenario put in it goes.
         var vm = new MainViewModel(new FakeFilePickerService());
         await vm.OpenStripsEntryForFacilityAsync("NCT");
-        var linked = vm.StripsEntries[1].Vm;
+        VStripsViewModel linked = vm.StripsEntries[1].Vm;
         SeedStrips(linked, "S2", "SWA200");
         SeedTdls(vm.TdlsEntries[0].Vm, "T1", "UAL100");
 

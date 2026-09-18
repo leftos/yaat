@@ -39,7 +39,7 @@ public static class AircraftSiblingMap
     /// </summary>
     public static bool TryResolve(string? aircraftType, out string sibling)
     {
-        if (!string.IsNullOrEmpty(aircraftType) && _lookup.TryGetValue(aircraftType, out var sib))
+        if (!string.IsNullOrEmpty(aircraftType) && _lookup.TryGetValue(aircraftType, out string? sib))
         {
             sibling = sib;
             return true;
@@ -54,13 +54,13 @@ public static class AircraftSiblingMap
     /// </summary>
     public static Dictionary<string, string> LoadFromFile(string path)
     {
-        var json = File.ReadAllText(path);
-        var doc =
+        string json = File.ReadAllText(path);
+        SiblingMapDocument doc =
             JsonSerializer.Deserialize<SiblingMapDocument>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
             ?? throw new InvalidOperationException($"Failed to deserialize aircraft sibling map from {path}");
 
         var result = new Dictionary<string, string>(doc.Siblings.Count, StringComparer.OrdinalIgnoreCase);
-        foreach (var (missing, entry) in doc.Siblings)
+        foreach ((string? missing, SiblingEntry? entry) in doc.Siblings)
         {
             if (!string.IsNullOrEmpty(entry.Sibling))
             {

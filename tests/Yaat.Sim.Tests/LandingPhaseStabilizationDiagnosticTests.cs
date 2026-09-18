@@ -31,9 +31,9 @@ public class LandingPhaseStabilizationDiagnosticTests
     private static AircraftState MakeAircraftOnFinal(RunwayInfo rwy, double agl, double ias, double bank, double vs, double xteNm)
     {
         // Place aircraft on final 1 nm out, perpendicularly offset by xteNm from centerline.
-        var (alongLat, alongLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 1.0);
-        var perp = rwy.TrueHeading + 90.0; // right of runway = positive XTE
-        var (offsetLat, offsetLon) = GeoMath.ProjectPoint(alongLat, alongLon, perp, xteNm);
+        (double alongLat, double alongLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 1.0);
+        TrueHeading perp = rwy.TrueHeading + 90.0; // right of runway = positive XTE
+        (double offsetLat, double offsetLon) = GeoMath.ProjectPoint(alongLat, alongLon, perp, xteNm);
 
         var ac = new AircraftState
         {
@@ -88,7 +88,7 @@ public class LandingPhaseStabilizationDiagnosticTests
         for (int i = 0; i < maxTicks; i++)
         {
             world.Tick(dt, i * dt, PreTick);
-            foreach (var (_, warning) in world.DrainAllWarnings())
+            foreach ((string _, string? warning) in world.DrainAllWarnings())
             {
                 if (warning.Contains("going around", StringComparison.OrdinalIgnoreCase))
                 {
@@ -102,12 +102,12 @@ public class LandingPhaseStabilizationDiagnosticTests
     [Fact]
     public void Reason_LeadsWith_unstable_NotUnstabilized()
     {
-        var rwy = MakeRunway();
-        var ac = MakeAircraftOnFinal(rwy, agl: 200, ias: 200, bank: 0, vs: -700, xteNm: 0);
+        RunwayInfo rwy = MakeRunway();
+        AircraftState ac = MakeAircraftOnFinal(rwy, agl: 200, ias: 200, bank: 0, vs: -700, xteNm: 0);
         var world = new SimulationWorld();
         world.AddAircraft(ac);
 
-        var warning = RunUntilGoAround(world);
+        string? warning = RunUntilGoAround(world);
         Assert.NotNull(warning);
         _output.WriteLine(warning);
         Assert.Contains("unstable:", warning, StringComparison.Ordinal);
@@ -117,13 +117,13 @@ public class LandingPhaseStabilizationDiagnosticTests
     [Fact]
     public void Reason_OverspeedAboveOnePointThreeVref_NamesIas()
     {
-        var rwy = MakeRunway();
+        RunwayInfo rwy = MakeRunway();
         // B738 Vref ~140; 1.3·Vref = 182. IAS=200 trips speed gate only.
-        var ac = MakeAircraftOnFinal(rwy, agl: 200, ias: 200, bank: 0, vs: -700, xteNm: 0);
+        AircraftState ac = MakeAircraftOnFinal(rwy, agl: 200, ias: 200, bank: 0, vs: -700, xteNm: 0);
         var world = new SimulationWorld();
         world.AddAircraft(ac);
 
-        var warning = RunUntilGoAround(world);
+        string? warning = RunUntilGoAround(world);
         Assert.NotNull(warning);
         _output.WriteLine(warning);
         Assert.Contains("IAS", warning, StringComparison.Ordinal);
@@ -133,13 +133,13 @@ public class LandingPhaseStabilizationDiagnosticTests
     [Fact]
     public void Reason_OffCenterlineXte_NamesFeet()
     {
-        var rwy = MakeRunway();
+        RunwayInfo rwy = MakeRunway();
         // 0.15 nm = ~911 ft, comfortably above 0.08 nm threshold.
-        var ac = MakeAircraftOnFinal(rwy, agl: 200, ias: 140, bank: 0, vs: -700, xteNm: 0.15);
+        AircraftState ac = MakeAircraftOnFinal(rwy, agl: 200, ias: 140, bank: 0, vs: -700, xteNm: 0.15);
         var world = new SimulationWorld();
         world.AddAircraft(ac);
 
-        var warning = RunUntilGoAround(world);
+        string? warning = RunUntilGoAround(world);
         Assert.NotNull(warning);
         _output.WriteLine(warning);
         Assert.Contains("off centerline", warning, StringComparison.Ordinal);
@@ -149,17 +149,17 @@ public class LandingPhaseStabilizationDiagnosticTests
     [Fact]
     public void Reason_HighBank_NamesBankDegrees()
     {
-        var rwy = MakeRunway();
+        RunwayInfo rwy = MakeRunway();
         // Force a bank by setting the aircraft heading 10° off runway centerline.
         // LandingPhase's TickStabilizedApproach will demand runway heading; FlightPhysics
         // turns the aircraft at standard rate, producing a ~22° bank that persists until
         // the turn completes (~3 sec at dt=0.25), tripping the bank gate.
-        var ac = MakeAircraftOnFinal(rwy, agl: 100, ias: 140, bank: 0, vs: 0, xteNm: 0);
+        AircraftState ac = MakeAircraftOnFinal(rwy, agl: 100, ias: 140, bank: 0, vs: 0, xteNm: 0);
         ac.TrueHeading = rwy.TrueHeading + 10.0;
         var world = new SimulationWorld();
         world.AddAircraft(ac);
 
-        var warning = RunUntilGoAround(world);
+        string? warning = RunUntilGoAround(world);
         Assert.NotNull(warning);
         _output.WriteLine(warning);
         Assert.Contains("bank", warning, StringComparison.OrdinalIgnoreCase);
@@ -169,19 +169,19 @@ public class LandingPhaseStabilizationDiagnosticTests
     [Fact]
     public void Reason_HighDescent_NamesFpm()
     {
-        var rwy = MakeRunway();
+        RunwayInfo rwy = MakeRunway();
         // FlightPhysics recomputes VS from DesiredVerticalRate (or default DescentRate)
         // each tick — pre-seeding aircraft.VerticalSpeed alone wouldn't survive the first
         // integration. Set DVR=-1500 so FlightPhysics writes VS=-1500 every tick. Start well
         // above the 3° glidepath (≈318 ft at 1 nm) so LandingPhase's glidepath floor lets the
         // forced dive through — the floor only arrests a descent BELOW the path — and the gate
         // trips on the steep VS before the aircraft captures the path.
-        var ac = MakeAircraftOnFinal(rwy, agl: 500, ias: 140, bank: 0, vs: -1500, xteNm: 0);
+        AircraftState ac = MakeAircraftOnFinal(rwy, agl: 500, ias: 140, bank: 0, vs: -1500, xteNm: 0);
         ac.Targets.DesiredVerticalRate = -1500;
         var world = new SimulationWorld();
         world.AddAircraft(ac);
 
-        var warning = RunUntilGoAround(world);
+        string? warning = RunUntilGoAround(world);
         Assert.NotNull(warning);
         _output.WriteLine(warning);
         Assert.Contains("descent", warning, StringComparison.OrdinalIgnoreCase);
@@ -191,15 +191,15 @@ public class LandingPhaseStabilizationDiagnosticTests
     [Fact]
     public void Reason_MultipleConditions_JoinsWithComma()
     {
-        var rwy = MakeRunway();
+        RunwayInfo rwy = MakeRunway();
         // Three failures simultaneously: IAS, XTE, descent. Start above the 3° glidepath so
         // the glidepath floor lets the forced dive through (see Reason_HighDescent_NamesFpm).
-        var ac = MakeAircraftOnFinal(rwy, agl: 500, ias: 200, bank: 0, vs: -1500, xteNm: 0.15);
+        AircraftState ac = MakeAircraftOnFinal(rwy, agl: 500, ias: 200, bank: 0, vs: -1500, xteNm: 0.15);
         ac.Targets.DesiredVerticalRate = -1500; // force FlightPhysics to keep VS at -1500 fpm
         var world = new SimulationWorld();
         world.AddAircraft(ac);
 
-        var warning = RunUntilGoAround(world);
+        string? warning = RunUntilGoAround(world);
         Assert.NotNull(warning);
         _output.WriteLine(warning);
         // Comma separates each clause.

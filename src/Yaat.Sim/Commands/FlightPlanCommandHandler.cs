@@ -23,8 +23,8 @@ internal static class FlightPlanCommandHandler
             return new CommandResult(false, "Change destination requires an airport code");
         }
 
-        var navDb = NavigationDatabase.Instance;
-        if (!navDb.TryResolveAirport(input, out var canonical))
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        if (!navDb.TryResolveAirport(input, out string? canonical))
         {
             return new CommandResult(false, $"Unknown airport {input.Trim().ToUpperInvariant()}");
         }

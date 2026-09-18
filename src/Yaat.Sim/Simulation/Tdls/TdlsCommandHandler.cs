@@ -52,7 +52,7 @@ public static class TdlsCommandHandler
             return new CommandResult(false, "TDLSQ requires an aircraft selection");
         }
 
-        var facility = ResolveFacility(engine, callsign, out var failureReason);
+        string? facility = ResolveFacility(engine, callsign, out string? failureReason);
         if (facility is null)
         {
             return new CommandResult(false, failureReason ?? "Unable to resolve TDLS facility");
@@ -63,7 +63,7 @@ public static class TdlsCommandHandler
         // visibility — null here is benign because the AircraftId still identifies the item.
         string? cid = null;
 
-        var nowUtc = engine.Scenario!.SimTimeUtc;
+        DateTime nowUtc = engine.Scenario!.SimTimeUtc;
 
         TdlsItemRecord? created;
         bool wasIdempotent;
@@ -74,7 +74,7 @@ public static class TdlsCommandHandler
                 return new CommandResult(false, $"TDLS for {callsign} at {facility} was dumped this session — clearance must be issued by voice");
             }
 
-            var existing = TdlsMutations.FindActiveItem(engine.Tdls, facility, callsign);
+            TdlsItemRecord? existing = TdlsMutations.FindActiveItem(engine.Tdls, facility, callsign);
             wasIdempotent = existing is not null;
             created = wasIdempotent ? existing : TdlsMutations.QueuePending(engine.Tdls, facility, callsign, cid, nowUtc);
         }
@@ -104,24 +104,24 @@ public static class TdlsCommandHandler
             return new CommandResult(false, $"TDLSS requires nine fields, got {cmd.Fields.Count}");
         }
 
-        var facility = ResolveFacility(engine, callsign, out var failureReason);
+        string? facility = ResolveFacility(engine, callsign, out string? failureReason);
         if (facility is null)
         {
             return new CommandResult(false, failureReason ?? "Unable to resolve TDLS facility");
         }
 
-        var payload = TdlsMutations.ClearancePayloadFromFields(cmd.Fields);
-        if (!ValidateMandatoryFields(engine.Tdls, facility, payload, out var mandatoryError))
+        TdlsClearance payload = TdlsMutations.ClearancePayloadFromFields(cmd.Fields);
+        if (!ValidateMandatoryFields(engine.Tdls, facility, payload, out string? mandatoryError))
         {
             return new CommandResult(false, mandatoryError);
         }
 
-        var nowUtc = engine.Scenario!.SimTimeUtc;
+        DateTime nowUtc = engine.Scenario!.SimTimeUtc;
 
         TdlsItemRecord? sent;
         lock (engine.Tdls.Gate)
         {
-            var existing = TdlsMutations.FindActiveItem(engine.Tdls, facility, callsign);
+            TdlsItemRecord? existing = TdlsMutations.FindActiveItem(engine.Tdls, facility, callsign);
             if (existing is null)
             {
                 return new CommandResult(false, $"No queued PDC for {callsign} at {facility} (use TDLSQ first)");
@@ -162,17 +162,17 @@ public static class TdlsCommandHandler
             return new CommandResult(false, "TDLSW requires an aircraft selection");
         }
 
-        var facility = ResolveFacility(engine, callsign, out var failureReason);
+        string? facility = ResolveFacility(engine, callsign, out string? failureReason);
         if (facility is null)
         {
             return new CommandResult(false, failureReason ?? "Unable to resolve TDLS facility");
         }
 
-        var nowUtc = engine.Scenario!.SimTimeUtc;
+        DateTime nowUtc = engine.Scenario!.SimTimeUtc;
 
         lock (engine.Tdls.Gate)
         {
-            var existing = TdlsMutations.FindActiveItem(engine.Tdls, facility, callsign);
+            TdlsItemRecord? existing = TdlsMutations.FindActiveItem(engine.Tdls, facility, callsign);
             if (existing is null)
             {
                 return new CommandResult(true, $"No active PDC for {callsign} (already removed)");
@@ -183,7 +183,7 @@ public static class TdlsCommandHandler
                 return new CommandResult(true, $"PDC for {callsign} already at {existing.Status}");
             }
 
-            var updated = TdlsMutations.MarkWilco(engine.Tdls, existing.Id, nowUtc);
+            TdlsItemRecord? updated = TdlsMutations.MarkWilco(engine.Tdls, existing.Id, nowUtc);
             if (updated is not null)
             {
                 engine.Tdls.ScheduledWilcoAt.Remove(updated.Id);
@@ -202,7 +202,7 @@ public static class TdlsCommandHandler
             return new CommandResult(false, "TDLSDUMP requires an aircraft selection");
         }
 
-        var facility = ResolveFacility(engine, callsign, out var failureReason);
+        string? facility = ResolveFacility(engine, callsign, out string? failureReason);
         if (facility is null)
         {
             return new CommandResult(false, failureReason ?? "Unable to resolve TDLS facility");
@@ -211,7 +211,7 @@ public static class TdlsCommandHandler
         TdlsItemRecord? dumped;
         lock (engine.Tdls.Gate)
         {
-            var existing = TdlsMutations.FindActiveItem(engine.Tdls, facility, callsign);
+            TdlsItemRecord? existing = TdlsMutations.FindActiveItem(engine.Tdls, facility, callsign);
             if (existing is null)
             {
                 return new CommandResult(false, $"No PDC for {callsign} at {facility} to dump");
@@ -237,21 +237,21 @@ public static class TdlsCommandHandler
     /// </summary>
     private static string? ResolveFacility(SimulationEngine engine, string callsign, out string? failureReason)
     {
-        var aircraft = engine.FindAircraft(callsign);
+        AircraftState? aircraft = engine.FindAircraft(callsign);
         if (aircraft is null)
         {
             failureReason = $"Aircraft {callsign} not found";
             return null;
         }
 
-        var dep = aircraft.FlightPlan?.Departure;
+        string? dep = aircraft.FlightPlan?.Departure;
         if (string.IsNullOrEmpty(dep))
         {
             failureReason = $"Aircraft {callsign} has no filed departure airport";
             return null;
         }
 
-        var facility = TdlsMutations.ResolveFacilityForAirport(engine.Tdls, dep);
+        string? facility = TdlsMutations.ResolveFacilityForAirport(engine.Tdls, dep);
         if (facility is null)
         {
             failureReason = $"No TDLS facility configured for {dep}";
@@ -264,7 +264,7 @@ public static class TdlsCommandHandler
 
     private static bool ValidateMandatoryFields(TdlsState state, string facilityId, TdlsClearance payload, out string? error)
     {
-        if (!state.Configs.TryGetValue(facilityId, out var config))
+        if (!state.Configs.TryGetValue(facilityId, out TdlsConfig? config))
         {
             error = $"No TDLS config loaded for facility {facilityId}";
             return false;
@@ -326,10 +326,10 @@ public static class TdlsCommandHandler
     /// </summary>
     private static void EmitSendTerminal(SimulationEngine engine, string callsign, string facility, TdlsClearance payload)
     {
-        var ac = engine.World.GetSnapshot().FirstOrDefault(a => string.Equals(a.Callsign, callsign, StringComparison.OrdinalIgnoreCase));
-        engine.Tdls.Configs.TryGetValue(facility, out var cfg);
+        AircraftState? ac = engine.World.GetSnapshot().FirstOrDefault(a => string.Equals(a.Callsign, callsign, StringComparison.OrdinalIgnoreCase));
+        engine.Tdls.Configs.TryGetValue(facility, out TdlsConfig? cfg);
 
-        var message = FormatPilotPdcMessage(callsign, facility, ac, cfg, payload);
+        string message = FormatPilotPdcMessage(callsign, facility, ac, cfg, payload);
         engine.EmitTerminal("Tdls", callsign, message);
     }
 
@@ -344,19 +344,19 @@ public static class TdlsCommandHandler
     /// </summary>
     public static string FormatPilotPdcMessage(string callsign, string facility, AircraftState? ac, TdlsConfig? cfg, TdlsClearance payload)
     {
-        var fp = ac?.FlightPlan;
+        AircraftFlightPlan? fp = ac?.FlightPlan;
         // The bare designator, not the filed string: a plan filed as "H/B763/L" already carries the suffix, and the
         // suffix is appended below, so composing from the filed form would print "H/B763/L/L".
-        var aircraftType = !string.IsNullOrEmpty(fp?.AircraftType) ? fp!.BaseAircraftType : (ac?.AircraftType ?? "");
-        var equipment = string.IsNullOrEmpty(fp?.EquipmentSuffix) ? aircraftType : $"{aircraftType}/{fp.EquipmentSuffix}";
-        var dep = string.IsNullOrEmpty(fp?.Departure) ? "????" : fp.Departure;
-        var dest = string.IsNullOrEmpty(fp?.Destination) ? "????" : fp.Destination;
-        var route = fp?.Route ?? "";
-        var cruiseFeet = fp?.Altitude.CruiseFeet ?? 0;
-        var altHundreds = cruiseFeet > 0 ? (cruiseFeet / 100).ToString() : "";
-        var squawk = ac is not null && ac.Transponder.AssignedCode > 0 ? ac.Transponder.AssignedCode.ToString("D4") : "0000";
+        string aircraftType = !string.IsNullOrEmpty(fp?.AircraftType) ? fp!.BaseAircraftType : (ac?.AircraftType ?? "");
+        string equipment = string.IsNullOrEmpty(fp?.EquipmentSuffix) ? aircraftType : $"{aircraftType}/{fp.EquipmentSuffix}";
+        string dep = string.IsNullOrEmpty(fp?.Departure) ? "????" : fp.Departure;
+        string dest = string.IsNullOrEmpty(fp?.Destination) ? "????" : fp.Destination;
+        string route = fp?.Route ?? "";
+        int cruiseFeet = fp?.Altitude.CruiseFeet ?? 0;
+        string altHundreds = cruiseFeet > 0 ? (cruiseFeet / 100).ToString() : "";
+        string squawk = ac is not null && ac.Transponder.AssignedCode > 0 ? ac.Transponder.AssignedCode.ToString("D4") : "0000";
 
-        var remarks = FormatPdcRemarks(cfg, payload, altHundreds);
+        string remarks = FormatPdcRemarks(cfg, payload, altHundreds);
 
         return $"ACARS: PDC | CALLSIGN: {callsign} | EQUIPMENT: {equipment} | DEPARTURE: {dep} | DESTINATION: {dest} | ROUTE: {route} | ALTITUDE: {altHundreds} | SQUAWK: {squawk} | REMARKS: {remarks}";
     }
@@ -371,14 +371,14 @@ public static class TdlsCommandHandler
     {
         var sb = new StringBuilder("CLEARED");
 
-        var sid = ResolveSid(cfg, p.Sid);
+        TdlsSidConfig? sid = ResolveSid(cfg, p.Sid);
         if (sid is not null && !TdlsPlaceholder.IsPlaceholder(sid.Name))
         {
             sb.Append(' ').Append(sid.Name);
         }
         sb.Append(" DEPARTURE");
 
-        var transition = ResolveTransition(sid, p.Transition);
+        TdlsSidTransitionConfig? transition = ResolveTransition(sid, p.Transition);
         if (transition is not null && !TdlsPlaceholder.IsPlaceholder(transition.Name))
         {
             sb.Append(' ').Append(transition.Name);

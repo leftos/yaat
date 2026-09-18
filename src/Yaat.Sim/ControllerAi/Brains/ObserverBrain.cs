@@ -26,7 +26,7 @@ public sealed class ObserverBrain(AiPositionConfig position) : IPositionBrain
     {
         _pacing.BeginTick();
         var present = new HashSet<string>(context.Snapshot.Select(ac => ac.Callsign), StringComparer.Ordinal);
-        foreach (var callsign in _memos.Keys.Where(c => !present.Contains(c)).ToList())
+        foreach (string? callsign in _memos.Keys.Where(c => !present.Contains(c)).ToList())
         {
             _memos.Remove(callsign);
         }
@@ -39,7 +39,7 @@ public sealed class ObserverBrain(AiPositionConfig position) : IPositionBrain
             Memos = _memos,
             Pacing = _pacing,
         };
-        foreach (var rule in _rules)
+        foreach (IDecisionRule rule in _rules)
         {
             rule.Evaluate(scope);
         }

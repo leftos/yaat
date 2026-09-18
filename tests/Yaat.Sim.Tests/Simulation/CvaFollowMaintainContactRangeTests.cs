@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -65,14 +66,14 @@ public class CvaFollowMaintainContactRangeTests(ITestOutputHelper output)
     [Fact]
     public void MaintainedTrafficContact_LeadOpensBeyondDetectionRange_DoesNotFalselyReportLostSight()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return; // navdata absent → skip, per no-synthetic-data convention
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var rwy = navDb.GetRunway("OAK", "30");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? rwy = navDb.GetRunway("OAK", "30");
         Assert.NotNull(rwy);
         double finalCourse = rwy.TrueHeading.Degrees;
         double reciprocal = (finalCourse + 180) % 360;
@@ -81,10 +82,10 @@ public class CvaFollowMaintainContactRangeTests(ITestOutputHelper output)
 
         // Establish the follow WITH the lead in range first (5 nm dead-ahead), exactly like the
         // working CVA-follow E2E, so RTIS acquires and CVA FOLLOW wires up the follow.
-        var (leadLat, leadLon) = GeoMath.ProjectPointRaw(thLat, thLon, reciprocal, 10.0);
-        var (trailLat, trailLon) = GeoMath.ProjectPointRaw(thLat, thLon, reciprocal, 15.0);
-        var leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 3000);
-        var trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 3500);
+        (double leadLat, double leadLon) = GeoMath.ProjectPointRaw(thLat, thLon, reciprocal, 10.0);
+        (double trailLat, double trailLon) = GeoMath.ProjectPointRaw(thLat, thLon, reciprocal, 15.0);
+        AircraftState leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 3000);
+        AircraftState trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 3500);
         engine.World.AddAircraft(leader);
         engine.World.AddAircraft(trailer);
 
@@ -113,7 +114,7 @@ public class CvaFollowMaintainContactRangeTests(ITestOutputHelper output)
         // beyond range. This is a GROWING gap (increasing separation), never a loss of contact.
         double range = WakeTurbulenceData.TrafficDetectionRangeNm("B738", AircraftCategory.Jet);
         double gapNm = range + 4.0;
-        var (newLeadLat, newLeadLon) = GeoMath.ProjectPointRaw(trailer.Position.Lat, trailer.Position.Lon, finalCourse, gapNm);
+        (double newLeadLat, double newLeadLon) = GeoMath.ProjectPointRaw(trailer.Position.Lat, trailer.Position.Lon, finalCourse, gapNm);
         leader.Position = new LatLon(newLeadLat, newLeadLon);
 
         double dist = GeoMath.DistanceNm(trailer.Position, leader.Position);

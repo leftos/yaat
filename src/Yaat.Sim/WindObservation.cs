@@ -84,7 +84,7 @@ public static class WindObservation
         for (int k = 0; k < PeakWindowSamples; k++)
         {
             double sampleTime = elapsedSeconds - (k * SampleIntervalSeconds);
-            var sample = SampleAt(weather, surfaceAltitude, sampleTime);
+            WindAtAltitude sample = SampleAt(weather, surfaceAltitude, sampleTime);
 
             if (sample.SpeedKts > peak)
             {

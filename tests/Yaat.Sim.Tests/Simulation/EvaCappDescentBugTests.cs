@@ -74,7 +74,7 @@ public class EvaCappDescentBugTests(ITestOutputHelper output)
 
     private void LogState(int t, AircraftState ac)
     {
-        var route = ac.Targets.NavigationRoute;
+        List<NavigationTarget> route = ac.Targets.NavigationRoute;
         string nextFix = route.Count > 0 ? route[0].Name : "(none)";
         output.WriteLine(
             $"t={t, 4} alt={ac.Altitude, 6:F0} vs={ac.VerticalSpeed, 6:F0} "
@@ -97,8 +97,8 @@ public class EvaCappDescentBugTests(ITestOutputHelper output)
     [Fact]
     public void FirstCapp_DescendsBelowAssignedAltitude()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -107,7 +107,7 @@ public class EvaCappDescentBugTests(ITestOutputHelper output)
 
         engine.Replay(recording, FirstCappElapsedS);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
         double startAlt = aircraft.Altitude;

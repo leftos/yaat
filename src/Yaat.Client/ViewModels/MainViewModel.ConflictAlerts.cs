@@ -1,4 +1,5 @@
 using Avalonia.Threading;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.ViewModels;
@@ -28,13 +29,13 @@ public partial class MainViewModel
         _conflictAlerts = conflicts ?? [];
 
         var peerByCallsign = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var c in _conflictAlerts)
+        foreach (ConflictAlertDto c in _conflictAlerts)
         {
             peerByCallsign[c.CallsignA] = c.CallsignB;
             peerByCallsign[c.CallsignB] = c.CallsignA;
         }
 
-        foreach (var ac in Aircraft)
+        foreach (AircraftModel ac in Aircraft)
         {
             ac.ConflictPeerCallsign = peerByCallsign.GetValueOrDefault(ac.Callsign);
         }
@@ -47,7 +48,7 @@ public partial class MainViewModel
     /// </summary>
     private void SeedConflictPeer(Models.AircraftModel ac)
     {
-        foreach (var c in _conflictAlerts)
+        foreach (ConflictAlertDto c in _conflictAlerts)
         {
             if (string.Equals(c.CallsignA, ac.Callsign, StringComparison.Ordinal))
             {

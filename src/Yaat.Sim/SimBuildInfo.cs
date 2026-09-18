@@ -19,15 +19,15 @@ public static class SimBuildInfo
 
     private static string ReadVersion()
     {
-        var attr = typeof(SimBuildInfo).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
+        AssemblyInformationalVersionAttribute? attr = typeof(SimBuildInfo).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
         if (attr is null)
         {
             return "unknown";
         }
 
         // SourceLink, when enabled, appends "+<git-sha>". Strip that for display purposes.
-        var v = attr.InformationalVersion;
-        var plus = v.IndexOf('+', StringComparison.Ordinal);
+        string v = attr.InformationalVersion;
+        int plus = v.IndexOf('+', StringComparison.Ordinal);
         return plus >= 0 ? v[..plus] : v;
     }
 }

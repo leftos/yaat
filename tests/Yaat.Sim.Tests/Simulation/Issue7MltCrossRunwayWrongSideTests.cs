@@ -5,6 +5,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -55,7 +56,7 @@ public class Issue7MltCrossRunwayWrongSideTests(ITestOutputHelper output)
     [Fact]
     public void Mlt28L_OnUpwindFrom28R_TransitionsToTheParallelPatternWithoutCrossingMidfield()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -63,7 +64,7 @@ public class Issue7MltCrossRunwayWrongSideTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -73,7 +74,7 @@ public class Issue7MltCrossRunwayWrongSideTests(ITestOutputHelper output)
             // of pattern work doesn't move the chain to a different leg by the time MLT fires.
             engine.Replay(archive.ToBaseSessionRecording(), 0);
 
-            var snapshot = archive.ReadSnapshotAt(SnapshotTime);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(SnapshotTime);
             if (snapshot is null)
             {
                 output.WriteLine($"No snapshot near t={SnapshotTime} — skipping");
@@ -82,16 +83,16 @@ public class Issue7MltCrossRunwayWrongSideTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
 
             // Sanity: at t=1275 N342T is on Upwind for 28R right traffic.
-            var pre = engine.FindAircraft(Callsign);
+            AircraftState? pre = engine.FindAircraft(Callsign);
             Assert.NotNull(pre);
             Assert.IsType<UpwindPhase>(pre.Phases?.CurrentPhase);
             Assert.Equal("28R", pre.Phases!.AssignedRunway?.Designator);
             Assert.Equal(PatternDirection.Right, pre.Phases.TrafficDirection);
 
-            var rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
-            var rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
+            RunwayInfo rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
+            RunwayInfo rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
 
-            var post = ReplayThroughTheRecordedMlt(engine);
+            AircraftState? post = ReplayThroughTheRecordedMlt(engine);
             Assert.NotNull(post);
 
             output.WriteLine(
@@ -110,7 +111,7 @@ public class Issue7MltCrossRunwayWrongSideTests(ITestOutputHelper output)
             // The transition upwind's crosswind turn point clears BOTH departure ends: at OAK, 28L's
             // end projects 1.02 nm along 28L from its threshold and 28R's 0.90 nm, so the turn is
             // anchored on 28L's — the aircraft may not turn at 28R's end.
-            var upwind = post.Phases?.Phases.OfType<UpwindPhase>().LastOrDefault();
+            UpwindPhase? upwind = post.Phases?.Phases.OfType<UpwindPhase>().LastOrDefault();
             Assert.NotNull(upwind?.Waypoints);
             double turnAlongTrack = AlongTrack(rwy28L, upwind.Waypoints.CrosswindTurnLat, upwind.Waypoints.CrosswindTurnLon);
             double der28L = AlongTrack(rwy28L, rwy28L.EndLatitude, rwy28L.EndLongitude);
@@ -141,7 +142,7 @@ public class Issue7MltCrossRunwayWrongSideTests(ITestOutputHelper output)
         for (int dt = 1; dt <= MaxReplaySeconds; dt++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             if (string.Equals(ac?.Phases?.AssignedRunway?.Designator, "28L", StringComparison.OrdinalIgnoreCase))
             {
                 output.WriteLine($"recorded MLT 28L applied {dt}s after t={SnapshotTime}");
@@ -171,7 +172,7 @@ public class Issue7MltCrossRunwayWrongSideTests(ITestOutputHelper output)
         for (int i = 0; i < MaxTicksAfterCommand; i++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
             Assert.DoesNotContain(ac.Phases?.Phases ?? [], p => p is MidfieldCrossingPhase);
 

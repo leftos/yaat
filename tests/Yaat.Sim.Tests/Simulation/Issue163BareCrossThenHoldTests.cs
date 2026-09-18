@@ -86,19 +86,19 @@ public class Issue163BareCrossThenHoldTests(ITestOutputHelper output)
     [Fact]
     public void BareCrossThenHold_CrossesRunway28RAndHaltsPastFarSideHoldBars()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
 
-        var parking = FindParking(layout, "JSX1");
+        GroundNode? parking = FindParking(layout, "JSX1");
         Assert.NotNull(parking);
 
-        var aircraft = SpawnC700AtJsx1(layout, parking);
+        AircraftState aircraft = SpawnC700AtJsx1(layout, parking);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
         {
@@ -112,14 +112,14 @@ public class Issue163BareCrossThenHoldTests(ITestOutputHelper output)
             AutoCrossRunway = false,
         };
 
-        var taxiResult = engine.SendCommand("JSX163", "RWY 30 TAXI C B W");
+        CommandResult taxiResult = engine.SendCommand("JSX163", "RWY 30 TAXI C B W");
         Assert.True(taxiResult.Success, $"RWY 30 TAXI C B W failed: {taxiResult.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine($"Route: {route.ToSummary()}  ({route.Segments.Count} segments)");
 
-        var crossing28R = route.HoldShortPoints.FirstOrDefault(h =>
+        HoldShortPoint? crossing28R = route.HoldShortPoints.FirstOrDefault(h =>
             h.Reason == HoldShortReason.RunwayCrossing && h.TargetName is not null && h.TargetName.Contains("28R", StringComparison.OrdinalIgnoreCase)
         );
         Assert.NotNull(crossing28R);
@@ -140,13 +140,13 @@ public class Issue163BareCrossThenHoldTests(ITestOutputHelper output)
                 + $"final phase={aircraft.Phases?.CurrentPhase?.GetType().Name ?? "null"} pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6})"
         );
 
-        var holdShortPos = aircraft.Position;
+        LatLon holdShortPos = aircraft.Position;
         output.WriteLine($"Holding short of 28R at pos=({holdShortPos.Lat:F6},{holdShortPos.Lon:F6}) twy={aircraft.Ground.CurrentTaxiway ?? "?"}");
 
         // Send CROSS; HOLD. Bare CROSS satisfies the 28R hold-short clearance;
         // HOLD is queued with an AfterRunwayCrossing trigger and must fire only
         // after CrossingRunwayPhase completes.
-        var crossResult = engine.SendCommand("JSX163", "CROSS; HOLD");
+        CommandResult crossResult = engine.SendCommand("JSX163", "CROSS; HOLD");
         Assert.True(crossResult.Success, $"CROSS; HOLD failed: {crossResult.Message}");
         output.WriteLine($"CROSS; HOLD dispatched: {crossResult.Message}");
 
@@ -173,8 +173,8 @@ public class Issue163BareCrossThenHoldTests(ITestOutputHelper output)
             }
         }
 
-        var finalPhase = aircraft.Phases?.CurrentPhase?.GetType().Name ?? "null";
-        var hold = aircraft.Ground.Hold;
+        string finalPhase = aircraft.Phases?.CurrentPhase?.GetType().Name ?? "null";
+        HoldDirective? hold = aircraft.Ground.Hold;
         output.WriteLine(
             $"Final: phase={finalPhase} hold={hold?.Kind.ToString() ?? "null"} gs={aircraft.GroundSpeed:F1} "
                 + $"ias={aircraft.IndicatedAirspeed:F1} pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}) twy={aircraft.Ground.CurrentTaxiway ?? "?"}"

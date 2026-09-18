@@ -29,7 +29,7 @@ public partial class DataGridView : UserControl
     {
         base.OnLoaded(e);
 
-        var grid = GetDataGrid();
+        DataGrid? grid = GetDataGrid();
         if (grid is null || DataContext is not MainViewModel vm)
         {
             return;
@@ -40,7 +40,7 @@ public partial class DataGridView : UserControl
         grid.ContextRequested += OnGridContextRequested;
         vm.PropertyChanged += OnViewModelPropertyChanged;
 
-        var searchBox = this.FindControl<TextBox>("SearchBox");
+        TextBox? searchBox = this.FindControl<TextBox>("SearchBox");
         if (searchBox is not null)
         {
             searchBox.KeyDown += OnSearchBoxKeyDown;
@@ -51,7 +51,7 @@ public partial class DataGridView : UserControl
     {
         base.OnUnloaded(e);
 
-        var grid = GetDataGrid();
+        DataGrid? grid = GetDataGrid();
         if (grid is not null)
         {
             grid.SelectionChanged -= OnGridSelectionChanged;
@@ -59,7 +59,7 @@ public partial class DataGridView : UserControl
             grid.ContextRequested -= OnGridContextRequested;
         }
 
-        var searchBox = this.FindControl<TextBox>("SearchBox");
+        TextBox? searchBox = this.FindControl<TextBox>("SearchBox");
         if (searchBox is not null)
         {
             searchBox.KeyDown -= OnSearchBoxKeyDown;
@@ -94,7 +94,7 @@ public partial class DataGridView : UserControl
             _suppressSelectionFeedback = true;
             try
             {
-                var grid = GetDataGrid();
+                DataGrid? grid = GetDataGrid();
                 if (grid is not null && sender is MainViewModel vm)
                 {
                     grid.SelectedItem = vm.SelectedAircraft;
@@ -103,7 +103,7 @@ public partial class DataGridView : UserControl
                     // (radar/ground click, command input, context menus). Deferred because the row
                     // may not be realized yet when the selection lands (Avalonia DataGrid quirk),
                     // and skipped when the active filter hides the aircraft from the view.
-                    var selected = vm.SelectedAircraft;
+                    AircraftModel? selected = vm.SelectedAircraft;
                     if (selected is not null && vm.AircraftView.Contains(selected))
                     {
                         Dispatcher.UIThread.Post(() => grid.ScrollIntoView(selected, null), DispatcherPriority.Background);
@@ -177,8 +177,8 @@ public partial class DataGridView : UserControl
             return;
         }
 
-        var callsign = ac.Callsign;
-        var initials = vm.Preferences.UserInitials;
+        string callsign = ac.Callsign;
+        string initials = vm.Preferences.UserInitials;
         var menu = new ContextMenu();
 
         menu.Items.Add(

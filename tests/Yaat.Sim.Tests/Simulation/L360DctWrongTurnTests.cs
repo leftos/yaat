@@ -61,8 +61,8 @@ public class L360DctWrongTurnTests(ITestOutputHelper output)
     [Fact]
     public void N428KK_TurnsShortWayToOak30numAfterL360()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -71,10 +71,10 @@ public class L360DctWrongTurnTests(ITestOutputHelper output)
 
         engine.Replay(recording, DctAppliedTime);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
-        var fix = ac.Targets.NavigationRoute.FirstOrDefault(n => n.Name == "OAK30NUM");
+        NavigationTarget? fix = ac.Targets.NavigationRoute.FirstOrDefault(n => n.Name == "OAK30NUM");
         Assert.NotNull(fix); // DCT should have installed the direct-to-fix route
 
         // Secondary: the orbit's left-turn bias must be cleared once DCT clears the phase.
@@ -97,7 +97,7 @@ public class L360DctWrongTurnTests(ITestOutputHelper output)
             ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
-            var liveFix = ac.Targets.NavigationRoute.FirstOrDefault(n => n.Name == "OAK30NUM");
+            NavigationTarget? liveFix = ac.Targets.NavigationRoute.FirstOrDefault(n => n.Name == "OAK30NUM");
             if (liveFix is null)
             {
                 break; // fix sequenced — stop measuring

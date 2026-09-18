@@ -16,9 +16,9 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Parse_RtisDescriptiveForm_ProducesCanonicalPhrase()
     {
-        var result = CommandParser.Parse("RTIS 3 5 W B737 024");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("RTIS 3 5 W B737 024");
 
-        var command = Assert.IsType<ReportTrafficAdvisoryCommand>(result.Value);
+        ReportTrafficAdvisoryCommand command = Assert.IsType<ReportTrafficAdvisoryCommand>(result.Value);
         Assert.Equal("RTIS 3 5 W B737 024", CommandDescriber.DescribeCommand(command));
         Assert.Equal("Traffic, 3 o'clock, 5 miles, westbound, Boeing 737, 2,400, report it in sight.", CommandDescriber.DescribeNatural(command));
     }
@@ -26,9 +26,9 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Parse_RtisDescriptiveForm_OptionalAltitude_OmitsAltitude()
     {
-        var result = CommandParser.Parse("RTIS 3 5 W B737");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("RTIS 3 5 W B737");
 
-        var command = Assert.IsType<ReportTrafficAdvisoryCommand>(result.Value);
+        ReportTrafficAdvisoryCommand command = Assert.IsType<ReportTrafficAdvisoryCommand>(result.Value);
         Assert.Null(command.Details.Altitude);
         Assert.Equal("RTIS 3 5 W B737", CommandDescriber.DescribeCommand(command));
         Assert.Equal("Traffic, 3 o'clock, 5 miles, westbound, Boeing 737, report it in sight.", CommandDescriber.DescribeNatural(command));
@@ -39,9 +39,9 @@ public sealed class StructuredAdvisoryCommandTests
     [InlineData("RFIS 11 1", "Field's at your 11 o'clock, 1 mile, report it in sight.")]
     public void Parse_RfisDescriptiveForm_ProducesCanonicalPhrase(string text, string expected)
     {
-        var result = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(text);
 
-        var command = Assert.IsType<ReportFieldAdvisoryCommand>(result.Value);
+        ReportFieldAdvisoryCommand command = Assert.IsType<ReportFieldAdvisoryCommand>(result.Value);
         Assert.Equal(text, CommandDescriber.DescribeCommand(command));
         Assert.Equal(expected, CommandDescriber.DescribeNatural(command));
     }
@@ -54,18 +54,18 @@ public sealed class StructuredAdvisoryCommandTests
     [InlineData("SAFAL 12 1 C R", "Traffic alert, 12 o'clock, 1 mile, advise you turn right immediately, advise you climb immediately.")]
     public void Parse_SafetyAlert_ProducesCanonicalPhrase(string text, string expected)
     {
-        var result = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(text);
 
-        var command = Assert.IsType<SafetyAlertCommand>(result.Value);
+        SafetyAlertCommand command = Assert.IsType<SafetyAlertCommand>(result.Value);
         Assert.Equal(expected, CommandDescriber.DescribeNatural(command));
     }
 
     [Fact]
     public void Parse_Cwt_ProducesCanonicalPhrase()
     {
-        var result = CommandParser.Parse("CWT");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("CWT");
 
-        var command = Assert.IsType<WakeAdvisoryCommand>(result.Value);
+        WakeAdvisoryCommand command = Assert.IsType<WakeAdvisoryCommand>(result.Value);
         Assert.Equal("CWT", CommandDescriber.DescribeCommand(command));
         Assert.Equal("Caution wake turbulence", CommandDescriber.DescribeNatural(command));
     }
@@ -75,9 +75,9 @@ public sealed class StructuredAdvisoryCommandTests
     [InlineData("CLAND NODEL CWT", true)]
     public void Parse_ClearedToLandCwtSuffix_PreservesNoDelete(string text, bool expectedNoDelete)
     {
-        var result = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(text);
 
-        var command = Assert.IsType<ClearedToLandCommand>(result.Value);
+        ClearedToLandCommand command = Assert.IsType<ClearedToLandCommand>(result.Value);
         Assert.Equal(expectedNoDelete, command.NoDelete);
         Assert.True(command.CautionWakeTurbulence);
         Assert.Equal(text, CommandDescriber.DescribeCommand(command));
@@ -90,7 +90,7 @@ public sealed class StructuredAdvisoryCommandTests
     [InlineData("SAFAL 12 1 L R")]
     public void Parse_InvalidDescriptiveForms_Fail(string text)
     {
-        var result = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(text);
 
         Assert.False(result.IsSuccess);
     }
@@ -101,9 +101,9 @@ public sealed class StructuredAdvisoryCommandTests
     [InlineData("RTIS TAIL 4 B737", "TAIL", 4, "B737")]
     public void Parse_RtisRelativeForm_ProducesRelativeCommand(string text, string position, int miles, string type)
     {
-        var result = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(text);
 
-        var command = Assert.IsType<ReportTrafficRelativeCommand>(result.Value);
+        ReportTrafficRelativeCommand command = Assert.IsType<ReportTrafficRelativeCommand>(result.Value);
         Assert.Equal(position, command.Details.Position);
         Assert.Equal(miles, command.Details.Miles);
         Assert.Equal(type, command.Details.AircraftType);
@@ -122,9 +122,9 @@ public sealed class StructuredAdvisoryCommandTests
         string type
     )
     {
-        var result = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(text);
 
-        var command = Assert.IsType<ReportTrafficPatternCommand>(result.Value);
+        ReportTrafficPatternCommand command = Assert.IsType<ReportTrafficPatternCommand>(result.Value);
         Assert.Equal(leg, command.Details.Leg);
         Assert.Equal(side, command.Details.Side);
         Assert.Equal(miles, command.Details.Miles);
@@ -135,9 +135,9 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Parse_RtisPatternFinal_HasNoSide()
     {
-        var result = CommandParser.Parse("RTIS FINAL 2 28R C172");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("RTIS FINAL 2 28R C172");
 
-        var command = Assert.IsType<ReportTrafficPatternCommand>(result.Value);
+        ReportTrafficPatternCommand command = Assert.IsType<ReportTrafficPatternCommand>(result.Value);
         Assert.Equal(PatternEntryLeg.Final, command.Details.Leg);
         Assert.Null(command.Details.Side);
         Assert.Equal(2, command.Details.Miles);
@@ -147,9 +147,9 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Parse_RtisLandmarkForm_ProducesLandmarkCommand()
     {
-        var result = CommandParser.Parse("RTIS OVER VPCOL C172");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("RTIS OVER VPCOL C172");
 
-        var command = Assert.IsType<ReportTrafficLandmarkCommand>(result.Value);
+        ReportTrafficLandmarkCommand command = Assert.IsType<ReportTrafficLandmarkCommand>(result.Value);
         Assert.Equal("VPCOL", command.Details.FixName);
         Assert.Equal("C172", command.Details.AircraftType);
     }
@@ -157,9 +157,9 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Parse_RtisCallsign_StaysRpoForm()
     {
-        var result = CommandParser.Parse("RTIS UAL2");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("RTIS UAL2");
 
-        var command = Assert.IsType<ReportTrafficInSightCommand>(result.Value);
+        ReportTrafficInSightCommand command = Assert.IsType<ReportTrafficInSightCommand>(result.Value);
         Assert.Equal("UAL2", command.TargetCallsign);
     }
 
@@ -173,7 +173,7 @@ public sealed class StructuredAdvisoryCommandTests
     [InlineData("RTIS OVER")] // landmark missing fix + type
     public void Parse_InvalidVfrForms_Fail(string text)
     {
-        var result = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(text);
 
         Assert.False(result.IsSuccess);
     }
@@ -181,7 +181,7 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Describe_RtisRelativeForm_RoundTripsCanonicalAndPhrase()
     {
-        var command = Assert.IsType<ReportTrafficRelativeCommand>(CommandParser.Parse("RTIS NR 2 CESSNA").Value);
+        ReportTrafficRelativeCommand command = Assert.IsType<ReportTrafficRelativeCommand>(CommandParser.Parse("RTIS NR 2 CESSNA").Value);
 
         Assert.Equal("RTIS NR 2 CESSNA", CommandDescriber.DescribeCommand(command));
         Assert.Equal("Traffic, off your nose and to the right, 2 miles, a Cessna, report it in sight.", CommandDescriber.DescribeNatural(command));
@@ -190,7 +190,7 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Describe_RtisPatternForm_RoundTripsCanonicalAndPhrase()
     {
-        var command = Assert.IsType<ReportTrafficPatternCommand>(CommandParser.Parse("RTIS BASE R 2 28R M20P").Value);
+        ReportTrafficPatternCommand command = Assert.IsType<ReportTrafficPatternCommand>(CommandParser.Parse("RTIS BASE R 2 28R M20P").Value);
 
         Assert.Equal("RTIS BASE R 2 28R M20P", CommandDescriber.DescribeCommand(command));
         Assert.Equal("Traffic, 2-mile right base for runway 28R, a Mooney, report it in sight.", CommandDescriber.DescribeNatural(command));
@@ -199,7 +199,7 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Describe_RtisPatternFinal_OmitsSide()
     {
-        var command = Assert.IsType<ReportTrafficPatternCommand>(CommandParser.Parse("RTIS FINAL 2 28R CESSNA").Value);
+        ReportTrafficPatternCommand command = Assert.IsType<ReportTrafficPatternCommand>(CommandParser.Parse("RTIS FINAL 2 28R CESSNA").Value);
 
         Assert.Equal("RTIS FINAL 2 28R CESSNA", CommandDescriber.DescribeCommand(command));
         Assert.Equal("Traffic, 2-mile final for runway 28R, a Cessna, report it in sight.", CommandDescriber.DescribeNatural(command));
@@ -208,7 +208,7 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Describe_RtisLandmarkForm_UsesFixPronunciation()
     {
-        var command = Assert.IsType<ReportTrafficLandmarkCommand>(CommandParser.Parse("RTIS OVER VPCOL CESSNA").Value);
+        ReportTrafficLandmarkCommand command = Assert.IsType<ReportTrafficLandmarkCommand>(CommandParser.Parse("RTIS OVER VPCOL CESSNA").Value);
 
         Assert.Equal("RTIS OVER VPCOL CESSNA", CommandDescriber.DescribeCommand(command));
         Assert.Equal("Traffic, over Oakland Colliseum, a Cessna, report it in sight.", CommandDescriber.DescribeNatural(command));
@@ -217,7 +217,7 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Describe_RtisRelativeRearForm_UsesSlightlyBehindWording()
     {
-        var command = Assert.IsType<ReportTrafficRelativeCommand>(CommandParser.Parse("RTIS RR 4 CESSNA").Value);
+        ReportTrafficRelativeCommand command = Assert.IsType<ReportTrafficRelativeCommand>(CommandParser.Parse("RTIS RR 4 CESSNA").Value);
 
         Assert.Equal("RTIS RR 4 CESSNA", CommandDescriber.DescribeCommand(command));
         Assert.Equal("Traffic, off your right, slightly behind, 4 miles, a Cessna, report it in sight.", CommandDescriber.DescribeNatural(command));
@@ -226,8 +226,8 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Dispatch_RelativeRtis_ResolvesTargetAndCanAcquireTraffic()
     {
-        var ownship = Aircraft("AAL1", "B738", new LatLon(37.0, -122.0), heading: 0, track: 0, altitude: 2400);
-        var target = Aircraft(
+        AircraftState ownship = Aircraft("AAL1", "B738", new LatLon(37.0, -122.0), heading: 0, track: 0, altitude: 2400);
+        AircraftState target = Aircraft(
             "UAL2",
             "C172",
             GeoMath.ProjectPoint(ownship.Position, new TrueHeading(30), 2.0),
@@ -236,7 +236,7 @@ public sealed class StructuredAdvisoryCommandTests
             altitude: 2400
         );
 
-        var result = CommandDispatcher.Dispatch(
+        CommandResult result = CommandDispatcher.Dispatch(
             new ReportTrafficRelativeCommand(new TrafficRelativeDetails("NR", 2, "C172")),
             ownship,
             TestDispatch.Context(
@@ -256,14 +256,28 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Dispatch_LandmarkRtis_ResolvesTargetOverLandmark()
     {
-        var landmarkPos = NavigationDatabase.Instance.GetFixPosition("VPCOL");
+        (double Lat, double Lon)? landmarkPos = NavigationDatabase.Instance.GetFixPosition("VPCOL");
         Assert.NotNull(landmarkPos);
         var landmark = new LatLon(landmarkPos.Value.Lat, landmarkPos.Value.Lon);
 
-        var ownship = Aircraft("AAL1", "B738", GeoMath.ProjectPoint(landmark, new TrueHeading(0), 3.0), heading: 180, track: 180, altitude: 2400);
-        var target = Aircraft("N9225L", "C172", GeoMath.ProjectPoint(landmark, new TrueHeading(0), 1.5), heading: 180, track: 180, altitude: 2400);
+        AircraftState ownship = Aircraft(
+            "AAL1",
+            "B738",
+            GeoMath.ProjectPoint(landmark, new TrueHeading(0), 3.0),
+            heading: 180,
+            track: 180,
+            altitude: 2400
+        );
+        AircraftState target = Aircraft(
+            "N9225L",
+            "C172",
+            GeoMath.ProjectPoint(landmark, new TrueHeading(0), 1.5),
+            heading: 180,
+            track: 180,
+            altitude: 2400
+        );
 
-        var result = CommandDispatcher.Dispatch(
+        CommandResult result = CommandDispatcher.Dispatch(
             new ReportTrafficLandmarkCommand(new TrafficLandmarkDetails("VPCOL", "C172")),
             ownship,
             TestDispatch.Context(
@@ -282,8 +296,8 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Dispatch_StructuredRtis_ResolvesTargetAndCanAcquireTraffic()
     {
-        var ownship = Aircraft("AAL1", "B738", new LatLon(37.0, -122.0), heading: 0, track: 0, altitude: 2400);
-        var target = Aircraft(
+        AircraftState ownship = Aircraft("AAL1", "B738", new LatLon(37.0, -122.0), heading: 0, track: 0, altitude: 2400);
+        AircraftState target = Aircraft(
             "UAL2",
             "B738",
             GeoMath.ProjectPoint(ownship.Position, new TrueHeading(0), 5.0),
@@ -292,7 +306,7 @@ public sealed class StructuredAdvisoryCommandTests
             altitude: 2400
         );
 
-        var result = CommandDispatcher.Dispatch(
+        CommandResult result = CommandDispatcher.Dispatch(
             new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(12, 5, "W", "B737", 2400)),
             ownship,
             TestDispatch.Context(
@@ -312,8 +326,8 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Dispatch_SafetyAlert_ResolvesTargetWithoutTrafficInSight()
     {
-        var ownship = Aircraft("AAL1", "B738", new LatLon(37.0, -122.0), heading: 0, track: 0, altitude: 2400);
-        var target = Aircraft(
+        AircraftState ownship = Aircraft("AAL1", "B738", new LatLon(37.0, -122.0), heading: 0, track: 0, altitude: 2400);
+        AircraftState target = Aircraft(
             "UAL2",
             "A320",
             GeoMath.ProjectPoint(ownship.Position, new TrueHeading(0), 1.0),
@@ -322,7 +336,7 @@ public sealed class StructuredAdvisoryCommandTests
             altitude: 2400
         );
 
-        var result = CommandDispatcher.Dispatch(
+        CommandResult result = CommandDispatcher.Dispatch(
             new SafetyAlertCommand(new SafetyAlertDetails(12, 1, SafetyAlertTurn.Left, null)),
             ownship,
             TestDispatch.Context(Random.Shared, listAircraft: () => [ownship, target], soloTrainingMode: true)
@@ -336,9 +350,13 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Dispatch_Cwt_DoesNotSetTrafficInSight()
     {
-        var ownship = Aircraft("AAL1", "B738", new LatLon(37.0, -122.0), heading: 0, track: 0, altitude: 2400);
+        AircraftState ownship = Aircraft("AAL1", "B738", new LatLon(37.0, -122.0), heading: 0, track: 0, altitude: 2400);
 
-        var result = CommandDispatcher.Dispatch(new WakeAdvisoryCommand(), ownship, TestDispatch.Context(Random.Shared, soloTrainingMode: true));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new WakeAdvisoryCommand(),
+            ownship,
+            TestDispatch.Context(Random.Shared, soloTrainingMode: true)
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("Caution wake turbulence", result.Message);
@@ -349,7 +367,7 @@ public sealed class StructuredAdvisoryCommandTests
     [Fact]
     public void Dispatch_RpoShortcutsRejectInSoloTraining()
     {
-        var ownship = Aircraft("AAL1", "B738", new LatLon(37.0, -122.0), heading: 0, track: 0, altitude: 2400);
+        AircraftState ownship = Aircraft("AAL1", "B738", new LatLon(37.0, -122.0), heading: 0, track: 0, altitude: 2400);
 
         Assert.False(
             CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ownship, TestDispatch.Context(Random.Shared, soloTrainingMode: true)).Success

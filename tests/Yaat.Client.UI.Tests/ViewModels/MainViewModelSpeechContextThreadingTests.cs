@@ -28,14 +28,14 @@ public class MainViewModelSpeechContextThreadingTests
     public void BuildSpeechContext_InvokedOffUiThread_MarshalsOntoUiThread()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        for (var i = 0; i < 40; i++)
+        for (int i = 0; i < 40; i++)
         {
             vm.Aircraft.Add(new AircraftModel { Callsign = $"UAL{i:000}", Destination = "KOAK" });
         }
 
         SpeechContext? result = null;
         // Mirror the speech pipeline: pull the context from a Task.Run background thread.
-        var bg = Task.Run(() => result = vm.BuildSpeechContext());
+        Task<SpeechContext> bg = Task.Run(() => result = vm.BuildSpeechContext());
 
         // With the guard, the build is queued onto the UI thread and bg cannot complete until this
         // (UI) thread pumps. On unfixed code it enumerates Aircraft directly off-thread and completes

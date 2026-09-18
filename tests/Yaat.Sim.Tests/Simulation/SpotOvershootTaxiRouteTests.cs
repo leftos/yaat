@@ -64,7 +64,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
     private static bool RouteContainsBacktracking(TaxiRoute route)
     {
         var visited = new HashSet<int>();
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             visited.Add(seg.FromNodeId);
             visited.Add(seg.ToNodeId);
@@ -92,7 +92,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
     [Fact]
     public void TaxiM2ToSpot2_DoesNotOvershoot()
     {
-        var layout = LoadSfoLayout();
+        AirportGroundLayout? layout = LoadSfoLayout();
         if (layout is null)
         {
             return;
@@ -101,17 +101,17 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         // Spot 2 is on M2 at (37.608301, -122.386348).
         // Start from a position on M2 north of spot 2 (where aircraft would be
         // after PUSH M2) — approximate position of AMX669 after pushback.
-        var spot2 = layout.FindSpotNodeByName("2");
+        GroundNode? spot2 = layout.FindSpotNodeByName("2");
         Assert.NotNull(spot2);
 
         // Find a node on M2 that's north (higher lat) of spot 2 — simulating
         // the aircraft being further up M2 after pushback.
         GroundNode? startNode = null;
         double bestDist = double.MaxValue;
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             bool onM2 = false;
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway("M2"))
                 {
@@ -141,18 +141,18 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         output.WriteLine($"Start node: {startNode.Id} at ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})");
         output.WriteLine($"Spot 2 node: {spot2.Id} at ({spot2.Position.Lat:F6}, {spot2.Position.Lon:F6})");
 
-        var aircraft = MakeSfoGroundAircraft(startNode.Position.Lat, startNode.Position.Lon);
+        AircraftState aircraft = MakeSfoGroundAircraft(startNode.Position.Lat, startNode.Position.Lon);
         var taxi = new TaxiCommand(Path: ["M2"], HoldShorts: [], DestinationSpot: "2");
 
-        var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         output.WriteLine($"Route summary: {route.ToSummary()}");
         output.WriteLine($"Route segments: {route.Segments.Count}");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             output.WriteLine($"  {seg.FromNodeId} -> {seg.ToNodeId} on {seg.TaxiwayName}");
         }
@@ -168,7 +168,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
     [Fact]
     public void TaxiM4M1ToSpot1_DoesNotOvershoot()
     {
-        var layout = LoadSfoLayout();
+        AirportGroundLayout? layout = LoadSfoLayout();
         if (layout is null)
         {
             return;
@@ -176,17 +176,17 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
 
         // Spot 1 is on M1 at (37.608952, -122.385874).
         // JAL57 preset: PUSH M4, then TAXI M4 M1 $1
-        var spot1 = layout.FindSpotNodeByName("1");
+        GroundNode? spot1 = layout.FindSpotNodeByName("1");
         Assert.NotNull(spot1);
 
         // Find the M4 node furthest from spot 1 (simulating post-pushback at
         // the far end of M4, which maximizes the path through M4 → M1).
         GroundNode? startNode = null;
         double bestStartDist = 0;
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             bool onM4 = false;
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway("M4"))
                 {
@@ -212,18 +212,18 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         output.WriteLine($"Start node: {startNode.Id} at ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})");
         output.WriteLine($"Spot 1 node: {spot1.Id} at ({spot1.Position.Lat:F6}, {spot1.Position.Lon:F6})");
 
-        var aircraft = MakeSfoGroundAircraft(startNode.Position.Lat, startNode.Position.Lon);
+        AircraftState aircraft = MakeSfoGroundAircraft(startNode.Position.Lat, startNode.Position.Lon);
         var taxi = new TaxiCommand(Path: ["M4", "M1"], HoldShorts: [], DestinationSpot: "1");
 
-        var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         output.WriteLine($"Route summary: {route.ToSummary()}");
         output.WriteLine($"Route segments: {route.Segments.Count}");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             output.WriteLine($"  {seg.FromNodeId} -> {seg.ToNodeId} on {seg.TaxiwayName}");
         }
@@ -244,23 +244,23 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
     [Fact]
     public void TaxiT9ToSpot9_DoesNotOvershoot()
     {
-        var layout = LoadSfoLayout();
+        AirportGroundLayout? layout = LoadSfoLayout();
         if (layout is null)
         {
             return;
         }
 
         // Spot 9 on T9.
-        var spot9 = layout.FindSpotNodeByName("9");
+        GroundNode? spot9 = layout.FindSpotNodeByName("9");
         Assert.NotNull(spot9);
 
         // Find a node on T9 to start from
         GroundNode? startNode = null;
         double bestDist = double.MaxValue;
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             bool onT9 = false;
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway("T9"))
                 {
@@ -287,18 +287,18 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         output.WriteLine($"Start node: {startNode.Id} at ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})");
         output.WriteLine($"Spot 9 node: {spot9.Id} at ({spot9.Position.Lat:F6}, {spot9.Position.Lon:F6})");
 
-        var aircraft = MakeSfoGroundAircraft(startNode.Position.Lat, startNode.Position.Lon);
+        AircraftState aircraft = MakeSfoGroundAircraft(startNode.Position.Lat, startNode.Position.Lon);
         var taxi = new TaxiCommand(Path: ["T9"], HoldShorts: [], DestinationSpot: "9");
 
-        var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         output.WriteLine($"Route summary: {route.ToSummary()}");
         output.WriteLine($"Route segments: {route.Segments.Count}");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             output.WriteLine($"  {seg.FromNodeId} -> {seg.ToNodeId} on {seg.TaxiwayName}");
         }

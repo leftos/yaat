@@ -28,7 +28,7 @@ public class CommandInputSuggestionTests
     [Fact]
     public void Follow_TrailingSpace_ShowsAllCallsigns()
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("SWA456"), Ac("UAL900")];
 
         controller.UpdateSuggestions("FOLLOW ", "FOLLOW ".Length, aircraft, Scheme);
@@ -44,7 +44,7 @@ public class CommandInputSuggestionTests
     [Fact]
     public void Follow_PartialArg_FiltersBySubstring()
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("SWA456"), Ac("UAL900")];
 
         controller.UpdateSuggestions("FOLLOW AA", "FOLLOW AA".Length, aircraft, Scheme);
@@ -58,7 +58,7 @@ public class CommandInputSuggestionTests
     [Fact]
     public void Followg_PartialArg_FiltersBySubstring()
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("SWA456")];
 
         controller.UpdateSuggestions("FOLLOWG SW", "FOLLOWG SW".Length, aircraft, Scheme);
@@ -71,7 +71,7 @@ public class CommandInputSuggestionTests
     [Fact]
     public void Rtis_TrailingSpace_ShowsAllCallsigns()
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("SWA456")];
 
         controller.UpdateSuggestions("RTIS ", "RTIS ".Length, aircraft, Scheme);
@@ -88,7 +88,7 @@ public class CommandInputSuggestionTests
     [Fact]
     public void Rtisf_PartialArg_FiltersBySubstring()
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("SWA456")];
 
         controller.UpdateSuggestions("RTISF AA", "RTISF AA".Length, aircraft, Scheme);
@@ -101,7 +101,7 @@ public class CommandInputSuggestionTests
     [Fact]
     public void CvaFollow_TrailingSpace_ShowsCallsigns()
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("SWA456")];
 
         controller.UpdateSuggestions("CVA 28R LEFT FOLLOW ", "CVA 28R LEFT FOLLOW ".Length, aircraft, Scheme);
@@ -114,7 +114,7 @@ public class CommandInputSuggestionTests
     [Fact]
     public void CvaFollow_PartialCallsign_FiltersBySubstring()
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("SWA456")];
 
         controller.UpdateSuggestions("CVA 28R FOLLOW AA", "CVA 28R FOLLOW AA".Length, aircraft, Scheme);
@@ -127,7 +127,7 @@ public class CommandInputSuggestionTests
     [Fact]
     public void CvaRunwayPosition_NoCallsignFlyout()
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("SWA456")];
 
         controller.UpdateSuggestions("CVA ", "CVA ".Length, aircraft, Scheme);
@@ -140,7 +140,7 @@ public class CommandInputSuggestionTests
     public void FlyHeading_NoCallsignFlyout()
     {
         // Sanity: non-callsign commands must not spontaneously produce callsign suggestions.
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234")];
 
         controller.UpdateSuggestions("FH ", "FH ".Length, aircraft, Scheme);
@@ -155,7 +155,7 @@ public class CommandInputSuggestionTests
     {
         // The selected aircraft is navigating direct to a visual fix. The AT condition
         // suggestions must list that fix first, then destination, then departure.
-        var controller = Controller();
+        CommandInputController controller = Controller();
         var selected = new AircraftModel
         {
             Callsign = "N428KK",
@@ -177,7 +177,7 @@ public class CommandInputSuggestionTests
         // The user types the callsign of N428KK (which is navigating direct to VPCOL) but
         // has a different aircraft selected on the radar. The AT suggestions must come from
         // the typed aircraft, not the radar selection.
-        var controller = Controller();
+        CommandInputController controller = Controller();
         var commanded = new AircraftModel
         {
             Callsign = "N428KK",
@@ -204,7 +204,7 @@ public class CommandInputSuggestionTests
     {
         // After the aircraft sequences past its fix the nav route empties; only the
         // airports remain — destination first.
-        var controller = Controller();
+        CommandInputController controller = Controller();
         var selected = new AircraftModel
         {
             Callsign = "N428KK",
@@ -225,10 +225,10 @@ public class CommandInputSuggestionTests
     public void Caret_OnFirstArg_FiltersByPrefixUpToCursor()
     {
         // "FOLLOW AAL" with caret at 9 (between two A's). Filter by "AA" not "AAL".
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("BBL999")];
 
-        var text = "FOLLOW AAL";
+        string text = "FOLLOW AAL";
         controller.UpdateSuggestions(text, 9, aircraft, Scheme);
 
         Assert.True(controller.IsSuggestionsVisible);
@@ -240,14 +240,14 @@ public class CommandInputSuggestionTests
     public void Caret_OnFirstArg_AcceptingSuggestion_PreservesSuffix()
     {
         // "FOLLOW AA D5L" with caret at 9 (in middle of "AA"). Accept "AAL1234"; suffix "D5L" preserved.
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234")];
 
-        var text = "FOLLOW AA D5L";
+        string text = "FOLLOW AA D5L";
         controller.UpdateSuggestions(text, 9, aircraft, Scheme);
         Assert.True(controller.IsSuggestionsVisible);
         controller.SelectedSuggestionIndex = 0;
-        var accepted = controller.AcceptSuggestion(text);
+        (string Text, int Caret)? accepted = controller.AcceptSuggestion(text);
 
         Assert.NotNull(accepted);
         Assert.Equal("FOLLOW AAL1234 D5L", accepted.Value.Text);
@@ -258,14 +258,14 @@ public class CommandInputSuggestionTests
     public void AcceptSuggestion_AtEnd_AppendsTrailingSpace()
     {
         // "FOLLOW AA" with caret at end. Accept "AAL1234" → "FOLLOW AAL1234 ", caret at 15.
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234")];
 
-        var text = "FOLLOW AA";
+        string text = "FOLLOW AA";
         controller.UpdateSuggestions(text, text.Length, aircraft, Scheme);
         Assert.True(controller.IsSuggestionsVisible);
         controller.SelectedSuggestionIndex = 0;
-        var accepted = controller.AcceptSuggestion(text);
+        (string Text, int Caret)? accepted = controller.AcceptSuggestion(text);
 
         Assert.NotNull(accepted);
         Assert.Equal("FOLLOW AAL1234 ", accepted.Value.Text);
@@ -281,7 +281,7 @@ public class CommandInputSuggestionTests
     [Fact]
     public void TypedPartial_AutoHighlightsTopSuggestion()
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("N569SX")];
 
         controller.UpdateSuggestions("EXT DOWN", "EXT DOWN".Length, aircraft, Scheme);
@@ -295,7 +295,7 @@ public class CommandInputSuggestionTests
     [Fact]
     public void InsertionPoint_DoesNotAutoHighlight()
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("N569SX")];
 
         controller.UpdateSuggestions("EXT ", "EXT ".Length, aircraft, Scheme);
@@ -308,7 +308,7 @@ public class CommandInputSuggestionTests
     [Fact]
     public void ConditionArgPartial_AutoHighlightsTopSuggestion()
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("SWA456")];
 
         controller.UpdateSuggestions("GIVEWAY AA", "GIVEWAY AA".Length, aircraft, Scheme);
@@ -322,7 +322,7 @@ public class CommandInputSuggestionTests
     [Fact]
     public void ConditionArgInsertionPoint_DoesNotAutoHighlight()
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("SWA456")];
 
         controller.UpdateSuggestions("GIVEWAY ", "GIVEWAY ".Length, aircraft, Scheme);
@@ -337,12 +337,12 @@ public class CommandInputSuggestionTests
     {
         // The Enter accept path calls AcceptSuggestion without touching SelectedSuggestionIndex;
         // the auto-highlight alone must make it succeed.
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("N569SX")];
 
-        var text = "EXT DOWN";
+        string text = "EXT DOWN";
         controller.UpdateSuggestions(text, text.Length, aircraft, Scheme);
-        var accepted = controller.AcceptSuggestion(text);
+        (string Text, int Caret)? accepted = controller.AcceptSuggestion(text);
 
         Assert.NotNull(accepted);
         Assert.Equal("EXT DOWNWIND ", accepted.Value.Text);
@@ -360,7 +360,7 @@ public class CommandInputSuggestionTests
     [InlineData("  'tell him, FH")]
     public void ChatPrefix_SuppressesSuggestions(string text)
     {
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234")];
 
         controller.UpdateSuggestions(text, text.Length, aircraft, Scheme);
@@ -374,7 +374,7 @@ public class CommandInputSuggestionTests
     {
         // Sanity: the same trailing "FH" fragment DOES produce a verb suggestion without the chat
         // prefix, proving the suppression above is doing real work.
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234")];
 
         controller.UpdateSuggestions("AAL1234, FH", "AAL1234, FH".Length, aircraft, Scheme);
@@ -388,7 +388,7 @@ public class CommandInputSuggestionTests
     {
         // "/tell him, FH 270" ends in a FlyHeading-shaped fragment, but the leading chat prefix
         // must keep signature help hidden.
-        var controller = Controller();
+        CommandInputController controller = Controller();
 
         controller.UpdateSignatureHelp("/tell him, FH 270", "/tell him, FH 270".Length, Scheme);
 
@@ -400,7 +400,7 @@ public class CommandInputSuggestionTests
     {
         // Suggestions are visible for a normal command, then the user prepends a chat prefix:
         // the next update must clear and hide them.
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234")];
 
         controller.UpdateSuggestions("FOLLOW AA", "FOLLOW AA".Length, aircraft, Scheme);
@@ -430,10 +430,10 @@ public class CommandInputSuggestionTests
     public void Caret_InMiddleOfFirstToken_SuggestsCallsignsAndVerbs()
     {
         // "AAL 270" with caret at 1 (inside "AAL"). User editing the callsign position.
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234"), Ac("UAL900")];
 
-        var text = "AAL 270";
+        string text = "AAL 270";
         controller.UpdateSuggestions(text, 1, aircraft, Scheme);
 
         Assert.True(controller.IsSuggestionsVisible);
@@ -447,7 +447,7 @@ public class CommandInputSuggestionTests
         // Typing the complete command "TB" (turn base) while an aircraft whose callsign contains
         // "TB" is on frequency must rank the command first, not the partial-callsign match. The
         // callsign stays available lower in the list for users who meant to select the aircraft.
-        var controller = Controller();
+        CommandInputController controller = Controller();
         IReadOnlyCollection<AircraftModel> aircraft = [Ac("N172TB")];
 
         controller.UpdateSuggestions("TB", "TB".Length, aircraft, Scheme);

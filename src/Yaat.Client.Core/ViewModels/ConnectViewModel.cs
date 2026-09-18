@@ -51,7 +51,7 @@ public partial class ConnectViewModel : ObservableObject
         UserInitials = userInitials;
 
         // Subscribe to property changes on existing servers
-        foreach (var server in Servers)
+        foreach (SavedServer server in Servers)
         {
             server.PropertyChanged += OnServerPropertyChanged;
         }
@@ -85,9 +85,9 @@ public partial class ConnectViewModel : ObservableObject
     [RelayCommand]
     private void RestoreDefaults()
     {
-        foreach (var def in UserPreferences.DefaultServers)
+        foreach (SavedServer def in UserPreferences.DefaultServers)
         {
-            var existing = Servers.FirstOrDefault(s => string.Equals(s.Name, def.Name, StringComparison.OrdinalIgnoreCase));
+            SavedServer? existing = Servers.FirstOrDefault(s => string.Equals(s.Name, def.Name, StringComparison.OrdinalIgnoreCase));
             if (existing is null)
             {
                 var entry = new SavedServer(def.Name, def.Url);
@@ -138,7 +138,7 @@ public partial class ConnectViewModel : ObservableObject
         items.RemoveAt(idx);
         items.Insert(idx - 1, SelectedServer);
         Servers.Clear();
-        foreach (var item in items)
+        foreach (SavedServer? item in items)
         {
             Servers.Add(item);
         }
@@ -168,7 +168,7 @@ public partial class ConnectViewModel : ObservableObject
         items.RemoveAt(idx);
         items.Insert(idx + 1, SelectedServer);
         Servers.Clear();
-        foreach (var item in items)
+        foreach (SavedServer? item in items)
         {
             Servers.Add(item);
         }

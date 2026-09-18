@@ -43,16 +43,16 @@ public class Issue172HoldShortDedupTests
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         if (layout is null)
         {
             return;
         }
 
-        var gHoldShort = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "01L", "G");
+        GroundNode? gHoldShort = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "01L", "G");
         Assert.NotNull(gHoldShort);
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: gHoldShort.Id,
             taxiwayNames: ["G", "B"],

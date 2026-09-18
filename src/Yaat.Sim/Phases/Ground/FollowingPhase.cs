@@ -63,7 +63,7 @@ public sealed class FollowingPhase : Phase
             return true;
         }
 
-        var target = ctx.AircraftLookup?.Invoke(_targetCallsign);
+        AircraftState? target = ctx.AircraftLookup?.Invoke(_targetCallsign);
         if (target is null || !target.IsOnGround)
         {
             Log.LogDebug(
@@ -171,14 +171,14 @@ public sealed class FollowingPhase : Phase
             return false;
         }
 
-        foreach (var node in ctx.GroundLayout.Nodes.Values)
+        foreach (GroundNode node in ctx.GroundLayout.Nodes.Values)
         {
             if (!IsBarImmediatelyAhead(ctx, node) || IsAlreadyOnThatRunway(ctx, node))
             {
                 continue;
             }
 
-            var reason = BarIsOwnDestination(ctx, node) ? HoldShortReason.DestinationRunway : HoldShortReason.RunwayCrossing;
+            HoldShortReason reason = BarIsOwnDestination(ctx, node) ? HoldShortReason.DestinationRunway : HoldShortReason.RunwayCrossing;
             Log.LogDebug(
                 "[Follow] {Callsign}: hold short triggered at runway node {NodeId} ({Runway}), reason={Reason}",
                 ctx.Aircraft.Callsign,
@@ -235,7 +235,7 @@ public sealed class FollowingPhase : Phase
             return false;
         }
 
-        foreach (var runway in RunwayOccupancy.AirportRunways(ctx.GroundLayout.AirportId))
+        foreach (RunwayInfo runway in RunwayOccupancy.AirportRunways(ctx.GroundLayout.AirportId))
         {
             if (runway.Id.Overlaps(barRunway) && RunwayOccupancy.IsOnPavement(ctx.Aircraft, runway))
             {
@@ -260,7 +260,9 @@ public sealed class FollowingPhase : Phase
             return false;
         }
 
-        var destination = ctx.Aircraft.Ground.AssignedTaxiRoute?.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
+        HoldShortPoint? destination = ctx.Aircraft.Ground.AssignedTaxiRoute?.HoldShortPoints.FirstOrDefault(h =>
+            h.Reason == HoldShortReason.DestinationRunway
+        );
         return (destination?.TargetName is { } name) && barRunway.Overlaps(RunwayIdentifier.Parse(name));
     }
 }

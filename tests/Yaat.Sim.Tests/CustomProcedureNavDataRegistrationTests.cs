@@ -26,16 +26,16 @@ public class CustomProcedureNavDataRegistrationTests
     [Fact]
     public void SidAbsentFromNavData_BecomesResolvableAndExpandable()
     {
-        var dir = Directory.CreateTempSubdirectory("yaat-custom-navdata-").FullName;
+        string dir = Directory.CreateTempSubdirectory("yaat-custom-navdata-").FullName;
         try
         {
-            var fx = BuildRenamedNimiFixture(dir);
+            (string CifpPath, string ArtccsDir, NavDataSet NavData)? fx = BuildRenamedNimiFixture(dir);
             if (fx is null)
             {
                 return;
             }
 
-            var (cifpPath, artccsDir, navData) = fx.Value;
+            (string? cifpPath, string? artccsDir, NavDataSet? navData) = fx.Value;
 
             // Premise: vNAS has never heard of the renamed procedure, so the token expands as a bare fix.
             var without = new NavigationDatabase(navData, cifpPath, artccsBaseDir: "", supplementaryCifpFilePaths: []);
@@ -48,7 +48,7 @@ public class CustomProcedureNavDataRegistrationTests
             Assert.Equal(RenamedSid, db.ResolveSidId(RenamedSid));
 
             // ...and RouteExpander treats the token as a SID rather than emitting it as a bare fix.
-            var expanded = RouteExpander.Expand($"{RenamedSid} OAK V6 SAC", db, includeAllTransitionsOnMismatch: false);
+            List<string> expanded = RouteExpander.Expand($"{RenamedSid} OAK V6 SAC", db, includeAllTransitionsOnMismatch: false);
             Assert.DoesNotContain(RenamedSid, expanded);
         }
         finally
@@ -60,20 +60,20 @@ public class CustomProcedureNavDataRegistrationTests
     [Fact]
     public void SidPublishedByNavData_IsNotShadowedByFragment()
     {
-        var dir = Directory.CreateTempSubdirectory("yaat-custom-noshadow-").FullName;
+        string dir = Directory.CreateTempSubdirectory("yaat-custom-noshadow-").FullName;
         try
         {
-            var fx = BuildRenamedNimiFixture(dir);
+            (string CifpPath, string ArtccsDir, NavDataSet NavData)? fx = BuildRenamedNimiFixture(dir);
             if (fx is null)
             {
                 return;
             }
 
-            var (cifpPath, _, navData) = fx.Value;
+            (string? cifpPath, string _, NavDataSet? navData) = fx.Value;
 
             // A fragment for NIMI5 — which vNAS NavData *does* carry — must leave the vNAS body alone.
             var baseline = new NavigationDatabase(navData, cifpPath, artccsBaseDir: "", supplementaryCifpFilePaths: []);
-            var vnasBody = baseline.GetSidBody("NIMI5");
+            IReadOnlyList<string>? vnasBody = baseline.GetSidBody("NIMI5");
 
             string artccsDir = Path.Combine(dir, "ARTCCs-nimi5");
             WriteFragment(artccsDir, "ZOA", "koak-nimi.cifp", File.ReadAllLines(cifpPath).Where(IsNimiRecord));
@@ -109,7 +109,7 @@ public class CustomProcedureNavDataRegistrationTests
 
         string cifpPath = Path.Combine(dir, "FAACIFP18-2604");
         using (var gz = new GZipStream(File.OpenRead(bundledGz), CompressionMode.Decompress))
-        using (var outF = File.Create(cifpPath))
+        using (FileStream outF = File.Create(cifpPath))
         {
             gz.CopyTo(outF);
         }
@@ -121,12 +121,12 @@ public class CustomProcedureNavDataRegistrationTests
         }
 
         // Procedure id occupies columns [13..19]; swapping it in place preserves every other field.
-        var renamed = nimiRecords.Select(l => l[..13] + RenamedSid.PadRight(6) + l[19..]);
+        IEnumerable<string> renamed = nimiRecords.Select(l => l[..13] + RenamedSid.PadRight(6) + l[19..]);
 
         string artccsDir = Path.Combine(dir, "ARTCCs");
         WriteFragment(artccsDir, "ZOA", "koak-renamed.cifp", renamed);
 
-        var navData = NavDataSet.Parser.ParseFrom(File.ReadAllBytes(navDataPath));
+        NavDataSet navData = NavDataSet.Parser.ParseFrom(File.ReadAllBytes(navDataPath));
         return (cifpPath, artccsDir, navData);
     }
 
@@ -156,14 +156,14 @@ public class CustomProcedureFragmentsAreValidTests
         string fragment = Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs", "ZOA", "Procedures", "koak-nimi.cifp");
         Assert.True(File.Exists(fragment), $"expected the pinned KOAK NIMITZ fragment at {fragment}");
 
-        var sid = Assert.Single(CifpParser.ParseSids(fragment, "KOAK"));
+        CifpSidProcedure sid = Assert.Single(CifpParser.ParseSids(fragment, "KOAK"));
         Assert.Equal("NIMI5", sid.ProcedureId);
         Assert.NotEmpty(sid.RunwayTransitions);
 
         // Every runway transition climbs on runway heading (CA) then turns to the charted 315 (VM).
-        foreach (var (_, transition) in sid.RunwayTransitions)
+        foreach ((string _, CifpTransition? transition) in sid.RunwayTransitions)
         {
-            var vm = Assert.Single(transition.Legs, l => l.PathTerminator == CifpPathTerminator.VM);
+            CifpLeg vm = Assert.Single(transition.Legs, l => l.PathTerminator == CifpPathTerminator.VM);
             Assert.NotNull(vm.OutboundCourse);
             Assert.Equal(315.0, vm.OutboundCourse!.Value, 1.0);
             Assert.Contains(transition.Legs, l => l.PathTerminator == CifpPathTerminator.CA);
@@ -174,24 +174,24 @@ public class CustomProcedureFragmentsAreValidTests
     public void EveryCommittedFragment_ParsesToAtLeastOneProcedure()
     {
         string baseDir = Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");
-        var result = CustomProcedureLoader.LoadAll(baseDir);
+        CustomProcedureLoadResult result = CustomProcedureLoader.LoadAll(baseDir);
 
         Assert.DoesNotContain(result.Warnings, w => !w.Contains("not found", StringComparison.OrdinalIgnoreCase));
 
-        foreach (var fragment in result.Fragments)
+        foreach (CustomProcedureFragment fragment in result.Fragments)
         {
-            foreach (var icao in fragment.AirportIcaos)
+            foreach (string icao in fragment.AirportIcaos)
             {
-                var sids = CifpParser.ParseSids(fragment.FilePath, icao);
-                var stars = CifpParser.ParseStars(fragment.FilePath, icao);
-                var approaches = CifpParser.ParseApproaches(fragment.FilePath, icao);
+                IReadOnlyList<CifpSidProcedure> sids = CifpParser.ParseSids(fragment.FilePath, icao);
+                IReadOnlyList<CifpStarProcedure> stars = CifpParser.ParseStars(fragment.FilePath, icao);
+                IReadOnlyList<CifpApproachProcedure> approaches = CifpParser.ParseApproaches(fragment.FilePath, icao);
 
                 Assert.True(
                     sids.Count + stars.Count + approaches.Count > 0,
                     $"{fragment.FilePath} has {icao} records but parsed to no procedures — the records are malformed."
                 );
 
-                foreach (var sid in sids)
+                foreach (CifpSidProcedure sid in sids)
                 {
                     Assert.False(string.IsNullOrWhiteSpace(sid.ProcedureId), $"{fragment.FilePath}: SID with a blank procedure id");
                     Assert.True(
@@ -200,7 +200,7 @@ public class CustomProcedureFragmentsAreValidTests
                     );
                 }
 
-                foreach (var star in stars)
+                foreach (CifpStarProcedure star in stars)
                 {
                     Assert.False(string.IsNullOrWhiteSpace(star.ProcedureId), $"{fragment.FilePath}: STAR with a blank procedure id");
                     Assert.True(
@@ -209,7 +209,7 @@ public class CustomProcedureFragmentsAreValidTests
                     );
                 }
 
-                foreach (var approach in approaches)
+                foreach (CifpApproachProcedure approach in approaches)
                 {
                     Assert.False(string.IsNullOrWhiteSpace(approach.ApproachId), $"{fragment.FilePath}: approach with a blank id");
                     Assert.True(

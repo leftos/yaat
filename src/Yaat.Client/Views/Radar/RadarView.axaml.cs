@@ -71,7 +71,7 @@ public partial class RadarView : UserControl
         _canvas.MeasureDragCompleted += OnMeasureDragCompleted;
         _canvas.MeasureCancelled += OnMeasureCancelled;
 
-        var filteredText = this.FindControl<TextBox>("FilteredListText");
+        TextBox? filteredText = this.FindControl<TextBox>("FilteredListText");
         if (filteredText is not null)
         {
             filteredText.TextChanged += OnFilteredListTextChanged;
@@ -140,14 +140,14 @@ public partial class RadarView : UserControl
 
     private void OnEuroScopeFieldClicked(AircraftModel ac, TagFieldId field, Point pos)
     {
-        var mainVm = FindMainViewModel();
+        MainViewModel? mainVm = FindMainViewModel();
         // Every flyout acts on the view-model of the window it was opened from — this view's own
         // DataContext — not on the docked view: an extra Radar window must not drive #1's state.
         if (mainVm is null || DataContext is not RadarViewModel radarVm)
         {
             return;
         }
-        var initials = mainVm.Preferences.UserInitials;
+        string initials = mainVm.Preferences.UserInitials;
 
         switch (field)
         {
@@ -206,7 +206,7 @@ public partial class RadarView : UserControl
 
     private bool OnEuroScopeFieldRightClicked(AircraftModel ac, TagFieldId field, Point pos)
     {
-        var mainVm = FindMainViewModel();
+        MainViewModel? mainVm = FindMainViewModel();
         if (mainVm is null)
         {
             return false;
@@ -244,7 +244,7 @@ public partial class RadarView : UserControl
 
     private async void OnHeadingModeConfirmed(string callsign, int magneticHeading)
     {
-        var mainVm = FindMainViewModel();
+        MainViewModel? mainVm = FindMainViewModel();
         if (mainVm is null || DataContext is not RadarViewModel radarVm)
         {
             return;
@@ -270,7 +270,7 @@ public partial class RadarView : UserControl
 
     private void OnMapButtonClick(object? sender, RoutedEventArgs e)
     {
-        var popup = this.FindControl<Popup>("MapPopup");
+        Popup? popup = this.FindControl<Popup>("MapPopup");
         if (popup is not null)
         {
             popup.IsOpen = !popup.IsOpen;
@@ -292,8 +292,8 @@ public partial class RadarView : UserControl
             return;
         }
 
-        var text = vm.MapSearchText.Trim();
-        if (int.TryParse(text, CultureInfo.InvariantCulture, out var starsId))
+        string text = vm.MapSearchText.Trim();
+        if (int.TryParse(text, CultureInfo.InvariantCulture, out int starsId))
         {
             vm.ToggleMapByStarsId(starsId);
         }
@@ -386,12 +386,12 @@ public partial class RadarView : UserControl
             vm.IsAdjustingHistory = false;
             this.FindControl<Button>("PtlLnthButton")?.Classes.Set("active", false);
             this.FindControl<Button>("HistoryButton")?.Classes.Set("active", false);
-            var btn = this.FindControl<Button>("RangeButton");
+            Button? btn = this.FindControl<Button>("RangeButton");
             btn?.Classes.Set("active", true);
         }
         else
         {
-            var btn = this.FindControl<Button>("RangeButton");
+            Button? btn = this.FindControl<Button>("RangeButton");
             btn?.Classes.Set("active", false);
         }
     }
@@ -409,14 +409,14 @@ public partial class RadarView : UserControl
             vm.IsAdjustingRange = false;
             vm.IsAdjustingPtlLength = false;
             vm.IsAdjustingHistory = false;
-            var rangeBtn = this.FindControl<Button>("RangeButton");
+            Button? rangeBtn = this.FindControl<Button>("RangeButton");
             rangeBtn?.Classes.Set("active", false);
             this.FindControl<Button>("PtlLnthButton")?.Classes.Set("active", false);
             this.FindControl<Button>("HistoryButton")?.Classes.Set("active", false);
             _canvas?.Focus();
         }
 
-        var rrBtn = this.FindControl<Button>("RrButton");
+        Button? rrBtn = this.FindControl<Button>("RrButton");
         rrBtn?.Classes.Set("active", vm.IsAdjustingRangeRingSize);
     }
 
@@ -569,13 +569,13 @@ public partial class RadarView : UserControl
         vm.ActiveBriteTarget = vm.ActiveBriteTarget == target ? null : target;
 
         // Update active class on all brite buttons
-        var briteMenu = this.FindControl<Grid>("DcbBriteMenu");
+        Grid? briteMenu = this.FindControl<Grid>("DcbBriteMenu");
         if (briteMenu is null)
         {
             return;
         }
 
-        foreach (var child in briteMenu.Children)
+        foreach (Control child in briteMenu.Children)
         {
             if (child is Button btn && btn.Tag is BriteTarget btnTarget)
             {
@@ -586,7 +586,7 @@ public partial class RadarView : UserControl
 
     private void UpdateBriteButtonText(RadarViewModel vm, BriteTarget target, string label, string textBlockName)
     {
-        var tb = this.FindControl<TextBlock>(textBlockName);
+        TextBlock? tb = this.FindControl<TextBlock>(textBlockName);
         if (tb is not null)
         {
             tb.Text = $"{label} {vm.GetBrightnessPercent(target)}";
@@ -595,7 +595,7 @@ public partial class RadarView : UserControl
 
     private void UpdateAllBriteButtons(RadarViewModel vm)
     {
-        foreach (var (target, label, name) in BriteButtons)
+        foreach ((BriteTarget target, string? label, string? name) in BriteButtons)
         {
             UpdateBriteButtonText(vm, target, label, name);
         }
@@ -619,8 +619,8 @@ public partial class RadarView : UserControl
             return;
         }
 
-        var mainVm = FindMainViewModel();
-        var prefs = mainVm?.Preferences;
+        MainViewModel? mainVm = FindMainViewModel();
+        UserPreferences? prefs = mainVm?.Preferences;
         if (prefs is null)
         {
             return;
@@ -655,7 +655,7 @@ public partial class RadarView : UserControl
             return null;
         }
 
-        if (SKColor.TryParse(hex, out var color))
+        if (SKColor.TryParse(hex, out SKColor color))
         {
             return color;
         }
@@ -670,7 +670,7 @@ public partial class RadarView : UserControl
             return;
         }
 
-        var direction = e.Delta.Y > 0 ? 1 : -1;
+        int direction = e.Delta.Y > 0 ? 1 : -1;
 
         // Discrete spinners step through the accumulator so a Mac trackpad's burst of
         // events doesn't race; the horizontal-scroll fallback stays continuous (scaled).
@@ -707,7 +707,7 @@ public partial class RadarView : UserControl
                 SyncCanvasBrightness(vm);
 
                 // Update just the affected button text
-                foreach (var (target, label, name) in BriteButtons)
+                foreach ((BriteTarget target, string? label, string? name) in BriteButtons)
                 {
                     if (target == briteTarget)
                     {
@@ -722,7 +722,7 @@ public partial class RadarView : UserControl
         else
         {
             // No spinner latched — horizontal scroll the DCB
-            var scroller = this.FindControl<ScrollViewer>("DcbScroller");
+            ScrollViewer? scroller = this.FindControl<ScrollViewer>("DcbScroller");
             if (scroller is not null)
             {
                 scroller.Offset = scroller.Offset.WithX(scroller.Offset.X - direction * 40 * _scrollSensitivity);
@@ -780,8 +780,8 @@ public partial class RadarView : UserControl
             return;
         }
 
-        var wp = vm.DrawnWaypoints[waypointIndex];
-        var existing = vm.GetWaypointCondition(waypointIndex);
+        DrawnWaypoint wp = vm.DrawnWaypoints[waypointIndex];
+        WaypointCondition? existing = vm.GetWaypointCondition(waypointIndex);
         ShowWaypointConditionPopup(
             wp.ResolvedName,
             existing?.Altitude,
@@ -797,8 +797,8 @@ public partial class RadarView : UserControl
             return;
         }
 
-        var wp = vm.DrawnWaypoints[waypointIndex];
-        var initials = GetInitials();
+        DrawnWaypoint wp = vm.DrawnWaypoints[waypointIndex];
+        string initials = GetInitials();
         var menu = new ContextMenu();
 
         menu.Items.Add(
@@ -856,7 +856,7 @@ public partial class RadarView : UserControl
 
     private void OnCanvasPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        var props = e.GetCurrentPoint(_canvas!).Properties;
+        PointerPointProperties props = e.GetCurrentPoint(_canvas!).Properties;
         if (props.IsLeftButtonPressed)
         {
             CloseActiveContextMenu();
@@ -943,13 +943,13 @@ public partial class RadarView : UserControl
 
     private string GetInitials()
     {
-        var mainVm = FindMainViewModel();
+        MainViewModel? mainVm = FindMainViewModel();
         return mainVm?.Preferences.UserInitials ?? "";
     }
 
     private MainViewModel? FindMainViewModel()
     {
-        var parent = this.Parent;
+        StyledElement? parent = this.Parent;
         while (parent is not null)
         {
             if (parent.DataContext is MainViewModel vm)

@@ -63,7 +63,7 @@ public sealed class PositionSelections
                 return;
             }
 
-            foreach (var (connectionId, owner) in snapshot)
+            foreach ((string? connectionId, TrackOwnerDto? owner) in snapshot)
             {
                 _byConnection[connectionId] = TrackOwner.FromSnapshot(owner);
             }

@@ -42,7 +42,7 @@ public class ViewInstanceViewModelTests
     {
         const string scenarioId = "vivm-radar-scenario";
         var prefs = new UserPreferences();
-        var vm = ExtraRadarVm();
+        RadarViewModel vm = ExtraRadarVm();
         vm.SetPreferences(prefs);
         vm.SetScenarioIdForTesting(scenarioId);
 
@@ -58,7 +58,7 @@ public class ViewInstanceViewModelTests
         // The primary view's key is the bare scenario id and must be untouched by the extra window.
         Assert.Null(prefs.GetRadarSettings(scenarioId));
 
-        var saved = prefs.GetRadarSettings(scenarioId + "#2");
+        SavedRadarSettings? saved = prefs.GetRadarSettings(scenarioId + "#2");
         Assert.NotNull(saved);
         Assert.Equal(27, saved.RangeNm);
         Assert.Equal(37.5, saved.CenterLat);
@@ -85,7 +85,7 @@ public class ViewInstanceViewModelTests
 
         Assert.Null(prefs.GetGroundSettings(scenarioId));
 
-        var saved = prefs.GetGroundSettings(scenarioId + "#2");
+        SavedGroundSettings? saved = prefs.GetGroundSettings(scenarioId + "#2");
         Assert.NotNull(saved);
         Assert.Equal(37.62, saved.CenterLat);
     }
@@ -94,8 +94,8 @@ public class ViewInstanceViewModelTests
     public void ExtraRadarView_DoesNotWriteGlobalPreferences()
     {
         var prefs = new UserPreferences();
-        var before = prefs.RadarDcbVisible;
-        var vm = ExtraRadarVm();
+        bool before = prefs.RadarDcbVisible;
+        RadarViewModel vm = ExtraRadarVm();
         vm.SetPreferences(prefs);
 
         try
@@ -117,8 +117,8 @@ public class ViewInstanceViewModelTests
     public void ExtraGroundView_DoesNotWriteGlobalPreferences()
     {
         var prefs = new UserPreferences();
-        var beforeLocked = prefs.GroundPanZoomLocked;
-        var beforeRunwayLabels = prefs.GroundShowRunwayLabels;
+        bool beforeLocked = prefs.GroundPanZoomLocked;
+        bool beforeRunwayLabels = prefs.GroundShowRunwayLabels;
         var vm = new GroundViewModel(
             new ServerConnection(),
             sendCommand: (_, _, _) => Task.CompletedTask,
@@ -156,8 +156,8 @@ public class ViewInstanceViewModelTests
     [AvaloniaFact]
     public void ExtraGroundView_MirrorsPrimaryLayout()
     {
-        var primary = GroundVm(isPrimary: true);
-        var mirror = GroundVm(isPrimary: false);
+        GroundViewModel primary = GroundVm(isPrimary: true);
+        GroundViewModel mirror = GroundVm(isPrimary: false);
         mirror.DataBlockState.ToggleHiddenDataBlock("AAL1");
         Assert.NotEmpty(mirror.DataBlockState.HiddenDataBlockCallsigns);
 
@@ -175,13 +175,13 @@ public class ViewInstanceViewModelTests
     [AvaloniaFact]
     public void MirrorLayoutFrom_CopiesStateAlreadyLoaded()
     {
-        var primary = GroundVm(isPrimary: true);
+        GroundViewModel primary = GroundVm(isPrimary: true);
         primary.SetLayoutForTesting(Layout("TST", 37.62));
         primary.AirportCenterLat = 37.621;
         primary.AirportCenterLon = -122.381;
         primary.AirportElevation = 12;
 
-        var mirror = GroundVm(isPrimary: false);
+        GroundViewModel mirror = GroundVm(isPrimary: false);
         mirror.MirrorLayoutFrom(primary);
 
         Assert.Same(primary.Layout, mirror.Layout);
@@ -194,11 +194,11 @@ public class ViewInstanceViewModelTests
     [AvaloniaFact]
     public void StopMirroring_DetachesFromSource()
     {
-        var primary = GroundVm(isPrimary: true);
-        var mirror = GroundVm(isPrimary: false);
+        GroundViewModel primary = GroundVm(isPrimary: true);
+        GroundViewModel mirror = GroundVm(isPrimary: false);
         mirror.MirrorLayoutFrom(primary);
         primary.SetLayoutForTesting(Layout("TST", 37.62));
-        var mirrored = mirror.Layout;
+        GroundLayoutDto? mirrored = mirror.Layout;
 
         mirror.StopMirroring();
         primary.SetLayoutForTesting(Layout("OTH", 37.72));
@@ -210,7 +210,7 @@ public class ViewInstanceViewModelTests
     [AvaloniaFact]
     public async Task ExtraGroundView_LayoutLoadsAreNoOps()
     {
-        var mirror = GroundVm(isPrimary: false);
+        GroundViewModel mirror = GroundVm(isPrimary: false);
 
         // No server and no tower-cab services are wired: a non-primary instance must return without
         // touching either, since it shows the primary's mirrored layout.

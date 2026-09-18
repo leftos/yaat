@@ -1,8 +1,10 @@
 using Xunit;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -71,8 +73,8 @@ public class TaxiCtoSequentialNotFiringTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_Then_Cto_Sequential_FiresWhenHoldShortReached()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -81,10 +83,10 @@ public class TaxiCtoSequentialNotFiringTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             engine.Replay(recording, 0); // load scenario + actions cursor
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 output.WriteLine($"Skipped: no snapshot at t={RestoreAtSeconds}");
@@ -99,11 +101,11 @@ public class TaxiCtoSequentialNotFiringTests(ITestOutputHelper output)
             // the precondition the fix is supposed to flip.
             engine.ReplayRange(startTime, DispatchTime + 1, recording.Actions);
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
             Assert.NotEmpty(ac.Queue.Blocks);
-            var ctoBlock = ac.Queue.Blocks[ac.Queue.Blocks.Count - 1];
+            CommandBlock ctoBlock = ac.Queue.Blocks[ac.Queue.Blocks.Count - 1];
             Assert.Null(ctoBlock.Trigger);
             Assert.False(ctoBlock.IsApplied);
             Assert.Contains("CTO", ctoBlock.Description ?? "");
@@ -125,7 +127,7 @@ public class TaxiCtoSequentialNotFiringTests(ITestOutputHelper output)
                     return;
                 }
 
-                var phaseName = ac.Phases?.CurrentPhase?.GetType().Name;
+                string? phaseName = ac.Phases?.CurrentPhase?.GetType().Name;
                 if (phaseName != lastPhaseName)
                 {
                     output.WriteLine($"t={t}: phase {lastPhaseName ?? "null"} → {phaseName ?? "null"}");
@@ -134,7 +136,7 @@ public class TaxiCtoSequentialNotFiringTests(ITestOutputHelper output)
             }
 
             Assert.NotNull(ac);
-            var finalPhase = ac.Phases?.CurrentPhase;
+            Phase? finalPhase = ac.Phases?.CurrentPhase;
             output.WriteLine(
                 $"t={AssertByTime} final: phase={finalPhase?.GetType().Name ?? "null"} "
                     + $"alt={ac.Altitude:F0} ias={ac.IndicatedAirspeed:F0} "

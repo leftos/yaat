@@ -28,11 +28,11 @@ public class SpeedCommandTests
     [Fact]
     public void SpeedFloor_SetsFloorClearsTargetAndCeiling()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.TargetSpeed = 200;
         ac.Targets.SpeedCeiling = 230;
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(210, SpeedModifier.Floor), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new SpeedCommand(210, SpeedModifier.Floor), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(210, ac.Targets.SpeedFloor);
@@ -43,10 +43,10 @@ public class SpeedCommandTests
     [Fact]
     public void SpeedCeiling_SetsCeilingClearsTargetAndFloor()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.SpeedFloor = 200;
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(210, SpeedModifier.Ceiling), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new SpeedCommand(210, SpeedModifier.Ceiling), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(210, ac.Targets.SpeedCeiling);
@@ -57,11 +57,11 @@ public class SpeedCommandTests
     [Fact]
     public void SpeedExact_ClearsFloorAndCeiling()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.SpeedFloor = 200;
         ac.Targets.SpeedCeiling = 260;
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(220), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new SpeedCommand(220), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(220, ac.Targets.TargetSpeed);
@@ -72,12 +72,12 @@ public class SpeedCommandTests
     [Fact]
     public void SpeedZero_SetsTargetSpeedZero()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.TargetSpeed = 210;
         ac.Targets.SpeedFloor = 200;
         ac.Targets.SpeedCeiling = 250;
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(0), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new SpeedCommand(0), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(0, ac.Targets.TargetSpeed);
@@ -90,12 +90,12 @@ public class SpeedCommandTests
     [Fact]
     public void ResumeNormalSpeed_ClearsAllSpeed()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.TargetSpeed = 210;
         ac.Targets.SpeedFloor = 200;
         ac.Targets.SpeedCeiling = 250;
 
-        var result = CommandDispatcher.Dispatch(new ResumeNormalSpeedCommand(), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ResumeNormalSpeedCommand(), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Null(ac.Targets.TargetSpeed);
@@ -108,10 +108,10 @@ public class SpeedCommandTests
     [Fact]
     public void DeleteSpeedRestrictions_ClearsAllAndSetsDsrFlag()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.TargetSpeed = 210;
 
-        var result = CommandDispatcher.Dispatch(new DeleteSpeedRestrictionsCommand(), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new DeleteSpeedRestrictionsCommand(), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Null(ac.Targets.TargetSpeed);
@@ -121,7 +121,7 @@ public class SpeedCommandTests
     [Fact]
     public void SpeedCommand_ClearsDsrFlag()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Procedure.SpeedRestrictionsDeleted = true;
 
         CommandDispatcher.Dispatch(new SpeedCommand(210), ac, TestDispatch.Context(Random.Shared));
@@ -132,7 +132,7 @@ public class SpeedCommandTests
     [Fact]
     public void Cvia_ClearsDsrFlag()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Procedure.ActiveSidId = "PORTE3";
         ac.Procedure.SpeedRestrictionsDeleted = true;
 
@@ -144,7 +144,7 @@ public class SpeedCommandTests
     [Fact]
     public void Dvia_ClearsDsrFlag()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Procedure.ActiveStarId = "SUNOL1";
         ac.Procedure.SpeedRestrictionsDeleted = true;
 
@@ -159,12 +159,12 @@ public class SpeedCommandTests
     [Fact]
     public void SpeedCommand_RejectedInside5nmFinal_WhenOnApproach()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
         ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         // Aircraft is at the threshold (0nm)
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("5nm final", result.Message);
@@ -180,11 +180,11 @@ public class SpeedCommandTests
     [Fact]
     public void SpeedCommand_AcceptedInside5nm_WhenNotOnApproach()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         // AssignedRunway set (departure runway), but no arrival-approach phase.
         ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(180, ac.Targets.TargetSpeed);
@@ -198,7 +198,7 @@ public class SpeedCommandTests
     [Fact]
     public void SpeedCommand_RejectedInside5nm_WhenClearedToLandAndTrackingTheLandingCourse()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.TrueTrack = new TrueHeading(280);
         ac.Phases = new PhaseList
         {
@@ -206,7 +206,7 @@ public class SpeedCommandTests
             LandingClearance = ClearanceType.ClearedToLand,
         };
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("5nm final", result.Message);
@@ -225,9 +225,9 @@ public class SpeedCommandTests
     {
         TestVnasData.EnsureInitialized();
 
-        var rwy = TestRunwayFactory.Make(heading: 280);
+        RunwayInfo rwy = TestRunwayFactory.Make(heading: 280);
         // 1.5 nm out on final, still carrying an assigned 250 kt.
-        var pos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 1.5);
+        (double Lat, double Lon) pos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 1.5);
         var ac = new AircraftState
         {
             Callsign = "TEST1",
@@ -272,7 +272,7 @@ public class SpeedCommandTests
     [InlineData(190)] // base, tracking across the final
     public void SpeedCommand_AcceptedInside5nm_ForPatternTrafficNotOnFinal(double track)
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.TrueTrack = new TrueHeading(track);
         ac.Phases = new PhaseList
         {
@@ -280,7 +280,7 @@ public class SpeedCommandTests
             LandingClearance = ClearanceType.ClearedToLand,
         };
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(180, ac.Targets.TargetSpeed);
@@ -290,7 +290,7 @@ public class SpeedCommandTests
     [Fact]
     public void SpeedCommand_AcceptedInside5nm_WhenGoingAround()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         // A go-around keeps its approach/landing context but is climbing out.
         ac.Phases = new PhaseList
         {
@@ -299,7 +299,7 @@ public class SpeedCommandTests
         };
         ac.Phases.Add(new GoAroundPhase());
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(180, ac.Targets.TargetSpeed);
@@ -309,11 +309,15 @@ public class SpeedCommandTests
     [Fact]
     public void ForceSpeed_OverridesInside5nmFinal()
     {
-        var ac = CreateAircraft(ias: 210);
+        AircraftState ac = CreateAircraft(ias: 210);
         ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
         ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(180, SpeedModifier.None, Force: true), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new SpeedCommand(180, SpeedModifier.None, Force: true),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.True(result.Success);
         Assert.Equal(180, ac.Targets.TargetSpeed);
@@ -326,11 +330,15 @@ public class SpeedCommandTests
     [Fact]
     public void ForceSpeed_WithFloorModifier_OverridesInside5nmFinal()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
         ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(170, SpeedModifier.Floor, Force: true), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new SpeedCommand(170, SpeedModifier.Floor, Force: true),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.True(result.Success);
         Assert.Equal(170, ac.Targets.SpeedFloor);
@@ -342,13 +350,13 @@ public class SpeedCommandTests
     [Fact]
     public void PlainSpeed_ClearsForcedOverride()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
         // Far from the runway so the plain SPD is accepted regardless of phase.
         ac.Position = new LatLon(37.5, -122.5);
         ac.Targets.SpeedOverridesFinalGate = true;
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(200), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new SpeedCommand(200), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.False(ac.Targets.SpeedOverridesFinalGate);
@@ -359,7 +367,7 @@ public class SpeedCommandTests
     [Fact]
     public void ApproachClearance_ClearsFloorAndCeiling()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.SpeedFloor = 200;
         ac.Targets.SpeedCeiling = 250;
 
@@ -379,7 +387,7 @@ public class SpeedCommandTests
     [Fact]
     public void SimultaneousFloorAndCeiling_FloorRespected()
     {
-        var ac = CreateAircraft(ias: 190);
+        AircraftState ac = CreateAircraft(ias: 190);
         ac.Targets.SpeedFloor = 200;
         ac.Targets.SpeedCeiling = 260;
 
@@ -392,7 +400,7 @@ public class SpeedCommandTests
     [Fact]
     public void SpeedFloorCommand_ThenCeilingCommand_ReplacesFloor()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
 
         CommandDispatcher.Dispatch(new SpeedCommand(200, SpeedModifier.Floor), ac, TestDispatch.Context(Random.Shared));
         Assert.Equal(200, ac.Targets.SpeedFloor);
@@ -406,7 +414,7 @@ public class SpeedCommandTests
     [Fact]
     public void SpeedCeilingCommand_ThenFloorCommand_ReplacesCeiling()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
 
         CommandDispatcher.Dispatch(new SpeedCommand(250, SpeedModifier.Ceiling), ac, TestDispatch.Context(Random.Shared));
         Assert.Equal(250, ac.Targets.SpeedCeiling);
@@ -436,7 +444,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void SpeedFloor_AcceleratesWhenBelowFloor()
     {
-        var ac = CreateAirborne(ias: 190);
+        AircraftState ac = CreateAirborne(ias: 190);
         ac.Targets.SpeedFloor = 210;
 
         FlightPhysics.Update(ac, 1.0);
@@ -448,7 +456,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void SpeedCeiling_DeceleratesWhenAboveCeiling()
     {
-        var ac = CreateAirborne(ias: 260);
+        AircraftState ac = CreateAirborne(ias: 260);
         ac.Targets.SpeedCeiling = 230;
 
         FlightPhysics.Update(ac, 1.0);
@@ -459,7 +467,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void SpeedFloor_NoEffectWhenAboveFloor()
     {
-        var ac = CreateAirborne(ias: 230);
+        AircraftState ac = CreateAirborne(ias: 230);
         ac.Targets.SpeedFloor = 210;
 
         FlightPhysics.Update(ac, 1.0);
@@ -471,7 +479,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void SpeedCeiling_NoEffectWhenBelowCeiling()
     {
-        var ac = CreateAirborne(ias: 200);
+        AircraftState ac = CreateAirborne(ias: 200);
         ac.Targets.SpeedCeiling = 230;
 
         FlightPhysics.Update(ac, 1.0);
@@ -482,7 +490,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void SpeedFloor_CappedAt250Below10k()
     {
-        var ac = CreateAirborne(ias: 240, altitude: 8000);
+        AircraftState ac = CreateAirborne(ias: 240, altitude: 8000);
         ac.Targets.SpeedFloor = 270;
 
         FlightPhysics.Update(ac, 1.0);
@@ -496,7 +504,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void DsrFlag_SkipsViaModeSpdConstraints()
     {
-        var ac = CreateAirborne(ias: 280, altitude: 15000);
+        AircraftState ac = CreateAirborne(ias: 280, altitude: 15000);
         ac.Procedure.ActiveStarId = "SUNOL1";
         ac.Procedure.StarViaMode = true;
         ac.Procedure.SpeedRestrictionsDeleted = true;
@@ -517,7 +525,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void ViaModeSpdConstraint_ClampedToFloor()
     {
-        var ac = CreateAirborne(ias: 210, altitude: 15000);
+        AircraftState ac = CreateAirborne(ias: 210, altitude: 15000);
         ac.Procedure.ActiveStarId = "SUNOL1";
         ac.Procedure.StarViaMode = true;
         ac.Targets.SpeedFloor = 230;
@@ -538,7 +546,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void ViaModeSpdConstraint_ClampedToCeiling()
     {
-        var ac = CreateAirborne(ias: 280, altitude: 15000);
+        AircraftState ac = CreateAirborne(ias: 280, altitude: 15000);
         ac.Procedure.ActiveStarId = "SUNOL1";
         ac.Procedure.StarViaMode = true;
         ac.Targets.SpeedCeiling = 240;
@@ -562,7 +570,7 @@ public class SpeedPhysicsTests
     public void ViaModeSpdConstraint_ClampedToBothFloorAndCeiling_FloorWins()
     {
         // Floor > Ceiling is contradictory; via-mode applies floor then ceiling sequentially
-        var ac = CreateAirborne(ias: 250, altitude: 15000);
+        AircraftState ac = CreateAirborne(ias: 250, altitude: 15000);
         ac.Procedure.ActiveStarId = "SUNOL1";
         ac.Procedure.StarViaMode = true;
         ac.Targets.SpeedFloor = 240;
@@ -584,7 +592,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void BothFloorAndCeiling_IasBetween_NoTargetSet()
     {
-        var ac = CreateAirborne(ias: 230);
+        AircraftState ac = CreateAirborne(ias: 230);
         ac.Targets.SpeedFloor = 210;
         ac.Targets.SpeedCeiling = 250;
 
@@ -597,7 +605,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void BothFloorAndCeiling_IasBelowFloor_AcceleratesToFloor()
     {
-        var ac = CreateAirborne(ias: 190);
+        AircraftState ac = CreateAirborne(ias: 190);
         ac.Targets.SpeedFloor = 210;
         ac.Targets.SpeedCeiling = 250;
 
@@ -609,7 +617,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void BothFloorAndCeiling_IasAboveCeiling_DeceleratesToCeiling()
     {
-        var ac = CreateAirborne(ias: 270);
+        AircraftState ac = CreateAirborne(ias: 270);
         ac.Targets.SpeedFloor = 210;
         ac.Targets.SpeedCeiling = 250;
 
@@ -628,7 +636,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void AutoCancel_ConvertsSpeedToCeiling_WhenNotPhaseManaged()
     {
-        var ac = CreateAirborne(ias: 210);
+        AircraftState ac = CreateAirborne(ias: 210);
         ac.Targets.TargetSpeed = 210;
         ac.Targets.HasExplicitSpeedCommand = true;
         ac.Targets.SpeedFloor = 200;
@@ -657,7 +665,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void AutoCancel_FullyClearsSpeed_WhenPhaseManaged()
     {
-        var ac = CreateAirborne(ias: 210);
+        AircraftState ac = CreateAirborne(ias: 210);
         ac.Targets.TargetSpeed = 210;
         ac.Targets.HasExplicitSpeedCommand = true;
         ac.Targets.SpeedFloor = 200;
@@ -685,7 +693,7 @@ public class SpeedPhysicsTests
     {
         // Cleared-to-land aircraft hand-vectored to a visual: inbound to land but with no
         // speed-managing phase, descending → the auto speed schedule is active.
-        var ac = CreateAirborne(ias: 170, altitude: 4000);
+        AircraftState ac = CreateAirborne(ias: 170, altitude: 4000);
         ac.Targets.TargetSpeed = 170;
         ac.Targets.HasExplicitSpeedCommand = true;
         ac.Targets.TargetAltitude = 2000;
@@ -715,7 +723,7 @@ public class SpeedPhysicsTests
     {
         // IAS away from the target so the normal speed-snap doesn't clear TargetSpeed;
         // only the §5-7-1.b.4 auto-cancel would, and it must not for a departure.
-        var ac = CreateAirborne(ias: 250);
+        AircraftState ac = CreateAirborne(ias: 250);
         ac.Targets.TargetSpeed = 180;
         ac.Targets.HasExplicitSpeedCommand = true;
         // AssignedRunway set (departure runway), but no arrival-approach phase.
@@ -731,7 +739,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void AutoCancel_SkipsForcedOverride_OnFinal()
     {
-        var ac = CreateAirborne(ias: 250);
+        AircraftState ac = CreateAirborne(ias: 250);
         ac.Targets.TargetSpeed = 180;
         ac.Targets.HasExplicitSpeedCommand = true;
         ac.Targets.SpeedOverridesFinalGate = true;
@@ -749,7 +757,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void DistanceFinalTrigger_MetWhenInsideDistance()
     {
-        var ac = CreateAirborne();
+        AircraftState ac = CreateAirborne();
         ac.Phases = new PhaseList();
         ac.Phases.AssignedRunway = new RunwayInfo
         {
@@ -783,7 +791,7 @@ public class SpeedPhysicsTests
     [Fact]
     public void DistanceFinalTrigger_NotMetWithoutRunway()
     {
-        var ac = CreateAirborne();
+        AircraftState ac = CreateAirborne();
         // No assigned runway
 
         var trigger = new BlockTrigger { Type = BlockTriggerType.DistanceFinal, DistanceFinalNm = 10 };

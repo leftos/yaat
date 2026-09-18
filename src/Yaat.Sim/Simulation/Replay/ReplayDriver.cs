@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Simulation.Replay;
 
@@ -55,7 +56,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 
     public void FastForwardTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier)
     {
-        var scenario = _engine.Scenario;
+        SimScenarioState? scenario = _engine.Scenario;
         if (scenario is null)
         {
             throw new InvalidOperationException("FastForwardTo requires a loaded scenario");
@@ -121,7 +122,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             // elapsed 0 — is what stamps a load-time departure's PDC at the second and under the id the live run gave
             // it, rather than one second late from the next tick's catch-up sweep. A no-op when the run carries no
             // TDLS configuration.
-            foreach (var aircraft in _engine.World.GetSnapshot())
+            foreach (AircraftState aircraft in _engine.World.GetSnapshot())
             {
                 _engine.AfterAircraftSpawned(aircraft);
             }
@@ -157,17 +158,17 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             }
 
             // The range starts where the caller says it does, whatever the engine's clock read before.
-            var scenario = _engine.Scenario!;
+            SimScenarioState scenario = _engine.Scenario!;
             scenario.ElapsedSeconds = startSeconds;
 
             for (int t = startSeconds + 1; t <= targetSeconds; t++)
             {
                 _engine.RunSecond(host);
 
-                if (archiveForVerification is not null && drifts is not null && verifyByTimestamp.TryGetValue(t, out var snapIdx))
+                if (archiveForVerification is not null && drifts is not null && verifyByTimestamp.TryGetValue(t, out int snapIdx))
                 {
-                    var snap = archiveForVerification.ReadSnapshot(snapIdx);
-                    var report = SnapshotDiff.Compare(t, snap, _engine.World.GetSnapshot());
+                    StateSnapshotDto snap = archiveForVerification.ReadSnapshot(snapIdx);
+                    SnapshotDriftReport report = SnapshotDiff.Compare(t, snap, _engine.World.GetSnapshot());
                     if (report.AircraftDrifts.Count > 0)
                     {
                         drifts.Add(report);
@@ -274,7 +275,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
     /// </summary>
     public void OneSubTick()
     {
-        var scenario = _engine.Scenario;
+        SimScenarioState? scenario = _engine.Scenario;
         if (scenario is null || _host is not { } host)
         {
             return;

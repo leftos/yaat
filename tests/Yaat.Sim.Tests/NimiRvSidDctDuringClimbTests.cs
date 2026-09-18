@@ -30,7 +30,7 @@ public class NimiRvSidDctDuringClimbTests
     private static (InitialClimbPhase Phase, AircraftState Aircraft, PhaseContext Ctx) BuildRvSidClimbHarness(bool deferUntilMinAlt = false)
     {
         const double fieldElev = 6.0;
-        var runway = TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 280.0, elevationFt: fieldElev);
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 280.0, elevationFt: fieldElev);
         var ac = new AircraftState
         {
             Callsign = "TEST1",
@@ -82,13 +82,13 @@ public class NimiRvSidDctDuringClimbTests
     public void DctDuringRvSidHold_ReleasesRvSidActiveSoPhaseCanComplete()
     {
         TestVnasData.EnsureInitialized();
-        var (phase, ac, ctx) = BuildRvSidClimbHarness();
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildRvSidClimbHarness();
         Assert.False(ac.HasLeftStudentFrequency);
 
-        var parsed = CommandParser.ParseCompound("DCT FESIK");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("DCT FESIK");
         Assert.True(parsed.IsSuccess);
 
-        var dispatch = CommandDispatcher.DispatchCompound(
+        CommandResult dispatch = CommandDispatcher.DispatchCompound(
             parsed.Value!,
             ac,
             TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false)
@@ -102,7 +102,7 @@ public class NimiRvSidDctDuringClimbTests
         FlightPhysics.Update(ac, 1.0, _ => null);
 
         Assert.False(complete, "Phase should not complete on the first tick after DCT");
-        var dto = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
+        InitialClimbPhaseDto dto = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
         Assert.False(
             dto.RvSidActive,
             "DCT during the RV SID hold must release _rvSidActive; otherwise InitialClimb never completes while a route is active."
@@ -131,29 +131,29 @@ public class NimiRvSidDctDuringClimbTests
     public void AtFixDct_WhenQueuedBlockFires_ReleasesRvSidActive()
     {
         TestVnasData.EnsureInitialized();
-        var (phase, ac, _) = BuildRvSidClimbHarness();
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext _) = BuildRvSidClimbHarness();
 
-        var parsed = CommandParser.ParseCompound("AT FESIK DCT SUNOL");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("AT FESIK DCT SUNOL");
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
-        var dispatch = CommandDispatcher.DispatchCompound(
+        CommandResult dispatch = CommandDispatcher.DispatchCompound(
             parsed.Value!,
             ac,
             TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false)
         );
         Assert.True(dispatch.Success, dispatch.Message);
 
-        var dtoBefore = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
+        InitialClimbPhaseDto dtoBefore = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
         Assert.True(dtoBefore.RvSidActive, "RV SID hold should remain until the conditional block fires.");
 
-        var block = Assert.Single(ac.Queue.Blocks);
+        CommandBlock block = Assert.Single(ac.Queue.Blocks);
         Assert.NotNull(block.ApplyAction);
         Assert.NotNull(block.Trigger);
 
-        var applyResult = block.ApplyAction!(ac);
+        CommandResult applyResult = block.ApplyAction!(ac);
         Assert.True(applyResult.Success, applyResult.Message);
 
-        var dtoAfter = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
+        InitialClimbPhaseDto dtoAfter = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
         Assert.False(dtoAfter.RvSidActive, "AT-fix DCT firing from the queue must release _rvSidActive the same as an immediate DCT.");
     }
 
@@ -165,19 +165,19 @@ public class NimiRvSidDctDuringClimbTests
     public void DctToUnprogrammedFix_WhenApplyFails_KeepsRvSidActive()
     {
         TestVnasData.EnsureInitialized();
-        var (phase, ac, _) = BuildRvSidClimbHarness();
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext _) = BuildRvSidClimbHarness();
 
-        var parsed = CommandParser.ParseCompound("DCT SUNOL");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("DCT SUNOL");
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
-        var dispatch = CommandDispatcher.DispatchCompound(
+        CommandResult dispatch = CommandDispatcher.DispatchCompound(
             parsed.Value!,
             ac,
             TestDispatch.Context(new SerializableRandom(42), validateDctFixes: true)
         );
         Assert.False(dispatch.Success, "SUNOL is not on the filed route; DCT must fail when fix validation is on.");
 
-        var dto = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
+        InitialClimbPhaseDto dto = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
         Assert.True(dto.RvSidActive, "Failed DCT must not release the RV SID heading hold.");
     }
 
@@ -192,16 +192,16 @@ public class NimiRvSidDctDuringClimbTests
     public void DctDuringDeferredRvSidHold_AlsoReleasesDeferredTurnGate()
     {
         TestVnasData.EnsureInitialized();
-        var (phase, ac, ctx) = BuildRvSidClimbHarness(deferUntilMinAlt: true);
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildRvSidClimbHarness(deferUntilMinAlt: true);
 
-        var dtoBefore = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
+        InitialClimbPhaseDto dtoBefore = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
         Assert.True(dtoBefore.RvSidActive, "Precondition: RV SID hold active.");
         Assert.False(dtoBefore.VfrTurnApplied, "Precondition: deferred-turn gate is still armed (CA-before-VM).");
 
-        var parsed = CommandParser.ParseCompound("DCT FESIK");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("DCT FESIK");
         Assert.True(parsed.IsSuccess);
 
-        var dispatch = CommandDispatcher.DispatchCompound(
+        CommandResult dispatch = CommandDispatcher.DispatchCompound(
             parsed.Value!,
             ac,
             TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false)
@@ -212,7 +212,7 @@ public class NimiRvSidDctDuringClimbTests
         phase.OnTick(ctx);
         FlightPhysics.Update(ac, 1.0, _ => null);
 
-        var dtoAfter = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
+        InitialClimbPhaseDto dtoAfter = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());
         Assert.False(dtoAfter.RvSidActive, "DCT must release _rvSidActive even in the CA-before-VM variant.");
         Assert.True(
             dtoAfter.VfrTurnApplied,

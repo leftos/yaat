@@ -33,14 +33,14 @@ public static class AircraftCategorization
 
     public static AircraftCategory Categorize(string aircraftType)
     {
-        var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        string baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
 
-        if (_lookup.TryGetValue(baseType, out var cat))
+        if (_lookup.TryGetValue(baseType, out AircraftCategory cat))
         {
             return cat;
         }
 
-        if (AircraftSiblingMap.TryResolve(baseType, out var sibling) && _lookup.TryGetValue(sibling, out var sibCat))
+        if (AircraftSiblingMap.TryResolve(baseType, out string? sibling) && _lookup.TryGetValue(sibling, out AircraftCategory sibCat))
         {
             return sibCat;
         }
@@ -56,13 +56,13 @@ public static class AircraftCategorization
     /// </summary>
     public static bool IsKnownType(string aircraftType)
     {
-        var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        string baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
         if (_lookup.ContainsKey(baseType))
         {
             return true;
         }
 
-        return AircraftSiblingMap.TryResolve(baseType, out var sibling) && _lookup.ContainsKey(sibling);
+        return AircraftSiblingMap.TryResolve(baseType, out string? sibling) && _lookup.ContainsKey(sibling);
     }
 }
 
@@ -822,14 +822,14 @@ public static class CategoryPerformance
         const double BaselineNm = 0.015;
 
         double lengthFt;
-        var record = FaaAircraftDatabase.Get(aircraftType);
+        FaaAircraftRecord? record = FaaAircraftDatabase.Get(aircraftType);
         if (record?.LengthFt is { } len && len > 0)
         {
             lengthFt = len;
         }
         else
         {
-            var cwt = WakeTurbulenceData.GetCwt(aircraftType);
+            string? cwt = WakeTurbulenceData.GetCwt(aircraftType);
             lengthFt = cwt switch
             {
                 "A" => 240, // Super (A388)

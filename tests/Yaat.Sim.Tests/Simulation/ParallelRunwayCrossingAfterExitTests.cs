@@ -48,7 +48,7 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
         string taxiway
     )
     {
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (node.Type != GroundNodeType.RunwayHoldShort || node.RunwayId is not { } rid || !rid.Contains(landingDesignator))
             {
@@ -57,14 +57,14 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
 
             GroundNode? parallelNeighbor = null;
             GroundNode? otherNeighbor = null;
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.IsRunwayCenterline || !edge.MatchesTaxiway(taxiway))
                 {
                     continue;
                 }
 
-                var other = edge.OtherNode(node);
+                GroundNode other = edge.OtherNode(node);
                 if (other.Type == GroundNodeType.RunwayHoldShort && other.RunwayId is { } orid && orid.Contains(parallelDesignator))
                 {
                     parallelNeighbor = other;
@@ -90,20 +90,26 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
     [InlineData("SFO", "19L", "19R", "G")]
     public void FindParallelRunwayCrossing_BetweenParallels_ReturnsCrossing(string airport, string landing, string parallel, string taxiway)
     {
-        var layout = LoadLayout(airport);
+        AirportGroundLayout? layout = LoadLayout(airport);
         if (layout is null)
         {
             return;
         }
 
-        var setup = FindLandingExitHoldShort(layout, landing, parallel, taxiway);
+        (GroundNode LandingHs, GroundNode ComeFrom)? setup = FindLandingExitHoldShort(layout, landing, parallel, taxiway);
         Assert.NotNull(setup);
-        var (landingHs, comeFrom) = setup.Value;
+        (GroundNode? landingHs, GroundNode? comeFrom) = setup.Value;
 
-        var crossing = layout.FindParallelRunwayCrossing(landingHs, comeFrom, taxiway, landing);
+        (
+            GroundNode NearHoldShort,
+            GroundNode FarHoldShort,
+            string ParallelRunwayId,
+            List<GroundNode> PullUpPath,
+            List<GroundNode> CrossingPath
+        )? crossing = layout.FindParallelRunwayCrossing(landingHs, comeFrom, taxiway, landing);
         Assert.NotNull(crossing);
 
-        var (nearHs, farHs, parallelRunwayId, pullUp, crossingPath) = crossing.Value;
+        (GroundNode? nearHs, GroundNode? farHs, string? parallelRunwayId, List<GroundNode>? pullUp, List<GroundNode>? crossingPath) = crossing.Value;
         output.WriteLine(
             $"{airport} {landing}→{parallel} via {taxiway}: landingHS=#{landingHs.Id} near=#{nearHs.Id} far=#{farHs.Id} "
                 + $"rwy={parallelRunwayId} pullUp=[{string.Join("→", pullUp.Select(n => n.Id))}] "
@@ -132,50 +138,68 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
     [Fact]
     public void FindParallelRunwayCrossing_SameRunwayFarSide_ReturnsNull()
     {
-        var layout = LoadLayout("OAK");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
         }
 
         // Reuse the 28L→28R setup to get the 28R near hold-short and the 28L hold-short next to it.
-        var setup = FindLandingExitHoldShort(layout, "28L", "28R", "G");
+        (GroundNode LandingHs, GroundNode ComeFrom)? setup = FindLandingExitHoldShort(layout, "28L", "28R", "G");
         Assert.NotNull(setup);
-        var (oak28LHoldShort, _) = setup.Value;
+        (GroundNode? oak28LHoldShort, GroundNode _) = setup.Value;
 
         // The 28R hold-short adjacent to the 28L exit.
-        var near28R = oak28LHoldShort
+        GroundNode near28R = oak28LHoldShort
             .Edges.Select(e => e.OtherNode(oak28LHoldShort))
             .First(n => n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } r && r.Contains("28R"));
 
         // Pretend we landed 28R and exited toward its centerline: the next hold-short along G is
         // 28R's own far side, not a parallel.
-        var crossing = layout.FindParallelRunwayCrossing(near28R, oak28LHoldShort, "G", "28R");
+        (
+            GroundNode NearHoldShort,
+            GroundNode FarHoldShort,
+            string ParallelRunwayId,
+            List<GroundNode> PullUpPath,
+            List<GroundNode> CrossingPath
+        )? crossing = layout.FindParallelRunwayCrossing(near28R, oak28LHoldShort, "G", "28R");
         Assert.Null(crossing);
     }
 
     [Fact]
     public void FindParallelRunwayCrossing_InterveningIntersection_ReturnsNull()
     {
-        var layout = BuildSyntheticParallelLayout(withInterveningBranch: true);
-        var landingHs = layout.Nodes[1];
-        var comeFrom = layout.Nodes[0];
+        AirportGroundLayout layout = BuildSyntheticParallelLayout(withInterveningBranch: true);
+        GroundNode landingHs = layout.Nodes[1];
+        GroundNode comeFrom = layout.Nodes[0];
 
-        var crossing = layout.FindParallelRunwayCrossing(landingHs, comeFrom, "G", "28L");
+        (
+            GroundNode NearHoldShort,
+            GroundNode FarHoldShort,
+            string ParallelRunwayId,
+            List<GroundNode> PullUpPath,
+            List<GroundNode> CrossingPath
+        )? crossing = layout.FindParallelRunwayCrossing(landingHs, comeFrom, "G", "28L");
         Assert.Null(crossing);
     }
 
     [Fact]
     public void FindParallelRunwayCrossing_NoInterveningIntersection_ReturnsCrossing()
     {
-        var layout = BuildSyntheticParallelLayout(withInterveningBranch: false);
-        var landingHs = layout.Nodes[1];
-        var comeFrom = layout.Nodes[0];
+        AirportGroundLayout layout = BuildSyntheticParallelLayout(withInterveningBranch: false);
+        GroundNode landingHs = layout.Nodes[1];
+        GroundNode comeFrom = layout.Nodes[0];
 
-        var crossing = layout.FindParallelRunwayCrossing(landingHs, comeFrom, "G", "28L");
+        (
+            GroundNode NearHoldShort,
+            GroundNode FarHoldShort,
+            string ParallelRunwayId,
+            List<GroundNode> PullUpPath,
+            List<GroundNode> CrossingPath
+        )? crossing = layout.FindParallelRunwayCrossing(landingHs, comeFrom, "G", "28L");
         Assert.NotNull(crossing);
 
-        var (nearHs, farHs, _, _, _) = crossing.Value;
+        (GroundNode? nearHs, GroundNode? farHs, string _, List<GroundNode> _, List<GroundNode> _) = crossing.Value;
         Assert.Equal(3, nearHs.Id);
         Assert.Equal(5, farHs.Id);
     }
@@ -208,13 +232,13 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
                 RunwayId = rwy,
             };
 
-        var n0 = Twy(0, 37.700);
-        var n1 = Hs(1, 37.701, rwy28L);
-        var n2 = Twy(2, 37.702);
-        var n3 = Hs(3, 37.703, rwy28R);
-        var n4 = Twy(4, 37.704);
-        var n5 = Hs(5, 37.705, rwy28R);
-        var nodes = new[] { n0, n1, n2, n3, n4, n5 };
+        GroundNode n0 = Twy(0, 37.700);
+        GroundNode n1 = Hs(1, 37.701, rwy28L);
+        GroundNode n2 = Twy(2, 37.702);
+        GroundNode n3 = Hs(3, 37.703, rwy28R);
+        GroundNode n4 = Twy(4, 37.704);
+        GroundNode n5 = Hs(5, 37.705, rwy28R);
+        GroundNode[] nodes = new[] { n0, n1, n2, n3, n4, n5 };
 
         GroundEdge G(GroundNode a, GroundNode b, string name = "G") =>
             new()
@@ -228,17 +252,17 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
 
         if (withInterveningBranch)
         {
-            var nSide = Twy(6, 37.7025);
+            GroundNode nSide = Twy(6, 37.7025);
             nodes = [.. nodes, nSide];
             edges.Add(G(n2, nSide, "X"));
         }
 
-        foreach (var node in nodes)
+        foreach (GroundNode? node in nodes)
         {
             layout.Nodes[node.Id] = node;
         }
 
-        foreach (var edge in edges)
+        foreach (GroundEdge edge in edges)
         {
             edge.Nodes[0].Edges.Add(edge);
             edge.Nodes[1].Edges.Add(edge);
@@ -276,26 +300,26 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
         string aircraftType = "B738"
     )
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return null;
         }
 
-        var runway = NavigationDatabase.Instance.GetRunway(airport, runwayId);
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway(airport, runwayId);
         if (runway is null)
         {
             return null;
         }
 
-        var layout = new TestAirportGroundData().GetLayout(airport);
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(airport);
         if (layout is null)
         {
             return null;
         }
 
         double reciprocal = (runway.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 1.0);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 1.0);
         double approachIas = aircraftType is "B738" or "A320" ? 145 : 75;
 
         var aircraft = new AircraftState
@@ -352,13 +376,13 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
         string aircraftType
     )
     {
-        var setup = SetupLanding(airport, landing, exitCommand, autoPullUp: true, aircraftType);
+        (SimulationEngine Engine, AircraftState Aircraft)? setup = SetupLanding(airport, landing, exitCommand, autoPullUp: true, aircraftType);
         if (setup is null)
         {
             return;
         }
 
-        var (engine, ac) = setup.Value;
+        (SimulationEngine? engine, AircraftState? ac) = setup.Value;
 
         // (B) auto-pull-up: drive until the aircraft is holding short of the parallel runway.
         HoldingShortPhase? holding = null;
@@ -378,12 +402,12 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
         Assert.Equal(HoldShortReason.RunwayCrossing, holding.HoldShort.Reason);
         Assert.True(ac.GroundSpeed < 1.0, $"Aircraft should be stopped short of {parallel}, gs={ac.GroundSpeed:F2}");
 
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         Assert.Contains(route.HoldShortPoints, hs => (hs.TargetName ?? "").Contains(parallel) && hs.Reason == HoldShortReason.RunwayCrossing);
 
         // (A) bare CROSS crosses the parallel without a prior TAXI.
-        var crossResult = engine.SendCommand("TST738", "CROSS");
+        CommandResult crossResult = engine.SendCommand("TST738", "CROSS");
         Assert.True(crossResult.Success, $"CROSS should succeed, got: {crossResult.Message}");
 
         bool sawCrossing = false;
@@ -391,7 +415,7 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
         for (int t = 1; t <= 300; t++)
         {
             engine.TickOneSecond();
-            var phase = ac.Phases?.CurrentPhase;
+            Phase? phase = ac.Phases?.CurrentPhase;
             if (phase is CrossingRunwayPhase)
             {
                 sawCrossing = true;
@@ -412,13 +436,13 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
     [Fact]
     public void AutoPullUpDisabled_HoldsAtLandingExit_AndCrossIsRejected()
     {
-        var setup = SetupLanding("SFO", "19L", "EXIT G", autoPullUp: false);
+        (SimulationEngine Engine, AircraftState Aircraft)? setup = SetupLanding("SFO", "19L", "EXIT G", autoPullUp: false);
         if (setup is null)
         {
             return;
         }
 
-        var (engine, ac) = setup.Value;
+        (SimulationEngine? engine, AircraftState? ac) = setup.Value;
 
         HoldingAfterExitPhase? holding = null;
         for (int t = 1; t <= 500; t++)
@@ -438,7 +462,7 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
         Assert.Null(ac.Ground.AssignedTaxiRoute);
 
         // Bare CROSS without a prior TAXI is rejected (current behavior preserved).
-        var crossResult = engine.SendCommand("TST738", "CROSS");
+        CommandResult crossResult = engine.SendCommand("TST738", "CROSS");
         Assert.False(crossResult.Success, "CROSS should be rejected when holding after exit with no taxi route");
     }
 }

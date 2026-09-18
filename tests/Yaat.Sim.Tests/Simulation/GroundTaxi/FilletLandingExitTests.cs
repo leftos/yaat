@@ -75,16 +75,16 @@ public class FilletLandingExitTests
     [Fact]
     public void OAK28R_NoPreference_CompletesAtReasonableSpeed()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
-        var ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 130);
+        RunwayInfo rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
+        AircraftState ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 130);
         ac.Phases!.AssignedRunway = rwy;
-        var ctx = Ctx(ac, rwy, layout);
+        PhaseContext ctx = Ctx(ac, rwy, layout);
 
         var phase = new LandingPhase();
         phase.OnStart(ctx);
@@ -102,18 +102,18 @@ public class FilletLandingExitTests
     [Fact]
     public void OAK28R_ExitFarAhead_MaintainsCoastSpeed()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
-        var ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 60);
+        RunwayInfo rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
+        AircraftState ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 60);
         ac.Phases!.RequestedExit = new ExitPreference { Taxiway = "H" };
         ac.Phases.AssignedRunway = rwy;
 
-        var ctx = Ctx(ac, rwy, layout);
+        PhaseContext ctx = Ctx(ac, rwy, layout);
         var phase = new LandingPhase();
         phase.OnStart(ctx);
 
@@ -128,14 +128,14 @@ public class FilletLandingExitTests
     [Fact]
     public void ComputeExitAngle_OAK30_W5_IsHighSpeed()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var hsNodes = layout.GetRunwayHoldShortNodes("30");
-        var w5Node = hsNodes.FirstOrDefault(n => n.Edges.Any(e => e.TaxiwayName == "W5"));
+        List<GroundNode> hsNodes = layout.GetRunwayHoldShortNodes("30");
+        GroundNode? w5Node = hsNodes.FirstOrDefault(n => n.Edges.Any(e => e.TaxiwayName == "W5"));
 
         // The 30/W5 high-speed-exit hold-short must survive filleting; if it is
         // filleted away that is a real regression, so assert presence rather than skip.
@@ -149,34 +149,40 @@ public class FilletLandingExitTests
     [Fact]
     public void FindExitAhead_OAK28R_H_ReturnsIt()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var result = layout.FindExitAheadOnRunway(37.724806, -122.204721, new TrueHeading(280.0), new ExitPreference { Taxiway = "H" }, "28R");
+        (GroundNode Node, string Taxiway)? result = layout.FindExitAheadOnRunway(
+            37.724806,
+            -122.204721,
+            new TrueHeading(280.0),
+            new ExitPreference { Taxiway = "H" },
+            "28R"
+        );
         Assert.NotNull(result);
     }
 
     [Fact]
     public void FindNearestExit_OAK28R_ReturnsExitOnCorrectRunway()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var rwy28R = layout.FindGroundRunway("28R");
+        GroundRunway? rwy28R = layout.FindGroundRunway("28R");
         Assert.NotNull(rwy28R);
-        var coords = rwy28R.Coordinates;
+        List<(double Lat, double Lon)> coords = rwy28R.Coordinates;
         int midIdx = coords.Count / 2;
 
-        var exitNode = layout.FindNearestExit(coords[midIdx].Lat, coords[midIdx].Lon, new TrueHeading(280.0), "28R");
+        GroundNode? exitNode = layout.FindNearestExit(coords[midIdx].Lat, coords[midIdx].Lon, new TrueHeading(280.0), "28R");
         Assert.NotNull(exitNode);
 
-        var rwy28L = layout.FindGroundRunway("28L");
+        GroundRunway? rwy28L = layout.FindGroundRunway("28L");
         Assert.NotNull(rwy28L);
 
         double distTo28R = MinDistToRunwayNm(exitNode, rwy28R);
@@ -190,7 +196,7 @@ public class FilletLandingExitTests
     private static double MinDistToRunwayNm(GroundNode node, GroundRunway runway)
     {
         double minDist = double.MaxValue;
-        foreach (var coord in runway.Coordinates)
+        foreach ((double Lat, double Lon) coord in runway.Coordinates)
         {
             double dist = GeoMath.DistanceNm(node.Position, new LatLon(coord.Lat, coord.Lon));
             if (dist < minDist)

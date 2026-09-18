@@ -42,9 +42,9 @@ public class Req1MembershipArcSweepTests
         int grandFlagged = 0;
         int grandPairs = 0;
 
-        foreach (var airport in Airports)
+        foreach (string airport in Airports)
         {
-            var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
+            AirportGroundLayout? layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
             if (layout is null)
             {
                 report.AppendLine($"## {airport}: unavailable");
@@ -52,11 +52,11 @@ public class Req1MembershipArcSweepTests
             }
 
             var twNodes = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var node in layout.Nodes.Values)
+            foreach (GroundNode node in layout.Nodes.Values)
             {
-                foreach (var edge in node.Edges)
+                foreach (IGroundEdge edge in node.Edges)
                 {
-                    foreach (var name in NamesOf(edge))
+                    foreach (string name in NamesOf(edge))
                     {
                         if (
                             name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
@@ -66,7 +66,7 @@ public class Req1MembershipArcSweepTests
                             continue;
                         }
 
-                        if (!twNodes.TryGetValue(name, out var set))
+                        if (!twNodes.TryGetValue(name, out HashSet<int>? set))
                         {
                             set = [];
                             twNodes[name] = set;
@@ -81,9 +81,9 @@ public class Req1MembershipArcSweepTests
             int flagged = 0;
             var names = twNodes.Keys.OrderBy(n => n).ToList();
 
-            foreach (var x in names)
+            foreach (string? x in names)
             {
-                foreach (var y in names)
+                foreach (string? y in names)
                 {
                     if (string.Equals(x, y, StringComparison.OrdinalIgnoreCase))
                     {
@@ -99,14 +99,21 @@ public class Req1MembershipArcSweepTests
                     int startId = twNodes[x].OrderByDescending(nid => junctions.Min(j => NodeDist(layout, nid, j))).First();
 
                     pairs++;
-                    var route = TaxiPathfinder.ResolveExplicitPath(layout, startId, [x, y], out _, new ExplicitPathOptions(), AircraftCategory.Jet);
+                    TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
+                        layout,
+                        startId,
+                        [x, y],
+                        out _,
+                        new ExplicitPathOptions(),
+                        AircraftCategory.Jet
+                    );
 
                     if (route is null)
                     {
                         continue;
                     }
 
-                    var diversion = FindInteriorMembershipArc(route, layout);
+                    string? diversion = FindInteriorMembershipArc(route, layout);
                     if (diversion is not null)
                     {
                         flagged++;
@@ -142,7 +149,7 @@ public class Req1MembershipArcSweepTests
     /// </summary>
     private static string? FindInteriorMembershipArc(TaxiRoute route, AirportGroundLayout layout)
     {
-        var segs = route.Segments;
+        List<TaxiRouteSegment> segs = route.Segments;
         for (int i = 0; i < segs.Count; i++)
         {
             if (segs[i].Edge.Edge is not GroundArc arc || arc.TaxiwayNames.Length < 2 || arc.IsRunwayJunction)
@@ -170,12 +177,12 @@ public class Req1MembershipArcSweepTests
 
     private static bool HasSingleNameTwin(AirportGroundLayout layout, int fromId, int toId, string taxiway)
     {
-        if (!layout.Nodes.TryGetValue(fromId, out var fromNode))
+        if (!layout.Nodes.TryGetValue(fromId, out GroundNode? fromNode))
         {
             return false;
         }
 
-        foreach (var edge in fromNode.Edges)
+        foreach (IGroundEdge edge in fromNode.Edges)
         {
             bool single = edge is not GroundArc arc || arc.TaxiwayNames.Length == 1;
             if (single && (edge.OtherNode(fromNode).Id == toId) && edge.TaxiwayName.Equals(taxiway, StringComparison.OrdinalIgnoreCase))

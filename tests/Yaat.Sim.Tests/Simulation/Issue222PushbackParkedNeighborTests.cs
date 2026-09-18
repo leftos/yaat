@@ -46,7 +46,8 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
     /// <summary>A B737 parked on the named OAK stand, nose on the stand heading, as the recording spawns it.</summary>
     private static AircraftState SpawnParked(SimulationEngine engine, AirportGroundLayout layout, string callsign, string parkingName)
     {
-        var stand = layout.FindParkingByName(parkingName) ?? throw new InvalidOperationException($"OAK layout has no parking named '{parkingName}'");
+        GroundNode stand =
+            layout.FindParkingByName(parkingName) ?? throw new InvalidOperationException($"OAK layout has no parking named '{parkingName}'");
         var aircraft = new AircraftState
         {
             Callsign = callsign,
@@ -133,10 +134,10 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
                 AutoCrossRunway = false,
             },
         };
-        var pusher = SpawnParked(engine, layout, Pusher, "25");
-        var neighbour = SpawnParked(engine, layout, ParkedNeighbor, "26");
+        AircraftState pusher = SpawnParked(engine, layout, Pusher, "25");
+        AircraftState neighbour = SpawnParked(engine, layout, ParkedNeighbor, "26");
 
-        var push = engine.SendCommand(Pusher, "PUSH TE");
+        CommandResult push = engine.SendCommand(Pusher, "PUSH TE");
         output.WriteLine($"PUSH TE: success={push.Success} msg={push.Message}");
         Assert.True(push.Success, $"PUSH TE off gate 25 was refused: {push.Message}");
 
@@ -172,8 +173,8 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
     [Fact]
     public void Pushback_CompletesWithoutBreak_PastParkedNeighbor()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -181,10 +182,10 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
 
         engine.Replay(recording, AfterPush);
 
-        var start = engine.FindAircraft(Pusher);
+        AircraftState? start = engine.FindAircraft(Pusher);
         Assert.NotNull(start);
         Assert.Equal("Pushback", start.Phases?.CurrentPhase?.Name);
-        var startPos = start.Position;
+        LatLon startPos = start.Position;
 
         // Tick faithfully but stop before the user's first BREAK (t=411) so it cannot
         // free the aircraft — proving the pushback clears the parked neighbor on its own.
@@ -193,7 +194,7 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
         double maxGapClosedFt = 0;
         for (int t = AfterPush; t < FirstBreak; t++)
         {
-            var ac = engine.FindAircraft(Pusher);
+            AircraftState? ac = engine.FindAircraft(Pusher);
             if (ac is not null)
             {
                 maxGapClosedFt = Math.Max(maxGapClosedFt, GeoMath.DistanceNm(ac.Position, startPos) * 6076.12);

@@ -31,8 +31,8 @@ public class PositionSelectionArmTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
         scenario.StudentTcp = TrackResolver.FindTcpByCode(scenario, "3O")!;
         return engine;
@@ -51,17 +51,17 @@ public class PositionSelectionArmTests
 
         var host = new AttendanceActionHost();
 
-        var outcome = engine.Actions.Issue(new ActionInput("", command, "conn-1", "XX", Baked: null), host);
+        ActionOutcome outcome = engine.Actions.Issue(new ActionInput("", command, "conn-1", "XX", Baked: null), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        Assert.True(engine.PositionSelections.TryGet("conn-1", out var selected));
+        Assert.True(engine.PositionSelections.TryGet("conn-1", out TrackOwner? selected));
         if (callsign.Length > 0)
         {
             Assert.Equal(callsign, selected.Callsign);
         }
 
         Assert.Equal(sector, selected.SectorId);
-        var told = Assert.Single(host.SelectedPositions);
+        (string ConnectionId, TrackOwner Owner, string TcpCode) told = Assert.Single(host.SelectedPositions);
         Assert.Equal(("conn-1", selected, hostCode), told);
     }
 }

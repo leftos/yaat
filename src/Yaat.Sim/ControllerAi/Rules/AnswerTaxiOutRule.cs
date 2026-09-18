@@ -14,9 +14,9 @@ public sealed class AnswerTaxiOutRule : IDecisionRule
 
     public void Evaluate(AiRuleScope scope)
     {
-        foreach (var aircraft in scope.Jurisdiction)
+        foreach (AircraftState aircraft in scope.Jurisdiction)
         {
-            var memo = scope.MemoFor(aircraft);
+            AiAircraftMemo memo = scope.MemoFor(aircraft);
             if (!Applies(aircraft))
             {
                 memo.ForgetObservation(Name);
@@ -28,13 +28,13 @@ public sealed class AnswerTaxiOutRule : IDecisionRule
                 continue;
             }
 
-            var airport = PilotContactRoster.SurfaceAirportOf(aircraft);
+            string? airport = PilotContactRoster.SurfaceAirportOf(aircraft);
             if (string.IsNullOrWhiteSpace(airport) || scope.Tick.RunwayInUse.For(airport, scope.Tick, scope.Position.PositionId) is not { } decision)
             {
                 continue;
             }
 
-            var runway = scope.Tick.RunwayInUse.DepartureRunwayFor(aircraft, decision, scope.Tick);
+            string runway = scope.Tick.RunwayInUse.DepartureRunwayFor(aircraft, decision, scope.Tick);
             var intent = new AiIntent(Name, $"ready to taxi answered with runway {runway} ({decision.Rationale})");
             if (scope.TryIssue(aircraft, memo, $"TAXIAUTO {runway}", intent))
             {

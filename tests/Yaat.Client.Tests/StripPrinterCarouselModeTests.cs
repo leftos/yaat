@@ -21,8 +21,8 @@ public class StripPrinterCarouselModeTests
     public void ReplaceAll_SeparateCarousels_SplitsArrivalsOut()
     {
         var printer = new StripPrinterViewModel { SeparateArrivalCarousel = true };
-        var dep = Item("STRIP_N248ZV", StripItemType.DepartureStrip);
-        var arr = Item("ARRIVAL_N248ZV", StripItemType.ArrivalStrip);
+        StripItemViewModel dep = Item("STRIP_N248ZV", StripItemType.DepartureStrip);
+        StripItemViewModel arr = Item("ARRIVAL_N248ZV", StripItemType.ArrivalStrip);
 
         printer.ReplaceAll([dep.Id, arr.Id], Lookup(dep, arr));
 
@@ -36,8 +36,8 @@ public class StripPrinterCarouselModeTests
     public void ReplaceAll_UnifiedCarousel_RoutesArrivalsIntoDepartureQueue()
     {
         var printer = new StripPrinterViewModel { SeparateArrivalCarousel = false };
-        var dep = Item("STRIP_N248ZV", StripItemType.DepartureStrip);
-        var arr = Item("ARRIVAL_N248ZV", StripItemType.ArrivalStrip);
+        StripItemViewModel dep = Item("STRIP_N248ZV", StripItemType.DepartureStrip);
+        StripItemViewModel arr = Item("ARRIVAL_N248ZV", StripItemType.ArrivalStrip);
 
         printer.ReplaceAll([dep.Id, arr.Id], Lookup(dep, arr));
 
@@ -51,8 +51,8 @@ public class StripPrinterCarouselModeTests
     public void PendingCount_TracksBothQueues()
     {
         var printer = new StripPrinterViewModel { SeparateArrivalCarousel = true };
-        var dep = Item("STRIP_N248ZV", StripItemType.DepartureStrip);
-        var arr = Item("ARRIVAL_N248ZV", StripItemType.ArrivalStrip);
+        StripItemViewModel dep = Item("STRIP_N248ZV", StripItemType.DepartureStrip);
+        StripItemViewModel arr = Item("ARRIVAL_N248ZV", StripItemType.ArrivalStrip);
 
         Assert.Equal(0, printer.PendingCount);
         printer.ReplaceAll([dep.Id, arr.Id], Lookup(dep, arr));

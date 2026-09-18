@@ -38,10 +38,10 @@ public class PatternModifierArgumentGrammarTests
     [InlineData("MLT 9", "09")]
     public void BareTwoDigitToken_IsARunway(string input, string expectedRunway)
     {
-        var parsed = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
 
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var mlt = Assert.IsType<MakeLeftTrafficCommand>(parsed.Value);
+        MakeLeftTrafficCommand mlt = Assert.IsType<MakeLeftTrafficCommand>(parsed.Value);
         Assert.Equal(expectedRunway, mlt.RunwayId);
         Assert.Null(mlt.Altitude);
     }
@@ -52,10 +52,10 @@ public class PatternModifierArgumentGrammarTests
     [InlineData("MRT 020", 2000)]
     public void ThreeOrMoreDigits_IsAnAltitude(string input, int expectedFeet)
     {
-        var parsed = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
 
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var (runwayId, altitude) = parsed.Value switch
+        (string? runwayId, int? altitude) = parsed.Value switch
         {
             MakeLeftTrafficCommand mlt => (mlt.RunwayId, mlt.Altitude),
             MakeRightTrafficCommand mrt => (mrt.RunwayId, mrt.Altitude),
@@ -68,10 +68,10 @@ public class PatternModifierArgumentGrammarTests
     [Fact]
     public void RunwayThenAltitude_KeepsBoth()
     {
-        var parsed = CommandParser.Parse("MLT 28R 015");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("MLT 28R 015");
 
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var mlt = Assert.IsType<MakeLeftTrafficCommand>(parsed.Value);
+        MakeLeftTrafficCommand mlt = Assert.IsType<MakeLeftTrafficCommand>(parsed.Value);
         Assert.Equal("28R", mlt.RunwayId);
         Assert.Equal(1500, mlt.Altitude);
     }
@@ -86,10 +86,10 @@ public class PatternModifierArgumentGrammarTests
     [InlineData("MLT 33 020", "33", 2000)]
     public void AfterARunway_TheNextTokenIsAnAltitude(string input, string expectedRunway, int expectedFeet)
     {
-        var parsed = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
 
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var mlt = Assert.IsType<MakeLeftTrafficCommand>(parsed.Value);
+        MakeLeftTrafficCommand mlt = Assert.IsType<MakeLeftTrafficCommand>(parsed.Value);
         Assert.Equal(expectedRunway, mlt.RunwayId);
         Assert.Equal(expectedFeet, mlt.Altitude);
     }
@@ -97,10 +97,10 @@ public class PatternModifierArgumentGrammarTests
     [Fact]
     public void CtoModifier_TakesARunwayAndTheTwoDigitAltitude()
     {
-        var parsed = CommandParser.Parse("CTO MLT 28R 15");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("CTO MLT 28R 15");
 
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var ct = Assert.IsType<ClosedTrafficDeparture>(Assert.IsType<ClearedForTakeoffCommand>(parsed.Value).Departure);
+        ClosedTrafficDeparture ct = Assert.IsType<ClosedTrafficDeparture>(Assert.IsType<ClearedForTakeoffCommand>(parsed.Value).Departure);
         Assert.Equal("28R", ct.RunwayId);
         Assert.Equal(1500, ct.PatternAltitude);
     }
@@ -115,7 +115,7 @@ public class PatternModifierArgumentGrammarTests
     [InlineData("COPT MRT 28L 28R", "COPT MRT")]
     public void SecondRunwayDesignator_IsRejected(string input, string expectedVerbPrefix)
     {
-        var parsed = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
 
         Assert.False(parsed.IsSuccess, $"'{input}' should not parse: the slot after a runway is an altitude");
         Assert.Contains($"{expectedVerbPrefix} does not understand", parsed.Reason ?? "", StringComparison.Ordinal);
@@ -130,13 +130,13 @@ public class PatternModifierArgumentGrammarTests
     [Fact]
     public void AglPatternAltitude_ParsesAndRoundTripsAsWritten()
     {
-        var parsed = CommandParser.Parse("MLT 28L KOAK+005");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("MLT 28L KOAK+005");
         if (!parsed.IsSuccess)
         {
             return; // no navdata for KOAK — the AGL form needs the field elevation
         }
 
-        var mlt = Assert.IsType<MakeLeftTrafficCommand>(parsed.Value);
+        MakeLeftTrafficCommand mlt = Assert.IsType<MakeLeftTrafficCommand>(parsed.Value);
         Assert.Equal("28L", mlt.RunwayId);
         Assert.True(mlt.Altitude < 1000, $"expected an AGL altitude below 1,000 ft, got {mlt.Altitude}");
         Assert.Equal("MLT 28L KOAK+005", CommandDescriber.DescribeCommand(mlt));
@@ -145,11 +145,11 @@ public class PatternModifierArgumentGrammarTests
     [Fact]
     public void CtoModifier_TakesTheCrossingRunwayToken()
     {
-        var parsed = CommandParser.Parse("CTO MLT 33");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("CTO MLT 33");
 
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(parsed.Value);
-        var ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(parsed.Value);
+        ClosedTrafficDeparture ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
         Assert.Equal("33", ct.RunwayId);
         Assert.Null(ct.PatternAltitude);
     }
@@ -165,7 +165,7 @@ public class PatternModifierArgumentGrammarTests
     [InlineData("COPT MLT 33")]
     public void CanonicalText_RoundTrips(string canonical)
     {
-        var parsed = CommandParser.Parse(canonical);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(canonical);
 
         Assert.True(parsed.IsSuccess, parsed.Reason);
         Assert.Equal(canonical, CommandDescriber.DescribeCommand(parsed.Value!));
@@ -182,16 +182,16 @@ public class PatternModifierArgumentGrammarTests
     [Fact]
     public void MltCrossingRunway_AtOak_SwitchesThePatternToThatRunway()
     {
-        var navDb = TestVnasData.NavigationDb;
-        var runway28R = navDb?.GetRunway("KOAK", "28R");
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? runway28R = navDb?.GetRunway("KOAK", "28R");
         if (navDb is null || runway28R is null)
         {
             return;
         }
 
-        var ac = OnDownwindFor(runway28R, PatternDirection.Right);
+        AircraftState ac = OnDownwindFor(runway28R, PatternDirection.Right);
 
-        var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, "33", null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, "33", null);
 
         Assert.True(result.Success, $"MLT 33 was refused: {result.Message}");
         Assert.Equal("33", ac.Phases?.AssignedRunway?.Designator);
@@ -206,16 +206,16 @@ public class PatternModifierArgumentGrammarTests
     [Fact]
     public void MltRunwayTheAirportDoesNotHave_IsRejected()
     {
-        var navDb = TestVnasData.NavigationDb;
-        var runway28R = navDb?.GetRunway("KSFO", "28R");
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? runway28R = navDb?.GetRunway("KSFO", "28R");
         if (navDb is null || runway28R is null)
         {
             return;
         }
 
-        var ac = OnDownwindFor(runway28R, PatternDirection.Left);
+        AircraftState ac = OnDownwindFor(runway28R, PatternDirection.Left);
 
-        var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, "15", null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, "15", null);
 
         Assert.False(result.Success, "SFO has no runway 15 — MLT 15 must be refused, not read as 1,500 ft");
         Assert.Contains("Runway 15 not found", result.Message ?? "", StringComparison.Ordinal);
@@ -230,18 +230,18 @@ public class PatternModifierArgumentGrammarTests
     [Fact]
     public void CtoMltCrossingRunway_AtOak_BuildsTheCrossRunwayCircuit()
     {
-        var navDb = TestVnasData.NavigationDb;
-        var runway28R = navDb?.GetRunway("KOAK", "28R");
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? runway28R = navDb?.GetRunway("KOAK", "28R");
         if (navDb is null || runway28R is null)
         {
             return;
         }
 
-        var parsed = CommandParser.Parse("CTO MLT 33");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("CTO MLT 33");
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var ct = Assert.IsType<ClosedTrafficDeparture>(Assert.IsType<ClearedForTakeoffCommand>(parsed.Value).Departure);
+        ClosedTrafficDeparture ct = Assert.IsType<ClosedTrafficDeparture>(Assert.IsType<ClearedForTakeoffCommand>(parsed.Value).Departure);
 
-        var ac = LinedUpOn(runway28R);
+        AircraftState ac = LinedUpOn(runway28R);
         DepartureClearanceHandler.ApplyClosedTraffic(ct, ac, ac.Phases!, runway28R, removeInitialClimb: false);
 
         Assert.Equal("33", ac.Phases?.PatternRunway?.Designator);
@@ -276,7 +276,7 @@ public class PatternModifierArgumentGrammarTests
     /// <summary>An aircraft established on <paramref name="runway"/>'s downwind, abeam the threshold.</summary>
     private static AircraftState OnDownwindFor(RunwayInfo runway, PatternDirection direction)
     {
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
             "C172",
@@ -288,7 +288,7 @@ public class PatternModifierArgumentGrammarTests
             authoredRunway: null
         );
 
-        var ac = MakeVfr(runway, new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon), waypoints.PatternAltitude);
+        AircraftState ac = MakeVfr(runway, new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon), waypoints.PatternAltitude);
         ac.TrueHeading = waypoints.DownwindHeading;
         ac.TrueTrack = waypoints.DownwindHeading;
         ac.Phases = new PhaseList
@@ -316,7 +316,7 @@ public class PatternModifierArgumentGrammarTests
     /// <summary>An aircraft on the ground at <paramref name="runway"/>'s threshold, cleared onto it.</summary>
     private static AircraftState LinedUpOn(RunwayInfo runway)
     {
-        var ac = MakeVfr(runway, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.ElevationFt);
+        AircraftState ac = MakeVfr(runway, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.ElevationFt);
         ac.IsOnGround = true;
         ac.IndicatedAirspeed = 0;
         ac.Phases = new PhaseList { AssignedRunway = runway };

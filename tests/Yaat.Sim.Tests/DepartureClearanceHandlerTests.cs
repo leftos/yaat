@@ -67,15 +67,15 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void TryDepartureClearance_FromHoldingShort_LUAW_Succeeds()
     {
-        var ac = MakeAircraft();
-        var holding = MakeHoldingShort();
+        AircraftState ac = MakeAircraft();
+        HoldingShortPhase holding = MakeHoldingShort();
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        var rwy = DefaultRunway();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        RunwayInfo rwy = DefaultRunway();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.LineUpAndWait,
@@ -93,15 +93,15 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void TryDepartureClearance_FromHoldingShort_CTO_Succeeds()
     {
-        var ac = MakeAircraft();
-        var holding = MakeHoldingShort();
+        AircraftState ac = MakeAircraft();
+        HoldingShortPhase holding = MakeHoldingShort();
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        var rwy = DefaultRunway();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        RunwayInfo rwy = DefaultRunway();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -121,15 +121,15 @@ public class DepartureClearanceHandlerTests
     {
         // Rolling takeoff: when CTO is issued at the hold-short, the inserted
         // tower phase sequence must not contain LinedUpAndWaitingPhase.
-        var ac = MakeAircraft();
-        var holding = MakeHoldingShort();
+        AircraftState ac = MakeAircraft();
+        HoldingShortPhase holding = MakeHoldingShort();
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        var rwy = DefaultRunway();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        RunwayInfo rwy = DefaultRunway();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -151,15 +151,15 @@ public class DepartureClearanceHandlerTests
     {
         // Regression guard: the LUAW command must still produce the full
         // [LineUp, LinedUpAndWaiting, Takeoff, InitialClimb] sequence.
-        var ac = MakeAircraft();
-        var holding = MakeHoldingShort();
+        AircraftState ac = MakeAircraft();
+        HoldingShortPhase holding = MakeHoldingShort();
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        var rwy = DefaultRunway();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        RunwayInfo rwy = DefaultRunway();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.LineUpAndWait,
@@ -174,7 +174,7 @@ public class DepartureClearanceHandlerTests
         Assert.Contains(ac.Phases.Phases, p => p is LinedUpAndWaitingPhase);
         Assert.Contains(ac.Phases.Phases, p => p is TakeoffPhase);
 
-        var luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
+        LinedUpAndWaitingPhase luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
         Assert.False(luaw.Requirements[0].IsSatisfied);
     }
 
@@ -200,14 +200,14 @@ public class DepartureClearanceHandlerTests
         };
         ac.Phases = new PhaseList();
 
-        var holding = MakeHoldingShort();
+        HoldingShortPhase holding = MakeHoldingShort();
         ac.Phases.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        var rwy = DefaultRunway();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        RunwayInfo rwy = DefaultRunway();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -222,7 +222,7 @@ public class DepartureClearanceHandlerTests
         Assert.Contains(ac.Phases.Phases, p => p is LinedUpAndWaitingPhase);
         Assert.Contains(ac.Phases.Phases, p => p is TakeoffPhase);
 
-        var luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
+        LinedUpAndWaitingPhase luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
         Assert.True(luaw.Requirements[0].IsSatisfied);
     }
 
@@ -233,7 +233,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void TryDepartureClearance_FromTaxiing_StoresClearance()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var taxiPhase = new TaxiingPhase();
         ac.Phases!.Add(taxiPhase);
         ac.Phases.Start(MinCtx(ac));
@@ -253,10 +253,10 @@ public class DepartureClearanceHandlerTests
             ],
         };
 
-        var rwy = DefaultRunway();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        RunwayInfo rwy = DefaultRunway();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             taxiPhase,
             ClearanceType.ClearedForTakeoff,
@@ -279,9 +279,9 @@ public class DepartureClearanceHandlerTests
         // the active taxi route still terminates at a different physical runway,
         // CTO from Taxiing used to silently overwrite AssignedRunway with the
         // route's destination — masking the controller's RWY directive.
-        var ac = MakeAircraft();
-        var rwy33 = Runway33();
-        var rwy28R = Runway28R();
+        AircraftState ac = MakeAircraft();
+        RunwayInfo rwy33 = Runway33();
+        RunwayInfo rwy28R = Runway28R();
         ac.Phases!.AssignedRunway = rwy28R;
         var taxiPhase = new TaxiingPhase();
         ac.Phases.Add(taxiPhase);
@@ -301,9 +301,9 @@ public class DepartureClearanceHandlerTests
             ],
         };
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             taxiPhase,
             ClearanceType.ClearedForTakeoff,
@@ -328,8 +328,8 @@ public class DepartureClearanceHandlerTests
         // hold-short is named "10L/28R" (the same physical runway). This must
         // succeed and preserve the controller's explicit end (28R), not flip
         // back to the route name.
-        var ac = MakeAircraft();
-        var rwy28R = Runway28R();
+        AircraftState ac = MakeAircraft();
+        RunwayInfo rwy28R = Runway28R();
         ac.Phases!.AssignedRunway = rwy28R;
         var taxiPhase = new TaxiingPhase();
         ac.Phases.Add(taxiPhase);
@@ -349,9 +349,9 @@ public class DepartureClearanceHandlerTests
             ],
         };
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy28R));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy28R));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             taxiPhase,
             ClearanceType.ClearedForTakeoff,
@@ -372,7 +372,7 @@ public class DepartureClearanceHandlerTests
         // stored a CTO clearance during taxi and the taxi phase consumes it
         // at the hold-short, the inserted tower phase sequence must not
         // contain LinedUpAndWaitingPhase.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Phases!.AssignedRunway = DefaultRunway();
         var taxiPhase = new TaxiingPhase();
         ac.Phases.Add(taxiPhase);
@@ -398,7 +398,7 @@ public class DepartureClearanceHandlerTests
     public void ApplyDepartureClearanceIfPending_LUAW_RetainsLuawPhase()
     {
         // Regression guard for the taxi consumption path.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Phases!.AssignedRunway = DefaultRunway();
         var taxiPhase = new TaxiingPhase();
         ac.Phases.Add(taxiPhase);
@@ -418,19 +418,19 @@ public class DepartureClearanceHandlerTests
         Assert.Contains(ac.Phases.Phases, p => p is LinedUpAndWaitingPhase);
         Assert.Contains(ac.Phases.Phases, p => p is TakeoffPhase);
 
-        var luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
+        LinedUpAndWaitingPhase luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
         Assert.False(luaw.Requirements[0].IsSatisfied);
     }
 
     [Fact]
     public void TryDepartureClearance_FromTaxiing_NoRoute_Fails()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var taxiPhase = new TaxiingPhase();
         ac.Phases!.Add(taxiPhase);
         ac.Phases.Start(MinCtx(ac));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             taxiPhase,
             ClearanceType.ClearedForTakeoff,
@@ -451,8 +451,8 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void TryDepartureClearance_FromLineUp_CTO_SatisfiesUpcomingLUAW()
     {
-        var ac = MakeAircraft();
-        var rwy = DefaultRunway();
+        AircraftState ac = MakeAircraft();
+        RunwayInfo rwy = DefaultRunway();
         ac.Phases!.AssignedRunway = rwy;
 
         var lineUp = new LineUpPhase();
@@ -466,7 +466,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Add(climb);
         ac.Phases.Start(MinCtx(ac));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             lineUp,
             ClearanceType.ClearedForTakeoff,
@@ -483,12 +483,12 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void TryDepartureClearance_FromLineUp_LUAW_Rejected()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var lineUp = new LineUpPhase();
         ac.Phases!.Add(lineUp);
         ac.Phases.Start(MinCtx(ac));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             lineUp,
             ClearanceType.LineUpAndWait,
@@ -508,17 +508,17 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void TryDepartureClearance_FromHoldingInPosition_CTO_Succeeds()
     {
-        var ac = MakeAircraft();
-        var rwy = DefaultRunway();
+        AircraftState ac = MakeAircraft();
+        RunwayInfo rwy = DefaultRunway();
         ac.Phases!.AssignedRunway = rwy;
 
         var holdPhase = new HoldingInPositionPhase();
         ac.Phases.Add(holdPhase);
         ac.Phases.Start(MinCtx(ac));
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holdPhase,
             ClearanceType.ClearedForTakeoff,
@@ -546,17 +546,17 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void TryDepartureClearance_FromHoldingInPosition_LUAW_Succeeds()
     {
-        var ac = MakeAircraft();
-        var rwy = DefaultRunway();
+        AircraftState ac = MakeAircraft();
+        RunwayInfo rwy = DefaultRunway();
         ac.Phases!.AssignedRunway = rwy;
 
         var holdPhase = new HoldingInPositionPhase();
         ac.Phases.Add(holdPhase);
         ac.Phases.Start(MinCtx(ac));
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holdPhase,
             ClearanceType.LineUpAndWait,
@@ -570,7 +570,7 @@ public class DepartureClearanceHandlerTests
         Assert.Contains("Line up and wait", result.Message!);
 
         // Tower phases installed but LUAW NOT pre-satisfied
-        var luaw = ac.Phases!.Phases.OfType<LinedUpAndWaitingPhase>().First();
+        LinedUpAndWaitingPhase luaw = ac.Phases!.Phases.OfType<LinedUpAndWaitingPhase>().First();
         Assert.False(luaw.Requirements[0].IsSatisfied);
     }
 
@@ -582,19 +582,19 @@ public class DepartureClearanceHandlerTests
         // while the command still reported success — the aircraft accepted "line up and
         // wait" and never moved. Reachable from any HoldingInPosition, including a WARPG
         // onto the pavement (a WARPG onto a gate parks the aircraft instead).
-        var layout = new TestAirportGroundData().GetLayout("OAK");
-        var rwy = NavigationDatabase.Instance?.GetRunway("OAK", "30");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        RunwayInfo? rwy = NavigationDatabase.Instance?.GetRunway("OAK", "30");
         if (layout is null || rwy is null)
         {
             return;
         }
 
-        var holdShortNode = layout.Nodes.Values.FirstOrDefault(n =>
+        GroundNode? holdShortNode = layout.Nodes.Values.FirstOrDefault(n =>
             n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } id && id.Contains("30")
         );
         Assert.NotNull(holdShortNode);
 
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Position = holdShortNode.Position;
         ac.TrueHeading = new TrueHeading(GeoMath.BearingTo(holdShortNode.Position, NearestCenterlinePoint(layout, holdShortNode.Position)));
         ac.Ground.Layout = layout;
@@ -604,7 +604,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Add(holdPhase);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, layout));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holdPhase,
             ClearanceType.LineUpAndWait,
@@ -616,30 +616,30 @@ public class DepartureClearanceHandlerTests
 
         Assert.True(result.Success);
 
-        var lineUp = Assert.IsType<LineUpPhase>(ac.Phases!.CurrentPhase);
+        LineUpPhase lineUp = Assert.IsType<LineUpPhase>(ac.Phases!.CurrentPhase);
         Assert.NotEqual(LineUpPhase.State.Faulted, lineUp.CurrentState);
     }
 
     /// <summary>Closest point on runway 30's centerline to <paramref name="from"/>, for aiming the aircraft at the runway.</summary>
     private static LatLon NearestCenterlinePoint(AirportGroundLayout layout, LatLon from)
     {
-        var runway = layout.FindRunway("30");
+        GroundRunway? runway = layout.FindRunway("30");
         Assert.NotNull(runway);
-        var nearest = runway.Coordinates.MinBy(c => GeoMath.DistanceNm(from, new LatLon(c.Lat, c.Lon)));
+        (double Lat, double Lon) nearest = runway.Coordinates.MinBy(c => GeoMath.DistanceNm(from, new LatLon(c.Lat, c.Lon)));
         return new LatLon(nearest.Lat, nearest.Lon);
     }
 
     [Fact]
     public void TryDepartureClearance_FromHoldingInPosition_NoRunway_Fails()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         // No AssignedRunway set
 
         var holdPhase = new HoldingInPositionPhase();
         ac.Phases!.Add(holdPhase);
         ac.Phases.Start(MinCtx(ac));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holdPhase,
             ClearanceType.ClearedForTakeoff,
@@ -660,16 +660,16 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void TryDepartureClearance_ClosedTraffic_SetsPatternMode_NoInitialClimb()
     {
-        var ac = MakeAircraft();
-        var holding = MakeHoldingShort();
+        AircraftState ac = MakeAircraft();
+        HoldingShortPhase holding = MakeHoldingShort();
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        var rwy = DefaultRunway();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        RunwayInfo rwy = DefaultRunway();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
         var departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null);
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -693,15 +693,15 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void ResolveLegsToTargets_PI_Skipped()
     {
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("FIXPI", 37.0, -122.0), ("FIXNORM", 37.5, -122.5)));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("FIXPI", 37.0, -122.0), ("FIXNORM", 37.5, -122.5)));
 
-        var legs = new[]
+        CifpLeg[] legs = new[]
         {
             new CifpLeg("FIXPI", CifpPathTerminator.PI, null, null, null, CifpFixRole.None, 1, null, null, null),
             new CifpLeg("FIXNORM", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 2, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         // PI leg should be skipped, only FIXNORM should appear
         Assert.Single(targets);
@@ -711,15 +711,15 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void ResolveLegsToTargets_UnknownFix_Skipped()
     {
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("KNOWN", 37.0, -122.0)));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("KNOWN", 37.0, -122.0)));
 
-        var legs = new[]
+        CifpLeg[] legs = new[]
         {
             new CifpLeg("UNKNOWN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 1, null, null, null),
             new CifpLeg("KNOWN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 2, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         Assert.Single(targets);
         Assert.Equal("KNOWN", targets[0].Name);
@@ -728,12 +728,12 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void ResolveLegsToTargets_WithAltitudeConstraint_Preserved()
     {
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0)));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0)));
 
         var alt = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000);
-        var legs = new[] { new CifpLeg("FIX1", CifpPathTerminator.TF, null, alt, null, CifpFixRole.None, 1, null, null, null) };
+        CifpLeg[] legs = new[] { new CifpLeg("FIX1", CifpPathTerminator.TF, null, alt, null, CifpFixRole.None, 1, null, null, null) };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         Assert.Single(targets);
         Assert.NotNull(targets[0].AltitudeRestriction);
@@ -743,15 +743,15 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void ResolveLegsToTargets_DuplicateAdjacentFix_Deduplicated()
     {
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0)));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0)));
 
-        var legs = new[]
+        CifpLeg[] legs = new[]
         {
             new CifpLeg("FIX1", CifpPathTerminator.IF, null, null, null, CifpFixRole.None, 1, null, null, null),
             new CifpLeg("FIX1", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 2, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         Assert.Single(targets);
     }
@@ -763,7 +763,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void BuildDepartureMessage_CTO_WithAltitude()
     {
-        var result = DepartureClearanceHandler.BuildDepartureMessage(ClearanceType.ClearedForTakeoff, "30", new DefaultDeparture(), 5000);
+        CommandResult result = DepartureClearanceHandler.BuildDepartureMessage(ClearanceType.ClearedForTakeoff, "30", new DefaultDeparture(), 5000);
 
         Assert.True(result.Success);
         Assert.Contains("Cleared for takeoff runway 30", result.Message!);
@@ -773,7 +773,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void BuildDepartureMessage_LUAW()
     {
-        var result = DepartureClearanceHandler.BuildDepartureMessage(ClearanceType.LineUpAndWait, "30", new DefaultDeparture(), null);
+        CommandResult result = DepartureClearanceHandler.BuildDepartureMessage(ClearanceType.LineUpAndWait, "30", new DefaultDeparture(), null);
 
         Assert.True(result.Success);
         Assert.Contains("Line up and wait", result.Message!);
@@ -823,16 +823,16 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void CrossRunway_FromHoldShort33_CTO_MRT_28R_BuildsCircuitFor28R()
     {
-        var rwy33 = Runway33();
-        var rwy28R = Runway28R();
-        var ac = MakeAircraft();
-        var holding = MakeHoldingShort("33/15");
+        RunwayInfo rwy33 = Runway33();
+        RunwayInfo rwy28R = Runway28R();
+        AircraftState ac = MakeAircraft();
+        HoldingShortPhase holding = MakeHoldingShort("33/15");
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -854,7 +854,7 @@ public class DepartureClearanceHandlerTests
         Assert.Equal(PatternDirection.Right, ac.Phases.TrafficDirection);
         // First circuit climbs out on the departure runway (33) then joins 28R:
         // Upwind on 33's geometry (~330° in this test), then a MidfieldCrossing join leg.
-        var upwind = ac.Phases.Phases.OfType<UpwindPhase>().FirstOrDefault();
+        UpwindPhase? upwind = ac.Phases.Phases.OfType<UpwindPhase>().FirstOrDefault();
         Assert.NotNull(upwind);
         Assert.NotNull(upwind!.Waypoints);
         Assert.True(
@@ -867,16 +867,16 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void CrossRunway_FromHoldShort33_CTO_MLT_28L_BuildsCircuitFor28L()
     {
-        var rwy33 = Runway33();
-        var rwy28L = Runway28L();
-        var ac = MakeAircraft();
-        var holding = MakeHoldingShort("33/15");
+        RunwayInfo rwy33 = Runway33();
+        RunwayInfo rwy28L = Runway28L();
+        AircraftState ac = MakeAircraft();
+        HoldingShortPhase holding = MakeHoldingShort("33/15");
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28L));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28L));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -894,15 +894,15 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void CrossRunway_NoRunwayId_UsesTakeoffRunway()
     {
-        var rwy33 = Runway33();
-        var ac = MakeAircraft();
-        var holding = MakeHoldingShort("33/15");
+        RunwayInfo rwy33 = Runway33();
+        AircraftState ac = MakeAircraft();
+        HoldingShortPhase holding = MakeHoldingShort("33/15");
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -922,7 +922,7 @@ public class DepartureClearanceHandlerTests
     public void CrossRunway_Message_IncludesPatternRunway()
     {
         var dep = new ClosedTrafficDeparture(PatternDirection.Right, "28R", null);
-        var suffix = DepartureClearanceHandler.FormatDepartureInstructionSuffix(dep);
+        string suffix = DepartureClearanceHandler.FormatDepartureInstructionSuffix(dep);
         Assert.Contains("right traffic", suffix);
         Assert.Contains("runway 28R", suffix);
     }
@@ -931,7 +931,7 @@ public class DepartureClearanceHandlerTests
     public void CrossRunway_Message_NoRunwayId_OmitsRunway()
     {
         var dep = new ClosedTrafficDeparture(PatternDirection.Left, null, null);
-        var suffix = DepartureClearanceHandler.FormatDepartureInstructionSuffix(dep);
+        string suffix = DepartureClearanceHandler.FormatDepartureInstructionSuffix(dep);
         Assert.Contains("left traffic", suffix);
         Assert.DoesNotContain("runway", suffix);
     }
@@ -939,19 +939,19 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void CrossRunway_FromLUAW_CTO_MRT_28R_BuildsCircuitFor28R()
     {
-        var rwy33 = Runway33();
-        var rwy28R = Runway28R();
-        var ac = MakeAircraft();
+        RunwayInfo rwy33 = Runway33();
+        RunwayInfo rwy28R = Runway28R();
+        AircraftState ac = MakeAircraft();
         ac.Phases!.AssignedRunway = rwy33;
 
         var luaw = new LinedUpAndWaitingPhase();
         ac.Phases.Add(luaw);
         ac.Phases.Start(MinCtx(ac));
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
         var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right, "28R", null));
 
-        var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("28R", ac.Phases.PatternRunway!.Designator);
@@ -963,9 +963,9 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void CrossRunway_StoreDuringTaxi_PreResolvesPatternRunway()
     {
-        var rwy33 = Runway33();
-        var rwy28R = Runway28R();
-        var ac = MakeAircraft();
+        RunwayInfo rwy33 = Runway33();
+        RunwayInfo rwy28R = Runway28R();
+        AircraftState ac = MakeAircraft();
         ac.Ground.AssignedTaxiRoute = new TaxiRoute
         {
             Segments = [],
@@ -984,9 +984,9 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(taxiing);
         ac.Phases.Start(MinCtx(ac));
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
 
-        var result = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
+        CommandResult result = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
             ac,
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right, "28R", null),
@@ -1002,16 +1002,16 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void CrossRunway_DepartureMessage_UsesTakeoffRunway()
     {
-        var rwy33 = Runway33();
-        var rwy28R = Runway28R();
-        var ac = MakeAircraft();
-        var holding = MakeHoldingShort("33/15");
+        RunwayInfo rwy33 = Runway33();
+        RunwayInfo rwy28R = Runway28R();
+        AircraftState ac = MakeAircraft();
+        HoldingShortPhase holding = MakeHoldingShort("33/15");
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -1029,19 +1029,19 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void CrossRunway_CLAND_ClearsForPatternRunway()
     {
-        var rwy33 = Runway33();
-        var rwy28R = Runway28R();
-        var ac = MakeAircraft();
+        RunwayInfo rwy33 = Runway33();
+        RunwayInfo rwy28R = Runway28R();
+        AircraftState ac = MakeAircraft();
         ac.Phases!.AssignedRunway = rwy33;
 
         var luaw = new LinedUpAndWaitingPhase();
         ac.Phases.Add(luaw);
         ac.Phases.Start(MinCtx(ac));
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
         var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right, "28R", null));
 
-        var ctoResult = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw, TestDispatch.Context(Random.Shared));
+        CommandResult ctoResult = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw, TestDispatch.Context(Random.Shared));
         Assert.True(ctoResult.Success);
 
         // Simulate the aircraft becoming airborne — CLAND requires airborne state
@@ -1050,7 +1050,7 @@ public class DepartureClearanceHandlerTests
         ac.Altitude = 1500;
 
         // Issue CLAND — should clear for the pattern runway (28R), not the takeoff runway (33)
-        var clandResult = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, TestDispatch.Context(Random.Shared));
+        CommandResult clandResult = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, TestDispatch.Context(Random.Shared));
         Assert.True(clandResult.Success);
         Assert.Equal("28R", ac.Phases.ClearedRunwayId);
         Assert.Contains("Runway 28R", clandResult.Message);
@@ -1067,14 +1067,14 @@ public class DepartureClearanceHandlerTests
         // was wrong — TryDepartureClearance only accepts HoldingShort/Taxi/LineUp/
         // HoldingInPosition. Per 7110.65 §3-9-4, LUAW positions for imminent
         // departure and presupposes a hold-short.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Altitude = 3000;
         ac.IsOnGround = false;
         var initialClimb = new InitialClimbPhase();
         ac.Phases!.Add(initialClimb);
         ac.Phases.Start(MinCtx(ac));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             initialClimb,
             ClearanceType.LineUpAndWait,
@@ -1094,14 +1094,14 @@ public class DepartureClearanceHandlerTests
         // CTOC mid-roll below V1 routes through the rejected-takeoff machinery (issue #410):
         // the phase list survives, RejectedTakeoffPhase brakes the roll on the centerline, and
         // a HoldingInPositionPhase terminal follows — not the old "clear everything to null".
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.IsOnGround = true;
         ac.IndicatedAirspeed = 80; // mid-roll, well below V1
         var takeoff = new TakeoffPhase();
         ac.Phases!.Add(takeoff);
         ac.Phases.Start(MinCtx(ac));
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, takeoff, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(ac, takeoff, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("Abort takeoff", result.Message!);
@@ -1116,16 +1116,16 @@ public class DepartureClearanceHandlerTests
         // Past V1 (≈ Vr - 5 kts) the aircraft is committed to takeoff —
         // stopping on remaining runway is no longer guaranteed. CTOC should
         // reject and the takeoff roll continues.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.IsOnGround = true;
-        var cat = AircraftCategorization.Categorize(ac.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
         double v1 = AircraftPerformance.DecisionSpeed(ac.AircraftType, cat);
         ac.IndicatedAirspeed = v1 + 5; // past V1
         var takeoff = new TakeoffPhase();
         ac.Phases!.Add(takeoff);
         ac.Phases.Start(MinCtx(ac));
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, takeoff, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(ac, takeoff, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("past V1", result.Message!);
@@ -1139,7 +1139,7 @@ public class DepartureClearanceHandlerTests
 
     private static AircraftState MakeTaxiingAircraftWithRoute(IEnumerable<HoldShortPoint> holdShorts)
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Ground.AssignedTaxiRoute = new TaxiRoute { Segments = [], HoldShortPoints = [.. holdShorts] };
         var taxiing = new TaxiingPhase();
         ac.Phases!.Add(taxiing);
@@ -1150,20 +1150,20 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void TryCancelTakeoff_DuringTaxi_WithStoredCto_RevokesAndRestoresHoldShort()
     {
-        var rwy33 = Runway33();
-        var rwy28R = Runway28R();
+        RunwayInfo rwy33 = Runway33();
+        RunwayInfo rwy28R = Runway28R();
         var destHs = new HoldShortPoint
         {
             NodeId = 10,
             Reason = HoldShortReason.DestinationRunway,
             TargetName = "33/15",
         };
-        var ac = MakeTaxiingAircraftWithRoute([destHs]);
+        AircraftState ac = MakeTaxiingAircraftWithRoute([destHs]);
         var taxiing = (TaxiingPhase)ac.Phases!.CurrentPhase!;
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
 
-        var storeResult = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
+        CommandResult storeResult = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
             ac,
             ClearanceType.ClearedForTakeoff,
             new FlyHeadingDeparture(new MagneticHeading(80), null),
@@ -1173,7 +1173,7 @@ public class DepartureClearanceHandlerTests
         Assert.True(destHs.IsCleared, "precondition: store should have pre-cleared the destination hold-short");
         Assert.NotNull(ac.Phases.DepartureClearance);
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"expected success, got: {result.Message}");
         Assert.Contains("cancelled", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -1184,8 +1184,8 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void TryCancelTakeoff_DuringTaxi_PreservesIndependentlyClearedCrossings()
     {
-        var rwy33 = Runway33();
-        var rwy28R = Runway28R();
+        RunwayInfo rwy33 = Runway33();
+        RunwayInfo rwy28R = Runway28R();
         var destHs = new HoldShortPoint
         {
             NodeId = 10,
@@ -1199,10 +1199,10 @@ public class DepartureClearanceHandlerTests
             TargetName = "10L/28R",
             IsCleared = true,
         };
-        var ac = MakeTaxiingAircraftWithRoute([destHs, crossingHs]);
+        AircraftState ac = MakeTaxiingAircraftWithRoute([destHs, crossingHs]);
         var taxiing = (TaxiingPhase)ac.Phases!.CurrentPhase!;
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
 
         DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
             ac,
@@ -1211,7 +1211,7 @@ public class DepartureClearanceHandlerTests
             null
         );
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.False(destHs.IsCleared, "store flipped destination hold-short — CTOC must revert it");
@@ -1221,22 +1221,22 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void TryCancelTakeoff_DuringTaxi_WithStoredLuaw_Rejects()
     {
-        var rwy33 = Runway33();
-        var rwy28R = Runway28R();
+        RunwayInfo rwy33 = Runway33();
+        RunwayInfo rwy28R = Runway28R();
         var destHs = new HoldShortPoint
         {
             NodeId = 10,
             Reason = HoldShortReason.DestinationRunway,
             TargetName = "33/15",
         };
-        var ac = MakeTaxiingAircraftWithRoute([destHs]);
+        AircraftState ac = MakeTaxiingAircraftWithRoute([destHs]);
         var taxiing = (TaxiingPhase)ac.Phases!.CurrentPhase!;
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
 
         DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(ac, ClearanceType.LineUpAndWait, new DefaultDeparture(), null);
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No takeoff clearance to cancel", result.Message!);
@@ -1247,10 +1247,10 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void TryCancelTakeoff_DuringTaxi_NoStoredClearance_Rejects()
     {
-        var ac = MakeTaxiingAircraftWithRoute([]);
+        AircraftState ac = MakeTaxiingAircraftWithRoute([]);
         var taxiing = (TaxiingPhase)ac.Phases!.CurrentPhase!;
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(ac, taxiing, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No takeoff clearance to cancel", result.Message!);
@@ -1264,19 +1264,19 @@ public class DepartureClearanceHandlerTests
             return;
         }
 
-        var rwy28R = Runway28R();
+        RunwayInfo rwy28R = Runway28R();
         var destHs = new HoldShortPoint
         {
             NodeId = 10,
             Reason = HoldShortReason.DestinationRunway,
             TargetName = "28R",
         };
-        var ac = MakeTaxiingAircraftWithRoute([destHs]);
+        AircraftState ac = MakeTaxiingAircraftWithRoute([destHs]);
         ac.FlightPlan.Departure = "KOAK";
         ac.FlightPlan.Route = "NIMI5 OAK SAC MOD";
         ac.FlightPlan.FlightRules = "IFR";
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
 
         DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(ac, ClearanceType.ClearedForTakeoff, new DefaultDeparture(), null);
         Assert.Equal(315.0, ac.Phases!.DepartureClearance!.SidDepartureHeadingMagnetic);
@@ -1297,23 +1297,28 @@ public class DepartureClearanceHandlerTests
             return;
         }
 
-        var rwy33 = Runway33();
-        var rwy28R = Runway28R();
+        RunwayInfo rwy33 = Runway33();
+        RunwayInfo rwy28R = Runway28R();
         var destHs = new HoldShortPoint
         {
             NodeId = 10,
             Reason = HoldShortReason.DestinationRunway,
             TargetName = "28R",
         };
-        var ac = MakeTaxiingAircraftWithRoute([destHs]);
+        AircraftState ac = MakeTaxiingAircraftWithRoute([destHs]);
         ac.FlightPlan.Departure = "KOAK";
         ac.FlightPlan.Route = route;
         ac.FlightPlan.FlightRules = "IFR";
         ac.Phases!.AssignedRunway = null;
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
 
-        var result = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(ac, ClearanceType.ClearedForTakeoff, new DefaultDeparture(), null);
+        CommandResult result = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
+            ac,
+            ClearanceType.ClearedForTakeoff,
+            new DefaultDeparture(),
+            null
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
@@ -1342,25 +1347,30 @@ public class DepartureClearanceHandlerTests
             Reason = HoldShortReason.DestinationRunway,
             TargetName = "28L",
         };
-        var ac = MakeTaxiingAircraftWithRoute([destHs]);
+        AircraftState ac = MakeTaxiingAircraftWithRoute([destHs]);
         ac.FlightPlan.Departure = "KOAK";
         ac.FlightPlan.Route = "NUEVO8 EUGEN";
         ac.FlightPlan.FlightRules = "IFR";
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
 
         // CTO while taxiing -> stores the clearance (runway 28L resolved from the hold-short).
-        var store = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(ac, ClearanceType.ClearedForTakeoff, new DefaultDeparture(), null);
+        CommandResult store = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
+            ac,
+            ClearanceType.ClearedForTakeoff,
+            new DefaultDeparture(),
+            null
+        );
         Assert.True(store.Success, store.Message);
         Assert.Equal("28L", ac.Phases!.AssignedRunway?.Designator);
 
         // Taxi completes -> TaxiingPhase consumes the stored clearance and builds the tower chain.
         TaxiingPhase.ApplyDepartureClearanceIfPending(MinCtx(ac));
 
-        var climb = ac.Phases.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
+        InitialClimbPhase? climb = ac.Phases.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
         Assert.NotNull(climb);
         Assert.NotNull(climb!.DepartureProcedureLegs);
-        var legs = climb.DepartureProcedureLegs!;
+        List<ProcedureLeg> legs = climb.DepartureProcedureLegs!;
         Assert.Equal(3, legs.Count);
         Assert.Equal(ProcedureLegType.HeadingToDistance, legs[0].Type);
         Assert.Equal(ProcedureLegType.HeadingToManual, legs[1].Type);
@@ -1371,8 +1381,8 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void StoreDepartureClearanceDuringTaxi_RecordsOnlyHoldShortsItPreCleared()
     {
-        var rwy33 = Runway33();
-        var rwy28R = Runway28R();
+        RunwayInfo rwy33 = Runway33();
+        RunwayInfo rwy28R = Runway28R();
         var destHs = new HoldShortPoint
         {
             NodeId = 10,
@@ -1392,9 +1402,9 @@ public class DepartureClearanceHandlerTests
             Reason = HoldShortReason.RunwayCrossing,
             TargetName = "10L/28R",
         };
-        var ac = MakeTaxiingAircraftWithRoute([destHs, crossingClearedAlready, crossingFresh]);
+        AircraftState ac = MakeTaxiingAircraftWithRoute([destHs, crossingClearedAlready, crossingFresh]);
 
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
 
         DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
             ac,
@@ -1403,7 +1413,7 @@ public class DepartureClearanceHandlerTests
             null
         );
 
-        var tracked = ac.Phases!.DepartureClearance!.PreClearedHoldShortNodeIds;
+        IReadOnlyList<int>? tracked = ac.Phases!.DepartureClearance!.PreClearedHoldShortNodeIds;
         Assert.NotNull(tracked);
         Assert.Equal([10, 12], tracked!.OrderBy(id => id).ToArray());
     }
@@ -1421,7 +1431,7 @@ public class DepartureClearanceHandlerTests
         // CTOC mid-line-up must reach forward to the pending LUAW and unsatisfy
         // its CTO requirement so the aircraft holds on the runway when the
         // line-up completes, instead of rolling.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var lineup = new LineUpPhase { Status = PhaseStatus.Active };
         var luaw = new LinedUpAndWaitingPhase { Departure = new RunwayHeadingDeparture(), AssignedAltitude = 5000 };
         // Pre-satisfy the LUAW's CTO requirement, mirroring InsertTowerPhasesAfterCurrent.
@@ -1430,7 +1440,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Add(luaw);
         ac.Phases.Add(new TakeoffPhase());
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"expected success, got: {result.Message}");
         Assert.Contains("cancelled", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -1449,13 +1459,13 @@ public class DepartureClearanceHandlerTests
         // CTOC must (1) revert RollingMode so the rollout brakes to a stop,
         // (2) insert a fresh unsatisfied LinedUpAndWaitingPhase between
         // LineUpPhase and TakeoffPhase so the aircraft holds when line-up ends.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var lineup = new LineUpPhase { Status = PhaseStatus.Active, RollingMode = true };
         var takeoff = new TakeoffPhase();
         ac.Phases!.Add(lineup);
         ac.Phases.Add(takeoff);
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"expected success, got: {result.Message}");
         Assert.Contains("cancelled", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -1480,17 +1490,17 @@ public class DepartureClearanceHandlerTests
     {
         // CTOC sets HoldPosition; a fresh CTO must lift it so the aircraft resumes
         // the line-up and departs.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Phases!.AssignedRunway = DefaultRunway();
         var lineup = new LineUpPhase { Status = PhaseStatus.Active, RollingMode = true };
         ac.Phases.Add(lineup);
         ac.Phases.Add(new TakeoffPhase());
 
-        var cancel = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup, TestDispatch.Context(Random.Shared));
+        CommandResult cancel = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup, TestDispatch.Context(Random.Shared));
         Assert.True(cancel.Success);
         Assert.True(lineup.HoldPosition);
 
-        var recleared = DepartureClearanceHandler.SatisfyUpcomingTakeoffClearance(ac, new DefaultDeparture(), null, Logger);
+        CommandResult recleared = DepartureClearanceHandler.SatisfyUpcomingTakeoffClearance(ac, new DefaultDeparture(), null, Logger);
 
         Assert.True(recleared.Success, $"re-clear rejected: {recleared.Message}");
         Assert.False(lineup.HoldPosition, "re-clearing for takeoff must lift the CTOC hold-position");
@@ -1501,13 +1511,13 @@ public class DepartureClearanceHandlerTests
     {
         // Same as the previous test, but the next phase is HelicopterTakeoffPhase
         // (rolling helicopter). The LUAW must still be inserted before it.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var lineup = new LineUpPhase { Status = PhaseStatus.Active, RollingMode = true };
         var heliTakeoff = new HelicopterTakeoffPhase();
         ac.Phases!.Add(lineup);
         ac.Phases.Add(heliTakeoff);
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.False(lineup.RollingMode);

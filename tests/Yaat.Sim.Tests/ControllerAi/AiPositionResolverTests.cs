@@ -23,15 +23,15 @@ public class AiPositionResolverTests
             return;
         }
 
-        var catalog = AiPositionResolver.Catalog(_zoa, "OAK", AiTestFixture.NoOverrides);
+        IReadOnlyList<AiPositionConfig> catalog = AiPositionResolver.Catalog(_zoa, "OAK", AiTestFixture.NoOverrides);
 
-        var ground = Assert.Single(catalog, p => p.Callsign == "OAK_GND");
+        AiPositionConfig ground = Assert.Single(catalog, p => p.Callsign == "OAK_GND");
         Assert.Equal(ControlRole.Ground, ground.Role);
         Assert.Equal("Oakland Ground", ground.RadioName);
         Assert.Equal("OAK", ground.FacilityId);
         Assert.Equal(["OAK"], ground.AirportIds);
 
-        var tower = Assert.Single(catalog, p => p.Callsign == "OAK_TWR");
+        AiPositionConfig tower = Assert.Single(catalog, p => p.Callsign == "OAK_TWR");
         Assert.Equal(ControlRole.Local, tower.Role);
 
         Assert.DoesNotContain(catalog, p => p.Callsign == "OAK_DEL");
@@ -44,11 +44,11 @@ public class AiPositionResolverTests
         Assert.NotEmpty(approaches);
         Assert.All(approaches, p => Assert.Equal(ControlRole.Approach, p.Role));
         Assert.All(approaches, p => Assert.NotNull(p.Tcp));
-        var combined = TestAiPositions.NorCalApproach(_zoa);
+        AiPositionConfig combined = TestAiPositions.NorCalApproach(_zoa);
         Assert.Contains("OAK", combined.AirportIds);
         Assert.Contains("SFO", combined.AirportIds);
 
-        var center = Assert.Single(catalog, p => p.Callsign == "OAK_14_CTR");
+        AiPositionConfig center = Assert.Single(catalog, p => p.Callsign == "OAK_14_CTR");
         Assert.Equal(ControlRole.Center, center.Role);
         Assert.Empty(center.AirportIds);
         Assert.Equal(TrackOwnerType.Eram, center.Identity.OwnerType);
@@ -62,9 +62,12 @@ public class AiPositionResolverTests
             return;
         }
 
-        var catalog = AiPositionResolver.Catalog(_zoa, "OAK", AiTestFixture.NoOverrides);
+        IReadOnlyList<AiPositionConfig> catalog = AiPositionResolver.Catalog(_zoa, "OAK", AiTestFixture.NoOverrides);
 
-        var expected = catalog.OrderBy(p => ControlRoles.Rank(p.Role)).ThenBy(p => p.PositionId, StringComparer.Ordinal).Select(p => p.PositionId);
+        IEnumerable<string> expected = catalog
+            .OrderBy(p => ControlRoles.Rank(p.Role))
+            .ThenBy(p => p.PositionId, StringComparer.Ordinal)
+            .Select(p => p.PositionId);
         Assert.Equal(expected, catalog.Select(p => p.PositionId));
     }
 
@@ -76,12 +79,12 @@ public class AiPositionResolverTests
             return;
         }
 
-        var delivery = _zoa.FindPositionByCallsign("OAK_DEL")!;
+        PositionConfig delivery = _zoa.FindPositionByCallsign("OAK_DEL")!;
         var overrides = new Dictionary<string, ControlRole>(StringComparer.Ordinal) { [delivery.Id] = ControlRole.Ground };
 
-        var catalog = AiPositionResolver.Catalog(_zoa, "OAK", overrides);
+        IReadOnlyList<AiPositionConfig> catalog = AiPositionResolver.Catalog(_zoa, "OAK", overrides);
 
-        var played = Assert.Single(catalog, p => p.Callsign == "OAK_DEL");
+        AiPositionConfig played = Assert.Single(catalog, p => p.Callsign == "OAK_DEL");
         Assert.Equal(ControlRole.Ground, played.Role);
         Assert.Equal("Oakland Clearance", played.RadioName);
     }
@@ -94,8 +97,8 @@ public class AiPositionResolverTests
             return;
         }
 
-        var tower = _zoa.FindPositionByCallsign("OAK_TWR")!.Id;
-        var ground = _zoa.FindPositionByCallsign("OAK_GND")!.Id;
+        string tower = _zoa.FindPositionByCallsign("OAK_TWR")!.Id;
+        string ground = _zoa.FindPositionByCallsign("OAK_GND")!.Id;
         var config = new ControllerAiConfig
         {
             Seed = 1,
@@ -105,7 +108,7 @@ public class AiPositionResolverTests
             RunwayConfigurations = AiTestFixture.NoRunwayConfigurations,
         };
 
-        var resolved = AiPositionResolver.Resolve(_zoa, "OAK", config);
+        IReadOnlyList<AiPositionConfig> resolved = AiPositionResolver.Resolve(_zoa, "OAK", config);
 
         Assert.Equal(["OAK_GND", "OAK_TWR"], resolved.Select(p => p.Callsign));
 

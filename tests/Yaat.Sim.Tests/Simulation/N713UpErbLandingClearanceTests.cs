@@ -56,8 +56,8 @@ public class N713UpErbLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void ErbAfterClandAndEf_KeepsLandingTerminal()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -67,13 +67,13 @@ public class N713UpErbLandingClearanceTests(ITestOutputHelper output)
         // terminal to TouchAndGo before the fix.
         engine.Replay(recording, 615);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
 
         // Still cleared to land; the rebuilt circuit must end in LandingPhase.
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases.LandingClearance);
-        var terminator = Terminator(ac);
+        Phase? terminator = Terminator(ac);
         output.WriteLine($"t=615 terminator: {terminator?.Name ?? "(none)"}, clearance={ac.Phases.LandingClearance}");
         Assert.IsType<LandingPhase>(terminator);
     }

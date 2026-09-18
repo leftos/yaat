@@ -28,7 +28,7 @@ public static class RecordingLoader
         }
 
         // Non-ZIP: Brotli / gzip / plain JSON (v1/v2 legacy)
-        var bytes = File.ReadAllBytes(path);
+        byte[] bytes = File.ReadAllBytes(path);
 
         // Could be a v3 ZIP without .zip extension
         if (RecordingCompression.IsZipArchive(bytes))
@@ -37,7 +37,7 @@ public static class RecordingLoader
             return LoadFromZipStream(ms);
         }
 
-        var json = RecordingCompression.Decompress(bytes);
+        string json = RecordingCompression.Decompress(bytes);
         return JsonSerializer.Deserialize<SessionRecording>(json, RecordingJsonOptions.Default);
     }
 
@@ -66,7 +66,7 @@ public static class RecordingLoader
     private static SessionRecording? LoadFromZip(string path)
     {
         // Peek at the ZIP to check for v3 manifest
-        using var zip = ZipFile.OpenRead(path);
+        using ZipArchive zip = ZipFile.OpenRead(path);
 
         if (zip.GetEntry("manifest.json") is not null)
         {
@@ -77,10 +77,10 @@ public static class RecordingLoader
         }
 
         // Legacy bug-report bundle
-        var nestedV3 = zip.GetEntry("recording.yaat-recording.zip");
+        ZipArchiveEntry? nestedV3 = zip.GetEntry("recording.yaat-recording.zip");
         if (nestedV3 is not null)
         {
-            using var entryStream = nestedV3.Open();
+            using Stream entryStream = nestedV3.Open();
             using var ms = new MemoryStream();
             entryStream.CopyTo(ms);
             ms.Position = 0;
@@ -88,7 +88,7 @@ public static class RecordingLoader
             return archive.ToSessionRecording();
         }
 
-        var entry =
+        ZipArchiveEntry? entry =
             zip.GetEntry("recording.yaat-recording.br")
             ?? zip.GetEntry("recording.yaat-recording.json.gz")
             ?? zip.GetEntry("recording.yaat-recording.json");
@@ -97,7 +97,7 @@ public static class RecordingLoader
             return null;
         }
 
-        var json = RecordingCompression.Decompress(entry.Open());
+        string json = RecordingCompression.Decompress(entry.Open());
         return JsonSerializer.Deserialize<SessionRecording>(json, RecordingJsonOptions.Default);
     }
 

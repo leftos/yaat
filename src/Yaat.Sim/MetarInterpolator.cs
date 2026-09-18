@@ -18,19 +18,19 @@ public static class MetarInterpolator
     /// </summary>
     public static MetarParser.ParsedMetar? GetWeatherForAirport(IEnumerable<string> metars, string airportId)
     {
-        var metarList = metars as IReadOnlyList<string> ?? metars.ToList();
+        IReadOnlyList<string> metarList = metars as IReadOnlyList<string> ?? metars.ToList();
 
         // Exact match first
-        var exact = MetarParser.FindStation(metarList, airportId);
+        MetarParser.ParsedMetar? exact = MetarParser.FindStation(metarList, airportId);
         if (exact is not null)
         {
             return exact;
         }
 
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
 
         // Resolve airport position
-        var airportPos = navDb.GetFixPosition(airportId);
+        (double Lat, double Lon)? airportPos = navDb.GetFixPosition(airportId);
         if (airportPos is null)
         {
             return null;
@@ -42,16 +42,16 @@ public static class MetarInterpolator
         // Parse all METARs and find nearby stations
         var nearby = new List<(MetarParser.ParsedMetar Metar, double DistNm)>();
 
-        foreach (var metarStr in metarList)
+        foreach (string metarStr in metarList)
         {
-            var parsed = MetarParser.Parse(metarStr);
+            MetarParser.ParsedMetar? parsed = MetarParser.Parse(metarStr);
             if (parsed is null)
             {
                 continue;
             }
 
             // Resolve station position (strip K prefix for FAA lookup)
-            var stationPos = navDb.GetFixPosition(parsed.StationId);
+            (double Lat, double Lon)? stationPos = navDb.GetFixPosition(parsed.StationId);
             if (stationPos is null && parsed.StationId.Length == 4 && parsed.StationId[0] == 'K')
             {
                 stationPos = navDb.GetFixPosition(parsed.StationId[1..]);
@@ -91,7 +91,7 @@ public static class MetarInterpolator
         // station). If no station reports a ceiling, union all FEW/SCT layers across
         // stations and dedupe.
         MetarParser.ParsedMetar? lowestCeilingStation = null;
-        foreach (var (metar, _) in stations)
+        foreach ((MetarParser.ParsedMetar? metar, double _) in stations)
         {
             if (metar.CeilingFeetAgl is null)
             {
@@ -113,9 +113,9 @@ public static class MetarInterpolator
         else
         {
             var unioned = new HashSet<MetarParser.CloudLayer>();
-            foreach (var (metar, _) in stations)
+            foreach ((MetarParser.ParsedMetar? metar, double _) in stations)
             {
-                foreach (var layer in metar.Layers)
+                foreach (MetarParser.CloudLayer layer in metar.Layers)
                 {
                     unioned.Add(layer);
                 }
@@ -129,7 +129,7 @@ public static class MetarInterpolator
         double totalWeight = 0;
         double visSum = 0;
 
-        foreach (var (metar, dist) in stations)
+        foreach ((MetarParser.ParsedMetar? metar, double dist) in stations)
         {
             if (metar.VisibilityStatuteMiles is not { } vis)
             {

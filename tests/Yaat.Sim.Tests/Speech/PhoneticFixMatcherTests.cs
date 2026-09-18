@@ -60,8 +60,8 @@ public class PhoneticFixMatcherTests
     public void TryMatch_NearMiss_ReturnsBestProgrammedFix(string transcribed, string expected)
     {
         // Strip spaces before passing to the matcher — emulates what the mapper would do.
-        var cleaned = transcribed.Replace(" ", "");
-        var result = PhoneticFixMatcher.TryMatch(cleaned, ProgrammedFixes, allowFullDatabaseFallback: false);
+        string cleaned = transcribed.Replace(" ", "");
+        string? result = PhoneticFixMatcher.TryMatch(cleaned, ProgrammedFixes, allowFullDatabaseFallback: false);
         Assert.Equal(expected, result);
     }
 
@@ -93,7 +93,7 @@ public class PhoneticFixMatcherTests
     {
         // "SEEPIN" vs CEPIN: S→C, insert E → 2 raw edits. Phonetic SPN vs SPN = 0.
         // max(2,0) = 2, within threshold.
-        var result = PhoneticFixMatcher.TryMatch("SEEPIN", ProgrammedFixes, allowFullDatabaseFallback: false);
+        string? result = PhoneticFixMatcher.TryMatch("SEEPIN", ProgrammedFixes, allowFullDatabaseFallback: false);
         Assert.Equal("CEPIN", result);
     }
 
@@ -103,7 +103,7 @@ public class PhoneticFixMatcherTests
         // Both CEPIN and OAKES are ~equally far from "cakes" raw, but phonetically "cakes"
         // should match one of them better. The algorithm should pick the best candidate
         // deterministically, not return null.
-        var result = PhoneticFixMatcher.TryMatch("OAKES", ProgrammedFixes, allowFullDatabaseFallback: false);
+        string? result = PhoneticFixMatcher.TryMatch("OAKES", ProgrammedFixes, allowFullDatabaseFallback: false);
         Assert.Equal("OAKES", result);
     }
 }

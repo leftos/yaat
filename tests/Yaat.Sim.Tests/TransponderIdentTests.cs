@@ -63,10 +63,10 @@ public class TransponderIdentTests
         {
             Scenario = NewScenario(elapsedSeconds: 10 + AircraftTransponder.IdentDurationSeconds),
         };
-        var stale = NewAircraft("NSTALE");
+        AircraftState stale = NewAircraft("NSTALE");
         stale.Transponder.IsIdenting = true;
         stale.Transponder.IdentStartedAt = 10;
-        var fresh = NewAircraft("NFRESH");
+        AircraftState fresh = NewAircraft("NFRESH");
         fresh.Transponder.IsIdenting = true;
         fresh.Transponder.IdentStartedAt = 10 + AircraftTransponder.IdentDurationSeconds - 5;
         engine.World.AddAircraft(stale);
@@ -86,7 +86,7 @@ public class TransponderIdentTests
         {
             Scenario = NewScenario(elapsedSeconds: 10 + AircraftTransponder.IdentDurationSeconds),
         };
-        var ac = NewAircraft("NPOST");
+        AircraftState ac = NewAircraft("NPOST");
         ac.Transponder.IsIdenting = true;
         ac.Transponder.IdentStartedAt = 10;
         engine.World.AddAircraft(ac);

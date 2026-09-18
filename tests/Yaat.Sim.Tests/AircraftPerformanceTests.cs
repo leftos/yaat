@@ -1,4 +1,6 @@
 using Xunit;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim.Tests;
 
@@ -19,7 +21,7 @@ public sealed class AircraftPerformanceTests
     [Fact]
     public void ProfileDatabase_Get_KnownType()
     {
-        var b738 = Data.AircraftProfileDatabase.Get("B738");
+        AircraftProfile? b738 = Data.AircraftProfileDatabase.Get("B738");
         Assert.NotNull(b738);
         Assert.Equal("B738", b738.TypeCode);
         Assert.Equal(3000, b738.ClimbRateInitial);
@@ -35,7 +37,7 @@ public sealed class AircraftPerformanceTests
     [Fact]
     public void ProfileDatabase_Get_StripPrefix()
     {
-        var profile = Data.AircraftProfileDatabase.Get("H/B738");
+        AircraftProfile? profile = Data.AircraftProfileDatabase.Get("H/B738");
         Assert.NotNull(profile);
         Assert.Equal("B738", profile.TypeCode);
     }
@@ -50,7 +52,7 @@ public sealed class AircraftPerformanceTests
             200,
             _ =>
             {
-                var profile = Data.AircraftProfileDatabase.Get("A10");
+                AircraftProfile? profile = Data.AircraftProfileDatabase.Get("A10");
                 Assert.NotNull(profile);
                 Assert.Equal("E145", profile.TypeCode);
             }
@@ -118,7 +120,7 @@ public sealed class AircraftPerformanceTests
     [Fact]
     public void DescentRate_AtCeiling_ReturnsInitialDescentRate()
     {
-        var profile = Data.AircraftProfileDatabase.Get("B738");
+        AircraftProfile? profile = Data.AircraftProfileDatabase.Get("B738");
         Assert.NotNull(profile);
 
         double rate = AircraftPerformance.DescentRate("B738", AircraftCategory.Jet, profile.Ceiling);
@@ -131,7 +133,7 @@ public sealed class AircraftPerformanceTests
         // Piston/turboprop profiles publish 0 for the initial-descent band ("can't reach").
         // The interpolator skips zero anchors, so the FL100 rate holds at altitude and the
         // anchor swap must not change these types.
-        var profile = Data.AircraftProfileDatabase.Get("C172");
+        AircraftProfile? profile = Data.AircraftProfileDatabase.Get("C172");
         Assert.NotNull(profile);
         Assert.Equal(0, profile.DescentRateInitial);
 
@@ -231,7 +233,7 @@ public sealed class AircraftPerformanceTests
     {
         // Type in FAA ACD but not in profiles — should use FAA ACD value
         // If there's no such type, this tests the category fallback
-        var faaRecord = Data.Faa.FaaAircraftDatabase.Get("B738");
+        FaaAircraftRecord? faaRecord = Data.Faa.FaaAircraftDatabase.Get("B738");
         if (faaRecord?.ApproachSpeedKnot is not null)
         {
             // B738 is in profiles, so test with a type that's in FAA ACD but not profiles

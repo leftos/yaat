@@ -96,7 +96,7 @@ public static class VStripsCanonicalBuilder
     /// </summary>
     public static string BuildAnnotate(string box, string? text)
     {
-        var trimmed = text?.Trim();
+        string? trimmed = text?.Trim();
         return string.IsNullOrEmpty(trimmed) ? $"AN {box}" : $"AN {box} {trimmed}";
     }
 
@@ -108,18 +108,18 @@ public static class VStripsCanonicalBuilder
     /// </summary>
     public static string BuildAnnotateById(string stripId, string box, string? text)
     {
-        var trimmed = text?.Trim();
+        string? trimmed = text?.Trim();
         return string.IsNullOrEmpty(trimmed) ? $"AN {stripId} {box}" : $"AN {stripId} {box} {trimmed}";
     }
 
     /// <summary>Create a new half-strip in a bay/rack with the given lines (max 6).</summary>
     public static string BuildHalfStripCreate(string facilityId, string bayName, int rack, IReadOnlyList<string> lines)
     {
-        var sb = new StringBuilder("HSC ").Append(BaySpec(facilityId, bayName)).Append('/').Append(OneBased(rack));
+        StringBuilder sb = new StringBuilder("HSC ").Append(BaySpec(facilityId, bayName)).Append('/').Append(OneBased(rack));
         if (lines.Count > 0)
         {
             sb.Append(' ');
-            for (var i = 0; i < lines.Count; i++)
+            for (int i = 0; i < lines.Count; i++)
             {
                 if (i > 0)
                 {
@@ -167,7 +167,7 @@ public static class VStripsCanonicalBuilder
         // top of the rack" to the server. Used by the empty-rack add-menu so
         // a freshly added separator stacks above any existing strips instead
         // of pushing them upward off the visual top.
-        var sb = new StringBuilder("SEP ")
+        StringBuilder sb = new StringBuilder("SEP ")
             .Append(StyleChar(style))
             .Append(' ')
             .Append(BaySpec(facilityId, bayName))
@@ -177,7 +177,7 @@ public static class VStripsCanonicalBuilder
         {
             sb.Append('/').Append(OneBased(explicitIndex));
         }
-        var trimmed = label?.Trim();
+        string? trimmed = label?.Trim();
         if (!string.IsNullOrEmpty(trimmed))
         {
             sb.Append(' ').Append(trimmed);
@@ -193,8 +193,8 @@ public static class VStripsCanonicalBuilder
     /// </summary>
     public static string BuildSeparatorDelete(string facilityId, string bayName, int rack, string? label, int? index)
     {
-        var trimmed = label?.Trim();
-        var tail = !string.IsNullOrEmpty(trimmed) ? trimmed : OneBased(index ?? 0);
+        string? trimmed = label?.Trim();
+        string tail = !string.IsNullOrEmpty(trimmed) ? trimmed : OneBased(index ?? 0);
         return $"SEPD {BaySpec(facilityId, bayName)}/{OneBased(rack)} {tail}";
     }
 
@@ -215,7 +215,7 @@ public static class VStripsCanonicalBuilder
     /// </summary>
     public static string BuildSeparatorEdit(string facilityId, string bayName, int rack, int index, string newLabel)
     {
-        var trimmed = newLabel.Trim();
+        string trimmed = newLabel.Trim();
         return $"SEPE {BaySpec(facilityId, bayName)}/{OneBased(rack)}/{OneBased(index)} {trimmed}";
     }
 
@@ -229,7 +229,7 @@ public static class VStripsCanonicalBuilder
     /// </summary>
     public static string BuildSeparatorEditById(string stripId, string newLabel)
     {
-        var trimmed = newLabel.Trim();
+        string trimmed = newLabel.Trim();
         return string.IsNullOrEmpty(trimmed) ? $"SEPE {stripId}" : $"SEPE {stripId} {trimmed}";
     }
 
@@ -253,7 +253,7 @@ public static class VStripsCanonicalBuilder
         {
             return "BLANK";
         }
-        var sb = new StringBuilder("BLANK ").Append(BaySpec(facilityId, bayName)).Append('/').Append(OneBased(rack ?? 0));
+        StringBuilder sb = new StringBuilder("BLANK ").Append(BaySpec(facilityId, bayName)).Append('/').Append(OneBased(rack ?? 0));
         if (index is int explicitIndex)
         {
             sb.Append('/').Append(OneBased(explicitIndex));

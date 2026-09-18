@@ -27,34 +27,34 @@ internal static class FlightPlanEditorAmendmentBuilder
         string strippedRemarksPrefix
     )
     {
-        var typ = (typText ?? "").Trim().ToUpperInvariant();
-        var eq = (eqText ?? "").Trim().ToUpperInvariant();
+        string typ = (typText ?? "").Trim().ToUpperInvariant();
+        string eq = (eqText ?? "").Trim().ToUpperInvariant();
         // CRC compat: when the type is set but the equipment suffix is left blank, default to A.
         if (!string.IsNullOrEmpty(typ) && string.IsNullOrEmpty(eq))
         {
             eq = "A";
         }
 
-        var icaoEq = (icaoEqText ?? "").Trim().ToUpperInvariant();
-        var dep = (depText ?? "").Trim().ToUpperInvariant();
-        var dest = (destText ?? "").Trim().ToUpperInvariant();
-        var rte = (rteText ?? "").Trim().ToUpperInvariant();
+        string icaoEq = (icaoEqText ?? "").Trim().ToUpperInvariant();
+        string dep = (depText ?? "").Trim().ToUpperInvariant();
+        string dest = (destText ?? "").Trim().ToUpperInvariant();
+        string rte = (rteText ?? "").Trim().ToUpperInvariant();
 
         // CruiseSpeed: blank/unparseable → 0 (CRC's BuildFlightPlan does int.TryParse(...) ? r : 0).
-        int cruiseSpeed = int.TryParse(spdText, out var parsedSpd) ? parsedSpd : 0;
+        int cruiseSpeed = int.TryParse(spdText, out int parsedSpd) ? parsedSpd : 0;
 
         // Altitude parses into (Rules, PlannedAltitude). Blank/unparseable → ("", None) so the
         // user can wipe the altitude line. The non-null value is what tells the server "the user
         // explicitly cleared this," distinct from null = "leave alone".
-        var trimmedAlt = (altText ?? "").Trim();
-        var parsedAlt = AircraftModel.ParseAltitudeField(trimmedAlt);
+        string trimmedAlt = (altText ?? "").Trim();
+        (string Rules, PlannedAltitude Altitude)? parsedAlt = AircraftModel.ParseAltitudeField(trimmedAlt);
         string flightRules = parsedAlt?.Rules ?? "";
         PlannedAltitude altitude = parsedAlt?.Altitude ?? PlannedAltitude.None;
 
         // Re-glue any RMK/ prefix that was hidden during editing so the protocol header
         // (+/V/PILOT/, etc.) round-trips intact.
-        var rmk = (rmkText ?? "").Trim();
-        var rebuiltRemarks = string.IsNullOrEmpty(strippedRemarksPrefix) ? rmk : strippedRemarksPrefix + "RMK/" + rmk;
+        string rmk = (rmkText ?? "").Trim();
+        string rebuiltRemarks = string.IsNullOrEmpty(strippedRemarksPrefix) ? rmk : strippedRemarksPrefix + "RMK/" + rmk;
 
         return new FlightPlanAmendment(
             AircraftType: typ,

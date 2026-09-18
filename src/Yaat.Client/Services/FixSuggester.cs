@@ -20,7 +20,7 @@ internal static class FixSuggester
         int maxSuggestions
     )
     {
-        if (!scheme.Patterns.TryGetValue(CanonicalCommandType.DirectTo, out var dctPattern))
+        if (!scheme.Patterns.TryGetValue(CanonicalCommandType.DirectTo, out CommandPattern? dctPattern))
         {
             return false;
         }
@@ -51,7 +51,7 @@ internal static class FixSuggester
             return false;
         }
 
-        var partial = fullText[parsed.ActiveTokenStart..parsed.CaretIndex];
+        string partial = fullText[parsed.ActiveTokenStart..parsed.CaretIndex];
         AddFixSuggestionsForActiveToken(
             fullText,
             parsed.ActiveTokenStart,
@@ -81,8 +81,8 @@ internal static class FixSuggester
         // Tier 1: Route fixes from selected aircraft's FMS
         if (selectedAircraft is not null)
         {
-            var routeFixes = CollectRouteFixNames(selectedAircraft);
-            foreach (var fix in routeFixes)
+            List<string> routeFixes = CollectRouteFixNames(selectedAircraft);
+            foreach (string fix in routeFixes)
             {
                 if (suggestions.Count >= maxSuggestions)
                 {
@@ -94,7 +94,7 @@ internal static class FixSuggester
                     continue;
                 }
 
-                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, fix);
+                (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, fix);
                 suggestions.Add(
                     new SuggestionItem
                     {
@@ -125,15 +125,15 @@ internal static class FixSuggester
             }
         }
 
-        foreach (var fix in aircraft.NavigationRoute)
+        foreach (string fix in aircraft.NavigationRoute)
         {
             TryAdd(fix);
         }
 
         if (!string.IsNullOrWhiteSpace(aircraft.Route))
         {
-            var expanded = NavigationDatabase.Instance.ExpandRoute(aircraft.Route);
-            foreach (var fix in expanded)
+            IReadOnlyList<string> expanded = NavigationDatabase.Instance.ExpandRoute(aircraft.Route);
+            foreach (string fix in expanded)
             {
                 TryAdd(fix);
             }
@@ -160,7 +160,7 @@ internal static class FixSuggester
     /// </summary>
     internal static string GetTextBeforeLastWord(string text)
     {
-        var lastSpace = text.LastIndexOf(' ');
+        int lastSpace = text.LastIndexOf(' ');
         if (lastSpace >= 0)
         {
             return text[..(lastSpace + 1)];
@@ -185,7 +185,7 @@ internal static class FixSuggester
             return;
         }
 
-        var allNames = fixDb.AllFixNames;
+        string[] allNames = fixDb.AllFixNames;
 
         // Binary search for the first name matching the prefix
         int lo = 0,
@@ -205,7 +205,7 @@ internal static class FixSuggester
 
         // Already-added route fix names (avoid duplicates)
         var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in suggestions)
+        foreach (SuggestionItem s in suggestions)
         {
             if (s.Kind == SuggestionKind.RouteFix)
             {
@@ -215,7 +215,7 @@ internal static class FixSuggester
 
         for (int i = lo; i < allNames.Length && suggestions.Count < maxSuggestions; i++)
         {
-            var name = allNames[i];
+            string name = allNames[i];
             if (!name.StartsWith(token, StringComparison.OrdinalIgnoreCase))
             {
                 break;
@@ -226,7 +226,7 @@ internal static class FixSuggester
                 continue;
             }
 
-            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, name);
+            (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, name);
             suggestions.Add(
                 new SuggestionItem
                 {
@@ -242,7 +242,7 @@ internal static class FixSuggester
 
     private static bool MatchesAnyAlias(string token, CommandPattern pattern)
     {
-        foreach (var alias in pattern.Aliases)
+        foreach (string alias in pattern.Aliases)
         {
             if (string.Equals(token, alias, StringComparison.OrdinalIgnoreCase))
             {

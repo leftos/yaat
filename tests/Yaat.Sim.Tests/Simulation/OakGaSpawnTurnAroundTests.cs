@@ -78,15 +78,15 @@ public class OakGaSpawnTurnAroundTests(ITestOutputHelper output)
     [InlineData("N172SP", 320.0, 200.0)]
     public void TaxiOut_DoesNotSpinNearlyFullCircle(string callsign, double maxCumulativeAbsDeg, double maxAbsSignedDeg)
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 0);
-        var ac = engine.FindAircraft(callsign);
+        AircraftState? ac = engine.FindAircraft(callsign);
         Assert.NotNull(ac);
 
         double prevHdg = ac.TrueHeading.Degrees;

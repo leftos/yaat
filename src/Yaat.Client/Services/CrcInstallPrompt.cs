@@ -33,7 +33,7 @@ public static class CrcInstallPrompt
 
         // Build a minimal Avalonia app just for this dialog.
         // The main app hasn't started yet (this runs in the Velopack install callback).
-        var appBuilder = AppBuilder.Configure<Application>().UsePlatformDetect().WithInterFont();
+        AppBuilder appBuilder = AppBuilder.Configure<Application>().UsePlatformDetect().WithInterFont();
 
         using var lifetime = new ClassicDesktopStyleApplicationLifetime { ShutdownMode = ShutdownMode.OnMainWindowClose };
         appBuilder.SetupWithLifetime(lifetime);

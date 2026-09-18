@@ -1,8 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -59,7 +62,7 @@ public class Issue412WrongRunwayPatternTests(ITestOutputHelper output)
     [Fact]
     public void Eld28L_Turboprop_RollsOutOn28LFinal_NotThe28RParallel()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -67,8 +70,8 @@ public class Issue412WrongRunwayPatternTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -76,7 +79,7 @@ public class Issue412WrongRunwayPatternTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(SnapshotTime);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(SnapshotTime);
             if (snapshot is null)
             {
                 return;
@@ -88,14 +91,14 @@ public class Issue412WrongRunwayPatternTests(ITestOutputHelper output)
             // doesn't delete the aircraft mid-pattern.
             engine.ReplayRange(SnapshotTime, SnapshotTime + 5, recording.Actions);
 
-            var aircraft = engine.FindAircraft(Callsign);
+            AircraftState? aircraft = engine.FindAircraft(Callsign);
             Assert.NotNull(aircraft);
 
             // Clear it to land so the 200-ft no-clearance go-around doesn't cut the final short.
-            var cland = engine.SendCommand(Callsign, "CLAND");
+            CommandResult cland = engine.SendCommand(Callsign, "CLAND");
             Assert.True(cland.Success, $"CLAND rejected: {cland.Message}");
 
-            var runway = aircraft.Phases?.AssignedRunway;
+            RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
             Assert.NotNull(runway);
             Assert.Equal("28L", runway.Designator);
             var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);

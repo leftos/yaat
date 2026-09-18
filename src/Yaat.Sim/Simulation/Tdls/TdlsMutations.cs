@@ -15,7 +15,7 @@ public static class TdlsMutations
     /// <summary>Allocates a new item id of the form <c>TDLS_{n}</c> and advances <see cref="TdlsState.NextItemId"/>.</summary>
     public static string NewItemId(TdlsState state)
     {
-        var id = $"TDLS_{state.NextItemId}";
+        string id = $"TDLS_{state.NextItemId}";
         state.NextItemId++;
         return id;
     }
@@ -33,9 +33,9 @@ public static class TdlsMutations
             return null;
         }
 
-        var bare = airportId.StartsWith('K') && airportId.Length == 4 ? airportId[1..] : airportId;
+        string bare = airportId.StartsWith('K') && airportId.Length == 4 ? airportId[1..] : airportId;
 
-        foreach (var facilityId in state.Configs.Keys)
+        foreach (string facilityId in state.Configs.Keys)
         {
             if (
                 string.Equals(facilityId, bare, StringComparison.OrdinalIgnoreCase)
@@ -52,7 +52,7 @@ public static class TdlsMutations
     /// <summary>Finds the active TDLS item for the given (facility, callsign) pair. There is at most one per facility-callsign at any time.</summary>
     public static TdlsItemRecord? FindActiveItem(TdlsState state, string facilityId, string callsign)
     {
-        foreach (var item in state.Items.Values)
+        foreach (TdlsItemRecord item in state.Items.Values)
         {
             if (
                 string.Equals(item.FacilityId, facilityId, StringComparison.OrdinalIgnoreCase)
@@ -73,7 +73,7 @@ public static class TdlsMutations
     /// </summary>
     public static void MarkAircraftChanged(TdlsState state, string callsign)
     {
-        foreach (var item in state.Items.Values)
+        foreach (TdlsItemRecord item in state.Items.Values)
         {
             if (string.Equals(item.AircraftId, callsign, StringComparison.OrdinalIgnoreCase))
             {
@@ -95,7 +95,7 @@ public static class TdlsMutations
             return null;
         }
 
-        var existing = FindActiveItem(state, facilityId, aircraftId);
+        TdlsItemRecord? existing = FindActiveItem(state, facilityId, aircraftId);
         if (existing is not null)
         {
             return existing;
@@ -123,7 +123,7 @@ public static class TdlsMutations
     /// <summary>Marks a Pending item as Sent and stores the issued clearance payload. Returns the updated record, or null if the item didn't exist or wasn't Pending.</summary>
     public static TdlsItemRecord? MarkSent(TdlsState state, string itemId, TdlsClearance payload, DateTime nowUtc)
     {
-        if (!state.Items.TryGetValue(itemId, out var existing))
+        if (!state.Items.TryGetValue(itemId, out TdlsItemRecord? existing))
         {
             return null;
         }
@@ -133,7 +133,7 @@ public static class TdlsMutations
             return null;
         }
 
-        var updated = existing with { Status = TdlsItemStatus.Sent, SentUtc = nowUtc, SentPayload = payload };
+        TdlsItemRecord updated = existing with { Status = TdlsItemStatus.Sent, SentUtc = nowUtc, SentPayload = payload };
         state.Items[itemId] = updated;
         state.Changes.MarkChanged(itemId);
         return updated;
@@ -142,7 +142,7 @@ public static class TdlsMutations
     /// <summary>Marks a Sent item as Wilco. Returns the updated record, or null if the item didn't exist or wasn't Sent.</summary>
     public static TdlsItemRecord? MarkWilco(TdlsState state, string itemId, DateTime nowUtc)
     {
-        if (!state.Items.TryGetValue(itemId, out var existing))
+        if (!state.Items.TryGetValue(itemId, out TdlsItemRecord? existing))
         {
             return null;
         }
@@ -152,7 +152,7 @@ public static class TdlsMutations
             return null;
         }
 
-        var updated = existing with { Status = TdlsItemStatus.Wilco, WilcoUtc = nowUtc };
+        TdlsItemRecord updated = existing with { Status = TdlsItemStatus.Wilco, WilcoUtc = nowUtc };
         state.Items[itemId] = updated;
         state.Changes.MarkChanged(itemId);
         return updated;
@@ -165,7 +165,7 @@ public static class TdlsMutations
     /// </summary>
     public static TdlsItemRecord? Dump(TdlsState state, string itemId)
     {
-        if (!state.Items.TryRemove(itemId, out var existing))
+        if (!state.Items.TryRemove(itemId, out TdlsItemRecord? existing))
         {
             return null;
         }
@@ -178,7 +178,7 @@ public static class TdlsMutations
     /// <summary>Removes a TTL-expired item without recording a Dumped lockout (the item just timed out).</summary>
     public static TdlsItemRecord? Expire(TdlsState state, string itemId)
     {
-        if (!state.Items.TryRemove(itemId, out var existing))
+        if (!state.Items.TryRemove(itemId, out TdlsItemRecord? existing))
         {
             return null;
         }

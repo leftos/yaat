@@ -93,7 +93,7 @@ internal static class NavigationCommandHandler
         // preceding `CFIX CASST 6000 210`). "Depart FIX heading" proceeds direct to the fix
         // and then turns — it must not discard a cross-at altitude/speed the controller set
         // on that same fix, otherwise the aircraft sails over it at default cruise (issue #184).
-        var existing = aircraft.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
+        NavigationTarget? existing = aircraft.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
 
         // Block 0 (immediate): navigate to fix (navigation phase — clear assigned heading)
         aircraft.Targets.AssignedMagneticHeading = null;
@@ -128,7 +128,7 @@ internal static class NavigationCommandHandler
                 // not a published one — it persists through the depart vector until an approach
                 // or via clearance (7110.65 5-7-1.h.4 / NOTE after h.5). Publish it as a ceiling
                 // so the aircraft does not accelerate back to default cruise after the turn.
-                var departFix = ac.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
+                NavigationTarget? departFix = ac.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
                 if (departFix?.SpeedRestriction is { } crossingSpeed && !ac.Targets.HasExplicitSpeedCommand)
                 {
                     ac.Targets.SpeedCeiling = crossingSpeed.SpeedKts;
@@ -158,7 +158,7 @@ internal static class NavigationCommandHandler
         double? previousAssignedSpeed = cmd.Speed is not null ? aircraft.Targets.AssignedSpeed : null;
 
         // Map CrossFixAltitudeType to CifpAltitudeRestrictionType
-        var restrictionType = cmd.AltType switch
+        CifpAltitudeRestrictionType restrictionType = cmd.AltType switch
         {
             CrossFixAltitudeType.AtOrAbove => CifpAltitudeRestrictionType.AtOrAbove,
             CrossFixAltitudeType.AtOrBelow => CifpAltitudeRestrictionType.AtOrBelow,
@@ -166,7 +166,7 @@ internal static class NavigationCommandHandler
         };
 
         var altRestriction = new CifpAltitudeRestriction(restrictionType, cmd.Altitude);
-        var speedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow) : null;
+        CifpSpeedRestriction? speedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow) : null;
 
         // CFIX names a fix that is already on the route. Stamp the restriction on that fix in
         // place, preserving the rest of the route (fixes before and after) and any restriction
@@ -175,7 +175,7 @@ internal static class NavigationCommandHandler
         // the end of the route rather than wiping the route — so a chain of CFIX on a vectored
         // aircraft builds a crossing profile in issue order. An empty route therefore becomes a
         // single-fix direct route.
-        var existing = aircraft.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
+        NavigationTarget? existing = aircraft.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
         if (existing is not null)
         {
             existing.AltitudeRestriction = altRestriction;
@@ -222,13 +222,13 @@ internal static class NavigationCommandHandler
             }
         }
 
-        var altTypeStr = cmd.AltType switch
+        string altTypeStr = cmd.AltType switch
         {
             CrossFixAltitudeType.AtOrAbove => "at or above",
             CrossFixAltitudeType.AtOrBelow => "at or below",
             _ => "at",
         };
-        var cfixMsg = $"Cross {FixDisplay(cmd.FixName)} {altTypeStr} {cmd.Altitude:N0}";
+        string cfixMsg = $"Cross {FixDisplay(cmd.FixName)} {altTypeStr} {cmd.Altitude:N0}";
         if (cmd.Speed is not null)
         {
             cfixMsg += $", speed {cmd.Speed}";
@@ -238,11 +238,11 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchListApproaches(ListApproachesCommand cmd, AircraftState aircraft)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         string airport;
         if (cmd.AirportCode is not null)
         {
-            if (!navDb.TryResolveAirport(cmd.AirportCode, out var canonical))
+            if (!navDb.TryResolveAirport(cmd.AirportCode, out string? canonical))
             {
                 return new CommandResult(false, $"Unknown airport {cmd.AirportCode.Trim().ToUpperInvariant()}");
             }
@@ -258,17 +258,17 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, "No airport specified and no destination in flight plan");
         }
 
-        var approaches = navDb.GetApproaches(airport);
+        IReadOnlyList<CifpApproachProcedure> approaches = navDb.GetApproaches(airport);
         if (approaches.Count == 0)
         {
             return CommandDispatcher.Ok($"No approaches found for {airport.ToUpperInvariant()}");
         }
 
-        var grouped = approaches.GroupBy(a => a.Runway ?? "").OrderBy(g => g.Key);
+        IOrderedEnumerable<IGrouping<string, CifpApproachProcedure>> grouped = approaches.GroupBy(a => a.Runway ?? "").OrderBy(g => g.Key);
 
-        var parts = grouped.Select(g =>
+        IEnumerable<string> parts = grouped.Select(g =>
         {
-            var items = string.Join(", ", g.Select(a => FormatApproachDisplay(a)));
+            string items = string.Join(", ", g.Select(a => FormatApproachDisplay(a)));
             return g.Key.Length > 0 ? $"RWY {RunwayIdentifier.ToDisplayDesignator(g.Key)}: {items}" : items;
         });
 
@@ -298,7 +298,7 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchJarr(JoinStarCommand cmd, AircraftState aircraft)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
 
         // Resolve a controller-typed STAR id that may omit the version digit (JARR TEJAS → TEJAS5).
         if (aircraft.FlightPlan.Destination is { } destination && !string.IsNullOrEmpty(destination))
@@ -316,12 +316,12 @@ internal static class NavigationCommandHandler
         }
 
         // Try CIFP STAR first for constrained navigation targets
-        var cifpResult = TryResolveStarFromCifp(cmd, aircraft, out var starSource);
+        List<NavigationTarget>? cifpResult = TryResolveStarFromCifp(cmd, aircraft, out ProcedureSource? starSource);
         if (cifpResult is not null)
         {
             aircraft.Targets.NavigationRoute.Clear();
             aircraft.Targets.AssignedMagneticHeading = null;
-            foreach (var target in cifpResult)
+            foreach (NavigationTarget target in cifpResult)
             {
                 aircraft.Targets.NavigationRoute.Add(target);
             }
@@ -329,7 +329,7 @@ internal static class NavigationCommandHandler
             aircraft.Procedure.ActiveStarId = cmd.StarId;
             aircraft.Procedure.StarViaMode = false; // STAR via mode OFF by default
 
-            var cifpFixList = string.Join(" ", cifpResult.Select(t => FixDisplay(t.Name)));
+            string cifpFixList = string.Join(" ", cifpResult.Select(t => FixDisplay(t.Name)));
             return CommandDispatcher.Ok($"Join STAR {cmd.StarId}: {cifpFixList}") with
             {
                 Advisory = CommandDispatcher.ProcedureSourceAdvisory("STAR", cmd.StarId, starSource),
@@ -337,7 +337,7 @@ internal static class NavigationCommandHandler
         }
 
         // Fallback to NavData body fixes (lateral path only, no constraints)
-        var starBody = navDb.GetStarBody(cmd.StarId);
+        IReadOnlyList<string>? starBody = navDb.GetStarBody(cmd.StarId);
         if (starBody is null || starBody.Count == 0)
         {
             return new CommandResult(false, $"Unknown STAR: {cmd.StarId}");
@@ -347,8 +347,10 @@ internal static class NavigationCommandHandler
 
         if (cmd.Transition is not null)
         {
-            var transitions = navDb.GetStarTransitions(cmd.StarId);
-            var match = transitions?.FirstOrDefault(t => t.Name.Equals(cmd.Transition, StringComparison.OrdinalIgnoreCase));
+            IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? transitions = navDb.GetStarTransitions(cmd.StarId);
+            (string Name, IReadOnlyList<string> Fixes)? match = transitions?.FirstOrDefault(t =>
+                t.Name.Equals(cmd.Transition, StringComparison.OrdinalIgnoreCase)
+            );
             if (match is not null && match.Value.Fixes is not null)
             {
                 routeFixes = [.. match.Value.Fixes, .. starBody];
@@ -379,7 +381,7 @@ internal static class NavigationCommandHandler
 
         // Deduplicate adjacent identical fix names
         var deduped = new List<string>(routeFixes.Count);
-        foreach (var name in routeFixes)
+        foreach (string name in routeFixes)
         {
             if (deduped.Count == 0 || !string.Equals(deduped[^1], name, StringComparison.OrdinalIgnoreCase))
             {
@@ -389,9 +391,9 @@ internal static class NavigationCommandHandler
 
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.AssignedMagneticHeading = null;
-        foreach (var fixName in deduped)
+        foreach (string fixName in deduped)
         {
-            var pos = navDb.GetFixPosition(fixName);
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
             if (pos is not null)
             {
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fixName, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) });
@@ -407,7 +409,7 @@ internal static class NavigationCommandHandler
         aircraft.Procedure.ActiveStarId = cmd.StarId;
         aircraft.Procedure.StarViaMode = false;
 
-        var fixListStr = string.Join(" ", deduped.Select(FixDisplay));
+        string fixListStr = string.Join(" ", deduped.Select(FixDisplay));
         return CommandDispatcher.Ok($"Join STAR {cmd.StarId}: {fixListStr}");
     }
 
@@ -424,8 +426,8 @@ internal static class NavigationCommandHandler
             return null;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var star = navDb.GetStar(aircraft.FlightPlan.Destination, cmd.StarId, out source);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        CifpStarProcedure? star = navDb.GetStar(aircraft.FlightPlan.Destination, cmd.StarId, out source);
         if (star is null)
         {
             return null;
@@ -436,7 +438,7 @@ internal static class NavigationCommandHandler
 
         // Enroute transition (if specified)
         bool transitionMatched = false;
-        if (cmd.Transition is not null && star.EnrouteTransitions.TryGetValue(cmd.Transition, out var enTransition))
+        if (cmd.Transition is not null && star.EnrouteTransitions.TryGetValue(cmd.Transition, out CifpTransition? enTransition))
         {
             orderedLegs.AddRange(enTransition.Legs);
             transitionMatched = true;
@@ -450,7 +452,7 @@ internal static class NavigationCommandHandler
         string? rwDesignator = aircraft.Phases?.AssignedRunway?.Designator ?? aircraft.Procedure.DestinationRunway;
         if (!string.IsNullOrEmpty(rwDesignator))
         {
-            var rwTransition = LookupRunwayTransition(star.RunwayTransitions, rwDesignator);
+            CifpTransition? rwTransition = LookupRunwayTransition(star.RunwayTransitions, rwDesignator);
             if (rwTransition is not null)
             {
                 orderedLegs.AddRange(rwTransition.Legs);
@@ -463,7 +465,7 @@ internal static class NavigationCommandHandler
         }
 
         // Convert legs to NavigationTargets with constraints
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs);
 
         // If transition was specified but didn't match, try joining at an intermediate fix
         if (cmd.Transition is not null && !transitionMatched)
@@ -475,13 +477,13 @@ internal static class NavigationCommandHandler
             }
 
             // Check each enroute transition for the fix
-            foreach (var (_, trans) in star.EnrouteTransitions)
+            foreach ((string _, CifpTransition? trans) in star.EnrouteTransitions)
             {
-                var transTargets = DepartureClearanceHandler.ResolveLegsToTargets(trans.Legs);
+                List<NavigationTarget> transTargets = DepartureClearanceHandler.ResolveLegsToTargets(trans.Legs);
                 int transFixIdx = transTargets.FindIndex(t => t.Name.Equals(cmd.Transition, StringComparison.OrdinalIgnoreCase));
                 if (transFixIdx >= 0)
                 {
-                    var result = transTargets.GetRange(transFixIdx, transTargets.Count - transFixIdx);
+                    List<NavigationTarget> result = transTargets.GetRange(transFixIdx, transTargets.Count - transFixIdx);
                     result.AddRange(targets);
                     return result;
                 }
@@ -508,14 +510,14 @@ internal static class NavigationCommandHandler
     {
         // CIFP runway-transition keys are zero-padded ("RW01R"); a controller-typed single-digit
         // designator ("1R") must be padded before the lookup or it silently misses the transition.
-        var designator = RunwayIdentifier.NormalizeDesignator(runwayDesignator);
-        var rwKey = "RW" + designator;
-        if (transitions.TryGetValue(rwKey, out var rwTransition))
+        string designator = RunwayIdentifier.NormalizeDesignator(runwayDesignator);
+        string rwKey = "RW" + designator;
+        if (transitions.TryGetValue(rwKey, out CifpTransition? rwTransition))
         {
             return rwTransition;
         }
-        var bothKey = "RW" + designator.TrimEnd('L', 'R', 'C') + "B";
-        return transitions.TryGetValue(bothKey, out var bothTransition) ? bothTransition : null;
+        string bothKey = "RW" + designator.TrimEnd('L', 'R', 'C') + "B";
+        return transitions.TryGetValue(bothKey, out CifpTransition? bothTransition) ? bothTransition : null;
     }
 
     /// <summary>
@@ -524,7 +526,7 @@ internal static class NavigationCommandHandler
     internal static HashSet<string> CollectExclusiveRunwayTransitionFixes(CifpStarProcedure star, CifpTransition selectedTransition)
     {
         var selectedFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var leg in selectedTransition.Legs)
+        foreach (CifpLeg leg in selectedTransition.Legs)
         {
             if (!string.IsNullOrEmpty(leg.FixIdentifier))
             {
@@ -533,14 +535,14 @@ internal static class NavigationCommandHandler
         }
 
         var exclusive = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var otherTransition in star.RunwayTransitions.Values)
+        foreach (CifpTransition otherTransition in star.RunwayTransitions.Values)
         {
             if (ReferenceEquals(otherTransition, selectedTransition))
             {
                 continue;
             }
 
-            foreach (var leg in otherTransition.Legs)
+            foreach (CifpLeg leg in otherTransition.Legs)
             {
                 if (!string.IsNullOrEmpty(leg.FixIdentifier) && !selectedFixes.Contains(leg.FixIdentifier))
                 {
@@ -557,7 +559,7 @@ internal static class NavigationCommandHandler
     /// </summary>
     internal static void RemoveStaleStarRunwayTransitionFixes(AircraftState aircraft, CifpStarProcedure star, CifpTransition selectedTransition)
     {
-        var stale = CollectExclusiveRunwayTransitionFixes(star, selectedTransition);
+        HashSet<string> stale = CollectExclusiveRunwayTransitionFixes(star, selectedTransition);
         if (stale.Count > 0)
         {
             aircraft.Targets.NavigationRoute.RemoveAll(t => stale.Contains(t.Name));
@@ -588,13 +590,13 @@ internal static class NavigationCommandHandler
             return;
         }
 
-        var star = NavigationDatabase.Instance.GetStar(aircraft.FlightPlan.Destination, aircraft.Procedure.ActiveStarId);
+        CifpStarProcedure? star = NavigationDatabase.Instance.GetStar(aircraft.FlightPlan.Destination, aircraft.Procedure.ActiveStarId);
         if (star is null)
         {
             return;
         }
 
-        var transition = LookupRunwayTransition(star.RunwayTransitions, runwayDesignator);
+        CifpTransition? transition = LookupRunwayTransition(star.RunwayTransitions, runwayDesignator);
         if (transition is null || transition.Legs.Count == 0)
         {
             return;
@@ -609,8 +611,8 @@ internal static class NavigationCommandHandler
             return;
         }
 
-        var newTargets = DepartureClearanceHandler.ResolveLegsToTargets(newLegs);
-        foreach (var t in newTargets)
+        List<NavigationTarget> newTargets = DepartureClearanceHandler.ResolveLegsToTargets(newLegs);
+        foreach (NavigationTarget t in newTargets)
         {
             aircraft.Targets.NavigationRoute.Add(t);
         }
@@ -661,13 +663,13 @@ internal static class NavigationCommandHandler
     /// </summary>
     private static List<string> FindStarFixesAhead(AircraftState aircraft, IReadOnlyList<string> bodyFixes)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         int bestIdx = -1;
         double bestDist = double.MaxValue;
 
         for (int i = 0; i < bodyFixes.Count; i++)
         {
-            var pos = navDb.GetFixPosition(bodyFixes[i]);
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(bodyFixes[i]);
             if (pos is null)
             {
                 continue;
@@ -704,22 +706,22 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchJawy(JoinAirwayCommand cmd, AircraftState aircraft)
     {
-        var navDb = NavigationDatabase.Instance;
-        var airwayFixes = navDb.GetAirwayFixes(cmd.AirwayId);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        IReadOnlyList<string>? airwayFixes = navDb.GetAirwayFixes(cmd.AirwayId);
         if (airwayFixes is null || airwayFixes.Count == 0)
         {
             return new CommandResult(false, $"Unknown airway: {cmd.AirwayId}");
         }
 
         // Find the bracketing segment: the fix behind and fix ahead of the aircraft
-        var (behindIdx, aheadIdx) = FindBracketingSegment(aircraft, airwayFixes);
+        (int behindIdx, int aheadIdx) = FindBracketingSegment(aircraft, airwayFixes);
         if (aheadIdx < 0)
         {
             return new CommandResult(false, $"No navigable segment found on {cmd.AirwayId}");
         }
 
         // Resolve ahead fix position (guaranteed non-null since FindBracketingSegment validated it)
-        var aheadPos = navDb.GetFixPosition(airwayFixes[aheadIdx])!.Value;
+        (double Lat, double Lon) aheadPos = navDb.GetFixPosition(airwayFixes[aheadIdx])!.Value;
 
         // Determine the segment course to intercept
         double segmentCourse;
@@ -729,7 +731,7 @@ internal static class NavigationCommandHandler
 
         if (behindIdx >= 0)
         {
-            var behindPos = navDb.GetFixPosition(airwayFixes[behindIdx])!.Value;
+            (double Lat, double Lon) behindPos = navDb.GetFixPosition(airwayFixes[behindIdx])!.Value;
             segmentCourse = GeoMath.BearingTo(behindPos.Lat, behindPos.Lon, aheadPos.Lat, aheadPos.Lon);
             // Use behind fix as the radial origin — aircraft intercepts the radial FROM behind fix TO ahead fix
             interceptFixLat = behindPos.Lat;
@@ -769,9 +771,9 @@ internal static class NavigationCommandHandler
 
         // Build NavigationTargets for the remaining fixes
         var navTargets = new List<NavigationTarget>();
-        foreach (var fixName in remainingFixes)
+        foreach (string fixName in remainingFixes)
         {
-            var pos = navDb.GetFixPosition(fixName);
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
             if (pos is not null)
             {
                 navTargets.Add(new NavigationTarget { Name = fixName, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) });
@@ -804,7 +806,7 @@ internal static class NavigationCommandHandler
             {
                 ac.Targets.AssignedMagneticHeading = null;
                 ac.Targets.NavigationRoute.Clear();
-                foreach (var target in navTargets)
+                foreach (NavigationTarget target in navTargets)
                 {
                     ac.Targets.NavigationRoute.Add(target);
                 }
@@ -816,7 +818,7 @@ internal static class NavigationCommandHandler
         interceptBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Navigation });
         aircraft.Queue.Blocks.Add(interceptBlock);
 
-        var fixListStr = string.Join(" ", remainingFixes.Select(FixDisplay));
+        string fixListStr = string.Join(" ", remainingFixes.Select(FixDisplay));
         return CommandDispatcher.Ok($"Fly present heading, intercept {cmd.AirwayId}: {fixListStr}");
     }
 
@@ -829,7 +831,7 @@ internal static class NavigationCommandHandler
     /// </summary>
     private static (int BehindIdx, int AheadIdx) FindBracketingSegment(AircraftState aircraft, IReadOnlyList<string> airwayFixes)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         // Resolve positions for all fixes
         var positions = new (double Lat, double Lon)?[airwayFixes.Count];
         for (int i = 0; i < airwayFixes.Count; i++)
@@ -953,24 +955,24 @@ internal static class NavigationCommandHandler
         RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
         if (aircraft.Phases is not null)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
         }
 
         aircraft.Phases = runway is not null ? new PhaseList { AssignedRunway = runway } : new PhaseList();
         aircraft.Phases.Add(phase);
 
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var dirStr = cmd.Direction == TurnDirection.Left ? "left" : "right";
-        var legStr = cmd.IsMinuteBased ? $"{cmd.LegLength}min" : $"{cmd.LegLength}nm";
+        string dirStr = cmd.Direction == TurnDirection.Left ? "left" : "right";
+        string legStr = cmd.IsMinuteBased ? $"{cmd.LegLength}min" : $"{cmd.LegLength}nm";
         return CommandDispatcher.Ok($"Hold at {FixDisplay(cmd.FixName)}, {cmd.InboundCourse:D3} inbound, {dirStr} turns, {legStr} legs");
     }
 
     internal static CommandResult DispatchJfac(JoinFinalApproachCourseCommand cmd, AircraftState aircraft)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         string airport = CommandDispatcher.ResolveAirport(aircraft);
         if (string.IsNullOrEmpty(airport))
         {
@@ -978,7 +980,7 @@ internal static class NavigationCommandHandler
         }
 
         // Auto-resolve: when no approach ID given, try ExpectedApproach first, then assigned runway
-        var approachId = cmd.ApproachId;
+        string? approachId = cmd.ApproachId;
         if (approachId is null)
         {
             approachId = aircraft.Approach.Expected ?? aircraft.Procedure.DestinationRunway ?? aircraft.Procedure.DepartureRunway;
@@ -994,22 +996,22 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, $"Unknown approach: {approachId} at {airport}");
         }
 
-        var procedure = navDb.GetApproach(airport, resolvedId);
+        CifpApproachProcedure? procedure = navDb.GetApproach(airport, resolvedId);
         if (procedure?.Runway is null)
         {
             return new CommandResult(false, $"No runway for approach {resolvedId}");
         }
 
-        var runway = navDb.GetRunway(airport, procedure.Runway);
+        RunwayInfo? runway = navDb.GetRunway(airport, procedure.Runway);
         if (runway is null)
         {
             return new CommandResult(false, $"Unknown runway {RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "")} at {airport}");
         }
 
         // Ensure the runway designator matches the approach runway
-        var approachRunway = runway.IsActiveEnd(procedure.Runway) ? runway : runway.ForApproach(procedure.Runway);
+        RunwayInfo approachRunway = runway.IsActiveEnd(procedure.Runway) ? runway : runway.ForApproach(procedure.Runway);
 
-        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, navDb);
+        FinalApproachCourseResult facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, navDb);
         TrueHeading finalCourse = facResult.Course;
 
         // JFAC/JLOC is a lateral "join the localizer" vector, not an approach clearance: it does
@@ -1019,7 +1021,7 @@ internal static class NavigationCommandHandler
 
         // The vector the join was appended to ("FH 220, JLOC") is the angle the intercept is judged
         // against, so it is read before the join drops it.
-        var interceptHeading = aircraft.Targets.AssignedMagneticHeading;
+        MagneticHeading? interceptHeading = aircraft.Targets.AssignedMagneticHeading;
 
         // Clear assigned heading — approach takes over steering
         aircraft.Targets.AssignedMagneticHeading = null;
@@ -1028,7 +1030,7 @@ internal static class NavigationCommandHandler
         // Clear existing phases
         if (aircraft.Phases is not null)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
         }
 
@@ -1043,7 +1045,7 @@ internal static class NavigationCommandHandler
         // hold means no descent until CAPP.
         // The intercept's threshold is the landing threshold: its distance is scored against the
         // approach gate, which the P/CG measures from there.
-        var interceptThreshold = LandingThreshold.Resolve(approachRunway, aircraft.Ground.Layout);
+        LatLon interceptThreshold = LandingThreshold.Resolve(approachRunway, aircraft.Ground.Layout);
         var interceptPhase = new InterceptCoursePhase
         {
             FinalApproachCourse = finalCourse,
@@ -1055,7 +1057,7 @@ internal static class NavigationCommandHandler
         };
 
         var finalPhase = new FinalApproachPhase();
-        var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        bool isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         Phase landingPhase = isHeliApch ? new HelicopterLandingPhase() : new LandingPhase();
 
         var clearance = new ApproachClearance
@@ -1080,7 +1082,7 @@ internal static class NavigationCommandHandler
         aircraft.Phases.Add(finalPhase);
         aircraft.Phases.Add(landingPhase);
 
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
         return CommandDispatcher.Ok(
@@ -1136,7 +1138,7 @@ internal static class NavigationCommandHandler
         // DVIA SPD <speed> <fix>: inject a speed restriction at the specified fix in the nav route
         if (cmd.Speed is { } speed && cmd.SpeedFixName is not null && cmd.SpeedFixLat is not null && cmd.SpeedFixLon is not null)
         {
-            var route = aircraft.Targets.NavigationRoute;
+            List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
             bool found = false;
             for (int i = 0; i < route.Count; i++)
             {
@@ -1179,7 +1181,7 @@ internal static class NavigationCommandHandler
     /// </summary>
     private static void ApplyFirstConstrainedFix(AircraftState aircraft)
     {
-        foreach (var target in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget target in aircraft.Targets.NavigationRoute)
         {
             if (target.AltitudeRestriction is not null || target.SpeedRestriction is not null)
             {
@@ -1199,14 +1201,14 @@ internal static class NavigationCommandHandler
     /// </summary>
     private static bool TryActivateFiledStar(AircraftState aircraft)
     {
-        var navDb = NavigationDatabase.Instance;
-        var destination = aircraft.FlightPlan.Destination;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string destination = aircraft.FlightPlan.Destination;
         if (string.IsNullOrEmpty(destination) || string.IsNullOrWhiteSpace(aircraft.FlightPlan.Route))
         {
             return false;
         }
 
-        foreach (var token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        foreach (string token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
             // Filed routes carry versioned STAR names (e.g. TEJAS5), so the strict route-token
             // resolver is correct here — a bare fix must not be mistaken for a STAR.
@@ -1215,7 +1217,7 @@ internal static class NavigationCommandHandler
                 continue;
             }
 
-            var star = navDb.GetStar(destination, resolvedStarId);
+            CifpStarProcedure? star = navDb.GetStar(destination, resolvedStarId);
             if (star is null)
             {
                 continue;
@@ -1237,18 +1239,18 @@ internal static class NavigationCommandHandler
     private static void OverlayStarRestrictions(AircraftState aircraft, CifpStarProcedure star)
     {
         var allLegs = new List<CifpLeg>();
-        foreach (var transition in star.EnrouteTransitions.Values)
+        foreach (CifpTransition transition in star.EnrouteTransitions.Values)
         {
             allLegs.AddRange(transition.Legs);
         }
         allLegs.AddRange(star.CommonLegs);
-        foreach (var transition in star.RunwayTransitions.Values)
+        foreach (CifpTransition transition in star.RunwayTransitions.Values)
         {
             allLegs.AddRange(transition.Legs);
         }
 
         var byName = new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
-        foreach (var target in DepartureClearanceHandler.ResolveLegsToTargets(allLegs))
+        foreach (NavigationTarget target in DepartureClearanceHandler.ResolveLegsToTargets(allLegs))
         {
             if ((target.AltitudeRestriction is not null || target.SpeedRestriction is not null) && !byName.ContainsKey(target.Name))
             {
@@ -1256,9 +1258,9 @@ internal static class NavigationCommandHandler
             }
         }
 
-        foreach (var fix in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
         {
-            if (byName.TryGetValue(fix.Name, out var source))
+            if (byName.TryGetValue(fix.Name, out NavigationTarget? source))
             {
                 fix.AltitudeRestriction = source.AltitudeRestriction;
                 fix.SpeedRestriction = source.SpeedRestriction;
@@ -1284,14 +1286,14 @@ internal static class NavigationCommandHandler
             return false;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var departure = aircraft.FlightPlan.Departure;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string departure = aircraft.FlightPlan.Departure;
         if (string.IsNullOrEmpty(departure) || string.IsNullOrWhiteSpace(aircraft.FlightPlan.Route))
         {
             return false;
         }
 
-        foreach (var token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        foreach (string token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
             // Filed routes carry versioned SID names (e.g. NIMI5), so the strict route-token
             // resolver is correct here — a bare enroute fix must not be mistaken for a SID.
@@ -1300,7 +1302,7 @@ internal static class NavigationCommandHandler
                 continue;
             }
 
-            var sid = navDb.GetSid(departure, resolvedSidId);
+            CifpSidProcedure? sid = navDb.GetSid(departure, resolvedSidId);
             if (sid is null)
             {
                 continue;
@@ -1343,20 +1345,20 @@ internal static class NavigationCommandHandler
         }
         else
         {
-            foreach (var transition in sid.RunwayTransitions.Values)
+            foreach (CifpTransition transition in sid.RunwayTransitions.Values)
             {
                 allLegs.AddRange(transition.Legs);
             }
         }
 
         allLegs.AddRange(sid.CommonLegs);
-        foreach (var transition in sid.EnrouteTransitions.Values)
+        foreach (CifpTransition transition in sid.EnrouteTransitions.Values)
         {
             allLegs.AddRange(transition.Legs);
         }
 
         var byName = new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
-        foreach (var target in DepartureClearanceHandler.ResolveLegsToTargets(allLegs))
+        foreach (NavigationTarget target in DepartureClearanceHandler.ResolveLegsToTargets(allLegs))
         {
             if ((target.AltitudeRestriction is not null || target.SpeedRestriction is not null) && !byName.ContainsKey(target.Name))
             {
@@ -1364,9 +1366,9 @@ internal static class NavigationCommandHandler
             }
         }
 
-        foreach (var fix in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
         {
-            if (byName.TryGetValue(fix.Name, out var source))
+            if (byName.TryGetValue(fix.Name, out NavigationTarget? source))
             {
                 fix.AltitudeRestriction = source.AltitudeRestriction;
                 fix.SpeedRestriction = source.SpeedRestriction;
@@ -1399,20 +1401,20 @@ internal static class NavigationCommandHandler
             return CommandDispatcher.Ok("Field in sight");
         }
 
-        var destination = aircraft.FlightPlan.Destination;
+        string destination = aircraft.FlightPlan.Destination;
         if (string.IsNullOrWhiteSpace(destination))
         {
             return new CommandResult(false, "Unable, no arrival airport assigned");
         }
 
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         if (navDb.GetFixPosition(destination) is null || navDb.GetAirportElevation(destination) is null)
         {
             return new CommandResult(false, $"Unable, {destination} not in nav database");
         }
 
-        var metar = ctx.Weather?.GetWeatherForAirport(destination);
-        var result =
+        MetarParser.ParsedMetar? metar = ctx.Weather?.GetWeatherForAirport(destination);
+        VisualAcquisitionResult result =
             VisualAcquisition.TryAcquireAirport(aircraft, ctx.Weather)
             ?? throw new InvalidOperationException($"Destination {destination} pre-validated but TryAcquireAirport returned null");
 
@@ -1456,7 +1458,7 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportFieldAdvisory(ReportFieldAdvisoryCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        var acquisition = DispatchReportFieldInSightCore(aircraft, ctx);
+        CommandResult acquisition = DispatchReportFieldInSightCore(aircraft, ctx);
         return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatFieldAdvisoryPhrase(cmd.Details)) : acquisition;
     }
 
@@ -1494,7 +1496,7 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, "Unable, no traffic specified");
         }
 
-        var target = ctx.FindAircraft?.Invoke(normalizedCallsign);
+        AircraftState? target = ctx.FindAircraft?.Invoke(normalizedCallsign);
         if (target is null)
         {
             return new CommandResult(false, $"Negative contact, {normalizedCallsign} not on this frequency");
@@ -1510,7 +1512,7 @@ internal static class NavigationCommandHandler
         DispatchContext ctx
     )
     {
-        var result = VisualAcquisition.TryAcquireTraffic(aircraft, target, ctx.Weather);
+        VisualAcquisitionResult result = VisualAcquisition.TryAcquireTraffic(aircraft, target, ctx.Weather);
 
         if (result.Acquired)
         {
@@ -1531,7 +1533,7 @@ internal static class NavigationCommandHandler
         // Record the reason in a pilot readback and keep looking each tick via
         // PilotObservationUpdater. A new RTIS (same or different callsign) replaces
         // the prior observation — the latest request always wins.
-        var targetCallsignUpper = targetCallsign.ToUpperInvariant();
+        string targetCallsignUpper = targetCallsign.ToUpperInvariant();
         aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
         aircraft.PendingObservations.Add(new TrafficAcquisitionObservation(targetCallsignUpper));
         if (ctx.SoloTrainingMode)
@@ -1551,50 +1553,65 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportTrafficAdvisory(ReportTrafficAdvisoryCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        var match = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);
+        TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(
+            aircraft,
+            cmd.Details,
+            ctx.ListAircraft?.Invoke(),
+            out string error
+        );
         if (match is null)
         {
             return new CommandResult(false, error);
         }
 
-        var acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
+        CommandResult acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
         return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficAdvisoryPhrase(cmd.Details)) : acquisition;
     }
 
     internal static CommandResult DispatchReportTrafficRelative(ReportTrafficRelativeCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        var match = TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);
+        TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(
+            aircraft,
+            cmd.Details,
+            ctx.ListAircraft?.Invoke(),
+            out string error
+        );
         if (match is null)
         {
             return new CommandResult(false, error);
         }
 
-        var acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
+        CommandResult acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
         return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficRelativePhrase(cmd.Details)) : acquisition;
     }
 
     internal static CommandResult DispatchReportTrafficPattern(ReportTrafficPatternCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        var match = TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);
+        TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(
+            aircraft,
+            cmd.Details,
+            ctx.ListAircraft?.Invoke(),
+            out string error
+        );
         if (match is null)
         {
             return new CommandResult(false, error);
         }
 
-        var acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
+        CommandResult acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
         return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficPatternPhrase(cmd.Details)) : acquisition;
     }
 
     internal static CommandResult DispatchReportTrafficLandmark(ReportTrafficLandmarkCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        var position = NavigationDatabase.Instance.GetFixPosition(cmd.Details.FixName);
+        (double Lat, double Lon)? position = NavigationDatabase.Instance.GetFixPosition(cmd.Details.FixName);
         if (position is null)
         {
             return new CommandResult(false, $"Unable, unknown landmark {cmd.Details.FixName}");
         }
 
         var landmark = new LatLon(position.Value.Lat, position.Value.Lon);
-        var match = TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(
+        TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(
             aircraft,
             landmark,
             cmd.Details.AircraftType,
@@ -1606,13 +1623,13 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, error);
         }
 
-        var acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
+        CommandResult acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
         return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficLandmarkPhrase(cmd.Details)) : acquisition;
     }
 
     internal static CommandResult DispatchSafetyAlert(SafetyAlertCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        var target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);
+        AircraftState? target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);
         if (target is null)
         {
             return new CommandResult(false, error);
@@ -1805,7 +1822,7 @@ internal static class NavigationCommandHandler
     /// </summary>
     internal static CommandResult DispatchReport(ReportCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        var approach = aircraft.Approach;
+        AircraftApproachState approach = aircraft.Approach;
         switch (cmd.Trigger)
         {
             case ReportTrigger.Cancel:
@@ -1856,13 +1873,13 @@ internal static class NavigationCommandHandler
 
     private static CommandResult DispatchReportAtFix(ReportCommand cmd, AircraftState aircraft)
     {
-        var fixName = cmd.FixName?.Trim().ToUpperInvariant();
+        string? fixName = cmd.FixName?.Trim().ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(fixName))
         {
             return new CommandResult(false, "REPORT requires a fix name");
         }
 
-        var pos = NavigationDatabase.Instance.GetFixPosition(fixName);
+        (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetFixPosition(fixName);
         if (pos is null)
         {
             return new CommandResult(false, $"Unable, {fixName} not in nav database");

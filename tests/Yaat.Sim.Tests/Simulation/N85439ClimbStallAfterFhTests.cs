@@ -56,8 +56,8 @@ public class N85439ClimbStallAfterFhTests(ITestOutputHelper output)
     [Fact]
     public void N85439_ResumesClimbToAssignedAltitudeAfterFh()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -66,7 +66,7 @@ public class N85439ClimbStallAfterFhTests(ITestOutputHelper output)
 
         engine.Replay(recording, PhaseClearedTime);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
         double startAlt = ac.Altitude;

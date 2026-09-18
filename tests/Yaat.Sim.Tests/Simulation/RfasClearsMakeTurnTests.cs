@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -58,8 +59,8 @@ public class RfasClearsMakeTurnTests(ITestOutputHelper output)
     [Fact]
     public void RfasDuringMakeTurn_DoesNotClearTurnPhase()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -68,10 +69,10 @@ public class RfasClearsMakeTurnTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 return;
@@ -80,13 +81,13 @@ public class RfasClearsMakeTurnTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             int startTime = (int)snapshot.ElapsedSeconds;
 
-            var preRfas = engine.FindAircraft(Callsign);
+            AircraftState? preRfas = engine.FindAircraft(Callsign);
             Assert.NotNull(preRfas);
             Assert.IsType<MakeTurnPhase>(preRfas.Phases?.CurrentPhase);
 
             engine.ReplayRange(startTime, RfasTime + 5, recording.Actions);
 
-            var postRfas = engine.FindAircraft(Callsign);
+            AircraftState? postRfas = engine.FindAircraft(Callsign);
             Assert.NotNull(postRfas);
 
             output.WriteLine(

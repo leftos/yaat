@@ -43,13 +43,13 @@ public class Issue199TrackWithPositionTests
     [Fact]
     public void Dispatch_TrackWithPosition_TracksWithNamedPosition_NotIdentity()
     {
-        var ac = Aircraft();
-        var student = Owner("OAK_TWR", 3, "O");
-        var dep = Owner("SFO_DEP", 4, "U");
-        var scenario = Scenario(student, Atc(dep, 4, "U"));
+        AircraftState ac = Aircraft();
+        TrackOwner student = Owner("OAK_TWR", 3, "O");
+        TrackOwner dep = Owner("SFO_DEP", 4, "U");
+        SimScenarioState scenario = Scenario(student, Atc(dep, 4, "U"));
 
         // Acting identity is the student (3O); the command names 4U explicitly — 4U must win.
-        var result = TrackEngine.Dispatch(
+        CommandResult? result = TrackEngine.Dispatch(
             new TrackAircraftCommand("4U"),
             ac,
             new TrackDispatchContext(Identity: student, scenario, Redirect: null, new ConflictAlertState())
@@ -64,12 +64,12 @@ public class Issue199TrackWithPositionTests
     [Fact]
     public void Dispatch_TrackWithPosition_NoActiveIdentity_StillTracks()
     {
-        var ac = Aircraft();
-        var dep = Owner("SFO_DEP", 4, "U");
-        var scenario = Scenario(Owner("OAK_TWR", 3, "O"), Atc(dep, 4, "U"));
+        AircraftState ac = Aircraft();
+        TrackOwner dep = Owner("SFO_DEP", 4, "U");
+        SimScenarioState scenario = Scenario(Owner("OAK_TWR", 3, "O"), Atc(dep, 4, "U"));
 
         // The position argument supplies the owner, so a null identity must not block the track.
-        var result = TrackEngine.Dispatch(
+        CommandResult? result = TrackEngine.Dispatch(
             new TrackAircraftCommand("4U"),
             ac,
             new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())
@@ -83,11 +83,11 @@ public class Issue199TrackWithPositionTests
     [Fact]
     public void Dispatch_TrackWithUnknownPosition_ReturnsError()
     {
-        var ac = Aircraft();
-        var student = Owner("OAK_TWR", 3, "O");
-        var scenario = Scenario(student);
+        AircraftState ac = Aircraft();
+        TrackOwner student = Owner("OAK_TWR", 3, "O");
+        SimScenarioState scenario = Scenario(student);
 
-        var result = TrackEngine.Dispatch(
+        CommandResult? result = TrackEngine.Dispatch(
             new TrackAircraftCommand("ZZ"),
             ac,
             new TrackDispatchContext(Identity: student, scenario, Redirect: null, new ConflictAlertState())
@@ -102,11 +102,11 @@ public class Issue199TrackWithPositionTests
     [Fact]
     public void Dispatch_TrackWithoutPosition_UsesIdentity()
     {
-        var ac = Aircraft();
-        var student = Owner("OAK_TWR", 3, "O");
-        var scenario = Scenario(student);
+        AircraftState ac = Aircraft();
+        TrackOwner student = Owner("OAK_TWR", 3, "O");
+        SimScenarioState scenario = Scenario(student);
 
-        var result = TrackEngine.Dispatch(
+        CommandResult? result = TrackEngine.Dispatch(
             new TrackAircraftCommand(null),
             ac,
             new TrackDispatchContext(Identity: student, scenario, Redirect: null, new ConflictAlertState())

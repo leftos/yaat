@@ -71,36 +71,36 @@ public class Issue161PushFaceThenTaxiStartNodeTests(ITestOutputHelper output)
     [Fact]
     public void TaxiAfterPushFaceE_FirstSegmentBearingMatchesHeading()
     {
-        var layout = LoadSfoLayout();
+        AirportGroundLayout? layout = LoadSfoLayout();
         if (layout is null)
         {
             return;
         }
 
-        var aircraft = MakeAircraft(PushedLat, PushedLon, PushedHeadingDeg);
+        AircraftState aircraft = MakeAircraft(PushedLat, PushedLon, PushedHeadingDeg);
 
         output.WriteLine($"Aircraft pose: ({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}) hdg={aircraft.TrueHeading.Degrees:F0}");
         NearestNodeHelper.Log(output, "Pre-taxi", aircraft, layout, count: 5);
 
         var taxi = new TaxiCommand(Path: ["A", "F1", "B", "Z", "S", "S3"], HoldShorts: [], DestinationRunway: "10R");
 
-        var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         Assert.NotEmpty(route.Segments);
 
         for (int i = 0; i < Math.Min(8, route.Segments.Count); i++)
         {
-            var seg = route.Segments[i];
+            TaxiRouteSegment seg = route.Segments[i];
             output.WriteLine($"  [{i}] {seg.FromNodeId} -> {seg.ToNodeId} on {seg.TaxiwayName}");
         }
 
         // A free-space approach leg (TaxiApproachLeg) may lead the route in from the aircraft's own position;
         // it carries a virtual from-node and is aimed at the aircraft by construction. The bearing that decides
         // whether the navigator pivots is the first GRAPH segment's.
-        var firstSeg = route.Segments.Find(s => s.FromNodeId >= 0);
+        TaxiRouteSegment? firstSeg = route.Segments.Find(s => s.FromNodeId >= 0);
         Assert.NotNull(firstSeg);
 
         double segBearing = GeoMath.BearingTo(firstSeg.Edge.FromNode.Position, firstSeg.Edge.ToNode.Position);

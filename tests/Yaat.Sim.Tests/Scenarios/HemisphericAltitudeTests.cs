@@ -30,7 +30,7 @@ public class HemisphericAltitudeTests
     public void Snap_PicksTheNearestConformingLevelInsideTheBand()
     {
         // Eastbound wants odd+500. 5200 is nearest 5500 (in band), not 3500.
-        var snapped = HemisphericAltitude.Snap(magneticCourseDeg: 90, desiredFt: 5200, minFt: 3000, maxFt: 8000);
+        double? snapped = HemisphericAltitude.Snap(magneticCourseDeg: 90, desiredFt: 5200, minFt: 3000, maxFt: 8000);
         Assert.Equal(5500, snapped);
         Assert.True(HemisphericAltitude.IsConforming(90, snapped!.Value));
     }
@@ -38,7 +38,7 @@ public class HemisphericAltitudeTests
     [Fact]
     public void Snap_WestboundPicksEvenThousandsPlusFiveHundred()
     {
-        var snapped = HemisphericAltitude.Snap(magneticCourseDeg: 270, desiredFt: 5200, minFt: 3000, maxFt: 8000);
+        double? snapped = HemisphericAltitude.Snap(magneticCourseDeg: 270, desiredFt: 5200, minFt: 3000, maxFt: 8000);
         Assert.Equal(4500, snapped);
     }
 
@@ -57,7 +57,7 @@ public class HemisphericAltitudeTests
     public void Snap_AcceptsALevelJustOutsideANarrowBand()
     {
         // Eastbound: only 5500 is legal nearby, and it sits 200 ft above the band ceiling.
-        var snapped = HemisphericAltitude.Snap(magneticCourseDeg: 90, desiredFt: 5300, minFt: 5000, maxFt: 5300);
+        double? snapped = HemisphericAltitude.Snap(magneticCourseDeg: 90, desiredFt: 5300, minFt: 5000, maxFt: 5300);
         Assert.Equal(5500, snapped);
     }
 
@@ -81,7 +81,7 @@ public class HemisphericAltitudeTests
     [Fact]
     public void Snap_NeverReturnsANegativeLevel()
     {
-        var snapped = HemisphericAltitude.Snap(magneticCourseDeg: 180, desiredFt: 500, minFt: 0, maxFt: 1000);
+        double? snapped = HemisphericAltitude.Snap(magneticCourseDeg: 180, desiredFt: 500, minFt: 0, maxFt: 1000);
         Assert.NotNull(snapped);
         Assert.True(snapped >= 0);
     }

@@ -28,17 +28,17 @@ public class OneWayResolverTests
     [Fact]
     public void SingleEdge_Reverse_ForbidsAgainstDirectionOnly()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var fwd = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A1], BlockBoth: false, Notes: null)]);
+        HashSet<(int From, int To)> fwd = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A1], BlockBoth: false, Notes: null)]);
         Assert.NotEmpty(fwd);
 
-        var n0 = layout.FindNearestNode(A0.Lat, A0.Lon)!;
-        var n1 = layout.FindNearestNode(A1.Lat, A1.Lon)!;
+        GroundNode n0 = layout.FindNearestNode(A0.Lat, A0.Lon)!;
+        GroundNode n1 = layout.FindNearestNode(A1.Lat, A1.Lon)!;
         if (n0.Edges.Any(e => e.HasNode(n1.Id)))
         {
             // Directly connected: the reverse move is forbidden, the with-flow move is not.
@@ -50,18 +50,18 @@ public class OneWayResolverTests
     [Fact]
     public void Block_Both_ForbidsEitherDirection()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var fwd = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A1], BlockBoth: false, Notes: null)]);
-        var both = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A1], BlockBoth: true, Notes: null)]);
+        HashSet<(int From, int To)> fwd = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A1], BlockBoth: false, Notes: null)]);
+        HashSet<(int From, int To)> both = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A1], BlockBoth: true, Notes: null)]);
 
         // "both" forbids each span edge in either direction — exactly twice the one-way set, and a superset.
         Assert.Equal(fwd.Count * 2, both.Count);
-        foreach (var move in fwd)
+        foreach ((int From, int To) move in fwd)
         {
             Assert.Contains(move, both);
             Assert.Contains((move.To, move.From), both); // the forward direction is now forbidden too
@@ -71,15 +71,15 @@ public class OneWayResolverTests
     [Fact]
     public void SameTaxiwaySpan_TwoEndpoints_FillsTheSpan()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
         // A0 -> A8 spans several A edges; the resolver BFS fills the whole span, not just the endpoints.
-        var single = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A1], BlockBoth: false, Notes: null)]);
-        var span = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A8], BlockBoth: false, Notes: null)]);
+        HashSet<(int From, int To)> single = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A1], BlockBoth: false, Notes: null)]);
+        HashSet<(int From, int To)> span = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A8], BlockBoth: false, Notes: null)]);
 
         Assert.True(span.Count > single.Count, "A0->A8 must forbid more edges than the single A0->A1 segment.");
     }
@@ -87,14 +87,14 @@ public class OneWayResolverTests
     [Fact]
     public void CrossTaxiwayTurn_ForbidsBothLegs()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
         // A7 -> A8 (an A edge) then A8 -> B1_1 (a B1 edge): a turn through the A x B1 junction.
-        var forbidden = OneWayResolver.Resolve(layout, [new OneWayConstraint([A7, A8, B1_1], BlockBoth: false, Notes: null)]);
+        HashSet<(int From, int To)> forbidden = OneWayResolver.Resolve(layout, [new OneWayConstraint([A7, A8, B1_1], BlockBoth: false, Notes: null)]);
 
         Assert.True(forbidden.Count >= 2, "A two-leg turn must forbid the reverse of each leg.");
     }
@@ -102,7 +102,7 @@ public class OneWayResolverTests
     [Fact]
     public void WrongTaxiwayTag_StillResolves()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
@@ -110,7 +110,7 @@ public class OneWayResolverTests
 
         // Tagging A0/A1 as "B" is a validation mismatch (logged) but must not stop resolution.
         var mistagged = new OneWayConstraint([A0 with { Taxiway = "B" }, A1 with { Taxiway = "B" }], BlockBoth: false, Notes: null);
-        var forbidden = OneWayResolver.Resolve(layout, [mistagged]);
+        HashSet<(int From, int To)> forbidden = OneWayResolver.Resolve(layout, [mistagged]);
 
         Assert.NotEmpty(forbidden);
     }

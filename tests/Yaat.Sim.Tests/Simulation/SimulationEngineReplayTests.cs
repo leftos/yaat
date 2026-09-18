@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -25,14 +26,14 @@ public class SimulationEngineReplayTests
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private static SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -50,8 +51,8 @@ public class SimulationEngineReplayTests
     [Fact]
     public void Replay_OakTaxi_NKS2904_HasTaxiRoute()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -59,7 +60,7 @@ public class SimulationEngineReplayTests
 
         engine.Replay(recording, recording.TotalElapsedSeconds);
 
-        var nks = engine.FindAircraft("NKS2904");
+        AircraftState? nks = engine.FindAircraft("NKS2904");
         Assert.NotNull(nks);
         Assert.NotNull(nks.Ground.AssignedTaxiRoute);
     }
@@ -67,8 +68,8 @@ public class SimulationEngineReplayTests
     [Fact]
     public void Replay_OakTaxi_NKS2904_TaxiRouteFollowsExpectedPath()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -76,7 +77,7 @@ public class SimulationEngineReplayTests
 
         engine.Replay(recording, recording.TotalElapsedSeconds);
 
-        var nks = engine.FindAircraft("NKS2904");
+        AircraftState? nks = engine.FindAircraft("NKS2904");
         Assert.NotNull(nks);
         Assert.NotNull(nks.Ground.AssignedTaxiRoute);
 
@@ -96,8 +97,8 @@ public class SimulationEngineReplayTests
     [Fact]
     public void Replay_OakTaxi_NKS2904_MovedFromParking()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -105,7 +106,7 @@ public class SimulationEngineReplayTests
 
         engine.Replay(recording, recording.TotalElapsedSeconds);
 
-        var nks = engine.FindAircraft("NKS2904");
+        AircraftState? nks = engine.FindAircraft("NKS2904");
         Assert.NotNull(nks);
 
         // After 96 seconds of taxiing, aircraft should have moved from parking 11

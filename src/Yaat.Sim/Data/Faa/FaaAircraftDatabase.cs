@@ -28,13 +28,13 @@ public static class FaaAircraftDatabase
             return null;
         }
 
-        var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
-        if (_lookup.TryGetValue(baseType, out var record))
+        string baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        if (_lookup.TryGetValue(baseType, out FaaAircraftRecord? record))
         {
             return record;
         }
 
-        if (AircraftSiblingMap.TryResolve(baseType, out var sibling) && _lookup.TryGetValue(sibling, out var sibRecord))
+        if (AircraftSiblingMap.TryResolve(baseType, out string? sibling) && _lookup.TryGetValue(sibling, out FaaAircraftRecord? sibRecord))
         {
             return sibRecord;
         }

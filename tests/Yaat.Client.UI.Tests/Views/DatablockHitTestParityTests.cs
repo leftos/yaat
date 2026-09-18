@@ -61,7 +61,7 @@ public class DatablockHitTestParityTests
     [AvaloniaFact]
     public void HitTestRect_MatchesDrawRect_AtDefaultFontSize()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         var canvas = new RadarCanvas();
 
         Assert.Equal(DrawRectAtOrigin(ac, canvas, canvas.DatablockTextSize, atpaLead: null), canvas.ComputeStableRectAtOrigin(ac));
@@ -78,7 +78,7 @@ public class DatablockHitTestParityTests
     [InlineData(18f)]
     public void HitTestRect_TracksDrawRect_WhenDatablockFontSizeChanges(float size)
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         var canvas = new RadarCanvas { DatablockTextSize = size };
 
         Assert.Equal(DrawRectAtOrigin(ac, canvas, size, atpaLead: null), canvas.ComputeStableRectAtOrigin(ac));
@@ -89,7 +89,7 @@ public class DatablockHitTestParityTests
     {
         // The ident swaps line 2's CWT/type token for "ID", which changes the block's widest line —
         // the hit rect has to follow it or clicks land off the visibly narrower block.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.IsIdenting = true;
         var canvas = new RadarCanvas();
 
@@ -101,11 +101,11 @@ public class DatablockHitTestParityTests
     {
         // The ident dim-pulses instead of blanking, so unlike NoLndgClnc it needs no reserved slot —
         // but that only holds if the rect really is identical on both phases of the 500 ms cycle.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.IsIdenting = true;
         var canvas = new RadarCanvas();
 
-        var first = canvas.ComputeStableRectAtOrigin(ac);
+        SKRect first = canvas.ComputeStableRectAtOrigin(ac);
         for (int i = 0; i < 10; i++)
         {
             Thread.Sleep(120);
@@ -119,28 +119,28 @@ public class DatablockHitTestParityTests
         // The ATPA in-trail line adds a row to the block. The draw path resolves the lead from the
         // renderer's per-frame callsign index and the hit-test path scans the bound collection — both
         // have to end up measuring the same line, or clicks miss the bottom of a visibly taller block.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.AtpaLeadCallsign = "SWA1234";
         ac.AtpaAllowedSeparationNm = 3.0;
-        var lead = CreateModel();
+        AircraftModel lead = CreateModel();
         lead.Callsign = "SWA1234";
         lead.Position = new LatLon(37.0, -122.0 + (4.00704 / 60.0));
         var canvas = new RadarCanvas { ShowAtpa = true, Aircraft = [ac, lead] };
 
-        var hitRect = canvas.ComputeStableRectAtOrigin(ac);
+        SKRect hitRect = canvas.ComputeStableRectAtOrigin(ac);
         Assert.Equal(DrawRectAtOrigin(ac, canvas, canvas.DatablockTextSize, lead), hitRect);
 
-        var withoutAtpa = new RadarCanvas { Aircraft = [ac, lead] }.ComputeStableRectAtOrigin(ac);
+        SKRect withoutAtpa = new RadarCanvas { Aircraft = [ac, lead] }.ComputeStableRectAtOrigin(ac);
         Assert.True(hitRect.Height > withoutAtpa.Height, "the ATPA in-trail line must add a row to the hit rect");
     }
 
     [AvaloniaFact]
     public void HitTestRect_GrowsWithFontSize()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
 
-        var small = new RadarCanvas { DatablockTextSize = 9f }.ComputeStableRectAtOrigin(ac);
-        var large = new RadarCanvas { DatablockTextSize = 18f }.ComputeStableRectAtOrigin(ac);
+        SKRect small = new RadarCanvas { DatablockTextSize = 9f }.ComputeStableRectAtOrigin(ac);
+        SKRect large = new RadarCanvas { DatablockTextSize = 18f }.ComputeStableRectAtOrigin(ac);
 
         Assert.True(large.Width > small.Width, "a larger datablock font must produce a wider hit rect");
         Assert.True(large.Height > small.Height, "a larger datablock font must produce a taller hit rect");

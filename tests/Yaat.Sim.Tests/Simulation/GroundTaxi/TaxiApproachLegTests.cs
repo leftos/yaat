@@ -78,10 +78,10 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
 
     private TaxiRoute Resolve(AirportGroundLayout layout, AircraftState aircraft, TaxiCommand taxi)
     {
-        var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         Assert.NotEmpty(route.Segments);
 
@@ -89,7 +89,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         output.WriteLine($"route: {route.ToSummary()} ({route.Segments.Count} segments)");
         for (int i = 0; i < Math.Min(4, route.Segments.Count); i++)
         {
-            var seg = route.Segments[i];
+            TaxiRouteSegment seg = route.Segments[i];
             output.WriteLine($"  [{i}] {seg.FromNodeId} -> {seg.ToNodeId} on {seg.TaxiwayName}");
         }
 
@@ -98,7 +98,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
 
     private static LatLon Project(LatLon from, double bearingDeg, double distanceFt)
     {
-        var (lat, lon) = GeoMath.ProjectPointRaw(from.Lat, from.Lon, bearingDeg, distanceFt / GeoMath.FeetPerNm);
+        (double lat, double lon) = GeoMath.ProjectPointRaw(from.Lat, from.Lon, bearingDeg, distanceFt / GeoMath.FeetPerNm);
         return new LatLon(lat, lon);
     }
 
@@ -106,16 +106,16 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void PushedOffGate_PrependsFreeSpaceLegToTheStartNode()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var aircraft = MakeAircraft(layout, new LatLon(PushedLat, PushedLon), PushedHeadingDeg);
-        var route = Resolve(layout, aircraft, new TaxiCommand(Path: ["U", "W"], HoldShorts: [], DestinationRunway: "30"));
+        AircraftState aircraft = MakeAircraft(layout, new LatLon(PushedLat, PushedLon), PushedHeadingDeg);
+        TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["U", "W"], HoldShorts: [], DestinationRunway: "30"));
 
-        var leg = route.Segments[0];
+        TaxiRouteSegment leg = route.Segments[0];
         double legStartOffsetFt = GeoMath.DistanceNm(leg.Edge.FromNode.Position, aircraft.Position) * GeoMath.FeetPerNm;
         output.WriteLine($"leg starts {legStartOffsetFt:F2} ft from the aircraft, {leg.Edge.DistanceNm * GeoMath.FeetPerNm:F0} ft long");
 
@@ -129,18 +129,18 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void PushedOffGate_LegIsInvisibleInTheReadback()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var aircraft = MakeAircraft(layout, new LatLon(PushedLat, PushedLon), PushedHeadingDeg);
+        AircraftState aircraft = MakeAircraft(layout, new LatLon(PushedLat, PushedLon), PushedHeadingDeg);
         var taxi = new TaxiCommand(Path: ["U", "W"], HoldShorts: [], DestinationRunway: "30");
-        var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine($"result: {result.Message}");
         output.WriteLine($"sequence: {route.FormatTaxiwaySequence()}");
@@ -153,16 +153,16 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void StandingOnTheStartNode_AddsNoLeg()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(StartNodeId, out var startNode), $"node {StartNodeId} missing from the OAK layout");
+        Assert.True(layout.Nodes.TryGetValue(StartNodeId, out GroundNode? startNode), $"node {StartNodeId} missing from the OAK layout");
 
-        var aircraft = MakeAircraft(layout, startNode.Position, PushedHeadingDeg);
-        var route = Resolve(layout, aircraft, new TaxiCommand(Path: ["U", "W"], HoldShorts: [], DestinationRunway: "30"));
+        AircraftState aircraft = MakeAircraft(layout, startNode.Position, PushedHeadingDeg);
+        TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["U", "W"], HoldShorts: [], DestinationRunway: "30"));
 
         Assert.Equal(StartNodeId, route.Segments[0].FromNodeId);
     }
@@ -175,19 +175,19 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void RouteStartingAtARunwayHoldingPosition_AddsNoLeg()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(HoldShortNodeId, out var bar), $"node {HoldShortNodeId} missing from the OAK layout");
+        Assert.True(layout.Nodes.TryGetValue(HoldShortNodeId, out GroundNode? bar), $"node {HoldShortNodeId} missing from the OAK layout");
         Assert.Equal(GroundNodeType.RunwayHoldShort, bar.Type);
 
         GroundNode? runwaySide = null;
-        foreach (var edge in bar.Edges)
+        foreach (IGroundEdge edge in bar.Edges)
         {
-            var other = edge.OtherNode(bar);
+            GroundNode other = edge.OtherNode(bar);
             double bearing = GeoMath.BearingTo(bar.Position, other.Position);
             double ft = GeoMath.DistanceNm(bar.Position, other.Position) * GeoMath.FeetPerNm;
 
@@ -211,12 +211,12 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         // position with the aircraft short of it and pointing at it — every other guard passes, and only the
         // holding-position guard can refuse the leg.
         double runwayBearing = GeoMath.BearingTo(bar.Position, runwaySide.Position);
-        var position = Project(bar.Position, runwayBearing, HoldShortStandoffFt);
+        LatLon position = Project(bar.Position, runwayBearing, HoldShortStandoffFt);
         double headingDeg = GeoMath.BearingTo(position, bar.Position);
         output.WriteLine($"aircraft {HoldShortStandoffFt:F0} ft from the bar on bearing {runwayBearing:F0}, facing {headingDeg:F0}");
 
-        var aircraft = MakeAircraft(layout, position, headingDeg);
-        var route = Resolve(layout, aircraft, new TaxiCommand(Path: ["W1", "W"], HoldShorts: [], DestinationRunway: null));
+        AircraftState aircraft = MakeAircraft(layout, position, headingDeg);
+        TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["W1", "W"], HoldShorts: [], DestinationRunway: null));
 
         Assert.Equal(HoldShortNodeId, route.Segments[0].FromNodeId);
     }
@@ -235,20 +235,20 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void PastTheStartNodeWithTheRouteAhead_AddsNoLeg()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(StraightFromNodeId, out var from), $"node {StraightFromNodeId} missing from the OAK layout");
-        Assert.True(layout.Nodes.TryGetValue(StraightToNodeId, out var to), $"node {StraightToNodeId} missing from the OAK layout");
+        Assert.True(layout.Nodes.TryGetValue(StraightFromNodeId, out GroundNode? from), $"node {StraightFromNodeId} missing from the OAK layout");
+        Assert.True(layout.Nodes.TryGetValue(StraightToNodeId, out GroundNode? to), $"node {StraightToNodeId} missing from the OAK layout");
 
-        var alongEdge = from.Edges.FirstOrDefault(e => e.OtherNode(from).Id == StraightToNodeId);
+        IGroundEdge? alongEdge = from.Edges.FirstOrDefault(e => e.OtherNode(from).Id == StraightToNodeId);
         Assert.NotNull(alongEdge);
 
         double alongBearing = GeoMath.BearingTo(from.Position, to.Position);
-        var position = Project(from.Position, alongBearing, PastNodeStandoffFt);
+        LatLon position = Project(from.Position, alongBearing, PastNodeStandoffFt);
         output.WriteLine(
             $"aircraft {PastNodeStandoffFt:F0} ft past node {StraightFromNodeId} toward {StraightToNodeId} " + $"on bearing {alongBearing:F0}"
         );
@@ -259,7 +259,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
             HoldShortPoints = [],
         };
 
-        var result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading(alongBearing), route);
+        TaxiRoute result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading(alongBearing), route);
 
         Assert.Same(route, result);
     }
@@ -292,21 +292,21 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void RollingOutTowardTheRunwayExit_PrependsAnAlongRunwayLeg()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(RunwayExitNodeId, out var exit), $"node {RunwayExitNodeId} missing from the OAK layout");
+        Assert.True(layout.Nodes.TryGetValue(RunwayExitNodeId, out GroundNode? exit), $"node {RunwayExitNodeId} missing from the OAK layout");
 
-        var position = Project(exit.Position, (Runway28RHeadingDeg + 180.0) % 360.0, RolloutBehindExitFt);
+        LatLon position = Project(exit.Position, (Runway28RHeadingDeg + 180.0) % 360.0, RolloutBehindExitFt);
         output.WriteLine($"aircraft {RolloutBehindExitFt:F0} ft back along 28R from node {RunwayExitNodeId}, facing {Runway28RHeadingDeg:F0}");
 
-        var aircraft = MakeAircraft(layout, position, Runway28RHeadingDeg);
-        var route = Resolve(layout, aircraft, new TaxiCommand(Path: ["G", "D", "J"], HoldShorts: [], DestinationRunway: null));
+        AircraftState aircraft = MakeAircraft(layout, position, Runway28RHeadingDeg);
+        TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["G", "D", "J"], HoldShorts: [], DestinationRunway: null));
 
-        var leg = route.Segments[0];
+        TaxiRouteSegment leg = route.Segments[0];
         double legStartOffsetFt = GeoMath.DistanceNm(leg.Edge.FromNode.Position, aircraft.Position) * GeoMath.FeetPerNm;
         output.WriteLine($"leg starts {legStartOffsetFt:F2} ft from the aircraft, {leg.Edge.DistanceNm * GeoMath.FeetPerNm:F0} ft long");
 
@@ -323,28 +323,28 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void ApronLineCrossingARunway_AddsNoLeg()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(AcrossRunwayNodeId, out var node), $"node {AcrossRunwayNodeId} missing from the OAK layout");
-        Assert.True(layout.Nodes.TryGetValue(RunwayExitNodeId, out var exit), $"node {RunwayExitNodeId} missing from the OAK layout");
+        Assert.True(layout.Nodes.TryGetValue(AcrossRunwayNodeId, out GroundNode? node), $"node {AcrossRunwayNodeId} missing from the OAK layout");
+        Assert.True(layout.Nodes.TryGetValue(RunwayExitNodeId, out GroundNode? exit), $"node {RunwayExitNodeId} missing from the OAK layout");
         Assert.NotEqual(GroundNodeType.RunwayHoldShort, node.Type);
 
-        var onward = node
+        IGroundEdge? onward = node
             .Edges.Where(e => e is not GroundArc)
             .OrderByDescending(e => GeoMath.DistanceNm(node.Position, e.OtherNode(node).Position))
             .FirstOrDefault();
         Assert.NotNull(onward);
 
-        var onwardNode = onward.OtherNode(node);
+        GroundNode onwardNode = onward.OtherNode(node);
 
         // Back along 28R, then out to its south side: the line from there to the node north of the runway
         // crosses the centerline well away from any node, and the drive stays inside the apron-length bound.
-        var alongRunway = Project(exit.Position, (Runway28RHeadingDeg + 180.0) % 360.0, AcrossRunwayAlongFt);
-        var position = Project(alongRunway, (Runway28RHeadingDeg + 270.0) % 360.0, AcrossRunwayOffsetFt);
+        LatLon alongRunway = Project(exit.Position, (Runway28RHeadingDeg + 180.0) % 360.0, AcrossRunwayAlongFt);
+        LatLon position = Project(alongRunway, (Runway28RHeadingDeg + 270.0) % 360.0, AcrossRunwayOffsetFt);
         double distFt = GeoMath.DistanceNm(position, node.Position) * GeoMath.FeetPerNm;
         output.WriteLine(
             $"aircraft {distFt:F0} ft from node {AcrossRunwayNodeId}, on the far side of 28R; "
@@ -381,7 +381,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     /// </summary>
     private static TaxiRoute ExitFilletRoute(GroundNode exit)
     {
-        var fillet = exit.Edges.FirstOrDefault(e => e.OtherNode(exit).Id == AcrossRunwayNodeId);
+        IGroundEdge? fillet = exit.Edges.FirstOrDefault(e => e.OtherNode(exit).Id == AcrossRunwayNodeId);
         Assert.NotNull(fillet);
 
         return new TaxiRoute
@@ -401,14 +401,17 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void OnAParallelTaxiwayAbeamTheRunway_AddsNoLeg()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(ParallelTaxiwayNodeId, out var abeam), $"node {ParallelTaxiwayNodeId} missing from the OAK layout");
-        Assert.True(layout.Nodes.TryGetValue(RunwayExitNodeId, out var exit), $"node {RunwayExitNodeId} missing from the OAK layout");
+        Assert.True(
+            layout.Nodes.TryGetValue(ParallelTaxiwayNodeId, out GroundNode? abeam),
+            $"node {ParallelTaxiwayNodeId} missing from the OAK layout"
+        );
+        Assert.True(layout.Nodes.TryGetValue(RunwayExitNodeId, out GroundNode? exit), $"node {RunwayExitNodeId} missing from the OAK layout");
 
         double bearingToExit = GeoMath.BearingTo(abeam.Position, exit.Position);
         double offRunwayDeg = GeoMath.AbsBearingDifference(bearingToExit, Runway28RHeadingDeg);
@@ -423,7 +426,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         Assert.True(offRunwayDeg <= AlongRunwayToleranceDeg, $"the fixture must sit within {AlongRunwayToleranceDeg:F0}° of the runway bearing");
         Assert.True(abeamFt > 100.0, $"the fixture must sit off the runway pavement, but it is {abeamFt:F0} ft from the centerline");
 
-        var route = ExitFilletRoute(exit);
+        TaxiRoute route = ExitFilletRoute(exit);
 
         Assert.Same(route, TaxiApproachLeg.Prepend(layout, abeam.Position, new TrueHeading(Runway28RHeadingDeg), route));
     }
@@ -437,22 +440,22 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void OnTheRunwayButHeadingAcrossIt_AddsNoLeg()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(RunwayExitNodeId, out var exit), $"node {RunwayExitNodeId} missing from the OAK layout");
+        Assert.True(layout.Nodes.TryGetValue(RunwayExitNodeId, out GroundNode? exit), $"node {RunwayExitNodeId} missing from the OAK layout");
 
-        var position = Project(exit.Position, (Runway28RHeadingDeg + 180.0) % 360.0, RolloutBehindExitFt);
+        LatLon position = Project(exit.Position, (Runway28RHeadingDeg + 180.0) % 360.0, RolloutBehindExitFt);
         double bearingToExit = GeoMath.BearingTo(position, exit.Position);
         output.WriteLine(
             $"aircraft {RolloutBehindExitFt:F0} ft back along 28R from node {RunwayExitNodeId} (bearing {bearingToExit:F1}), "
                 + $"facing {AcrossRunwayHeadingDeg:F0} — across the runway, not along it"
         );
 
-        var route = ExitFilletRoute(exit);
+        TaxiRoute route = ExitFilletRoute(exit);
 
         Assert.Same(route, TaxiApproachLeg.Prepend(layout, position, new TrueHeading(AcrossRunwayHeadingDeg), route));
     }

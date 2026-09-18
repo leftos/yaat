@@ -42,9 +42,9 @@ public class FlightPlanCommandHandlerTests
             return;
         }
 
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
 
-        var result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "OAK");
+        CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "OAK");
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Equal("KOAK", aircraft.FlightPlan.Destination);
@@ -59,9 +59,9 @@ public class FlightPlanCommandHandlerTests
             return;
         }
 
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
 
-        var result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "KOAK");
+        CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "KOAK");
 
         Assert.True(result.Success);
         Assert.Equal("KOAK", aircraft.FlightPlan.Destination);
@@ -75,9 +75,9 @@ public class FlightPlanCommandHandlerTests
             return;
         }
 
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
 
-        var result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "oak");
+        CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "oak");
 
         Assert.True(result.Success);
         Assert.Equal("KOAK", aircraft.FlightPlan.Destination);
@@ -91,9 +91,9 @@ public class FlightPlanCommandHandlerTests
             return;
         }
 
-        var aircraft = MakeAircraft(initialDestination: "KSFO");
+        AircraftState aircraft = MakeAircraft(initialDestination: "KSFO");
 
-        var result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "ZZZZ");
+        CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "ZZZZ");
 
         Assert.False(result.Success);
         Assert.NotNull(result.Message);
@@ -111,9 +111,9 @@ public class FlightPlanCommandHandlerTests
             return;
         }
 
-        var aircraft = MakeAircraft(initialDestination: "KSFO");
+        AircraftState aircraft = MakeAircraft(initialDestination: "KSFO");
 
-        var result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "");
+        CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "");
 
         Assert.False(result.Success);
         Assert.Equal("KSFO", aircraft.FlightPlan.Destination);
@@ -127,9 +127,9 @@ public class FlightPlanCommandHandlerTests
             return;
         }
 
-        var aircraft = MakeAircraft(initialDestination: "KSFO");
+        AircraftState aircraft = MakeAircraft(initialDestination: "KSFO");
 
-        var result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "   ");
+        CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "   ");
 
         Assert.False(result.Success);
         Assert.Equal("KSFO", aircraft.FlightPlan.Destination);
@@ -144,9 +144,9 @@ public class FlightPlanCommandHandlerTests
             return;
         }
 
-        var aircraft = MakeAircraft(initialDestination: "KSFO");
+        AircraftState aircraft = MakeAircraft(initialDestination: "KSFO");
 
-        var result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "BERKS");
+        CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "BERKS");
 
         Assert.False(result.Success);
         Assert.Equal("KSFO", aircraft.FlightPlan.Destination);
@@ -160,8 +160,8 @@ public class FlightPlanCommandHandlerTests
             return;
         }
 
-        var navDb = TestVnasData.NavigationDb;
-        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        NavigationDatabase navDb = TestVnasData.NavigationDb;
+        (double Lat, double Lon)? hirmoPos = navDb.GetFixPosition("HIRMO");
         if (hirmoPos is null)
         {
             return;
@@ -176,7 +176,7 @@ public class FlightPlanCommandHandlerTests
         };
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
         aircraft.Approach.Expected = "H12-Z";
-        var rwy12 = TestRunwayFactory.Make(designator: "12", airportId: "OAK", heading: 120, thresholdLat: 37.73, thresholdLon: -122.22);
+        RunwayInfo rwy12 = TestRunwayFactory.Make(designator: "12", airportId: "OAK", heading: 120, thresholdLat: 37.73, thresholdLon: -122.22);
         aircraft.Approach.PendingClearance = new PendingApproachInfo
         {
             Clearance = new ApproachClearance
@@ -189,7 +189,7 @@ public class FlightPlanCommandHandlerTests
             AssignedRunway = rwy12,
         };
 
-        var result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "OAK");
+        CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "OAK");
 
         Assert.True(result.Success);
         Assert.Equal("KOAK", aircraft.FlightPlan.Destination);
@@ -230,7 +230,7 @@ public class FlightPlanCommandHandlerTests
             }
         );
 
-        var result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "KOAK");
+        CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "KOAK");
 
         Assert.True(result.Success);
         Assert.Equal("KOAK", aircraft.FlightPlan.Destination);

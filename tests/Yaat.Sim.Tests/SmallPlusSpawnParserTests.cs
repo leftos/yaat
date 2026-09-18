@@ -13,7 +13,7 @@ public class SmallPlusSpawnParserTests
     [Fact]
     public void Parse_SmallPlusJet_IsAllowed()
     {
-        var (request, error) = SpawnParser.Parse("I S+ J 28R 10");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I S+ J 28R 10");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -24,7 +24,7 @@ public class SmallPlusSpawnParserTests
     [Fact]
     public void Parse_SmallPlusTurboprop_IsAllowed()
     {
-        var (request, error) = SpawnParser.Parse("I S+ T 28R 10");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I S+ T 28R 10");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -35,7 +35,7 @@ public class SmallPlusSpawnParserTests
     [Fact]
     public void Parse_SmallPlusPiston_IsRejected()
     {
-        var (request, error) = SpawnParser.Parse("I S+ P 28R");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I S+ P 28R");
 
         Assert.Null(request);
         Assert.NotNull(error);
@@ -44,7 +44,7 @@ public class SmallPlusSpawnParserTests
     [Fact]
     public void Parse_SmallToken_StillMeansSmall_NotSmallPlus()
     {
-        var (request, error) = SpawnParser.Parse("I S P 28R");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I S P 28R");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -55,7 +55,7 @@ public class SmallPlusSpawnParserTests
     public void Parse_SmallJet_StillRejected()
     {
         // Small + Jet remains invalid (unchanged) — only SmallPlus opens the jet path for small-ish types.
-        var (request, error) = SpawnParser.Parse("I S J 28R");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I S J 28R");
 
         Assert.Null(request);
         Assert.NotNull(error);

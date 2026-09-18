@@ -50,13 +50,13 @@ public static class AircraftStatusDescriber
             return (i.IsCoasting ? "LIVE CST" : "LIVE", AircraftStatusSeverity.Normal);
         }
 
-        var (normalText, normalSeverity) = ComputeNormalStatus(i);
+        (string? normalText, AircraftStatusSeverity normalSeverity) = ComputeNormalStatus(i);
 
-        var alert = CheckAlerts(i);
+        (string Text, AircraftStatusSeverity Severity)? alert = CheckAlerts(i);
         if (alert is not null)
         {
-            var (alertText, alertSeverity) = alert.Value;
-            var combined = string.IsNullOrEmpty(normalText) ? alertText : $"{alertText} · {CapitalizeFirst(normalText)}";
+            (string? alertText, AircraftStatusSeverity alertSeverity) = alert.Value;
+            string combined = string.IsNullOrEmpty(normalText) ? alertText : $"{alertText} · {CapitalizeFirst(normalText)}";
             return (combined, alertSeverity);
         }
 
@@ -73,11 +73,11 @@ public static class AircraftStatusDescriber
     {
         if (!string.IsNullOrEmpty(i.CurrentPhase))
         {
-            var (text, severity) = ComputePhaseStatus(i);
+            (string? text, AircraftStatusSeverity severity) = ComputePhaseStatus(i);
             return (AppendHeadingIfAssigned(i, text, ShouldKeepHeadingSuffix(i.CurrentPhase)), severity);
         }
 
-        var noPhase = ComputeNoPhaseStatus(i);
+        (string Text, AircraftStatusSeverity Severity) noPhase = ComputeNoPhaseStatus(i);
         return (AppendPendingClearance(i, AppendHeadingIfAssigned(i, noPhase.Text, keep: true)), noPhase.Severity);
     }
 
@@ -93,8 +93,8 @@ public static class AircraftStatusDescriber
             return text;
         }
 
-        var runway = string.IsNullOrEmpty(i.PendingLandingClearanceRunway) ? "" : $" {i.PendingLandingClearanceRunway}";
-        var armed = $"{i.PendingLandingClearance}{runway} armed";
+        string runway = string.IsNullOrEmpty(i.PendingLandingClearanceRunway) ? "" : $" {i.PendingLandingClearanceRunway}";
+        string armed = $"{i.PendingLandingClearance}{runway} armed";
         return string.IsNullOrEmpty(text) ? armed : $"{text}, {armed}";
     }
 
@@ -180,7 +180,7 @@ public static class AircraftStatusDescriber
 
         public static AircraftStatusView FromState(AircraftState ac, AircraftStatusContext ctx)
         {
-            var navNames = BuildNavigationRoute(ac.Targets);
+            List<string> navNames = BuildNavigationRoute(ac.Targets);
             return new AircraftStatusView
             {
                 CurrentPhase = ac.Phases?.CurrentPhase?.Name ?? "",
@@ -241,7 +241,7 @@ public static class AircraftStatusDescriber
 
         if (!string.IsNullOrEmpty(i.HandoffPeer))
         {
-            var target = i.HandoffPeerSectorCode ?? i.HandoffPeer;
+            string target = i.HandoffPeerSectorCode ?? i.HandoffPeer;
             return ($"HO → {target}", AircraftStatusSeverity.Warning);
         }
 
@@ -264,11 +264,11 @@ public static class AircraftStatusDescriber
 
     private static (string Text, AircraftStatusSeverity Severity) ComputePhaseStatus(AircraftStatusView i)
     {
-        var dir = string.IsNullOrEmpty(i.PatternDirection) ? "" : i.PatternDirection.ToLowerInvariant();
+        string dir = string.IsNullOrEmpty(i.PatternDirection) ? "" : i.PatternDirection.ToLowerInvariant();
         // Runway the aircraft lines up / takes off on. Equals AssignedRunway except for
         // cross-runway closed traffic. Fall back to AssignedRunway for partial views.
-        var lineupRwy = string.IsNullOrEmpty(i.LineupRunway) ? i.AssignedRunway : i.LineupRunway;
-        var text = i.CurrentPhase switch
+        string lineupRwy = string.IsNullOrEmpty(i.LineupRunway) ? i.AssignedRunway : i.LineupRunway;
+        string text = i.CurrentPhase switch
         {
             "At Parking" => string.IsNullOrEmpty(i.ParkingSpot) ? "at parking" : $"at parking {i.ParkingSpot}",
             "Pushback" or "Pushback to Spot" => "pushing back",
@@ -313,8 +313,8 @@ public static class AircraftStatusDescriber
 
     private static string FormatPatternEntryStatus(AircraftStatusView i)
     {
-        var dir = string.IsNullOrEmpty(i.PatternDirection) ? "" : i.PatternDirection.ToLowerInvariant();
-        var rwy = i.AssignedRunway;
+        string dir = string.IsNullOrEmpty(i.PatternDirection) ? "" : i.PatternDirection.ToLowerInvariant();
+        string rwy = i.AssignedRunway;
 
         return i.PatternEntryKind switch
         {
@@ -333,13 +333,13 @@ public static class AircraftStatusDescriber
 
     private static string FormatCrossingRunwayStatus(AircraftStatusView i)
     {
-        var rwy = string.IsNullOrEmpty(i.CrossingRunwayId) ? i.AssignedRunway : i.CrossingRunwayId;
+        string rwy = string.IsNullOrEmpty(i.CrossingRunwayId) ? i.AssignedRunway : i.CrossingRunwayId;
         return string.IsNullOrEmpty(rwy) ? "crossing runway" : $"crossing runway {rwy}";
     }
 
     private static string FormatHoldingAfterExitStatus(AircraftStatusView i)
     {
-        var rwy = string.IsNullOrEmpty(i.ExitingRunwayId) ? i.AssignedRunway : i.ExitingRunwayId;
+        string rwy = string.IsNullOrEmpty(i.ExitingRunwayId) ? i.AssignedRunway : i.ExitingRunwayId;
         if (string.IsNullOrEmpty(rwy))
         {
             return "clear of runway";
@@ -353,7 +353,7 @@ public static class AircraftStatusDescriber
 
     private static string FormatRunwayExitStatus(AircraftStatusView i)
     {
-        var rwy = string.IsNullOrEmpty(i.ExitingRunwayId) ? i.AssignedRunway : i.ExitingRunwayId;
+        string rwy = string.IsNullOrEmpty(i.ExitingRunwayId) ? i.AssignedRunway : i.ExitingRunwayId;
         if (string.IsNullOrEmpty(rwy))
         {
             return "exiting runway";
@@ -367,7 +367,7 @@ public static class AircraftStatusDescriber
 
     private static string FormatTaxiStatus(AircraftStatusView i)
     {
-        var baseText = string.IsNullOrEmpty(i.AssignedRunway) ? "taxiing" : $"taxi to RWY {i.AssignedRunway}";
+        string baseText = string.IsNullOrEmpty(i.AssignedRunway) ? "taxiing" : $"taxi to RWY {i.AssignedRunway}";
         if (!string.IsNullOrEmpty(i.AssignedRunway) && !string.IsNullOrEmpty(i.RunwayQueueIntersection))
         {
             baseText = $"{baseText} @ {i.RunwayQueueIntersection}";
@@ -387,8 +387,8 @@ public static class AircraftStatusDescriber
 
     private static string FormatInitialClimbStatus(AircraftStatusView i)
     {
-        var text = $"departing {i.DepartureRunway}";
-        var lateral = FormatDepartureLateral(i);
+        string text = $"departing {i.DepartureRunway}";
+        string lateral = FormatDepartureLateral(i);
         if (!string.IsNullOrEmpty(lateral))
         {
             text = $"{text}, {lateral}";
@@ -440,7 +440,7 @@ public static class AircraftStatusDescriber
 
     private static string FormatApproachNavStatus(AircraftStatusView i)
     {
-        var text = i.ActiveApproachId ?? "";
+        string text = i.ActiveApproachId ?? "";
         if (i.NavigationRouteCount > 0)
         {
             text = $"{text} → {i.NavigationRouteDisplay}";
@@ -454,7 +454,7 @@ public static class AircraftStatusDescriber
         {
             return $"{i.ActiveApproachId} final";
         }
-        var rwy = string.IsNullOrEmpty(i.ClearedRunway) ? i.AssignedRunway : i.ClearedRunway;
+        string rwy = string.IsNullOrEmpty(i.ClearedRunway) ? i.AssignedRunway : i.ClearedRunway;
         return $"final {rwy}";
     }
 
@@ -462,12 +462,12 @@ public static class AircraftStatusDescriber
     {
         if (i.CurrentPhase.StartsWith("Holding Short", StringComparison.Ordinal))
         {
-            var target = i.CurrentPhase.Length > 14 ? i.CurrentPhase[14..] : "";
+            string target = i.CurrentPhase.Length > 14 ? i.CurrentPhase[14..] : "";
             if (string.IsNullOrEmpty(target))
             {
                 return "holding short";
             }
-            var twy = i.CurrentTaxiway;
+            string twy = i.CurrentTaxiway;
             if (target.StartsWith("spot ", StringComparison.Ordinal))
             {
                 return string.IsNullOrEmpty(twy) ? $"holding short of {target}" : $"holding short of {target} on {twy}";
@@ -479,8 +479,8 @@ public static class AircraftStatusDescriber
                 // A departure in the queue names its entry point the same way the ground datablock does:
                 // the taxiway for an intersection departure, nothing at all for a full-length one. Aircraft
                 // holding short to cross keep the plain "where it is stopped" taxiway.
-                var entry = i.RunwayQueuePosition > 0 ? i.RunwayQueueIntersection : twy;
-                var runwayHold = string.IsNullOrEmpty(entry) ? $"holding short {target}" : $"holding short {target} @ {entry}";
+                string entry = i.RunwayQueuePosition > 0 ? i.RunwayQueueIntersection : twy;
+                string runwayHold = string.IsNullOrEmpty(entry) ? $"holding short {target}" : $"holding short {target} @ {entry}";
                 return AppendQueuePosition(runwayHold, i.RunwayQueuePosition);
             }
             return string.IsNullOrEmpty(twy) ? $"holding short of {target}" : $"holding short of {target} on {twy}";
@@ -603,7 +603,7 @@ public static class AircraftStatusDescriber
         }
 
         var names = new List<string>(targets.NavigationRoute.Count);
-        foreach (var nav in targets.NavigationRoute)
+        foreach (NavigationTarget nav in targets.NavigationRoute)
         {
             // Skip synthetic arc-densification vertices — they are path points, not fixes a
             // controller reads in a status line.
@@ -641,7 +641,7 @@ public static class AircraftStatusDescriber
         {
             return null;
         }
-        var current = phases.CurrentPhase;
+        Phase? current = phases.CurrentPhase;
         if (current is RunwayExitPhase exit)
         {
             return exit.RunwayId;

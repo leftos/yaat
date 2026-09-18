@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -46,20 +47,20 @@ public class CtoppHoverHoldTests(ITestOutputHelper output)
     [Fact]
     public void BareCtopp_HelicopterHoldsPosition_NoWestboundDrift()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 850);
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.True(aircraft.IsOnGround);
-        var spot = aircraft.Position;
+        LatLon spot = aircraft.Position;
 
-        var result = engine.SendCommand(Callsign, "CTOPP");
+        CommandResult result = engine.SendCommand(Callsign, "CTOPP");
         Assert.True(result.Success, result.Message);
 
         double maxDriftFt = 0;
@@ -98,20 +99,20 @@ public class CtoppHoverHoldTests(ITestOutputHelper output)
     [Fact]
     public void BareCtopp_ReachesHoverAndHolds()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 850);
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.True(aircraft.IsOnGround);
         double fieldElevation = aircraft.Altitude;
 
-        var result = engine.SendCommand(Callsign, "CTOPP");
+        CommandResult result = engine.SendCommand(Callsign, "CTOPP");
         Assert.True(result.Success, result.Message);
 
         for (int t = 1; t <= 30; t++)
@@ -137,8 +138,8 @@ public class CtoppHoverHoldTests(ITestOutputHelper output)
     [Fact]
     public void BareCtopp_BuildsHoverChain_ZeroForwardSpeed()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -146,14 +147,14 @@ public class CtoppHoverHoldTests(ITestOutputHelper output)
 
         // Land at t=854 — CMD6 is parked on the ground, just before the recorded CTOPP fires.
         engine.Replay(recording, 850);
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.True(aircraft.IsOnGround);
 
-        var result = engine.SendCommand(Callsign, "CTOPP");
+        CommandResult result = engine.SendCommand(Callsign, "CTOPP");
         Assert.True(result.Success, result.Message);
 
-        var takeoff = Assert.IsType<HelicopterTakeoffPhase>(aircraft.Phases!.CurrentPhase);
+        HelicopterTakeoffPhase takeoff = Assert.IsType<HelicopterTakeoffPhase>(aircraft.Phases!.CurrentPhase);
         Assert.Equal(25, takeoff.CompletionAgl);
         Assert.Contains(aircraft.Phases.Phases, p => p is VfrHoldPhase);
         Assert.Equal(0, aircraft.Targets.TargetSpeed);
@@ -165,21 +166,21 @@ public class CtoppHoverHoldTests(ITestOutputHelper output)
     [Fact]
     public void CtoppPlusAgl_SetsHoverAltitude()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 850);
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
-        var result = engine.SendCommand(Callsign, "CTOPP +002");
+        CommandResult result = engine.SendCommand(Callsign, "CTOPP +002");
         Assert.True(result.Success, result.Message);
 
-        var takeoff = Assert.IsType<HelicopterTakeoffPhase>(aircraft.Phases!.CurrentPhase);
+        HelicopterTakeoffPhase takeoff = Assert.IsType<HelicopterTakeoffPhase>(aircraft.Phases!.CurrentPhase);
         Assert.Equal(200, takeoff.CompletionAgl);
         Assert.Contains(aircraft.Phases.Phases, p => p is VfrHoldPhase);
     }
@@ -195,21 +196,21 @@ public class CtoppHoverHoldTests(ITestOutputHelper output)
     [Fact]
     public void DirectionalCtopp_HoldsPositionThroughEntireVerticalLiftoff()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 850);
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.True(aircraft.IsOnGround);
         double fieldElevation = aircraft.Altitude;
-        var spot = aircraft.Position;
+        LatLon spot = aircraft.Position;
 
-        var result = engine.SendCommand(Callsign, "CTOPP 090");
+        CommandResult result = engine.SendCommand(Callsign, "CTOPP 090");
         Assert.True(result.Success, result.Message);
 
         Assert.IsType<HelicopterTakeoffPhase>(aircraft.Phases!.CurrentPhase);

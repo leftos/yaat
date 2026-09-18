@@ -54,10 +54,10 @@ public class GeneratorAutoTrackRoundTripTests(ITestOutputHelper output)
         }
 
         var violations = new List<string>();
-        var generators = 0;
-        var autoTracks = 0;
+        int generators = 0;
+        int autoTracks = 0;
 
-        foreach (var file in files)
+        foreach (string? file in files)
         {
             JsonDocument doc;
             try
@@ -71,18 +71,18 @@ public class GeneratorAutoTrackRoundTripTests(ITestOutputHelper output)
 
             using (doc)
             {
-                var name = Path.GetFileName(file);
-                var root = doc.RootElement;
+                string name = Path.GetFileName(file);
+                JsonElement root = doc.RootElement;
 
-                if (root.TryGetProperty("aircraftGenerators", out var gens) && gens.ValueKind == JsonValueKind.Array)
+                if (root.TryGetProperty("aircraftGenerators", out JsonElement gens) && gens.ValueKind == JsonValueKind.Array)
                 {
-                    foreach (var gen in gens.EnumerateArray())
+                    foreach (JsonElement gen in gens.EnumerateArray())
                     {
                         generators++;
                         CheckObjectKeys(gen, GeneratorKeys, $"{name} aircraftGenerators[]", violations);
                         CheckEnum(gen, "engineType", EngineNames, $"{name} generator", violations);
                         CheckEnum(gen, "weightCategory", WeightNames, $"{name} generator", violations);
-                        if (gen.TryGetProperty("autoTrackConfiguration", out var at) && at.ValueKind == JsonValueKind.Object)
+                        if (gen.TryGetProperty("autoTrackConfiguration", out JsonElement at) && at.ValueKind == JsonValueKind.Object)
                         {
                             autoTracks++;
                             CheckObjectKeys(at, AutoTrackKeys, $"{name} generator.autoTrackConfiguration", violations);
@@ -90,11 +90,11 @@ public class GeneratorAutoTrackRoundTripTests(ITestOutputHelper output)
                     }
                 }
 
-                if (root.TryGetProperty("aircraft", out var acs) && acs.ValueKind == JsonValueKind.Array)
+                if (root.TryGetProperty("aircraft", out JsonElement acs) && acs.ValueKind == JsonValueKind.Array)
                 {
-                    foreach (var ac in acs.EnumerateArray())
+                    foreach (JsonElement ac in acs.EnumerateArray())
                     {
-                        if (ac.TryGetProperty("autoTrackConditions", out var at) && at.ValueKind == JsonValueKind.Object)
+                        if (ac.TryGetProperty("autoTrackConditions", out JsonElement at) && at.ValueKind == JsonValueKind.Object)
                         {
                             autoTracks++;
                             CheckObjectKeys(at, AutoTrackKeys, $"{name} aircraft.autoTrackConditions", violations);
@@ -115,7 +115,7 @@ public class GeneratorAutoTrackRoundTripTests(ITestOutputHelper output)
 
     private static void CheckObjectKeys(JsonElement obj, HashSet<string> known, string where, List<string> violations)
     {
-        foreach (var prop in obj.EnumerateObject())
+        foreach (JsonProperty prop in obj.EnumerateObject())
         {
             if (!known.Contains(prop.Name))
             {
@@ -126,9 +126,9 @@ public class GeneratorAutoTrackRoundTripTests(ITestOutputHelper output)
 
     private static void CheckEnum(JsonElement obj, string key, HashSet<string> known, string where, List<string> violations)
     {
-        if (obj.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String)
+        if (obj.TryGetProperty(key, out JsonElement v) && v.ValueKind == JsonValueKind.String)
         {
-            var s = v.GetString();
+            string? s = v.GetString();
             if (s is not null && !known.Contains(s))
             {
                 violations.Add($"{where}: {key}='{s}' is not a known enum value (silent fallback masks it)");

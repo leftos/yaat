@@ -63,7 +63,7 @@ public class App : Application
             // client (GitHub #237). Log it and keep the message loop alive so a transient fault
             // degrades gracefully instead of crashing. Wired only for the real desktop app — the
             // headless test host never enters this block, so tests still observe UI-thread faults.
-            var dispatcherLog = AppLog.CreateLogger("Dispatcher");
+            ILogger dispatcherLog = AppLog.CreateLogger("Dispatcher");
             Dispatcher.UIThread.UnhandledException += (_, e) =>
             {
                 dispatcherLog.LogError(e.Exception, "Unhandled UI-thread exception (recovered)");

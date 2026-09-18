@@ -46,7 +46,7 @@ public static class RouteSplicer
             spliceArg = spliceArg[..^1].Trim();
         }
 
-        var parts = spliceArg.Split(['.', ' '], StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = spliceArg.Split(['.', ' '], StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
         {
             return null;
@@ -125,7 +125,7 @@ public static class RouteSplicer
         {
             return (tokens[0], "", "");
         }
-        var enroute = string.Join(' ', tokens.Skip(1).Take(tokens.Count - 2));
+        string enroute = string.Join(' ', tokens.Skip(1).Take(tokens.Count - 2));
         return (tokens[0], enroute, tokens[^1]);
     }
 

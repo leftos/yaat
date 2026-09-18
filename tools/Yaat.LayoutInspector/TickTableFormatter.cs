@@ -28,7 +28,7 @@ public static class TickTableFormatter
             header += $" {"xteFt", 8} {"hdgErr", 7}";
         }
 
-        foreach (var er in exitRefs)
+        foreach (ExitRef er in exitRefs)
         {
             // along_<twy> = signed along-track in ft, positive = hold-short ahead of aircraft
             // dist_<twy>  = straight-line distance in ft
@@ -39,7 +39,7 @@ public static class TickTableFormatter
         Console.WriteLine(new string('-', header.Length));
 
         int? prevNav = null;
-        foreach (var row in rows)
+        foreach (TickDataRow row in rows)
         {
             string distFt = row.NavDist is { } d ? $"{d * FeetPerNm, 7:F1}" : "-".PadLeft(7);
             string nav = (row.NavTarget?.ToString(CultureInfo.InvariantCulture) ?? "-").PadLeft(5);
@@ -54,7 +54,7 @@ public static class TickTableFormatter
                 line += $" {xte, 8:F2} {FmtSigned(herr, 7)}";
             }
 
-            foreach (var er in exitRefs)
+            foreach (ExitRef er in exitRefs)
             {
                 if (refLine is not { } r2)
                 {
@@ -93,7 +93,7 @@ public static class TickTableFormatter
         int? curNav = null;
         TickDataRow? segStart = null;
         TickDataRow? prev = null;
-        foreach (var row in rows)
+        foreach (TickDataRow row in rows)
         {
             if (row.NavTarget != curNav)
             {

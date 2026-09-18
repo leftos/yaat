@@ -46,8 +46,8 @@ public class IssueSawDeparturesReservedSquawkTests(ITestOutputHelper output)
     [Fact]
     public void N157LE_DepartureSpawn_DoesNotSquawkReservedCode()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -56,7 +56,7 @@ public class IssueSawDeparturesReservedSquawkTests(ITestOutputHelper output)
 
         engine.Replay(recording, AssertAtSeconds);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
         output.WriteLine($"{Callsign} @ t={AssertAtSeconds}s: AssignedCode={ac.Transponder.AssignedCode:D4} Code={ac.Transponder.Code:D4}");
@@ -71,8 +71,8 @@ public class IssueSawDeparturesReservedSquawkTests(ITestOutputHelper output)
     [Fact]
     public void NoAircraftSpawnsWithReservedAssignedCode()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");

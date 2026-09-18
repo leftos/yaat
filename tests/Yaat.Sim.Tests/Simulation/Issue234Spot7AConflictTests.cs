@@ -43,7 +43,7 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {
             return;
@@ -51,8 +51,8 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).EnableCategory("TaxiingPhase", LogLevel.Debug).InitializeSimLog();
 
-        var spot = layout.FindSpotNodeByName("7A");
-        var f8 = layout.FindParkingByName("F8");
+        GroundNode? spot = layout.FindSpotNodeByName("7A");
+        GroundNode? f8 = layout.FindParkingByName("F8");
         if (spot is null || f8 is null)
         {
             return;
@@ -61,10 +61,10 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
         var engine = new SimulationEngine(groundData);
         engine.Scenario = MakeScenario();
 
-        var jet = MakeGroundAircraft(Taxiing, "CRJ2", f8.Position, f8.TrueHeading ?? new TrueHeading(0), layout, new AtParkingPhase());
+        AircraftState jet = MakeGroundAircraft(Taxiing, "CRJ2", f8.Position, f8.TrueHeading ?? new TrueHeading(0), layout, new AtParkingPhase());
         engine.World.AddAircraft(jet);
 
-        var cmd = engine.SendCommand(Taxiing, "TAXI T7A $7A");
+        CommandResult cmd = engine.SendCommand(Taxiing, "TAXI T7A $7A");
         Assert.True(cmd.Success, $"TAXI command failed: {cmd.Message}");
 
         double lengthFt = FaaAircraftDatabase.Get("CRJ2")?.LengthFt ?? 88.0;
@@ -74,7 +74,7 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
         for (int t = 1; t <= 240; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Taxiing);
+            AircraftState? ac = engine.FindAircraft(Taxiing);
             if (ac is null)
             {
                 break;
@@ -109,9 +109,9 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
     [Fact]
     public void SpotAircraftForwardPosition_GatesTaxiwayASpeed()
     {
-        var noseAtSpot = RunPass(forwardOffsetFt: -69); // pulled back a half B739 length
-        var centroid = RunPass(forwardOffsetFt: 0); // centered on the spot marking
-        var overshoot = RunPass(forwardOffsetFt: 75); // stopped too far forward, toward A
+        PassResult? noseAtSpot = RunPass(forwardOffsetFt: -69); // pulled back a half B739 length
+        PassResult? centroid = RunPass(forwardOffsetFt: 0); // centered on the spot marking
+        PassResult? overshoot = RunPass(forwardOffsetFt: 75); // stopped too far forward, toward A
 
         if (noseAtSpot is null || centroid is null || overshoot is null)
         {
@@ -163,7 +163,7 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {
             return null;
@@ -171,9 +171,9 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var spot = layout.FindSpotNodeByName("7A");
-        var aJunction = layout.FindIntersectionNode("A", "T7A");
-        var f10 = layout.FindParkingByName("F10");
+        GroundNode? spot = layout.FindSpotNodeByName("7A");
+        GroundNode? aJunction = layout.FindIntersectionNode("A", "T7A");
+        GroundNode? f10 = layout.FindParkingByName("F10");
         if (spot is null || aJunction is null || f10 is null)
         {
             return null;
@@ -184,14 +184,14 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
 
         // Spot occupant (B739) facing taxiway A, centroid offset forwardOffsetFt toward A from the marking.
         double hdgToA = GeoMath.BearingTo(spot.Position, aJunction.Position);
-        var occPos = GeoMath.ProjectPoint(spot.Position, new TrueHeading(hdgToA), forwardOffsetFt / GeoMath.FeetPerNm);
-        var occ = MakeGroundAircraft(SpotAc, "B739", occPos, new TrueHeading(hdgToA), layout, new HoldingInPositionPhase());
+        LatLon occPos = GeoMath.ProjectPoint(spot.Position, new TrueHeading(hdgToA), forwardOffsetFt / GeoMath.FeetPerNm);
+        AircraftState occ = MakeGroundAircraft(SpotAc, "B739", occPos, new TrueHeading(hdgToA), layout, new HoldingInPositionPhase());
         occ.Ground.CurrentTaxiway = "T7A";
         engine.World.AddAircraft(occ);
 
-        var jet = MakeGroundAircraft(Taxiing, "E75L", f10.Position, f10.TrueHeading ?? new TrueHeading(0), layout, new AtParkingPhase());
+        AircraftState jet = MakeGroundAircraft(Taxiing, "E75L", f10.Position, f10.TrueHeading ?? new TrueHeading(0), layout, new AtParkingPhase());
         engine.World.AddAircraft(jet);
-        var cmd = engine.SendCommand(Taxiing, "TAXI A M1 01L");
+        CommandResult cmd = engine.SendCommand(Taxiing, "TAXI A M1 01L");
         if (!cmd.Success)
         {
             return null;
@@ -206,7 +206,7 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
         for (int t = 1; t <= 220 && !passed; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Taxiing);
+            AircraftState? ac = engine.FindAircraft(Taxiing);
             if (ac is null)
             {
                 break;
@@ -218,7 +218,7 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
             {
                 reached = true;
                 minGs = Math.Min(minGs, ac.GroundSpeed);
-                var occAc = engine.FindAircraft(SpotAc);
+                AircraftState? occAc = engine.FindAircraft(SpotAc);
                 if (occAc is not null)
                 {
                     minDist = Math.Min(minDist, GeoMath.DistanceNm(ac.Position, occAc.Position) * GeoMath.FeetPerNm);

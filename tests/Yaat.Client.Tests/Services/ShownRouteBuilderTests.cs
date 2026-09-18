@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.ViewModels;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -23,7 +24,7 @@ public class ShownRouteBuilderTests
     public void BuildPrimary_StarEndingInVm_ReturnsTailFromAnchorFixOnPublishedHeading()
     {
         // STAR: ENROU → WNDSR (anchor fix) → VM "fly heading 280° for vectors"
-        var stars = new[]
+        CifpStarProcedure[] stars = new[]
         {
             new CifpStarProcedure(
                 Airport,
@@ -56,7 +57,7 @@ public class ShownRouteBuilderTests
             NavRouteFixes = [new NavRouteFixDto("ENROU", 38.0, -122.5, null), new NavRouteFixDto("WNDSR", 37.85, -122.30, null)],
         };
 
-        var (waypoints, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+        (List<DrawnWaypoint>? waypoints, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
 
         Assert.Collection(waypoints, wp => Assert.Equal("ENROU", wp.ResolvedName), wp => Assert.Equal("WNDSR", wp.ResolvedName));
         Assert.NotNull(tail);
@@ -82,7 +83,7 @@ public class ShownRouteBuilderTests
             ]
         );
 
-        var stars = new[]
+        CifpStarProcedure[] stars = new[]
         {
             new CifpStarProcedure(
                 Airport,
@@ -111,7 +112,7 @@ public class ShownRouteBuilderTests
             NavigationRoute = ["HOPTA", "ALLXX", "CRSEN"],
         };
 
-        var (_, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+        (List<DrawnWaypoint> _, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
 
         Assert.NotNull(tail);
         Assert.Equal(37.69, tail!.FromLat, 6);
@@ -133,7 +134,7 @@ public class ShownRouteBuilderTests
             ]
         );
 
-        var stars = new[]
+        CifpStarProcedure[] stars = new[]
         {
             new CifpStarProcedure(
                 Airport,
@@ -161,7 +162,7 @@ public class ShownRouteBuilderTests
             NavRouteFixes = [new NavRouteFixDto("HOPTA", 37.78, -122.15, null)],
         };
 
-        var (_, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+        (List<DrawnWaypoint> _, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
 
         Assert.NotNull(tail);
         Assert.Equal(112.0, tail!.HeadingMag, 3);
@@ -181,7 +182,7 @@ public class ShownRouteBuilderTests
             ]
         );
 
-        var stars = new[]
+        CifpStarProcedure[] stars = new[]
         {
             new CifpStarProcedure(
                 Airport,
@@ -209,7 +210,7 @@ public class ShownRouteBuilderTests
             NavRouteFixes = [new NavRouteFixDto("HOPTA", 37.78, -122.15, null)],
         };
 
-        var (_, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+        (List<DrawnWaypoint> _, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
 
         Assert.Null(tail);
     }
@@ -217,7 +218,7 @@ public class ShownRouteBuilderTests
     [Fact]
     public void BuildPrimary_StarEndingAtFix_NoVectorLeg_ReturnsNullTail()
     {
-        var stars = new[]
+        CifpStarProcedure[] stars = new[]
         {
             new CifpStarProcedure(
                 Airport,
@@ -249,7 +250,7 @@ public class ShownRouteBuilderTests
             NavigationRoute = ["ENROU", "WNDSR"],
         };
 
-        var (_, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+        (List<DrawnWaypoint> _, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
         Assert.Null(tail);
     }
 
@@ -265,7 +266,7 @@ public class ShownRouteBuilderTests
             ]
         );
 
-        var sids = new[]
+        CifpSidProcedure[] sids = new[]
         {
             new CifpSidProcedure(
                 Airport,
@@ -293,7 +294,7 @@ public class ShownRouteBuilderTests
             NavigationRoute = ["DEPRW", "CLIMB"],
         };
 
-        var (_, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+        (List<DrawnWaypoint> _, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
 
         Assert.NotNull(tail);
         Assert.Equal(37.74, tail!.FromLat, 6);
@@ -313,7 +314,7 @@ public class ShownRouteBuilderTests
             AssignedHeading = new MagneticHeading(250.0),
         };
 
-        var (waypoints, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+        (List<DrawnWaypoint>? waypoints, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
 
         Assert.Empty(waypoints);
         Assert.NotNull(tail);
@@ -339,7 +340,7 @@ public class ShownRouteBuilderTests
             NavRouteFixes = [new NavRouteFixDto("ENROU", 38.0, -122.5, null), new NavRouteFixDto("WNDSR", 37.85, -122.30, null)],
         };
 
-        var (_, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+        (List<DrawnWaypoint> _, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
         Assert.Null(tail);
     }
 
@@ -363,7 +364,7 @@ public class ShownRouteBuilderTests
             ],
         };
 
-        var (waypoints, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+        (List<DrawnWaypoint>? waypoints, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
 
         Assert.Null(tail);
         Assert.Equal(4, waypoints.Count);
@@ -388,7 +389,7 @@ public class ShownRouteBuilderTests
     public void BuildExpectedApproach_NoTransition_PrependsFacReciprocalAnchor_AppendsRunwayThreshold()
     {
         // Runway 30 oriented true heading 300° (so reciprocal = 120°).
-        var runway = MakeRunway(threshold30Lat: 37.72, threshold30Lon: -122.22, trueHdg30: 300.0);
+        RunwayInfo runway = MakeRunway(threshold30Lat: 37.72, threshold30Lon: -122.22, trueHdg30: 300.0);
 
         var procedure = new CifpApproachProcedure(
             Airport,
@@ -427,9 +428,9 @@ public class ShownRouteBuilderTests
             ExpectedApproach = "I30",
         };
 
-        var result = ShownRouteBuilder.BuildExpectedApproach(ac, navDb);
+        (List<DrawnWaypoint> Waypoints, VectorTail? Tail)? result = ShownRouteBuilder.BuildExpectedApproach(ac, navDb);
         Assert.NotNull(result);
-        var (waypoints, tail) = result!.Value;
+        (List<DrawnWaypoint>? waypoints, VectorTail? tail) = result!.Value;
         Assert.Null(tail);
 
         // Expected sequence: synthetic FAC-extension anchor (empty name) → IFFAF → FAF30 → RW30 threshold.
@@ -441,7 +442,7 @@ public class ShownRouteBuilderTests
 
         // The anchor must be approximately 20 nm back from IFFAF along the FAC reciprocal
         // (true 120°). Verify by checking the great-circle distance and the bearing.
-        var (anchorLat, anchorLon) = (waypoints[0].Lat, waypoints[0].Lon);
+        (double anchorLat, double anchorLon) = (waypoints[0].Lat, waypoints[0].Lon);
         double distNm = GeoMath.DistanceNm(anchorLat, anchorLon, waypoints[1].Lat, waypoints[1].Lon);
         Assert.InRange(distNm, ShownRouteBuilder.FacExtensionNm - 0.5, ShownRouteBuilder.FacExtensionNm + 0.5);
     }
@@ -449,7 +450,7 @@ public class ShownRouteBuilderTests
     [Fact]
     public void BuildExpectedApproach_NamedTransition_BuildsTransitionThenCommonThenRunway()
     {
-        var runway = MakeRunway(threshold30Lat: 37.72, threshold30Lon: -122.22, trueHdg30: 300.0);
+        RunwayInfo runway = MakeRunway(threshold30Lat: 37.72, threshold30Lon: -122.22, trueHdg30: 300.0);
         var transition = new CifpTransition(
             "SHARK",
             [
@@ -495,12 +496,12 @@ public class ShownRouteBuilderTests
             ExpectedApproach = "I30.SHARK",
         };
 
-        var result = ShownRouteBuilder.BuildExpectedApproach(ac, navDb);
+        (List<DrawnWaypoint> Waypoints, VectorTail? Tail)? result = ShownRouteBuilder.BuildExpectedApproach(ac, navDb);
         Assert.NotNull(result);
 
         // Transition legs (SHARK → IFFAF) then common (FAF30 → RW30 threshold).
         // IFFAF in common is trimmed because it's the transition endpoint.
-        var waypoints = result!.Value.Waypoints;
+        List<DrawnWaypoint> waypoints = result!.Value.Waypoints;
         Assert.Collection(
             waypoints,
             wp => Assert.Equal("SHARK", wp.ResolvedName),
@@ -537,7 +538,7 @@ public class ShownRouteBuilderTests
     [Fact]
     public void ParseApproachHint_NoDot_ReturnsApproachOnly()
     {
-        var (approach, transition) = ShownRouteBuilder.ParseApproachHint("ILS 30");
+        (string? approach, string? transition) = ShownRouteBuilder.ParseApproachHint("ILS 30");
         Assert.Equal("ILS 30", approach);
         Assert.Null(transition);
     }
@@ -545,7 +546,7 @@ public class ShownRouteBuilderTests
     [Fact]
     public void ParseApproachHint_WithDot_SplitsApproachAndTransition()
     {
-        var (approach, transition) = ShownRouteBuilder.ParseApproachHint("I30.SHARK");
+        (string? approach, string? transition) = ShownRouteBuilder.ParseApproachHint("I30.SHARK");
         Assert.Equal("I30", approach);
         Assert.Equal("SHARK", transition);
     }

@@ -46,15 +46,15 @@ public sealed record PartialRoute(
         }
 
         var result = new DirectionalEdge[sliceCount];
-        var current = this;
+        PartialRoute current = this;
 
         for (int i = sliceCount - 1; i >= 0; i--)
         {
-            var layout = current!;
-            var edge = layout.LastEdge!;
-            var prevNodeId = layout.Previous!.HeadNodeId;
-            var prevNode = FindNode(layout, prevNodeId);
-            var headNode = FindNode(layout, layout.HeadNodeId);
+            PartialRoute layout = current!;
+            IGroundEdge edge = layout.LastEdge!;
+            int prevNodeId = layout.Previous!.HeadNodeId;
+            GroundNode prevNode = FindNode(layout, prevNodeId);
+            GroundNode headNode = FindNode(layout, layout.HeadNodeId);
             result[i] = edge.Directed(prevNode, headNode);
             current = layout.Previous;
         }
@@ -66,7 +66,7 @@ public sealed record PartialRoute(
     {
         if (route.LastEdge is not null)
         {
-            foreach (var n in route.LastEdge.Nodes)
+            foreach (GroundNode n in route.LastEdge.Nodes)
             {
                 if (n.Id == nodeId)
                 {
@@ -75,10 +75,10 @@ public sealed record PartialRoute(
             }
         }
 
-        var cursor = route.Previous;
+        PartialRoute? cursor = route.Previous;
         while (cursor?.LastEdge is not null)
         {
-            foreach (var n in cursor.LastEdge.Nodes)
+            foreach (GroundNode n in cursor.LastEdge.Nodes)
             {
                 if (n.Id == nodeId)
                 {

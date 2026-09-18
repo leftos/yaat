@@ -46,7 +46,7 @@ public sealed class TwoPilotControllerResponseGateE2ETests
             return;
         }
 
-        var scenarioPath = Path.Combine(ScenariosRoot, ArtccId, ScenarioFile);
+        string scenarioPath = Path.Combine(ScenariosRoot, ArtccId, ScenarioFile);
         if (!File.Exists(scenarioPath))
         {
             _output.WriteLine($"S2-OAK-4 not cached at {scenarioPath} — skipping. Download via tools/validate-all-scenarios.py.");
@@ -60,10 +60,10 @@ public sealed class TwoPilotControllerResponseGateE2ETests
             return;
         }
 
-        var scenarioJson = File.ReadAllText(scenarioPath);
+        string scenarioJson = File.ReadAllText(scenarioPath);
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(scenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
-        foreach (var w in warnings)
+        List<string> warnings = engine.LoadScenario(scenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        foreach (string w in warnings)
         {
             _output.WriteLine($"[load-warn] {w}");
         }
@@ -88,7 +88,7 @@ public sealed class TwoPilotControllerResponseGateE2ETests
         for (int t = 1; t <= totalSeconds; t++)
         {
             engine.TickOneSecond();
-            var current = engine.World.ActiveFrequency.AwaitingControllerResponseTo;
+            string? current = engine.World.ActiveFrequency.AwaitingControllerResponseTo;
             if (current != lastGate)
             {
                 gateTimeline.Add((engine.Scenario.ElapsedSeconds, current));
@@ -100,8 +100,8 @@ public sealed class TwoPilotControllerResponseGateE2ETests
         // The gate timeline should contain at least:
         //   - One transition to N569SX (its on-final check-in fires first)
         //   - One transition to N436MS (its holding-short ready-for-departure fires later)
-        var firstGate = gateTimeline.FirstOrDefault(e => e.AwaitingFrom == FirstCallsign);
-        var secondGate = gateTimeline.FirstOrDefault(e => e.AwaitingFrom == SecondCallsign);
+        (double Time, string? AwaitingFrom) firstGate = gateTimeline.FirstOrDefault(e => e.AwaitingFrom == FirstCallsign);
+        (double Time, string? AwaitingFrom) secondGate = gateTimeline.FirstOrDefault(e => e.AwaitingFrom == SecondCallsign);
 
         Assert.NotEqual(default, firstGate);
         Assert.NotEqual(default, secondGate);

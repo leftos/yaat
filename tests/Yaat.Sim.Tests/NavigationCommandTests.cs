@@ -43,17 +43,17 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jrado_SetsHeadingAndCreatesInterceptBlock()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var cmd = new JoinRadialOutboundCommand("OAK", 37.72, -122.22, 180);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("180", result.Message);
         Assert.Contains("outbound", result.Message);
         Assert.Equal(090, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Equal(2, aircraft.Queue.Blocks.Count); // the applied JRADO, then its intercept block
-        var intercept = TriggerBlock(aircraft);
+        CommandBlock intercept = TriggerBlock(aircraft);
         Assert.Equal(BlockTriggerType.InterceptRadial, intercept.Trigger!.Type);
         Assert.Equal(180, intercept.Trigger!.Radial);
     }
@@ -61,13 +61,13 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jrado_InterceptBlockSetsRadialHeading()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var cmd = new JoinRadialOutboundCommand("OAK", 37.72, -122.22, 270);
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         // Simulate trigger met: apply the intercept block
-        var block = TriggerBlock(aircraft);
+        CommandBlock block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft);
 
         Assert.Equal(270, aircraft.Targets.TargetTrueHeading?.Degrees);
@@ -79,10 +79,10 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jradi_SetsHeadingAndCreatesInterceptBlock()
     {
-        var aircraft = MakeAircraft(heading: 270);
+        AircraftState aircraft = MakeAircraft(heading: 270);
         var cmd = new JoinRadialInboundCommand("OAK", 37.72, -122.22, 090);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("inbound", result.Message);
@@ -94,13 +94,13 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jradi_InterceptBlockNavigatesToFix()
     {
-        var aircraft = MakeAircraft(heading: 270);
+        AircraftState aircraft = MakeAircraft(heading: 270);
         var cmd = new JoinRadialInboundCommand("OAK", 37.72, -122.22, 090);
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         // Simulate trigger met
-        var block = TriggerBlock(aircraft);
+        CommandBlock block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft);
 
         Assert.Single(aircraft.Targets.NavigationRoute);
@@ -113,10 +113,10 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Depart_NavigatesToFixThenHeading()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, new MagneticHeading(270));
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("SUNOL", result.Message);
@@ -130,12 +130,12 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Depart_TriggerBlockSetsHeading()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, new MagneticHeading(270));
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var block = TriggerBlock(aircraft);
+        CommandBlock block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft);
 
         Assert.Equal(270, aircraft.Targets.TargetTrueHeading?.Degrees);
@@ -148,7 +148,7 @@ public class NavigationCommandTests : IDisposable
         // Issue #184 bug #4: `CFIX CASST 6000 210` then `DEPART CASST 267`. The depart must
         // not discard the cross-at restriction it lands on, and after the turn the assigned
         // crossing speed persists as a ceiling (7110.65 5-7-1.h.4).
-        var aircraft = MakeAircraft(heading: 090, altitude: 7000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 7000);
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget
             {
@@ -163,7 +163,7 @@ public class NavigationCommandTests : IDisposable
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         // The restriction survives the "direct CASST" rebuild.
-        var fix = Assert.Single(aircraft.Targets.NavigationRoute);
+        NavigationTarget fix = Assert.Single(aircraft.Targets.NavigationRoute);
         Assert.Equal("CASST", fix.Name);
         Assert.Equal(210, fix.SpeedRestriction?.SpeedKts);
         Assert.Equal(6000, fix.AltitudeRestriction?.Altitude1Ft);
@@ -179,12 +179,12 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_AtAltitude_StampsConstraintAndSetsAssigned()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.Targets.TargetAltitude = 10000;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("SUNOL", result.Message);
@@ -193,14 +193,14 @@ public class NavigationCommandTests : IDisposable
         Assert.NotNull(aircraft.Targets.NavigationRoute[0].AltitudeRestriction);
         Assert.Equal(4000, aircraft.Targets.AssignedAltitude);
         // No revert block — revert is on the NavigationTarget. The queue holds the applied CFIX and nothing else.
-        var appliedCfix = Assert.Single(aircraft.Queue.Blocks);
+        CommandBlock appliedCfix = Assert.Single(aircraft.Queue.Blocks);
         Assert.Null(appliedCfix.Trigger);
     }
 
     [Fact]
     public void Cfix_RevertFieldsCapturedOnTarget()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.Targets.TargetAltitude = 10000;
         aircraft.Targets.AssignedAltitude = 10000;
 
@@ -208,7 +208,7 @@ public class NavigationCommandTests : IDisposable
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var sunol = aircraft.Targets.NavigationRoute[0];
+        NavigationTarget sunol = aircraft.Targets.NavigationRoute[0];
         Assert.Equal(10000, sunol.RevertAltitude);
         Assert.Equal(10000, sunol.RevertAssignedAltitude);
     }
@@ -216,7 +216,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_AtOrAbove_AlwaysStampsRestriction()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 5000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 5000);
         aircraft.Targets.TargetAltitude = 3000;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.AtOrAbove, null);
@@ -224,7 +224,7 @@ public class NavigationCommandTests : IDisposable
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         // Restriction is always stamped; the planner resolves whether to act
-        var sunol = aircraft.Targets.NavigationRoute[0];
+        NavigationTarget sunol = aircraft.Targets.NavigationRoute[0];
         Assert.NotNull(sunol.AltitudeRestriction);
         Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, sunol.AltitudeRestriction!.Type);
     }
@@ -232,7 +232,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_AtOrAbove_PlannerResolvesClimb()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 3000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 3000);
         aircraft.IndicatedAirspeed = 250;
         aircraft.Targets.TargetAltitude = 2000;
 
@@ -249,15 +249,15 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_WithSpeed_StampsSpeedRestriction()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.IndicatedAirspeed = 250;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.At, 210);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        var sunol = aircraft.Targets.NavigationRoute[0];
+        NavigationTarget sunol = aircraft.Targets.NavigationRoute[0];
         Assert.NotNull(sunol.SpeedRestriction);
         Assert.Equal(210, sunol.SpeedRestriction!.SpeedKts);
         Assert.Equal(210.0, aircraft.Targets.AssignedSpeed);
@@ -267,7 +267,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_MultipleOnRoute_AreAdditive_BothRestrictionsCoexist()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 15000);
         aircraft.IndicatedAirspeed = 280;
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "ZOEEE", Position = new LatLon(37.7, -122.0) });
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "CASST", Position = new LatLon(37.7, -121.8) });
@@ -288,11 +288,11 @@ public class NavigationCommandTests : IDisposable
         // in length/order and both fixes carry their own restriction.
         Assert.Equal(new[] { "ZOEEE", "CASST", "BEPEA" }, aircraft.Targets.NavigationRoute.Select(f => f.Name).ToArray());
 
-        var zoeee = aircraft.Targets.NavigationRoute.First(f => f.Name == "ZOEEE");
+        NavigationTarget zoeee = aircraft.Targets.NavigationRoute.First(f => f.Name == "ZOEEE");
         Assert.Equal(250, zoeee.SpeedRestriction!.SpeedKts);
         Assert.Equal(10000, zoeee.AltitudeRestriction!.Altitude1Ft);
 
-        var casst = aircraft.Targets.NavigationRoute.First(f => f.Name == "CASST");
+        NavigationTarget casst = aircraft.Targets.NavigationRoute.First(f => f.Name == "CASST");
         Assert.Equal(210, casst.SpeedRestriction!.SpeedKts);
         Assert.Equal(6000, casst.AltitudeRestriction!.Altitude1Ft);
     }
@@ -300,7 +300,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_OnRoute_StampsInPlace_PreservesFixesBeforeAndAfter()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 15000);
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "ALPHA", Position = new LatLon(37.7, -122.2) });
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "BRAVO", Position = new LatLon(37.7, -122.0) });
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "CHARLIE", Position = new LatLon(37.7, -121.8) });
@@ -323,7 +323,7 @@ public class NavigationCommandTests : IDisposable
         // A chain of CFIX naming fixes that are NOT already on the route (e.g. a vectored aircraft
         // with no STAR) must build the route in issue order, each carrying its own crossing
         // restriction — not collapse to only the last fix by wiping the route each time.
-        var aircraft = MakeAircraft(heading: 090, altitude: 16000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 16000);
 
         CommandDispatcher.Dispatch(
             new CrossFixCommand("SUNOL", 37.6, -121.9, 12000, CrossFixAltitudeType.At, 280),
@@ -352,12 +352,12 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Dvia_WithAltitude_EnablesStarViaModeWithFloor()
     {
-        var aircraft = MakeAircraft(altitude: 10000);
+        AircraftState aircraft = MakeAircraft(altitude: 10000);
         aircraft.Procedure.ActiveStarId = "BDEGA3";
 
         var cmd = new DescendViaCommand(5000);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(aircraft.Procedure.StarViaMode);
@@ -367,12 +367,12 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Dvia_WithoutAltitude_EnablesStarViaMode()
     {
-        var aircraft = MakeAircraft(altitude: 10000);
+        AircraftState aircraft = MakeAircraft(altitude: 10000);
         aircraft.Procedure.ActiveStarId = "BDEGA3";
 
         var cmd = new DescendViaCommand(null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(aircraft.Procedure.StarViaMode);
@@ -382,11 +382,11 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Dvia_WithoutActiveStar_Rejected()
     {
-        var aircraft = MakeAircraft(altitude: 10000);
+        AircraftState aircraft = MakeAircraft(altitude: 10000);
 
         var cmd = new DescendViaCommand(null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No active STAR", result.Message);
@@ -395,7 +395,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Dvia_ImmediatelyAppliesFirstConstrainedFix()
     {
-        var aircraft = MakeAircraft(altitude: 20000);
+        AircraftState aircraft = MakeAircraft(altitude: 20000);
         aircraft.Procedure.ActiveStarId = "TEST1";
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "FIX1", Position = new LatLon(37.8, -122.3) });
         aircraft.Targets.NavigationRoute.Add(
@@ -408,7 +408,7 @@ public class NavigationCommandTests : IDisposable
         );
 
         var cmd = new DescendViaCommand(null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(aircraft.Procedure.StarViaMode);
@@ -420,16 +420,16 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Apps_EmptyDb_ReturnsNoApproachesFound()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         // Pre-seed an empty approach list for OAK so the CIFP loader (which throws on empty path)
         // is never invoked. An empty list signals: CIFP is available but no approaches for this airport.
-        using var _ = NavigationDatabase.ScopedOverride(
+        using IDisposable _ = NavigationDatabase.ScopedOverride(
             NavigationDatabase.ForTesting(approachesByAirport: new Dictionary<string, IReadOnlyList<CifpApproachProcedure>> { ["OAK"] = [] })
         );
 
         var cmd = new ListApproachesCommand("OAK");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("No approaches found", result.Message);
@@ -438,13 +438,13 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Apps_NoAirportAndNoDestination_ReturnsError()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         var navDb = NavigationDatabase.ForTesting();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ListApproachesCommand(null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No airport", result.Message);
@@ -453,14 +453,14 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Apps_WithExplicitAirport_NoApproaches_ReturnsEmptyMessage()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         // Provide an empty approach cache for OAK to signal CIFP is available but airport has no approaches
         var navDb = NavigationDatabase.ForTesting(approachesByAirport: new Dictionary<string, IReadOnlyList<CifpApproachProcedure>> { ["OAK"] = [] });
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ListApproachesCommand("OAK");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("No approaches found", result.Message);
@@ -469,15 +469,15 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Apps_UsesDestinationAsFallback()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.FlightPlan.Destination = "OAK";
         // Provide an empty approach cache for OAK to signal CIFP is available but airport has no approaches
         var navDb = NavigationDatabase.ForTesting(approachesByAirport: new Dictionary<string, IReadOnlyList<CifpApproachProcedure>> { ["OAK"] = [] });
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ListApproachesCommand(null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("OAK", result.Message);
@@ -489,13 +489,13 @@ public class NavigationCommandTests : IDisposable
         // When the user passes an explicit airport code that is not in the navigation
         // database, APPS must reject with a clear "Unknown airport" message rather than
         // returning a misleading "No approaches found" string.
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         var navDb = NavigationDatabase.ForTesting(approachesByAirport: new Dictionary<string, IReadOnlyList<CifpApproachProcedure>> { ["OAK"] = [] });
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ListApproachesCommand("ZZZZ");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Unknown airport", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -507,13 +507,13 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jarr_UnknownStar_ReturnsError()
     {
-        var aircraft = MakeAircraft();
-        var navDb = TestNavDbFactory.WithNavData();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = TestNavDbFactory.WithNavData();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinStarCommand("NONEXIST", null, null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Unknown STAR", result.Message);
@@ -522,7 +522,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jarr_WithTransition_BuildsRouteFromTransitionAndBody()
     {
-        var navDb = TestNavDbFactory.WithNavData(
+        NavigationDatabase navDb = TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["KENNO"] = (37.8, -121.7),
@@ -532,12 +532,12 @@ public class NavigationCommandTests : IDisposable
             starBodies: new() { ["SUNOL1"] = ["SUNOL", "OAK"] },
             starTransitions: new() { ["SUNOL1"] = [("KENNO", ["KENNO", "SUNOL"])] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var aircraft = MakeAircraft(heading: 180);
+        AircraftState aircraft = MakeAircraft(heading: 180);
         var cmd = new JoinStarCommand("SUNOL1", "KENNO", null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("SUNOL1", result.Message);
@@ -551,7 +551,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jarr_WithoutTransition_FindsNearestFixAhead()
     {
-        var navDb = TestNavDbFactory.WithNavData(
+        NavigationDatabase navDb = TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["KENNO"] = (37.8, -121.7),
@@ -560,13 +560,13 @@ public class NavigationCommandTests : IDisposable
             },
             starBodies: new() { ["SUNOL1"] = ["KENNO", "SUNOL", "OAK"] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Aircraft heading south, SUNOL is to the south
-        var aircraft = MakeAircraft(heading: 180, lat: 37.65, lon: -121.85);
+        AircraftState aircraft = MakeAircraft(heading: 180, lat: 37.65, lon: -121.85);
         var cmd = new JoinStarCommand("SUNOL1", null, null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(aircraft.Targets.NavigationRoute.Count >= 1);
@@ -575,7 +575,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jarr_BadTransition_ReturnsError()
     {
-        var navDb = TestNavDbFactory.WithNavData(
+        NavigationDatabase navDb = TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["KENNO"] = (37.8, -121.7),
@@ -585,12 +585,12 @@ public class NavigationCommandTests : IDisposable
             starBodies: new() { ["SUNOL1"] = ["SUNOL", "OAK"] },
             starTransitions: new() { ["SUNOL1"] = [("KENNO", ["KENNO", "SUNOL"])] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         var cmd = new JoinStarCommand("SUNOL1", "NOSUCH", null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Unknown transition or fix", result.Message);
@@ -599,7 +599,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jarr_WithIntermediateFix_JoinsFromThatFix()
     {
-        var navDb = TestNavDbFactory.WithNavData(
+        NavigationDatabase navDb = TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["EMZOH"] = (37.9, -121.5),
@@ -609,12 +609,12 @@ public class NavigationCommandTests : IDisposable
             },
             starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "BRIXX", "OAK"] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         var cmd = new JoinStarCommand("EMZOH4", "COREZ", null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("COREZ", aircraft.Targets.NavigationRoute[0].Name);
@@ -625,7 +625,7 @@ public class NavigationCommandTests : IDisposable
     public void Jarr_TransitionTakesPriorityOverFixName()
     {
         // "COREZ" exists as both a transition name and a fix in the body
-        var navDb = TestNavDbFactory.WithNavData(
+        NavigationDatabase navDb = TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["EMZOH"] = (37.9, -121.5),
@@ -635,12 +635,12 @@ public class NavigationCommandTests : IDisposable
             starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "OAK"] },
             starTransitions: new() { ["EMZOH4"] = [("COREZ", ["COREZ", "EMZOH"])] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         var cmd = new JoinStarCommand("EMZOH4", "COREZ", null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         // Transition matched: route is transition fixes + body = COREZ EMZOH COREZ OAK (deduped: COREZ EMZOH COREZ OAK)
@@ -651,7 +651,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jarr_NonexistentFixAndTransition_ReturnsError()
     {
-        var navDb = TestNavDbFactory.WithNavData(
+        NavigationDatabase navDb = TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["EMZOH"] = (37.9, -121.5),
@@ -662,12 +662,12 @@ public class NavigationCommandTests : IDisposable
             starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "OAK"] },
             starTransitions: new() { ["EMZOH4"] = [("KENNO", ["KENNO", "EMZOH"])] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         var cmd = new JoinStarCommand("EMZOH4", "NOSUCH", null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Unknown transition or fix 'NOSUCH'", result.Message);
@@ -678,10 +678,10 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void HoldingPattern_CreatesPhaseList()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var cmd = new HoldingPatternCommand("SUNOL", 37.6, -121.9, 090, 1, true, TurnDirection.Right, null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -692,20 +692,20 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void HoldingPattern_AnyCommandExitsPhase()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var holdCmd = new HoldingPatternCommand("SUNOL", 37.6, -121.9, 090, 1, true, TurnDirection.Right, null);
 
         CommandDispatcher.Dispatch(holdCmd, aircraft, TestDispatch.Context(Random.Shared));
         Assert.NotNull(aircraft.Phases?.CurrentPhase);
 
-        var acceptance = aircraft.Phases!.CurrentPhase!.CanAcceptCommand(CanonicalCommandType.FlyHeading);
+        CommandAcceptance acceptance = aircraft.Phases!.CurrentPhase!.CanAcceptCommand(CanonicalCommandType.FlyHeading);
         Assert.Equal(CommandAcceptance.ClearsPhase, acceptance);
     }
 
     [Fact]
     public void HoldingPattern_PreservesAssignedRunway()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var runway = new RunwayInfo
         {
             AirportId = "OAK",
@@ -736,10 +736,10 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void DirectTo_EmptyFixList_SetsEmptyRoute()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var cmd = new DirectToCommand([], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Empty(aircraft.Targets.NavigationRoute);
@@ -754,11 +754,11 @@ public class NavigationCommandTests : IDisposable
         var fixB = new ResolvedFix("FIXB", 37.7, -122.10);
         var fixC = new ResolvedFix("FIXC", 37.7, -122.05);
 
-        var aircraft = MakeAircraft(heading: 090, altitude: 5000, lat: 37.7, lon: -122.2);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 5000, lat: 37.7, lon: -122.2);
         aircraft.IndicatedAirspeed = 250;
 
         var cmd = new DirectToCommand([fixA, fixB, fixC], []);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -817,14 +817,14 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_AtOrBelow_StampsRestriction()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 3000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 3000);
         aircraft.Targets.TargetAltitude = 5000;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.AtOrBelow, null);
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var sunol = aircraft.Targets.NavigationRoute[0];
+        NavigationTarget sunol = aircraft.Targets.NavigationRoute[0];
         Assert.NotNull(sunol.AltitudeRestriction);
         Assert.Equal(CifpAltitudeRestrictionType.AtOrBelow, sunol.AltitudeRestriction!.Type);
     }
@@ -832,7 +832,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_AtOrBelow_AboveCrossing_PlannerDescends()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 6000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 6000);
         aircraft.IndicatedAirspeed = 250;
         aircraft.Targets.TargetAltitude = 8000;
 
@@ -851,11 +851,11 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cvia_WithoutActiveSid_Rejected()
     {
-        var aircraft = MakeAircraft(altitude: 5000);
+        AircraftState aircraft = MakeAircraft(altitude: 5000);
 
         var cmd = new ClimbViaCommand(null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No active SID", result.Message);
@@ -866,13 +866,13 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jarr_EmptyStarBody_ReturnsError()
     {
-        var navDb = TestNavDbFactory.WithNavData(starBodies: new() { ["EMPTY1"] = [] });
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = TestNavDbFactory.WithNavData(starBodies: new() { ["EMPTY1"] = [] });
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var aircraft = MakeAircraft(heading: 180);
+        AircraftState aircraft = MakeAircraft(heading: 180);
         var cmd = new JoinStarCommand("EMPTY1", null, null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
     }
@@ -898,12 +898,12 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jawy_UnknownAirway_ReturnsError()
     {
-        var fixes = MakeAirwayNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var aircraft = MakeAircraft(heading: 090);
+        NavigationDatabase fixes = MakeAirwayNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var cmd = new JoinAirwayCommand("V999");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Unknown airway", result.Message);
@@ -912,10 +912,10 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jawy_NoFixDatabase_ReturnsError()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var cmd = new JoinAirwayCommand("V25");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Unknown airway", result.Message);
@@ -924,13 +924,13 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jawy_EastboundOnV25_InterceptsSegmentAndFollowsFixes()
     {
-        var fixes = MakeAirwayNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
+        NavigationDatabase fixes = MakeAirwayNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
         // Aircraft between SUNOL and TRACY, heading east
-        var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
+        AircraftState aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
         var cmd = new JoinAirwayCommand("V25");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("V25", result.Message);
@@ -952,13 +952,13 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jawy_WestboundOnV25_FollowsFixesInReverse()
     {
-        var fixes = MakeAirwayNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
+        NavigationDatabase fixes = MakeAirwayNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
         // Aircraft between TRACY and MODEN, heading west
-        var aircraft = MakeAircraft(heading: 270, lat: 37.72, lon: -121.45);
+        AircraftState aircraft = MakeAircraft(heading: 270, lat: 37.72, lon: -121.45);
         var cmd = new JoinAirwayCommand("V25");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
 
@@ -974,13 +974,13 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jawy_AircraftBeforeFirstFix_NavigatesFromFirstFix()
     {
-        var fixes = MakeAirwayNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
+        NavigationDatabase fixes = MakeAirwayNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
         // Aircraft west of SUNOL, heading east — no fix behind on this airway
-        var aircraft = MakeAircraft(heading: 090, lat: 37.70, lon: -122.10);
+        AircraftState aircraft = MakeAircraft(heading: 090, lat: 37.70, lon: -122.10);
         var cmd = new JoinAirwayCommand("V25");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
 
@@ -995,13 +995,13 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jawy_ClearsExistingNavRoute()
     {
-        var fixes = MakeAirwayNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
+        NavigationDatabase fixes = MakeAirwayNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        AircraftState aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "OLDFIX", Position = new LatLon(37.0, -122.0) });
         var cmd = new JoinAirwayCommand("V25");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         // Existing nav route should be cleared
@@ -1013,7 +1013,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jrado_SetsAssignedHeading_Immediately()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var cmd = new JoinRadialOutboundCommand("OAK", 37.72, -122.22, 180);
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -1024,12 +1024,12 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jrado_InterceptBlock_UpdatesAssignedHeading()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var cmd = new JoinRadialOutboundCommand("OAK", 37.72, -122.22, 270);
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var block = TriggerBlock(aircraft);
+        CommandBlock block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft);
 
         Assert.Equal(270, aircraft.Targets.AssignedMagneticHeading?.Degrees);
@@ -1038,7 +1038,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jradi_SetsAssignedHeading_Immediately()
     {
-        var aircraft = MakeAircraft(heading: 270);
+        AircraftState aircraft = MakeAircraft(heading: 270);
         var cmd = new JoinRadialInboundCommand("OAK", 37.72, -122.22, 090);
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -1049,12 +1049,12 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jradi_InterceptBlock_ClearsAssignedHeading()
     {
-        var aircraft = MakeAircraft(heading: 270);
+        AircraftState aircraft = MakeAircraft(heading: 270);
         var cmd = new JoinRadialInboundCommand("OAK", 37.72, -122.22, 090);
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var block = TriggerBlock(aircraft);
+        CommandBlock block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft);
 
         Assert.Null(aircraft.Targets.AssignedMagneticHeading?.Degrees);
@@ -1063,7 +1063,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Dfix_ClearsAssignedHeading_Immediately()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(090);
         var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, new MagneticHeading(270));
 
@@ -1075,12 +1075,12 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Dfix_TriggerBlock_SetsAssignedHeading()
     {
-        var aircraft = MakeAircraft(heading: 090);
+        AircraftState aircraft = MakeAircraft(heading: 090);
         var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, new MagneticHeading(270));
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var block = TriggerBlock(aircraft);
+        CommandBlock block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft);
 
         Assert.Equal(270, aircraft.Targets.AssignedMagneticHeading?.Degrees);
@@ -1089,7 +1089,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_SetsAssignedAltitude()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.Targets.TargetAltitude = 10000;
         aircraft.Targets.AssignedAltitude = 10000;
 
@@ -1103,7 +1103,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_WithSpeed_SetsAssignedSpeed()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.At, 210);
 
@@ -1115,7 +1115,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_WithSpeed_SetsTargetSpeedWhenBelowTarget()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.IndicatedAirspeed = 182;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 3000, CrossFixAltitudeType.At, 210);
@@ -1128,7 +1128,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_WithSpeed_NoTargetSpeedWhenAboveTarget()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.IndicatedAirspeed = 250;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.At, 210);
@@ -1141,7 +1141,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_WithSpeed_NoTargetSpeedWhenAtTarget()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.IndicatedAirspeed = 210;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.At, 210);
@@ -1154,7 +1154,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_RevertFieldsOnTarget_CaptureAssigned()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.Targets.TargetAltitude = 10000;
         aircraft.Targets.AssignedAltitude = 10000;
 
@@ -1165,7 +1165,7 @@ public class NavigationCommandTests : IDisposable
         Assert.Equal(4000, aircraft.Targets.AssignedAltitude);
 
         // Revert is captured on the NavigationTarget, not in a CommandQueue block
-        var sunol = aircraft.Targets.NavigationRoute[0];
+        NavigationTarget sunol = aircraft.Targets.NavigationRoute[0];
         Assert.Equal(10000, sunol.RevertAltitude);
         Assert.Equal(10000, sunol.RevertAssignedAltitude);
     }
@@ -1173,7 +1173,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_AtOrAbove_AlwaysSetsAssignedAltitude()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 5000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 5000);
         aircraft.Targets.TargetAltitude = 3000;
         aircraft.Targets.AssignedAltitude = 3000;
 
@@ -1188,9 +1188,9 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jawy_SetsAssignedHeading_Immediately()
     {
-        var fixes = MakeAirwayNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
+        NavigationDatabase fixes = MakeAirwayNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        AircraftState aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
         var cmd = new JoinAirwayCommand("V25");
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -1201,9 +1201,9 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Jawy_InterceptBlock_ClearsAssignedHeading()
     {
-        var fixes = MakeAirwayNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
+        NavigationDatabase fixes = MakeAirwayNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        AircraftState aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
         var cmd = new JoinAirwayCommand("V25");
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -1222,7 +1222,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_StampsAltitudeRestrictionOnRouteTarget()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.IndicatedAirspeed = 250;
         aircraft.Targets.TargetAltitude = 10000;
         aircraft.Targets.AssignedAltitude = 10000;
@@ -1231,7 +1231,7 @@ public class NavigationCommandTests : IDisposable
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         // The CFIX target in the route should have an AltitudeRestriction
-        var sunolTarget = Assert.Single(aircraft.Targets.NavigationRoute, t => t.Name == "SUNOL");
+        NavigationTarget sunolTarget = Assert.Single(aircraft.Targets.NavigationRoute, t => t.Name == "SUNOL");
         Assert.NotNull(sunolTarget.AltitudeRestriction);
         Assert.Equal(CifpAltitudeRestrictionType.At, sunolTarget.AltitudeRestriction!.Type);
         Assert.Equal(4000, sunolTarget.AltitudeRestriction.Altitude1Ft);
@@ -1240,13 +1240,13 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_AtOrAbove_StampsCorrectRestrictionType()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 3000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 3000);
         aircraft.IndicatedAirspeed = 250;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.AtOrAbove, null);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
+        NavigationTarget sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
         Assert.NotNull(sunolTarget.AltitudeRestriction);
         Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, sunolTarget.AltitudeRestriction!.Type);
     }
@@ -1254,13 +1254,13 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_AtOrBelow_StampsCorrectRestrictionType()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.IndicatedAirspeed = 250;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.AtOrBelow, null);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
+        NavigationTarget sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
         Assert.NotNull(sunolTarget.AltitudeRestriction);
         Assert.Equal(CifpAltitudeRestrictionType.AtOrBelow, sunolTarget.AltitudeRestriction!.Type);
     }
@@ -1270,7 +1270,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_SetsRevertFieldsOnTarget()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.IndicatedAirspeed = 250;
         aircraft.Targets.TargetAltitude = 10000;
         aircraft.Targets.AssignedAltitude = 10000;
@@ -1278,7 +1278,7 @@ public class NavigationCommandTests : IDisposable
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
+        NavigationTarget sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
         Assert.Equal(10000, sunolTarget.RevertAltitude);
         Assert.Equal(10000, sunolTarget.RevertAssignedAltitude);
     }
@@ -1286,7 +1286,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_DoesNotCreateRevertBlock()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.IndicatedAirspeed = 250;
         aircraft.Targets.TargetAltitude = 10000;
 
@@ -1294,7 +1294,7 @@ public class NavigationCommandTests : IDisposable
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         // The dispatched CFIX occupies its own applied block; no second, triggered revert block joins it.
-        var appliedCfix = Assert.Single(aircraft.Queue.Blocks);
+        CommandBlock appliedCfix = Assert.Single(aircraft.Queue.Blocks);
         Assert.Null(appliedCfix.Trigger);
     }
 
@@ -1303,7 +1303,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_StepPlanningComputesDescentRate()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 10000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 10000);
         aircraft.IndicatedAirspeed = 250;
         // GroundSpeed is derived from IAS; on ground IAS=GS, airborne IAS≈GS (no wind)
 
@@ -1322,7 +1322,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void NonViaMode_RouteWithConstraints_TriggersPlanning()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 15000);
         aircraft.IndicatedAirspeed = 300;
         // GroundSpeed derived from IAS (no wind)
 
@@ -1347,7 +1347,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void NonViaMode_RouteWithClimbConstraint_TriggersClimbPlanning()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 5000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 5000);
         aircraft.IndicatedAirspeed = 250;
         // GroundSpeed is derived from IAS; on ground IAS=GS, airborne IAS≈GS (no wind)
 
@@ -1372,7 +1372,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void Cfix_RevertOnFixSequencing()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 4000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 4000);
         aircraft.IndicatedAirspeed = 250;
 
         // Place SUNOL very close so it sequences immediately
@@ -1392,14 +1392,14 @@ public class NavigationCommandTests : IDisposable
         // The target was 10000 before CFIX (or whatever was captured in RevertAltitude)
         // Since we're testing the revert mechanism, check that the sequenced fix's
         // revert was applied — the assigned altitude should be restored
-        var sunolTarget = aircraft.Targets.NavigationRoute.FirstOrDefault(t => t.Name == "SUNOL");
+        NavigationTarget? sunolTarget = aircraft.Targets.NavigationRoute.FirstOrDefault(t => t.Name == "SUNOL");
         Assert.Null(sunolTarget); // SUNOL should have been sequenced away
     }
 
     [Fact]
     public void Cfix_SpeedRevert_SetsRevertSpeedFields()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.IndicatedAirspeed = 250;
         aircraft.Targets.TargetSpeed = 300;
         aircraft.Targets.AssignedSpeed = 300;
@@ -1407,7 +1407,7 @@ public class NavigationCommandTests : IDisposable
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.At, 210);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
+        NavigationTarget sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
         Assert.NotNull(sunolTarget.SpeedRestriction);
         Assert.Equal(210, sunolTarget.SpeedRestriction!.SpeedKts);
         Assert.Equal(300, sunolTarget.RevertSpeed);
@@ -1419,7 +1419,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void ApplyFixConstraints_WorksWithoutViaMode()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 10000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 10000);
         aircraft.IndicatedAirspeed = 250;
 
         var target = new NavigationTarget
@@ -1443,7 +1443,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void ViaMode_StillWorksCeilingFloorClamping()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 15000);
         aircraft.IndicatedAirspeed = 250;
         aircraft.Procedure.StarViaMode = true;
         aircraft.Procedure.StarViaFloor = 8000;
@@ -1466,7 +1466,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void ConstrainedDctf_StampsAltitudeRestrictionsOnRoute()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 15000);
         aircraft.IndicatedAirspeed = 300;
 
         var fixes = new List<ResolvedFix> { new("FIX1", 37.7, -122.0), new("FIX2", 37.7, -121.8), new("FIX3", 37.7, -121.6) };
@@ -1477,19 +1477,19 @@ public class NavigationCommandTests : IDisposable
         };
 
         var cmd = new ConstrainedForceDirectToCommand(fixes, constraints, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
 
         // FIX1 should have AtOrAbove 8000
-        var fix1 = aircraft.Targets.NavigationRoute[0];
+        NavigationTarget fix1 = aircraft.Targets.NavigationRoute[0];
         Assert.NotNull(fix1.AltitudeRestriction);
         Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, fix1.AltitudeRestriction!.Type);
         Assert.Equal(8000, fix1.AltitudeRestriction.Altitude1Ft);
 
         // FIX2 should have At 5000
-        var fix2 = aircraft.Targets.NavigationRoute[1];
+        NavigationTarget fix2 = aircraft.Targets.NavigationRoute[1];
         Assert.NotNull(fix2.AltitudeRestriction);
         Assert.Equal(CifpAltitudeRestrictionType.At, fix2.AltitudeRestriction!.Type);
         Assert.Equal(5000, fix2.AltitudeRestriction.Altitude1Ft);
@@ -1501,7 +1501,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void ConstrainedDctf_OnlyLastConstrainedFixRevertsAltitude()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 15000);
         aircraft.IndicatedAirspeed = 300;
         aircraft.Targets.TargetAltitude = 20000;
         aircraft.Targets.AssignedAltitude = 20000;
@@ -1527,7 +1527,7 @@ public class NavigationCommandTests : IDisposable
     [Fact]
     public void ConstrainedDctf_PlannerTargetsConstraintsSimultaneously()
     {
-        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 15000);
         aircraft.IndicatedAirspeed = 300;
         // GroundSpeed derived from IAS (no wind)
 

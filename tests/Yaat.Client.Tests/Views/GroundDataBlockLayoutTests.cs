@@ -35,9 +35,9 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void Line2_IncludesCwt_WhenCwtCodePresent()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.CwtCode = "E";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -47,8 +47,8 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void Line2_OmitsCwt_WhenCwtCodeEmpty()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -58,10 +58,10 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void Line2_CwtWithoutFix()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.CwtCode = "E";
         ac.AsdexFix = "";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -71,10 +71,10 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void Line1_AppendsRunwayAndOrdinal_WhenInDepartureLine()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.RunwayQueuePosition = 2;
         ac.RunwayQueueRunway = "28R";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -84,11 +84,11 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void Line1_AppendsIntersection_WhenNotDepartingFullLength()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.RunwayQueuePosition = 1;
         ac.RunwayQueueRunway = "28R";
         ac.RunwayQueueIntersection = "E";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -98,10 +98,10 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void Line1_OrdinalWithoutRunway_WhenRunwayBlank()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.RunwayQueuePosition = 1;
         ac.RunwayQueueRunway = "";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -111,9 +111,9 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void Line1_NoQueueOrdinal_WhenNotInLine()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.RunwayQueuePosition = 0;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -123,11 +123,11 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void Line1_QueueOrdinalFollowsAutoDeleteMarker()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.AutoDeletePending = true;
         ac.RunwayQueuePosition = 3;
         ac.RunwayQueueRunway = "30";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -137,9 +137,9 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void NoSqStby_WhenTransponderModeIsCharlie_OnGround()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.TransponderMode = "C";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -149,9 +149,9 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void HasSqStby_WhenTransponderModeIsStandby_OnGround()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.TransponderMode = "Standby";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -161,10 +161,10 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void HasSqStby_WhenAirborneStandby()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.Altitude = 1500;
         ac.TransponderMode = "Standby";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: true);
 
@@ -175,8 +175,8 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void RectGrowsByExactlyLineHeight_WhenStandby_OnGround()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
 
         ac.TransponderMode = "C";
         var charlie = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
@@ -191,8 +191,8 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void Note_BlankWhenNoNote()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -202,8 +202,8 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void Note_RendersAsLine5_AndGrowsRectByOneLine()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
 
         var baseline = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -218,7 +218,7 @@ public class GroundDataBlockLayoutTests
 
     private static AircraftModel CreateMismatchModel()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
         ac.TransponderMode = "C";
@@ -228,9 +228,9 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void SquawkLine_ShowsReportedThenAssigned_WhenMismatch()
     {
-        var baselineAc = CreateModel();
-        var ac = CreateMismatchModel();
-        var style = CreateStyle();
+        AircraftModel baselineAc = CreateModel();
+        AircraftModel ac = CreateMismatchModel();
+        TextStyle style = CreateStyle();
 
         var baseline = DataBlockLayout.Compute(baselineAc, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
@@ -243,9 +243,9 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void SquawkLine_Empty_WhenCodesMatch()
     {
-        var ac = CreateMismatchModel();
+        AircraftModel ac = CreateMismatchModel();
         ac.BeaconCode = 301;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -256,9 +256,9 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void SquawkLine_Empty_WhenNoAssignedCode()
     {
-        var ac = CreateMismatchModel();
+        AircraftModel ac = CreateMismatchModel();
         ac.AssignedBeaconCode = 0;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -268,9 +268,9 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void SquawkLine_Empty_WhenStandby_SqStbyShownInstead()
     {
-        var ac = CreateMismatchModel();
+        AircraftModel ac = CreateMismatchModel();
         ac.TransponderMode = "Standby";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -282,9 +282,9 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void SquawkLine_Empty_WhenSpecialPurposeCode()
     {
-        var ac = CreateMismatchModel();
+        AircraftModel ac = CreateMismatchModel();
         ac.BeaconCode = 7700;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -294,9 +294,9 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void SquawkLine_Empty_WhenCommandedSquawkVfr()
     {
-        var ac = CreateMismatchModel();
+        AircraftModel ac = CreateMismatchModel();
         ac.CommandedSquawkVfr = true;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
@@ -306,10 +306,10 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void SquawkLine_CoexistsWithHoldStatus()
     {
-        var baselineAc = CreateModel();
-        var ac = CreateMismatchModel();
+        AircraftModel baselineAc = CreateModel();
+        AircraftModel ac = CreateMismatchModel();
         ac.HoldKind = "HoldPosition";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var baseline = DataBlockLayout.Compute(baselineAc, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
@@ -322,9 +322,9 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void SquawkLine_PresentWithAltitude_WhenAirborne()
     {
-        var ac = CreateMismatchModel();
+        AircraftModel ac = CreateMismatchModel();
         ac.Altitude = 1500;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: true);
 
@@ -336,8 +336,8 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void RectGrowsByExactlyLineHeight_WhenSquawkMismatch()
     {
-        var ac = CreateMismatchModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateMismatchModel();
+        TextStyle style = CreateStyle();
 
         ac.BeaconCode = 301;
         var matched = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
@@ -359,13 +359,13 @@ public class GroundDataBlockLayoutTests
     [Fact]
     public void Compute_RectIsTranslationInvariant()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.CwtCode = "E";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var offset = new SKPoint(30, -25);
-        var atOrigin = DataBlockLayout.Compute(ac, 0, 0, SKPoint.Empty, style, isAirborne: false).Rect;
-        var positioned = DataBlockLayout.Compute(ac, 100, 200, offset, style, isAirborne: false).Rect;
+        SKRect atOrigin = DataBlockLayout.Compute(ac, 0, 0, SKPoint.Empty, style, isAirborne: false).Rect;
+        SKRect positioned = DataBlockLayout.Compute(ac, 100, 200, offset, style, isAirborne: false).Rect;
 
         Assert.Equal(atOrigin.Left + 100 + offset.X, positioned.Left, precision: 3);
         Assert.Equal(atOrigin.Top + 200 + offset.Y, positioned.Top, precision: 3);

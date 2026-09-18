@@ -25,13 +25,13 @@ public static class WindsAloftParser
             return results;
         }
 
-        var lines = fdText.Split('\n');
+        string[] lines = fdText.Split('\n');
 
         // Find the FT header line to determine column positions
         int headerLineIndex = -1;
         for (int i = 0; i < lines.Length; i++)
         {
-            var trimmed = lines[i].TrimStart();
+            string trimmed = lines[i].TrimStart();
             if (trimmed.StartsWith("FT", StringComparison.Ordinal) || trimmed.StartsWith("  FT", StringComparison.Ordinal))
             {
                 // Verify it has altitude numbers
@@ -48,8 +48,8 @@ public static class WindsAloftParser
             return results;
         }
 
-        var headerLine = lines[headerLineIndex];
-        var columns = ParseHeaderColumnCenters(headerLine);
+        string headerLine = lines[headerLineIndex];
+        List<(int Altitude, int Center)> columns = ParseHeaderColumnCenters(headerLine);
         if (columns.Count == 0)
         {
             return results;
@@ -58,14 +58,14 @@ public static class WindsAloftParser
         // Parse data lines after header
         for (int i = headerLineIndex + 1; i < lines.Length; i++)
         {
-            var line = lines[i];
+            string line = lines[i];
             if (string.IsNullOrWhiteSpace(line))
             {
                 continue;
             }
 
             // Find tokens with their column positions
-            var tokens = FindTokens(line);
+            List<Token> tokens = FindTokens(line);
             if (tokens.Count < 2)
             {
                 continue;
@@ -83,13 +83,13 @@ public static class WindsAloftParser
             var winds = new List<WindAtLevel>();
             for (int t = 1; t < tokens.Count; t++)
             {
-                var token = tokens[t];
+                Token token = tokens[t];
                 int tokenCenter = token.Start + token.Text.Length / 2;
 
                 // Find the closest column by center position
                 int bestAlt = -1;
                 int bestDist = int.MaxValue;
-                foreach (var (altitude, colCenter) in columns)
+                foreach ((int altitude, int colCenter) in columns)
                 {
                     int dist = Math.Abs(tokenCenter - colCenter);
                     if (dist < bestDist)
@@ -101,7 +101,7 @@ public static class WindsAloftParser
 
                 if (bestAlt >= 0)
                 {
-                    var wind = DecodeWind(bestAlt, token.Text);
+                    WindAtLevel? wind = DecodeWind(bestAlt, token.Text);
                     if (wind is not null)
                     {
                         winds.Add(wind.Value);

@@ -26,9 +26,11 @@ public static class CifpAirportIndex
     public static IEnumerable<string> ReadAirportLines(string cifpFilePath, string airportIcao)
     {
         var info = new FileInfo(cifpFilePath);
-        var key = (info.FullName, info.Length, info.LastWriteTimeUtc);
-        var index = Indexes.GetOrAdd(key, static k => new Lazy<Dictionary<string, List<(long, long)>>>(() => Build(k.Path))).Value;
-        if (!index.TryGetValue(airportIcao.ToUpperInvariant().PadRight(4), out var ranges))
+        (string FullName, long Length, DateTime LastWriteTimeUtc) key = (info.FullName, info.Length, info.LastWriteTimeUtc);
+        Dictionary<string, List<(long Start, long End)>> index = Indexes
+            .GetOrAdd(key, static k => new Lazy<Dictionary<string, List<(long, long)>>>(() => Build(k.Path)))
+            .Value;
+        if (!index.TryGetValue(airportIcao.ToUpperInvariant().PadRight(4), out List<(long Start, long End)>? ranges))
         {
             return [];
         }
@@ -39,15 +41,15 @@ public static class CifpAirportIndex
     private static IEnumerable<string> ReadRanges(string path, List<(long Start, long End)> ranges)
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 1 << 16);
-        foreach (var (start, end) in ranges)
+        foreach ((long start, long end) in ranges)
         {
-            var buffer = new byte[end - start];
+            byte[] buffer = new byte[end - start];
             stream.Seek(start, SeekOrigin.Begin);
             stream.ReadExactly(buffer);
-            var text = Encoding.UTF8.GetString(buffer);
-            foreach (var line in text.Split('\n'))
+            string text = Encoding.UTF8.GetString(buffer);
+            foreach (string line in text.Split('\n'))
             {
-                var trimmed = line.TrimEnd('\r');
+                string trimmed = line.TrimEnd('\r');
                 if (trimmed.Length > 0)
                 {
                     yield return trimmed;
@@ -58,7 +60,7 @@ public static class CifpAirportIndex
 
     private static Dictionary<string, List<(long Start, long End)>> Build(string path)
     {
-        var bytes = File.ReadAllBytes(path);
+        byte[] bytes = File.ReadAllBytes(path);
         var ranges = new Dictionary<string, List<(long Start, long End)>>(StringComparer.Ordinal);
         string? currentIcao = null;
         long currentStart = 0;
@@ -103,7 +105,7 @@ public static class CifpAirportIndex
             return;
         }
 
-        if (!ranges.TryGetValue(icao, out var list))
+        if (!ranges.TryGetValue(icao, out List<(long Start, long End)>? list))
         {
             list = [];
             ranges[icao] = list;

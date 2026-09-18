@@ -22,9 +22,9 @@ public class CallsignPrefixResolverTests
     [Fact]
     public void Ambiguous_FirstToken_ReturnsAmbiguousWithBothCallsigns()
     {
-        var result = CallsignPrefixResolver.Resolve("N12 FH 270", Scheme, Aircraft("N1234", "N1256"));
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("N12 FH 270", Scheme, Aircraft("N1234", "N1256"));
 
-        var ambiguous = Assert.IsType<CallsignPrefixResolver.Ambiguous>(result);
+        CallsignPrefixResolver.Ambiguous ambiguous = Assert.IsType<CallsignPrefixResolver.Ambiguous>(result);
         Assert.Contains("matches multiple aircraft", ambiguous.Message);
         Assert.Contains("N1234", ambiguous.Message);
         Assert.Contains("N1256", ambiguous.Message);
@@ -34,9 +34,9 @@ public class CallsignPrefixResolverTests
     [Fact]
     public void Ambiguous_FirstToken_RemainderNotACommand_StillReportsAmbiguity()
     {
-        var result = CallsignPrefixResolver.Resolve("N12 BLAH", Scheme, Aircraft("N1234", "N1256"));
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("N12 BLAH", Scheme, Aircraft("N1234", "N1256"));
 
-        var ambiguous = Assert.IsType<CallsignPrefixResolver.Ambiguous>(result);
+        CallsignPrefixResolver.Ambiguous ambiguous = Assert.IsType<CallsignPrefixResolver.Ambiguous>(result);
         Assert.Contains("matches multiple aircraft", ambiguous.Message);
         Assert.Contains("N1234", ambiguous.Message);
         Assert.Contains("N1256", ambiguous.Message);
@@ -48,7 +48,7 @@ public class CallsignPrefixResolverTests
         // Regression (CM 020): "CM" is the Climb/Maintain verb, not a callsign. Even though it
         // is a substring of both CMD2 and PCM8679, a known verb must never be reported as an
         // ambiguous callsign — the command applies to the already-selected aircraft instead.
-        var result = CallsignPrefixResolver.Resolve("CM 020", Scheme, Aircraft("CMD2", "PCM8679"));
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("CM 020", Scheme, Aircraft("CMD2", "PCM8679"));
 
         Assert.IsType<CallsignPrefixResolver.NotAPrefix>(result);
     }
@@ -58,7 +58,7 @@ public class CallsignPrefixResolverTests
     {
         // A known verb wins over a *unique* substring match too, even when the remainder parses
         // as a command. "CM IDENT" is climb/maintain (with a bad altitude), never IDENT-to-CMD2.
-        var result = CallsignPrefixResolver.Resolve("CM IDENT", Scheme, Aircraft("CMD2"));
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("CM IDENT", Scheme, Aircraft("CMD2"));
 
         Assert.IsType<CallsignPrefixResolver.NotAPrefix>(result);
     }
@@ -68,9 +68,9 @@ public class CallsignPrefixResolverTests
     {
         // Only an EXACT callsign match overrides the known-verb guard: an aircraft literally
         // named "CM" with a command remainder still resolves as an addressee.
-        var result = CallsignPrefixResolver.Resolve("CM FH 270", Scheme, Aircraft("CM"));
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("CM FH 270", Scheme, Aircraft("CM"));
 
-        var resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
+        CallsignPrefixResolver.Resolved resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
         Assert.Equal("CM", resolved.Aircraft.Callsign);
         Assert.Equal("FH 270", resolved.Remainder);
     }
@@ -78,9 +78,9 @@ public class CallsignPrefixResolverTests
     [Fact]
     public void Resolved_UniqueSubstring_ReturnsResolvedWithRemainder()
     {
-        var result = CallsignPrefixResolver.Resolve("N12 FH 270", Scheme, Aircraft("N1234", "SWA456"));
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("N12 FH 270", Scheme, Aircraft("N1234", "SWA456"));
 
-        var resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
+        CallsignPrefixResolver.Resolved resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
         Assert.Equal("N1234", resolved.Aircraft.Callsign);
         Assert.Equal("FH 270", resolved.Remainder);
     }
@@ -88,9 +88,9 @@ public class CallsignPrefixResolverTests
     [Fact]
     public void Resolved_ExactMatch_ReturnsResolvedWithRemainder()
     {
-        var result = CallsignPrefixResolver.Resolve("N1234 FH 270", Scheme, Aircraft("N1234", "N1256"));
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("N1234 FH 270", Scheme, Aircraft("N1234", "N1256"));
 
-        var resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
+        CallsignPrefixResolver.Resolved resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
         Assert.Equal("N1234", resolved.Aircraft.Callsign);
         Assert.Equal("FH 270", resolved.Remainder);
     }
@@ -105,9 +105,9 @@ public class CallsignPrefixResolverTests
         // RES CROSS form previously failed ParseCompound (Resume was ArgMode.None), so the
         // remainder didn't parse, the callsign wasn't stripped, and the verb "N7LJ" was
         // reported as an unknown command.
-        var result = CallsignPrefixResolver.Resolve(input, Scheme, Aircraft("N7LJ", "N1234"));
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve(input, Scheme, Aircraft("N7LJ", "N1234"));
 
-        var resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
+        CallsignPrefixResolver.Resolved resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
         Assert.Equal("N7LJ", resolved.Aircraft.Callsign);
         Assert.Equal(expectedRemainder, resolved.Remainder);
     }
@@ -118,7 +118,7 @@ public class CallsignPrefixResolverTests
         // Don't steal inputs where the first token happens to match an aircraft but the
         // rest isn't a command — could be e.g. `RTIS N17` where N17 is a callsign-shaped
         // second arg of a different verb. The argument-position resolver handles those.
-        var result = CallsignPrefixResolver.Resolve("N1234 BLAH", Scheme, Aircraft("N1234"));
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("N1234 BLAH", Scheme, Aircraft("N1234"));
 
         Assert.IsType<CallsignPrefixResolver.NotAPrefix>(result);
     }
@@ -126,7 +126,7 @@ public class CallsignPrefixResolverTests
     [Fact]
     public void NotAPrefix_FirstTokenNotCallsignShaped()
     {
-        var result = CallsignPrefixResolver.Resolve("FH 270", Scheme, Aircraft("N1234"));
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("FH 270", Scheme, Aircraft("N1234"));
 
         Assert.IsType<CallsignPrefixResolver.NotAPrefix>(result);
     }
@@ -135,7 +135,7 @@ public class CallsignPrefixResolverTests
     public void NotAPrefix_SingleTokenOnly()
     {
         // Single-token select branch in SendCommandAsync handles this case separately.
-        var result = CallsignPrefixResolver.Resolve("N12", Scheme, Aircraft("N1234", "N1256"));
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("N12", Scheme, Aircraft("N1234", "N1256"));
 
         Assert.IsType<CallsignPrefixResolver.NotAPrefix>(result);
     }
@@ -145,7 +145,7 @@ public class CallsignPrefixResolverTests
     {
         // Zero-match callsign is out of scope for this fix — preserve fall-through to the
         // command parser, which will surface its own "is not a recognized command" message.
-        var result = CallsignPrefixResolver.Resolve("N99 FH 270", Scheme, Aircraft("N1234"));
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("N99 FH 270", Scheme, Aircraft("N1234"));
 
         Assert.IsType<CallsignPrefixResolver.NotAPrefix>(result);
     }
@@ -154,9 +154,9 @@ public class CallsignPrefixResolverTests
     public void Resolved_OneActiveOneDelayed_ResolvesToActive()
     {
         var aircraft = new AircraftModel[] { Ac("N1234"), Ac("N1256", delayed: true) };
-        var result = CallsignPrefixResolver.Resolve("N12 FH 270", Scheme, aircraft);
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("N12 FH 270", Scheme, aircraft);
 
-        var resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
+        CallsignPrefixResolver.Resolved resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
         Assert.Equal("N1234", resolved.Aircraft.Callsign);
         Assert.Equal("FH 270", resolved.Remainder);
     }
@@ -165,9 +165,9 @@ public class CallsignPrefixResolverTests
     public void Ambiguous_TwoActiveMatchesWithDelayedThird_StillAmbiguous()
     {
         var aircraft = new AircraftModel[] { Ac("N1234"), Ac("N1256"), Ac("N1289", delayed: true) };
-        var result = CallsignPrefixResolver.Resolve("N12 FH 270", Scheme, aircraft);
+        CallsignPrefixResolver.Result result = CallsignPrefixResolver.Resolve("N12 FH 270", Scheme, aircraft);
 
-        var ambiguous = Assert.IsType<CallsignPrefixResolver.Ambiguous>(result);
+        CallsignPrefixResolver.Ambiguous ambiguous = Assert.IsType<CallsignPrefixResolver.Ambiguous>(result);
         Assert.Contains("N1234", ambiguous.Message);
         Assert.Contains("N1256", ambiguous.Message);
     }

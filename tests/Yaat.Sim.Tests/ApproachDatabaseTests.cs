@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Tests;
 
@@ -14,26 +15,26 @@ public class ApproachDatabaseTests
     [Fact]
     public void GetApproaches_ReturnsNonEmpty()
     {
-        var db = GetNavDb();
+        NavigationDatabase? db = GetNavDb();
         if (db is null)
         {
             return;
         }
 
-        var approaches = db.GetApproaches("OAK");
+        IReadOnlyList<CifpApproachProcedure> approaches = db.GetApproaches("OAK");
         Assert.NotEmpty(approaches);
     }
 
     [Fact]
     public void GetApproach_ExactId_ReturnsCorrectProcedure()
     {
-        var db = GetNavDb();
+        NavigationDatabase? db = GetNavDb();
         if (db is null)
         {
             return;
         }
 
-        var proc = db.GetApproach("OAK", "I28R");
+        CifpApproachProcedure? proc = db.GetApproach("OAK", "I28R");
 
         Assert.NotNull(proc);
         Assert.Equal("I28R", proc.ApproachId);
@@ -44,7 +45,7 @@ public class ApproachDatabaseTests
     [Fact]
     public void GetApproach_KPrefixNormalized()
     {
-        var db = GetNavDb();
+        NavigationDatabase? db = GetNavDb();
         if (db is null)
         {
             return;
@@ -62,27 +63,27 @@ public class ApproachDatabaseTests
     [InlineData("RNAV28L", "H28LZ")]
     public void ResolveApproachId_VariousShorthands_ResolvesCorrectly(string shorthand, string expectedId)
     {
-        var db = GetNavDb();
+        NavigationDatabase? db = GetNavDb();
         if (db is null)
         {
             return;
         }
 
-        var result = db.ResolveApproachId("OAK", shorthand);
+        string? result = db.ResolveApproachId("OAK", shorthand);
         Assert.Equal(expectedId, result);
     }
 
     [Fact]
     public void ResolveApproachId_RunwayOnly_ReturnsHighestPriority()
     {
-        var db = GetNavDb();
+        NavigationDatabase? db = GetNavDb();
         if (db is null)
         {
             return;
         }
 
         // "28R" has both ILS (I28R) and LOC (L28R) — ILS should be preferred
-        var result = db.ResolveApproachId("OAK", "28R");
+        string? result = db.ResolveApproachId("OAK", "28R");
         Assert.Equal("I28R", result);
     }
 
@@ -95,14 +96,14 @@ public class ApproachDatabaseTests
     [InlineData("I25R", "I25R")] // two-digit runway unaffected by normalization
     public void ResolveApproachId_NoLeadingZeroRunway_NormalizesAndResolves(string shorthand, string expectedId)
     {
-        var db = GetNavDb();
+        NavigationDatabase? db = GetNavDb();
         if (db is null)
         {
             return;
         }
 
         // KLAX has single-digit runways 06/07 with ILS, LOC and RNAV approaches in the test CIFP.
-        var result = db.ResolveApproachId("LAX", shorthand);
+        string? result = db.ResolveApproachId("LAX", shorthand);
         Assert.Equal(expectedId, result);
     }
 
@@ -136,7 +137,7 @@ public class ApproachDatabaseTests
     [InlineData("APC", "VOR06", "S06")]
     public void ResolveApproachId_NavaidFamilyShorthand_ResolvesFamilyCodedApproach(string airport, string shorthand, string expectedId)
     {
-        var db = GetNavDb();
+        NavigationDatabase? db = GetNavDb();
         if (db is null)
         {
             return;
@@ -152,7 +153,7 @@ public class ApproachDatabaseTests
     [Fact]
     public void ResolveApproachId_UnknownShorthand_ReturnsNull()
     {
-        var db = GetNavDb();
+        NavigationDatabase? db = GetNavDb();
         if (db is null)
         {
             return;
@@ -166,16 +167,16 @@ public class ApproachDatabaseTests
     [Fact]
     public void GetApproaches_CachesPerAirport()
     {
-        var db = GetNavDb();
+        NavigationDatabase? db = GetNavDb();
         if (db is null)
         {
             return;
         }
 
         // First call loads from file
-        var result1 = db.GetApproaches("OAK");
+        IReadOnlyList<CifpApproachProcedure> result1 = db.GetApproaches("OAK");
         // Second call should return same cached list
-        var result2 = db.GetApproaches("OAK");
+        IReadOnlyList<CifpApproachProcedure> result2 = db.GetApproaches("OAK");
 
         Assert.Same(result1, result2);
     }
@@ -183,13 +184,13 @@ public class ApproachDatabaseTests
     [Fact]
     public void GetApproaches_UnknownAirport_ReturnsEmpty()
     {
-        var db = GetNavDb();
+        NavigationDatabase? db = GetNavDb();
         if (db is null)
         {
             return;
         }
 
-        var result = db.GetApproaches("ZZZ");
+        IReadOnlyList<CifpApproachProcedure> result = db.GetApproaches("ZZZ");
         Assert.Empty(result);
     }
 }

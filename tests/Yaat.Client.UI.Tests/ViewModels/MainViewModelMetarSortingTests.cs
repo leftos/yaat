@@ -52,7 +52,7 @@ public class MainViewModelMetarSortingTests
         vm.PopulateMetars([SfoMetar, OakMetar, HafMetar]);
         Assert.Equal(["HAF", "OAK", "SFO"], vm.Metars.Select(m => m.StationId));
 
-        var sfo = vm.Metars.Single(m => m.StationId == "SFO");
+        MetarEntry sfo = vm.Metars.Single(m => m.StationId == "SFO");
         vm.ToggleMetarFavoriteCommand.Execute(sfo);
 
         Assert.Equal(["SFO", "HAF", "OAK"], vm.Metars.Select(m => m.StationId));

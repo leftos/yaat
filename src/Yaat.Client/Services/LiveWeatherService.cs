@@ -32,13 +32,13 @@ public sealed class LiveWeatherService
 
         // Fetch METARs and FD winds in parallel
         var icaoIds = airportIds.Select(id => id.Length == 3 ? "K" + id : id).ToList();
-        var metarTask = FetchMetarsAsync(icaoIds);
-        var fdTask = FetchWindsAloftAsync(artccId);
+        Task<List<MetarJson>?> metarTask = FetchMetarsAsync(icaoIds);
+        Task<List<StationWinds>?> fdTask = FetchWindsAloftAsync(artccId);
 
         await Task.WhenAll(metarTask, fdTask);
 
-        var metars = metarTask.Result;
-        var fdStations = fdTask.Result;
+        List<MetarJson>? metars = metarTask.Result;
+        List<StationWinds>? fdStations = fdTask.Result;
 
         if ((metars is null || metars.Count == 0) && (fdStations is null || fdStations.Count == 0))
         {
@@ -57,7 +57,7 @@ public sealed class LiveWeatherService
         // Add surface wind from METARs
         if (metars is { Count: > 0 })
         {
-            var surfaceWind = BuildSurfaceWindLayer(metars, GetArtccCenter(artccId));
+            WindLayer? surfaceWind = BuildSurfaceWindLayer(metars, GetArtccCenter(artccId));
             if (surfaceWind is not null)
             {
                 windLayers.Insert(0, surfaceWind);
@@ -71,7 +71,7 @@ public sealed class LiveWeatherService
             allMetarStrings.AddRange(metars.Select(m => m.RawOb).Where(s => !string.IsNullOrWhiteSpace(s)));
         }
 
-        var timestamp = DateTime.UtcNow.ToString("HH:mm");
+        string timestamp = DateTime.UtcNow.ToString("HH:mm");
         return new WeatherProfile
         {
             Id = Guid.NewGuid().ToString("N")[..8],
@@ -86,9 +86,9 @@ public sealed class LiveWeatherService
     {
         try
         {
-            var ids = string.Join(",", icaoIds);
-            var url = $"{AwcBase}/metar?ids={ids}&format=json";
-            var json = await _http.GetStringAsync(url);
+            string ids = string.Join(",", icaoIds);
+            string url = $"{AwcBase}/metar?ids={ids}&format=json";
+            string json = await _http.GetStringAsync(url);
             return ParseMetars(json);
         }
         catch (Exception ex)
@@ -104,18 +104,18 @@ public sealed class LiveWeatherService
     /// </summary>
     public static List<MetarJson>? ParseMetars(string json)
     {
-        var elements = JsonSerializer.Deserialize<List<JsonElement>>(json, JsonOpts);
+        List<JsonElement>? elements = JsonSerializer.Deserialize<List<JsonElement>>(json, JsonOpts);
         if (elements is null)
         {
             return null;
         }
 
         var metars = new List<MetarJson>(elements.Count);
-        foreach (var element in elements)
+        foreach (JsonElement element in elements)
         {
             try
             {
-                var metar = element.Deserialize<MetarJson>(JsonOpts);
+                MetarJson? metar = element.Deserialize<MetarJson>(JsonOpts);
                 if (metar is not null)
                 {
                     metars.Add(metar);
@@ -132,7 +132,7 @@ public sealed class LiveWeatherService
 
     private async Task<List<StationWinds>?> FetchWindsAloftAsync(string artccId)
     {
-        var region = FdRegionMapping.GetRegion(artccId);
+        string? region = FdRegionMapping.GetRegion(artccId);
         if (region is null)
         {
             Log.LogWarning("No FD region mapping for ARTCC {Artcc}", artccId);
@@ -141,8 +141,8 @@ public sealed class LiveWeatherService
 
         try
         {
-            var url = $"{AwcBase}/windtemp?region={region}&level=low&fcst=06";
-            var text = await _http.GetStringAsync(url);
+            string url = $"{AwcBase}/windtemp?region={region}&level=low&fcst=06";
+            string text = await _http.GetStringAsync(url);
             return WindsAloftParser.Parse(text);
         }
         catch (Exception ex)
@@ -155,15 +155,15 @@ public sealed class LiveWeatherService
     private List<WindLayer> BuildWindLayersFromFd(List<StationWinds> stations, string artccId)
     {
         // Get ARTCC center for magnetic declination
-        var artccCenter = GetArtccCenter(artccId);
+        LatLon artccCenter = GetArtccCenter(artccId);
         double centerLat = artccCenter.Lat;
         double centerLon = artccCenter.Lon;
 
         // Collect all altitude levels present
         var allLevels = new HashSet<int>();
-        foreach (var station in stations)
+        foreach (StationWinds station in stations)
         {
-            foreach (var wind in station.Winds)
+            foreach (WindAtLevel wind in station.Winds)
             {
                 allLevels.Add(wind.AltitudeFt);
             }
@@ -179,9 +179,9 @@ public sealed class LiveWeatherService
                 speedSum = 0;
             int count = 0;
 
-            foreach (var station in stations)
+            foreach (StationWinds station in stations)
             {
-                foreach (var wind in station.Winds)
+                foreach (WindAtLevel wind in station.Winds)
                 {
                     if (wind.AltitudeFt != level || wind.IsLightVariable)
                     {
@@ -253,9 +253,9 @@ public sealed class LiveWeatherService
         double halfSpreadSum = 0;
         int halfSpreadCount = 0;
 
-        foreach (var m in metars)
+        foreach (MetarJson m in metars)
         {
-            var parsed = string.IsNullOrWhiteSpace(m.RawOb) ? null : MetarParser.Parse(m.RawOb);
+            MetarParser.ParsedMetar? parsed = string.IsNullOrWhiteSpace(m.RawOb) ? null : MetarParser.Parse(m.RawOb);
             int? dir = parsed?.WindDirectionDeg ?? m.Wdir;
             int? spd = parsed?.WindSpeedKts ?? m.Wspd;
             bool variable = parsed?.WindVariable ?? ((m.Wdir is null) && (m.Wspd is not null));
@@ -353,7 +353,7 @@ public sealed class LiveWeatherService
     private static LatLon GetArtccCenter(string artccId)
     {
         // Try to resolve the primary airport as a proxy for ARTCC center
-        var primaryAirport = artccId.ToUpperInvariant() switch
+        string? primaryAirport = artccId.ToUpperInvariant() switch
         {
             "ZOA" => "SFO",
             "ZLA" => "LAX",
@@ -382,7 +382,7 @@ public sealed class LiveWeatherService
 
         if (primaryAirport is not null)
         {
-            var pos = NavigationDatabase.Instance.GetFixPosition(primaryAirport);
+            (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetFixPosition(primaryAirport);
             if (pos is not null)
             {
                 return new LatLon(pos.Value.Lat, pos.Value.Lon);

@@ -28,7 +28,7 @@ public class PopOutContextMenuTests
             ("Favorites", new FavoritesPanelWindow()),
         };
 
-        foreach (var (name, window) in windows)
+        foreach ((string? name, Window? window) in windows)
         {
             Assert.True(
                 window.ContextMenu is null,

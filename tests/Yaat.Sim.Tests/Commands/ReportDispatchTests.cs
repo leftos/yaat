@@ -25,12 +25,12 @@ public class ReportDispatchTests
     [Fact]
     public void ArmPatternLeg_SetsFlag_AndKeepsPhase()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var downwind = new DownwindPhase();
         ac.Phases = new PhaseList();
         ac.Phases.Add(downwind);
 
-        var result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.Base), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.Base), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(ac.Approach.ReportArmedBase);
@@ -41,9 +41,9 @@ public class ReportDispatchTests
     [Fact]
     public void ArmPatternLeg_Rejected_WhenNotInPattern()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
-        var result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.Base), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.Base), ac, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("not in the pattern", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -53,10 +53,14 @@ public class ReportDispatchTests
     [Fact]
     public void ArmMileFinal_SetsTarget_WhenRunwayAssigned()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Phases = new PhaseList { AssignedRunway = MakeRunway() };
 
-        var result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.MileFinal, DistanceNm: 5), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ReportCommand(ReportTrigger.MileFinal, DistanceNm: 5),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.True(result.Success);
         Assert.Equal(5, ac.Approach.ReportFinalMileTarget);
@@ -65,9 +69,13 @@ public class ReportDispatchTests
     [Fact]
     public void ArmMileFinal_Rejected_WhenNoRunway()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
-        var result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.MileFinal, DistanceNm: 5), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ReportCommand(ReportTrigger.MileFinal, DistanceNm: 5),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.False(result.Success);
         Assert.Contains("no runway", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -77,9 +85,13 @@ public class ReportDispatchTests
     [Fact]
     public void ArmAtFix_Rejected_WhenFixUnknown()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
-        var result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.AtFix, FixName: "QXQXQ"), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ReportCommand(ReportTrigger.AtFix, FixName: "QXQXQ"),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.False(result.Success);
         Assert.Contains("nav database", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -94,8 +106,12 @@ public class ReportDispatchTests
             return; // nav data unavailable — silent skip
         }
 
-        var ac = MakeAircraft();
-        var result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.AtFix, FixName: "SUNOL"), ac, TestDispatch.Context(Random.Shared));
+        AircraftState ac = MakeAircraft();
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ReportCommand(ReportTrigger.AtFix, FixName: "SUNOL"),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.True(result.Success);
         Assert.Equal("SUNOL", ac.Approach.ReportAtFixName);
@@ -106,13 +122,13 @@ public class ReportDispatchTests
     [Fact]
     public void CancelAll_ClearsEveryArm()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Approach.ReportArmedBase = true;
         ac.Approach.ReportArmedFinal = true;
         ac.Approach.ReportFinalMileTarget = 5;
         ac.Approach.ReportAtFixName = "SUNOL";
 
-        var result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.Cancel), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.Cancel), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.False(ac.Approach.ReportArmedBase);
@@ -124,11 +140,11 @@ public class ReportDispatchTests
     [Fact]
     public void CancelSpecificLeg_ClearsOnlyThatLeg()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Approach.ReportArmedBase = true;
         ac.Approach.ReportArmedFinal = true;
 
-        var result = CommandDispatcher.Dispatch(
+        CommandResult result = CommandDispatcher.Dispatch(
             new ReportCommand(ReportTrigger.Cancel, CancelTarget: ReportTrigger.Base),
             ac,
             TestDispatch.Context(Random.Shared)

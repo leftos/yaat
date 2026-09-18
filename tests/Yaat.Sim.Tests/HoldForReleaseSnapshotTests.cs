@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
 
@@ -56,7 +57,7 @@ public class HoldForReleaseSnapshotTests
             }
         );
 
-        var dto = scenario.ToSnapshot();
+        ScenarioSnapshotDto dto = scenario.ToSnapshot();
 
         Assert.NotNull(dto.HeldDepartureAirports);
         Assert.Contains("SJC", dto.HeldDepartureAirports!);

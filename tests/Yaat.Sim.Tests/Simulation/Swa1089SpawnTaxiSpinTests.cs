@@ -71,8 +71,8 @@ public class Swa1089SpawnTaxiSpinTests(ITestOutputHelper output)
     [Fact]
     public void Diagnostic_LogSpawnAndTaxiTrajectory()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -81,16 +81,16 @@ public class Swa1089SpawnTaxiSpinTests(ITestOutputHelper output)
 
         engine.Replay(recording, SpawnAtSeconds);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
 
         DumpAircraftState(ac, layout, t: 0);
         DumpRoute(ac);
 
-        var spawnPos = ac.Position;
+        LatLon spawnPos = ac.Position;
 
         for (int t = 1; t <= TicksToObserve; t++)
         {
@@ -126,8 +126,8 @@ public class Swa1089SpawnTaxiSpinTests(ITestOutputHelper output)
     [Fact]
     public void Spawn_TaxiPresetMakesForwardProgress()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -136,9 +136,9 @@ public class Swa1089SpawnTaxiSpinTests(ITestOutputHelper output)
 
         engine.Replay(recording, SpawnAtSeconds);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
-        var spawnPos = ac.Position;
+        LatLon spawnPos = ac.Position;
 
         for (int t = 1; t <= TicksToObserve; t++)
         {
@@ -162,11 +162,11 @@ public class Swa1089SpawnTaxiSpinTests(ITestOutputHelper output)
 
     private void DumpAircraftState(AircraftState ac, AirportGroundLayout layout, int t)
     {
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         string segDesc = "(no route)";
         if (route is not null && route.CurrentSegmentIndex < route.Segments.Count)
         {
-            var seg = route.Segments[route.CurrentSegmentIndex];
+            TaxiRouteSegment seg = route.Segments[route.CurrentSegmentIndex];
             segDesc = $"seg[{route.CurrentSegmentIndex}]={seg.FromNodeId}->{seg.ToNodeId} {seg.TaxiwayName}";
         }
 
@@ -179,7 +179,7 @@ public class Swa1089SpawnTaxiSpinTests(ITestOutputHelper output)
 
     private void DumpRoute(AircraftState ac)
     {
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             output.WriteLine("Route: (none)");
@@ -189,13 +189,13 @@ public class Swa1089SpawnTaxiSpinTests(ITestOutputHelper output)
         output.WriteLine($"Route: \"{route.ToSummary()}\"  CurrentSegmentIndex={route.CurrentSegmentIndex}");
         for (int i = 0; i < route.Segments.Count; i++)
         {
-            var s = route.Segments[i];
+            TaxiRouteSegment s = route.Segments[i];
             output.WriteLine($"  [{i, 2}] {s.FromNodeId, 4} -> {s.ToNodeId, 4}  {s.TaxiwayName}");
         }
         if (route.HoldShortPoints.Count > 0)
         {
             output.WriteLine("HoldShortPoints:");
-            foreach (var hs in route.HoldShortPoints)
+            foreach (HoldShortPoint hs in route.HoldShortPoints)
             {
                 output.WriteLine($"  node={hs.NodeId} target={hs.TargetName} reason={hs.Reason}");
             }

@@ -25,15 +25,15 @@ public class CompoundConditionalLookaheadTests
 
     private static AircraftState MakeAircraftOnFinal(double distanceNm, bool activePhase)
     {
-        var runway = MakeRunway();
-        var (lat, lon) = GeoMath.ProjectPoint(
+        RunwayInfo runway = MakeRunway();
+        (double lat, double lon) = GeoMath.ProjectPoint(
             runway.ThresholdLatitude,
             runway.ThresholdLongitude,
             new TrueHeading((runway.TrueHeading.Degrees + 180) % 360),
             distanceNm
         );
 
-        var aircraft = MakeAircraft(altitude: 3000, ias: 220);
+        AircraftState aircraft = MakeAircraft(altitude: 3000, ias: 220);
         aircraft.Position = new LatLon(lat, lon);
         aircraft.TrueHeading = runway.TrueHeading;
         aircraft.TrueTrack = runway.TrueHeading;
@@ -52,17 +52,21 @@ public class CompoundConditionalLookaheadTests
 
     private static void DispatchOk(AircraftState aircraft, string command)
     {
-        var parsed = CommandParser.ParseCompound(command);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared, validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parsed.Value!,
+            aircraft,
+            TestDispatch.Context(Random.Shared, validateDctFixes: false)
+        );
         Assert.True(result.Success, result.Message);
     }
 
     [Fact]
     public void LvCondition_FiresWhileEarlierAltitudeBlockContinues()
     {
-        var aircraft = MakeAircraft(altitude: 3000);
+        AircraftState aircraft = MakeAircraft(altitude: 3000);
 
         DispatchOk(aircraft, "CM 100; LV 050 FH 270");
 
@@ -82,7 +86,7 @@ public class CompoundConditionalLookaheadTests
     [Fact]
     public void ConditionalLookahead_DoesNotJumpPastOrdinaryQueuedBlock()
     {
-        var aircraft = MakeAircraft(altitude: 5000);
+        AircraftState aircraft = MakeAircraft(altitude: 5000);
 
         DispatchOk(aircraft, "FH 270; FH 180; LV 050 FH 090");
 
@@ -99,7 +103,7 @@ public class CompoundConditionalLookaheadTests
     [Fact]
     public void SpeedUntilDistance_FiresResumeWhileSpeedBlockContinues()
     {
-        var aircraft = MakeAircraftOnFinal(distanceNm: 9.0, activePhase: false);
+        AircraftState aircraft = MakeAircraftOnFinal(distanceNm: 9.0, activePhase: false);
 
         DispatchOk(aircraft, "SPD 210 UNTIL 10");
 
@@ -118,7 +122,7 @@ public class CompoundConditionalLookaheadTests
     [Fact]
     public void ChainedSpeedUntilDistance_FiresIntermediateAndFinalBlocks()
     {
-        var aircraft = MakeAircraftOnFinal(distanceNm: 9.0, activePhase: false);
+        AircraftState aircraft = MakeAircraftOnFinal(distanceNm: 9.0, activePhase: false);
 
         DispatchOk(aircraft, "SPD 210 UNTIL 10; SPD 180 UNTIL 5");
 
@@ -135,8 +139,8 @@ public class CompoundConditionalLookaheadTests
         Assert.False(aircraft.Queue.Blocks[2].IsApplied);
         Assert.Equal(180, aircraft.Targets.TargetSpeed);
 
-        var runway = aircraft.Phases!.AssignedRunway!;
-        var (lat, lon) = GeoMath.ProjectPoint(
+        RunwayInfo runway = aircraft.Phases!.AssignedRunway!;
+        (double lat, double lon) = GeoMath.ProjectPoint(
             runway.ThresholdLatitude,
             runway.ThresholdLongitude,
             new TrueHeading((runway.TrueHeading.Degrees + 180) % 360),
@@ -156,7 +160,7 @@ public class CompoundConditionalLookaheadTests
     [Fact]
     public void SpeedUntilDistance_FiresDuringActivePhase()
     {
-        var aircraft = MakeAircraftOnFinal(distanceNm: 9.0, activePhase: true);
+        AircraftState aircraft = MakeAircraftOnFinal(distanceNm: 9.0, activePhase: true);
 
         DispatchOk(aircraft, "SPD 210 UNTIL 10");
 

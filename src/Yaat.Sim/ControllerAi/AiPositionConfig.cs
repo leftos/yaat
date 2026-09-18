@@ -44,7 +44,7 @@ public sealed record AiPositionConfig(
         hash.Add(Callsign, StringComparer.Ordinal);
         hash.Add(RadioName, StringComparer.Ordinal);
         hash.Add(FacilityId, StringComparer.Ordinal);
-        foreach (var airportId in AirportIds)
+        foreach (string airportId in AirportIds)
         {
             hash.Add(airportId, StringComparer.Ordinal);
         }

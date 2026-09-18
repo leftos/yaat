@@ -120,7 +120,7 @@ public static class VirtualNode
     /// </summary>
     public static GroundNode OffsetBefore(AirportGroundLayout layout, TaxiRoute route, int nodeId, double offsetNm, bool stopAtRunwayHoldShort)
     {
-        if (!layout.Nodes.TryGetValue(nodeId, out var node))
+        if (!layout.Nodes.TryGetValue(nodeId, out GroundNode? node))
         {
             return Create(0, 0);
         }
@@ -133,7 +133,7 @@ public static class VirtualNode
         while (remaining > 0)
         {
             int approachId = FindApproachNodeId(route, currentId);
-            if (approachId < 0 || !layout.Nodes.TryGetValue(approachId, out var approachNode))
+            if (approachId < 0 || !layout.Nodes.TryGetValue(approachId, out GroundNode? approachNode))
             {
                 break;
             }
@@ -158,7 +158,7 @@ public static class VirtualNode
 
             if (remaining <= edgeLen)
             {
-                var (lat, lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, lastBearing, remaining);
+                (double lat, double lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, lastBearing, remaining);
                 return Create(lat, lon);
             }
 
@@ -171,7 +171,7 @@ public static class VirtualNode
         // or fall back to the current node position.
         if (remaining > 0 && !double.IsNaN(lastBearing))
         {
-            var (lat, lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, lastBearing, remaining);
+            (double lat, double lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, lastBearing, remaining);
             return Create(lat, lon);
         }
 
@@ -211,7 +211,7 @@ public static class VirtualNode
             if (nextNode is null)
             {
                 double forwardBearing = GeoMath.BearingTo(prevLat, prevLon, currentNode.Position.Lat, currentNode.Position.Lon);
-                var (lat, lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, forwardBearing, remaining);
+                (double lat, double lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, forwardBearing, remaining);
                 return Create(lat, lon);
             }
 
@@ -227,7 +227,7 @@ public static class VirtualNode
             if (remaining <= edgeLen)
             {
                 double bearing = GeoMath.BearingTo(currentNode.Position, nextNode.Position);
-                var (lat, lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, bearing, remaining);
+                (double lat, double lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, bearing, remaining);
                 return Create(lat, lon);
             }
 
@@ -254,9 +254,9 @@ public static class VirtualNode
         double bestApproachAlignment = double.MaxValue;
         double approachBearing = GeoMath.BearingTo(currentNode.Position.Lat, currentNode.Position.Lon, prevLat, prevLon);
 
-        foreach (var edge in currentNode.Edges)
+        foreach (IGroundEdge edge in currentNode.Edges)
         {
-            var other = edge.OtherNode(currentNode);
+            GroundNode? other = edge.OtherNode(currentNode);
             if (other is null)
             {
                 continue;
@@ -276,9 +276,9 @@ public static class VirtualNode
         GroundNode? bestAny = null;
         double bestAnyAlignment = double.MaxValue;
 
-        foreach (var edge in currentNode.Edges)
+        foreach (IGroundEdge edge in currentNode.Edges)
         {
-            var otherNode = edge.OtherNode(currentNode);
+            GroundNode? otherNode = edge.OtherNode(currentNode);
             if (otherNode is null)
             {
                 continue;
@@ -314,7 +314,7 @@ public static class VirtualNode
 
     private static int FindApproachNodeId(TaxiRoute route, int nodeId)
     {
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             if (seg.ToNodeId == nodeId)
             {

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -27,14 +28,14 @@ public sealed partial class SimulationEngine
             return AddAircraftOutcome.Refused("No active scenario");
         }
 
-        var (request, parseError) = SpawnParser.Parse(args);
+        (SpawnRequest? request, string? parseError) = SpawnParser.Parse(args);
         if (request is null)
         {
             return AddAircraftOutcome.Refused(parseError);
         }
 
-        var groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
-        var (derived, generationError) = AircraftGenerator.Generate(
+        AirportGroundLayout? groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
+        (AircraftState? derived, string? generationError) = AircraftGenerator.Generate(
             request,
             scenario.PrimaryAirportId,
             World.GetSnapshot(),
@@ -56,7 +57,7 @@ public sealed partial class SimulationEngine
             return derived is null ? AddAircraftOutcome.Refused(generationError) : new AddAircraftOutcome(derived, derived.ToSnapshot(), null);
         }
 
-        var state = ReconcileRecordedSpawn(args, recorded, derived, generationError);
+        AircraftState state = ReconcileRecordedSpawn(args, recorded, derived, generationError);
         return new AddAircraftOutcome(state, state.ToSnapshot(), null);
     }
 
@@ -113,26 +114,28 @@ public sealed partial class SimulationEngine
     /// </summary>
     internal AircraftState? SpawnNow(string callsign)
     {
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null)
         {
             return null;
         }
 
-        var entry = scenario.DelayedQueue.FirstOrDefault(e => e.Aircraft.State.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase));
+        DelayedSpawn? entry = scenario.DelayedQueue.FirstOrDefault(e =>
+            e.Aircraft.State.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase)
+        );
         if (entry is null)
         {
             return null;
         }
 
         scenario.DelayedQueue.Remove(entry);
-        var state = entry.Aircraft.State;
+        AircraftState state = entry.Aircraft.State;
         state.SpawnedAtSeconds = scenario.ElapsedSeconds;
         // A ground departure manually spawned under an armed airport still holds short until released.
         HeldReleaseService.MarkHeldOnSpawnIfArmed(scenario, state);
         World.AddAircraft(state);
         DispatchPresetCommands(entry.Aircraft);
-        foreach (var msg in entry.Aircraft.AutoTrackMessages)
+        foreach (string msg in entry.Aircraft.AutoTrackMessages)
         {
             EmitTerminal("System", state.Callsign, msg);
         }
@@ -151,13 +154,15 @@ public sealed partial class SimulationEngine
     /// </summary>
     internal bool SpawnDelay(string callsign, int seconds)
     {
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null)
         {
             return false;
         }
 
-        var entry = scenario.DelayedQueue.FirstOrDefault(e => e.Aircraft.State.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase));
+        DelayedSpawn? entry = scenario.DelayedQueue.FirstOrDefault(e =>
+            e.Aircraft.State.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase)
+        );
         if (entry is null)
         {
             return false;
@@ -198,7 +203,7 @@ public sealed partial class SimulationEngine
 
     internal void ApplySettingChange(RecordedSettingChange setting)
     {
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null)
         {
             return;
@@ -211,13 +216,13 @@ public sealed partial class SimulationEngine
         switch (setting.Setting)
         {
             case "AutoClearedToLand":
-                if (bool.TryParse(setting.Value, out var ctl))
+                if (bool.TryParse(setting.Value, out bool ctl))
                 {
                     scenario.AutoClearedToLand = ctl;
                 }
                 break;
             case "AutoCrossRunway":
-                if (bool.TryParse(setting.Value, out var acr))
+                if (bool.TryParse(setting.Value, out bool acr))
                 {
                     scenario.AutoCrossRunway = acr;
                     World.ApplyAutoCrossToActiveTaxiRoutes(acr);
@@ -225,37 +230,37 @@ public sealed partial class SimulationEngine
                 break;
             case "AutoPullUpToParallel":
                 // Only affects future landing exits — no active-route walk needed.
-                if (bool.TryParse(setting.Value, out var apup))
+                if (bool.TryParse(setting.Value, out bool apup))
                 {
                     scenario.AutoPullUpToParallel = apup;
                 }
                 break;
             case "AutoGoAroundOnOccupiedRunway":
-                if (bool.TryParse(setting.Value, out var agor))
+                if (bool.TryParse(setting.Value, out bool agor))
                 {
                     scenario.AutoGoAroundOnOccupiedRunway = agor;
                 }
                 break;
             case "AutoRejectTakeoffOnOccupiedRunway":
-                if (bool.TryParse(setting.Value, out var arto))
+                if (bool.TryParse(setting.Value, out bool arto))
                 {
                     scenario.AutoRejectTakeoffOnOccupiedRunway = arto;
                 }
                 break;
             case "AutoArrivalSpacingOnOccupiedRunway":
-                if (bool.TryParse(setting.Value, out var aaso))
+                if (bool.TryParse(setting.Value, out bool aaso))
                 {
                     scenario.AutoArrivalSpacingOnOccupiedRunway = aaso;
                 }
                 break;
             case "LiveTrafficEnabled":
-                if (bool.TryParse(setting.Value, out var live))
+                if (bool.TryParse(setting.Value, out bool live))
                 {
                     scenario.LiveTrafficEnabled = live;
                 }
                 break;
             case "LiveTrafficCeilingFt":
-                if (int.TryParse(setting.Value, out var ceiling))
+                if (int.TryParse(setting.Value, out int ceiling))
                 {
                     scenario.LiveTrafficCeilingFt = ceiling;
                 }
@@ -267,19 +272,19 @@ public sealed partial class SimulationEngine
                 // Diagnostic: where the room stood in the feed. Replay is driven by the recorded samples themselves.
                 break;
             case "AutoAcceptDelay":
-                if (int.TryParse(setting.Value, out var seconds))
+                if (int.TryParse(setting.Value, out int seconds))
                 {
                     scenario.AutoAcceptDelay = seconds < 0 ? TimeSpan.FromSeconds(-1) : TimeSpan.FromSeconds(Math.Clamp(seconds, 0, 60));
                 }
                 break;
             case "CommandRunDelayMinSeconds":
-                if (int.TryParse(setting.Value, out var crdMin))
+                if (int.TryParse(setting.Value, out int crdMin))
                 {
                     scenario.CommandRunDelayMinSeconds = Math.Clamp(crdMin, 0, 60);
                 }
                 break;
             case "CommandRunDelayMaxSeconds":
-                if (int.TryParse(setting.Value, out var crdMax))
+                if (int.TryParse(setting.Value, out int crdMax))
                 {
                     scenario.CommandRunDelayMaxSeconds = Math.Clamp(crdMax, 0, 60);
                 }
@@ -291,19 +296,19 @@ public sealed partial class SimulationEngine
                 scenario.ClientAutoDeleteOverride = string.IsNullOrEmpty(setting.Value) ? null : setting.Value;
                 break;
             case "ValidateDctFixes":
-                if (bool.TryParse(setting.Value, out var validate))
+                if (bool.TryParse(setting.Value, out bool validate))
                 {
                     scenario.ValidateDctFixes = validate;
                 }
                 break;
             case "SoloTrainingMode":
-                if (bool.TryParse(setting.Value, out var soloTrainingMode))
+                if (bool.TryParse(setting.Value, out bool soloTrainingMode))
                 {
                     scenario.SoloTrainingMode = soloTrainingMode;
                 }
                 break;
             case "SoloParkingInitialCallupRatePercent":
-                if (int.TryParse(setting.Value, out var parkingRate))
+                if (int.TryParse(setting.Value, out int parkingRate))
                 {
                     ApplySoloPacingRates(
                         parkingRate,
@@ -314,7 +319,7 @@ public sealed partial class SimulationEngine
                 }
                 break;
             case "SoloArrivalGeneratorRatePercent":
-                if (int.TryParse(setting.Value, out var arrivalRate))
+                if (int.TryParse(setting.Value, out int arrivalRate))
                 {
                     ApplySoloPacingRates(
                         scenario.SoloParkingInitialCallupRatePercent,
@@ -325,7 +330,7 @@ public sealed partial class SimulationEngine
                 }
                 break;
             case "SoloGoAroundProbabilityPercent":
-                if (int.TryParse(setting.Value, out var goAroundPct))
+                if (int.TryParse(setting.Value, out int goAroundPct))
                 {
                     ApplySoloPacingRates(
                         scenario.SoloParkingInitialCallupRatePercent,
@@ -336,7 +341,7 @@ public sealed partial class SimulationEngine
                 }
                 break;
             case "RpoShowPilotSpeech":
-                if (bool.TryParse(setting.Value, out var rpoShowPilotSpeech))
+                if (bool.TryParse(setting.Value, out bool rpoShowPilotSpeech))
                 {
                     scenario.RpoShowPilotSpeech = rpoShowPilotSpeech;
                 }
@@ -354,7 +359,7 @@ public sealed partial class SimulationEngine
     public List<string> ApplyGeneratorsJson(string generatorsJson)
     {
         var warnings = new List<string>();
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null)
         {
             warnings.Add("No active scenario");
@@ -385,21 +390,21 @@ public sealed partial class SimulationEngine
             .GroupBy(g => g.ConfigBase.Id, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => (g.First().NextSpawnSeconds, g.First().WasActive), StringComparer.Ordinal);
 
-        var navDb = NavigationDatabase.Instance;
-        var airportId = scenario.PrimaryAirportId ?? "";
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string airportId = scenario.PrimaryAirportId ?? "";
 
         var newArrivals = new List<GeneratorState>();
-        foreach (var cfg in payload.AircraftGenerators)
+        foreach (ScenarioGeneratorConfig cfg in payload.AircraftGenerators)
         {
-            var runwayId = cfg.Runway ?? "";
-            var runway = navDb.GetRunway(airportId, runwayId);
+            string runwayId = cfg.Runway ?? "";
+            RunwayInfo? runway = navDb.GetRunway(airportId, runwayId);
             if (runway is null)
             {
                 warnings.Add($"Generator '{cfg.Id}': runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} not found at {airportId}");
                 continue;
             }
 
-            var (next, wasActive) = ResumeCadence(cfg, scaledByArrivalRate: true);
+            (double next, bool wasActive) = ResumeCadence(cfg, scaledByArrivalRate: true);
             newArrivals.Add(
                 new GeneratorState
                 {
@@ -412,9 +417,9 @@ public sealed partial class SimulationEngine
         }
 
         var newVfrArrivals = new List<VfrArrivalGeneratorState>();
-        foreach (var cfg in payload.VfrArrivalGenerators)
+        foreach (VfrArrivalGeneratorConfig cfg in payload.VfrArrivalGenerators)
         {
-            var (next, wasActive) = ResumeCadence(cfg, scaledByArrivalRate: true);
+            (double next, bool wasActive) = ResumeCadence(cfg, scaledByArrivalRate: true);
             newVfrArrivals.Add(
                 new VfrArrivalGeneratorState
                 {
@@ -426,9 +431,9 @@ public sealed partial class SimulationEngine
         }
 
         var newOverflights = new List<OverflightGeneratorState>();
-        foreach (var cfg in payload.OverflightGenerators)
+        foreach (OverflightGeneratorConfig cfg in payload.OverflightGenerators)
         {
-            var (next, wasActive) = ResumeCadence(cfg, scaledByArrivalRate: false);
+            (double next, bool wasActive) = ResumeCadence(cfg, scaledByArrivalRate: false);
             newOverflights.Add(
                 new OverflightGeneratorState
                 {
@@ -449,12 +454,12 @@ public sealed partial class SimulationEngine
 
         (double NextSpawnSeconds, bool WasActive) ResumeCadence(IGeneratorConfig cfg, bool scaledByArrivalRate)
         {
-            if (priorCadence.TryGetValue(cfg.Id, out var prior))
+            if (priorCadence.TryGetValue(cfg.Id, out (double NextSpawnSeconds, bool WasActive) prior))
             {
                 return prior;
             }
 
-            var interval = scaledByArrivalRate
+            double interval = scaledByArrivalRate
                 ? ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(cfg.IntervalTime, scenario.SoloArrivalGeneratorRatePercent)
                 : cfg.IntervalTime;
             return (scenario.ElapsedSeconds + interval, false);
@@ -463,7 +468,7 @@ public sealed partial class SimulationEngine
 
     internal void ApplyWeatherJson(string weatherJson)
     {
-        var parseResult = WeatherTimelineParser.Parse(weatherJson);
+        WeatherParseResult parseResult = WeatherTimelineParser.Parse(weatherJson);
         if (parseResult.IsTimeline)
         {
             if (Scenario is not null)

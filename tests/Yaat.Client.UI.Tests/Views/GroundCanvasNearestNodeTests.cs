@@ -20,16 +20,16 @@ public class GroundCanvasNearestNodeTests
     [AvaloniaFact]
     public void FindNearestNode_ClickFarFromAnyNode_StillReturnsClosest()
     {
-        var canvas = MakeCanvas(800, 600);
+        GroundCanvas canvas = MakeCanvas(800, 600);
         canvas.Layout = LayoutWithTwoNodes();
 
-        var (ax, ay) = canvas.Viewport.LatLonToScreen(NodeALat, NodeALon);
+        (float ax, float ay) = canvas.Viewport.LatLonToScreen(NodeALat, NodeALon);
         // 100 px away from node A — well outside the 20 px node hit radius, but still
         // far closer to A than to B.
         var farPoint = new Point(ax + 100, ay);
 
         Assert.Null(canvas.FindNodeAtPoint(farPoint));
-        var nearest = canvas.FindNearestNode(farPoint);
+        GroundNodeDto? nearest = canvas.FindNearestNode(farPoint);
         Assert.NotNull(nearest);
         Assert.Equal(1, nearest!.Id);
     }
@@ -37,11 +37,11 @@ public class GroundCanvasNearestNodeTests
     [AvaloniaFact]
     public void FindNearestNode_PicksTheCloserOfTwoNodes()
     {
-        var canvas = MakeCanvas(800, 600);
+        GroundCanvas canvas = MakeCanvas(800, 600);
         canvas.Layout = LayoutWithTwoNodes();
 
-        var (bx, by) = canvas.Viewport.LatLonToScreen(NodeBLat, NodeBLon);
-        var nearest = canvas.FindNearestNode(new Point(bx + 40, by + 40));
+        (float bx, float by) = canvas.Viewport.LatLonToScreen(NodeBLat, NodeBLon);
+        GroundNodeDto? nearest = canvas.FindNearestNode(new Point(bx + 40, by + 40));
 
         Assert.NotNull(nearest);
         Assert.Equal(2, nearest!.Id);
@@ -50,11 +50,11 @@ public class GroundCanvasNearestNodeTests
     [AvaloniaFact]
     public void FindNodeAtPoint_WithinRadius_StillReturnsNode()
     {
-        var canvas = MakeCanvas(800, 600);
+        GroundCanvas canvas = MakeCanvas(800, 600);
         canvas.Layout = LayoutWithTwoNodes();
 
-        var (ax, ay) = canvas.Viewport.LatLonToScreen(NodeALat, NodeALon);
-        var node = canvas.FindNodeAtPoint(new Point(ax, ay));
+        (float ax, float ay) = canvas.Viewport.LatLonToScreen(NodeALat, NodeALon);
+        GroundNodeDto? node = canvas.FindNodeAtPoint(new Point(ax, ay));
 
         Assert.NotNull(node);
         Assert.Equal(1, node!.Id);
@@ -63,7 +63,7 @@ public class GroundCanvasNearestNodeTests
     [AvaloniaFact]
     public void FindNearestNode_NoLayout_ReturnsNull()
     {
-        var canvas = MakeCanvas(800, 600);
+        GroundCanvas canvas = MakeCanvas(800, 600);
         Assert.Null(canvas.FindNearestNode(new Point(400, 300)));
     }
 

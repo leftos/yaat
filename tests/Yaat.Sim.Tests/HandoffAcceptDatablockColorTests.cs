@@ -51,15 +51,15 @@ public class HandoffAcceptDatablockColorTests
     [Fact]
     public void ManualAccept_SetsWasPreviouslyOwned_OnPreviousOwnerTcp()
     {
-        var ac = Aircraft();
-        var scenario = Scenario();
+        AircraftState ac = Aircraft();
+        SimScenarioState scenario = Scenario();
 
-        var result = TrackEngine.HandleAccept(ac, scenario);
+        CommandResult result = TrackEngine.HandleAccept(ac, scenario);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(AcceptingPosition, ac.Track.Owner);
         Assert.True(
-            ac.Stars.SharedState.TryGetValue(StudentTcp.Id, out var shared) && shared.WasPreviouslyOwned,
+            ac.Stars.SharedState.TryGetValue(StudentTcp.Id, out StarsTrackSharedState? shared) && shared.WasPreviouslyOwned,
             "Previous owner's SharedState should have WasPreviouslyOwned set after a manual accept"
         );
     }
@@ -67,12 +67,12 @@ public class HandoffAcceptDatablockColorTests
     [Fact]
     public void ManualAccept_PreviousOwnerSeesWhiteFullDatablock()
     {
-        var ac = Aircraft();
-        var scenario = Scenario();
+        AircraftState ac = Aircraft();
+        SimScenarioState scenario = Scenario();
 
         TrackEngine.HandleAccept(ac, scenario);
 
-        var view = StarsDatablockClassifier.Classify(ac, StudentTcp, StudentPosition);
+        StarsScopeView view = StarsDatablockClassifier.Classify(ac, StudentTcp, StudentPosition);
 
         Assert.Equal(StarsDatablockColor.Owned, view.Color); // white
         Assert.Equal(StarsDatablockLevel.Full, view.Level); // FDB

@@ -53,22 +53,22 @@ public class SplitBlockTrackCommandTests : IDisposable
 
     private static void DispatchOk(AircraftState ac, string text)
     {
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx());
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx());
         Assert.True(result.Success, result.Message);
     }
 
     [Fact]
     public void SupersedingLateral_PreservesTrackCommandFlagOnSplitConditionalBlock()
     {
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
 
         // Queue one conditional block that pairs a lateral command (FH, Lateral) with a handoff
         // (HO, dimension None). The block is enqueued with HasTrackCommand = true and its ApplyAction
         // excludes the track command.
         DispatchOk(ac, "AT OAK FH 270, HO 2W");
-        var queued = Assert.Single(ac.Queue.Blocks);
+        CommandBlock queued = Assert.Single(ac.Queue.Blocks);
         Assert.True(queued.HasTrackCommand, "precondition: mixed conditional block should flag its track command");
         Assert.NotNull(queued.ParsedCommands);
         Assert.Contains(queued.ParsedCommands!, TrackEngine.IsTrackCommand);
@@ -78,7 +78,7 @@ public class SplitBlockTrackCommandTests : IDisposable
         DispatchOk(ac, "FH 090");
 
         // The AT OAK conditional block still exists and still carries the handoff in ParsedCommands...
-        var survivor = Assert.Single(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
+        CommandBlock survivor = Assert.Single(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
         Assert.NotNull(survivor.ParsedCommands);
         Assert.Contains(survivor.ParsedCommands!, TrackEngine.IsTrackCommand);
 

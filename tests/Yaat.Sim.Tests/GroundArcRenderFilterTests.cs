@@ -23,7 +23,7 @@ public class GroundArcRenderFilterTests
     [Fact]
     public void NeverDrivenArcs_ExistOnSfo_AndExceedEveryFixedWingTurnLimit()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
@@ -37,7 +37,7 @@ public class GroundArcRenderFilterTests
 
         // Every hidden arc is un-taxiable by every fixed-wing category — i.e. genuinely never routed,
         // which is exactly what makes it safe to omit from the view.
-        foreach (var arc in hidden)
+        foreach (GroundArc? arc in hidden)
         {
             Assert.True(arc.TurnAngleDeg > CategoryLimits.MaxHeadingChangeDeg(AircraftCategory.Jet));
             Assert.True(arc.TurnAngleDeg > CategoryLimits.MaxHeadingChangeDeg(AircraftCategory.Turboprop));

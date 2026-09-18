@@ -55,7 +55,7 @@ public class OakHsDirectionalHintTests(ITestOutputHelper output)
 
         output.WriteLine($"[{label}] taxiways=[{string.Join(", ", StraightSegmentTaxiways(route))}]");
         output.WriteLine($"[{label}] warnings=[{string.Join(" | ", route.Warnings)}]");
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             output.WriteLine($"[{label}]   HS node={hs.NodeId} target={hs.TargetName} reason={hs.Reason}");
         }
@@ -69,8 +69,8 @@ public class OakHsDirectionalHintTests(ITestOutputHelper output)
     [Fact]
     public void EmbeddedHsE_RoutesThroughE_NoUnauthorizedDetour()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -79,14 +79,14 @@ public class OakHsDirectionalHintTests(ITestOutputHelper output)
         engine.Replay(recording, JustBeforeTaxi);
         Assert.NotNull(engine.FindAircraft(Callsign));
 
-        var result = engine.SendCommand(Callsign, "TAXI D C HS E RWY 28R");
-        var aircraft = engine.FindAircraft(Callsign);
+        CommandResult result = engine.SendCommand(Callsign, "TAXI D C HS E RWY 28R");
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         LogRoute("HS E", result, route);
         Assert.NotNull(route);
 
-        var taxiways = StraightSegmentTaxiways(route);
+        List<string> taxiways = StraightSegmentTaxiways(route);
 
         // No detour through taxiways the controller never named.
         Assert.False(HasUnauthorizedWarning(route), $"Unexpected unauthorized-path warning: [{string.Join(" | ", route.Warnings)}]");
@@ -108,8 +108,8 @@ public class OakHsDirectionalHintTests(ITestOutputHelper output)
     [Fact]
     public void PathFormWithE_IsAlreadyClean()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -118,14 +118,14 @@ public class OakHsDirectionalHintTests(ITestOutputHelper output)
         engine.Replay(recording, JustBeforeTaxi);
         Assert.NotNull(engine.FindAircraft(Callsign));
 
-        var result = engine.SendCommand(Callsign, "TAXI D C E HS E RWY 28R");
-        var aircraft = engine.FindAircraft(Callsign);
+        CommandResult result = engine.SendCommand(Callsign, "TAXI D C E HS E RWY 28R");
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         LogRoute("path E", result, route);
         Assert.NotNull(route);
 
-        var taxiways = StraightSegmentTaxiways(route);
+        List<string> taxiways = StraightSegmentTaxiways(route);
         Assert.False(HasUnauthorizedWarning(route), $"Unexpected unauthorized-path warning: [{string.Join(" | ", route.Warnings)}]");
         Assert.DoesNotContain("A", taxiways, StringComparer.OrdinalIgnoreCase);
         Assert.DoesNotContain("B", taxiways, StringComparer.OrdinalIgnoreCase);

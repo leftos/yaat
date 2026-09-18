@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -46,8 +48,8 @@ public class Issue223TaxiTcRunwaySuffixTests(ITestOutputHelper output)
     [Fact]
     public void TaxiViaTaxiwayEndingInC_IntoRamp_IsAccepted()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -57,13 +59,13 @@ public class Issue223TaxiTcRunwaySuffixTests(ITestOutputHelper output)
         // ground, with no assigned route — just before the controller's recorded taxi
         // clearance to the ramp (sim t=380).
         engine.Replay(recording, 375);
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.True(ac.IsOnGround, "SWA9701 should be on the ground (stopped on W5) before the TAXI command");
 
-        var result = engine.SendCommand(Callsign, "TAXI W B T TC @10");
+        CommandResult result = engine.SendCommand(Callsign, "TAXI W B T TC @10");
 
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         if (route is not null)
         {
             output.WriteLine($"Route: {route.ToSummary()} ({route.Segments.Count} segments)");

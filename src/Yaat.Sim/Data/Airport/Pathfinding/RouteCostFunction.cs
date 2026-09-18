@@ -318,7 +318,7 @@ public static class RouteCostFunction
             GroundNode fromNode = arc.Nodes[0].Id == fromNodeId ? arc.Nodes[0] : arc.Nodes[1];
             GroundNode toNode = arc.Nodes[0].Id == fromNodeId ? arc.Nodes[1] : arc.Nodes[0];
 
-            foreach (var adjacentEdge in fromNode.Edges)
+            foreach (IGroundEdge adjacentEdge in fromNode.Edges)
             {
                 if (adjacentEdge == edge)
                 {
@@ -348,7 +348,7 @@ public static class RouteCostFunction
 
     private static bool IsUnauthorizedTaxiwayAlreadyVisited(PartialRoute route, string taxiwayName)
     {
-        var cursor = route;
+        PartialRoute cursor = route;
         while (cursor.LastEdge is not null)
         {
             string name = ResolveTaxiwayName(cursor.LastEdge, cursor.Previous?.HeadNodeId ?? cursor.HeadNodeId);
@@ -365,7 +365,7 @@ public static class RouteCostFunction
 
     private static bool IsAvoidedTaxiwayAlreadyVisited(PartialRoute route, string taxiwayName)
     {
-        var cursor = route;
+        PartialRoute cursor = route;
         while (cursor.LastEdge is not null)
         {
             string name = ResolveTaxiwayName(cursor.LastEdge, cursor.Previous?.HeadNodeId ?? cursor.HeadNodeId);
@@ -395,7 +395,7 @@ public static class RouteCostFunction
         }
 
         int headNodeId = current.HeadNodeId;
-        foreach (var n in current.LastEdge.Nodes)
+        foreach (GroundNode n in current.LastEdge.Nodes)
         {
             if (n.Id == headNodeId)
             {
@@ -403,7 +403,7 @@ public static class RouteCostFunction
             }
         }
 
-        foreach (var n in candidate.Nodes)
+        foreach (GroundNode n in candidate.Nodes)
         {
             if (n.Id == headNodeId)
             {

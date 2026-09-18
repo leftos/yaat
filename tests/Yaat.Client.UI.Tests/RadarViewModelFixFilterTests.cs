@@ -24,7 +24,7 @@ public class RadarViewModelFixFilterTests
         };
         NavigationDatabase.SetInstance(NavigationDatabase.ForTesting(fixes));
 
-        var vm = NewVm();
+        RadarViewModel vm = NewVm();
         vm.SetNavDbReady();
 
         Assert.NotNull(vm.Fixes);
@@ -43,7 +43,7 @@ public class RadarViewModelFixFilterTests
         };
         NavigationDatabase.SetInstance(NavigationDatabase.ForTesting(fixes));
 
-        var vm = NewVm();
+        RadarViewModel vm = NewVm();
         vm.SetNavDbReady();
 
         Assert.NotNull(vm.FixNames);

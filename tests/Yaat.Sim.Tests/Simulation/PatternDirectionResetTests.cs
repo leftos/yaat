@@ -1,8 +1,10 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -71,24 +73,24 @@ public class PatternDirectionResetTests(ITestOutputHelper output)
         // so a full replay no longer has N342T rolling onto final at t=1880. Restore the
         // recorded snapshot there — before the recorded EF at t=1891 — and drive the
         // vector/ERB/COPT sequence with current code.
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             return;
         }
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
 
-        var snapshot = archive.ReadSnapshotAt(1880);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(1880);
         if (snapshot is null)
         {
             return;
         }
         engine.RestoreFromSnapshot(snapshot.State);
 
-        var aircraft = engine.FindAircraft("N342T");
+        AircraftState? aircraft = engine.FindAircraft("N342T");
         Assert.NotNull(aircraft);
 
         // The recording's snapshots predate persisting Pattern.TrafficDirection, so the CTO
@@ -107,12 +109,12 @@ public class PatternDirectionResetTests(ITestOutputHelper output)
 
         // Single-approach right-base entry + cleared for the option, as in the recording. The
         // explicit 2 nm final keeps the entry independent of exactly where the vector left it.
-        var erb = engine.SendCommand("N342T", "ERB 28L 2");
+        CommandResult erb = engine.SendCommand("N342T", "ERB 28L 2");
         output.WriteLine($"ERB 28L 2 -> Success={erb.Success} Message='{erb.Message}'");
         Assert.True(erb.Success, erb.Message);
         Assert.Equal(PatternDirection.Right, aircraft.Phases!.TrafficDirection);
 
-        var copt = engine.SendCommand("N342T", "COPT");
+        CommandResult copt = engine.SendCommand("N342T", "COPT");
         Assert.True(copt.Success, copt.Message);
 
         // Fly the right-base approach, the touch-and-go, and into the auto-cycled next circuit.
@@ -165,8 +167,8 @@ public class PatternDirectionResetTests(ITestOutputHelper output)
     [Fact]
     public void N172SP_AfterFhVector_PreservesPersistentMrt()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -180,7 +182,7 @@ public class PatternDirectionResetTests(ITestOutputHelper output)
             engine.ReplayOneSecond();
         }
 
-        var aircraft = engine.FindAircraft("N172SP");
+        AircraftState? aircraft = engine.FindAircraft("N172SP");
         Assert.NotNull(aircraft);
 
         output.WriteLine(
@@ -199,7 +201,7 @@ public class PatternDirectionResetTests(ITestOutputHelper output)
         {
             return "(null)";
         }
-        var plist = ac.Phases.Phases;
+        List<Phase> plist = ac.Phases.Phases;
         if (plist.Count == 0)
         {
             return "(empty)";

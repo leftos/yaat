@@ -116,7 +116,7 @@ public sealed class GlobalKeyHookService : IDisposable
         // Use the rawCode-aware overload so libuiohook's Windows-side modifier mislabeling
         // (both Ctrls reported as VcLeftControl, etc.) gets corrected before we track state
         // or dispatch the event.
-        var avaloniaKey = SharpHookKeyMap.ToAvaloniaKey(e.Data.KeyCode, e.Data.RawCode);
+        Key avaloniaKey = SharpHookKeyMap.ToAvaloniaKey(e.Data.KeyCode, e.Data.RawCode);
         UpdateModifierState(avaloniaKey, pressed: true);
         if (avaloniaKey == Key.None)
         {
@@ -128,12 +128,12 @@ public sealed class GlobalKeyHookService : IDisposable
 
     private void OnKeyReleased(object? sender, KeyboardHookEventArgs e)
     {
-        var avaloniaKey = SharpHookKeyMap.ToAvaloniaKey(e.Data.KeyCode, e.Data.RawCode);
+        Key avaloniaKey = SharpHookKeyMap.ToAvaloniaKey(e.Data.KeyCode, e.Data.RawCode);
 
         // Compute modifiers BEFORE updating state, so a Ctrl-release event still reports
         // modifiers as they were at the moment of release — important if a consumer wants to
         // match "Ctrl+F12" on the release of F12 but Ctrl was already let go first.
-        var modifiers = CurrentModifiers();
+        KeyModifiers modifiers = CurrentModifiers();
         UpdateModifierState(avaloniaKey, pressed: false);
 
         if (avaloniaKey == Key.None)
@@ -175,7 +175,7 @@ public sealed class GlobalKeyHookService : IDisposable
 
     private KeyModifiers CurrentModifiers()
     {
-        var mods = KeyModifiers.None;
+        KeyModifiers mods = KeyModifiers.None;
         if (_leftCtrl || _rightCtrl)
         {
             mods |= KeyModifiers.Control;

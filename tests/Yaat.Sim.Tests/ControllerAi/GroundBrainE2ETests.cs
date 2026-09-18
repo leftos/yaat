@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
@@ -6,6 +7,7 @@ using Yaat.Sim.ControllerAi.Brains;
 using Yaat.Sim.ControllerAi.Rules;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -43,8 +45,8 @@ public class GroundBrainE2ETests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.LoadWith(
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.LoadWith(
             DeparturesOnly(File.ReadAllText(DeparturesScenarioPath)),
             _zoa,
             42,
@@ -52,11 +54,11 @@ public class GroundBrainE2ETests
             "30",
             p => new GroundBrain(p)
         );
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         var departures = engine.World.GetSnapshot().Select(ac => ac.Callsign).ToHashSet(StringComparer.Ordinal);
         Assert.Equal(30, departures.Count);
-        var runway30 = RunwayCrossingGate.PavementFor("30", RunwayOccupancy.AirportRunways("OAK"))!;
-        var aiId = AiConnectionId.Format(ground.PositionId);
+        RunwayInfo runway30 = RunwayCrossingGate.PavementFor("30", RunwayOccupancy.AirportRunways("OAK"))!;
+        string aiId = AiConnectionId.Format(ground.PositionId);
         var opened = new List<AiAnomalyEvent>();
         double lastClearance = double.NegativeInfinity;
 
@@ -75,15 +77,15 @@ public class GroundBrainE2ETests
             )
             .ToList();
         var anomalyLines = opened.Select(e => $"{e.Kind} {e.SubjectKey} @{e.AtSeconds:F0}s: {e.Detail}").ToList();
-        var world = engine.World.GetSnapshot();
+        List<AircraftState> world = engine.World.GetSnapshot();
         var gates = new List<string>();
-        foreach (var ac in world.Where(a => a.Phases?.CurrentPhase is HoldingShortPhase))
+        foreach (AircraftState? ac in world.Where(a => a.Phases?.CurrentPhase is HoldingShortPhase))
         {
-            var hs = ((HoldingShortPhase)ac.Phases!.CurrentPhase!).HoldShort;
-            var pavement = RunwayCrossingGate.PavementFor(hs.TargetName ?? "", RunwayOccupancy.AirportRunways("OAK"));
+            HoldShortPoint hs = ((HoldingShortPhase)ac.Phases!.CurrentPhase!).HoldShort;
+            RunwayInfo? pavement = RunwayCrossingGate.PavementFor(hs.TargetName ?? "", RunwayOccupancy.AirportRunways("OAK"));
             string reason = pavement is null
                 ? "no pavement"
-                : (RunwayCrossingGate.IsClear(ac, pavement, world, engine.ResolveGroundLayout(ac), out var why) ? "clear" : why);
+                : (RunwayCrossingGate.IsClear(ac, pavement, world, engine.ResolveGroundLayout(ac), out string? why) ? "clear" : why);
             gates.Add($"{ac.Callsign}@{hs.TargetName}: {reason}");
         }
 
@@ -126,11 +128,11 @@ public class GroundBrainE2ETests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var tower = TestAiPositions.OakTower(_zoa);
-        var scenarioJson = AiTestFixture.ParkedAtOak.Replace("\"parking\": \"SIG1\"", "\"parking\": \"29\"");
-        var engine = AiTestFixture.LoadWith(scenarioJson, _zoa, 7, [ground, tower], "30", p => new GroundBrain(p));
-        var aiId = AiConnectionId.Format(ground.PositionId);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        AiPositionConfig tower = TestAiPositions.OakTower(_zoa);
+        string scenarioJson = AiTestFixture.ParkedAtOak.Replace("\"parking\": \"SIG1\"", "\"parking\": \"29\"");
+        SimulationEngine engine = AiTestFixture.LoadWith(scenarioJson, _zoa, 7, [ground, tower], "30", p => new GroundBrain(p));
+        string aiId = AiConnectionId.Format(ground.PositionId);
         RecordedCommand? transfer = null;
         for (int t = 0; t < 600 && transfer is null; t++)
         {
@@ -142,7 +144,7 @@ public class GroundBrainE2ETests
 
         Assert.NotNull(transfer);
         Assert.Equal("CT OAK_TWR", transfer.Command);
-        var handed = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState handed = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.False(handed.HasLeftStudentFrequency);
         Assert.Equal(CompletionReason.Active, handed.CompletionReason);
         Assert.Null(handed.CompletedAtSeconds);
@@ -156,13 +158,13 @@ public class GroundBrainE2ETests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.LoadWith(AiTestFixture.OnFinalAtOak, _zoa, 7, [ground], null, p => new GroundBrain(p));
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.LoadWith(AiTestFixture.OnFinalAtOak, _zoa, 7, [ground], null, p => new GroundBrain(p));
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "CLAND").Success);
 
-        var parked = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is AtParkingPhase, 1200);
+        AircraftState parked = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is AtParkingPhase, 1200);
 
-        var taxiIn = Assert.Single(
+        RecordedCommand taxiIn = Assert.Single(
             engine.Scenario!.ActionLog.OfType<RecordedCommand>(),
             a => a.ConnectionId == AiConnectionId.Format(ground.PositionId)
         );
@@ -183,10 +185,10 @@ public class GroundBrainE2ETests
             return;
         }
 
-        var json = File.ReadAllText(DeparturesScenarioPath);
-        var first = Run(json, 42);
-        var second = Run(json, 42);
-        var other = Run(json, 43);
+        string json = File.ReadAllText(DeparturesScenarioPath);
+        (string Actions, string Anomalies, string Snapshot) first = Run(json, 42);
+        (string Actions, string Anomalies, string Snapshot) second = Run(json, 42);
+        (string Actions, string Anomalies, string Snapshot) other = Run(json, 43);
 
         Assert.Equal(first.Actions, second.Actions);
         Assert.Equal(first.Anomalies, second.Anomalies);
@@ -203,7 +205,7 @@ public class GroundBrainE2ETests
     /// </summary>
     private static string DeparturesOnly(string scenarioJson)
     {
-        var root = System.Text.Json.Nodes.JsonNode.Parse(scenarioJson)!.AsObject();
+        JsonObject root = System.Text.Json.Nodes.JsonNode.Parse(scenarioJson)!.AsObject();
         root.Remove("aircraftGenerators");
         return root.ToJsonString();
     }
@@ -211,14 +213,14 @@ public class GroundBrainE2ETests
     /// <summary>The test as tower: one takeoff clearance at a time to the departure holding short of 30 when the runway is clear.</summary>
     private static void PlayTower(SimulationEngine engine, Phases.RunwayInfo runway30, ref double lastClearance)
     {
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         if (scenario.ElapsedSeconds - lastClearance < TowerSpacingSeconds)
         {
             return;
         }
 
-        var snapshot = engine.World.GetSnapshot();
-        var ready = snapshot
+        List<AircraftState> snapshot = engine.World.GetSnapshot();
+        AircraftState? ready = snapshot
             .Where(ac => ac.Phases?.CurrentPhase is HoldingShortPhase { HoldShort.Reason: HoldShortReason.DestinationRunway })
             .OrderBy(ac => ac.Callsign, StringComparer.Ordinal)
             .FirstOrDefault(ac => RunwayCrossingGate.IsClear(ac, runway30, snapshot, engine.ResolveGroundLayout(ac), out _));
@@ -233,8 +235,8 @@ public class GroundBrainE2ETests
 
     private (string Actions, string Anomalies, string Snapshot) Run(string scenarioJson, int seed)
     {
-        var ground = TestAiPositions.OakGround(_zoa!);
-        var engine = AiTestFixture.LoadWith(scenarioJson, _zoa!, seed, [ground], "30", p => new GroundBrain(p));
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa!);
+        SimulationEngine engine = AiTestFixture.LoadWith(scenarioJson, _zoa!, seed, [ground], "30", p => new GroundBrain(p));
         engine.Scenario!.AutoClearedToLand = true;
         var anomalies = new List<AiAnomalyEvent>();
         for (int t = 0; t < 1200; t++)
@@ -243,7 +245,7 @@ public class GroundBrainE2ETests
             anomalies.AddRange(engine.Scenario.AiAnomalies.Drain());
         }
 
-        var scenario = engine.Scenario;
+        SimScenarioState scenario = engine.Scenario;
         return (
             JsonSerializer.Serialize(scenario.ActionLog, RecordingJsonOptions.Default),
             JsonSerializer.Serialize(anomalies, RecordingJsonOptions.Default),
@@ -258,7 +260,7 @@ public class GroundBrainE2ETests
     /// </summary>
     private static string WithoutVirtualNodeIds(string snapshotJson)
     {
-        var scalar = System.Text.RegularExpressions.Regex.Replace(snapshotJson, @"(""[A-Za-z]*NodeId"":)-\d+", "$1-V");
+        string scalar = System.Text.RegularExpressions.Regex.Replace(snapshotJson, @"(""[A-Za-z]*NodeId"":)-\d+", "$1-V");
         return System.Text.RegularExpressions.Regex.Replace(
             scalar,
             @"(""[A-Za-z]*NodeIds"":\[)([^\]]*)",

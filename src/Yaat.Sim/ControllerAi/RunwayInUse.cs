@@ -3,6 +3,7 @@ using Yaat.Sim.ControllerAi.Knowledge;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.ControllerAi;
 
@@ -70,7 +71,7 @@ public static class RunwayInUseResolver
             return null;
         }
 
-        var surface = layers[0];
+        WindLayer surface = layers[0];
         return new SurfaceWind(surface.Direction, surface.Speed, surface.Gusts, surface.Variable == true);
     }
 
@@ -93,10 +94,10 @@ public static class RunwayInUseResolver
             return Decision(airportId, chosen, RunwayUseSource.Override, $"runway {chosen.Designator} set for the session");
         }
 
-        var wind = SampleWind(weather);
+        SurfaceWind? wind = SampleWind(weather);
         if (wind is { Variable: false } && (wind.EffectiveSpeedKt >= CalmWindBelowKt))
         {
-            var aligned = ends.OrderBy(e => GeoMath.AbsBearingDifference(wind.DirectionMagnetic, e.MagneticHeading(magneticModelDateUtc)))
+            RunwayEnd aligned = ends.OrderBy(e => GeoMath.AbsBearingDifference(wind.DirectionMagnetic, e.MagneticHeading(magneticModelDateUtc)))
                 .ThenByDescending(e => e.Pavement.PavementLengthFt)
                 .ThenBy(e => e.Designator, StringComparer.Ordinal)
                 .First();
@@ -115,10 +116,10 @@ public static class RunwayInUseResolver
             );
         }
 
-        var longest = runways.OrderByDescending(r => r.PavementLengthFt).ThenBy(r => r.Id.End1, StringComparer.Ordinal).First();
-        var candidates = ends.Where(e => ReferenceEquals(e.Pavement, longest));
+        RunwayInfo longest = runways.OrderByDescending(r => r.PavementLengthFt).ThenBy(r => r.Id.End1, StringComparer.Ordinal).First();
+        IEnumerable<RunwayEnd> candidates = ends.Where(e => ReferenceEquals(e.Pavement, longest));
         bool residual = wind is { Variable: false, SpeedKt: > 0 };
-        var end = residual
+        RunwayEnd end = residual
             ? candidates.OrderBy(e => GeoMath.AbsBearingDifference(wind!.DirectionMagnetic, e.MagneticHeading(magneticModelDateUtc))).First()
             : candidates.OrderBy(e => e.Designator, StringComparer.Ordinal).First();
         string why = residual
@@ -185,9 +186,9 @@ public static class RunwayUsabilityGate
         double limit = wet ? MaxTailwindKtWet : MaxTailwindKtDry;
         var kept = new List<string>();
         var removed = new List<string>();
-        foreach (var end in decision.DepartureRunways)
+        foreach (string end in decision.DepartureRunways)
         {
-            var pavement = RunwayInUseResolver.PavementOf(runways, end);
+            RunwayInfo? pavement = RunwayInUseResolver.PavementOf(runways, end);
             double tailwind = pavement is null ? 0 : wind.WorstTailwindOn(RunwayInUseResolver.MagneticHeadingOf(pavement, end, magneticModelDateUtc));
             if (tailwind > limit)
             {
@@ -243,10 +244,10 @@ public sealed class RunwayInUseState(Func<string?, FacilityOps?> knowledge)
 
     public RunwayUseDecision? For(string airportId, AiTickContext context, string positionId)
     {
-        var key = CacheKey(airportId);
-        var wind = RunwayInUseResolver.SampleWind(context.Weather);
+        string key = CacheKey(airportId);
+        SurfaceWind? wind = RunwayInUseResolver.SampleWind(context.Weather);
         bool wet = IsWet(context.Weather);
-        if (_decisions.TryGetValue(key, out var held) && !WindMoved(held.Wind, wind) && (held.Wet == wet))
+        if (_decisions.TryGetValue(key, out Held? held) && !WindMoved(held.Wind, wind) && (held.Wet == wet))
         {
             return held.Decision;
         }
@@ -259,7 +260,7 @@ public sealed class RunwayInUseState(Func<string?, FacilityOps?> knowledge)
 
         try
         {
-            var decision = Resolve(airportId, context, positionId, wind, wet);
+            RunwayUseDecision? decision = Resolve(airportId, context, positionId, wind, wet);
             _decisions[key] = new Held(decision, wind, wet);
             return decision;
         }
@@ -310,10 +311,10 @@ public sealed class RunwayInUseState(Func<string?, FacilityOps?> knowledge)
 
     private RunwayUseDecision? Resolve(string airportId, AiTickContext context, string positionId, SurfaceWind? wind, bool wet)
     {
-        var scenario = context.Scenario;
-        var config = scenario.ControllerAi;
-        var runways = context.RunwaysFor(airportId);
-        var date = scenario.MagneticModelDateUtc;
+        SimScenarioState scenario = context.Scenario;
+        ControllerAiConfig? config = scenario.ControllerAi;
+        IReadOnlyList<RunwayInfo> runways = context.RunwaysFor(airportId);
+        DateTime date = scenario.MagneticModelDateUtc;
         bool isPrimary = (scenario.PrimaryAirportId is { Length: > 0 } primary) && NavigationDatabase.AirportIdsMatch(airportId, primary);
         if (
             isPrimary
@@ -324,7 +325,7 @@ public sealed class RunwayInUseState(Func<string?, FacilityOps?> knowledge)
             return fixedRunway;
         }
 
-        var ops = knowledge(airportId);
+        FacilityOps? ops = knowledge(airportId);
         if (Named(config?.RunwayConfigurations, airportId) is { } named && ops?.RunwaysAt(named, airportId) is { Departure.Count: > 0 } sets)
         {
             var fixedConfiguration = new RunwayUseDecision(
@@ -355,7 +356,7 @@ public sealed class RunwayInUseState(Func<string?, FacilityOps?> knowledge)
                 is { } known
         )
         {
-            var (usable, removed) = RunwayUsabilityGate.Apply(known, wind, wet, runways, date);
+            (RunwayUseDecision? usable, string? removed) = RunwayUsabilityGate.Apply(known, wind, wet, runways, date);
             if (usable is not null)
             {
                 return usable;

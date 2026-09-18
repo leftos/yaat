@@ -138,8 +138,8 @@ public partial class GroundView : UserControl
             return;
         }
 
-        var endpoint = _canvas.MeasureEndpointAt(screenPos);
-        var startLabel = measure.Anchor is null ? "Measure from here" : "Measure to here";
+        RblEndpoint endpoint = _canvas.MeasureEndpointAt(screenPos);
+        string startLabel = measure.Anchor is null ? "Measure from here" : "Measure to here";
         menu.Items.Add(
             CreateMenuItem(
                 startLabel,
@@ -369,7 +369,7 @@ public partial class GroundView : UserControl
             return;
         }
 
-        var ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        AircraftModel? ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
         if (ac is not null)
         {
             vm.SelectedAircraft = ac;
@@ -378,13 +378,13 @@ public partial class GroundView : UserControl
 
     private void OnAircraftCtrlClicked(string callsign)
     {
-        var mainVm = FindMainViewModel();
+        MainViewModel? mainVm = FindMainViewModel();
         if (mainVm is null)
         {
             return;
         }
 
-        var ac = mainVm.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        AircraftModel? ac = mainVm.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
         if (ac is not null)
         {
             FlightPlanEditorManager.Open(ac, mainVm);
@@ -398,7 +398,7 @@ public partial class GroundView : UserControl
             return;
         }
 
-        var node = vm.GetNode(nodeId);
+        GroundNodeDto? node = vm.GetNode(nodeId);
         if (node is null)
         {
             return;
@@ -411,9 +411,9 @@ public partial class GroundView : UserControl
 
         if (vm.SelectedAircraft is not null)
         {
-            var callsign = vm.SelectedAircraft.Callsign;
-            var initials = GetInitials();
-            var fromNodeId = vm.GetAircraftNearestNodeId(vm.SelectedAircraft);
+            string callsign = vm.SelectedAircraft.Callsign;
+            string initials = GetInitials();
+            int? fromNodeId = vm.GetAircraftNearestNodeId(vm.SelectedAircraft);
 
             if (fromNodeId is not null)
             {
@@ -432,14 +432,14 @@ public partial class GroundView : UserControl
             bool canPush = AircraftCommandApplicability.CanPushBack(vm.SelectedAircraft);
             if (node.Type is "Parking" or "Spot" && node.Name is not null && canPush)
             {
-                var spotName = node.Name;
-                var pushPrefix = node.Type == "Spot" ? '$' : '@';
+                string spotName = node.Name;
+                char pushPrefix = node.Type == "Spot" ? '$' : '@';
                 menu.Items.Add(
                     CreateMenuItem($"Push to {spotName}", () => vm.SendRawCommandAsync(callsign, initials, $"PUSH {pushPrefix}{spotName}"))
                 );
             }
 
-            var nid = nodeId;
+            int nid = nodeId;
             menu.Items.Add(
                 CreateMenuItem(
                     "Draw taxi route...",
@@ -467,7 +467,7 @@ public partial class GroundView : UserControl
                 );
             }
 
-            var (prefill, caretPos) = BuildCustomTaxiPrefill(vm, node, nodeId);
+            (string? prefill, int caretPos) = BuildCustomTaxiPrefill(vm, node, nodeId);
             menu.Items.Add(
                 CreateMenuItem(
                     "Custom taxi...",
@@ -503,20 +503,20 @@ public partial class GroundView : UserControl
             return;
         }
 
-        var ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        AircraftModel? ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
 
         // Keep the previously-selected aircraft as the command recipient when the
         // controller right-clicks a DIFFERENT aircraft, so selected→right-clicked
         // relative actions (give way / follow) target the selected aircraft. Only adopt
         // the right-clicked aircraft as the selection when nothing was selected or the
         // same aircraft was re-clicked. Left-click remains the way to change selection.
-        var prevSelected = vm.SelectedAircraft;
+        AircraftModel? prevSelected = vm.SelectedAircraft;
         if (ac is not null && (prevSelected is null || string.Equals(prevSelected.Callsign, callsign, StringComparison.OrdinalIgnoreCase)))
         {
             vm.SelectedAircraft = ac;
         }
 
-        var initials = GetInitials();
+        string initials = GetInitials();
         var target = new GroundMenuTarget(ac, prevSelected, callsign, initials);
         var menu = new ContextMenu();
 
@@ -551,8 +551,8 @@ public partial class GroundView : UserControl
     /// <summary>The bold callsign header plus the free-text Command…, Note… and measurement items every aircraft gets.</summary>
     private void AddAircraftHeaderItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
     {
-        var (ac, _, callsign, initials) = target;
-        var headerText = ac is not null ? $"{callsign} — {ac.AircraftType}" : callsign;
+        (AircraftModel? ac, AircraftModel? _, string? callsign, string? initials) = target;
+        string headerText = ac is not null ? $"{callsign} — {ac.AircraftType}" : callsign;
         menu.Items.Add(
             new MenuItem
             {
@@ -568,7 +568,7 @@ public partial class GroundView : UserControl
                 () =>
                 {
                     // Free-text: the RPO types arbitrary canonical, so it goes through the VFR gate like typed input.
-                    var mainVm = FindMainViewModel();
+                    MainViewModel? mainVm = FindMainViewModel();
                     CommandFlyout.Open(
                         _canvas!,
                         callsign,
@@ -595,7 +595,7 @@ public partial class GroundView : UserControl
         // Latching the measurement to the aircraft, so the line follows it as it taxis.
         if (vm.Measure is { } measure)
         {
-            var measureHeader = measure.Anchor is null ? $"Measure from {callsign}" : $"Measure to {callsign}";
+            string measureHeader = measure.Anchor is null ? $"Measure from {callsign}" : $"Measure to {callsign}";
             menu.Items.Add(
                 CreateMenuItem(
                     measureHeader,
@@ -617,14 +617,14 @@ public partial class GroundView : UserControl
     /// <summary>Taxi-route visibility and datablock show/hide/reset — display-only items shared by shadows and simulated aircraft.</summary>
     private void AddDisplayItems(ContextMenu menu, GroundViewModel vm, string callsign)
     {
-        var taxiRouteMode = vm.GetTaxiRouteMode(callsign);
+        TaxiRouteDisplayMode taxiRouteMode = vm.GetTaxiRouteMode(callsign);
         var taxiRouteMenu = new MenuItem { Header = "Taxi route" };
         taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Always show", TaxiRouteDisplayMode.AlwaysShow, taxiRouteMode));
         taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Always hide", TaxiRouteDisplayMode.AlwaysHide, taxiRouteMode));
         taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Follow “Show all” setting", TaxiRouteDisplayMode.Follow, taxiRouteMode));
         menu.Items.Add(taxiRouteMenu);
 
-        var isDbHidden = _canvas?.IsDataBlockHidden(callsign) ?? false;
+        bool isDbHidden = _canvas?.IsDataBlockHidden(callsign) ?? false;
         menu.Items.Add(
             CreateMenuItem(
                 isDbHidden ? "Show datablock" : "Hide datablock",
@@ -657,11 +657,11 @@ public partial class GroundView : UserControl
     /// </summary>
     internal void AddSimulatedAircraftItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
     {
-        var (ac, prevSelected, callsign, initials) = target;
-        var phase = ac?.CurrentPhase ?? "";
+        (AircraftModel? ac, AircraftModel? prevSelected, string? callsign, string? initials) = target;
+        string phase = ac?.CurrentPhase ?? "";
         // When a different on-ground aircraft is selected, the direct "give way / follow"
         // items replace the candidate Follow…/Give way to… submenus.
-        var isRelative =
+        bool isRelative =
             ac is not null
             && RelativeTrafficActions.HasRelativeContext(prevSelected, callsign)
             && RelativeTrafficActions.ShouldOfferGroundActions(prevSelected!, ac);
@@ -679,7 +679,7 @@ public partial class GroundView : UserControl
         if (AircraftCommandApplicability.CanDrawTaxiRoute(ac))
         {
             menu.Items.Add(new Separator());
-            var presetSubmenu = BuildPresetTaxiSubmenu(vm, ac, callsign, initials);
+            MenuItem? presetSubmenu = BuildPresetTaxiSubmenu(vm, ac, callsign, initials);
             if (presetSubmenu is not null)
             {
                 menu.Items.Add(presetSubmenu);
@@ -704,7 +704,7 @@ public partial class GroundView : UserControl
     /// </summary>
     private void AddParkingAndTaxiItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, string phase, bool isRelative)
     {
-        var (ac, _, callsign, initials) = target;
+        (AircraftModel? ac, AircraftModel? _, string? callsign, string? initials) = target;
 
         if (AircraftCommandApplicability.CanPushBack(ac))
         {
@@ -712,13 +712,13 @@ public partial class GroundView : UserControl
 
             if (ac is not null)
             {
-                foreach (var (label, cardinal) in vm.GetPushbackDirections(ac))
+                foreach ((string? label, string? cardinal) in vm.GetPushbackDirections(ac))
                 {
-                    var c = cardinal;
+                    string c = cardinal;
                     menu.Items.Add(CreateMenuItem($"Push back, {label}", () => vm.PushbackFacingAsync(callsign, initials, c)));
                 }
 
-                var pushSubmenu = BuildPushbackToSpotSubmenu(vm, ac, callsign, initials);
+                MenuItem? pushSubmenu = BuildPushbackToSpotSubmenu(vm, ac, callsign, initials);
                 if (pushSubmenu is not null)
                 {
                     menu.Items.Add(pushSubmenu);
@@ -779,7 +779,7 @@ public partial class GroundView : UserControl
     /// <summary>Holding Short, Holding In Position and the after-exit / after-pushback holds.</summary>
     private void AddHoldingItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, string phase, bool isRelative)
     {
-        var (ac, _, callsign, initials) = target;
+        (AircraftModel? ac, AircraftModel? _, string? callsign, string? initials) = target;
 
         if (phase.StartsWith("Holding Short", StringComparison.Ordinal))
         {
@@ -815,10 +815,10 @@ public partial class GroundView : UserControl
     /// <summary>Line-up / takeoff clearances, the landing family, runway exits and cancel-takeoff.</summary>
     private void AddRunwayItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, string phase)
     {
-        var (ac, _, callsign, initials) = target;
+        (AircraftModel? ac, AircraftModel? _, string? callsign, string? initials) = target;
         if (phase == "LinedUpAndWaiting")
         {
-            var rwyId = ac?.AssignedRunway;
+            string? rwyId = ac?.AssignedRunway;
             if (!string.IsNullOrEmpty(rwyId))
             {
                 AddCtoSubmenu(menu, vm, ac, callsign, initials, rwyId, VfrCommandsForIfrMode());
@@ -833,7 +833,7 @@ public partial class GroundView : UserControl
             || AircraftCommandApplicability.CanCancelLandingClearance(ac)
         )
         {
-            var rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
+            string rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
             if (AircraftCommandApplicability.CanClearToLand(ac))
             {
                 menu.Items.Add(CreateMenuItem($"Cleared to land{rwy}", () => vm.ClearedToLandAsync(callsign, initials)));
@@ -892,7 +892,7 @@ public partial class GroundView : UserControl
             return;
         }
 
-        var a = selected!.Callsign;
+        string a = selected!.Callsign;
         menu.Items.Add(
             new MenuItem
             {
@@ -914,21 +914,21 @@ public partial class GroundView : UserControl
     /// </summary>
     private void AddFollowBehindSubmenus(ContextMenu menu, AircraftModel ac, string callsign, string initials, bool includeGiveWay)
     {
-        var mainVm = FindMainViewModel();
+        MainViewModel? mainVm = FindMainViewModel();
         if (mainVm is null || DataContext is not GroundViewModel vm)
         {
             return;
         }
 
         var candidates = new List<(AircraftModel Other, double DistNm)>();
-        foreach (var other in mainVm.Aircraft)
+        foreach (AircraftModel other in mainVm.Aircraft)
         {
             if (other.Callsign == callsign || !other.IsOnGround)
             {
                 continue;
             }
 
-            var dist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, other.Position.Lat, other.Position.Lon);
+            double dist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, other.Position.Lat, other.Position.Lon);
             candidates.Add((other, dist));
         }
 
@@ -946,9 +946,9 @@ public partial class GroundView : UserControl
 
         var followSub = new MenuItem { Header = "Follow..." };
         var giveSub = new MenuItem { Header = "Give way to..." };
-        foreach (var (other, _) in candidates)
+        foreach ((AircraftModel? other, double _) in candidates)
         {
-            var target = other.Callsign;
+            string target = other.Callsign;
             followSub.Items.Add(CreateMenuItem(target, () => vm.SendRawCommandAsync(callsign, initials, $"FOLLOWG {target}")));
             giveSub.Items.Add(CreateMenuItem(target, () => vm.SendRawCommandAsync(callsign, initials, $"GW {target}")));
         }
@@ -967,15 +967,15 @@ public partial class GroundView : UserControl
     /// </summary>
     private static MenuItem? BuildPushbackToSpotSubmenu(GroundViewModel vm, AircraftModel ac, string callsign, string initials)
     {
-        var layout = vm.DomainLayout;
+        AirportGroundLayout? layout = vm.DomainLayout;
         if (layout is null)
         {
             return null;
         }
 
-        var currentNodeId = vm.GetAircraftNearestNodeId(ac);
+        int? currentNodeId = vm.GetAircraftNearestNodeId(ac);
         var candidates = new List<(GroundNode Node, double DistNm)>();
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (node.Type is not (GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad))
             {
@@ -992,7 +992,7 @@ public partial class GroundView : UserControl
                 continue;
             }
 
-            var dist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, node.Position.Lat, node.Position.Lon);
+            double dist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, node.Position.Lat, node.Position.Lon);
             candidates.Add((node, dist));
         }
 
@@ -1009,11 +1009,11 @@ public partial class GroundView : UserControl
         }
 
         var submenu = new MenuItem { Header = "Push back to..." };
-        foreach (var (node, _) in candidates)
+        foreach ((GroundNode? node, double _) in candidates)
         {
-            var name = node.Name!;
-            var prefix = node.Type == GroundNodeType.Spot ? '$' : '@';
-            var cmd = $"PUSH {prefix}{name}";
+            string name = node.Name!;
+            char prefix = node.Type == GroundNodeType.Spot ? '$' : '@';
+            string cmd = $"PUSH {prefix}{name}";
             submenu.Items.Add(CreateMenuItem(name, () => vm.SendRawCommandAsync(callsign, initials, cmd)));
         }
 
@@ -1033,7 +1033,7 @@ public partial class GroundView : UserControl
             return null;
         }
 
-        var layout = vm.DomainLayout;
+        AirportGroundLayout? layout = vm.DomainLayout;
         if (layout is null)
         {
             return null;
@@ -1049,7 +1049,7 @@ public partial class GroundView : UserControl
             return null;
         }
 
-        var routes = catalog.GetTaxiRoutes(layout.AirportId);
+        IReadOnlyList<TaxiRouteDefinition> routes = catalog.GetTaxiRoutes(layout.AirportId);
         if (routes.Count == 0)
         {
             return null;
@@ -1063,9 +1063,9 @@ public partial class GroundView : UserControl
 
         var submenu = new MenuItem { Header = "Preset taxi route" };
 
-        foreach (var route in routes)
+        foreach (TaxiRouteDefinition route in routes)
         {
-            var resolved = TaxiPathfinder.ResolveExplicitPath(
+            TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(
                 layout,
                 fromNodeId.Value,
                 route.GetPathTokens(),
@@ -1100,15 +1100,15 @@ public partial class GroundView : UserControl
             return;
         }
 
-        var callsign = vm.SelectedAircraft.Callsign;
-        var initials = GetInitials();
-        var fromNodeId = vm.GetAircraftNearestNodeId(vm.SelectedAircraft);
+        string callsign = vm.SelectedAircraft.Callsign;
+        string initials = GetInitials();
+        int? fromNodeId = vm.GetAircraftNearestNodeId(vm.SelectedAircraft);
         if (fromNodeId is null)
         {
             return;
         }
 
-        var holdShortNodeId = vm.FindNearestHoldShortNodeForRunwayEnd(vm.SelectedAircraft, runwayEnd);
+        int? holdShortNodeId = vm.FindNearestHoldShortNodeForRunwayEnd(vm.SelectedAircraft, runwayEnd);
         if (holdShortNodeId is null)
         {
             return;
@@ -1119,8 +1119,8 @@ public partial class GroundView : UserControl
 
         // Mirror the hold-short node menu — give the controller the same draw /
         // custom / warp escape hatches when clicking the threshold marker.
-        var nid = holdShortNodeId.Value;
-        var node = vm.GetNode(nid);
+        int nid = holdShortNodeId.Value;
+        GroundNodeDto? node = vm.GetNode(nid);
         menu.Items.Add(
             CreateMenuItem(
                 "Draw taxi route...",
@@ -1135,7 +1135,7 @@ public partial class GroundView : UserControl
 
         if (node is not null)
         {
-            var (prefill, caretPos) = BuildCustomTaxiPrefill(vm, node, nid);
+            (string? prefill, int caretPos) = BuildCustomTaxiPrefill(vm, node, nid);
             menu.Items.Add(
                 CreateMenuItem(
                     "Custom taxi...",
@@ -1181,9 +1181,9 @@ public partial class GroundView : UserControl
     /// </summary>
     private void FinishPushRoute(GroundViewModel vm, int nodeId)
     {
-        var callsign = vm.PushRouteCallsign;
+        string? callsign = vm.PushRouteCallsign;
         vm.AddPushWaypoint(nodeId);
-        var command = vm.FinishPushRoute();
+        string? command = vm.FinishPushRoute();
         if (command is null || callsign is null)
         {
             return;
@@ -1222,30 +1222,30 @@ public partial class GroundView : UserControl
         }
 
         vm.AddDrawWaypoint(nodeId);
-        var result = vm.FinishDrawRoute();
+        (TaxiRoute Route, string NodeRefPath, TaxiSpotDestination? Spot)? result = vm.FinishDrawRoute();
         if (result is null)
         {
             return;
         }
 
-        var (route, nodeRefPath, spot) = result.Value;
-        var callsign = vm.SelectedAircraft?.Callsign;
+        (TaxiRoute? route, string? nodeRefPath, TaxiSpotDestination? spot) = result.Value;
+        string? callsign = vm.SelectedAircraft?.Callsign;
         if (callsign is null)
         {
             return;
         }
 
-        var initials = GetInitials();
+        string initials = GetInitials();
         var menu = new ContextMenu();
 
-        var variants = vm.BuildTaxiCrossingVariants(route, spot: spot, pathOverride: nodeRefPath);
+        List<(string Label, string Command, TaxiRoute Preview)> variants = vm.BuildTaxiCrossingVariants(route, spot: spot, pathOverride: nodeRefPath);
         // The committed command is a dense node-ref path (precise but unreadable); show the
         // controller a readable taxiway summary instead while the Send items carry the dense path.
-        var friendlyHeader = $"TAXI {vm.BuildTaxiCommand(route)}{(spot is not null ? $" {spot.Token}" : "")}";
+        string friendlyHeader = $"TAXI {vm.BuildTaxiCommand(route)}{(spot is not null ? $" {spot.Token}" : "")}";
         if (variants.Count <= 1)
         {
-            var command = variants.Count == 1 ? variants[0].Command : "";
-            var preview = variants.Count == 1 ? variants[0].Preview : route;
+            string command = variants.Count == 1 ? variants[0].Command : "";
+            TaxiRoute preview = variants.Count == 1 ? variants[0].Preview : route;
             menu.Items.Add(
                 new MenuItem
                 {
@@ -1254,7 +1254,7 @@ public partial class GroundView : UserControl
                     FontWeight = Avalonia.Media.FontWeight.Bold,
                 }
             );
-            var sendItem = CreateMenuItem("Send", () => vm.SendRawCommandAsync(callsign, initials, command));
+            MenuItem sendItem = CreateMenuItem("Send", () => vm.SendRawCommandAsync(callsign, initials, command));
             AttachPreviewHover(sendItem, vm, preview);
             menu.Items.Add(sendItem);
         }
@@ -1268,10 +1268,10 @@ public partial class GroundView : UserControl
                     FontWeight = Avalonia.Media.FontWeight.Bold,
                 }
             );
-            foreach (var (label, command, preview) in variants)
+            foreach ((string? label, string? command, TaxiRoute? preview) in variants)
             {
-                var cmd = command;
-                var item = CreateMenuItem(string.IsNullOrEmpty(label) ? cmd : label, () => vm.SendRawCommandAsync(callsign, initials, cmd));
+                string cmd = command;
+                MenuItem item = CreateMenuItem(string.IsNullOrEmpty(label) ? cmd : label, () => vm.SendRawCommandAsync(callsign, initials, cmd));
                 AttachPreviewHover(item, vm, preview);
                 menu.Items.Add(item);
             }
@@ -1283,7 +1283,7 @@ public partial class GroundView : UserControl
                 "Copy to command input",
                 () =>
                 {
-                    var taxi = vm.BuildDrawRouteCopyCommand(route, spot);
+                    string taxi = vm.BuildDrawRouteCopyCommand(route, spot);
                     ShowTaxiInput(callsign, initials, taxi, taxi.Length);
                     return Task.CompletedTask;
                 }
@@ -1307,8 +1307,8 @@ public partial class GroundView : UserControl
     {
         // Preview with the aircraft's real category so route options match command execution.
         // Both callers derive `callsign` from vm.SelectedAircraft, so it is the routed aircraft.
-        var category = vm.SelectedAircraft is { } ac ? GroundViewModel.CategoryFor(ac) : AircraftCategory.Jet;
-        var routes = vm.FindRoutesToNode(fromNodeId, toNodeId, category);
+        AircraftCategory category = vm.SelectedAircraft is { } ac ? GroundViewModel.CategoryFor(ac) : AircraftCategory.Jet;
+        List<TaxiRoute> routes = vm.FindRoutesToNode(fromNodeId, toNodeId, category);
 
         if (routes.Count == 0)
         {
@@ -1324,7 +1324,7 @@ public partial class GroundView : UserControl
         else
         {
             var parent = new MenuItem { Header = "Taxi here" };
-            foreach (var route in routes)
+            foreach (TaxiRoute route in routes)
             {
                 AddSingleRouteItems(parent, vm, callsign, initials, route, spot, destRunway);
             }
@@ -1343,14 +1343,14 @@ public partial class GroundView : UserControl
         string? destRunway
     )
     {
-        var displayName = spot is not null ? $"to {spot.Name} {vm.GetTaxiwayDisplayName(route)}" : vm.GetTaxiwayDisplayName(route);
-        var variants = vm.BuildTaxiCrossingVariants(route, spot, pathOverride: null);
+        string displayName = spot is not null ? $"to {spot.Name} {vm.GetTaxiwayDisplayName(route)}" : vm.GetTaxiwayDisplayName(route);
+        List<(string Label, string Command, TaxiRoute Preview)> variants = vm.BuildTaxiCrossingVariants(route, spot, pathOverride: null);
 
         // When destination is a runway hold-short, offer RWY and non-RWY variants
         // with progressive crossing options for each.
         if (destRunway is not null)
         {
-            var destVariants = vm.BuildTaxiDestVariants(route, destRunway, spot);
+            List<(string Label, string Command, TaxiRoute Preview)?> destVariants = vm.BuildTaxiDestVariants(route, destRunway, spot);
             if (destVariants.Count == 0)
             {
                 return;
@@ -1359,7 +1359,7 @@ public partial class GroundView : UserControl
             var sub = new MenuItem { Header = $"Taxi {displayName}" };
             AttachPreviewHover(sub, vm, route);
 
-            foreach (var entry in destVariants)
+            foreach ((string Label, string Command, TaxiRoute Preview)? entry in destVariants)
             {
                 if (entry is null)
                 {
@@ -1367,9 +1367,9 @@ public partial class GroundView : UserControl
                     continue;
                 }
 
-                var (label, command, preview) = entry.Value;
-                var cmd = command;
-                var child = CreateMenuItem(label, () => vm.SendRawCommandAsync(callsign, initials, cmd));
+                (string? label, string? command, TaxiRoute? preview) = entry.Value;
+                string cmd = command;
+                MenuItem child = CreateMenuItem(label, () => vm.SendRawCommandAsync(callsign, initials, cmd));
                 AttachPreviewHover(child, vm, preview);
                 sub.Items.Add(child);
             }
@@ -1380,9 +1380,9 @@ public partial class GroundView : UserControl
 
         if (variants.Count <= 1)
         {
-            var command = variants.Count == 1 ? variants[0].Command : "";
-            var preview = variants.Count == 1 ? variants[0].Preview : route;
-            var item = CreateMenuItem($"Taxi {displayName}", () => vm.SendRawCommandAsync(callsign, initials, command));
+            string command = variants.Count == 1 ? variants[0].Command : "";
+            TaxiRoute preview = variants.Count == 1 ? variants[0].Preview : route;
+            MenuItem item = CreateMenuItem($"Taxi {displayName}", () => vm.SendRawCommandAsync(callsign, initials, command));
             AttachPreviewHover(item, vm, preview);
             parent.Items.Add(item);
             return;
@@ -1391,10 +1391,10 @@ public partial class GroundView : UserControl
         var defaultSub = new MenuItem { Header = $"Taxi {displayName}" };
         AttachPreviewHover(defaultSub, vm, route);
 
-        foreach (var (label, command, preview) in variants)
+        foreach ((string? label, string? command, TaxiRoute? preview) in variants)
         {
-            var cmd = command;
-            var child = CreateMenuItem(label, () => vm.SendRawCommandAsync(callsign, initials, cmd));
+            string cmd = command;
+            MenuItem child = CreateMenuItem(label, () => vm.SendRawCommandAsync(callsign, initials, cmd));
             AttachPreviewHover(child, vm, preview);
             defaultSub.Items.Add(child);
         }
@@ -1417,7 +1417,7 @@ public partial class GroundView : UserControl
         VfrCommandsForIfr mode
     )
     {
-        var rwyId = HoldShortMenuHelper.HeldRunway(phase, ac);
+        string? rwyId = HoldShortMenuHelper.HeldRunway(phase, ac);
 
         if (ac is { HasActiveTaxiRoute: true })
         {
@@ -1426,7 +1426,7 @@ public partial class GroundView : UserControl
 
         if (rwyId is not null)
         {
-            var rwyIdDisplay = RunwayIdentifier.ToDisplayDesignator(rwyId);
+            string rwyIdDisplay = RunwayIdentifier.ToDisplayDesignator(rwyId);
             menu.Items.Add(CreateMenuItem($"Cross {rwyIdDisplay}", () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
             menu.Items.Add(CreateMenuItem($"Line up and wait {rwyIdDisplay}", () => vm.LineUpAndWaitAsync(callsign, initials)));
             AddCtoSubmenu(menu, vm, ac, callsign, initials, rwyId, mode);
@@ -1435,19 +1435,19 @@ public partial class GroundView : UserControl
 
     private static void AddHoldShortSubmenu(ContextMenu menu, GroundViewModel vm, AircraftModel ac, string callsign, string initials)
     {
-        var targets = vm.GetHoldShortTargets(ac);
+        List<(string DisplayName, string Target)> targets = vm.GetHoldShortTargets(ac);
         if (targets.Count == 0)
         {
             return;
         }
 
         var parent = new MenuItem { Header = "Hold short of..." };
-        foreach (var (displayName, target) in targets)
+        foreach ((string? displayName, string? target) in targets)
         {
-            var t = target;
-            var item = CreateMenuItem(displayName, () => vm.HoldShortAsync(callsign, initials, t));
+            string t = target;
+            MenuItem item = CreateMenuItem(displayName, () => vm.HoldShortAsync(callsign, initials, t));
 
-            var previewRoute = vm.FindHoldShortPreviewRoute(ac, t);
+            TaxiRoute? previewRoute = vm.FindHoldShortPreviewRoute(ac, t);
             if (previewRoute is not null)
             {
                 AttachPreviewHover(item, vm, previewRoute);
@@ -1526,7 +1526,7 @@ public partial class GroundView : UserControl
 
     private void OnCanvasPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        var props = e.GetCurrentPoint(_canvas!).Properties;
+        PointerPointProperties props = e.GetCurrentPoint(_canvas!).Properties;
         if (props.IsLeftButtonPressed)
         {
             CloseActiveContextMenu();
@@ -1577,26 +1577,26 @@ public partial class GroundView : UserControl
         {
             case "Parking" or "Helipad" when node.Name is not null:
                 // "TAXI  @STAND" — cursor between TAXI and @STAND
-                var parkingSuffix = $"@{node.Name}";
+                string parkingSuffix = $"@{node.Name}";
                 return ($"{taxiPrefix} {parkingSuffix}", taxiPrefix.Length);
 
             case "Spot" when node.Name is not null:
                 // "TAXI  $SPOT" — cursor between TAXI and $SPOT
-                var spotSuffixToken = $"${node.Name}";
+                string spotSuffixToken = $"${node.Name}";
                 return ($"{taxiPrefix} {spotSuffixToken}", taxiPrefix.Length);
 
             case "RunwayHoldShort" when node.RunwayId is not null:
                 // "RWY 30 TAXI " — cursor at end for user to add taxiway route
-                var rwyEnd1 = RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.Parse(node.RunwayId).End1);
-                var rwyText = $"RWY {rwyEnd1} {taxiPrefix}";
+                string rwyEnd1 = RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.Parse(node.RunwayId).End1);
+                string rwyText = $"RWY {rwyEnd1} {taxiPrefix}";
                 return (rwyText, rwyText.Length);
 
             default:
                 // Taxiway intersection or spot: "TAXI  E" — cursor between TAXI and taxiway name
-                var names = vm.GetNodeTaxiwayNames(nodeId);
+                List<string> names = vm.GetNodeTaxiwayNames(nodeId);
                 if (names.Count > 0)
                 {
-                    var twySuffix = names[0];
+                    string twySuffix = names[0];
                     return ($"{taxiPrefix} {twySuffix}", taxiPrefix.Length);
                 }
 
@@ -1643,9 +1643,9 @@ public partial class GroundView : UserControl
         if (e.Key == Key.Enter)
         {
             e.Handled = true;
-            var text = _taxiInputBox?.Text?.Trim();
-            var callsign = _pendingCallsign;
-            var initials = _pendingInitials;
+            string? text = _taxiInputBox?.Text?.Trim();
+            string? callsign = _pendingCallsign;
+            string? initials = _pendingInitials;
             HideTaxiInput();
 
             if (!string.IsNullOrEmpty(text) && callsign is not null && initials is not null && DataContext is GroundViewModel vm)
@@ -1662,13 +1662,13 @@ public partial class GroundView : UserControl
 
     private string GetInitials()
     {
-        var mainVm = FindMainViewModel();
+        MainViewModel? mainVm = FindMainViewModel();
         return mainVm?.Preferences.UserInitials ?? "";
     }
 
     private MainViewModel? FindMainViewModel()
     {
-        var parent = this.Parent;
+        StyledElement? parent = this.Parent;
         while (parent is not null)
         {
             if (parent.DataContext is MainViewModel vm)
@@ -1737,7 +1737,7 @@ public partial class GroundView : UserControl
     /// </summary>
     private void OnToolbarPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
-        var scroller = this.FindControl<ScrollViewer>("ToolbarScroller");
+        ScrollViewer? scroller = this.FindControl<ScrollViewer>("ToolbarScroller");
         if (scroller is null)
         {
             return;

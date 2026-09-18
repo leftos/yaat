@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -47,7 +48,7 @@ public class SfoVideoRoutePinTests
     [InlineData("holdshort", "28L/Q>B", "TAXI Q B HS F1", "F1:Explicit")]
     public void Route_Resolves_WithExpectedHoldShorts(string startKind, string startName, string command, string expected)
     {
-        var resolved = Resolve(startKind, startName, command);
+        (TaxiRoute Route, AirportGroundLayout Layout)? resolved = Resolve(startKind, startName, command);
         if (resolved is null)
         {
             return;
@@ -65,21 +66,21 @@ public class SfoVideoRoutePinTests
     [Fact]
     public void Route_HsF1_BindsANodeOnThe1RCentreline()
     {
-        var resolved = Resolve("spot", "2", "TAXI A A1 1R F1 F RWY 28L HS F1");
+        (TaxiRoute Route, AirportGroundLayout Layout)? resolved = Resolve("spot", "2", "TAXI A A1 1R F1 F RWY 28L HS F1");
         if (resolved is null)
         {
             return;
         }
 
-        var route = resolved.Value.Route;
-        var layout = resolved.Value.Layout;
+        TaxiRoute route = resolved.Value.Route;
+        AirportGroundLayout layout = resolved.Value.Layout;
         SfoGroundHarness.DumpRoute(_output, route);
 
-        var hold = Assert.Single(
+        HoldShortPoint hold = Assert.Single(
             route.HoldShortPoints,
             h => (h.Reason == HoldShortReason.ExplicitHoldShort) && SfoGroundHarness.HoldShortMatches(h, "F1")
         );
-        Assert.True(layout.Nodes.TryGetValue(hold.NodeId, out var node), $"hold-short node {hold.NodeId} is not in the layout");
+        Assert.True(layout.Nodes.TryGetValue(hold.NodeId, out GroundNode? node), $"hold-short node {hold.NodeId} is not in the layout");
         Assert.True(
             node!.Edges.Any(e => e.IsRunwayCenterline && e.MatchesRunway("1R")),
             $"F1 hold node {hold.NodeId} has no 1R runway-centerline edge (edges: {string.Join(", ", node.Edges.Select(e => e.TaxiwayName))})"
@@ -105,13 +106,13 @@ public class SfoVideoRoutePinTests
     [Fact]
     public void Route_FromB12_StartsOnTaxiwayY()
     {
-        var resolved = Resolve("parking", "B12", "TAXI Y A A1 1R");
+        (TaxiRoute Route, AirportGroundLayout Layout)? resolved = Resolve("parking", "B12", "TAXI Y A A1 1R");
         if (resolved is null)
         {
             return;
         }
 
-        var route = resolved.Value.Route;
+        TaxiRoute route = resolved.Value.Route;
         SfoGroundHarness.DumpRoute(_output, route);
 
         var legs = route.Segments.Select(s => s.TaxiwayName).Where(IsNamedTaxiway).ToList();
@@ -138,19 +139,19 @@ public class SfoVideoRoutePinTests
 
     private (TaxiRoute Route, AirportGroundLayout Layout)? Resolve(string startKind, string startName, string command)
     {
-        var built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
         if (built is null)
         {
             return null;
         }
 
-        var ground = built.Value;
-        var aircraft = Spawn(ground, startKind, startName);
+        SfoGround ground = built.Value;
+        AircraftState aircraft = Spawn(ground, startKind, startName);
 
-        var result = ground.Engine.SendCommand(Callsign, command);
+        CommandResult result = ground.Engine.SendCommand(Callsign, command);
         Assert.True(result.Success, $"'{command}' from {startKind} {startName} failed: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         return (route, ground.Layout);
     }
@@ -165,13 +166,13 @@ public class SfoVideoRoutePinTests
                 return SfoGroundHarness.SpawnParked(ground, Callsign, AircraftType, startName);
             case "holdshort":
             {
-                var (barSpec, towardTaxiway) = SplitToward(startName);
-                var (runway, taxiway) = SplitPair(startKind, barSpec);
+                (string? barSpec, string? towardTaxiway) = SplitToward(startName);
+                (string? runway, string? taxiway) = SplitPair(startKind, barSpec);
                 return SfoGroundHarness.SpawnAtHoldShort(ground, Callsign, AircraftType, (runway, taxiway, towardTaxiway));
             }
             case "junction":
             {
-                var (taxiA, taxiB) = SplitPair(startKind, startName);
+                (string? taxiA, string? taxiB) = SplitPair(startKind, startName);
                 return SfoGroundHarness.SpawnAtJunction(ground, Callsign, AircraftType, taxiA, taxiB);
             }
             default:
@@ -181,7 +182,7 @@ public class SfoVideoRoutePinTests
 
     private static (string First, string Second) SplitPair(string startKind, string startName)
     {
-        var parts = startName.Split('/');
+        string[] parts = startName.Split('/');
         if (parts.Length != 2)
         {
             throw new InvalidOperationException($"'{startKind}' start needs a 'first/second' name, got '{startName}'");
@@ -196,7 +197,7 @@ public class SfoVideoRoutePinTests
     /// </summary>
     private static (string Bar, string TowardTaxiway) SplitToward(string startName)
     {
-        var parts = startName.Split('>');
+        string[] parts = startName.Split('>');
         if (parts.Length != 2)
         {
             throw new InvalidOperationException($"'holdshort' start needs a 'rwy/twy>towardTwy' name, got '{startName}'");
@@ -222,13 +223,13 @@ public class SfoVideoRoutePinTests
 
     private static (string Target, HoldShortReason Reason, bool Cleared) ParseOne(string token)
     {
-        var parts = token.Split(':');
+        string[] parts = token.Split(':');
         if (parts.Length is < 2 or > 3)
         {
             throw new InvalidOperationException($"expectation token '{token}' must be 'target:reason' or 'target:reason:cleared'");
         }
 
-        var reason = parts[1] switch
+        HoldShortReason reason = parts[1] switch
         {
             "Explicit" => HoldShortReason.ExplicitHoldShort,
             "Destination" => HoldShortReason.DestinationRunway,

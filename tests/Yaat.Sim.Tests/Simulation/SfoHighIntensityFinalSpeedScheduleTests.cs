@@ -39,14 +39,18 @@ public class SfoHighIntensityFinalSpeedScheduleTests
 
     private List<Profile>? RunScenario()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         if (recording is null || TestVnasData.NavigationDb is null)
         {
             return null;
         }
 
         var engine = new SimulationEngine(new TestAirportGroundData());
-        var errors = engine.LoadScenario(recording.ScenarioJson, 522837118, recording.SessionStartUtc ?? MagneticDeclination.EvaluationDateUtc);
+        List<string> errors = engine.LoadScenario(
+            recording.ScenarioJson,
+            522837118,
+            recording.SessionStartUtc ?? MagneticDeclination.EvaluationDateUtc
+        );
         Assert.Empty(errors);
         engine.Scenario!.FinalApproachSpeedVarietyEnabled = true;
 
@@ -55,18 +59,18 @@ public class SfoHighIntensityFinalSpeedScheduleTests
         for (int t = 0; t < SimSeconds; t++)
         {
             engine.TickOneSecond();
-            foreach (var a in engine.World.GetSnapshot())
+            foreach (AircraftState a in engine.World.GetSnapshot())
             {
                 if (a.IsOnGround || a.Phases?.CurrentPhase is not FinalApproachPhase || a.Phases.AssignedRunway is null)
                 {
                     continue;
                 }
 
-                var rwy = a.Phases.AssignedRunway;
+                RunwayInfo rwy = a.Phases.AssignedRunway;
                 double dist = GeoMath.DistanceNm(a.Position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude));
-                if (!profiles.TryGetValue(a.Callsign, out var p))
+                if (!profiles.TryGetValue(a.Callsign, out Profile? p))
                 {
-                    var category = AircraftCategorization.Categorize(a.AircraftType);
+                    AircraftCategory category = AircraftCategorization.Categorize(a.AircraftType);
                     p = new Profile
                     {
                         Callsign = a.Callsign,
@@ -79,7 +83,7 @@ public class SfoHighIntensityFinalSpeedScheduleTests
                 }
 
                 p.MaxIas = Math.Max(p.MaxIas, a.IndicatedAirspeed);
-                foreach (var g in gates)
+                foreach (double g in gates)
                 {
                     if (dist <= g && !p.IasAtNm.ContainsKey(g))
                     {
@@ -89,9 +93,9 @@ public class SfoHighIntensityFinalSpeedScheduleTests
             }
         }
 
-        foreach (var p in profiles.Values)
+        foreach (Profile p in profiles.Values)
         {
-            var row = string.Join(" ", gates.Select(g => p.IasAtNm.TryGetValue(g, out var v) ? $"{g}:{v:F0}" : $"{g}:-"));
+            string row = string.Join(" ", gates.Select(g => p.IasAtNm.TryGetValue(g, out double v) ? $"{g}:{v:F0}" : $"{g}:-"));
             _output.WriteLine($"{p.Callsign, -8} {p.Type, -5} vref={p.Vref:F0} spawn@{p.SpawnDistNm:F1}nm {p.SpawnIas:F0}kt || {row}");
         }
 
@@ -101,7 +105,7 @@ public class SfoHighIntensityFinalSpeedScheduleTests
     [Fact]
     public void LongFinalJets_SpawnClean_ConfigureBySevenMiles_AndReachConfigSpeedByFive()
     {
-        var profiles = RunScenario();
+        List<Profile>? profiles = RunScenario();
         if (profiles is null)
         {
             return;
@@ -128,7 +132,7 @@ public class SfoHighIntensityFinalSpeedScheduleTests
     {
         // The balance the schedule is meant to strike: nobody near 250 at 10 nm, but not everyone at 180 either —
         // clean speed differs by weight class and the approach-flap stage is reached with per-aircraft variety.
-        var profiles = RunScenario();
+        List<Profile>? profiles = RunScenario();
         if (profiles is null)
         {
             return;

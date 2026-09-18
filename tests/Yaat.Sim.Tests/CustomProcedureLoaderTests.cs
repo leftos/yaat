@@ -18,7 +18,9 @@ public class CustomProcedureLoaderTests
     [Fact]
     public void LoadAll_MissingDirectory_ReturnsWarningNoThrow()
     {
-        var result = CustomProcedureLoader.LoadAll(Path.Combine(Path.GetTempPath(), "definitely-not-a-real-dir-" + Guid.NewGuid()));
+        CustomProcedureLoadResult result = CustomProcedureLoader.LoadAll(
+            Path.Combine(Path.GetTempPath(), "definitely-not-a-real-dir-" + Guid.NewGuid())
+        );
 
         Assert.Empty(result.Fragments);
         Assert.Single(result.Warnings);
@@ -31,7 +33,7 @@ public class CustomProcedureLoaderTests
         using var tmp = new TempArtccs();
         Directory.CreateDirectory(Path.Combine(tmp.Path, "ZOA", "CustomFixes"));
 
-        var result = CustomProcedureLoader.LoadAll(tmp.Path);
+        CustomProcedureLoadResult result = CustomProcedureLoader.LoadAll(tmp.Path);
 
         Assert.Empty(result.Fragments);
         Assert.Empty(result.Warnings);
@@ -54,9 +56,9 @@ public class CustomProcedureLoaderTests
             ]
         );
 
-        var result = CustomProcedureLoader.LoadAll(tmp.Path);
+        CustomProcedureLoadResult result = CustomProcedureLoader.LoadAll(tmp.Path);
 
-        var fragment = Assert.Single(result.Fragments);
+        CustomProcedureFragment fragment = Assert.Single(result.Fragments);
         Assert.Equal("ZOA", fragment.ArtccId);
         Assert.Equal(["KOAK", "KSJC"], fragment.AirportIcaos.OrderBy(i => i, StringComparer.Ordinal));
         Assert.Empty(result.Warnings);
@@ -68,7 +70,7 @@ public class CustomProcedureLoaderTests
         using var tmp = new TempArtccs();
         tmp.WriteFragment("ZOA", "empty.cifp", ["# nothing but a header", "SUSAP KOAK but far too short"]);
 
-        var result = CustomProcedureLoader.LoadAll(tmp.Path);
+        CustomProcedureLoadResult result = CustomProcedureLoader.LoadAll(tmp.Path);
 
         Assert.Empty(result.Fragments);
         Assert.Single(result.Warnings);
@@ -81,7 +83,7 @@ public class CustomProcedureLoaderTests
         using var tmp = new TempArtccs();
         tmp.WriteFragment("zoa", "koak.cifp", [Record("KOAK", 'D', "NIMI5")]);
 
-        var result = CustomProcedureLoader.LoadAll(tmp.Path);
+        CustomProcedureLoadResult result = CustomProcedureLoader.LoadAll(tmp.Path);
 
         Assert.Equal("ZOA", Assert.Single(result.Fragments).ArtccId);
     }
@@ -93,7 +95,7 @@ public class CustomProcedureLoaderTests
         tmp.WriteFragment("ZOA", "koak.cifp", [Record("KOAK", 'D', "NIMI5")]);
         tmp.WriteFragment("ZLA", "klax.cifp", [Record("KLAX", 'D', "ORCKA3")]);
 
-        var result = CustomProcedureLoader.LoadAll(tmp.Path);
+        CustomProcedureLoadResult result = CustomProcedureLoader.LoadAll(tmp.Path);
 
         // Sorted enumeration is what makes a duplicate-procedure conflict resolve deterministically.
         Assert.Equal(["ZLA", "ZOA"], result.Fragments.Select(f => f.ArtccId));
@@ -108,7 +110,7 @@ public class CustomProcedureLoaderTests
         File.WriteAllLines(Path.Combine(dir, "notes.txt"), [Record("KOAK", 'D', "NIMI5")]);
         File.WriteAllLines(Path.Combine(dir, "koak.json"), [Record("KOAK", 'D', "NIMI5")]);
 
-        var result = CustomProcedureLoader.LoadAll(tmp.Path);
+        CustomProcedureLoadResult result = CustomProcedureLoader.LoadAll(tmp.Path);
 
         Assert.Empty(result.Fragments);
         Assert.Empty(result.Warnings);

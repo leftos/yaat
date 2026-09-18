@@ -49,32 +49,32 @@ public partial class TtsSandboxView : UserControl
         AvaloniaXamlLoader.Load(this);
         WireControls();
 
-        var voiceBox = this.FindControl<TextBox>("VoiceDirBox")!;
+        TextBox voiceBox = this.FindControl<TextBox>("VoiceDirBox")!;
         voiceBox.Text = ResolveDefaultVoiceDir() ?? "";
     }
 
     private void WireControls()
     {
-        var loadBtn = this.FindControl<Button>("LoadModelButton")!;
+        Button loadBtn = this.FindControl<Button>("LoadModelButton")!;
         loadBtn.Click += (_, _) => _ = LoadModelAsync();
 
-        var prewarmBtn = this.FindControl<Button>("PrewarmButton")!;
+        Button prewarmBtn = this.FindControl<Button>("PrewarmButton")!;
         prewarmBtn.Click += (_, _) => _ = PrewarmAsync();
 
-        var synthBtn = this.FindControl<Button>("SynthAndPlayButton")!;
+        Button synthBtn = this.FindControl<Button>("SynthAndPlayButton")!;
         synthBtn.Click += (_, _) => _ = SynthAndPlayAsync();
 
-        var saveBtn = this.FindControl<Button>("SaveWavButton")!;
+        Button saveBtn = this.FindControl<Button>("SaveWavButton")!;
         saveBtn.Click += (_, _) => _ = SaveLastWavAsync();
 
-        var exampleBtn = this.FindControl<Button>("RunExampleSetButton")!;
+        Button exampleBtn = this.FindControl<Button>("RunExampleSetButton")!;
         exampleBtn.Click += (_, _) => _ = RunExampleSetAsync();
 
-        var loadExampleBtn = this.FindControl<Button>("LoadExampleTextButton")!;
+        Button loadExampleBtn = this.FindControl<Button>("LoadExampleTextButton")!;
         loadExampleBtn.Click += (_, _) =>
             this.FindControl<TextBox>("TextBox")!.Text = "Cleared ILS twenty eight right approach, American twelve thirty four.";
 
-        var stopBtn = this.FindControl<Button>("StopAudioButton")!;
+        Button stopBtn = this.FindControl<Button>("StopAudioButton")!;
         stopBtn.Click += (_, _) => StopActiveStream();
 
         // Slider value mirroring (so the read-out next to the slider always reflects the value).
@@ -88,8 +88,8 @@ public partial class TtsSandboxView : UserControl
 
     private void BindSliderText(string sliderName, string textName, Func<double, string> format)
     {
-        var slider = this.FindControl<Slider>(sliderName)!;
-        var text = this.FindControl<TextBlock>(textName)!;
+        Slider slider = this.FindControl<Slider>(sliderName)!;
+        TextBlock text = this.FindControl<TextBlock>(textName)!;
         text.Text = format(slider.Value);
         slider.PropertyChanged += (_, e) =>
         {
@@ -110,7 +110,7 @@ public partial class TtsSandboxView : UserControl
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, Relative);
+            string candidate = Path.Combine(dir.FullName, Relative);
             if (File.Exists(Path.Combine(candidate, "en_US-libritts_r-medium.onnx")))
             {
                 return candidate;
@@ -129,7 +129,7 @@ public partial class TtsSandboxView : UserControl
 
         _isLoading = true;
 
-        var voiceDir = (this.FindControl<TextBox>("VoiceDirBox")!.Text ?? "").Trim();
+        string voiceDir = (this.FindControl<TextBox>("VoiceDirBox")!.Text ?? "").Trim();
         if (string.IsNullOrEmpty(voiceDir))
         {
             SetStatus("Voice pack directory is empty — paste a path or auto-detect.");
@@ -139,7 +139,7 @@ public partial class TtsSandboxView : UserControl
 
         // Locate model + tokens. Piper voices ship the ONNX file with the same stem as the dir name.
         var dirInfo = new DirectoryInfo(voiceDir);
-        var onnxFile = dirInfo.Exists ? dirInfo.GetFiles("*.onnx").FirstOrDefault() : null;
+        FileInfo? onnxFile = dirInfo.Exists ? dirInfo.GetFiles("*.onnx").FirstOrDefault() : null;
 
         if (onnxFile is null)
         {
@@ -148,8 +148,8 @@ public partial class TtsSandboxView : UserControl
             return;
         }
 
-        var tokensPath = Path.Combine(voiceDir, "tokens.txt");
-        var dataDir = Path.Combine(voiceDir, "espeak-ng-data");
+        string tokensPath = Path.Combine(voiceDir, "tokens.txt");
+        string dataDir = Path.Combine(voiceDir, "espeak-ng-data");
 
         if (!File.Exists(tokensPath))
         {
@@ -201,7 +201,7 @@ public partial class TtsSandboxView : UserControl
 
     private void UpdateModelStatus()
     {
-        var statusText = this.FindControl<TextBlock>("ModelStatusText")!;
+        TextBlock statusText = this.FindControl<TextBlock>("ModelStatusText")!;
         if (_tts is null)
         {
             statusText.Text = "No model loaded.";
@@ -256,7 +256,7 @@ public partial class TtsSandboxView : UserControl
             return;
         }
 
-        var text = (this.FindControl<TextBox>("TextBox")!.Text ?? "").Trim();
+        string text = (this.FindControl<TextBox>("TextBox")!.Text ?? "").Trim();
         if (string.IsNullOrEmpty(text))
         {
             SetStatus("Empty text.");
@@ -269,7 +269,7 @@ public partial class TtsSandboxView : UserControl
         SetStatus("Synthesizing...");
         try
         {
-            var result = await Task.Run(() => SynthOneAndApplyFx(text, sid, speed));
+            SynthResult result = await Task.Run(() => SynthOneAndApplyFx(text, sid, speed));
             _lastSamples = result.Samples;
             _lastSampleRate = result.SampleRate;
             // Save to a deterministic temp WAV so the user can play it externally / drag it out.
@@ -291,7 +291,7 @@ public partial class TtsSandboxView : UserControl
     {
         var gen = new OfflineTtsGenerationConfig { Sid = sid, Speed = speed };
         var sw = Stopwatch.StartNew();
-        var audio = _tts!.GenerateWithConfig(text, gen, null);
+        OfflineTtsGeneratedAudio audio = _tts!.GenerateWithConfig(text, gen, null);
         sw.Stop();
         int latencyMs = (int)sw.ElapsedMilliseconds;
         int sampleRate = _tts.SampleRate;
@@ -328,7 +328,7 @@ public partial class TtsSandboxView : UserControl
         var hp = BiQuadFilter.HighPassFilter(sampleRate, 200f, 0.7f);
 
         int squelchTailSamples = (int)(sampleRate * (squelchMs / 1000.0));
-        var output = new float[input.Length + squelchTailSamples];
+        float[] output = new float[input.Length + squelchTailSamples];
 
         for (int i = 0; i < input.Length; i++)
         {
@@ -377,12 +377,12 @@ public partial class TtsSandboxView : UserControl
         SetStatus("Running example set...");
         for (int i = 0; i < utterances.Length; i++)
         {
-            var (label, text) = utterances[i];
+            (string? label, string? text) = utterances[i];
             int sid = sids[i];
             try
             {
-                var result = await Task.Run(() => SynthOneAndApplyFx(text, sid, 1.0f));
-                var path = SaveTempWav(result.Samples, result.SampleRate, sid, label);
+                SynthResult result = await Task.Run(() => SynthOneAndApplyFx(text, sid, 1.0f));
+                string path = SaveTempWav(result.Samples, result.SampleRate, sid, label);
                 Dispatcher.UIThread.Post(() => this.FindControl<TextBlock>("LastWavPathText")!.Text = path);
             }
             catch (Exception ex)
@@ -407,7 +407,7 @@ public partial class TtsSandboxView : UserControl
             return;
         }
 
-        var picked = await topLevel.StorageProvider.SaveFilePickerAsync(
+        IStorageFile? picked = await topLevel.StorageProvider.SaveFilePickerAsync(
             new FilePickerSaveOptions
             {
                 Title = "Save TTS sandbox WAV",
@@ -438,10 +438,10 @@ public partial class TtsSandboxView : UserControl
 
     private static string SaveTempWav(float[] samples, int sampleRate, int sid, string? label = null)
     {
-        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "yaat", "sandbox", "tts");
+        string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "yaat", "sandbox", "tts");
         Directory.CreateDirectory(dir);
-        var name = label is null ? $"tts-sid{sid}-{DateTime.Now:HHmmss}.wav" : $"{label}-sid{sid}.wav";
-        var path = Path.Combine(dir, name);
+        string name = label is null ? $"tts-sid{sid}-{DateTime.Now:HHmmss}.wav" : $"{label}-sid{sid}.wav";
+        string path = Path.Combine(dir, name);
         var format = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, 1);
         using var writer = new WaveFileWriter(path, format);
         writer.WriteSamples(samples, 0, samples.Length);
@@ -460,7 +460,7 @@ public partial class TtsSandboxView : UserControl
             return;
         }
 
-        var devInfo = PortAudio.GetDeviceInfo(outDev);
+        DeviceInfo devInfo = PortAudio.GetDeviceInfo(outDev);
         var outParams = new StreamParameters
         {
             device = outDev,
@@ -554,7 +554,7 @@ public partial class TtsSandboxView : UserControl
 
     private static void ZeroFill(IntPtr dest, int floatCount)
     {
-        var zeros = new float[floatCount];
+        float[] zeros = new float[floatCount];
         System.Runtime.InteropServices.Marshal.Copy(zeros, 0, dest, floatCount);
     }
 
@@ -605,7 +605,7 @@ public partial class TtsSandboxView : UserControl
     private void AppendLog(string line)
     {
         _log.AppendLine(line);
-        var box = this.FindControl<TextBox>("TtsLogBox")!;
+        TextBox box = this.FindControl<TextBox>("TtsLogBox")!;
         box.Text = _log.ToString();
         box.CaretIndex = box.Text!.Length;
     }

@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.LiveTraffic;
@@ -23,7 +24,7 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
 
     private static SessionRecording? LoadBaseline(ITestOutputHelper output)
     {
-        var baseline = RecordingLoader.Load(BundlePath);
+        SessionRecording? baseline = RecordingLoader.Load(BundlePath);
         if (baseline is null)
         {
             output.WriteLine($"Skipped: {BundlePath} not present");
@@ -68,7 +69,7 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
         var live = new SimulationEngine(new TestAirportGroundData());
         live.Replay(WithActions(baseline, [], 0), 0);
 
-        var spawnState = LiveTrafficKinematics
+        AircraftSnapshotDto spawnState = LiveTrafficKinematics
             .CreateShadow(Callsign, "B738", Sample(1, Origin, 90), new AircraftFlightPlan { HasFlightPlan = true, Destination = "KOAK" })
             .ToSnapshot();
 
@@ -89,17 +90,17 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
     [Fact]
     public void ARefusedAutoAssumingCommand_LeavesTheShadow_LiveAndOnReplay()
     {
-        var baseline = LoadBaseline(output);
+        SessionRecording? baseline = LoadBaseline(output);
         if (baseline is null)
         {
             return;
         }
 
-        var live = LiveWithShadow(baseline);
+        SimulationEngine live = LiveWithShadow(baseline);
         Assert.True(live.World.FindAircraft(Callsign)!.IsShadow);
 
         // A ground verb on an airborne aircraft: the seeded state refuses it, so the assume is rolled back.
-        var issued = live.Actions.Issue(new ActionInput(Callsign, "TAXI A", "conn-1", "XX", Baked: null));
+        ActionOutcome issued = live.Actions.Issue(new ActionInput(Callsign, "TAXI A", "conn-1", "XX", Baked: null));
         Assert.False(issued.Result.Success);
         Assert.DoesNotContain("assumed", issued.Result.Message ?? "", StringComparison.Ordinal);
 
@@ -108,19 +109,19 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
             LiveSecond(live, t, null);
         }
 
-        var liveAircraft = live.World.FindAircraft(Callsign)!;
+        AircraftState liveAircraft = live.World.FindAircraft(Callsign)!;
         Assert.True(liveAircraft.IsShadow);
         Assert.False(liveAircraft.AssumedFromLiveTraffic);
 
         var actions = live.Scenario!.ActionLog.ToList();
-        var command = Assert.Single(actions.OfType<RecordedCommand>());
+        RecordedCommand command = Assert.Single(actions.OfType<RecordedCommand>());
         Assert.Equal("TAXI A", command.Command);
         Assert.False(command.Accepted);
         Assert.Equal(2, actions.Count);
 
         var replay = new SimulationEngine(new TestAirportGroundData());
         replay.Replay(WithActions(baseline, actions, 22), 20);
-        var replayed = replay.World.FindAircraft(Callsign);
+        AircraftState? replayed = replay.World.FindAircraft(Callsign);
 
         Assert.NotNull(replayed);
         Assert.True(replayed.IsShadow);
@@ -133,7 +134,7 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
     [Fact]
     public void AnAutoAssumingCommand_ReplaysToTheSameStateAsTheLiveRun()
     {
-        var baseline = LoadBaseline(output);
+        SessionRecording? baseline = LoadBaseline(output);
         if (baseline is null)
         {
             return;
@@ -142,7 +143,7 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
         var live = new SimulationEngine(new TestAirportGroundData());
         live.Replay(WithActions(baseline, [], 0), 0);
 
-        var spawnState = LiveTrafficKinematics
+        AircraftSnapshotDto spawnState = LiveTrafficKinematics
             .CreateShadow(Callsign, "B738", Sample(1, Origin, 90), new AircraftFlightPlan { HasFlightPlan = true, Destination = "KOAK" })
             .ToSnapshot();
 
@@ -153,7 +154,7 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
         }
 
         Assert.True(live.World.FindAircraft(Callsign)!.IsShadow);
-        var issued = live.Actions.Issue(new ActionInput(Callsign, "FH 070", "conn-1", "XX", Baked: null));
+        ActionOutcome issued = live.Actions.Issue(new ActionInput(Callsign, "FH 070", "conn-1", "XX", Baked: null));
         Assert.True(issued.Result.Success, issued.Result.Message);
         Assert.Contains($"{Callsign} assumed", issued.Result.Message, StringComparison.Ordinal);
 
@@ -162,19 +163,19 @@ public class LiveTrafficAutoAssumeReplayTests(ITestOutputHelper output)
             LiveSecond(live, t, null);
         }
 
-        var liveAircraft = live.World.FindAircraft(Callsign)!;
+        AircraftState liveAircraft = live.World.FindAircraft(Callsign)!;
         Assert.False(liveAircraft.IsShadow);
 
         // No new recording surface: one ordinary command record for the instruction, and no assume action beside it.
         var actions = live.Scenario!.ActionLog.ToList();
-        var command = Assert.Single(actions.OfType<RecordedCommand>());
+        RecordedCommand command = Assert.Single(actions.OfType<RecordedCommand>());
         Assert.Equal("FH 070", command.Command);
         Assert.True(command.Accepted);
         Assert.Equal(2, actions.Count);
 
         var replay = new SimulationEngine(new TestAirportGroundData());
         replay.Replay(WithActions(baseline, actions, 22), 20);
-        var replayed = replay.World.FindAircraft(Callsign);
+        AircraftState? replayed = replay.World.FindAircraft(Callsign);
 
         Assert.NotNull(replayed);
         Assert.False(replayed.IsShadow);

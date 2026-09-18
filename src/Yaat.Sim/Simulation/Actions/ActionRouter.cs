@@ -109,7 +109,7 @@ public sealed class ActionRouter
                 _engine.ApplyGeneratorsJson(generators.GeneratorsJson);
                 return Applied;
             default:
-                var result = ApplyStateRecord(action, host);
+                CommandResult result = ApplyStateRecord(action, host);
                 if (!result.Success)
                 {
                     WarnOnRefusedRecord(action, result);
@@ -131,7 +131,7 @@ public sealed class ActionRouter
     /// </summary>
     public CommandResult IssueDerived(RecordedAction action, IActionHost host)
     {
-        var result = ApplyStateRecord(action, host);
+        CommandResult result = ApplyStateRecord(action, host);
         if (result.Success)
         {
             _engine.RecordAction(action);
@@ -147,7 +147,7 @@ public sealed class ActionRouter
     /// </summary>
     private CommandResult ApplyStateRecord(RecordedAction action, IActionHost host)
     {
-        var result = ApplyStateRecordCore(action, host);
+        CommandResult result = ApplyStateRecordCore(action, host);
         _engine.DrainStateChangesInto(host);
         return result;
     }
@@ -207,7 +207,7 @@ public sealed class ActionRouter
 
     private CommandResult ApplyToAircraft(string callsign, Action<AircraftState> apply)
     {
-        var aircraft = _engine.FindAircraft(callsign);
+        AircraftState? aircraft = _engine.FindAircraft(callsign);
         if (aircraft is null)
         {
             return ActionRefusals.AircraftNotFound(callsign);
@@ -219,13 +219,13 @@ public sealed class ActionRouter
 
     private CommandResult ApplyEramEntry(RecordedEramEntry entry)
     {
-        var aircraft = _engine.FindAircraft(entry.Callsign);
+        AircraftState? aircraft = _engine.FindAircraft(entry.Callsign);
         if (aircraft is null)
         {
             return ActionRefusals.AircraftNotFound(entry.Callsign);
         }
 
-        var identity =
+        TrackOwner? identity =
             (entry.IdentityCode is null) || (_engine.Scenario is null) ? null : TrackResolver.ResolveTcpToOwner(_engine.Scenario, entry.IdentityCode);
         return EramEntryEngine.Apply(aircraft, entry.Entry, identity);
     }
@@ -263,7 +263,7 @@ public sealed class ActionRouter
     {
         // Mirrors Route's decomposition below, in the same order: the two must be changed together, and
         // ActionRouterTests.WouldRecord_AgreesWithTheLog is the behavioural check that they still agree.
-        var (remainder, _) = TrackResolver.ExtractAsPrefix(command);
+        (string? remainder, string? _) = TrackResolver.ExtractAsPrefix(command);
 
         if (CompoundPolicy.FindNonCompoundableInChain(remainder) is not null)
         {
@@ -275,7 +275,7 @@ public sealed class ActionRouter
             return true;
         }
 
-        if (CompoundPolicy.TrySplitSpecialCompound(remainder, out var units))
+        if (CompoundPolicy.TrySplitSpecialCompound(remainder, out List<CompoundUnit>? units))
         {
             return units.Any(unit => WouldRecord(unit.Text));
         }
@@ -290,7 +290,7 @@ public sealed class ActionRouter
     private ActionOutcome Route(ActionInput input, IActionHost host, RecordedCommand? record)
     {
         var routing = new Routing(input, host, record);
-        var (remainder, asOverrideTcp) = TrackResolver.ExtractAsPrefix(input.Command);
+        (string? remainder, string? asOverrideTcp) = TrackResolver.ExtractAsPrefix(input.Command);
 
         // A chain containing a rejection-set verb (PAUSE, spawn, flight-plan ops, room-wide commands) has no chained
         // semantics: routed as one compound it would swallow the tail or queue a block that no-ops at fire time.
@@ -313,13 +313,13 @@ public sealed class ActionRouter
 
         // A compound that concatenates a track/coordination/strip/TDLS command with ';'/',' cannot be classified as one
         // command — the single-command parser would swallow the separator tail as an argument. Route each unit.
-        if (CompoundPolicy.TrySplitSpecialCompound(remainder, out var units))
+        if (CompoundPolicy.TrySplitSpecialCompound(remainder, out List<CompoundUnit>? units))
         {
             return RouteUnits(routing, asOverrideTcp, units);
         }
 
-        var classification = RecordedCommandClassifier.Classify(remainder);
-        var arm = ArmTable.For(classification.Kind);
+        RecordedCommandClassifier.Classification classification = RecordedCommandClassifier.Classify(remainder);
+        ActionArm arm = ArmTable.For(classification.Kind);
         var trace = new ActionTrace(arm.Kind, arm.Scope);
 
         // A kind that is never recorded (the session clock, bookmarks, the SHOW query) is never applied from a record
@@ -327,7 +327,7 @@ public sealed class ActionRouter
         // bookmark.
         if ((record is not null) && (arm.Recording == RecordingPolicy.Never))
         {
-            var verb = CommandDescriber.DescribeCommand(classification.Parsed!);
+            string verb = CommandDescriber.DescribeCommand(classification.Parsed!);
             return Finish(routing, new CommandResult(false, $"{verb} is not applied from a recording"), trace, arm.Recording, ctx: null);
         }
 
@@ -363,17 +363,17 @@ public sealed class ActionRouter
     /// </summary>
     private ActionOutcome RouteUnits(Routing routing, string? asOverrideTcp, List<CompoundUnit> units)
     {
-        var (input, host, record) = routing;
-        var prefix = asOverrideTcp is null ? "" : $"AS {asOverrideTcp} ";
+        (ActionInput? input, IActionHost? host, RecordedCommand? record) = routing;
+        string prefix = asOverrideTcp is null ? "" : $"AS {asOverrideTcp} ";
         var messages = new List<(int BlockIndex, string Message)>();
         bool allSuccess = true;
         ActionTrace last = default;
-        foreach (var unit in units)
+        foreach (CompoundUnit unit in units)
         {
-            var unitCommand = prefix + unit.Text;
-            var unitInput = input with { Command = unitCommand };
-            var unitRecord = record is null ? null : record with { Command = unitCommand, Accepted = null };
-            var sub = Route(unitInput, host, unitRecord);
+            string unitCommand = prefix + unit.Text;
+            ActionInput unitInput = input with { Command = unitCommand };
+            RecordedCommand? unitRecord = record is null ? null : record with { Command = unitCommand, Accepted = null };
+            ActionOutcome sub = Route(unitInput, host, unitRecord);
             allSuccess &= sub.Result.Success;
             if (!string.IsNullOrEmpty(sub.Result.Message))
             {
@@ -383,7 +383,7 @@ public sealed class ActionRouter
             last = sub.Trace;
         }
 
-        var combined = string.Join(
+        string combined = string.Join(
             " ; then ",
             messages.GroupBy(m => m.BlockIndex).OrderBy(g => g.Key).Select(g => string.Join(", ", g.Select(m => m.Message)))
         );
@@ -411,7 +411,7 @@ public sealed class ActionRouter
             return new ActionOutcome(result, null, trace);
         }
 
-        var input = routing.Input;
+        ActionInput input = routing.Input;
         RecordedCommand? toRecord = null;
         if ((recording == RecordingPolicy.Text) && _engine.Scenario is { } scenario)
         {

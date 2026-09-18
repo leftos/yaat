@@ -51,7 +51,7 @@ public partial class MainViewModel
     {
         try
         {
-            var cmd = IsPaused ? "UNPAUSE" : "PAUSE";
+            string cmd = IsPaused ? "UNPAUSE" : "PAUSE";
             await _connection.SendCommandAsync("", cmd, _preferences.UserInitials);
         }
         catch (Exception ex)
@@ -72,7 +72,7 @@ public partial class MainViewModel
     {
         if (IsPlaybackMode && TakeControlConfirmation is not null)
         {
-            var confirmed = await TakeControlConfirmation();
+            bool confirmed = await TakeControlConfirmation();
             if (!confirmed)
             {
                 return;
@@ -100,7 +100,7 @@ public partial class MainViewModel
         try
         {
             StatusText = $"Rewinding to {FormatTime(targetSeconds)}...";
-            var result = await _connection.RewindToAsync(targetSeconds);
+            RewindResultDto? result = await _connection.RewindToAsync(targetSeconds);
             if (result is null || !result.Success)
             {
                 StatusText = $"Rewind failed: {result?.Error ?? "Unknown error"}";
@@ -112,7 +112,7 @@ public partial class MainViewModel
                 Aircraft.Clear();
                 if (result.Aircraft is not null)
                 {
-                    foreach (var dto in result.Aircraft)
+                    foreach (AircraftDto dto in result.Aircraft)
                     {
                         var model = Models.AircraftModel.FromDto(dto, ComputeDistance);
                         ApplyAutoClearedToLand(model);
@@ -145,7 +145,7 @@ public partial class MainViewModel
         ExportingStatusText = "Preparing recording...";
         IsExportIndeterminate = true;
         ExportProgress = 0;
-        var wasPaused = IsPaused;
+        bool wasPaused = IsPaused;
         _connection.ExportRecordingProgress += OnExportRecordingProgress;
         try
         {
@@ -154,7 +154,7 @@ public partial class MainViewModel
                 await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
             }
 
-            var compressedBytes = await _connection.ExportRecordingAsync(BuildInfo.Version, BuildInfo.BuildKind);
+            byte[]? compressedBytes = await _connection.ExportRecordingAsync(BuildInfo.Version, BuildInfo.BuildKind);
             IsExportingRecording = false;
 
             if (compressedBytes is null)
@@ -163,7 +163,7 @@ public partial class MainViewModel
                 return;
             }
 
-            var path = await _filePicker.SaveFileAsync(
+            string? path = await _filePicker.SaveFileAsync(
                 new SaveFileOptions(
                     Title: "Save Recording",
                     SuggestedFileName: $"{SanitizeFileName(ActiveScenarioName ?? "recording")}.yaat-recording.zip",
@@ -177,7 +177,7 @@ public partial class MainViewModel
                 return;
             }
 
-            var bytesToSave = compressedBytes;
+            byte[] bytesToSave = compressedBytes;
             if (Bookmarks.Count > 0 && RecordingCompression.IsZipArchive(compressedBytes))
             {
                 bytesToSave = RecordingArchive.WriteBookmarks(compressedBytes, SnapshotBookmarks());
@@ -230,7 +230,7 @@ public partial class MainViewModel
                 await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
             }
 
-            var compressedBytes = await _connection.ExportRecordingAsync(BuildInfo.Version, BuildInfo.BuildKind);
+            byte[]? compressedBytes = await _connection.ExportRecordingAsync(BuildInfo.Version, BuildInfo.BuildKind);
             _connection.ExportRecordingProgress -= OnExportRecordingProgress;
             IsExportingRecording = false;
 
@@ -240,7 +240,7 @@ public partial class MainViewModel
                 return;
             }
 
-            var path = await _filePicker.SaveFileAsync(
+            string? path = await _filePicker.SaveFileAsync(
                 new SaveFileOptions(
                     Title: "Save Bug Report Bundle",
                     SuggestedFileName: $"{SanitizeFileName(ActiveScenarioName ?? "recording")}.yaat-bug-report-bundle.zip",
@@ -254,22 +254,22 @@ public partial class MainViewModel
                 return;
             }
 
-            var recordingBytes = compressedBytes;
+            byte[] recordingBytes = compressedBytes;
             if (Bookmarks.Count > 0 && RecordingCompression.IsZipArchive(compressedBytes))
             {
                 recordingBytes = RecordingArchive.WriteBookmarks(compressedBytes, SnapshotBookmarks());
             }
 
-            await using var stream = File.Create(path);
+            await using FileStream stream = File.Create(path);
             using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
 
             using var recordingStream = new MemoryStream(recordingBytes);
             using var recordingZip = new ZipArchive(recordingStream, ZipArchiveMode.Read);
-            foreach (var sourceEntry in recordingZip.Entries)
+            foreach (ZipArchiveEntry sourceEntry in recordingZip.Entries)
             {
-                var destEntry = archive.CreateEntry(sourceEntry.FullName);
-                await using var sourceStream = sourceEntry.Open();
-                await using var destStream = destEntry.Open();
+                ZipArchiveEntry destEntry = archive.CreateEntry(sourceEntry.FullName);
+                await using Stream sourceStream = sourceEntry.Open();
+                await using Stream destStream = destEntry.Open();
                 await sourceStream.CopyToAsync(destStream);
             }
 
@@ -277,7 +277,7 @@ public partial class MainViewModel
 
             try
             {
-                var serverLog = await _connection.GetSessionServerLogAsync();
+                string? serverLog = await _connection.GetSessionServerLogAsync();
                 if (!string.IsNullOrEmpty(serverLog))
                 {
                     AddTextToArchive(archive, "yaat-server.log", serverLog);
@@ -313,22 +313,22 @@ public partial class MainViewModel
     {
         try
         {
-            var exports = await _connection.ExportSurfaceTempDataAsync();
+            List<SurfaceTempDataExportDto> exports = await _connection.ExportSurfaceTempDataAsync();
             if (exports.Count == 0)
             {
                 StatusText = "No ASDE-X/SAID temp data to export";
                 return;
             }
 
-            var folder = await _filePicker.OpenFolderAsync(new OpenFolderOptions("Export ASDE-X / SAID Temp Data"));
+            string? folder = await _filePicker.OpenFolderAsync(new OpenFolderOptions("Export ASDE-X / SAID Temp Data"));
             if (folder is null)
             {
                 return;
             }
 
-            foreach (var export in exports)
+            foreach (SurfaceTempDataExportDto export in exports)
             {
-                var path = Path.Combine(folder, $"{SanitizeFileName(export.FacilityId)}.json");
+                string path = Path.Combine(folder, $"{SanitizeFileName(export.FacilityId)}.json");
                 await File.WriteAllTextAsync(path, export.Json);
             }
 
@@ -359,7 +359,7 @@ public partial class MainViewModel
         ShowResetSurfaceTempDataConfirmation = false;
         try
         {
-            var facilities = await _connection.ResetSurfaceTempDataAsync();
+            int facilities = await _connection.ResetSurfaceTempDataAsync();
             StatusText =
                 facilities == 0
                     ? "No ASDE-X/SAID temp data to reset"
@@ -435,7 +435,7 @@ public partial class MainViewModel
 
         // Live-add to the visible collection without waiting for the next 5 s poll so the
         // user sees their command land on the rail immediately.
-        var filter = TimelineFilterCallsign;
+        string? filter = TimelineFilterCallsign;
         if (filter is null || string.Equals(filter, callsign, StringComparison.OrdinalIgnoreCase))
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() => TimelineMarkers.Add(marker));
@@ -464,15 +464,15 @@ public partial class MainViewModel
         _timelineMarkerRefreshInFlight = true;
         try
         {
-            var report = await _connection.GetSessionReportAsync();
+            SessionReportDto? report = await _connection.GetSessionReportAsync();
             if (report is null)
             {
                 return;
             }
 
-            var filter = TimelineFilterCallsign;
+            string? filter = TimelineFilterCallsign;
             var rebuilt = new List<TimelineMarkerVm>(report.Timeline.Count + _commandMarkerHistory.Count);
-            foreach (var ev in report.Timeline)
+            foreach (SoloTrainingEventDto ev in report.Timeline)
             {
                 if (filter is not null && !ev.Callsigns.Any(c => string.Equals(c, filter, StringComparison.OrdinalIgnoreCase)))
                 {
@@ -494,7 +494,7 @@ public partial class MainViewModel
 
             lock (_commandMarkerLock)
             {
-                foreach (var cmd in _commandMarkerHistory)
+                foreach (TimelineMarkerVm cmd in _commandMarkerHistory)
                 {
                     if (filter is not null && !cmd.Callsigns.Any(c => string.Equals(c, filter, StringComparison.OrdinalIgnoreCase)))
                     {
@@ -507,7 +507,7 @@ public partial class MainViewModel
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 TimelineMarkers.Clear();
-                foreach (var m in rebuilt)
+                foreach (TimelineMarkerVm m in rebuilt)
                 {
                     TimelineMarkers.Add(m);
                 }
@@ -558,8 +558,8 @@ public partial class MainViewModel
 
     private static void AddTextToArchive(ZipArchive archive, string entryName, string content)
     {
-        var entry = archive.CreateEntry(entryName);
-        using var entryStream = entry.Open();
+        ZipArchiveEntry entry = archive.CreateEntry(entryName);
+        using Stream entryStream = entry.Open();
         using var writer = new StreamWriter(entryStream);
         writer.Write(content);
     }
@@ -571,8 +571,8 @@ public partial class MainViewModel
             return;
         }
 
-        var entry = archive.CreateEntry(entryName);
-        using var entryStream = entry.Open();
+        ZipArchiveEntry entry = archive.CreateEntry(entryName);
+        using Stream entryStream = entry.Open();
         using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         fileStream.CopyTo(entryStream);
     }
@@ -582,7 +582,7 @@ public partial class MainViewModel
     {
         try
         {
-            var path = await _filePicker.OpenFileAsync(
+            string? path = await _filePicker.OpenFileAsync(
                 new OpenFileOptions(
                     Title: "Load Recording",
                     Filters:
@@ -600,17 +600,17 @@ public partial class MainViewModel
                 return;
             }
 
-            var recordingBytes = await File.ReadAllBytesAsync(path);
+            byte[] recordingBytes = await File.ReadAllBytesAsync(path);
 
             StatusText = "Loading recording...";
-            var result = await _connection.LoadRecordingAsync(recordingBytes);
+            RewindResultDto? result = await _connection.LoadRecordingAsync(recordingBytes);
             if (result is null || !result.Success)
             {
                 StatusText = $"Load recording failed: {result?.Error ?? "Unknown error"}";
                 return;
             }
 
-            var terminalLog = await _connection.GetTerminalLogAsync();
+            List<TerminalBroadcastDto> terminalLog = await _connection.GetTerminalLogAsync();
 
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
@@ -681,7 +681,7 @@ public partial class MainViewModel
 
         SetStudentPositionType(result.StudentPositionType);
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
-        foreach (var radar in AllRadarViews)
+        foreach (RadarViewModel radar in AllRadarViews)
         {
             radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
         }
@@ -689,7 +689,7 @@ public partial class MainViewModel
         Aircraft.Clear();
         if (result.Aircraft is not null)
         {
-            foreach (var dto in result.Aircraft)
+            foreach (AircraftDto dto in result.Aircraft)
             {
                 var model = Models.AircraftModel.FromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(model);
@@ -704,7 +704,7 @@ public partial class MainViewModel
             _ = Ground.LoadLayoutAsync(result.PrimaryAirportId);
         }
 
-        var artccId = result.ArtccId ?? _preferences.ArtccId;
+        string artccId = result.ArtccId ?? _preferences.ArtccId;
         if (!string.IsNullOrEmpty(artccId))
         {
             _ = Radar.LoadVideoMapsForArtccAsync(artccId, result.PrimaryAirportId, result.ScenarioId);
@@ -722,12 +722,12 @@ public partial class MainViewModel
 
         // Extra windows follow their own airport, not the recording's: each reloads its own video maps
         // (Radar) and re-evaluates whether it mirrors the primary's layout (Ground).
-        foreach (var instance in ExtraRadarViews)
+        foreach (RadarViewInstance instance in ExtraRadarViews)
         {
             SeedRadarAirport(instance);
         }
 
-        foreach (var instance in ExtraGroundViews)
+        foreach (GroundViewInstance instance in ExtraGroundViews)
         {
             instance.Vm.SetScenarioId(result.ScenarioId);
             SeedGroundAirport(instance);

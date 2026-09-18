@@ -66,9 +66,9 @@ public sealed class WindowProfileService
         // saved the last time the window was closed.
         WindowGeometryHelper.FlushAllSavedGeometries();
 
-        foreach (var helper in WindowGeometryHelper.GetActiveHelpers())
+        foreach (WindowGeometryHelper helper in WindowGeometryHelper.GetActiveHelpers())
         {
-            var geo = _preferences.GetWindowGeometry(helper.WindowName);
+            SavedWindowGeometry? geo = _preferences.GetWindowGeometry(helper.WindowName);
             if (geo is null)
             {
                 continue;
@@ -93,9 +93,9 @@ public sealed class WindowProfileService
         // Snapshot live helpers before we mutate prefs so the caller can
         // distinguish "already open, just reposition" from "about to open via
         // a pop-out toggle, geometry will arrive via Restore()".
-        var liveKeys = WindowGeometryHelper.GetActiveHelpers().Select(h => h.WindowName).ToArray();
+        string[] liveKeys = WindowGeometryHelper.GetActiveHelpers().Select(h => h.WindowName).ToArray();
 
-        foreach (var (key, geo) in profile.WindowGeometries)
+        foreach ((string? key, SavedWindowGeometry? geo) in profile.WindowGeometries)
         {
             _preferences.SetWindowGeometry(key, Clone(geo));
         }
@@ -117,10 +117,10 @@ public sealed class WindowProfileService
     /// </summary>
     public IReadOnlyList<string> StagePreferencesPartial(SavedWindowProfile profile, IReadOnlySet<string> selectedGeometryKeys, bool includeGrid)
     {
-        var liveKeys = WindowGeometryHelper.GetActiveHelpers().Select(h => h.WindowName).ToArray();
+        string[] liveKeys = WindowGeometryHelper.GetActiveHelpers().Select(h => h.WindowName).ToArray();
 
-        var staged = 0;
-        foreach (var (key, geo) in profile.WindowGeometries)
+        int staged = 0;
+        foreach ((string? key, SavedWindowGeometry? geo) in profile.WindowGeometries)
         {
             if (!selectedGeometryKeys.Contains(key))
             {

@@ -161,7 +161,7 @@ public static class GeometricAdmissibility
 
     private static GroundNode ResolveNode(IGroundEdge edge, int nodeId)
     {
-        foreach (var n in edge.Nodes)
+        foreach (GroundNode n in edge.Nodes)
         {
             if (n.Id == nodeId)
             {

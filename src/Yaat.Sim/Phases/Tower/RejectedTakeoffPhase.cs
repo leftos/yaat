@@ -89,7 +89,7 @@ public sealed class RejectedTakeoffPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        var rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;
+        RunwayInfo? rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;
         _runwayHeading = rwy?.TrueHeading ?? ctx.Aircraft.TrueHeading;
         _thresholdLat = rwy?.ThresholdLatitude ?? ctx.Aircraft.Position.Lat;
         _thresholdLon = rwy?.ThresholdLongitude ?? ctx.Aircraft.Position.Lon;

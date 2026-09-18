@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Scenarios;
 
@@ -69,16 +70,16 @@ public static class AircraftGenerator
     public static void AssertEveryTypeResolves()
     {
         var problems = new List<string>();
-        foreach (var ((weight, engine), types) in TypeTable)
+        foreach (((WeightClass weight, EngineKind engine), string[]? types) in TypeTable)
         {
-            foreach (var type in types)
+            foreach (string type in types)
             {
                 if (AircraftProfileDatabase.Get(type) is null)
                 {
                     problems.Add($"{weight}+{engine}: type '{type}' has no AircraftProfileDatabase entry (and no sibling fallback)");
                 }
-                var cat = AircraftCategorization.Categorize(type);
-                var expectedCat = CategoryFor(engine);
+                AircraftCategory cat = AircraftCategorization.Categorize(type);
+                AircraftCategory expectedCat = CategoryFor(engine);
                 if (cat != expectedCat)
                 {
                     problems.Add($"{weight}+{engine}: type '{type}' categorized as {cat}, expected {expectedCat}");
@@ -100,7 +101,7 @@ public static class AircraftGenerator
         // bucket pool and we'd be back to "SWA flying an A320".
         if (AirlineFleets.AirlineCount > 0)
         {
-            foreach (var airline in Airlines)
+            foreach (string airline in Airlines)
             {
                 if (!AirlineFleets.TryGetAirline(airline, out _))
                 {
@@ -181,7 +182,7 @@ public static class AircraftGenerator
         BeaconCodePool beaconPool
     )
     {
-        var result = GenerateCore(request, primaryAirportId, existingAircraft, groundLayout, rng, beaconPool);
+        (AircraftState? State, string? Error) result = GenerateCore(request, primaryAirportId, existingAircraft, groundLayout, rng, beaconPool);
         if (result.State is null)
         {
             Log.LogWarning(
@@ -195,8 +196,8 @@ public static class AircraftGenerator
         }
         else
         {
-            var s = result.State;
-            var cat = AircraftCategorization.Categorize(s.AircraftType);
+            AircraftState s = result.State;
+            AircraftCategory cat = AircraftCategorization.Categorize(s.AircraftType);
             Log.LogInformation(
                 "[ArrivalGen] spawned {Callsign} type={Type} cat={Cat} (req={Weight}/{Engine}) on {Position} rwy={Runway} alt={Alt:F0}ft ias={Ias:F0}kts",
                 s.Callsign,
@@ -222,7 +223,7 @@ public static class AircraftGenerator
         BeaconCodePool beaconPool
     )
     {
-        var r = rng;
+        Random r = rng;
 
         // For IFR aircraft we pick the airline first so that the type can be
         // constrained to that airline's actual fleet (e.g. SWA never gets paired
@@ -236,20 +237,20 @@ public static class AircraftGenerator
                 ?? PickCompatibleAirline(request.Weight, request.Engine, r);
         }
 
-        var aircraftType = ResolveType(request, airline, r);
+        string? aircraftType = ResolveType(request, airline, r);
         if (aircraftType is null)
         {
             return (null, $"No aircraft types defined for {request.Weight}+{request.Engine}");
         }
 
-        var callsign = GenerateCallsign(request, airline, existingAircraft, r);
-        var category = AircraftCategorization.Categorize(aircraftType);
+        string callsign = GenerateCallsign(request, airline, existingAircraft, r);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraftType);
         // Airborne and on-runway spawns squawk Mode C (real-world airborne traffic, including
         // VFR/1200, is altitude-reporting; runway spawns are about to take off with the
         // transponder already on). Parking spawns sit on Standby until the pilot powers up
         // the transponder for taxi.
-        var transponderMode = request.PositionType == SpawnPositionType.Parking ? "Standby" : "C";
-        var flightRules = request.Rules == FlightRulesKind.Ifr ? "IFR" : "VFR";
+        string transponderMode = request.PositionType == SpawnPositionType.Parking ? "Standby" : "C";
+        string flightRules = request.Rules == FlightRulesKind.Ifr ? "IFR" : "VFR";
 
         // VFR ADD spawns are cold calls: no AssignedCode, squawking 1200 (FAA
         // VFR conspicuity code). Controller files later via DA / VP, which
@@ -257,8 +258,8 @@ public static class AircraftGenerator
         // spawn so they're trackable immediately — drawn from the facility's
         // beacon-code banks, the same allocator that filing a flight plan uses.
         // A VFR spawn that files a plan (VfrFiledDestination) draws from the VFR bank instead.
-        var isVfr = request.Rules == FlightRulesKind.Vfr;
-        var isColdCall = isVfr && request.VfrFiledDestination is null;
+        bool isVfr = request.Rules == FlightRulesKind.Vfr;
+        bool isColdCall = isVfr && request.VfrFiledDestination is null;
 
         uint assignedCode;
         uint activeCode;
@@ -270,7 +271,7 @@ public static class AircraftGenerator
         else
         {
             // 0 means every code is in use. Squawk 1200 rather than the illegal all-zeros code.
-            var code = beaconPool.AssignNextCode(isVfr);
+            uint code = beaconPool.AssignNextCode(isVfr);
             if (code == 0)
             {
                 Log.LogWarning("Beacon code pool exhausted; spawning {Callsign} on 1200 without a discrete code", callsign);
@@ -372,17 +373,17 @@ public static class AircraftGenerator
             return (null, "Bearing position requires a primary airport in the scenario");
         }
 
-        var airportPos = NavigationDatabase.Instance.GetFixPosition(primaryAirportId);
+        (double Lat, double Lon)? airportPos = NavigationDatabase.Instance.GetFixPosition(primaryAirportId);
         if (airportPos is null)
         {
             return (null, $"Could not find primary airport '{primaryAirportId}' in navdata");
         }
 
-        var (lat, lon) = ComputePosition(airportPos.Value.Lat, airportPos.Value.Lon, request.Bearing, request.DistanceNm);
+        (double lat, double lon) = ComputePosition(airportPos.Value.Lat, airportPos.Value.Lon, request.Bearing, request.DistanceNm);
 
         // Heading toward the airport
         TrueHeading trueHeading = new(ComputeBearing(lat, lon, airportPos.Value.Lat, airportPos.Value.Lon));
-        var speed = AircraftPerformance.DefaultSpeed(aircraftType, category, request.Altitude, null);
+        double speed = AircraftPerformance.DefaultSpeed(aircraftType, category, request.Altitude, null);
 
         var state = new AircraftState
         {
@@ -418,8 +419,8 @@ public static class AircraftGenerator
         string flightRules
     )
     {
-        var navDb = NavigationDatabase.Instance;
-        var resolved = FrdResolver.Resolve(request.FixId, navDb);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        LatLon? resolved = FrdResolver.Resolve(request.FixId, navDb);
         if (resolved is null)
         {
             return (null, $"Could not resolve fix or FRD '{request.FixId}'");
@@ -429,14 +430,14 @@ public static class AircraftGenerator
         TrueHeading trueHeading = new(0);
         if (!string.IsNullOrEmpty(primaryAirportId))
         {
-            var airportPos = navDb.GetFixPosition(primaryAirportId);
+            (double Lat, double Lon)? airportPos = navDb.GetFixPosition(primaryAirportId);
             if (airportPos is not null)
             {
                 trueHeading = new TrueHeading(ComputeBearing(resolved.Value.Lat, resolved.Value.Lon, airportPos.Value.Lat, airportPos.Value.Lon));
             }
         }
 
-        var speed = AircraftPerformance.DefaultSpeed(aircraftType, category, request.Altitude, null);
+        double speed = AircraftPerformance.DefaultSpeed(aircraftType, category, request.Altitude, null);
 
         var state = new AircraftState
         {
@@ -472,22 +473,22 @@ public static class AircraftGenerator
         string flightRules
     )
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
 
-        var airport = !string.IsNullOrEmpty(request.DestinationAirportId) ? request.DestinationAirportId : primaryAirportId;
+        string? airport = !string.IsNullOrEmpty(request.DestinationAirportId) ? request.DestinationAirportId : primaryAirportId;
         if (string.IsNullOrEmpty(airport))
         {
             return (null, "Arrival spawn needs a destination airport (none specified and no primary scenario airport)");
         }
 
-        var starId = navDb.ResolveCommandStarId(airport, request.StarId);
-        var star = navDb.GetStar(airport, starId);
+        string starId = navDb.ResolveCommandStarId(airport, request.StarId);
+        CifpStarProcedure? star = navDb.GetStar(airport, starId);
         if (star is null)
         {
             return (null, $"STAR '{request.StarId}' not found for {airport}");
         }
 
-        var entryPos = FrdResolver.Resolve(request.StarEntryFix, navDb);
+        LatLon? entryPos = FrdResolver.Resolve(request.StarEntryFix, navDb);
         if (entryPos is null)
         {
             return (null, $"Could not resolve arrival entry waypoint '{request.StarEntryFix}'");
@@ -497,8 +498,10 @@ public static class AircraftGenerator
         // (the dotted runway drives runway-transition resolution). The filed Route, by contrast, carries
         // the BARE versioned STAR token so a later DVIA's TryActivateFiledStar (which calls ResolveStarId
         // per space-separated token, without splitting on '.') can recognize it.
-        var navPath = request.StarRunway is not null ? $"{request.StarEntryFix} {starId}.{request.StarRunway}" : $"{request.StarEntryFix} {starId}";
-        var filedRoute = $"{request.StarEntryFix} {starId}";
+        string navPath = request.StarRunway is not null
+            ? $"{request.StarEntryFix} {starId}.{request.StarRunway}"
+            : $"{request.StarEntryFix} {starId}";
+        string filedRoute = $"{request.StarEntryFix} {starId}";
 
         var state = new AircraftState
         {
@@ -529,14 +532,18 @@ public static class AircraftGenerator
         ArrivalRouteResolver.PopulateNavigationRoute(state, navPath, warnings);
 
         // Resolve the STAR's published altitude/speed crossings once (common legs + runway transition).
-        var (altByFix, speedByFix) = ResolveStarRestrictions(star, request.StarRunway, state.Procedure.DestinationRunway);
+        (Dictionary<string, int>? altByFix, Dictionary<string, int>? speedByFix) = ResolveStarRestrictions(
+            star,
+            request.StarRunway,
+            state.Procedure.DestinationRunway
+        );
 
         // Current altitude: explicit if supplied, else a computed establishment altitude from the STAR.
         state.Altitude = request.StarAltitude ?? ComputeDefaultEstablishmentAltitude(state, altByFix, airport);
 
         // Speed: explicit override, else the STAR's published mandatory speed at the entry/join fix
         // (AIM 5-4-1.a.1 — applies regardless of descend-via), else the per-category default.
-        double? joinFixSpeed = speedByFix.TryGetValue(request.StarEntryFix, out var sk) ? sk : null;
+        double? joinFixSpeed = speedByFix.TryGetValue(request.StarEntryFix, out int sk) ? sk : null;
         state.IndicatedAirspeed =
             request.StarSpeedKts ?? joinFixSpeed ?? AircraftPerformance.DefaultSpeed(aircraftType, category, state.Altitude, null);
 
@@ -548,11 +555,11 @@ public static class AircraftGenerator
             ArrivalRouteResolver.ApplyAltitudeProfile(state, navPath, warnings);
         }
 
-        var heading = ComputeOnStarHeading(state, entryPos.Value, airport, navDb);
+        TrueHeading heading = ComputeOnStarHeading(state, entryPos.Value, airport, navDb);
         state.TrueHeading = heading;
         state.TrueTrack = heading;
 
-        foreach (var warning in warnings)
+        foreach (string warning in warnings)
         {
             Log.LogWarning("[ArrivalGen] {Callsign} OnStar {Star}: {Warning}", callsign, starId, warning);
         }
@@ -571,7 +578,7 @@ public static class AircraftGenerator
     )
     {
         var orderedLegs = new List<CifpLeg>(star.CommonLegs);
-        var rwLegs = ArrivalRouteResolver.FindRunwayTransition(star, runway, destinationRunway);
+        IReadOnlyList<CifpLeg>? rwLegs = ArrivalRouteResolver.FindRunwayTransition(star, runway, destinationRunway);
         if (rwLegs is not null)
         {
             orderedLegs.AddRange(rwLegs);
@@ -579,7 +586,7 @@ public static class AircraftGenerator
 
         var altByFix = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var speedByFix = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var target in DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs))
+        foreach (NavigationTarget target in DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs))
         {
             if (target.AltitudeRestriction is { } ar && !altByFix.ContainsKey(target.Name))
             {
@@ -608,10 +615,10 @@ public static class AircraftGenerator
         const double FloorFt = 4000.0;
         const double CapFt = 24000.0; // typical top-of-descent ceiling (FL240) for the derived estimate
 
-        var route = state.Targets.NavigationRoute;
+        List<NavigationTarget> route = state.Targets.NavigationRoute;
 
         // 1) Established exactly at the entry fix's published crossing — authoritative, not capped.
-        if (route.Count > 0 && altByFix.TryGetValue(route[0].Name, out var entryCrossing))
+        if (route.Count > 0 && altByFix.TryGetValue(route[0].Name, out int entryCrossing))
         {
             return Math.Round(entryCrossing / 1000.0) * 1000.0;
         }
@@ -622,7 +629,7 @@ public static class AircraftGenerator
         for (int i = 1; i < route.Count; i++)
         {
             cumulativeNm += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
-            if (altByFix.TryGetValue(route[i].Name, out var crossing))
+            if (altByFix.TryGetValue(route[i].Name, out int crossing))
             {
                 derived = crossing + (cumulativeNm * GradientFtPerNm);
                 break;
@@ -637,7 +644,7 @@ public static class AircraftGenerator
         else
         {
             // 3) Unconstrained STAR — estimate from the flying distance to the destination airport.
-            var airportPos = NavigationDatabase.Instance.GetFixPosition(airport);
+            (double Lat, double Lon)? airportPos = NavigationDatabase.Instance.GetFixPosition(airport);
             double distNm =
                 airportPos is not null && route.Count > 0
                     ? GeoMath.DistanceNm(route[0].Position, new LatLon(airportPos.Value.Lat, airportPos.Value.Lon))
@@ -652,7 +659,7 @@ public static class AircraftGenerator
     /// <summary>True heading toward the first downstream route fix (the entry fix coincides with the spawn point).</summary>
     private static TrueHeading ComputeOnStarHeading(AircraftState state, LatLon spawnPos, string airport, NavigationDatabase navDb)
     {
-        foreach (var fix in state.Targets.NavigationRoute)
+        foreach (NavigationTarget fix in state.Targets.NavigationRoute)
         {
             if (GeoMath.DistanceNm(spawnPos, fix.Position) > 0.1)
             {
@@ -660,7 +667,7 @@ public static class AircraftGenerator
             }
         }
 
-        var airportPos = navDb.GetFixPosition(airport);
+        (double Lat, double Lon)? airportPos = navDb.GetFixPosition(airport);
         if (airportPos is not null)
         {
             return new TrueHeading(ComputeBearing(spawnPos.Lat, spawnPos.Lon, airportPos.Value.Lat, airportPos.Value.Lon));
@@ -680,26 +687,26 @@ public static class AircraftGenerator
         string flightRules
     )
     {
-        var airportId = primaryAirportId ?? "";
+        string airportId = primaryAirportId ?? "";
         if (string.IsNullOrEmpty(airportId))
         {
             return (null, "Runway position requires a primary airport in the scenario");
         }
 
-        var rwy = NavigationDatabase.Instance.GetRunway(airportId, request.RunwayId);
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway(airportId, request.RunwayId);
         if (rwy is null)
         {
             return (null, $"Could not find runway {RunwayIdentifier.ToDisplayDesignator(request.RunwayId)} at {airportId}");
         }
 
-        var category = AircraftCategorization.Categorize(aircraftType);
-        var init = AircraftInitializer.InitializeOnRunway(rwy, category);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraftType);
+        PhaseInitResult init = AircraftInitializer.InitializeOnRunway(rwy, category);
 
         // Departure airport (canonical ICAO) for IFR so a filed SID route resolves against it.
-        var departure = "";
+        string departure = "";
         if (request.Rules == FlightRulesKind.Ifr)
         {
-            departure = NavigationDatabase.Instance.TryResolveAirport(airportId, out var canonical) ? canonical : airportId;
+            departure = NavigationDatabase.Instance.TryResolveAirport(airportId, out string? canonical) ? canonical : airportId;
         }
 
         var state = new AircraftState
@@ -738,13 +745,13 @@ public static class AircraftGenerator
         string flightRules
     )
     {
-        var airportId = primaryAirportId ?? "";
+        string airportId = primaryAirportId ?? "";
         if (string.IsNullOrEmpty(airportId))
         {
             return (null, "Final position requires a primary airport in the scenario");
         }
 
-        var rwy = NavigationDatabase.Instance.GetRunway(airportId, request.RunwayId);
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway(airportId, request.RunwayId);
         if (rwy is null)
         {
             return (null, $"Could not find runway {RunwayIdentifier.ToDisplayDesignator(request.RunwayId)} at {airportId}");
@@ -753,12 +760,12 @@ public static class AircraftGenerator
         double gsAngle = Phases.GlideSlopeGeometry.AngleForCategory(category);
         double altFromDist = rwy.ElevationFt + (request.FinalDistanceNm * Phases.GlideSlopeGeometry.FeetPerNm(gsAngle));
 
-        var init = AircraftInitializer.InitializeOnFinal(rwy, category, callsign, altFromDist, aircraftType: aircraftType);
+        PhaseInitResult init = AircraftInitializer.InitializeOnFinal(rwy, category, callsign, altFromDist, aircraftType: aircraftType);
 
-        var destination = "";
+        string destination = "";
         if (request.Rules == FlightRulesKind.Ifr)
         {
-            destination = NavigationDatabase.Instance.TryResolveAirport(airportId, out var canonical) ? canonical : airportId;
+            destination = NavigationDatabase.Instance.TryResolveAirport(airportId, out string? canonical) ? canonical : airportId;
         }
 
         var state = new AircraftState
@@ -803,14 +810,14 @@ public static class AircraftGenerator
         }
 
         // Search parking first, then helipads/spots
-        var node = groundLayout.FindParkingByName(request.ParkingName) ?? groundLayout.FindSpotByName(request.ParkingName);
+        GroundNode? node = groundLayout.FindParkingByName(request.ParkingName) ?? groundLayout.FindSpotByName(request.ParkingName);
         if (node is null)
         {
             return (null, $"Parking/helipad '{request.ParkingName}' not found");
         }
 
-        var elevation = NavigationDatabase.Instance.GetAirportElevation(primaryAirportId ?? "") ?? 0;
-        var init = AircraftInitializer.InitializeAtParking(node, elevation);
+        double elevation = NavigationDatabase.Instance.GetAirportElevation(primaryAirportId ?? "") ?? 0;
+        PhaseInitResult init = AircraftInitializer.InitializeAtParking(node, elevation);
 
         var state = new AircraftState
         {
@@ -856,21 +863,21 @@ public static class AircraftGenerator
             return request.ExplicitType;
         }
 
-        var requested = (request.Weight, request.Engine);
+        (WeightClass Weight, EngineKind Engine) requested = (request.Weight, request.Engine);
 
         // Exact-bucket path preserves the original airline-overlap behaviour:
         // when the bucket exists we either pick an airline-compatible type, or
         // (if the airline has no overlap) log a warning and use the bucket pool.
         // We only descend into the fallback chain when the exact bucket is empty
         // — that way airline-vs-bucket mismatches don't silently swap engine type.
-        if (TypeTable.TryGetValue(requested, out var exactBucket))
+        if (TypeTable.TryGetValue(requested, out string[]? exactBucket))
         {
-            if (airline is null || !AirlineFleets.TryGetTypes(airline, out var fleetTypes))
+            if (airline is null || !AirlineFleets.TryGetTypes(airline, out IReadOnlyDictionary<string, int>? fleetTypes))
             {
                 return exactBucket[rng.Next(exactBucket.Length)];
             }
 
-            var compatible = exactBucket.Where(t => fleetTypes.ContainsKey(t)).ToArray();
+            string[] compatible = exactBucket.Where(t => fleetTypes.ContainsKey(t)).ToArray();
             if (compatible.Length > 0)
             {
                 return compatible[rng.Next(compatible.Length)];
@@ -891,9 +898,9 @@ public static class AircraftGenerator
         // option. The airline filter is dropped here because the bucket has already
         // diverged from the request; keeping it could pair e.g. SWA with a non-SWA
         // type just because SWA happens to have overlap in a different bucket.
-        foreach (var bucket in EnumerateBucketFallbackChain(request.Weight, request.Engine))
+        foreach ((WeightClass Weight, EngineKind Engine) bucket in EnumerateBucketFallbackChain(request.Weight, request.Engine))
         {
-            if (!TypeTable.TryGetValue(bucket, out var bucketTypes))
+            if (!TypeTable.TryGetValue(bucket, out string[]? bucketTypes))
             {
                 continue;
             }
@@ -930,7 +937,7 @@ public static class AircraftGenerator
     {
         yield return (weight, engine);
 
-        foreach (var w in OrderByDistance(weight))
+        foreach (WeightClass w in OrderByDistance(weight))
         {
             if (w != weight)
             {
@@ -938,7 +945,7 @@ public static class AircraftGenerator
             }
         }
 
-        foreach (var e in Enum.GetValues<EngineKind>())
+        foreach (EngineKind e in Enum.GetValues<EngineKind>())
         {
             if (e != engine)
             {
@@ -946,13 +953,13 @@ public static class AircraftGenerator
             }
         }
 
-        foreach (var w in Enum.GetValues<WeightClass>())
+        foreach (WeightClass w in Enum.GetValues<WeightClass>())
         {
             if (w == weight)
             {
                 continue;
             }
-            foreach (var e in Enum.GetValues<EngineKind>())
+            foreach (EngineKind e in Enum.GetValues<EngineKind>())
             {
                 if (e == engine)
                 {
@@ -988,30 +995,32 @@ public static class AircraftGenerator
     /// </summary>
     private static string? PickCompatibleAirline(WeightClass weight, EngineKind engine, Random rng)
     {
-        if (!TypeTable.TryGetValue((weight, engine), out var bucketTypes))
+        if (!TypeTable.TryGetValue((weight, engine), out string[]? bucketTypes))
         {
             return null;
         }
 
-        var compatible = Airlines.Where(a => AirlineFleets.TryGetTypes(a, out var fleet) && bucketTypes.Any(t => fleet.ContainsKey(t))).ToArray();
+        string[] compatible = Airlines
+            .Where(a => AirlineFleets.TryGetTypes(a, out IReadOnlyDictionary<string, int>? fleet) && bucketTypes.Any(t => fleet.ContainsKey(t)))
+            .ToArray();
 
         return compatible.Length > 0 ? compatible[rng.Next(compatible.Length)] : null;
     }
 
     private static string? PickCompatibleAirportAirline(string? airportId, WeightClass weight, EngineKind engine, Random rng)
     {
-        if (!TypeTable.TryGetValue((weight, engine), out var bucketTypes))
+        if (!TypeTable.TryGetValue((weight, engine), out string[]? bucketTypes))
         {
             return null;
         }
 
-        if (airportId is null || !AirportAirlines.TryGetAirlinesForAirport(airportId, out var airportAirlines))
+        if (airportId is null || !AirportAirlines.TryGetAirlinesForAirport(airportId, out IReadOnlyList<AirportAirlineEntry>? airportAirlines))
         {
             return null;
         }
 
-        var compatible = airportAirlines
-            .Where(a => AirlineFleets.TryGetTypes(a.Icao, out var fleet) && bucketTypes.Any(t => fleet.ContainsKey(t)))
+        AirportAirlineEntry[] compatible = airportAirlines
+            .Where(a => AirlineFleets.TryGetTypes(a.Icao, out IReadOnlyDictionary<string, int>? fleet) && bucketTypes.Any(t => fleet.ContainsKey(t)))
             .ToArray();
         if (compatible.Length == 0)
         {
@@ -1022,9 +1031,9 @@ public static class AircraftGenerator
         // traffic share -- a dominant carrier (e.g. Southwest at Oakland) shows up proportionally often and
         // the long tail of carriers with a handful of yearly arrivals stays rare. (A square-root weighting
         // over-represented that tail by ~100x.)
-        var totalWeight = compatible.Sum(a => (double)Math.Max(1, a.Arrivals));
-        var pick = rng.NextDouble() * totalWeight;
-        foreach (var entry in compatible)
+        double totalWeight = compatible.Sum(a => (double)Math.Max(1, a.Arrivals));
+        double pick = rng.NextDouble() * totalWeight;
+        foreach (AirportAirlineEntry? entry in compatible)
         {
             pick -= Math.Max(1, entry.Arrivals);
             if (pick <= 0)
@@ -1041,8 +1050,8 @@ public static class AircraftGenerator
         for (int attempt = 0; attempt < 100; attempt++)
         {
             int digits = rng.Next(3, 5); // 3 or 4 digits
-            var number = rng.Next((int)Math.Pow(10, digits - 1), (int)Math.Pow(10, digits));
-            var callsign = $"{airline}{number}";
+            int number = rng.Next((int)Math.Pow(10, digits - 1), (int)Math.Pow(10, digits));
+            string callsign = $"{airline}{number}";
             if (!existing.Contains(callsign))
             {
                 return callsign;
@@ -1063,7 +1072,7 @@ public static class AircraftGenerator
         {
             int letterCount = rng.Next(0, 3); // 0, 1, or 2 trailing letters
             int digitCount = 5 - letterCount;
-            var suffix = new char[5];
+            char[] suffix = new char[5];
             suffix[0] = (char)('1' + rng.Next(9));
             for (int i = 1; i < digitCount; i++)
             {
@@ -1073,7 +1082,7 @@ public static class AircraftGenerator
             {
                 suffix[i] = letters[rng.Next(letters.Length)];
             }
-            var callsign = $"N{new string(suffix)}";
+            string callsign = $"N{new string(suffix)}";
             if (!existing.Contains(callsign))
             {
                 return callsign;

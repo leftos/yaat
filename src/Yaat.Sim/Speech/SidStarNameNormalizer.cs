@@ -58,10 +58,10 @@ public static class SidStarNameNormalizer
         }
 
         var output = new List<string>(tokens.Count);
-        var i = 0;
+        int i = 0;
         while (i < tokens.Count)
         {
-            if (TryCollapseAt(tokens, i, procedures, out var canonical, out var consumed))
+            if (TryCollapseAt(tokens, i, procedures, out string? canonical, out int consumed))
             {
                 Log.LogDebug("[Speech] SidStarCollapse: \"{Spoken}\" → \"{Canonical}\"", string.Join(' ', tokens.GetRange(i, consumed)), canonical);
                 output.Add(canonical);
@@ -95,9 +95,9 @@ public static class SidStarNameNormalizer
         }
 
         // Find the trailing keyword within the lookahead window.
-        var keywordIdx = -1;
+        int keywordIdx = -1;
         ProcedureKind? expectedKind = null;
-        for (var k = start + 1; k <= Math.Min(tokens.Count, start + 1 + LookaheadWindow) - 1; k++)
+        for (int k = start + 1; k <= Math.Min(tokens.Count, start + 1 + LookaheadWindow) - 1; k++)
         {
             if (k >= tokens.Count)
             {
@@ -122,18 +122,18 @@ public static class SidStarNameNormalizer
             return false;
         }
 
-        var spanLen = keywordIdx - start;
+        int spanLen = keywordIdx - start;
         if (spanLen == 0 || spanLen > 2)
         {
             return false;
         }
 
-        var baseToken = tokens[start];
-        var digitToken = spanLen == 2 ? tokens[start + 1] : null;
+        string baseToken = tokens[start];
+        string? digitToken = spanLen == 2 ? tokens[start + 1] : null;
 
         // Build the candidate base-name set restricted to procedures of the expected kind.
         var candidates = new List<string>(procedures.Count);
-        foreach (var p in procedures)
+        foreach (ProcedurePattern p in procedures)
         {
             if (p.Kind != expectedKind)
             {
@@ -151,7 +151,7 @@ public static class SidStarNameNormalizer
 
         // Fuzzy-match the base token. Disable the full-database fallback because we already
         // narrowed candidates to scenario procedures — a stricter scope.
-        var matchedBase = PhoneticFixMatcher.TryMatch(baseToken, candidates, allowFullDatabaseFallback: false);
+        string? matchedBase = PhoneticFixMatcher.TryMatch(baseToken, candidates, allowFullDatabaseFallback: false);
         if (matchedBase is null)
         {
             return false;
@@ -159,7 +159,7 @@ public static class SidStarNameNormalizer
 
         // Find the procedure whose base matches AND whose digit suffix matches the transcript.
         // For a procedure with no digit suffix, the transcript must have no digit token either.
-        foreach (var p in procedures)
+        foreach (ProcedurePattern p in procedures)
         {
             if (p.Kind != expectedKind)
             {
@@ -198,7 +198,7 @@ public static class SidStarNameNormalizer
         {
             return false;
         }
-        foreach (var c in token)
+        foreach (char c in token)
         {
             if (!char.IsLetter(c))
             {

@@ -74,7 +74,7 @@ public partial class VTdlsViewModel : ObservableObject
 
     private TdlsConfigDto? ResolveConfig(string? facilityId)
     {
-        if (!string.IsNullOrEmpty(facilityId) && _memberConfigs.TryGetValue(facilityId, out var owned))
+        if (!string.IsNullOrEmpty(facilityId) && _memberConfigs.TryGetValue(facilityId, out TdlsConfigDto? owned))
         {
             return owned;
         }
@@ -119,7 +119,7 @@ public partial class VTdlsViewModel : ObservableObject
     /// </summary>
     public async Task<bool> SaveOpConfigAsync(string opConfigId)
     {
-        var targetFacility = Config?.FacilityId;
+        string? targetFacility = Config?.FacilityId;
         if (string.IsNullOrEmpty(targetFacility))
         {
             return false;
@@ -334,14 +334,14 @@ public partial class VTdlsViewModel : ObservableObject
     {
         try
         {
-            var facilities = await _transport.GetAccessibleTdlsFacilitiesAsync();
+            List<AccessibleFacilityDto> facilities = await _transport.GetAccessibleTdlsFacilitiesAsync();
             // InvokeAsync (not Post) so the caller can safely read AccessibleFacilities
             // on completion. The synchronous return value is the authoritative copy
             // regardless of which thread the caller is on.
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 AccessibleFacilities.Clear();
-                foreach (var f in facilities)
+                foreach (AccessibleFacilityDto f in facilities)
                 {
                     AccessibleFacilities.Add(f);
                 }
@@ -402,7 +402,7 @@ public partial class VTdlsViewModel : ObservableObject
         FacilityName = view?.FacilityName ?? facilityId;
 
         _memberConfigs.Clear();
-        foreach (var config in view?.MemberConfigs ?? [])
+        foreach (TdlsConfigDto config in view?.MemberConfigs ?? [])
         {
             _memberConfigs[config.FacilityId] = config;
         }
@@ -433,7 +433,7 @@ public partial class VTdlsViewModel : ObservableObject
             {
                 return;
             }
-            if (_itemsById.Remove(dto.ItemId, out var vm))
+            if (_itemsById.Remove(dto.ItemId, out TdlsItemViewModel? vm))
             {
                 DclItems.Remove(vm);
                 PdcItems.Remove(vm);
@@ -452,9 +452,9 @@ public partial class VTdlsViewModel : ObservableObject
             var freshIds = fresh.Select(i => i.Id).ToHashSet(StringComparer.Ordinal);
 
             // Drop items no longer present.
-            foreach (var staleId in _itemsById.Keys.Where(id => !freshIds.Contains(id)).ToList())
+            foreach (string? staleId in _itemsById.Keys.Where(id => !freshIds.Contains(id)).ToList())
             {
-                if (_itemsById.Remove(staleId, out var vm))
+                if (_itemsById.Remove(staleId, out TdlsItemViewModel? vm))
                 {
                     DclItems.Remove(vm);
                     PdcItems.Remove(vm);
@@ -465,7 +465,7 @@ public partial class VTdlsViewModel : ObservableObject
                 }
             }
 
-            foreach (var dto in fresh)
+            foreach (TdlsItemDto? dto in fresh)
             {
                 ApplyItem(dto);
             }
@@ -481,10 +481,10 @@ public partial class VTdlsViewModel : ObservableObject
     /// </summary>
     private void ApplyActiveOpConfig(TdlsStateDto state)
     {
-        var affectsCurrent = false;
-        foreach (var incoming in state.ActiveOpConfigs)
+        bool affectsCurrent = false;
+        foreach (TdlsActiveOpConfigDto incoming in state.ActiveOpConfigs)
         {
-            if (!_memberConfigs.TryGetValue(incoming.FacilityId, out var config))
+            if (!_memberConfigs.TryGetValue(incoming.FacilityId, out TdlsConfigDto? config))
             {
                 continue;
             }
@@ -512,7 +512,7 @@ public partial class VTdlsViewModel : ObservableObject
 
     private void ApplyItem(TdlsItemDto dto)
     {
-        if (!_itemsById.TryGetValue(dto.Id, out var vm))
+        if (!_itemsById.TryGetValue(dto.Id, out TdlsItemViewModel? vm))
         {
             vm = new TdlsItemViewModel(dto);
             _itemsById[dto.Id] = vm;
@@ -525,9 +525,9 @@ public partial class VTdlsViewModel : ObservableObject
         // DCL and PDC lists, or to another slot in its own. A Sent item acknowledged into Wilco stays put, and so
         // does an amendment that only refreshes the flight-plan header. The third case is an item the dictionary
         // still holds while neither list does — what a facility switch leaves behind — which has to be listed again.
-        var movedBucket = (vm.Status == TdlsStatus.Pending) != (dto.Status == TdlsStatus.Pending);
-        var movedSlot = vm.Sequence != dto.Sequence;
-        var unlisted = !DclItems.Contains(vm) && !PdcItems.Contains(vm);
+        bool movedBucket = (vm.Status == TdlsStatus.Pending) != (dto.Status == TdlsStatus.Pending);
+        bool movedSlot = vm.Sequence != dto.Sequence;
+        bool unlisted = !DclItems.Contains(vm) && !PdcItems.Contains(vm);
         vm.Apply(dto);
         if (movedBucket || movedSlot || unlisted)
         {
@@ -549,7 +549,7 @@ public partial class VTdlsViewModel : ObservableObject
 
     private static void InsertSortedBySequence(ObservableCollection<TdlsItemViewModel> list, TdlsItemViewModel vm)
     {
-        var idx = 0;
+        int idx = 0;
         while (idx < list.Count && list[idx].Sequence <= vm.Sequence)
         {
             idx++;

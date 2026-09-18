@@ -1,4 +1,6 @@
 using Xunit;
+using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -34,7 +36,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -53,8 +55,8 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
     [Fact]
     public void FDX3807_MaintainsSpeedAboveFasUntil5nm()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -67,7 +69,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
         {
             engine.ReplayOneSecond();
 
-            var ac = engine.FindAircraft("FDX3807");
+            AircraftState? ac = engine.FindAircraft("FDX3807");
             if (ac is null)
             {
                 continue;
@@ -79,7 +81,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
                 continue;
             }
 
-            var runway = ac.Phases?.AssignedRunway;
+            RunwayInfo? runway = ac.Phases?.AssignedRunway;
             if (runway is null)
             {
                 continue;
@@ -90,7 +92,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
             // Check at 7nm: aircraft should still be well above FAS
             if ((distNm <= 7.5) && (distNm >= 6.5))
             {
-                var cat = AircraftCategorization.Categorize(ac.AircraftType);
+                AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
                 double fas = AircraftPerformance.ApproachSpeed(ac.AircraftType, cat);
 
                 output.WriteLine(
@@ -120,8 +122,8 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
     [Fact]
     public void FDX3807_DeceleratesToFasWithin5nm()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -133,7 +135,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
         {
             engine.ReplayOneSecond();
 
-            var ac = engine.FindAircraft("FDX3807");
+            AircraftState? ac = engine.FindAircraft("FDX3807");
             if (ac is null)
             {
                 continue;
@@ -145,7 +147,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
                 continue;
             }
 
-            var runway = ac.Phases?.AssignedRunway;
+            RunwayInfo? runway = ac.Phases?.AssignedRunway;
             if (runway is null)
             {
                 continue;
@@ -156,7 +158,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
             // At the FAS reach gate the aircraft should be at FAS
             if ((distNm <= 2.0) && (distNm >= 1.5))
             {
-                var cat = AircraftCategorization.Categorize(ac.AircraftType);
+                AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
                 double fas = AircraftPerformance.ApproachSpeed(ac.AircraftType, cat);
 
                 output.WriteLine($"At {distNm:F1}nm: ias={ac.IndicatedAirspeed:F0}kts, fas={fas:F0}kts");
@@ -183,8 +185,8 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
     [Fact]
     public void FDX3807_ReachesConfigSpeedBy5nm()
     {
-        var recording = RecordingLoader.Load(FullRecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(FullRecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -196,7 +198,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
         {
             engine.ReplayOneSecond();
 
-            var ac = engine.FindAircraft("FDX3807");
+            AircraftState? ac = engine.FindAircraft("FDX3807");
             if (ac is null)
             {
                 continue;
@@ -208,7 +210,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
                 continue;
             }
 
-            var runway = ac.Phases?.AssignedRunway;
+            RunwayInfo? runway = ac.Phases?.AssignedRunway;
             if (runway is null)
             {
                 continue;
@@ -218,7 +220,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
 
             if ((distNm <= 5.0) && (distNm >= 4.5))
             {
-                var cat = AircraftCategorization.Categorize(ac.AircraftType);
+                AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
                 double fas = AircraftPerformance.ApproachSpeed(ac.AircraftType, cat);
                 double configBand = (fas * 1.3) + 5.0;
 
@@ -248,8 +250,8 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
     [Fact]
     public void FDX3807_TargetSpeedNeverBelowVref()
     {
-        var recording = RecordingLoader.Load(FullRecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(FullRecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -264,7 +266,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
         {
             engine.ReplayOneSecond();
 
-            var ac = engine.FindAircraft("FDX3807");
+            AircraftState? ac = engine.FindAircraft("FDX3807");
             if (ac is null)
             {
                 continue;
@@ -272,7 +274,7 @@ public class FinalApproachSpeedTests(ITestOutputHelper output)
 
             if (vref <= 0)
             {
-                var cat = AircraftCategorization.Categorize(ac.AircraftType);
+                AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
                 vref = AircraftPerformance.ApproachSpeed(ac.AircraftType, cat);
             }
 

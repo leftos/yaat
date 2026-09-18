@@ -21,7 +21,7 @@ public class GroundViewModelHoldShortNodeTests
         // Two hold-short nodes for 28L, both reachable. The "near" one sits at
         // a 0.05nm hop; the "far" one at 0.30nm. The resolver should pick the
         // near one because its path cost (sum of edge distances) is lowest.
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         var dto = new GroundLayoutDto(
             "TST",
             [
@@ -39,9 +39,9 @@ public class GroundViewModelHoldShortNodeTests
         );
         vm.SetLayoutForTesting(dto);
 
-        var ac = MakeAircraft(StartLat, StartLon);
+        AircraftModel ac = MakeAircraft(StartLat, StartLon);
 
-        var result = vm.FindNearestHoldShortNodeForRunwayEnd(ac, "28L");
+        int? result = vm.FindNearestHoldShortNodeForRunwayEnd(ac, "28L");
 
         Assert.Equal(2, result);
     }
@@ -51,7 +51,7 @@ public class GroundViewModelHoldShortNodeTests
     {
         // HS for 19L is the closest by cost, but the resolver should skip it
         // and return the more-distant HS on 28L.
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         var dto = new GroundLayoutDto(
             "TST",
             [
@@ -69,9 +69,9 @@ public class GroundViewModelHoldShortNodeTests
         );
         vm.SetLayoutForTesting(dto);
 
-        var ac = MakeAircraft(StartLat, StartLon);
+        AircraftModel ac = MakeAircraft(StartLat, StartLon);
 
-        var result = vm.FindNearestHoldShortNodeForRunwayEnd(ac, "28L");
+        int? result = vm.FindNearestHoldShortNodeForRunwayEnd(ac, "28L");
 
         Assert.Equal(3, result);
     }
@@ -79,7 +79,7 @@ public class GroundViewModelHoldShortNodeTests
     [Fact]
     public void ReturnsNullWhenRunwayHasNoHoldShorts()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         var dto = new GroundLayoutDto(
             "TST",
             [
@@ -93,9 +93,9 @@ public class GroundViewModelHoldShortNodeTests
         );
         vm.SetLayoutForTesting(dto);
 
-        var ac = MakeAircraft(StartLat, StartLon);
+        AircraftModel ac = MakeAircraft(StartLat, StartLon);
 
-        var result = vm.FindNearestHoldShortNodeForRunwayEnd(ac, "28L");
+        int? result = vm.FindNearestHoldShortNodeForRunwayEnd(ac, "28L");
 
         Assert.Null(result);
     }
@@ -103,10 +103,10 @@ public class GroundViewModelHoldShortNodeTests
     [Fact]
     public void ReturnsNullWhenLayoutNotLoaded()
     {
-        var vm = MakeViewModel();
-        var ac = MakeAircraft(StartLat, StartLon);
+        GroundViewModel vm = MakeViewModel();
+        AircraftModel ac = MakeAircraft(StartLat, StartLon);
 
-        var result = vm.FindNearestHoldShortNodeForRunwayEnd(ac, "28L");
+        int? result = vm.FindNearestHoldShortNodeForRunwayEnd(ac, "28L");
 
         Assert.Null(result);
     }

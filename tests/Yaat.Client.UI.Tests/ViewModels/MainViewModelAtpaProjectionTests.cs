@@ -44,7 +44,7 @@ public class MainViewModelAtpaProjectionTests
 
     private static MainViewModel VmWith(params string[] callsigns)
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-atpa", "ATPA Test", "OAK", null, null, [.. callsigns.Select(MakeAircraft)]));
         return vm;
     }
@@ -54,17 +54,17 @@ public class MainViewModelAtpaProjectionTests
     [AvaloniaFact]
     public void ApplyAtpaResults_SetsFieldsOnTrailingAircraftOnly()
     {
-        var vm = VmWith("LEAD1", "TRAIL1", "OTHER1");
+        MainViewModel vm = VmWith("LEAD1", "TRAIL1", "OTHER1");
 
         vm.ApplyAtpaResults([new AtpaPairDto("TRAIL1", "LEAD1", 5.0, AtpaConeState.Warning)]);
 
-        var trail = Find(vm, "TRAIL1");
+        AircraftModel trail = Find(vm, "TRAIL1");
         Assert.Equal("LEAD1", trail.AtpaLeadCallsign);
         Assert.Equal(5.0, trail.AtpaAllowedSeparationNm);
         Assert.Equal(AtpaConeState.Warning, trail.AtpaConeState);
 
         // The leader carries no pairing of its own, and neither does an unrelated aircraft.
-        foreach (var ac in new[] { Find(vm, "LEAD1"), Find(vm, "OTHER1") })
+        foreach (AircraftModel? ac in new[] { Find(vm, "LEAD1"), Find(vm, "OTHER1") })
         {
             Assert.Null(ac.AtpaLeadCallsign);
             Assert.Equal(0, ac.AtpaAllowedSeparationNm);
@@ -75,12 +75,12 @@ public class MainViewModelAtpaProjectionTests
     [AvaloniaFact]
     public void ApplyAtpaResults_EmptyList_ClearsPreviousPair()
     {
-        var vm = VmWith("LEAD1", "TRAIL1");
+        MainViewModel vm = VmWith("LEAD1", "TRAIL1");
 
         vm.ApplyAtpaResults([new AtpaPairDto("TRAIL1", "LEAD1", 4.0, AtpaConeState.Alert)]);
         vm.ApplyAtpaResults([]);
 
-        var trail = Find(vm, "TRAIL1");
+        AircraftModel trail = Find(vm, "TRAIL1");
         Assert.Null(trail.AtpaLeadCallsign);
         Assert.Equal(0, trail.AtpaAllowedSeparationNm);
         Assert.Equal(AtpaConeState.Monitor, trail.AtpaConeState);
@@ -89,7 +89,7 @@ public class MainViewModelAtpaProjectionTests
     [AvaloniaFact]
     public void LateAddedAircraft_IsSeededFromCurrentPairs()
     {
-        var vm = VmWith("LEAD1");
+        MainViewModel vm = VmWith("LEAD1");
 
         // The pairing arrives before the trailing aircraft's first per-aircraft update.
         vm.ApplyAtpaResults([new AtpaPairDto("TRAIL1", "LEAD1", 6.0, AtpaConeState.Monitor)]);
@@ -97,7 +97,7 @@ public class MainViewModelAtpaProjectionTests
         vm.OnAircraftUpdated(MakeAircraft("TRAIL1"));
         Dispatcher.UIThread.RunJobs();
 
-        var trail = Find(vm, "TRAIL1");
+        AircraftModel trail = Find(vm, "TRAIL1");
         Assert.Equal("LEAD1", trail.AtpaLeadCallsign);
         Assert.Equal(6.0, trail.AtpaAllowedSeparationNm);
         Assert.Equal(AtpaConeState.Monitor, trail.AtpaConeState);
@@ -111,7 +111,7 @@ public class MainViewModelAtpaProjectionTests
     [AvaloniaFact]
     public void ClearScenarioState_DropsPairs_SoLateAddedAircraftIsNotSeeded()
     {
-        var vm = VmWith("LEAD1", "TRAIL1");
+        MainViewModel vm = VmWith("LEAD1", "TRAIL1");
         vm.ApplyAtpaResults([new AtpaPairDto("TRAIL1", "LEAD1", 5.0, AtpaConeState.Warning)]);
 
         vm.ClearScenarioState();
@@ -119,7 +119,7 @@ public class MainViewModelAtpaProjectionTests
         vm.OnAircraftUpdated(MakeAircraft("TRAIL1"));
         Dispatcher.UIThread.RunJobs();
 
-        var trail = Find(vm, "TRAIL1");
+        AircraftModel trail = Find(vm, "TRAIL1");
         Assert.Null(trail.AtpaLeadCallsign);
         Assert.Equal(0, trail.AtpaAllowedSeparationNm);
         Assert.Equal(AtpaConeState.Monitor, trail.AtpaConeState);
@@ -132,7 +132,7 @@ public class MainViewModelAtpaProjectionTests
     [AvaloniaFact]
     public void ClearScenarioState_DropsConflictPairs()
     {
-        var vm = VmWith("ALPHA1", "BRAVO1");
+        MainViewModel vm = VmWith("ALPHA1", "BRAVO1");
         vm.ApplyConflictAlerts([new ConflictAlertDto("conflict-1", "ALPHA1", "BRAVO1")]);
 
         vm.ClearScenarioState();

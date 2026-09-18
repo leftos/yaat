@@ -63,15 +63,15 @@ public static class CrcAliasExecutor
     /// </summary>
     public static CrcAliasExecution Plan(string expandedText, CrcAliasContext context)
     {
-        var text = CrcAliasVariables.Substitute(expandedText, context).Trim();
+        string text = CrcAliasVariables.Substitute(expandedText, context).Trim();
         if (text.Length == 0)
         {
             return CrcAliasExecution.Failed("Alias expanded to nothing");
         }
 
-        var separator = text.IndexOf(' ', StringComparison.Ordinal);
-        var verb = separator < 0 ? text : text[..separator];
-        var body = separator < 0 ? "" : text[(separator + 1)..].Trim();
+        int separator = text.IndexOf(' ', StringComparison.Ordinal);
+        string verb = separator < 0 ? text : text[..separator];
+        string body = separator < 0 ? "" : text[(separator + 1)..].Trim();
 
         if (!verb.StartsWith('.'))
         {
@@ -102,7 +102,7 @@ public static class CrcAliasExecutor
     /// </summary>
     public static List<string> SplitEchoLines(string body)
     {
-        var text = body.Replace("\\n", "\n", StringComparison.Ordinal)
+        string text = body.Replace("\\n", "\n", StringComparison.Ordinal)
             .Replace("\\t", "    ", StringComparison.Ordinal)
             .Replace("\\s", " ", StringComparison.Ordinal);
 
@@ -112,7 +112,7 @@ public static class CrcAliasExecutor
     private static CrcAliasExecution PlanOpenUrl(string body)
     {
         // CRC reads only the first token, which is why aliases wrap a spaced value in $urlescape(...).
-        var url = CrcAliasFileParser.Tokenize(body).FirstOrDefault();
+        string? url = CrcAliasFileParser.Tokenize(body).FirstOrDefault();
         if (string.IsNullOrEmpty(url))
         {
             return CrcAliasExecution.Failed("\".openurl\" needs a URL");
@@ -123,7 +123,7 @@ public static class CrcAliasExecutor
             url = $"http://{url}";
         }
 
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed) || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed) || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
         {
             return CrcAliasExecution.Failed($"\".openurl\" refused a non-web URL: {url}");
         }

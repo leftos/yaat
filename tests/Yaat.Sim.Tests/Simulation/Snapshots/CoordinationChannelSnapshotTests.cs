@@ -42,7 +42,7 @@ public class CoordinationChannelSnapshotTests
             CoordinationChannels = { ["ch1"] = channel },
         };
 
-        var dto = scenario.ToSnapshot();
+        ScenarioSnapshotDto dto = scenario.ToSnapshot();
         Assert.NotNull(dto.CoordinationChannels);
         Assert.Single(dto.CoordinationChannels!);
 
@@ -55,7 +55,7 @@ public class CoordinationChannelSnapshotTests
         };
         CoordinationChannelSnapshotMapper.RestoreChannels(restored.CoordinationChannels, dto.CoordinationChannels);
 
-        var roundTripped = restored.CoordinationChannels["ch1"];
+        CoordinationChannel roundTripped = restored.CoordinationChannels["ch1"];
         Assert.Equal(3, roundTripped.NextSequence);
         Assert.Single(roundTripped.Items);
         Assert.Equal("AAL100", roundTripped.Items[0].AircraftId);

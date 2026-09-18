@@ -92,7 +92,7 @@ public class RunProfileTests(ITestOutputHelper output)
     [MemberData(nameof(DriverEntryPoints))]
     public void EveryDriverEntryPoint_RunsAsReplay_ThenRestoresTheHostProfile(string entryPoint)
     {
-        var engine = BuildLoadedEngine();
+        SimulationEngine? engine = BuildLoadedEngine();
         if (engine is null)
         {
             return;
@@ -138,7 +138,7 @@ public class RunProfileTests(ITestOutputHelper output)
     [Fact]
     public void ReplayToACutoff_ThenTickLive_RecordsAgain()
     {
-        var engine = BuildLoadedEngine();
+        SimulationEngine? engine = BuildLoadedEngine();
         if (engine is null)
         {
             return;
@@ -149,21 +149,21 @@ public class RunProfileTests(ITestOutputHelper output)
 
         engine.TickOneSecond();
 
-        var spawn = Assert.Single(engine.Scenario.ActionLog);
+        RecordedAction spawn = Assert.Single(engine.Scenario.ActionLog);
         Assert.IsType<RecordedAircraftSpawn>(spawn);
     }
 
     [Fact]
     public void Recorders_ObeyRecordsActions()
     {
-        var engine = BuildLoadedEngine();
+        SimulationEngine? engine = BuildLoadedEngine();
         if (engine is null)
         {
             return;
         }
 
         engine.TickOneSecond();
-        var generated = Assert.Single(engine.World.GetSnapshot());
+        AircraftState generated = Assert.Single(engine.World.GetSnapshot());
         engine.Scenario!.ActionLog.Clear();
 
         engine.RunProfile = RunProfile.Replay;
@@ -192,8 +192,8 @@ public class RunProfileTests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(ScenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
-        foreach (var w in warnings)
+        List<string> warnings = engine.LoadScenario(ScenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        foreach (string w in warnings)
         {
             output.WriteLine($"[load-warn] {w}");
         }

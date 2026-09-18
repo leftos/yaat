@@ -53,7 +53,7 @@ public class FavoritesPanelInteractionTests
     [AvaloniaFact]
     public void FavoriteButtonClick_InPaletteMode_ReachesCommandDispatch()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         // A Global air favorite carrying a real command but no callsign — exactly the shape of a
         // real favorite, which targets the currently SelectedAircraft.
         var testFav = new FavoriteCommand
@@ -85,13 +85,13 @@ public class FavoritesPanelInteractionTests
             Assert.Null(vm.SelectedAircraft);
             Assert.Equal("Disconnected", vm.StatusText);
 
-            var button = view.GetVisualDescendants().OfType<Button>().Single(b => b.Tag is FavoriteDisplayEntry { Favorite.Label: "TestFav" });
+            Button button = view.GetVisualDescendants().OfType<Button>().Single(b => b.Tag is FavoriteDisplayEntry { Favorite.Label: "TestFav" });
 
             // Simulate a genuine pointer press + release (not RaiseEvent(Button.ClickEvent)) so the
             // FavoritesBarView tunnel handlers that capture the pointer for drag-reorder actually run.
             // Before the fix, the eager Pointer.Capture on press ate the click and StatusText stayed
             // "Disconnected".
-            var center = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window);
+            Point? center = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window);
             Assert.NotNull(center);
             window.MouseDown(center.Value, MouseButton.Left);
             window.MouseUp(center.Value, MouseButton.Left);
@@ -111,7 +111,7 @@ public class FavoritesPanelInteractionTests
     [AvaloniaFact]
     public void FavoritePanelTargetText_TracksSelectedAircraft()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         Assert.Equal("No aircraft selected", vm.FavoritePanelTargetText);
 
         vm.OnAircraftUpdated(MakeAircraft("UAL123"));
@@ -134,7 +134,7 @@ public class FavoritesPanelInteractionTests
     [AvaloniaFact]
     public void FavoritesPanelWindow_IsUnowned_AndRendersTargetFeedback()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         var window = new FavoritesPanelWindow(vm.Preferences) { DataContext = vm };
         try
         {
@@ -146,7 +146,7 @@ public class FavoritesPanelInteractionTests
 
             // Fix 2 (#287): the panel renders its own target/status feedback so a click's result is
             // visible without switching back to the main window.
-            var targetBlock = window.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Text == "No aircraft selected");
+            TextBlock? targetBlock = window.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Text == "No aircraft selected");
             Assert.NotNull(targetBlock);
         }
         finally

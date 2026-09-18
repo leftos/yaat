@@ -11,7 +11,7 @@ public class CifpParserTests
     [InlineData("S33525000", -33.880556)]
     public void ParseArinc424Latitude_ValidInput_ReturnsDecimalDegrees(string input, double expected)
     {
-        var result = CifpParser.ParseArinc424Latitude(input);
+        double? result = CifpParser.ParseArinc424Latitude(input);
 
         Assert.NotNull(result);
         Assert.Equal(expected, result.Value, precision: 4);
@@ -23,7 +23,7 @@ public class CifpParserTests
     [InlineData("E002174200", 2.295000)]
     public void ParseArinc424Longitude_ValidInput_ReturnsDecimalDegrees(string input, double expected)
     {
-        var result = CifpParser.ParseArinc424Longitude(input);
+        double? result = CifpParser.ParseArinc424Longitude(input);
 
         Assert.NotNull(result);
         Assert.Equal(expected, result.Value, precision: 4);
@@ -35,7 +35,7 @@ public class CifpParserTests
     [InlineData("X38573910")]
     public void ParseArinc424Latitude_InvalidInput_ReturnsNull(string input)
     {
-        var result = CifpParser.ParseArinc424Latitude(input);
+        double? result = CifpParser.ParseArinc424Latitude(input);
 
         Assert.Null(result);
     }
@@ -46,7 +46,7 @@ public class CifpParserTests
     [InlineData("X121292540")]
     public void ParseArinc424Longitude_InvalidInput_ReturnsNull(string input)
     {
-        var result = CifpParser.ParseArinc424Longitude(input);
+        double? result = CifpParser.ParseArinc424Longitude(input);
 
         Assert.Null(result);
     }
@@ -56,7 +56,7 @@ public class CifpParserTests
     {
         // Minimal CIFP file with one approach record containing a FAF (D at pos 42)
         // and one terminal waypoint record
-        var lines = new[]
+        string[] lines = new[]
         {
             // Approach record: airport KOAK, subsection F at pos 12,
             // approach ID I28L (ILS 28L), FAF fix FITKI at pos 29-33,
@@ -66,11 +66,11 @@ public class CifpParserTests
             BuildTerminalWaypointLine("KOAK", "FITKI", "N37424600", "W122131200"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var result = CifpParser.Parse(tmpFile);
+            CifpParseResult result = CifpParser.Parse(tmpFile);
 
             Assert.True(result.FafFixes.ContainsKey(("OAK", "28L")));
             Assert.Equal("FITKI", result.FafFixes[("OAK", "28L")]);
@@ -84,7 +84,7 @@ public class CifpParserTests
     [Fact]
     public void Parse_IlsPreferredOverRnav_WhenBothExist()
     {
-        var lines = new[]
+        string[] lines = new[]
         {
             // RNAV approach (H prefix = lower priority than ILS)
             BuildApproachLine("KOAK", "H28L  ", "RNFIX", 'F'),
@@ -92,11 +92,11 @@ public class CifpParserTests
             BuildApproachLine("KOAK", "I28L  ", "ILFIX", 'F'),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var result = CifpParser.Parse(tmpFile);
+            CifpParseResult result = CifpParser.Parse(tmpFile);
 
             Assert.True(result.FafFixes.ContainsKey(("OAK", "28L")));
             Assert.Equal("ILFIX", result.FafFixes[("OAK", "28L")]);
@@ -110,16 +110,16 @@ public class CifpParserTests
     [Fact]
     public void Parse_TerminalWaypoints_ExtractsCoordinates()
     {
-        var lines = new[] { BuildTerminalWaypointLine("KOAK", "FITKI", "N37424600", "W122131200") };
+        string[] lines = new[] { BuildTerminalWaypointLine("KOAK", "FITKI", "N37424600", "W122131200") };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var result = CifpParser.Parse(tmpFile);
+            CifpParseResult result = CifpParser.Parse(tmpFile);
 
             Assert.True(result.TerminalWaypoints.ContainsKey("FITKI"));
-            var (lat, lon) = result.TerminalWaypoints["FITKI"];
+            (double lat, double lon) = result.TerminalWaypoints["FITKI"];
             Assert.Equal(37.7128, lat, precision: 3);
             Assert.Equal(-122.22, lon, precision: 2);
         }
@@ -133,13 +133,13 @@ public class CifpParserTests
     public void Parse_RunwayExtraction_HandlesVariants()
     {
         // I28LY = ILS 28L variant Y
-        var lines = new[] { BuildApproachLine("KSFO", "I28LY ", "DUMOS", 'F') };
+        string[] lines = new[] { BuildApproachLine("KSFO", "I28LY ", "DUMOS", 'F') };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var result = CifpParser.Parse(tmpFile);
+            CifpParseResult result = CifpParser.Parse(tmpFile);
 
             Assert.True(result.FafFixes.ContainsKey(("SFO", "28L")));
         }
@@ -154,7 +154,7 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_IlsApproach_ExtractsCommonLegs()
     {
-        var lines = new[]
+        string[] lines = new[]
         {
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "GROVE", CifpFixRole.IAF, "IF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "FITKI", CifpFixRole.IF, "TF"),
@@ -162,14 +162,14 @@ public class CifpParserTests
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "RW28L", CifpFixRole.MAP, "CF"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+            IReadOnlyList<CifpApproachProcedure> approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
 
             Assert.Single(approaches);
-            var proc = approaches[0];
+            CifpApproachProcedure proc = approaches[0];
             Assert.Equal("OAK", proc.Airport);
             Assert.Equal("I28L", proc.ApproachId);
             Assert.Equal('I', proc.TypeCode);
@@ -196,7 +196,7 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_WithTransition_SeparatesTransitionAndCommon()
     {
-        var lines = new[]
+        string[] lines = new[]
         {
             // Transition "SUNOL" with route type 'A'
             BuildFullApproachLine("KOAK", "I28L  ", 'A', "SUNOL", 10, "SUNOL", CifpFixRole.IAF, "IF"),
@@ -207,14 +207,14 @@ public class CifpParserTests
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 50, "RW28L", CifpFixRole.MAP, "CF"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+            IReadOnlyList<CifpApproachProcedure> approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
 
             Assert.Single(approaches);
-            var proc = approaches[0];
+            CifpApproachProcedure proc = approaches[0];
             Assert.Single(proc.Transitions);
             Assert.True(proc.Transitions.ContainsKey("SUNOL"));
             Assert.Equal(2, proc.Transitions["SUNOL"].Legs.Count);
@@ -230,7 +230,7 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_MissedApproach_SeparatedAfterMahp()
     {
-        var lines = new[]
+        string[] lines = new[]
         {
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.IF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "MUXED", CifpFixRole.FAF, "TF"),
@@ -239,13 +239,13 @@ public class CifpParserTests
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 50, "SUNOL", CifpFixRole.None, "DF"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+            IReadOnlyList<CifpApproachProcedure> approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
 
-            var proc = approaches[0];
+            CifpApproachProcedure proc = approaches[0];
             // MAP itself is in common legs (3 = IF, FAF, MAP)
             Assert.Equal(3, proc.CommonLegs.Count);
             Assert.Equal(2, proc.MissedApproachLegs.Count);
@@ -261,7 +261,7 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_HoldInLieu_Detected()
     {
-        var lines = new[]
+        string[] lines = new[]
         {
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "GROVE", CifpFixRole.IAF, "IF"),
             // HA = hold-in-lieu path terminator
@@ -270,13 +270,13 @@ public class CifpParserTests
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "RW28L", CifpFixRole.MAP, "CF"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+            IReadOnlyList<CifpApproachProcedure> approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
 
-            var proc = approaches[0];
+            CifpApproachProcedure proc = approaches[0];
             Assert.True(proc.HasHoldInLieu);
             Assert.NotNull(proc.HoldInLieuLeg);
             Assert.Equal("FITKI", proc.HoldInLieuLeg.FixIdentifier);
@@ -290,17 +290,17 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_RnavApproach_CorrectTypeName()
     {
-        var lines = new[]
+        string[] lines = new[]
         {
             BuildFullApproachLine("KOAK", "H28LZ ", ' ', "", 10, "GROVE", CifpFixRole.IAF, "IF"),
             BuildFullApproachLine("KOAK", "H28LZ ", ' ', "", 20, "RW28L", CifpFixRole.MAP, "TF"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+            IReadOnlyList<CifpApproachProcedure> approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
 
             Assert.Single(approaches);
             Assert.Equal('H', approaches[0].TypeCode);
@@ -316,7 +316,7 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_MultipleApproaches_AllReturned()
     {
-        var lines = new[]
+        string[] lines = new[]
         {
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "RW28L", CifpFixRole.MAP, "CF"),
@@ -324,11 +324,11 @@ public class CifpParserTests
             BuildFullApproachLine("KOAK", "I30   ", ' ', "", 20, "RW30 ", CifpFixRole.MAP, "CF"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+            IReadOnlyList<CifpApproachProcedure> approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
 
             Assert.Equal(2, approaches.Count);
             Assert.Contains(approaches, a => a.ApproachId == "I28L");
@@ -343,13 +343,13 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_WrongAirport_ReturnsEmpty()
     {
-        var lines = new[] { BuildFullApproachLine("KSFO", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF") };
+        string[] lines = new[] { BuildFullApproachLine("KSFO", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF") };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+            IReadOnlyList<CifpApproachProcedure> approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
 
             Assert.Empty(approaches);
         }
@@ -375,7 +375,7 @@ public class CifpParserTests
         int expectedAlt1
     )
     {
-        var result = CifpParser.ParseAltitudeRestriction(desc, alt1Str, alt2Str ?? "     ");
+        CifpAltitudeRestriction? result = CifpParser.ParseAltitudeRestriction(desc, alt1Str, alt2Str ?? "     ");
 
         Assert.NotNull(result);
         Assert.Equal(expectedType, result.Type);
@@ -411,17 +411,17 @@ public class CifpParserTests
     public void ParseApproaches_ExistingParseMethod_StillWorks()
     {
         // Regression: ensure the original Parse() method is unaffected
-        var lines = new[]
+        string[] lines = new[]
         {
             BuildApproachLine("KOAK", "I28L  ", "FITKI", 'D'),
             BuildTerminalWaypointLine("KOAK", "FITKI", "N37424600", "W122131200"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var result = CifpParser.Parse(tmpFile);
+            CifpParseResult result = CifpParser.Parse(tmpFile);
 
             Assert.True(result.FafFixes.ContainsKey(("OAK", "28L")));
             Assert.Equal("FITKI", result.FafFixes[("OAK", "28L")]);
@@ -438,18 +438,18 @@ public class CifpParserTests
     [Fact]
     public void ParseTerminalWaypoints_FiltersbyAirport()
     {
-        var lines = new[]
+        string[] lines = new[]
         {
             BuildTerminalWaypointLine("KABQ", "CFPTK", "N35004612", "W106431818"),
             BuildTerminalWaypointLine("KABQ", "CFDXH", "N35010000", "W106400000"),
             BuildTerminalWaypointLine("KOAK", "CFOAK", "N37424600", "W122131200"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var waypoints = CifpParser.ParseTerminalWaypoints(tmpFile, "KABQ");
+            IReadOnlyDictionary<string, (double Lat, double Lon)> waypoints = CifpParser.ParseTerminalWaypoints(tmpFile, "KABQ");
 
             Assert.Equal(2, waypoints.Count);
             Assert.True(waypoints.ContainsKey("CFPTK"));
@@ -457,7 +457,7 @@ public class CifpParserTests
             Assert.False(waypoints.ContainsKey("CFOAK"));
 
             // Verify coordinate parsing: N35°00'46.12" → 35.012811
-            var (lat, lon) = waypoints["CFPTK"];
+            (double lat, double lon) = waypoints["CFPTK"];
             Assert.Equal(35.0128, lat, precision: 3);
             Assert.Equal(-106.7217, lon, precision: 3);
         }
@@ -470,13 +470,13 @@ public class CifpParserTests
     [Fact]
     public void ParseTerminalWaypoints_EmptyForUnknownAirport()
     {
-        var lines = new[] { BuildTerminalWaypointLine("KABQ", "CFPTK", "N35004612", "W106431818") };
+        string[] lines = new[] { BuildTerminalWaypointLine("KABQ", "CFPTK", "N35004612", "W106431818") };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var waypoints = CifpParser.ParseTerminalWaypoints(tmpFile, "KJFK");
+            IReadOnlyDictionary<string, (double Lat, double Lon)> waypoints = CifpParser.ParseTerminalWaypoints(tmpFile, "KJFK");
 
             Assert.Empty(waypoints);
         }
@@ -495,7 +495,7 @@ public class CifpParserTests
         // Leg 040 at PIVLY is an RF leg with arc center fix CFLTZ, radius 0.300 NM (rho=300 thousandths),
         // turn direction Right. CFLTZ is a CIFP terminal waypoint at the airport.
         // To regenerate: grep '^SUSAP KOTHK1FH05-Z ADEROY' tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz (after gunzip)
-        var lines = new[]
+        string[] lines = new[]
         {
             RealCifpLines.KothCfltzTerminalWaypoint,
             RealCifpLines.KothH05ZDeroy010,
@@ -506,15 +506,15 @@ public class CifpParserTests
             RealCifpLines.KothH05ZDeroy060Oxvak,
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var approaches = CifpParser.ParseApproaches(tmpFile, "KOTH");
+            IReadOnlyList<CifpApproachProcedure> approaches = CifpParser.ParseApproaches(tmpFile, "KOTH");
 
             Assert.Single(approaches);
-            var deroy = approaches[0].Transitions["DEROY"];
-            var pivlyRf = deroy.Legs.First(l => l.FixIdentifier == "PIVLY");
+            CifpTransition deroy = approaches[0].Transitions["DEROY"];
+            CifpLeg pivlyRf = deroy.Legs.First(l => l.FixIdentifier == "PIVLY");
             Assert.Equal(CifpPathTerminator.RF, pivlyRf.PathTerminator);
             Assert.Equal(3.0, pivlyRf.ArcRadiusNm!.Value, precision: 2);
             Assert.Equal('R', pivlyRf.TurnDirection);
@@ -537,17 +537,17 @@ public class CifpParserTests
         // Real CIFP lines from FAACIFP18 (KABQ ILS RWY 3 I03, NODME transition).
         // Leg 020 at BIBQU is an AF leg referencing the ABQ navaid with theta/rho/arc data.
         // To regenerate: grep '^SUSAP KABQK2FI03   ANODME' tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz (after gunzip)
-        var lines = new[] { RealCifpLines.KabqI03Nodme010, RealCifpLines.KabqI03Nodme020BibquAf };
+        string[] lines = new[] { RealCifpLines.KabqI03Nodme010, RealCifpLines.KabqI03Nodme020BibquAf };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var approaches = CifpParser.ParseApproaches(tmpFile, "KABQ");
+            IReadOnlyList<CifpApproachProcedure> approaches = CifpParser.ParseApproaches(tmpFile, "KABQ");
 
             Assert.Single(approaches);
-            var nodme = approaches[0].Transitions["NODME"];
-            var bibquAf = nodme.Legs.First(l => l.FixIdentifier == "BIBQU");
+            CifpTransition nodme = approaches[0].Transitions["NODME"];
+            CifpLeg bibquAf = nodme.Legs.First(l => l.FixIdentifier == "BIBQU");
             Assert.Equal(CifpPathTerminator.AF, bibquAf.PathTerminator);
             Assert.Equal("ABQ", bibquAf.RecommendedNavaidId);
             Assert.Equal('L', bibquAf.TurnDirection);
@@ -568,7 +568,7 @@ public class CifpParserTests
     {
         // CFMLD (the I32-Y MAP) is a CNF that exists in the CIFP terminal waypoints but not in
         // vNAS NavData, so the parsed leg must carry its coordinates directly.
-        var lines = new[]
+        string[] lines = new[]
         {
             RealCifpLines.KgsoCfmldTerminalWaypoint,
             RealCifpLines.KgsoI32YCommon010Llink,
@@ -576,14 +576,14 @@ public class CifpParserTests
             RealCifpLines.KgsoI32YCommon030CfmldMap,
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var approaches = CifpParser.ParseApproaches(tmpFile, "KGSO");
+            IReadOnlyList<CifpApproachProcedure> approaches = CifpParser.ParseApproaches(tmpFile, "KGSO");
 
             Assert.Single(approaches);
-            var cfmld = approaches[0].CommonLegs.First(l => l.FixIdentifier == "CFMLD");
+            CifpLeg cfmld = approaches[0].CommonLegs.First(l => l.FixIdentifier == "CFMLD");
             Assert.Equal(CifpFixRole.MAP, cfmld.FixRole);
             // N36°05'14.04" W079°56'13.17"
             Assert.NotNull(cfmld.FixLat);
@@ -605,7 +605,7 @@ public class CifpParserTests
         // continuation's reserved padding carries a stray "2" in the speed-limit columns.
         // Issue #184: the parser must skip continuation records, so MATON appears exactly
         // once and never carries a phantom 2-knot speed restriction.
-        var lines = new[]
+        string[] lines = new[]
         {
             RealCifpLines.KiahH08RyCommon010Jelli,
             RealCifpLines.KiahH08RyCommon011Reign,
@@ -615,14 +615,14 @@ public class CifpParserTests
             RealCifpLines.KiahH08RyCommon030Rw08R,
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var approaches = CifpParser.ParseApproaches(tmpFile, "KIAH");
+            IReadOnlyList<CifpApproachProcedure> approaches = CifpParser.ParseApproaches(tmpFile, "KIAH");
 
             Assert.Single(approaches);
-            var common = approaches[0].CommonLegs;
+            IReadOnlyList<CifpLeg> common = approaches[0].CommonLegs;
 
             // MATON appears exactly once (continuation record did not create a duplicate leg).
             Assert.Equal(1, common.Count(l => l.FixIdentifier == "MATON"));
@@ -631,7 +631,7 @@ public class CifpParserTests
             Assert.DoesNotContain(common, l => l.Speed is { SpeedKts: 2 });
 
             // The MATON FAF has no published speed restriction at all (the primary record is blank).
-            var maton = common.First(l => l.FixIdentifier == "MATON");
+            CifpLeg maton = common.First(l => l.FixIdentifier == "MATON");
             Assert.Null(maton.Speed);
         }
         finally
@@ -645,7 +645,7 @@ public class CifpParserTests
     [Fact]
     public void ParseSids_BasicSid_ExtractsCommonAndRunwayTransitions()
     {
-        var lines = new[]
+        string[] lines = new[]
         {
             // Runway transition "RW28R"
             BuildSidStarLine('D', "KOAK", "PORTE3", "RW28R", 10, "OAK  "),
@@ -657,14 +657,14 @@ public class CifpParserTests
             BuildSidStarLine('D', "KOAK", "PORTE3", "MOLIN", 50, "MOLIN"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var sids = CifpParser.ParseSids(tmpFile, "KOAK");
+            IReadOnlyList<CifpSidProcedure> sids = CifpParser.ParseSids(tmpFile, "KOAK");
 
             Assert.Single(sids);
-            var sid = sids[0];
+            CifpSidProcedure sid = sids[0];
             Assert.Equal("OAK", sid.Airport);
             Assert.Equal("PORTE3", sid.ProcedureId);
 
@@ -692,7 +692,7 @@ public class CifpParserTests
     [Fact]
     public void ParseStars_BasicStar_ExtractsTransitions()
     {
-        var lines = new[]
+        string[] lines = new[]
         {
             // Enroute transition "FAITH"
             BuildSidStarLine('E', "KOAK", "SUNOL1", "FAITH", 10, "FAITH"),
@@ -704,14 +704,14 @@ public class CifpParserTests
             BuildSidStarLine('E', "KOAK", "SUNOL1", "RW28L", 50, "FITKI"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var stars = CifpParser.ParseStars(tmpFile, "KOAK");
+            IReadOnlyList<CifpStarProcedure> stars = CifpParser.ParseStars(tmpFile, "KOAK");
 
             Assert.Single(stars);
-            var star = stars[0];
+            CifpStarProcedure star = stars[0];
             Assert.Equal("OAK", star.Airport);
             Assert.Equal("SUNOL1", star.ProcedureId);
 
@@ -738,7 +738,7 @@ public class CifpParserTests
         // Real CIFP line from FAACIFP18 (KSFO CIITY3 SID, RW10L runway transition).
         // Leg 040 at fix CIITY has altitude restriction "+ 05000" → AtOrAbove 5000ft.
         // To regenerate: grep '^SUSAP KSFOK2DCIITY3' tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz (after gunzip)
-        var lines = new[]
+        string[] lines = new[]
         {
             RealCifpLines.KsfoCiity3Rw10LLeg010,
             RealCifpLines.KsfoCiity3Rw10LLeg020,
@@ -746,18 +746,18 @@ public class CifpParserTests
             RealCifpLines.KsfoCiity3Rw10LLeg040CiityAtOrAbove5000,
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var sids = CifpParser.ParseSids(tmpFile, "KSFO");
+            IReadOnlyList<CifpSidProcedure> sids = CifpParser.ParseSids(tmpFile, "KSFO");
 
             Assert.Single(sids);
-            var sid = sids[0];
+            CifpSidProcedure sid = sids[0];
             Assert.Equal("CIITY3", sid.ProcedureId);
 
-            var rw10L = sid.RunwayTransitions["RW10L"];
-            var ciityLeg = rw10L.Legs.First(l => l.FixIdentifier == "CIITY");
+            CifpTransition rw10L = sid.RunwayTransitions["RW10L"];
+            CifpLeg ciityLeg = rw10L.Legs.First(l => l.FixIdentifier == "CIITY");
             Assert.NotNull(ciityLeg.Altitude);
             Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, ciityLeg.Altitude.Type);
             Assert.Equal(5000, ciityLeg.Altitude.Altitude1Ft);
@@ -774,7 +774,7 @@ public class CifpParserTests
         // ARINC 424 §5.261: HHART carries "230 +" → AtOrAbove (a minimum); the blank-qualifier
         // legs (DOOBI 250, BOPPR 210) → Mandatory. The parser must read the description at
         // column 117, not assume every speed limit is a maximum.
-        var lines = new[]
+        string[] lines = new[]
         {
             RealCifpLines.KiahDoobi3AllLeg010Doobi,
             RealCifpLines.KiahDoobi3AllLeg020HhartAtOrAbove230,
@@ -783,11 +783,11 @@ public class CifpParserTests
             RealCifpLines.KiahDoobi3AllLeg050Bozzz,
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var stars = CifpParser.ParseStars(tmpFile, "KIAH");
+            IReadOnlyList<CifpStarProcedure> stars = CifpParser.ParseStars(tmpFile, "KIAH");
 
             Assert.Single(stars);
             var allLegs = stars[0]
@@ -795,12 +795,12 @@ public class CifpParserTests
                 .Concat(stars[0].RunwayTransitions.Values.SelectMany(t => t.Legs))
                 .ToList();
 
-            var hhart = allLegs.First(l => l.FixIdentifier == "HHART");
+            CifpLeg hhart = allLegs.First(l => l.FixIdentifier == "HHART");
             Assert.NotNull(hhart.Speed);
             Assert.Equal(CifpSpeedRestrictionType.AtOrAbove, hhart.Speed.Type);
             Assert.Equal(230, hhart.Speed.SpeedKts);
 
-            var doobi = allLegs.First(l => l.FixIdentifier == "DOOBI");
+            CifpLeg doobi = allLegs.First(l => l.FixIdentifier == "DOOBI");
             Assert.NotNull(doobi.Speed);
             Assert.Equal(CifpSpeedRestrictionType.Mandatory, doobi.Speed.Type);
             Assert.Equal(250, doobi.Speed.SpeedKts);
@@ -819,7 +819,7 @@ public class CifpParserTests
     [InlineData("280", ' ', CifpSpeedRestrictionType.Mandatory, 280)]
     public void ParseSpeedRestriction_VariousTypes(string speedStr, char desc, CifpSpeedRestrictionType expectedType, int expectedKts)
     {
-        var result = CifpParser.ParseSpeedRestriction(speedStr, desc);
+        CifpSpeedRestriction? result = CifpParser.ParseSpeedRestriction(speedStr, desc);
 
         Assert.NotNull(result);
         Assert.Equal(expectedType, result.Type);
@@ -837,13 +837,13 @@ public class CifpParserTests
     [Fact]
     public void ParseSids_WrongAirport_ReturnsEmpty()
     {
-        var lines = new[] { BuildSidStarLine('D', "KSFO", "PORTE3", "", 10, "PORTE") };
+        string[] lines = new[] { BuildSidStarLine('D', "KSFO", "PORTE3", "", 10, "PORTE") };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var sids = CifpParser.ParseSids(tmpFile, "KOAK");
+            IReadOnlyList<CifpSidProcedure> sids = CifpParser.ParseSids(tmpFile, "KOAK");
 
             Assert.Empty(sids);
         }
@@ -856,17 +856,17 @@ public class CifpParserTests
     [Fact]
     public void ParseStars_AllTransitionName_TreatedAsCommon()
     {
-        var lines = new[]
+        string[] lines = new[]
         {
             BuildSidStarLine('E', "KOAK", "SUNOL1", "ALL  ", 10, "SUNOL"),
             BuildSidStarLine('E', "KOAK", "SUNOL1", "ALL  ", 20, "GROVE"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var stars = CifpParser.ParseStars(tmpFile, "KOAK");
+            IReadOnlyList<CifpStarProcedure> stars = CifpParser.ParseStars(tmpFile, "KOAK");
 
             Assert.Single(stars);
             Assert.Equal(2, stars[0].CommonLegs.Count);
@@ -882,18 +882,18 @@ public class CifpParserTests
     [Fact]
     public void ParseSids_MultipleRunwayTransitions_AllCaptured()
     {
-        var lines = new[]
+        string[] lines = new[]
         {
             BuildSidStarLine('D', "KOAK", "PORTE3", "RW28R", 10, "OAK  "),
             BuildSidStarLine('D', "KOAK", "PORTE3", "RW28L", 10, "REBAS"),
             BuildSidStarLine('D', "KOAK", "PORTE3", "", 20, "PORTE"),
         };
 
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, lines);
-            var sids = CifpParser.ParseSids(tmpFile, "KOAK");
+            IReadOnlyList<CifpSidProcedure> sids = CifpParser.ParseSids(tmpFile, "KOAK");
 
             Assert.Single(sids);
             Assert.Equal(2, sids[0].RunwayTransitions.Count);
@@ -913,7 +913,7 @@ public class CifpParserTests
     /// </summary>
     private static string BuildSidStarLine(char subsection, string icao, string procedureId, string transition, int sequence, string fixId)
     {
-        var line = new char[120];
+        char[] line = new char[120];
         Array.Fill(line, ' ');
         "SUSAP".CopyTo(0, line, 0, 5);
         icao.PadRight(4).CopyTo(0, line, 6, 4);
@@ -948,7 +948,7 @@ public class CifpParserTests
         // 34-41: padding
         // 42: waypoint description code
         // 43-49: padding to reach 50 chars min
-        var line = new char[55];
+        char[] line = new char[55];
         Array.Fill(line, ' ');
         "SUSAP".CopyTo(0, line, 0, 5);
         icao.PadRight(4).CopyTo(0, line, 6, 4);
@@ -977,7 +977,7 @@ public class CifpParserTests
         // 32: N/S latitude start (we place at position 32)
         // 32-40: latitude (9 chars)
         // 41-50: longitude (10 chars)
-        var line = new char[55];
+        char[] line = new char[55];
         Array.Fill(line, ' ');
         "SUSAP".CopyTo(0, line, 0, 5);
         icao.PadRight(4).CopyTo(0, line, 6, 4);
@@ -1003,7 +1003,7 @@ public class CifpParserTests
         string pathTerminator
     )
     {
-        var line = new char[120];
+        char[] line = new char[120];
         Array.Fill(line, ' ');
         "SUSAP".CopyTo(0, line, 0, 5);
         icao.PadRight(4).CopyTo(0, line, 6, 4);

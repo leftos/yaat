@@ -62,7 +62,7 @@ public class MainViewModelNonMentorGatingTests
     [AvaloniaFact]
     public void FlippingIsNonMentor_RaisesCanExecuteChanged_ForScenarioCommands()
     {
-        var vm = InRoom(nonMentor: false);
+        MainViewModel vm = InRoom(nonMentor: false);
         bool unloadChanged = false;
         bool loadChanged = false;
         vm.UnloadScenarioCommand.CanExecuteChanged += (_, _) => unloadChanged = true;
@@ -88,7 +88,7 @@ public class MainViewModelNonMentorGatingTests
     [AvaloniaFact]
     public void NonMentor_RetainsInRoomPowers()
     {
-        var vm = InRoom(nonMentor: true);
+        MainViewModel vm = InRoom(nonMentor: true);
 
         Assert.True(vm.CanExecuteInRoom, "In-room powers (pause, sim rate, weather, spawn) stay open to non-mentors.");
         Assert.True(vm.RestartScenarioCommand.CanExecute(null), "Restart is available to any room member.");

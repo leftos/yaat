@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -66,7 +67,7 @@ public sealed class HoldingAfterExitPhase : Phase
             // to ground; solo GND students aren't on tower frequency at this point.
             string rwy = _runwayId ?? ctx.Aircraft.Phases?.AssignedRunway?.Designator ?? "unknown";
             string twy = _exitTaxiway ?? ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
-            var text = Pilot.PilotResponder.BuildClearOfRunwayText(ctx.Aircraft, rwy, twy);
+            PilotSpeechText text = Pilot.PilotResponder.BuildClearOfRunwayText(ctx.Aircraft, rwy, twy);
             Pilot.PilotResponder.RouteSoloOrRpoTransmission(
                 ctx.Aircraft,
                 ctx.SoloTrainingMode,

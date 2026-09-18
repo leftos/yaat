@@ -30,8 +30,8 @@ internal sealed class ConsoleLineLoggerProvider : ILoggerProvider
             {
                 return;
             }
-            var message = formatter(state, exception);
-            var tag = logLevel switch
+            string message = formatter(state, exception);
+            string tag = logLevel switch
             {
                 LogLevel.Trace => "TRC",
                 LogLevel.Debug => "DBG",
@@ -41,7 +41,7 @@ internal sealed class ConsoleLineLoggerProvider : ILoggerProvider
                 LogLevel.Critical => "CRT",
                 _ => "???",
             };
-            var line = $"[{DateTime.UtcNow:HH:mm:ss.fff} {tag} {category}] {message}";
+            string line = $"[{DateTime.UtcNow:HH:mm:ss.fff} {tag} {category}] {message}";
             if (exception is not null)
             {
                 line = line + Environment.NewLine + exception;

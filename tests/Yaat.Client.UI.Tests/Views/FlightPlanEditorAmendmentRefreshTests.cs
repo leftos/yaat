@@ -37,8 +37,8 @@ public class FlightPlanEditorAmendmentRefreshTests
     [AvaloniaFact]
     public void UntouchedFields_RefreshLive_WhenAmendmentArrivesWhileOpen()
     {
-        var ac = BuildAircraft();
-        var window = Open(ac);
+        AircraftModel ac = BuildAircraft();
+        FlightPlanEditorWindow window = Open(ac);
 
         // Another controller amends the plan while the editor is open.
         ac.FiledAircraftType = "C172";
@@ -66,11 +66,11 @@ public class FlightPlanEditorAmendmentRefreshTests
     [AvaloniaFact]
     public void EditedField_KeepsInstructorText_WhileOtherFieldsRefresh()
     {
-        var ac = BuildAircraft();
-        var window = Open(ac);
+        AircraftModel ac = BuildAircraft();
+        FlightPlanEditorWindow window = Open(ac);
 
         // Instructor is mid-edit on the route when an amendment to other fields arrives.
-        var rteBox = window.FindControl<TextBox>("RteBox")!;
+        TextBox rteBox = window.FindControl<TextBox>("RteBox")!;
         rteBox.Text = "VPSUN VPCOL";
         HeadlessWindowExtensions.PumpDispatcher();
         ac.Destination = "KSQL";
@@ -84,11 +84,11 @@ public class FlightPlanEditorAmendmentRefreshTests
     [AvaloniaFact]
     public void EditedField_BaselineTracksLivePlan_WhenSameFieldIsAmended()
     {
-        var ac = BuildAircraft();
-        var window = Open(ac);
+        AircraftModel ac = BuildAircraft();
+        FlightPlanEditorWindow window = Open(ac);
 
         // Instructor types the same value the incoming amendment carries — no longer a change.
-        var destBox = window.FindControl<TextBox>("DestBox")!;
+        TextBox destBox = window.FindControl<TextBox>("DestBox")!;
         destBox.Text = "KSQL";
         HeadlessWindowExtensions.PumpDispatcher();
         Assert.True(window.FindControl<Button>("SubmitButton")!.IsEnabled);
@@ -102,19 +102,19 @@ public class FlightPlanEditorAmendmentRefreshTests
     [AvaloniaFact]
     public void RemarksRefresh_TracksProtocolPrefix_ForLaterSubmit()
     {
-        var ac = BuildAircraft();
+        AircraftModel ac = BuildAircraft();
         FlightPlanAmendment? submitted = null;
-        var window = Open(ac, (_, amendment) => submitted = amendment);
+        FlightPlanEditorWindow window = Open(ac, (_, amendment) => submitted = amendment);
 
         // Amendment introduces a protocol prefix; the editable part shows without it.
         ac.Remarks = "+/V/PILOT RMK/NEW TEXT";
-        var rmkBox = window.FindControl<TextBox>("RmkBox")!;
+        TextBox rmkBox = window.FindControl<TextBox>("RmkBox")!;
         Assert.Equal("NEW TEXT", rmkBox.Text);
 
         // A subsequent edit + submit round-trips the new prefix.
         rmkBox.Text = "EDITED TEXT";
         HeadlessWindowExtensions.PumpDispatcher();
-        var submit = window.FindControl<Button>("SubmitButton")!;
+        Button submit = window.FindControl<Button>("SubmitButton")!;
         Assert.True(submit.IsEnabled);
         submit.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent, submit));
 

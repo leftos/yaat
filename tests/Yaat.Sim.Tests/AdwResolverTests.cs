@@ -34,14 +34,14 @@ public class AdwResolverTests
     [Fact]
     public void Resolve_OuterMark_SitsOutOnFinalNotDownTheRunway()
     {
-        var layout = MiaLayout();
+        AirportGroundLayout layout = MiaLayout();
         var window = new AdwWindow("26R", "30", 2.7, -0.1, null);
 
-        var outer = Assert.Single(AdwResolver.Resolve(layout, [window]), m => m.Kind == AdwMarkKind.Outer);
+        AdwMark outer = Assert.Single(AdwResolver.Resolve(layout, [window]), m => m.Kind == AdwMarkKind.Outer);
 
-        var runway = layout.FindRunway("26R")!;
-        var threshold = runway.LandingThresholdForEnd("26R")!.Value.Threshold;
-        var center = MidPoint(outer);
+        GroundRunway runway = layout.FindRunway("26R")!;
+        LatLon threshold = runway.LandingThresholdForEnd("26R")!.Value.Threshold;
+        LatLon center = MidPoint(outer);
 
         // 26R lands westbound (~260 true), so its final approach course lies EAST of the threshold.
         double bearingToMark = GeoMath.BearingTo(threshold.Lat, threshold.Lon, center.Lat, center.Lon);
@@ -52,14 +52,14 @@ public class AdwResolverTests
     [Fact]
     public void Resolve_NegativeInnerRange_SitsDownTheRunwayFromTheThreshold()
     {
-        var layout = MiaLayout();
+        AirportGroundLayout layout = MiaLayout();
         var window = new AdwWindow("26R", "30", 2.7, -0.1, null);
 
-        var inner = Assert.Single(AdwResolver.Resolve(layout, [window]), m => m.Kind == AdwMarkKind.Inner);
+        AdwMark inner = Assert.Single(AdwResolver.Resolve(layout, [window]), m => m.Kind == AdwMarkKind.Inner);
 
-        var runway = layout.FindRunway("26R")!;
-        var threshold = runway.LandingThresholdForEnd("26R")!.Value.Threshold;
-        var center = MidPoint(inner);
+        GroundRunway runway = layout.FindRunway("26R")!;
+        LatLon threshold = runway.LandingThresholdForEnd("26R")!.Value.Threshold;
+        LatLon center = MidPoint(inner);
 
         // Negative inner range → 0.1 nm past the threshold, i.e. WEST of it, in the landing direction.
         double bearingToMark = GeoMath.BearingTo(threshold.Lat, threshold.Lon, center.Lat, center.Lon);
@@ -70,15 +70,15 @@ public class AdwResolverTests
     [Fact]
     public void Resolve_PositiveInnerRange_SitsShortOfTheThreshold()
     {
-        var layout = MiaLayout();
+        AirportGroundLayout layout = MiaLayout();
         // SOP 3-9.D: arriving 30, departing 26L — inner range is +0.1 nm, i.e. short of the threshold.
         var window = new AdwWindow("30", "26L", 2.7, 0.1, null);
 
-        var inner = Assert.Single(AdwResolver.Resolve(layout, [window]), m => m.Kind == AdwMarkKind.Inner);
+        AdwMark inner = Assert.Single(AdwResolver.Resolve(layout, [window]), m => m.Kind == AdwMarkKind.Inner);
 
-        var runway = layout.FindRunway("30")!;
-        var threshold = runway.LandingThresholdForEnd("30")!.Value.Threshold;
-        var center = MidPoint(inner);
+        GroundRunway runway = layout.FindRunway("30")!;
+        LatLon threshold = runway.LandingThresholdForEnd("30")!.Value.Threshold;
+        LatLon center = MidPoint(inner);
 
         // RWY 30 lands northwest, so "short of the threshold" is southeast of it.
         double bearingToMark = GeoMath.BearingTo(threshold.Lat, threshold.Lon, center.Lat, center.Lon);
@@ -88,29 +88,29 @@ public class AdwResolverTests
     [Fact]
     public void Resolve_Mia30Pair_MarksStraddleTheThresholdPointFourNmApart()
     {
-        var layout = MiaLayout();
-        var windows = new[] { new AdwWindow("30", "26L", 2.7, 0.1, "SOP 3-9.D"), new AdwWindow("30", "26R", 2.9, -0.3, "SOP 3-9.E") };
+        AirportGroundLayout layout = MiaLayout();
+        AdwWindow[] windows = new[] { new AdwWindow("30", "26L", 2.7, 0.1, "SOP 3-9.D"), new AdwWindow("30", "26R", 2.9, -0.3, "SOP 3-9.E") };
 
-        var inner26L = Assert.Single(AdwResolver.Resolve(layout, windows), m => (m.Kind == AdwMarkKind.Inner) && (m.DepartureRunway == "26L"));
-        var inner26R = Assert.Single(AdwResolver.Resolve(layout, windows), m => (m.Kind == AdwMarkKind.Inner) && (m.DepartureRunway == "26R"));
+        AdwMark inner26L = Assert.Single(AdwResolver.Resolve(layout, windows), m => (m.Kind == AdwMarkKind.Inner) && (m.DepartureRunway == "26L"));
+        AdwMark inner26R = Assert.Single(AdwResolver.Resolve(layout, windows), m => (m.Kind == AdwMarkKind.Inner) && (m.DepartureRunway == "26R"));
 
-        var a = MidPoint(inner26L);
-        var b = MidPoint(inner26R);
+        LatLon a = MidPoint(inner26L);
+        LatLon b = MidPoint(inner26R);
         Assert.InRange(GeoMath.DistanceNm(a.Lat, a.Lon, b.Lat, b.Lon), 0.39, 0.41);
     }
 
     [Fact]
     public void Resolve_Mia30_MeasuresFromTheDisplacedThresholdNotThePavementEnd()
     {
-        var layout = MiaLayout();
-        var runway = layout.FindRunway("30")!;
+        AirportGroundLayout layout = MiaLayout();
+        GroundRunway runway = layout.FindRunway("30")!;
 
         // KMIA 12/30 is authored "threshold": "0 - 957" — RWY 30's landing threshold is 957 ft downfield.
         Assert.Equal(957, runway.ThresholdDisplacementForEnd("30"));
 
-        var inner = Assert.Single(AdwResolver.Resolve(layout, [new AdwWindow("30", "26R", 2.9, -0.3, null)]), m => m.Kind == AdwMarkKind.Inner);
-        var center = MidPoint(inner);
-        var pavementEnd = runway.Coordinates[^1];
+        AdwMark inner = Assert.Single(AdwResolver.Resolve(layout, [new AdwWindow("30", "26R", 2.9, -0.3, null)]), m => m.Kind == AdwMarkKind.Inner);
+        LatLon center = MidPoint(inner);
+        (double Lat, double Lon) pavementEnd = runway.Coordinates[^1];
 
         // Measured from the pavement end the mark would be 0.3 nm out; from the displaced threshold it
         // is 957 ft further up the runway, so the pavement-end distance must be 0.3 nm + 957 ft.
@@ -128,12 +128,12 @@ public class AdwResolverTests
     [Fact]
     public void Resolve_Mia30ArrDep26L_InnerMarkLandsOnPavementNotOffTheEnd()
     {
-        var layout = MiaLayout();
-        var runway = layout.FindRunway("30")!;
-        var pavementEnd = runway.Coordinates[^1];
+        AirportGroundLayout layout = MiaLayout();
+        GroundRunway runway = layout.FindRunway("30")!;
+        (double Lat, double Lon) pavementEnd = runway.Coordinates[^1];
 
-        var inner = Assert.Single(AdwResolver.Resolve(layout, [new AdwWindow("30", "26L", 2.7, 0.1, null)]), m => m.Kind == AdwMarkKind.Inner);
-        var center = MidPoint(inner);
+        AdwMark inner = Assert.Single(AdwResolver.Resolve(layout, [new AdwWindow("30", "26L", 2.7, 0.1, null)]), m => m.Kind == AdwMarkKind.Inner);
+        LatLon center = MidPoint(inner);
 
         double fromPavementFt = GeoMath.DistanceNm(pavementEnd.Lat, pavementEnd.Lon, center.Lat, center.Lon) * GeoMath.FeetPerNm;
         Assert.InRange(fromPavementFt, 349 - 10, 349 + 10);
@@ -146,12 +146,12 @@ public class AdwResolverTests
     [Fact]
     public void Resolve_InnerMarkSpansTheRunwayWidth_OuterMarkUsesTheFixedTick()
     {
-        var layout = MiaLayout();
-        var runway = layout.FindRunway("26R")!;
+        AirportGroundLayout layout = MiaLayout();
+        GroundRunway runway = layout.FindRunway("26R")!;
 
-        var marks = AdwResolver.Resolve(layout, [new AdwWindow("26R", "30", 2.7, -0.1, null)]);
-        var inner = Assert.Single(marks, m => m.Kind == AdwMarkKind.Inner);
-        var outer = Assert.Single(marks, m => m.Kind == AdwMarkKind.Outer);
+        IReadOnlyList<AdwMark> marks = AdwResolver.Resolve(layout, [new AdwWindow("26R", "30", 2.7, -0.1, null)]);
+        AdwMark inner = Assert.Single(marks, m => m.Kind == AdwMarkKind.Inner);
+        AdwMark outer = Assert.Single(marks, m => m.Kind == AdwMarkKind.Outer);
 
         Assert.InRange(LengthFt(inner), runway.WidthFt - 2, runway.WidthFt + 2);
         Assert.InRange(LengthFt(outer), 545, 549);
@@ -160,11 +160,11 @@ public class AdwResolverTests
     [Fact]
     public void Resolve_MarksAreLaidPerpendicularToTheRunway()
     {
-        var layout = MiaLayout();
-        var runway = layout.FindRunway("26R")!;
+        AirportGroundLayout layout = MiaLayout();
+        GroundRunway runway = layout.FindRunway("26R")!;
         double landingCourse = runway.LandingThresholdForEnd("26R")!.Value.LandingCourseDeg;
 
-        foreach (var mark in AdwResolver.Resolve(layout, [new AdwWindow("26R", "30", 2.7, -0.1, null)]))
+        foreach (AdwMark mark in AdwResolver.Resolve(layout, [new AdwWindow("26R", "30", 2.7, -0.1, null)]))
         {
             double markBearing = GeoMath.BearingTo(mark.A.Lat, mark.A.Lon, mark.B.Lat, mark.B.Lon);
             double offset = Math.Abs(((markBearing - landingCourse + 540.0) % 360.0) - 180.0);
@@ -175,7 +175,7 @@ public class AdwResolverTests
     [Fact]
     public void Resolve_UnknownArrivalRunway_IsSkippedNotThrown()
     {
-        var layout = MiaLayout();
+        AirportGroundLayout layout = MiaLayout();
         Assert.Empty(AdwResolver.Resolve(layout, [new AdwWindow("17L", "30", 2.7, -0.1, null)]));
     }
 
@@ -202,9 +202,9 @@ public class AdwResolverTests
     [Fact]
     public void GetMarks_UsesTheShippedMiamiSidecar()
     {
-        var layout = MiaLayout();
+        AirportGroundLayout layout = MiaLayout();
 
-        var marks = AdwResolver.GetMarks(layout);
+        IReadOnlyList<AdwMark> marks = AdwResolver.GetMarks(layout);
 
         // Four published windows → an outer and an inner mark each.
         Assert.Equal(8, marks.Count);

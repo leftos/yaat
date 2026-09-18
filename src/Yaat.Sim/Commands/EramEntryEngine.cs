@@ -25,13 +25,13 @@ public static class EramEntryEngine
 
     public static CommandResult Apply(AircraftState ac, string entry, TrackOwner? identity)
     {
-        var tokens = entry.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = entry.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return new CommandResult(false, Format);
         }
 
-        var args = tokens[1..].ToList();
+        List<string> args = tokens[1..].ToList();
         return tokens[0].ToUpperInvariant() switch
         {
             "TRACK" => ApplyTrack(ac, args, identity),
@@ -56,7 +56,7 @@ public static class EramEntryEngine
             return new CommandResult(false, "NOT ACTIVE");
         }
 
-        var force = args.Any(a => string.Equals(a, "/OK", StringComparison.OrdinalIgnoreCase));
+        bool force = args.Any(a => string.Equals(a, "/OK", StringComparison.OrdinalIgnoreCase));
         if (!force && (ac.Track.Owner is not null) && !ac.Track.Owner.MatchesPosition(identity))
         {
             return new CommandResult(false, "ALREADY TRACKED");
@@ -86,8 +86,8 @@ public static class EramEntryEngine
     {
         if (
             (args.Count != 2)
-            || !double.TryParse(args[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var lat)
-            || !double.TryParse(args[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var lon)
+            || !double.TryParse(args[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double lat)
+            || !double.TryParse(args[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double lon)
         )
         {
             return new CommandResult(false, Format);
@@ -120,11 +120,11 @@ public static class EramEntryEngine
             return new CommandResult(true, $"QQ L cleared {ac.Callsign}");
         }
 
-        foreach (var token in args)
+        foreach (string token in args)
         {
-            var prefix = char.ToUpperInvariant(token[0]);
-            var rest = prefix is 'R' or 'L' or 'P' ? token[1..] : token;
-            if (!int.TryParse(rest, out var altHundreds))
+            char prefix = char.ToUpperInvariant(token[0]);
+            string rest = prefix is 'R' or 'L' or 'P' ? token[1..] : token;
+            if (!int.TryParse(rest, out int altHundreds))
             {
                 continue;
             }
@@ -156,9 +156,9 @@ public static class EramEntryEngine
     /// <summary>The controller-entered reported altitude alone (docs/crc/eram.md §QR), in hundreds of feet.</summary>
     private static CommandResult ApplyQr(AircraftState ac, List<string> args)
     {
-        foreach (var token in args)
+        foreach (string token in args)
         {
-            if (int.TryParse(token, out var altHundreds) && (altHundreds > 0))
+            if (int.TryParse(token, out int altHundreds) && (altHundreds > 0))
             {
                 ac.Eram.ControllerEnteredAltitude = altHundreds;
                 return new CommandResult(true, $"QR {altHundreds} {ac.Callsign}");
@@ -180,7 +180,7 @@ public static class EramEntryEngine
             return new CommandResult(false, Format);
         }
 
-        var op = args[0];
+        string op = args[0];
         switch (op)
         {
             case "*":
@@ -198,7 +198,7 @@ public static class EramEntryEngine
 
         if (op.StartsWith('`'))
         {
-            var text = string.Join(' ', args)[1..].Trim().ToUpperInvariant();
+            string text = string.Join(' ', args)[1..].Trim().ToUpperInvariant();
             if (text.Length == 0)
             {
                 return new CommandResult(false, Format);
@@ -210,7 +210,7 @@ public static class EramEntryEngine
 
         if (op.StartsWith('/'))
         {
-            var speed = ParseHsfSpeed(op[1..]);
+            string? speed = ParseHsfSpeed(op[1..]);
             if (speed is null)
             {
                 return new CommandResult(false, Format);
@@ -220,7 +220,7 @@ public static class EramEntryEngine
             return new CommandResult(true, $"QS /{speed} {ac.Callsign}");
         }
 
-        var heading = ParseHsfHeading(op);
+        string? heading = ParseHsfHeading(op);
         if (heading is null)
         {
             return new CommandResult(false, Format);
@@ -238,7 +238,7 @@ public static class EramEntryEngine
     /// </summary>
     public static string? ParseHsfHeading(string token)
     {
-        var t = token.ToUpperInvariant();
+        string t = token.ToUpperInvariant();
         if (t.Length == 0)
         {
             return null;
@@ -246,12 +246,12 @@ public static class EramEntryEngine
 
         if (t[^1] is 'L' or 'R')
         {
-            var turn = t[..^1];
+            string turn = t[..^1];
             return (turn.Length is 1 or 2) && turn.All(char.IsDigit) && (int.Parse(turn) >= 1) ? t : null;
         }
 
-        var digits = t.StartsWith('H') ? t[1..] : t;
-        if ((digits.Length is < 1 or > 3) || !digits.All(char.IsDigit) || !int.TryParse(digits, out var deg))
+        string digits = t.StartsWith('H') ? t[1..] : t;
+        if ((digits.Length is < 1 or > 3) || !digits.All(char.IsDigit) || !int.TryParse(digits, out int deg))
         {
             return null;
         }
@@ -268,8 +268,8 @@ public static class EramEntryEngine
     /// </summary>
     public static string? ParseHsfSpeed(string token)
     {
-        var t = token.ToUpperInvariant();
-        var modifier = "";
+        string t = token.ToUpperInvariant();
+        string modifier = "";
         if ((t.Length > 0) && (t[^1] is '+' or '-'))
         {
             modifier = t[^1..];
@@ -283,7 +283,7 @@ public static class EramEntryEngine
 
         if (t[0] == 'M')
         {
-            var machDigits = t[1..];
+            string machDigits = t[1..];
             return (machDigits.Length is 2 or 3) && machDigits.All(char.IsDigit) ? "M" + machDigits + modifier : null;
         }
 
@@ -307,7 +307,7 @@ public static class EramEntryEngine
             return new CommandResult(true, $"LF cleared {ac.Callsign}");
         }
 
-        var label = args[0].ToUpperInvariant();
+        string label = args[0].ToUpperInvariant();
         ac.Eram.CrrGroupLabel = label;
         return new CommandResult(true, $"LF {label}");
     }

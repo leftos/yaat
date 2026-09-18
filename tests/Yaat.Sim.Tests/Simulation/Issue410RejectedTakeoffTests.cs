@@ -4,6 +4,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 using static Yaat.Sim.Tests.Simulation.RejectedTakeoffTestRig;
 
@@ -39,13 +40,13 @@ public class Issue410RejectedTakeoffTests
         // rolling at 60 kt (low-speed regime). It must reject, brake to a stop short of the
         // occupant, and hold in position — today it accelerates to Vr and lifts off straight
         // through the occupant's position.
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 60);
-        var occ = MakeLuawOccupant(runway, downfieldFt: 5000);
-        var ctx = Ctx(dep, runway, occ, autoReject: true);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 60);
+        AircraftState occ = MakeLuawOccupant(runway, downfieldFt: 5000);
+        PhaseContext ctx = Ctx(dep, runway, occ, autoReject: true);
         dep.Phases!.Start(ctx);
 
-        var (airborne, minSepFt) = RunRoll(dep, ctx, occ, seconds: 120);
+        (bool airborne, double minSepFt) = RunRoll(dep, ctx, occ, seconds: 120);
 
         Assert.False(airborne, $"Departure must reject, not lift off (IAS={dep.IndicatedAirspeed:F0})");
         Assert.True(dep.IndicatedAirspeed < 1.0, $"Departure should be stopped, IAS={dep.IndicatedAirspeed:F0}");
@@ -62,10 +63,10 @@ public class Issue410RejectedTakeoffTests
         // Before the roll is underway there is no maneuver to abort (P/CG ABORT): the pilot
         // declines the clearance ("unable, traffic on the runway") and holds — the aircraft
         // must not creep forward through a reaction window first.
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 0);
-        var occ = MakeLuawOccupant(runway, downfieldFt: 5000);
-        var ctx = Ctx(dep, runway, occ, autoReject: true);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 0);
+        AircraftState occ = MakeLuawOccupant(runway, downfieldFt: 5000);
+        PhaseContext ctx = Ctx(dep, runway, occ, autoReject: true);
         dep.Phases!.Start(ctx);
 
         double maxIas = 0;
@@ -91,13 +92,13 @@ public class Issue410RejectedTakeoffTests
         // Low-speed regime (below ~80 kt for a jet, roll underway): reject for ANY blocking
         // occupant ahead, even one far enough downfield to overfly — stopping is cheap, and
         // §3-9-6.a does not let a departure roll toward an occupied runway.
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 40);
-        var occ = MakeLuawOccupant(runway, downfieldFt: 11000);
-        var ctx = Ctx(dep, runway, occ, autoReject: true);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 40);
+        AircraftState occ = MakeLuawOccupant(runway, downfieldFt: 11000);
+        PhaseContext ctx = Ctx(dep, runway, occ, autoReject: true);
         dep.Phases!.Start(ctx);
 
-        var (airborne, _) = RunRoll(dep, ctx, occ, seconds: 120);
+        (bool airborne, double _) = RunRoll(dep, ctx, occ, seconds: 120);
 
         Assert.False(airborne, $"Low-speed roll with a blocker ahead must reject (IAS={dep.IndicatedAirspeed:F0})");
         Assert.True(dep.IndicatedAirspeed < 1.0, $"Departure should be stopped, IAS={dep.IndicatedAirspeed:F0}");
@@ -109,13 +110,13 @@ public class Issue410RejectedTakeoffTests
         // High-speed regime with the liftoff point plus climb margin comfortably short of the
         // occupant: the takeoff continues — a real crew at 100+ kt does not reject for an
         // aircraft it will overfly with thousands of feet to spare.
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 100);
-        var occ = MakeLuawOccupant(runway, downfieldFt: 11000);
-        var ctx = Ctx(dep, runway, occ, autoReject: true);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 100);
+        AircraftState occ = MakeLuawOccupant(runway, downfieldFt: 11000);
+        PhaseContext ctx = Ctx(dep, runway, occ, autoReject: true);
         dep.Phases!.Start(ctx);
 
-        var (airborne, _) = RunRoll(dep, ctx, occ, seconds: 60);
+        (bool airborne, double _) = RunRoll(dep, ctx, occ, seconds: 60);
 
         Assert.True(airborne, $"Overflyable occupant must not trigger a reject at high speed (IAS={dep.IndicatedAirspeed:F0})");
     }
@@ -124,15 +125,15 @@ public class Issue410RejectedTakeoffTests
     public void PastV1_OccupantOverflyable_Continues()
     {
         // At/above V1 with the occupant overflyable: committed — continue (14 CFR 25.107(a)(2)).
-        var runway = Runway28R();
-        var cat = AircraftCategorization.Categorize("B738");
+        RunwayInfo runway = Runway28R();
+        AircraftCategory cat = AircraftCategorization.Categorize("B738");
         double v1 = AircraftPerformance.DecisionSpeed("B738", cat);
-        var dep = MakeRollingDeparture(runway, iasKts: v1 + 2);
-        var occ = MakeLuawOccupant(runway, downfieldFt: 11000);
-        var ctx = Ctx(dep, runway, occ, autoReject: true);
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: v1 + 2);
+        AircraftState occ = MakeLuawOccupant(runway, downfieldFt: 11000);
+        PhaseContext ctx = Ctx(dep, runway, occ, autoReject: true);
         dep.Phases!.Start(ctx);
 
-        var (airborne, _) = RunRoll(dep, ctx, occ, seconds: 30);
+        (bool airborne, double _) = RunRoll(dep, ctx, occ, seconds: 30);
 
         Assert.True(airborne, $"Past V1 with an overflyable occupant the takeoff continues (IAS={dep.IndicatedAirspeed:F0})");
     }
@@ -144,15 +145,15 @@ public class Issue410RejectedTakeoffTests
         // it): continuing means a certain collision, so the pilot rejects anyway (AIM 4-4-1.a,
         // 14 CFR 91.3(b)). The stop may be long — the assertion is that it never lifts off and
         // ends stopped, holding in position.
-        var runway = Runway28R();
-        var cat = AircraftCategorization.Categorize("B738");
+        RunwayInfo runway = Runway28R();
+        AircraftCategory cat = AircraftCategorization.Categorize("B738");
         double v1 = AircraftPerformance.DecisionSpeed("B738", cat);
-        var dep = MakeRollingDeparture(runway, iasKts: v1 + 2);
-        var occ = MakeLuawOccupant(runway, downfieldFt: 2500);
-        var ctx = Ctx(dep, runway, occ, autoReject: true);
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: v1 + 2);
+        AircraftState occ = MakeLuawOccupant(runway, downfieldFt: 2500);
+        PhaseContext ctx = Ctx(dep, runway, occ, autoReject: true);
         dep.Phases!.Start(ctx);
 
-        var (airborne, _) = RunRoll(dep, ctx, occ, seconds: 120);
+        (bool airborne, double _) = RunRoll(dep, ctx, occ, seconds: 120);
 
         Assert.False(airborne, $"Past V1 with an un-overflyable occupant the pilot must still reject (IAS={dep.IndicatedAirspeed:F0})");
         Assert.True(dep.IndicatedAirspeed < 1.0, $"Departure should be stopped, IAS={dep.IndicatedAirspeed:F0}");
@@ -170,13 +171,13 @@ public class Issue410RejectedTakeoffTests
     {
         // Session-setting gate: with AutoRejectTakeoffOnOccupiedRunway off (the replay-safety
         // default), the roll continues exactly as before this feature existed.
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 0);
-        var occ = MakeLuawOccupant(runway, downfieldFt: 5000);
-        var ctx = Ctx(dep, runway, occ, autoReject: false);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 0);
+        AircraftState occ = MakeLuawOccupant(runway, downfieldFt: 5000);
+        PhaseContext ctx = Ctx(dep, runway, occ, autoReject: false);
         dep.Phases!.Start(ctx);
 
-        var (airborne, _) = RunRoll(dep, ctx, occ, seconds: 120);
+        (bool airborne, double _) = RunRoll(dep, ctx, occ, seconds: 120);
 
         Assert.True(airborne, "With the setting off the departure must lift off as before");
     }
@@ -191,13 +192,13 @@ public class Issue410RejectedTakeoffTests
         // CTOC below V1 must install the rejected-takeoff braking machinery — not clear the
         // phase list to nothing (the old behavior left the aircraft phase-less mid-runway,
         // decelerating at airborne rates with no terminal state).
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 80);
-        var ctx = Ctx(dep, runway, MakeLuawOccupant(runway, downfieldFt: 11000), autoReject: false);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 80);
+        PhaseContext ctx = Ctx(dep, runway, MakeLuawOccupant(runway, downfieldFt: 11000), autoReject: false);
         dep.Phases!.Start(ctx);
-        var takeoff = Assert.IsType<TakeoffPhase>(dep.Phases.CurrentPhase);
+        TakeoffPhase takeoff = Assert.IsType<TakeoffPhase>(dep.Phases.CurrentPhase);
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(dep, takeoff, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(dep, takeoff, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(dep.Phases);
@@ -220,16 +221,20 @@ public class Issue410RejectedTakeoffTests
         // CTOC at/above V1 is normally refused — but when a blocking occupant ahead cannot be
         // overflown, the pilot accepts the cancellation and rejects anyway (the same predicate
         // as the automatic emergency reject).
-        var runway = Runway28R();
-        var cat = AircraftCategorization.Categorize("B738");
+        RunwayInfo runway = Runway28R();
+        AircraftCategory cat = AircraftCategorization.Categorize("B738");
         double v1 = AircraftPerformance.DecisionSpeed("B738", cat);
-        var dep = MakeRollingDeparture(runway, iasKts: v1 + 2);
-        var occ = MakeLuawOccupant(runway, downfieldFt: 2500);
-        var ctx = Ctx(dep, runway, occ, autoReject: false);
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: v1 + 2);
+        AircraftState occ = MakeLuawOccupant(runway, downfieldFt: 2500);
+        PhaseContext ctx = Ctx(dep, runway, occ, autoReject: false);
         dep.Phases!.Start(ctx);
-        var takeoff = Assert.IsType<TakeoffPhase>(dep.Phases.CurrentPhase);
+        TakeoffPhase takeoff = Assert.IsType<TakeoffPhase>(dep.Phases.CurrentPhase);
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(dep, takeoff, TestDispatch.Context(Random.Shared, listAircraft: () => [dep, occ]));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(
+            dep,
+            takeoff,
+            TestDispatch.Context(Random.Shared, listAircraft: () => [dep, occ])
+        );
 
         Assert.True(result.Success, $"CTOC past V1 with an un-overflyable blocker must be accepted: {result.Message}");
         Assert.NotNull(dep.Phases);
@@ -242,18 +247,18 @@ public class Issue410RejectedTakeoffTests
         // groundspeed V1−3 is already past V1 *indicated* (V1 and Vr are 5 kt apart, so the
         // fixture stays below Vr — a reachable state) — the refusal gate must convert
         // (GroundFrame.IasForGroundSpeed) before comparing, as the rotation gate does.
-        var runway = Runway28R();
-        var cat = AircraftCategorization.Categorize("B738");
+        RunwayInfo runway = Runway28R();
+        AircraftCategory cat = AircraftCategorization.Categorize("B738");
         double v1 = AircraftPerformance.DecisionSpeed("B738", cat);
-        var dep = MakeRollingDeparture(runway, iasKts: v1 - 3);
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: v1 - 3);
         // Runway heading 270 → wind blowing toward east (E=+4) is a 4 kt headwind.
         dep.WindComponents = (0, 4);
         Assert.True(dep.HeadwindKts > 3, $"fixture: expected a headwind, got {dep.HeadwindKts:F1}");
-        var ctx = Ctx(dep, runway, MakeLuawOccupant(runway, downfieldFt: 11000), autoReject: false);
+        PhaseContext ctx = Ctx(dep, runway, MakeLuawOccupant(runway, downfieldFt: 11000), autoReject: false);
         dep.Phases!.Start(ctx);
-        var takeoff = Assert.IsType<TakeoffPhase>(dep.Phases.CurrentPhase);
+        TakeoffPhase takeoff = Assert.IsType<TakeoffPhase>(dep.Phases.CurrentPhase);
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(dep, takeoff, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(dep, takeoff, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success, "Past V1 indicated (groundspeed + headwind) — the abort must be refused");
     }
@@ -269,8 +274,8 @@ public class Issue410RejectedTakeoffTests
         // The physics stays honest — the aircraft rolls past the departure end while braking
         // (AIM 4-3-6.b.4 contemplates exactly that) — and the overrun is surfaced via the
         // Ground flag and an instructor warning.
-        var end = GeoMath.ProjectPoint(37.72, -122.22, new TrueHeading(270), 0.35);
-        var runway = TestRunwayFactory.Make(
+        (double Lat, double Lon) end = GeoMath.ProjectPoint(37.72, -122.22, new TrueHeading(270), 0.35);
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "OAK",
             thresholdLat: 37.72,
@@ -280,11 +285,11 @@ public class Issue410RejectedTakeoffTests
             heading: 270,
             elevationFt: 9
         );
-        var cat = AircraftCategorization.Categorize("B738");
+        AircraftCategory cat = AircraftCategorization.Categorize("B738");
         double v1 = AircraftPerformance.DecisionSpeed("B738", cat);
-        var dep = MakeRollingDeparture(runway, iasKts: v1 + 2);
-        var occ = MakeLuawOccupant(runway, downfieldFt: 1000);
-        var ctx = Ctx(dep, runway, occ, autoReject: true);
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: v1 + 2);
+        AircraftState occ = MakeLuawOccupant(runway, downfieldFt: 1000);
+        PhaseContext ctx = Ctx(dep, runway, occ, autoReject: true);
         dep.Phases!.Start(ctx);
 
         // Capture the braking phase after the trigger fires so its latched state is assertable
@@ -293,9 +298,9 @@ public class Issue410RejectedTakeoffTests
         IntegrateGroundDisplacement(dep);
         PhaseRunner.Tick(dep, ctx);
         IntegrateGroundDisplacement(dep);
-        var reject = Assert.IsType<RejectedTakeoffPhase>(dep.Phases.CurrentPhase);
+        RejectedTakeoffPhase reject = Assert.IsType<RejectedTakeoffPhase>(dep.Phases.CurrentPhase);
 
-        var (airborne, _) = RunRoll(dep, ctx, occ, seconds: 120);
+        (bool airborne, double _) = RunRoll(dep, ctx, occ, seconds: 120);
 
         Assert.False(airborne, "The reject must stick even when the stop runs long");
         Assert.True(dep.IndicatedAirspeed < 1.0, $"Aircraft should eventually stop, IAS={dep.IndicatedAirspeed:F0}");
@@ -312,7 +317,7 @@ public class Issue410RejectedTakeoffTests
     public void BrakingRates_OrderedPerCategory()
     {
         // Rollout (normal ops) < expedite exit (autobrake MAX) < rejected takeoff (max effort).
-        foreach (var cat in new[] { AircraftCategory.Jet, AircraftCategory.Turboprop, AircraftCategory.Piston })
+        foreach (AircraftCategory cat in new[] { AircraftCategory.Jet, AircraftCategory.Turboprop, AircraftCategory.Piston })
         {
             double rollout = CategoryPerformance.RolloutDecelRate(cat);
             double expedite = CategoryPerformance.ExpediteExitDecelRate(cat);
@@ -327,10 +332,10 @@ public class Issue410RejectedTakeoffTests
     [Fact]
     public void RejectedTakeoffPhase_SurvivesSnapshotRoundTrip_MidBraking()
     {
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 80);
-        var occ = MakeLuawOccupant(runway, downfieldFt: 5000);
-        var ctx = Ctx(dep, runway, occ, autoReject: true);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 80);
+        AircraftState occ = MakeLuawOccupant(runway, downfieldFt: 5000);
+        PhaseContext ctx = Ctx(dep, runway, occ, autoReject: true);
         dep.Phases!.Start(ctx);
 
         // Trigger the reject and get a few ticks into the braking.
@@ -339,11 +344,11 @@ public class Issue410RejectedTakeoffTests
             PhaseRunner.Tick(dep, ctx);
         }
 
-        var reject = Assert.IsType<RejectedTakeoffPhase>(dep.Phases.CurrentPhase);
+        RejectedTakeoffPhase reject = Assert.IsType<RejectedTakeoffPhase>(dep.Phases.CurrentPhase);
 
-        var json = System.Text.Json.JsonSerializer.Serialize(reject.ToSnapshot());
-        var dto = System.Text.Json.JsonSerializer.Deserialize<Yaat.Sim.Simulation.Snapshots.PhaseDto>(json);
-        var restoredDto = Assert.IsType<Yaat.Sim.Simulation.Snapshots.RejectedTakeoffPhaseDto>(dto);
+        string json = System.Text.Json.JsonSerializer.Serialize(reject.ToSnapshot());
+        PhaseDto? dto = System.Text.Json.JsonSerializer.Deserialize<Yaat.Sim.Simulation.Snapshots.PhaseDto>(json);
+        RejectedTakeoffPhaseDto restoredDto = Assert.IsType<Yaat.Sim.Simulation.Snapshots.RejectedTakeoffPhaseDto>(dto);
         var restored = RejectedTakeoffPhase.FromSnapshot(restoredDto);
 
         Assert.Equal(reject.Status, restored.Status);
@@ -365,10 +370,10 @@ public class Issue410RejectedTakeoffTests
         // After the reject, the aircraft holds in position ON the runway — a subsequent landing
         // clearance for that runway must draw the existing 3-10-5.e occupied-runway advisory
         // with no new code (HoldingInPositionPhase + pavement containment).
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 0);
-        var occ = MakeLuawOccupant(runway, downfieldFt: 5000);
-        var ctx = Ctx(dep, runway, occ, autoReject: true);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 0);
+        AircraftState occ = MakeLuawOccupant(runway, downfieldFt: 5000);
+        PhaseContext ctx = Ctx(dep, runway, occ, autoReject: true);
         dep.Phases!.Start(ctx);
         RunRoll(dep, ctx, occ, seconds: 120);
         Assert.True(dep.Phases?.CurrentPhase is HoldingInPositionPhase, "fixture: reject should end holding in position");
@@ -419,7 +424,7 @@ public class Issue410RejectedTakeoffTests
         heli.Phases.Add(takeoff);
         heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli));
 
-        var result = DepartureClearanceHandler.TryCancelTakeoff(heli, takeoff, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(heli, takeoff, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"Helicopter CTOC mid-liftoff must be accepted: {result.Message}");
         Assert.NotNull(heli.Phases);

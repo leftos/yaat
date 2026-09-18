@@ -17,7 +17,7 @@ public class GroundShownAirportIdTests
     public void DockedGroundViewSelected_ReturnsAirport()
     {
         // Ground tab is the in-focus docked tab → the ground view is presenting OAK.
-        var result = MainViewModel.ResolveGroundShownAirportId(
+        string? result = MainViewModel.ResolveGroundShownAirportId(
             groundViewPoppedOut: false,
             selectedTabIndex: GroundTab,
             groundTabIndex: GroundTab,
@@ -34,7 +34,7 @@ public class GroundShownAirportIdTests
     public void DockedGroundViewNotInFocus_ReturnsNull(int selectedTabIndex)
     {
         // Ground view docked but another tab is in focus → not shown → bubbles surface on radar.
-        var result = MainViewModel.ResolveGroundShownAirportId(
+        string? result = MainViewModel.ResolveGroundShownAirportId(
             groundViewPoppedOut: false,
             selectedTabIndex,
             groundTabIndex: GroundTab,
@@ -47,7 +47,7 @@ public class GroundShownAirportIdTests
     [Fact]
     public void PoppedOutGroundView_ReturnsAirport_RegardlessOfSelectedTab()
     {
-        var result = MainViewModel.ResolveGroundShownAirportId(
+        string? result = MainViewModel.ResolveGroundShownAirportId(
             groundViewPoppedOut: true,
             selectedTabIndex: 0,
             groundTabIndex: GroundTab,
@@ -62,7 +62,7 @@ public class GroundShownAirportIdTests
     {
         // An extra Ground View window is always visible, so the airport is on screen regardless of which
         // tab the main window shows.
-        var result = MainViewModel.ResolveGroundShownAirportId(
+        string? result = MainViewModel.ResolveGroundShownAirportId(
             groundViewPoppedOut: false,
             selectedTabIndex: 0,
             groundTabIndex: GroundTab,
@@ -75,7 +75,7 @@ public class GroundShownAirportIdTests
     [Fact]
     public void NoLayoutLoaded_ReturnsNull()
     {
-        var result = MainViewModel.ResolveGroundShownAirportId(
+        string? result = MainViewModel.ResolveGroundShownAirportId(
             groundViewPoppedOut: false,
             selectedTabIndex: GroundTab,
             groundTabIndex: GroundTab,

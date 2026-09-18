@@ -74,9 +74,9 @@ public static class NatoNearMissResolver
     public static List<string> Resolve(IReadOnlyList<string> tokens, IReadOnlySet<string> protectedWords)
     {
         var result = new List<string>(tokens.Count);
-        foreach (var token in tokens)
+        foreach (string token in tokens)
         {
-            var rewritten = TryRewrite(token, protectedWords);
+            string? rewritten = TryRewrite(token, protectedWords);
             result.Add(rewritten ?? token);
         }
         return result;
@@ -111,12 +111,12 @@ public static class NatoNearMissResolver
             return null;
         }
 
-        var firstChar = char.ToLowerInvariant(token[0]);
+        char firstChar = char.ToLowerInvariant(token[0]);
         string? bestMatch = null;
-        var bestDistance = int.MaxValue;
-        var ambiguous = false;
+        int bestDistance = int.MaxValue;
+        bool ambiguous = false;
 
-        foreach (var nato in NatoWords)
+        foreach (string nato in NatoWords)
         {
             if (nato[0] != firstChar)
             {
@@ -127,7 +127,7 @@ public static class NatoNearMissResolver
                 continue;
             }
 
-            var dist = LevenshteinBounded(token, nato, maxDistance: 1);
+            int dist = LevenshteinBounded(token, nato, maxDistance: 1);
             if (dist > 1)
             {
                 continue;
@@ -170,23 +170,23 @@ public static class NatoNearMissResolver
         }
 
         // Single-row dynamic programming — O(min(|a|, |b|)) space.
-        var prev = new int[b.Length + 1];
-        var curr = new int[b.Length + 1];
-        for (var j = 0; j <= b.Length; j++)
+        int[] prev = new int[b.Length + 1];
+        int[] curr = new int[b.Length + 1];
+        for (int j = 0; j <= b.Length; j++)
         {
             prev[j] = j;
         }
 
-        for (var i = 1; i <= a.Length; i++)
+        for (int i = 1; i <= a.Length; i++)
         {
             curr[0] = i;
-            var rowMin = curr[0];
-            for (var j = 1; j <= b.Length; j++)
+            int rowMin = curr[0];
+            for (int j = 1; j <= b.Length; j++)
             {
-                var cost = char.ToLowerInvariant(a[i - 1]) == char.ToLowerInvariant(b[j - 1]) ? 0 : 1;
-                var del = prev[j] + 1;
-                var ins = curr[j - 1] + 1;
-                var sub = prev[j - 1] + cost;
+                int cost = char.ToLowerInvariant(a[i - 1]) == char.ToLowerInvariant(b[j - 1]) ? 0 : 1;
+                int del = prev[j] + 1;
+                int ins = curr[j - 1] + 1;
+                int sub = prev[j - 1] + cost;
                 curr[j] = Math.Min(Math.Min(del, ins), sub);
                 if (curr[j] < rowMin)
                 {
@@ -208,9 +208,9 @@ public static class NatoNearMissResolver
     private static HashSet<string> BuildRuleLiterals()
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var rule in PhraseologyRules.All)
+        foreach (PhraseologyRule rule in PhraseologyRules.All)
         {
-            foreach (var token in rule.Pattern)
+            foreach (string token in rule.Pattern)
             {
                 // Skip capture groups — they're placeholders, not vocabulary words.
                 if (token.StartsWith('{') && token.EndsWith('}'))
@@ -218,7 +218,7 @@ public static class NatoNearMissResolver
                     continue;
                 }
                 // Strip the optional-marker suffix so "and?" protects "and".
-                var literal = token.EndsWith('?') ? token[..^1] : token;
+                string literal = token.EndsWith('?') ? token[..^1] : token;
                 if (literal.Length > 0)
                 {
                     set.Add(literal);

@@ -28,11 +28,11 @@ public sealed class FlightPhysicsDescentPlanningTests
     /// </summary>
     private static AircraftState MakeArrivalCrossingFix()
     {
-        var fix = NavigationDatabase.Instance.GetFixPosition(FixName);
+        (double Lat, double Lon)? fix = NavigationDatabase.Instance.GetFixPosition(FixName);
         Assert.NotNull(fix);
 
         var fixPosition = new LatLon(fix.Value.Lat, fix.Value.Lon);
-        var start = GeoMath.ProjectPoint(fixPosition, new TrueHeading(20), StartDistanceNm);
+        LatLon start = GeoMath.ProjectPoint(fixPosition, new TrueHeading(20), StartDistanceNm);
         var inbound = new TrueHeading(GeoMath.BearingTo(start, fixPosition));
 
         var aircraft = new AircraftState
@@ -84,7 +84,7 @@ public sealed class FlightPhysicsDescentPlanningTests
     [Fact]
     public void CrossingRestrictionFarOut_DescendsAtTheComputedGentleRate()
     {
-        var aircraft = MakeArrivalCrossingFix();
+        AircraftState aircraft = MakeArrivalCrossingFix();
 
         Tick(aircraft, 5);
 
@@ -100,7 +100,7 @@ public sealed class FlightPhysicsDescentPlanningTests
     [Fact]
     public void VectorThatDropsTheRoute_ReturnsToTheProfileDescentRate()
     {
-        var aircraft = MakeArrivalCrossingFix();
+        AircraftState aircraft = MakeArrivalCrossingFix();
 
         Tick(aircraft, 5);
         VectorOffTheRoute(aircraft);
@@ -117,7 +117,7 @@ public sealed class FlightPhysicsDescentPlanningTests
     [Fact]
     public void ExpediteAfterTheVector_ScalesTheProfileRate()
     {
-        var aircraft = MakeArrivalCrossingFix();
+        AircraftState aircraft = MakeArrivalCrossingFix();
 
         Tick(aircraft, 5);
         VectorOffTheRoute(aircraft);
@@ -142,7 +142,7 @@ public sealed class FlightPhysicsDescentPlanningTests
     [Fact]
     public void PhaseCommandedRate_StillWinsOverThePlanner()
     {
-        var aircraft = MakeArrivalCrossingFix();
+        AircraftState aircraft = MakeArrivalCrossingFix();
         aircraft.Targets.DesiredVerticalRate = -500;
 
         Tick(aircraft, 3);

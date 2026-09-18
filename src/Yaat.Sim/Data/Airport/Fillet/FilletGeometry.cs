@@ -15,11 +15,11 @@ public static class FilletGeometry
         {
             if (edge.Nodes[0].Id == intersection.Id)
             {
-                var pt = edge.IntermediatePoints[0];
+                (double Lat, double Lon) pt = edge.IntermediatePoints[0];
                 return GeoMath.BearingTo(intersection.Position, new LatLon(pt.Lat, pt.Lon));
             }
 
-            var ptLast = edge.IntermediatePoints[^1];
+            (double Lat, double Lon) ptLast = edge.IntermediatePoints[^1];
             return GeoMath.BearingTo(intersection.Position, new LatLon(ptLast.Lat, ptLast.Lon));
         }
 
@@ -129,8 +129,8 @@ public static class FilletGeometry
 
         // Control points pull the curve toward the junction (into the corner), so they project
         // along the from-tangent bearing — not back out along the arm toward the remote node.
-        var (p1Lat, p1Lon) = GeoMath.ProjectPointRaw(tanA.Lat, tanA.Lon, bearingAFromTangent, depthA);
-        var (p2Lat, p2Lon) = GeoMath.ProjectPointRaw(tanB.Lat, tanB.Lon, bearingBFromTangent, depthB);
+        (double p1Lat, double p1Lon) = GeoMath.ProjectPointRaw(tanA.Lat, tanA.Lon, bearingAFromTangent, depthA);
+        (double p2Lat, double p2Lon) = GeoMath.ProjectPointRaw(tanB.Lat, tanB.Lon, bearingBFromTangent, depthB);
 
         var bezier = new CubicBezier(tanA.Lat, tanA.Lon, p1Lat, p1Lon, p2Lat, p2Lon, tanB.Lat, tanB.Lon);
         return new BezierBuildResult(

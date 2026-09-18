@@ -32,24 +32,24 @@ public static partial class CrcAliasFileParser
     public static List<CrcAlias> Parse(IEnumerable<string> lines, string sourceFile)
     {
         var aliases = new List<CrcAlias>();
-        var lineNumber = 0;
+        int lineNumber = 0;
 
-        foreach (var rawLine in lines)
+        foreach (string rawLine in lines)
         {
             lineNumber++;
-            var line = rawLine.Trim();
+            string line = rawLine.Trim();
             if (line.Length < MinimumLineLength || !line.StartsWith('.'))
             {
                 continue;
             }
 
-            var match = DefinitionRegex.Match(line);
+            Match match = DefinitionRegex.Match(line);
             if (!match.Success)
             {
                 continue;
             }
 
-            var body = match.Groups[2].Value;
+            string body = match.Groups[2].Value;
             aliases.Add(new CrcAlias(match.Groups[1].Value, Tokenize(body), CountArguments(body), sourceFile, lineNumber));
         }
 
@@ -63,7 +63,7 @@ public static partial class CrcAliasFileParser
     /// </summary>
     private static int CountArguments(string body)
     {
-        var count = 0;
+        int count = 0;
         while (body.Contains($"${count + 1}", StringComparison.Ordinal))
         {
             count++;

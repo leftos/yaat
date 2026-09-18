@@ -19,8 +19,8 @@ public static class MilitaryRouteCommandHandler
     /// </summary>
     internal static CommandResult DispatchClearedInto(ClearedIntoMilitaryRouteCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        var navDb = NavigationDatabase.Instance;
-        var route = navDb.GetMilitaryRoute(cmd.Designator);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        MilitaryRoute? route = navDb.GetMilitaryRoute(cmd.Designator);
         if (route is null)
         {
             return new CommandResult(false, $"Unknown military route: {cmd.Designator}");
@@ -43,12 +43,12 @@ public static class MilitaryRouteCommandHandler
         }
 
         var pointNames = route.Points.Skip(joinIndex).Select(p => p.Name).ToList();
-        var exitPointId = route.ExitPoints.Count > 0 ? route.ExitPoints[0] : route.Points[^1].Id;
+        string exitPointId = route.ExitPoints.Count > 0 ? route.ExitPoints[0] : route.Points[^1].Id;
 
         // Populated here rather than left to the phase's OnStart: a phase does not start until the
         // next tick, and the clearance has to be readable the moment the command is accepted — for
         // the readback, the strip, and any command issued in the same compound.
-        var state = aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = aircraft.MilitaryRoute;
         state.Clear();
         state.Designator = route.Designator;
         state.Kind = route.Type;
@@ -126,7 +126,7 @@ public static class MilitaryRouteCommandHandler
     /// </summary>
     internal static CommandResult DispatchClearedToConductRefueling(ClearedToConductRefuelingCommand cmd, AircraftState aircraft)
     {
-        var route = NavigationDatabase.Instance.GetMilitaryRoute(cmd.Designator);
+        MilitaryRoute? route = NavigationDatabase.Instance.GetMilitaryRoute(cmd.Designator);
         if (route is null)
         {
             return new CommandResult(false, $"Unknown aerial refueling track: {cmd.Designator}");
@@ -142,17 +142,17 @@ public static class MilitaryRouteCommandHandler
             return DispatchAnchor(cmd, aircraft, route);
         }
 
-        var selection = SelectVariantForAircraft(aircraft, route);
+        (MilitaryRouteVariant Variant, int JoinIndex)? selection = SelectVariantForAircraft(aircraft, route);
         if (selection is not { } chosen)
         {
             return new CommandResult(false, $"Unable, the aircraft is past the exit of every published direction of {route.Printed}");
         }
 
-        var (variant, joinIndex) = chosen;
+        (MilitaryRouteVariant? variant, int joinIndex) = chosen;
         var pointNames = variant.Points.Skip(joinIndex).Select(p => p.Name).ToList();
-        var exitPointId = variant.ExitPoints.Count > 0 ? variant.ExitPoints[0] : variant.Points[^1].Id;
+        string exitPointId = variant.ExitPoints.Count > 0 ? variant.ExitPoints[0] : variant.Points[^1].Id;
 
-        var state = aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = aircraft.MilitaryRoute;
         state.Clear();
         state.Designator = route.Designator;
         state.Kind = route.Type;
@@ -184,13 +184,13 @@ public static class MilitaryRouteCommandHandler
 
         aircraft.Targets.AssignedMagneticHeading = null;
 
-        var along = $"Cleared to conduct refueling along {route.Designator} track";
+        string along = $"Cleared to conduct refueling along {route.Designator} track";
         if (cmd.BlockFloorFt is { } floor && cmd.BlockCeilingFt is { } ceiling)
         {
             return CommandDispatcher.Ok($"{along}, maintain block {floor:N0} through {ceiling:N0}");
         }
 
-        var published = route.RouteAltitude;
+        MilitaryRouteAltitude published = route.RouteAltitude;
         return published is { FloorFt: { } low, CeilingFt: { } high }
             ? CommandDispatcher.Ok($"{along}, maintain block {low:N0} through {high:N0}")
             : CommandDispatcher.Ok(along);
@@ -205,7 +205,7 @@ public static class MilitaryRouteCommandHandler
     /// </summary>
     private static CommandResult DispatchAnchor(ClearedToConductRefuelingCommand cmd, AircraftState aircraft, MilitaryRoute route)
     {
-        var variant = SelectAnchorVariant(aircraft, route);
+        MilitaryRouteVariant? variant = SelectAnchorVariant(aircraft, route);
         if (variant is null)
         {
             return new CommandResult(false, $"Unable, {route.Printed} publishes no usable anchor geometry");
@@ -218,9 +218,9 @@ public static class MilitaryRouteCommandHandler
             return new CommandResult(false, $"Unable, {route.Printed} publishes no orbit pattern");
         }
 
-        var anchorPoint = variant.Points.FirstOrDefault(p => p.Role == MilitaryRoutePointRole.AnchorPoint);
+        MilitaryRoutePoint? anchorPoint = variant.Points.FirstOrDefault(p => p.Role == MilitaryRoutePointRole.AnchorPoint);
 
-        var state = aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = aircraft.MilitaryRoute;
         state.Clear();
         state.Designator = route.Designator;
         state.Kind = route.Type;
@@ -246,7 +246,7 @@ public static class MilitaryRouteCommandHandler
 
         aircraft.Targets.AssignedMagneticHeading = null;
 
-        var along = $"Cleared to conduct refueling in the {route.Designator} anchor";
+        string along = $"Cleared to conduct refueling in the {route.Designator} anchor";
         double? floor = cmd.BlockFloorFt ?? route.RouteAltitude.FloorFt;
         double? ceiling = cmd.BlockCeilingFt ?? route.RouteAltitude.CeilingFt;
         return floor is { } low && ceiling is { } high
@@ -259,14 +259,14 @@ public static class MilitaryRouteCommandHandler
     {
         MilitaryRouteVariant? best = null;
         double bestDistance = double.MaxValue;
-        foreach (var variant in route.Variants)
+        foreach (MilitaryRouteVariant variant in route.Variants)
         {
             if (variant.Points.Count == 0)
             {
                 continue;
             }
 
-            var entry = variant.Points[0].Position;
+            LatLon entry = variant.Points[0].Position;
             double distance = GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, entry.Lat, entry.Lon);
             if (distance < bestDistance)
             {
@@ -281,7 +281,7 @@ public static class MilitaryRouteCommandHandler
     /// <summary>§9-2-6.a "MAINTAIN IR (designator) ALTITUDE(S)".</summary>
     internal static CommandResult DispatchMaintainRouteAltitudes(AircraftState aircraft)
     {
-        var state = aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = aircraft.MilitaryRoute;
         if (!state.IsActive || state.Designator is null)
         {
             return new CommandResult(false, "Not established on a military training route");
@@ -300,14 +300,14 @@ public static class MilitaryRouteCommandHandler
     /// </summary>
     internal static CommandResult DispatchClearedOutOf(ClearedOutOfMilitaryRouteCommand cmd, AircraftState aircraft)
     {
-        var state = aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = aircraft.MilitaryRoute;
         if (state.Designator is null)
         {
             return new CommandResult(false, "Not on a military training route");
         }
 
-        var designator = state.Designator;
-        var exitPoint = state.ExitPointId;
+        string designator = state.Designator;
+        string? exitPoint = state.ExitPointId;
         state.Status = MilitaryRouteStatus.Exited;
 
         // Clear() rather than nulling Phases: AircraftState.Phases is a plain property, so dropping
@@ -335,19 +335,19 @@ public static class MilitaryRouteCommandHandler
             aircraft.Targets.TargetAltitude = altitude;
         }
 
-        var via = cmd.Route is null ? "" : $" via {cmd.Route}";
-        var maintain = cmd.AltitudeFt is { } assigned ? $", maintain {assigned:N0}" : "";
-        var from = exitPoint is null ? designator : $"{designator} {exitPoint}";
+        string via = cmd.Route is null ? "" : $" via {cmd.Route}";
+        string maintain = cmd.AltitudeFt is { } assigned ? $", maintain {assigned:N0}" : "";
+        string from = exitPoint is null ? designator : $"{designator} {exitPoint}";
         return CommandDispatcher.Ok($"Cleared to {cmd.Destination} from {from}{via}{maintain}");
     }
 
     private static void LoadRouteOfFlight(AircraftState aircraft, string route)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         aircraft.Targets.NavigationRoute.Clear();
-        foreach (var name in navDb.ExpandRouteForNavigation(route, aircraft.FlightPlan.Departure))
+        foreach (string name in navDb.ExpandRouteForNavigation(route, aircraft.FlightPlan.Departure))
         {
-            var position = navDb.ResolveFixOrFrd(name);
+            (double Lat, double Lon)? position = navDb.ResolveFixOrFrd(name);
             if (position is not null)
             {
                 aircraft.Targets.NavigationRoute.Add(
@@ -395,7 +395,7 @@ public static class MilitaryRouteCommandHandler
         double best = double.MaxValue;
         for (int i = 0; i < points.Count; i++)
         {
-            var point = points[i].Position;
+            LatLon point = points[i].Position;
             double distance = GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, point.Lat, point.Lon);
             if (distance < best)
             {
@@ -451,7 +451,7 @@ public static class MilitaryRouteCommandHandler
         (MilitaryRouteVariant Variant, int JoinIndex)? best = null;
         double bestDistance = double.MaxValue;
 
-        foreach (var variant in route.Variants)
+        foreach (MilitaryRouteVariant variant in route.Variants)
         {
             int joinIndex = FindJoinIndex(aircraft, variant.Points, variant.EntryPoints);
             if (joinIndex < 0)
@@ -459,7 +459,7 @@ public static class MilitaryRouteCommandHandler
                 continue;
             }
 
-            var join = variant.Points[joinIndex].Position;
+            LatLon join = variant.Points[joinIndex].Position;
             double distance = GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, join.Lat, join.Lon);
             if (distance < bestDistance)
             {
@@ -522,7 +522,7 @@ public static class MilitaryRouteCommandHandler
 
         for (int i = joinIndex; i < route.Points.Count; i++)
         {
-            var block = route.Points[i].Altitude;
+            MilitaryRouteAltitude block = route.Points[i].Altitude;
             if (block.FloorReference == AltitudeReference.Msl && block.FloorFt is { } floor && assigned < floor)
             {
                 aircraft.PendingWarnings.Add($"{assigned:N0} is below {route.Printed}'s published floor of {floor:N0} at point {route.Points[i].Id}");

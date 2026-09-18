@@ -22,7 +22,7 @@ public static class MeasureEndpointResolver
         Func<string, LatLon?>? resolveFix
     )
     {
-        var (match, outcome, candidates) = CallsignMatcher.Match(token, aircraft);
+        (AircraftModel? match, CallsignMatcher.Outcome outcome, IReadOnlyList<AircraftModel>? candidates) = CallsignMatcher.Match(token, aircraft);
         if (outcome == CallsignMatcher.Outcome.Exact)
         {
             return (RblEndpoint.OnAircraft(match!.Callsign), null);

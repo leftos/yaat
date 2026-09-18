@@ -37,7 +37,7 @@ public static partial class CrcAliasVariables
 
     public static string Substitute(string text, CrcAliasContext context)
     {
-        var withSimple = SimpleVariableRegex.Replace(text, match => ResolveSimple(match.Groups[1].Value, context) ?? match.Value);
+        string withSimple = SimpleVariableRegex.Replace(text, match => ResolveSimple(match.Groups[1].Value, context) ?? match.Value);
         return FunctionVariableRegex.Replace(withSimple, match => ResolveFunction(match.Groups[1].Value, match.Groups[2].Value) ?? match.Value);
     }
 

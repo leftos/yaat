@@ -25,7 +25,7 @@ public class AmendFlightPlanBeaconTests(ITestOutputHelper output)
     [Fact]
     public void ExplicitBeaconAmend_SetsAssignedCodeOnly_LeavesSquawkUntouched()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         var ac = new AircraftState
         {
             Callsign = "N342T",
@@ -58,7 +58,7 @@ public class AmendFlightPlanBeaconTests(ITestOutputHelper output)
             )
         );
 
-        var amended = engine.FindAircraft("N342T");
+        AircraftState? amended = engine.FindAircraft("N342T");
         Assert.NotNull(amended);
         Assert.Equal(4304u, amended.Transponder.AssignedCode);
         Assert.Equal(1200u, amended.Transponder.Code);

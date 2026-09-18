@@ -10,17 +10,17 @@ public class CommandParserCompletenessTests(ITestOutputHelper output)
     {
         var unsupported = new List<(string Alias, CanonicalCommandType Type)>();
 
-        foreach (var (alias, type) in CommandRegistry.AliasToCanonicType)
+        foreach ((string? alias, CanonicalCommandType type) in CommandRegistry.AliasToCanonicType)
         {
             // Parse with just the alias (no arg) — should produce something or null for arg-required verbs
-            var result = CommandParser.Parse(alias);
+            ParseResult<ParsedCommand> result = CommandParser.Parse(alias);
             if (result.Value is UnsupportedCommand)
             {
                 unsupported.Add((alias, type));
             }
         }
 
-        foreach (var (alias, type) in unsupported)
+        foreach ((string? alias, CanonicalCommandType type) in unsupported)
         {
             output.WriteLine($"UnsupportedCommand: {alias} → {type}");
         }
@@ -36,9 +36,9 @@ public class CommandParserCompletenessTests(ITestOutputHelper output)
     {
         var missing = new List<CanonicalCommandType>();
 
-        foreach (var def in CommandRegistry.All.Values)
+        foreach (CommandDefinition def in CommandRegistry.All.Values)
         {
-            var primaryAlias = def.DefaultAliases[0];
+            string primaryAlias = def.DefaultAliases[0];
             if (!CommandRegistry.AliasToCanonicType.ContainsKey(primaryAlias))
             {
                 missing.Add(def.Type);

@@ -52,9 +52,9 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
     public void Corpus_RoutesExactlyAsTheCensusRecords()
     {
         var census = new List<FixtureCensus>();
-        foreach (var path in Directory.GetFiles(TestDataDir, "*.zip").OrderBy(p => Path.GetFileName(p), StringComparer.Ordinal))
+        foreach (string? path in Directory.GetFiles(TestDataDir, "*.zip").OrderBy(p => Path.GetFileName(p), StringComparer.Ordinal))
         {
-            var entry = Census(path);
+            FixtureCensus? entry = Census(path);
             if (entry is not null)
             {
                 census.Add(entry);
@@ -81,9 +81,9 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
 
         var expectedByFile = (JsonSerializer.Deserialize<List<FixtureCensus>>(expected, FileOptions) ?? []).ToDictionary(c => c.File);
         var changed = new List<string>();
-        foreach (var entry in census)
+        foreach (FixtureCensus entry in census)
         {
-            if (!expectedByFile.TryGetValue(entry.File, out var was))
+            if (!expectedByFile.TryGetValue(entry.File, out FixtureCensus? was))
             {
                 changed.Add($"{entry.File}: new fixture");
             }
@@ -93,7 +93,7 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
             }
         }
 
-        foreach (var gone in expectedByFile.Keys.Except(census.Select(c => c.File)))
+        foreach (string? gone in expectedByFile.Keys.Except(census.Select(c => c.File)))
         {
             changed.Add($"{gone}: fixture removed");
         }
@@ -133,14 +133,14 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
         int reactionDelayed = 0;
         int asPrefixed = 0;
         bool solo = false;
-        foreach (var action in recording.Actions)
+        foreach (RecordedAction action in recording.Actions)
         {
             switch (action)
             {
                 case RecordedCommand cmd:
                     commands++;
-                    var (remainder, asTcp) = TrackResolver.ExtractAsPrefix(cmd.Command);
-                    var classification = RecordedCommandClassifier.Classify(remainder);
+                    (string? remainder, string? asTcp) = TrackResolver.ExtractAsPrefix(cmd.Command);
+                    RecordedCommandClassifier.Classification classification = RecordedCommandClassifier.Classify(remainder);
                     byKind[classification.Kind.ToString()] = byKind.GetValueOrDefault(classification.Kind.ToString()) + 1;
                     // The single-command parser rejects every multi-verb chain by design; only a body the compound
                     // parser rejects too is text the current grammar no longer accepts.
@@ -160,7 +160,7 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
                     }
 
                     break;
-                case RecordedSettingChange { Setting: "SoloTrainingMode" } setting when bool.TryParse(setting.Value, out var on) && on:
+                case RecordedSettingChange { Setting: "SoloTrainingMode" } setting when bool.TryParse(setting.Value, out bool on) && on:
                     solo = true;
                     break;
             }

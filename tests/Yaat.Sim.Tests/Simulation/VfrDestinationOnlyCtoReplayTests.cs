@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -46,15 +47,15 @@ public class VfrDestinationOnlyCtoReplayTests(ITestOutputHelper output)
     [Fact]
     public void N346G_CtoFromTaxi_VfrDestinationOnly_ClearsForTakeoffFromPhysicalRunway()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, PreWorkaroundTime);
-        var ac = engine.FindAircraft("N346G");
+        AircraftState? ac = engine.FindAircraft("N346G");
         Assert.NotNull(ac);
 
         // Confirm we are replaying the reported condition, not the KOAK workaround.
@@ -70,7 +71,7 @@ public class VfrDestinationOnlyCtoReplayTests(ITestOutputHelper output)
 
         // The reported symptom: CTO rejected with "Cannot resolve runway 28R" because the
         // runway lookup went to the filed destination (KAPC) instead of OAK.
-        var result = engine.SendCommand("N346G", "CTO MRC 020");
+        CommandResult result = engine.SendCommand("N346G", "CTO MRC 020");
         Assert.True(result.Success, $"CTO should clear the aircraft from OAK 28R, but failed: {result.Message}");
 
         ac = engine.FindAircraft("N346G");

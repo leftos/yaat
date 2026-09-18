@@ -22,8 +22,8 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void ApplyAutoTrackConditions(LoadedAircraft loaded)
     {
-        var scenario = Scenario!;
-        var messages = loaded.AutoTrackMessages;
+        SimScenarioState scenario = Scenario!;
+        List<string> messages = loaded.AutoTrackMessages;
 
         if (
             loaded.State.Track.Owner is null
@@ -31,16 +31,16 @@ public sealed partial class SimulationEngine
             && !string.IsNullOrEmpty(loaded.State.FlightPlan.Departure)
         )
         {
-            foreach (var atcPos in scenario.AtcPositions)
+            foreach (ResolvedAtcPosition atcPos in scenario.AtcPositions)
             {
                 if (atcPos.Source.AutoTrackAirportIds.Count == 0)
                 {
                     continue;
                 }
 
-                var dep = loaded.State.FlightPlan.Departure;
+                string dep = loaded.State.FlightPlan.Departure;
                 string? matchedAirportId = null;
-                foreach (var airportId in atcPos.Source.AutoTrackAirportIds)
+                foreach (string airportId in atcPos.Source.AutoTrackAirportIds)
                 {
                     if (NavigationDatabase.Instance.AirportIdsMatchResolved(dep, airportId))
                     {
@@ -62,7 +62,7 @@ public sealed partial class SimulationEngine
 
         ScratchpadRuleEngine.Apply(loaded.State, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
 
-        var autoTrack = loaded.AutoTrackConditions;
+        AutoTrackConditions? autoTrack = loaded.AutoTrackConditions;
         if (autoTrack is null)
         {
             return;
@@ -72,7 +72,7 @@ public sealed partial class SimulationEngine
         // ARTCC ("ZLC starts with the track") resolves against its own facility tree. Falling
         // back to the scenario's own ARTCC covers positions not listed in the roster (e.g.
         // generator autoTrackConfiguration in scenarios with an empty atc array).
-        var owner =
+        TrackOwner? owner =
             scenario.AtcPositions.FirstOrDefault(p => p.Source.PositionId == autoTrack.PositionId)?.Owner
             ?? scenario.ArtccConfig?.ResolvePosition(autoTrack.PositionId);
 
@@ -94,11 +94,11 @@ public sealed partial class SimulationEngine
 
         if (autoTrack.HandoffDelay is not null && scenario.StudentPosition is not null)
         {
-            var targetLabel = TrackEngine.FormatOwner(scenario.StudentPosition);
+            string targetLabel = TrackEngine.FormatOwner(scenario.StudentPosition);
             // Always queue autotrack handoffs — don't set HandoffPeer immediately.
             // TickDelayedHandoffs will fire them once the target position is online.
-            var spawnAt = loaded.SpawnDelaySeconds;
-            var fireAt = autoTrack.HandoffDelay == 0 ? Math.Max((int)scenario.ElapsedSeconds, spawnAt) : spawnAt + autoTrack.HandoffDelay.Value;
+            int spawnAt = loaded.SpawnDelaySeconds;
+            int fireAt = autoTrack.HandoffDelay == 0 ? Math.Max((int)scenario.ElapsedSeconds, spawnAt) : spawnAt + autoTrack.HandoffDelay.Value;
             scenario.DelayedHandoffQueue.Add(
                 new DelayedHandoff
                 {
@@ -116,11 +116,11 @@ public sealed partial class SimulationEngine
         {
             // ATCTrainer convention: '+' prefix means SP2, bare value means SP1.
             // Supports space-separated values, e.g. "FOO +RGT" → SP1=FOO, SP2=RGT.
-            foreach (var token in autoTrack.ScratchPad.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            foreach (string token in autoTrack.ScratchPad.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
                 if (token.StartsWith('+'))
                 {
-                    var sp2Value = token[1..];
+                    string sp2Value = token[1..];
                     loaded.State.Stars.Scratchpad2 = sp2Value;
                     messages.Add($"[AutoTrack] SP2 set: {sp2Value}");
                 }
@@ -139,8 +139,8 @@ public sealed partial class SimulationEngine
         // ERAM field B. The STARS datablock is deliberately NOT populated from these fields: whether and
         // how non-ERAM (STARS) scenarios use interim/cleared altitudes is still being confirmed with
         // VATUSA staff, so we leave Stars.TemporaryAltitude untouched until that guidance lands.
-        var interimHundreds = ResolveDatablockAltitudeHundreds(autoTrack.InterimAltitude);
-        var clearedHundreds = ResolveDatablockAltitudeHundreds(autoTrack.ClearedAltitude);
+        int? interimHundreds = ResolveDatablockAltitudeHundreds(autoTrack.InterimAltitude);
+        int? clearedHundreds = ResolveDatablockAltitudeHundreds(autoTrack.ClearedAltitude);
         if (interimHundreds is not null)
         {
             loaded.State.Eram.InterimAltitude = interimHundreds;
@@ -168,13 +168,13 @@ public sealed partial class SimulationEngine
             return null;
         }
 
-        var token = raw.Trim();
+        string token = raw.Trim();
         if (!char.IsDigit(token[0]))
         {
             token = token[1..];
         }
 
-        var feet = AltitudeResolver.Resolve(token);
+        int? feet = AltitudeResolver.Resolve(token);
         return feet is null ? null : feet.Value / 100;
     }
 
@@ -192,14 +192,14 @@ public sealed partial class SimulationEngine
             return ActionRefusals.NoScenario();
         }
 
-        var atcPos = ResolveAutoTrackPosition(scenario, change.PositionId);
+        ResolvedAtcPosition? atcPos = ResolveAutoTrackPosition(scenario, change.PositionId);
         if (atcPos is null)
         {
             return new CommandResult(false, $"Could not resolve position {change.PositionId} for .AUTOTRACK");
         }
 
-        var stolen = ApplyAutoTrackDelta(scenario, atcPos, change.Entries);
-        var airports = atcPos.Source.AutoTrackAirportIds;
+        List<(string AirportId, TrackOwner FormerOwner)> stolen = ApplyAutoTrackDelta(scenario, atcPos, change.Entries);
+        List<string> airports = atcPos.Source.AutoTrackAirportIds;
 
         _logger.LogInformation(
             "Auto-track airports for {PositionId} ({Owner}): [{Airports}]",
@@ -208,7 +208,7 @@ public sealed partial class SimulationEngine
             string.Join(", ", airports)
         );
 
-        foreach (var (airportId, formerOwner) in stolen)
+        foreach ((string? airportId, TrackOwner? formerOwner) in stolen)
         {
             _logger.LogInformation(
                 "[AutoTrack] {Owner} took {Airport} from {FormerOwner}",
@@ -243,7 +243,7 @@ public sealed partial class SimulationEngine
             return existing;
         }
 
-        var owner = scenario.ArtccConfig?.ResolvePosition(positionId);
+        TrackOwner? owner = scenario.ArtccConfig?.ResolvePosition(positionId);
         if (owner is null)
         {
             _logger.LogWarning("[AutoTrack] could not resolve position {PositionId} in {ArtccId}", positionId, scenario.ArtccId ?? "");
@@ -267,9 +267,9 @@ public sealed partial class SimulationEngine
     /// </summary>
     private void ClaimUntrackedDepartures(SimScenarioState scenario, ResolvedAtcPosition atcPos)
     {
-        var starsConfig = scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? "");
+        StarsConfig? starsConfig = scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? "");
 
-        foreach (var ac in World.GetSnapshot())
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             if (ac.Track.Owner is not null || ac.IsOnGround || string.IsNullOrEmpty(ac.FlightPlan.Departure))
             {
@@ -282,9 +282,9 @@ public sealed partial class SimulationEngine
 
     private void ClaimIfDepartureMatches(AircraftState ac, ResolvedAtcPosition atcPos, StarsConfig? starsConfig)
     {
-        var dep = ac.FlightPlan.Departure;
+        string dep = ac.FlightPlan.Departure;
 
-        foreach (var airportId in atcPos.Source.AutoTrackAirportIds)
+        foreach (string airportId in atcPos.Source.AutoTrackAirportIds)
         {
             if (!NavigationDatabase.Instance.AirportIdsMatchResolved(dep, airportId))
             {
@@ -318,14 +318,14 @@ public sealed partial class SimulationEngine
     {
         var stolen = new List<(string AirportId, TrackOwner FormerOwner)>();
 
-        foreach (var raw in entries)
+        foreach (string raw in entries)
         {
             if (string.IsNullOrWhiteSpace(raw))
             {
                 continue;
             }
 
-            var entry = raw.Trim();
+            string entry = raw.Trim();
 
             if (string.Equals(entry, "none", StringComparison.OrdinalIgnoreCase))
             {
@@ -358,7 +358,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        foreach (var p in scenario.AtcPositions)
+        foreach (ResolvedAtcPosition p in scenario.AtcPositions)
         {
             p.Source.AutoTrackAirportIds.RemoveAll(a => string.Equals(a, airportId, StringComparison.OrdinalIgnoreCase));
         }
@@ -376,7 +376,7 @@ public sealed partial class SimulationEngine
         List<(string AirportId, TrackOwner FormerOwner)> stolen
     )
     {
-        foreach (var p in scenario.AtcPositions)
+        foreach (ResolvedAtcPosition p in scenario.AtcPositions)
         {
             if (ReferenceEquals(p, atcPos))
             {
@@ -407,9 +407,9 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var snapshot = World.GetSnapshot();
+        List<AircraftState> snapshot = World.GetSnapshot();
 
-        foreach (var ac in snapshot)
+        foreach (AircraftState ac in snapshot)
         {
             if (
                 ac.Track.Owner is not null
@@ -420,8 +420,8 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            var dep = ac.FlightPlan.Departure;
-            foreach (var atcPos in scenario.AtcPositions)
+            string dep = ac.FlightPlan.Departure;
+            foreach (ResolvedAtcPosition atcPos in scenario.AtcPositions)
             {
                 if (atcPos.Source.AutoTrackAirportIds.Count == 0)
                 {
@@ -429,7 +429,7 @@ public sealed partial class SimulationEngine
                 }
 
                 string? matchedAirportId = null;
-                foreach (var airportId in atcPos.Source.AutoTrackAirportIds)
+                foreach (string airportId in atcPos.Source.AutoTrackAirportIds)
                 {
                     if (NavigationDatabase.Instance.AirportIdsMatchResolved(dep, airportId))
                     {
@@ -473,16 +473,16 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var snapshot = World.GetSnapshot();
+        List<AircraftState> snapshot = World.GetSnapshot();
 
-        foreach (var ac in snapshot)
+        foreach (AircraftState ac in snapshot)
         {
             if (ac.Track.Owner is not null)
             {
                 continue;
             }
 
-            var creator = ac.FlightPlan.CreatedByOwner;
+            TrackOwner? creator = ac.FlightPlan.CreatedByOwner;
             if (creator is null)
             {
                 continue;
@@ -515,7 +515,7 @@ public sealed partial class SimulationEngine
 
         for (int i = scenario.DelayedHandoffQueue.Count - 1; i >= 0; i--)
         {
-            var entry = scenario.DelayedHandoffQueue[i];
+            DelayedHandoff entry = scenario.DelayedHandoffQueue[i];
             if (scenario.ElapsedSeconds < entry.FireAtSeconds)
             {
                 continue;
@@ -526,10 +526,10 @@ public sealed partial class SimulationEngine
             // isn't active), 3G already owns those tracks — a handoff to 3O
             // would be a handoff to yourself. Once 3O activates and is no longer
             // consolidated under 3G, the handoff makes sense.
-            var targetTcp = TrackResolver.FindTcpForOwner(entry.Target, scenario);
+            Tcp? targetTcp = TrackResolver.FindTcpForOwner(entry.Target, scenario);
             if (targetTcp is not null)
             {
-                var consolidationOwner = Attendance.ConsolidationOwnerOf(targetTcp, scenario, ConsolidationState);
+                Tcp? consolidationOwner = Attendance.ConsolidationOwnerOf(targetTcp, scenario, ConsolidationState);
                 if (consolidationOwner is not null && consolidationOwner.Id != targetTcp.Id)
                 {
                     continue;
@@ -538,8 +538,8 @@ public sealed partial class SimulationEngine
 
             scenario.DelayedHandoffQueue.RemoveAt(i);
 
-            var snapshot = World.GetSnapshot();
-            var aircraft = snapshot.FirstOrDefault(a => a.Callsign.Equals(entry.Callsign, StringComparison.OrdinalIgnoreCase));
+            List<AircraftState> snapshot = World.GetSnapshot();
+            AircraftState? aircraft = snapshot.FirstOrDefault(a => a.Callsign.Equals(entry.Callsign, StringComparison.OrdinalIgnoreCase));
 
             if (aircraft is not null && aircraft.Track.Owner is not null)
             {
@@ -584,7 +584,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        foreach (var aircraft in World.GetSnapshot())
+        foreach (AircraftState aircraft in World.GetSnapshot())
         {
             if (aircraft.Track.Pointout is not { IsPending: true, InitiatedAt: not null } pointout)
             {
@@ -606,7 +606,7 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            var result = TrackEngine.HandleRetractPointout(aircraft);
+            CommandResult result = TrackEngine.HandleRetractPointout(aircraft);
             if (result.Success)
             {
                 EmitTerminal(
@@ -662,18 +662,18 @@ public sealed partial class SimulationEngine
 
         // Solo mode forces a >=3s auto-accept for non-student positions even when the operator
         // globally disabled auto-accept; non-solo play uses the operator's configured delay verbatim.
-        var effectiveDelay = soloMode
+        TimeSpan effectiveDelay = soloMode
             ? TimeSpan.FromSeconds(Math.Max(scenario.AutoAcceptDelay.TotalSeconds, SimScenarioState.SoloAutoAcceptFloorSeconds))
             : scenario.AutoAcceptDelay;
 
-        var snapshot = World.GetSnapshot();
+        List<AircraftState> snapshot = World.GetSnapshot();
         var pendingHandoffs = snapshot.Where(a => a.Track.HandoffPeer is not null && a.Track.HandoffInitiatedAt is not null).ToList();
         if (pendingHandoffs.Count > 0)
         {
             _logger.LogTrace("TickAutoAccept: {Count} pending handoffs at t={T}s", pendingHandoffs.Count, scenario.ElapsedSeconds);
         }
 
-        foreach (var aircraft in snapshot)
+        foreach (AircraftState aircraft in snapshot)
         {
             if (aircraft.Track.HandoffPeer is null || aircraft.Track.HandoffInitiatedAt is null)
             {
@@ -687,7 +687,7 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            var tcp = TrackResolver.FindTcpForOwner(aircraft.Track.HandoffPeer, scenario);
+            Tcp? tcp = TrackResolver.FindTcpForOwner(aircraft.Track.HandoffPeer, scenario);
             if (tcp is not null && Attendance.IsTcpControlledByCrc(tcp, scenario, ConsolidationState))
             {
                 _logger.LogTrace("TickAutoAccept: {Callsign} handoff pending to CRC-controlled position, skipping", aircraft.Callsign);
@@ -702,11 +702,11 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            var elapsed = scenario.ElapsedSeconds - aircraft.Track.HandoffInitiatedAt.Value;
+            double elapsed = scenario.ElapsedSeconds - aircraft.Track.HandoffInitiatedAt.Value;
             if (elapsed >= effectiveDelay.TotalSeconds)
             {
-                var previousOwner = aircraft.Track.Owner;
-                var newOwner = aircraft.Track.HandoffPeer;
+                TrackOwner? previousOwner = aircraft.Track.Owner;
+                TrackOwner newOwner = aircraft.Track.HandoffPeer;
 
                 // Keep the previous owner's datablock as a white FDB (CRC WasPreviouslyOwned) after the
                 // handoff is accepted, until that controller slews to acknowledge — instead of dropping
@@ -723,8 +723,8 @@ public sealed partial class SimulationEngine
 
                 ScratchpadRuleEngine.Apply(aircraft, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
 
-                var fromLabel = previousOwner is not null ? TrackEngine.FormatOwner(previousOwner) : "?";
-                var toLabel = TrackEngine.FormatOwner(newOwner);
+                string fromLabel = previousOwner is not null ? TrackEngine.FormatOwner(previousOwner) : "?";
+                string toLabel = TrackEngine.FormatOwner(newOwner);
                 EmitTerminal("System", aircraft.Callsign, $"[AutoAccept] Handoff accepted " + $"({fromLabel} \u2192 {toLabel})");
 
                 _logger.LogInformation(

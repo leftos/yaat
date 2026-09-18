@@ -30,10 +30,10 @@ public class ControllerAiDeterminismTests
             return;
         }
 
-        var json = File.ReadAllText(OakScenarioPath);
-        var first = Run(json, 42);
-        var second = Run(json, 42);
-        var other = Run(json, 43);
+        string json = File.ReadAllText(OakScenarioPath);
+        (string Actions, string Anomalies, string Snapshot) first = Run(json, 42);
+        (string Actions, string Anomalies, string Snapshot) second = Run(json, 42);
+        (string Actions, string Anomalies, string Snapshot) other = Run(json, 43);
 
         Assert.Equal(first.Actions, second.Actions);
         Assert.Equal(first.Anomalies, second.Anomalies);
@@ -43,8 +43,8 @@ public class ControllerAiDeterminismTests
 
     private (string Actions, string Anomalies, string Snapshot) Run(string scenarioJson, int seed)
     {
-        var positions = new[] { TestAiPositions.OakGround(_zoa!), TestAiPositions.OakTower(_zoa!) };
-        var engine = AiTestFixture.Load(scenarioJson, _zoa!, seed, positions);
+        AiPositionConfig[] positions = new[] { TestAiPositions.OakGround(_zoa!), TestAiPositions.OakTower(_zoa!) };
+        SimulationEngine engine = AiTestFixture.Load(scenarioJson, _zoa!, seed, positions);
         var anomalies = new List<AiAnomalyEvent>();
         for (int t = 0; t < Seconds; t++)
         {
@@ -52,7 +52,7 @@ public class ControllerAiDeterminismTests
             anomalies.AddRange(engine.Scenario!.AiAnomalies.Drain());
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         return (
             JsonSerializer.Serialize(scenario.ActionLog, RecordingJsonOptions.Default),
             JsonSerializer.Serialize(anomalies, RecordingJsonOptions.Default),

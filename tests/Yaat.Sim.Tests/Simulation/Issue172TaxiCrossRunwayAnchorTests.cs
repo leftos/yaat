@@ -45,8 +45,8 @@ public class Issue172TaxiCrossRunwayAnchorTests(ITestOutputHelper output)
 
     private static AircraftState SpawnOnJApproaching28R(AirportGroundLayout layout)
     {
-        var start = layout.Nodes[JApproachNode];
-        var toward = layout.Nodes[Rwy28RHoldShortOnJ];
+        GroundNode start = layout.Nodes[JApproachNode];
+        GroundNode toward = layout.Nodes[Rwy28RHoldShortOnJ];
         var aircraft = new AircraftState
         {
             Callsign = "N172JX",
@@ -74,18 +74,18 @@ public class Issue172TaxiCrossRunwayAnchorTests(ITestOutputHelper output)
     [Fact]
     public void TaxiJCross28R_RoutesAlongJAcross28R_AndHoldsJustPast()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
-        var entryHs = layout.Nodes[Rwy28RHoldShortOnJ];
-        var farHs = layout.Nodes[Rwy28RFarHoldShortOnJ];
+        GroundNode entryHs = layout.Nodes[Rwy28RHoldShortOnJ];
+        GroundNode farHs = layout.Nodes[Rwy28RFarHoldShortOnJ];
 
-        var aircraft = SpawnOnJApproaching28R(layout);
+        AircraftState aircraft = SpawnOnJApproaching28R(layout);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
         {
@@ -97,10 +97,10 @@ public class Issue172TaxiCrossRunwayAnchorTests(ITestOutputHelper output)
             AutoCrossRunway = false,
         };
 
-        var result = engine.SendCommand("N172JX", "TAXI J CROSS 28R");
+        CommandResult result = engine.SendCommand("N172JX", "TAXI J CROSS 28R");
         Assert.True(result.Success, result.Message);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine($"Route: {route.ToSummary()} ({route.Segments.Count} segments)");
 
@@ -114,7 +114,7 @@ public class Issue172TaxiCrossRunwayAnchorTests(ITestOutputHelper output)
         for (int t = 1; t <= 120; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft("N172JX");
+            AircraftState? ac = engine.FindAircraft("N172JX");
             if (ac is null)
             {
                 break;
@@ -126,7 +126,7 @@ public class Issue172TaxiCrossRunwayAnchorTests(ITestOutputHelper output)
             }
         }
 
-        var final = engine.FindAircraft("N172JX");
+        AircraftState? final = engine.FindAircraft("N172JX");
         Assert.NotNull(final);
         double distEntry = GeoMath.DistanceNm(final.Position, entryHs.Position) * 6076.12;
         double distFar = GeoMath.DistanceNm(final.Position, farHs.Position) * 6076.12;

@@ -31,7 +31,7 @@ public static class AirportAirlines
 
     public static bool TryGetAirlinesForAirport(string airportId, [NotNullWhen(true)] out IReadOnlyList<AirportAirlineEntry>? airlines)
     {
-        var normalized = NormalizeAirportId(airportId);
+        string? normalized = NormalizeAirportId(airportId);
         if (normalized is null)
         {
             airlines = null;
@@ -48,7 +48,7 @@ public static class AirportAirlines
             return null;
         }
 
-        var normalized = airportId.Trim().ToUpperInvariant();
+        string normalized = airportId.Trim().ToUpperInvariant();
         if (normalized.Length == 4 && (normalized[0] == 'K' || normalized[0] == 'P'))
         {
             return normalized[1..];
@@ -59,7 +59,7 @@ public static class AirportAirlines
 
     private static Data Load()
     {
-        var path = FindFixturePath();
+        string? path = FindFixturePath();
         if (path is null)
         {
             Log.LogWarning("{Fixture} not found; airport-airline map will be empty", FixtureFileName);
@@ -68,8 +68,8 @@ public static class AirportAirlines
 
         try
         {
-            using var stream = OpenFixtureStream(path);
-            var root = JsonSerializer.Deserialize<JsonRoot>(stream, JsonOptions);
+            using Stream stream = OpenFixtureStream(path);
+            JsonRoot? root = JsonSerializer.Deserialize<JsonRoot>(stream, JsonOptions);
             if (root is null)
             {
                 Log.LogWarning("{Fixture} at {Path} deserialized to null; airport-airline map will be empty", FixtureFileName, path);
@@ -77,15 +77,15 @@ public static class AirportAirlines
             }
 
             var byAirport = new Dictionary<string, IReadOnlyList<AirportAirlineEntry>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (airportId, entry) in root.Airports ?? [])
+            foreach ((string? airportId, JsonAirportEntry? entry) in root.Airports ?? [])
             {
-                var normalized = NormalizeAirportId(entry?.Iata ?? airportId);
+                string? normalized = NormalizeAirportId(entry?.Iata ?? airportId);
                 if (normalized is null)
                 {
                     continue;
                 }
 
-                var airlines = (entry?.Airlines ?? [])
+                AirportAirlineEntry[] airlines = (entry?.Airlines ?? [])
                     .Where(a => !string.IsNullOrWhiteSpace(a.Icao))
                     .Select(a => new AirportAirlineEntry(
                         a.Icao!.Trim().ToUpperInvariant(),
@@ -104,7 +104,7 @@ public static class AirportAirlines
                 }
             }
 
-            var metadata = root.Metadata;
+            JsonMetadata? metadata = root.Metadata;
             Log.LogInformation("Loaded airport-airline map for {AirportCount} airports from {Source}", byAirport.Count, metadata?.Source ?? path);
 
             return new Data(metadata?.Source ?? "", metadata?.PeriodStart ?? "", metadata?.PeriodEnd ?? "", byAirport);
@@ -118,8 +118,8 @@ public static class AirportAirlines
 
     private static string? FindFixturePath()
     {
-        var baseDataDir = Path.Combine(AppContext.BaseDirectory, "Data");
-        var candidates = new[]
+        string baseDataDir = Path.Combine(AppContext.BaseDirectory, "Data");
+        string[] candidates = new[]
         {
             Path.Combine(baseDataDir, FixtureFileName),
             Path.Combine(baseDataDir, UncompressedFixtureFileName),
@@ -127,7 +127,7 @@ public static class AirportAirlines
             Path.Combine(AppContext.BaseDirectory, UncompressedFixtureFileName),
         };
 
-        foreach (var candidate in candidates)
+        foreach (string? candidate in candidates)
         {
             if (File.Exists(candidate))
             {
@@ -138,10 +138,10 @@ public static class AirportAirlines
         var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
         while (dir is not null)
         {
-            var sourceDataDir = Path.Combine(dir.FullName, "src", "Yaat.Sim", "Data");
-            foreach (var fileName in new[] { FixtureFileName, UncompressedFixtureFileName })
+            string sourceDataDir = Path.Combine(dir.FullName, "src", "Yaat.Sim", "Data");
+            foreach (string? fileName in new[] { FixtureFileName, UncompressedFixtureFileName })
             {
-                var candidate = Path.Combine(sourceDataDir, fileName);
+                string candidate = Path.Combine(sourceDataDir, fileName);
                 if (File.Exists(candidate))
                 {
                     return candidate;
@@ -156,7 +156,7 @@ public static class AirportAirlines
 
     private static Stream OpenFixtureStream(string path)
     {
-        var file = File.OpenRead(path);
+        FileStream file = File.OpenRead(path);
         if (!path.EndsWith(".br", StringComparison.OrdinalIgnoreCase))
         {
             return file;

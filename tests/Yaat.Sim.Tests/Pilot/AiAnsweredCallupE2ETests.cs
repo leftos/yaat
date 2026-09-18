@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
@@ -67,11 +68,11 @@ public class AiAnsweredCallupE2ETests
             return;
         }
 
-        var (engine, said) = LoadWithAiGround(solo: false, student: null);
+        (SimulationEngine? engine, List<string>? said) = LoadWithAiGround(solo: false, student: null);
 
         Tick(engine, 7);
 
-        var ac = engine.World.GetSnapshot()[0];
+        AircraftState ac = engine.World.GetSnapshot()[0];
         Assert.NotNull(ac.PendingPilotRequest);
         Assert.Equal(PilotPendingRequestKind.Taxi, ac.PendingPilotRequest.Kind);
         Assert.True(ac.PendingPilotRequest.IsOpen);
@@ -92,21 +93,21 @@ public class AiAnsweredCallupE2ETests
         // Solo student on NorCal Approach, AI Oakland Local: an arrival spawned on final calls the tower and only the
         // tower — an aircraft on a four-mile final never makes an initial call to approach (AIM 5-4-3.a).
         var engine = new SimulationEngine(new TestAirportGroundData());
-        var warnings = engine.LoadScenario(OnFinalAtOak, 42, MagneticDeclination.EvaluationDateUtc);
+        List<string> warnings = engine.LoadScenario(OnFinalAtOak, 42, MagneticDeclination.EvaluationDateUtc);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
         scenario.SoloTrainingMode = true;
         scenario.StudentPosition = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("NCT_APP")!.Id)!;
         scenario.StudentPositionType = "APP";
-        var aiTower = TestAiPositions.OakTower(_zoa);
+        AiPositionConfig aiTower = TestAiPositions.OakTower(_zoa);
         scenario.SetAiStaffedPositions([aiTower]);
         var said = new List<string>();
         engine.TerminalEntryEmitted += entry => said.Add(entry.Message);
 
         Tick(engine, 5);
 
-        var ac = engine.World.GetSnapshot()[0];
+        AircraftState ac = engine.World.GetSnapshot()[0];
         Assert.Contains(said, line => line.Contains("Oakland Tower", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(said, line => line.Contains("approach", StringComparison.OrdinalIgnoreCase));
         Assert.Equal([aiTower.PositionId], ac.AiInitialContactPositionIds);
@@ -121,7 +122,7 @@ public class AiAnsweredCallupE2ETests
             return;
         }
 
-        var (engine, said) = LoadWithAiGround(solo: false, student: null);
+        (SimulationEngine? engine, List<string>? said) = LoadWithAiGround(solo: false, student: null);
 
         Tick(engine, 7);
         int afterCallup = said.Count;
@@ -146,7 +147,7 @@ public class AiAnsweredCallupE2ETests
 
         Tick(engine, 10);
 
-        var ac = engine.World.GetSnapshot()[0];
+        AircraftState ac = engine.World.GetSnapshot()[0];
         Assert.Null(ac.PendingPilotRequest);
         Assert.Empty(ac.AiInitialContactPositionIds);
         Assert.DoesNotContain(said, line => line.Contains("ready to taxi", StringComparison.OrdinalIgnoreCase));
@@ -160,10 +161,10 @@ public class AiAnsweredCallupE2ETests
             return;
         }
 
-        var (engine, _) = LoadWithAiGround(solo: false, student: null);
+        (SimulationEngine? engine, List<string> _) = LoadWithAiGround(solo: false, student: null);
         Tick(engine, 7);
-        var ac = engine.World.GetSnapshot()[0];
-        var compound = CommandParser.ParseCompound("TAXIAUTO 28R", ac.FlightPlan.Route).Value!;
+        AircraftState ac = engine.World.GetSnapshot()[0];
+        CompoundCommand compound = CommandParser.ParseCompound("TAXIAUTO 28R", ac.FlightPlan.Route).Value!;
 
         var aiCtx = new DispatchContext(
             ac.Ground.Layout ?? engine.ResolveGroundLayout(ac),
@@ -182,7 +183,7 @@ public class AiAnsweredCallupE2ETests
             PreserveConditionals: false,
             IsScenarioScripted: true
         );
-        var result = CommandDispatcher.DispatchCompound(compound, ac, aiCtx);
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, aiCtx);
         engine.ApplyPostDispatch(ac, compound, result, DispatchOrigin.ControllerAi);
 
         Assert.True(result.Success, result.Message);
@@ -192,10 +193,10 @@ public class AiAnsweredCallupE2ETests
         Assert.NotEmpty(ac.PendingPilotTransmissions);
 
         // Replay of the same AI command from its recorded connection id lands in the same state.
-        var (replayEngine, _) = LoadWithAiGround(solo: false, student: null);
+        (SimulationEngine? replayEngine, List<string> _) = LoadWithAiGround(solo: false, student: null);
         Tick(replayEngine, 7);
         replayEngine.Actions.Apply(new RecordedCommand(7, "N152SP", "TAXIAUTO 28R", "AI", AiConnectionId.Format("pos")));
-        var replayed = replayEngine.World.GetSnapshot()[0];
+        AircraftState replayed = replayEngine.World.GetSnapshot()[0];
         Assert.False(replayed.PendingPilotRequest!.IsOpen);
         Assert.False(replayed.HasMadeInitialContact);
     }
@@ -208,12 +209,12 @@ public class AiAnsweredCallupE2ETests
             return;
         }
 
-        var (engine, _) = LoadWithAiGround(solo: false, student: null);
+        (SimulationEngine? engine, List<string> _) = LoadWithAiGround(solo: false, student: null);
         Tick(engine, 7);
 
-        var result = engine.SendCommand("N152SP", "TAXIAUTO 28R");
+        CommandResult result = engine.SendCommand("N152SP", "TAXIAUTO 28R");
 
-        var ac = engine.World.GetSnapshot()[0];
+        AircraftState ac = engine.World.GetSnapshot()[0];
         Assert.True(result.Success, result.Message);
         Assert.True(ac.HasMadeInitialContact);
         Assert.True(ac.HasControllerAcknowledgedInitialContact);
@@ -222,9 +223,9 @@ public class AiAnsweredCallupE2ETests
     private (SimulationEngine Engine, List<string> Said) LoadWithAiGround(bool solo, TrackOwner? student)
     {
         var engine = new SimulationEngine(new TestAirportGroundData());
-        var warnings = engine.LoadScenario(ParkedAtOak, 42, MagneticDeclination.EvaluationDateUtc);
+        List<string> warnings = engine.LoadScenario(ParkedAtOak, 42, MagneticDeclination.EvaluationDateUtc);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
         scenario.SoloTrainingMode = solo;
         scenario.StudentPosition = student;

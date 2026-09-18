@@ -33,8 +33,8 @@ public sealed class FaaAircraftDataService : IDisposable
     {
         Directory.CreateDirectory(_cacheDir);
 
-        var cycleId = AiracCycle.GetCurrentCycleId();
-        var cachePath = Path.Combine(_cacheDir, $"faa-acd-{cycleId}.json");
+        string cycleId = AiracCycle.GetCurrentCycleId();
+        string cachePath = Path.Combine(_cacheDir, $"faa-acd-{cycleId}.json");
 
         if (File.Exists(cachePath))
         {
@@ -49,12 +49,12 @@ public sealed class FaaAircraftDataService : IDisposable
         {
             Log.LogInformation("Downloading FAA ACD data from {Url}", AcdUrl);
 
-            var bytes = await _http.GetByteArrayAsync(AcdUrl);
-            var records = ParseXlsx(bytes);
+            byte[] bytes = await _http.GetByteArrayAsync(AcdUrl);
+            Dictionary<string, FaaAircraftRecord> records = ParseXlsx(bytes);
 
             if (records.Count > 0)
             {
-                var json = JsonSerializer.Serialize(records, JsonOptions);
+                string json = JsonSerializer.Serialize(records, JsonOptions);
                 await File.WriteAllTextAsync(cachePath, json);
 
                 ApplyRecords(records);
@@ -92,8 +92,8 @@ public sealed class FaaAircraftDataService : IDisposable
     {
         try
         {
-            var json = File.ReadAllText(path);
-            var records = JsonSerializer.Deserialize<Dictionary<string, FaaAircraftRecord>>(json, JsonOptions);
+            string json = File.ReadAllText(path);
+            Dictionary<string, FaaAircraftRecord>? records = JsonSerializer.Deserialize<Dictionary<string, FaaAircraftRecord>>(json, JsonOptions);
             if (records is { Count: > 0 })
             {
                 ApplyRecords(records);
@@ -117,12 +117,12 @@ public sealed class FaaAircraftDataService : IDisposable
     {
         try
         {
-            var files = Directory.GetFiles(_cacheDir, "faa-acd-*.json");
+            string[] files = Directory.GetFiles(_cacheDir, "faa-acd-*.json");
             // Sort descending to try newest first
             Array.Sort(files);
             Array.Reverse(files);
 
-            foreach (var file in files)
+            foreach (string file in files)
             {
                 if (TryLoadFromJson(file))
                 {
@@ -148,18 +148,18 @@ public sealed class FaaAircraftDataService : IDisposable
             using var stream = new MemoryStream(xlsxBytes);
             using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
 
-            var sharedStrings = ReadSharedStrings(archive);
+            List<string> sharedStrings = ReadSharedStrings(archive);
 
-            var sheetEntry = archive.GetEntry("xl/worksheets/sheet1.xml");
+            ZipArchiveEntry? sheetEntry = archive.GetEntry("xl/worksheets/sheet1.xml");
             if (sheetEntry is null)
             {
                 Log.LogWarning("FAA ACD xlsx missing sheet1.xml");
                 return result;
             }
 
-            using var sheetStream = sheetEntry.Open();
+            using Stream sheetStream = sheetEntry.Open();
             var sheetDoc = XDocument.Load(sheetStream);
-            var ns = sheetDoc.Root?.Name.Namespace ?? XNamespace.None;
+            XNamespace ns = sheetDoc.Root?.Name.Namespace ?? XNamespace.None;
 
             var rows = sheetDoc.Descendants(ns + "row").ToList();
             if (rows.Count < 2)
@@ -168,10 +168,10 @@ public sealed class FaaAircraftDataService : IDisposable
             }
 
             // Build column name → index mapping from header row
-            var headerRow = rows[0];
+            XElement headerRow = rows[0];
             var colMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             int colIdx = 0;
-            foreach (var cell in headerRow.Elements(ns + "c"))
+            foreach (XElement cell in headerRow.Elements(ns + "c"))
             {
                 string cellValue = GetCellValue(cell, sharedStrings, ns);
                 if (!string.IsNullOrWhiteSpace(cellValue))
@@ -283,7 +283,7 @@ public sealed class FaaAircraftDataService : IDisposable
         XNamespace ns
     )
     {
-        var val = GetCol(cells, colMap, colName, sharedStrings, ns);
+        string val = GetCol(cells, colMap, colName, sharedStrings, ns);
         if (string.IsNullOrWhiteSpace(val) || val.Equals("N/A", StringComparison.OrdinalIgnoreCase))
         {
             return null;
@@ -294,7 +294,7 @@ public sealed class FaaAircraftDataService : IDisposable
 
     private static int? GetIntOrNull(List<XElement> cells, Dictionary<string, int> colMap, string colName, List<string> sharedStrings, XNamespace ns)
     {
-        var val = GetCol(cells, colMap, colName, sharedStrings, ns);
+        string val = GetCol(cells, colMap, colName, sharedStrings, ns);
         return double.TryParse(val, out double d) && d > 0 ? (int)Math.Round(d) : null;
     }
 
@@ -306,7 +306,7 @@ public sealed class FaaAircraftDataService : IDisposable
         XNamespace ns
     )
     {
-        var val = GetCol(cells, colMap, colName, sharedStrings, ns);
+        string val = GetCol(cells, colMap, colName, sharedStrings, ns);
         return double.TryParse(val, out double d) && d > 0 ? Math.Round(d, 1) : null;
     }
 
@@ -314,20 +314,20 @@ public sealed class FaaAircraftDataService : IDisposable
     {
         var strings = new List<string>();
 
-        var ssEntry = archive.GetEntry("xl/sharedStrings.xml");
+        ZipArchiveEntry? ssEntry = archive.GetEntry("xl/sharedStrings.xml");
         if (ssEntry is null)
         {
             return strings;
         }
 
-        using var ssStream = ssEntry.Open();
+        using Stream ssStream = ssEntry.Open();
         var ssDoc = XDocument.Load(ssStream);
-        var ns = ssDoc.Root?.Name.Namespace ?? XNamespace.None;
+        XNamespace ns = ssDoc.Root?.Name.Namespace ?? XNamespace.None;
 
-        foreach (var si in ssDoc.Descendants(ns + "si"))
+        foreach (XElement si in ssDoc.Descendants(ns + "si"))
         {
             // Concatenate all <t> elements within <si> (handles rich text)
-            var text = string.Concat(si.Descendants(ns + "t").Select(t => t.Value));
+            string text = string.Concat(si.Descendants(ns + "t").Select(t => t.Value));
             strings.Add(text);
         }
 
@@ -336,8 +336,8 @@ public sealed class FaaAircraftDataService : IDisposable
 
     private static string GetCellValue(XElement cell, List<string> sharedStrings, XNamespace ns)
     {
-        var typeAttr = cell.Attribute("t");
-        var valueElement = cell.Element(ns + "v");
+        XAttribute? typeAttr = cell.Attribute("t");
+        XElement? valueElement = cell.Element(ns + "v");
 
         if (valueElement is null)
         {

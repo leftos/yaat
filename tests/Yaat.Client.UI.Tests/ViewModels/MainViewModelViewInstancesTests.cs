@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Xunit;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
@@ -100,11 +101,11 @@ public class MainViewModelViewInstancesTests
             vm.OnAircraftUpdated(MakeAircraft("AAL1"));
             vm.OnAircraftUpdated(MakeAircraft("UAL2"));
             Dispatcher.UIThread.RunJobs();
-            var first = vm.Aircraft.Single(a => a.Callsign == "AAL1");
-            var second = vm.Aircraft.Single(a => a.Callsign == "UAL2");
+            AircraftModel first = vm.Aircraft.Single(a => a.Callsign == "AAL1");
+            AircraftModel second = vm.Aircraft.Single(a => a.Callsign == "UAL2");
 
             vm.OpenExtraRadarView("KOAK");
-            var extra = vm.ExtraRadarViews.Single();
+            RadarViewInstance extra = vm.ExtraRadarViews.Single();
 
             // One app-wide selection: MainViewModel is the source of truth and every instance mirrors it.
             vm.SelectedAircraft = first;
@@ -131,7 +132,7 @@ public class MainViewModelViewInstancesTests
             vm.Ground.SetLayoutForTesting(Layout("TST"));
 
             vm.OpenExtraGroundView("TST");
-            var extra = vm.ExtraGroundViews.Single();
+            GroundViewInstance extra = vm.ExtraGroundViews.Single();
 
             // The window opened after the layout loaded still shows it — mirrored, not re-fetched.
             Assert.Same(vm.Ground.Layout, extra.Vm.Layout);
@@ -151,7 +152,7 @@ public class MainViewModelViewInstancesTests
         {
             vm.OpenExtraRadarView("KOAK");
             vm.OpenExtraRadarView("KOAK");
-            var survivor = vm.ExtraRadarViews.Single(i => i.Ordinal == 3);
+            RadarViewInstance survivor = vm.ExtraRadarViews.Single(i => i.Ordinal == 3);
 
             vm.ReconcileExtraViews([new SavedExtraView(3, "KOAK"), new SavedExtraView(4, "KOAK")], []);
 
@@ -229,7 +230,7 @@ public class MainViewModelViewInstancesTests
         {
             vm.MarkNavDbReady();
 
-            var instance = vm.OpenExtraRadarView("koak");
+            RadarViewInstance instance = vm.OpenExtraRadarView("koak");
 
             // The picked airport is the instance's, canonicalized to the FAA form the ARTCC config and
             // the video-map facilities use — not the scenario's airport (there is no scenario here).
@@ -253,8 +254,8 @@ public class MainViewModelViewInstancesTests
         {
             vm.MarkNavDbReady();
 
-            var faaForm = vm.OpenExtraRadarView("OAK");
-            var icaoForm = vm.OpenExtraRadarView("KOAK");
+            RadarViewInstance faaForm = vm.OpenExtraRadarView("OAK");
+            RadarViewInstance icaoForm = vm.OpenExtraRadarView("KOAK");
 
             // "OAK" (as the ARTCC config lists it) and "KOAK" are the same airport and the same window.
             Assert.Equal("OAK", faaForm.AirportId);
@@ -279,7 +280,7 @@ public class MainViewModelViewInstancesTests
             vm.Ground.SetLayoutForTesting(Layout("KOAK"));
 
             // The FAA form the picker lists names the primary's ICAO-filed airport, so it mirrors.
-            var instance = vm.OpenExtraGroundView("oak");
+            GroundViewInstance instance = vm.OpenExtraGroundView("oak");
 
             // Same airport as the primary: mirror it rather than fetch and reconstruct a second copy.
             Assert.True(instance.Vm.IsMirroring);
@@ -301,7 +302,7 @@ public class MainViewModelViewInstancesTests
             vm.MarkNavDbReady();
             vm.Ground.SetLayoutForTesting(Layout("KOAK"));
 
-            var instance = vm.OpenExtraGroundView("KSFO");
+            GroundViewInstance instance = vm.OpenExtraGroundView("KSFO");
 
             // A different airport loads its own layout, so the window must not follow the primary's.
             Assert.False(instance.Vm.IsMirroring);
@@ -322,8 +323,8 @@ public class MainViewModelViewInstancesTests
         {
             vm.MarkNavDbReady();
             vm.Ground.SetLayoutForTesting(Layout("KOAK"));
-            var onOak = vm.OpenExtraGroundView("OAK");
-            var onSfo = vm.OpenExtraGroundView("SFO");
+            GroundViewInstance onOak = vm.OpenExtraGroundView("OAK");
+            GroundViewInstance onSfo = vm.OpenExtraGroundView("SFO");
             Assert.True(onOak.Vm.IsMirroring);
             Assert.False(onSfo.Vm.IsMirroring);
 
@@ -349,8 +350,8 @@ public class MainViewModelViewInstancesTests
         {
             vm.MarkNavDbReady();
             vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-oak", "OAK scenario", "KOAK", null, null, []));
-            var mirroring = vm.OpenExtraGroundView("OAK");
-            var own = vm.OpenExtraGroundView("SFO");
+            GroundViewInstance mirroring = vm.OpenExtraGroundView("OAK");
+            GroundViewInstance own = vm.OpenExtraGroundView("SFO");
             Assert.True(mirroring.Vm.IsMirroring);
             Assert.Equal("scenario-oak", mirroring.Vm.ActiveScenarioId);
             Assert.Equal("scenario-oak", own.Vm.ActiveScenarioId);
@@ -374,13 +375,13 @@ public class MainViewModelViewInstancesTests
         var vm = new MainViewModel(new FakeFilePickerService());
         try
         {
-            var original = vm.OpenExtraRadarView("KOAK");
+            RadarViewInstance original = vm.OpenExtraRadarView("KOAK");
 
             vm.ReconcileExtraViews([new SavedExtraView(2, "KSFO")], []);
 
             // Same ordinal, different airport: the window is rebuilt on the new airport rather than kept,
             // because the airport decides what the instance shows.
-            var reopened = Assert.Single(vm.ExtraRadarViews);
+            RadarViewInstance reopened = Assert.Single(vm.ExtraRadarViews);
             Assert.NotSame(original, reopened);
             Assert.Equal(2, reopened.Ordinal);
             Assert.Equal("KSFO", reopened.AirportId);

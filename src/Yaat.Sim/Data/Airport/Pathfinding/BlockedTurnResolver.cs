@@ -56,7 +56,7 @@ public static class BlockedTurnResolver
 
     private static BlockedTurnResult BuildForLayout(AirportGroundLayout layout)
     {
-        var db = NavigationDatabase.InstanceOrNull;
+        NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
         IReadOnlyList<BlockedTurn> turns = db?.AirportSidecars.GetBlockedTurns(layout.AirportId) ?? [];
         return Resolve(layout, turns);
     }
@@ -73,7 +73,7 @@ public static class BlockedTurnResolver
         var forbiddenArcMoves = new HashSet<(int, int)>();
         var hiddenArcs = new HashSet<(int, int)>();
 
-        foreach (var turn in turns)
+        foreach (BlockedTurn turn in turns)
         {
             ResolveTurn(layout, turn, forbiddenTurns, forbiddenArcMoves, hiddenArcs);
         }
@@ -89,13 +89,13 @@ public static class BlockedTurnResolver
         HashSet<(int, int)> hiddenArcs
     )
     {
-        var snapped = PolylineSnapper.Snap(layout, turn.Path, "Blocked-turn", Log);
+        List<GroundNode>? snapped = PolylineSnapper.Snap(layout, turn.Path, "Blocked-turn", Log);
         if (snapped is null)
         {
             return;
         }
 
-        var seq = BuildNodeSequence(layout, snapped);
+        List<int>? seq = BuildNodeSequence(layout, snapped);
         if (seq is null || seq.Count < 3)
         {
             return;
@@ -126,7 +126,7 @@ public static class BlockedTurnResolver
             forbiddenTurns.Add((prev, apex, next));
             forbiddenTurns.Add((next, apex, prev));
 
-            var arc = FindCornerArc(layout, apex, prev, next);
+            GroundArc? arc = FindCornerArc(layout, apex, prev, next);
             if (arc is not null)
             {
                 AddArc(forbiddenArcMoves, hiddenArcs, arc.Nodes[0].Id, arc.Nodes[1].Id);
@@ -150,7 +150,7 @@ public static class BlockedTurnResolver
         var seq = new List<int> { snapped[0].Id };
         for (int i = 0; i + 1 < snapped.Count; i++)
         {
-            var span = PolylineSnapper.BuildSpan(layout, snapped[i], snapped[i + 1]);
+            List<(int From, int To)>? span = PolylineSnapper.BuildSpan(layout, snapped[i], snapped[i + 1]);
             if (span is null)
             {
                 Log.LogWarning(
@@ -162,7 +162,7 @@ public static class BlockedTurnResolver
                 return null;
             }
 
-            foreach (var (_, to) in span)
+            foreach ((int _, int to) in span)
             {
                 if (seq[^1] != to)
                 {
@@ -178,16 +178,16 @@ public static class BlockedTurnResolver
     private static bool IsCorner(AirportGroundLayout layout, int prev, int apex, int next)
     {
         if (
-            !layout.Nodes.TryGetValue(prev, out var prevNode)
-            || !layout.Nodes.TryGetValue(apex, out var apexNode)
-            || !layout.Nodes.TryGetValue(next, out var nextNode)
+            !layout.Nodes.TryGetValue(prev, out GroundNode? prevNode)
+            || !layout.Nodes.TryGetValue(apex, out GroundNode? apexNode)
+            || !layout.Nodes.TryGetValue(next, out GroundNode? nextNode)
         )
         {
             return false;
         }
 
-        var armPrev = FindEdge(layout, apex, prev);
-        var armNext = FindEdge(layout, apex, next);
+        IGroundEdge? armPrev = FindEdge(layout, apex, prev);
+        IGroundEdge? armNext = FindEdge(layout, apex, next);
         if (armPrev is null || armNext is null || armPrev.SharesTaxiway(armNext))
         {
             return false;
@@ -206,14 +206,14 @@ public static class BlockedTurnResolver
     /// </summary>
     private static GroundArc? FindCornerArc(AirportGroundLayout layout, int apex, int prev, int next)
     {
-        var apexNode = layout.Nodes[apex];
-        var prevNode = layout.Nodes[prev];
-        var nextNode = layout.Nodes[next];
+        GroundNode apexNode = layout.Nodes[apex];
+        GroundNode prevNode = layout.Nodes[prev];
+        GroundNode nextNode = layout.Nodes[next];
         double bPrev = GeoMath.BearingTo(apexNode.Position, prevNode.Position);
         double bNext = GeoMath.BearingTo(apexNode.Position, nextNode.Position);
 
-        var armPrev = FindEdge(layout, apex, prev);
-        var armNext = FindEdge(layout, apex, next);
+        IGroundEdge? armPrev = FindEdge(layout, apex, prev);
+        IGroundEdge? armNext = FindEdge(layout, apex, next);
         if (armPrev is null || armNext is null)
         {
             return null;
@@ -221,7 +221,7 @@ public static class BlockedTurnResolver
 
         GroundArc? best = null;
         double bestScore = double.MaxValue;
-        foreach (var arc in layout.Arcs)
+        foreach (GroundArc arc in layout.Arcs)
         {
             if (!ArcBridgesArms(arc, armPrev, armNext))
             {
@@ -251,7 +251,7 @@ public static class BlockedTurnResolver
     private static IEnumerable<string> ArmNames(IGroundEdge edge) => edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName];
 
     private static IGroundEdge? FindEdge(AirportGroundLayout layout, int a, int b) =>
-        layout.Nodes.TryGetValue(a, out var node) ? node.Edges.FirstOrDefault(e => e.HasNode(b)) : null;
+        layout.Nodes.TryGetValue(a, out GroundNode? node) ? node.Edges.FirstOrDefault(e => e.HasNode(b)) : null;
 
     private static void AddArc(HashSet<(int, int)> moves, HashSet<(int, int)> hidden, int a, int b)
     {

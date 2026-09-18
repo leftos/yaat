@@ -32,7 +32,7 @@ public class CrcAliasVariablesTests
     [Fact]
     public void NoFlightPlan_ResolvesToTheCrcSentinel()
     {
-        var text = CrcAliasVariables.Substitute("$dep $arr $route $fullroute", CrcAliasContext.None);
+        string text = CrcAliasVariables.Substitute("$dep $arr $route $fullroute", CrcAliasContext.None);
 
         Assert.Equal("---- ---- ---- ----", text);
     }
@@ -50,7 +50,7 @@ public class CrcAliasVariablesTests
     [Fact]
     public void UrlEscape_EncodesAnAlreadySubstitutedVariable()
     {
-        var text = CrcAliasVariables.Substitute("https://skyvector.com/?fpl=$urlescape($fullroute)", Oakland);
+        string text = CrcAliasVariables.Substitute("https://skyvector.com/?fpl=$urlescape($fullroute)", Oakland);
 
         Assert.Equal("https://skyvector.com/?fpl=KOAK%20SUNOL%20Q126%20ALTAM%20KJFK", text);
     }

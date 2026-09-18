@@ -28,7 +28,7 @@ public class Issue279TaxiGiveWayTests
     {
         // The reported repro. Previously produced compound == null and the misleading
         // "Unrecognized command taxi" fallback.
-        var result = CommandSchemeParser.ParseCompound("taxi A A1 1R, GIVEWAY KLM605", Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("taxi A A1 1R, GIVEWAY KLM605", Scheme, out ParseFailure? failure);
 
         Assert.NotNull(result);
         Assert.Null(failure);
@@ -39,7 +39,7 @@ public class Issue279TaxiGiveWayTests
     public void NoCommaForm_SplitsTrailingGiveWayIntoParallelCommand()
     {
         // The user's first attempt — no comma. The trailing give-way clause is split off.
-        var result = CommandSchemeParser.ParseCompound("TAXI A A1 1R GIVEWAY KLM605", Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("TAXI A A1 1R GIVEWAY KLM605", Scheme, out ParseFailure? failure);
 
         Assert.NotNull(result);
         Assert.Null(failure);
@@ -50,7 +50,7 @@ public class Issue279TaxiGiveWayTests
     public void ConditionForm_StillPromotedToSequentialBlock()
     {
         // GIVEWAY as a *condition* prefix (callsign + ground verb) keeps its sequential semantics.
-        var result = CommandSchemeParser.ParseCompound("TAXI S, GIVEWAY N152SP TAXI C", Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("TAXI S, GIVEWAY N152SP TAXI C", Scheme, out ParseFailure? failure);
 
         Assert.NotNull(result);
         Assert.Null(failure);
@@ -60,7 +60,7 @@ public class Issue279TaxiGiveWayTests
     [Fact]
     public void StandaloneGiveWay_ParsesUnchanged()
     {
-        var result = CommandSchemeParser.ParseCompound("GIVEWAY KLM605", Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("GIVEWAY KLM605", Scheme, out ParseFailure? failure);
 
         Assert.NotNull(result);
         Assert.Null(failure);
@@ -72,7 +72,7 @@ public class Issue279TaxiGiveWayTests
     {
         // "GW" is both a give-way alias and a plausible taxiway label; "B" is not a callsign, so
         // "TAXI A GW B" must stay a plain taxi route, not split into a give-way command.
-        var result = CommandSchemeParser.ParseCompound("TAXI A GW B", Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("TAXI A GW B", Scheme, out ParseFailure? failure);
 
         Assert.NotNull(result);
         Assert.Null(failure);
@@ -90,7 +90,7 @@ public class Issue279TaxiGiveWayTests
     [InlineData("CM 100; ATFN 5", "ATFN")]
     public void MalformedTrailingCondition_BlamesTheConditionVerb_NotTheLeadingVerb(string input, string expectedVerb)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme, out ParseFailure? failure);
 
         Assert.Null(result);
         Assert.NotNull(failure);
@@ -102,22 +102,22 @@ public class Issue279TaxiGiveWayTests
     [Fact]
     public void ServerParse_NoCommaForm_YieldsTaxiWithDestRunwayPlusGiveWay()
     {
-        var result = CommandParser.ParseCompound("TAXI A A1 1R GIVEWAY KLM605");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("TAXI A A1 1R GIVEWAY KLM605");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var block = Assert.Single(result.Value!.Blocks);
+        ParsedBlock block = Assert.Single(result.Value!.Blocks);
         Assert.Null(block.Condition);
         Assert.Collection(
             block.Commands,
             c =>
             {
-                var taxi = Assert.IsType<TaxiCommand>(c);
+                TaxiCommand taxi = Assert.IsType<TaxiCommand>(c);
                 Assert.Equal("1R", taxi.DestinationRunway);
                 Assert.Equal(["A", "A1"], taxi.Path);
             },
             c =>
             {
-                var giveWay = Assert.IsType<GiveWayCommand>(c);
+                GiveWayCommand giveWay = Assert.IsType<GiveWayCommand>(c);
                 Assert.Equal("KLM605", giveWay.TargetCallsign);
             }
         );

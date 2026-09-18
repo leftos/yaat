@@ -87,24 +87,24 @@ public sealed class SpeechSampleStore
             return null;
         }
 
-        var id = $"{session.TimestampUtc:yyyyMMdd-HHmmss}-{Guid.NewGuid().ToString("N")[..6]}";
-        var folder = Path.Combine(RootDirectory, id);
+        string id = $"{session.TimestampUtc:yyyyMMdd-HHmmss}-{Guid.NewGuid().ToString("N")[..6]}";
+        string folder = Path.Combine(RootDirectory, id);
         try
         {
             lock (_ioLock)
             {
                 Directory.CreateDirectory(folder);
 
-                using (var wav = WavHeader.WritePcm16(audioSamples, AudioCaptureService.SampleRate))
+                using (MemoryStream wav = WavHeader.WritePcm16(audioSamples, AudioCaptureService.SampleRate))
                 {
                     File.WriteAllBytes(Path.Combine(folder, AudioFileName), wav.ToArray());
                 }
 
-                var sessionWithId = session with { SampleId = id };
+                SpeechSession sessionWithId = session with { SampleId = id };
                 File.WriteAllText(Path.Combine(folder, SessionFileName), JsonSerializer.Serialize(sessionWithId, JsonOpts));
             }
 
-            var entry = LoadEntry(folder);
+            SpeechSampleEntry? entry = LoadEntry(folder);
             if (entry is null)
             {
                 return null;
@@ -135,7 +135,7 @@ public sealed class SpeechSampleStore
     /// <summary>Removes one persisted sample by id. No-op when the id isn't loaded.</summary>
     public void Delete(string id)
     {
-        var entry = Entries.FirstOrDefault(e => string.Equals(e.Id, id, StringComparison.Ordinal));
+        SpeechSampleEntry? entry = Entries.FirstOrDefault(e => string.Equals(e.Id, id, StringComparison.Ordinal));
         if (entry is null)
         {
             return;
@@ -148,7 +148,7 @@ public sealed class SpeechSampleStore
     /// <summary>Removes every persisted sample. Used by the Settings "Delete all saved samples" action.</summary>
     public void DeleteAll()
     {
-        foreach (var entry in Entries.ToList())
+        foreach (SpeechSampleEntry? entry in Entries.ToList())
         {
             TryDeleteFolder(entry.Folder);
         }
@@ -185,7 +185,7 @@ public sealed class SpeechSampleStore
                 File.Delete(destinationZipPath);
             }
 
-            using var fs = File.Create(destinationZipPath);
+            using FileStream fs = File.Create(destinationZipPath);
             using var zip = new ZipArchive(fs, ZipArchiveMode.Create);
 
             var manifest = new SpeechSampleBundleManifest(
@@ -204,7 +204,7 @@ public sealed class SpeechSampleStore
             );
             WriteEntry(zip, "manifest.json", JsonSerializer.SerializeToUtf8Bytes(manifest, JsonOpts));
 
-            foreach (var entry in entries)
+            foreach (SpeechSampleEntry? entry in entries)
             {
                 WriteEntry(zip, $"samples/{entry.Id}/{AudioFileName}", File.ReadAllBytes(entry.AudioPath));
                 WriteEntry(zip, $"samples/{entry.Id}/{SessionFileName}", File.ReadAllBytes(Path.Combine(entry.Folder, SessionFileName)));
@@ -229,16 +229,16 @@ public sealed class SpeechSampleStore
         }
 
         var loaded = new List<SpeechSampleEntry>();
-        foreach (var folder in Directory.EnumerateDirectories(RootDirectory))
+        foreach (string folder in Directory.EnumerateDirectories(RootDirectory))
         {
-            var entry = LoadEntry(folder);
+            SpeechSampleEntry? entry = LoadEntry(folder);
             if (entry is not null)
             {
                 loaded.Add(entry);
             }
         }
 
-        foreach (var entry in loaded.OrderByDescending(e => e.Session.TimestampUtc))
+        foreach (SpeechSampleEntry? entry in loaded.OrderByDescending(e => e.Session.TimestampUtc))
         {
             Entries.Add(entry);
         }
@@ -246,16 +246,16 @@ public sealed class SpeechSampleStore
 
     private void EvictUntilUnderCap()
     {
-        var max = MaxBytes;
+        int max = MaxBytes;
         if (TotalBytes <= max)
         {
             return;
         }
 
         // Evict oldest-first (Entries is newest-first, so walk from the end).
-        for (var i = Entries.Count - 1; i >= 0 && TotalBytes > max; i--)
+        for (int i = Entries.Count - 1; i >= 0 && TotalBytes > max; i--)
         {
-            var entry = Entries[i];
+            SpeechSampleEntry entry = Entries[i];
             Entries.RemoveAt(i);
             TryDeleteFolder(entry.Folder);
         }
@@ -265,23 +265,23 @@ public sealed class SpeechSampleStore
     {
         try
         {
-            var sessionPath = Path.Combine(folder, SessionFileName);
-            var audioPath = Path.Combine(folder, AudioFileName);
+            string sessionPath = Path.Combine(folder, SessionFileName);
+            string audioPath = Path.Combine(folder, AudioFileName);
             if (!File.Exists(sessionPath) || !File.Exists(audioPath))
             {
                 return null;
             }
 
-            var json = File.ReadAllText(sessionPath);
-            var session = JsonSerializer.Deserialize<SpeechSession>(json, JsonOpts);
+            string json = File.ReadAllText(sessionPath);
+            SpeechSession? session = JsonSerializer.Deserialize<SpeechSession>(json, JsonOpts);
             if (session is null)
             {
                 return null;
             }
 
-            var audioBytes = new FileInfo(audioPath).Length;
-            var sessionBytes = new FileInfo(sessionPath).Length;
-            var id = Path.GetFileName(folder);
+            long audioBytes = new FileInfo(audioPath).Length;
+            long sessionBytes = new FileInfo(sessionPath).Length;
+            string id = Path.GetFileName(folder);
             return new SpeechSampleEntry(id, session.TimestampUtc, folder, audioPath, audioBytes + sessionBytes, session);
         }
         catch (Exception ex)
@@ -308,8 +308,8 @@ public sealed class SpeechSampleStore
 
     private static void WriteEntry(ZipArchive zip, string name, byte[] payload)
     {
-        var e = zip.CreateEntry(name, CompressionLevel.Fastest);
-        using var s = e.Open();
+        ZipArchiveEntry e = zip.CreateEntry(name, CompressionLevel.Fastest);
+        using Stream s = e.Open();
         s.Write(payload);
     }
 }

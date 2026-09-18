@@ -28,7 +28,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     internal bool DrainCoordinationChanged()
     {
-        var changed = CoordinationChanged;
+        bool changed = CoordinationChanged;
         CoordinationChanged = false;
         return changed;
     }
@@ -48,14 +48,14 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var now = scenario.ElapsedSeconds;
+        double now = scenario.ElapsedSeconds;
         bool changed = false;
 
-        foreach (var channel in scenario.CoordinationChannels.Values)
+        foreach (CoordinationChannel channel in scenario.CoordinationChannels.Values)
         {
             for (int i = channel.Items.Count - 1; i >= 0; i--)
             {
-                var item = channel.Items[i];
+                CoordinationItem item = channel.Items[i];
                 changed |= TickAcknowledgedItem(item, now);
 
                 if ((item.Status == StarsCoordinationStatus.Recalled) && item.ExpireTime.HasValue && (item.ExpireTime.Value <= now))
@@ -97,7 +97,7 @@ public sealed partial class SimulationEngine
             return false;
         }
 
-        var remaining = item.ExpireTime.Value - now;
+        double remaining = item.ExpireTime.Value - now;
         if (remaining <= 0)
         {
             item.Status = StarsCoordinationStatus.VoidUnacknowledged;
@@ -144,9 +144,9 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        foreach (var channel in scenario.CoordinationChannels.Values)
+        foreach (CoordinationChannel channel in scenario.CoordinationChannels.Values)
         {
-            var removed = channel.Items.RemoveAll(i => i.AircraftId.Equals(callsign, StringComparison.OrdinalIgnoreCase));
+            int removed = channel.Items.RemoveAll(i => i.AircraftId.Equals(callsign, StringComparison.OrdinalIgnoreCase));
             if (removed > 0)
             {
                 MarkCoordinationChanged();
@@ -168,8 +168,8 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var channels = config.GetCoordinationChannels(config.Facility.Id);
-        foreach (var ch in channels)
+        List<CoordinationChannel> channels = config.GetCoordinationChannels(config.Facility.Id);
+        foreach (CoordinationChannel ch in channels)
         {
             scenario.CoordinationChannels[ch.ListId] = ch;
         }
@@ -196,7 +196,7 @@ public sealed partial class SimulationEngine
 
         TowerListTracker.Initialize(config);
 
-        var listCount = TowerListTracker.GetLists().Count;
+        int listCount = TowerListTracker.GetLists().Count;
         if (listCount > 0)
         {
             _logger.LogInformation("Initialized {Count} tower list(s) for scenario '{Name}'", listCount, scenario.ScenarioName);

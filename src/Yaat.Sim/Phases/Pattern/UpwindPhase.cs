@@ -161,7 +161,7 @@ public sealed class UpwindPhase : Phase
         {
             double baseline = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-            var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
+            double? adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
             if (adjusted is not null)
             {
                 // Spacing only ever SLOWS the follower below the leg baseline; never speeds

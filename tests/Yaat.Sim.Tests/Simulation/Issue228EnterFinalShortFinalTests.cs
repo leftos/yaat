@@ -7,6 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -63,7 +64,7 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
     [Fact]
     public void EnterFinal_SameRunwayOnShortFinal_ContinuesApproachNoOutboundReentry()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -71,8 +72,8 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -80,7 +81,7 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(2310);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(2310);
             if (snapshot is null)
             {
                 return;
@@ -89,7 +90,7 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
             int startTime = (int)snapshot.ElapsedSeconds;
 
             // Sanity: pre-EF the aircraft is established on FinalApproach for 28L.
-            var pre = engine.FindAircraft(Callsign);
+            AircraftState? pre = engine.FindAircraft(Callsign);
             Assert.NotNull(pre);
             Assert.IsType<FinalApproachPhase>(pre.Phases?.CurrentPhase);
             Assert.Equal("28L", pre.Phases?.AssignedRunway?.Designator);
@@ -97,7 +98,7 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
             // Apply the recorded EF 28L (t=2315) with current code, advancing a few seconds.
             engine.ReplayRange(startTime, 2320, recording.Actions);
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
             // Direct effect of the fix: no PatternEntry reposition is inserted; the
@@ -108,7 +109,7 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
             // Behavioral: it must descend to the runway (touch-and-go), not climb to
             // pattern altitude and balloon outbound. Track min altitude and min
             // distance to the 28L threshold over the descent window.
-            var runway = NavigationDatabase.Instance.GetRunway("OAK", "28L");
+            RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "28L");
             Assert.NotNull(runway);
             var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
 
@@ -120,7 +121,7 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
             for (int t = 2320; t <= 2360; t++)
             {
                 engine.ReplayRange(t, t + 1, recording.Actions);
-                var cur = engine.FindAircraft(Callsign);
+                AircraftState? cur = engine.FindAircraft(Callsign);
                 if (cur is null)
                 {
                     break;
@@ -170,7 +171,7 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
     public void EnterFinal_AlignedShortFinal_NotOnFinalPhase_RejectsRatherThanRoutingOutbound()
     {
         TestVnasData.EnsureInitialized();
-        var rwy28L = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L");
         if (rwy28L is null)
         {
             return;
@@ -179,7 +180,7 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
         // 0.4 nm from the threshold, aligned with the 28L final course — short final,
         // inside the piston 1.0 nm minimum. No active phase, so the continue no-op
         // (which keys off FinalApproachPhase) does not apply.
-        var (lat, lon) = GeoMath.ProjectPoint(rwy28L.ThresholdLatitude, rwy28L.ThresholdLongitude, rwy28L.TrueHeading.ToReciprocal(), 0.4);
+        (double lat, double lon) = GeoMath.ProjectPoint(rwy28L.ThresholdLatitude, rwy28L.ThresholdLongitude, rwy28L.TrueHeading.ToReciprocal(), 0.4);
 
         var ac = new AircraftState
         {
@@ -194,7 +195,7 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
             Phases = new PhaseList { AssignedRunway = rwy28L },
         };
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
 
         output.WriteLine($"TryEnterPattern(28L) -> Success={result.Success} Message='{result.Message}'");
 

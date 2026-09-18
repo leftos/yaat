@@ -58,7 +58,7 @@ public static class HeldReleaseService
     /// <summary>Arm an airport for hold-for-release and hold any on-ground IFR departures already there.</summary>
     public static HeldReleaseResult Arm(SimScenarioState scenario, SimulationWorld world, string airport)
     {
-        var normalized = airport.Trim().ToUpperInvariant();
+        string normalized = airport.Trim().ToUpperInvariant();
         if (normalized.Length == 0)
         {
             return new HeldReleaseResult(false, "HFR requires an airport");
@@ -66,8 +66,8 @@ public static class HeldReleaseService
 
         scenario.HeldDepartureAirports.Add(normalized);
 
-        var swept = 0;
-        foreach (var ac in world.GetSnapshot())
+        int swept = 0;
+        foreach (AircraftState ac in world.GetSnapshot())
         {
             if (!ac.Ground.HeldForRelease && IsHoldableGroundDeparture(ac) && AirportMatches(DepartureAirportOf(ac), normalized))
             {
@@ -77,22 +77,22 @@ public static class HeldReleaseService
             }
         }
 
-        var suffix = swept > 0 ? $" ({swept} departure{(swept == 1 ? "" : "s")} now holding)" : "";
+        string suffix = swept > 0 ? $" ({swept} departure{(swept == 1 ? "" : "s")} now holding)" : "";
         return new HeldReleaseResult(true, $"Hold for release armed at {normalized}{suffix}");
     }
 
     /// <summary>Disarm an airport; auto-releases anything still held there (ground departures and queued spawns).</summary>
     public static HeldReleaseResult Disarm(SimScenarioState scenario, SimulationWorld world, string airport)
     {
-        var normalized = airport.Trim().ToUpperInvariant();
+        string normalized = airport.Trim().ToUpperInvariant();
         if (!scenario.HeldDepartureAirports.Remove(normalized))
         {
             return new HeldReleaseResult(false, $"{normalized} is not armed for hold for release");
         }
 
         // Released ground departures: clear the flag and authorize roll.
-        var released = 0;
-        foreach (var ac in world.GetSnapshot())
+        int released = 0;
+        foreach (AircraftState ac in world.GetSnapshot())
         {
             if (ac.Ground.HeldForRelease && AirportMatches(DepartureAirportOf(ac), normalized))
             {
@@ -107,7 +107,7 @@ public static class HeldReleaseService
         // ProcessDelayedSpawns now returns false). Drop any pending scheduled releases for the field.
         scenario.ReleaseQueue.RemoveAll(r => AirportMatches(r.Airport, normalized));
 
-        var suffix = released > 0 ? $" ({released} released)" : "";
+        string suffix = released > 0 ? $" ({released} released)" : "";
         return new HeldReleaseResult(true, $"Hold for release disarmed at {normalized}{suffix}");
     }
 
@@ -154,7 +154,7 @@ public static class HeldReleaseService
         int? intervalSeconds
     )
     {
-        var normalized = target.Trim().ToUpperInvariant();
+        string normalized = target.Trim().ToUpperInvariant();
 
         // Callsign form: release that specific held departure.
         if (FindHeldByCallsign(scenario, world, normalized) is { } held)
@@ -178,7 +178,7 @@ public static class HeldReleaseService
         // drawn here — each scheduled release fires later from the tick loop (ProcessReleaseQueue),
         // which draws its airborne jitter from the snapshot-restored shared RNG and so reproduces on
         // replay without baking.
-        for (var i = 0; i < atField.Count; i++)
+        for (int i = 0; i < atField.Count; i++)
         {
             scenario.ReleaseQueue.Add(
                 new ScheduledRelease
@@ -190,7 +190,7 @@ public static class HeldReleaseService
             );
         }
 
-        var minutes = interval / 60.0;
+        double minutes = interval / 60.0;
         return new HeldReleaseResult(true, $"Releasing {atField.Count} from {normalized}, {minutes:0.#} min apart");
     }
 
@@ -213,7 +213,7 @@ public static class HeldReleaseService
     {
         if (held.IsGroundDeparture)
         {
-            var ac = world.FindAircraft(held.Callsign);
+            AircraftState? ac = world.FindAircraft(held.Callsign);
             if (ac is null || !ac.Ground.HeldForRelease)
             {
                 return new HeldReleaseResult(false, $"{held.Callsign} is no longer held");
@@ -225,7 +225,7 @@ public static class HeldReleaseService
             return new HeldReleaseResult(true, $"{held.Callsign} released");
         }
 
-        var entry = scenario.DelayedQueue.FirstOrDefault(d =>
+        DelayedSpawn? entry = scenario.DelayedQueue.FirstOrDefault(d =>
             d.HeldForRelease && d.Aircraft.State.Callsign.Equals(held.Callsign, StringComparison.OrdinalIgnoreCase)
         );
         if (entry is null)
@@ -234,7 +234,7 @@ public static class HeldReleaseService
         }
 
         entry.HeldForRelease = false;
-        var jitter =
+        int jitter =
             bakedJitter
             ?? rng?.Next((int)MinSpawnReleaseDelaySeconds, (int)MaxSpawnReleaseDelaySeconds + 1)
             ?? throw new InvalidOperationException("ReleaseOneCore requires either a baked jitter or an RNG to sample.");
@@ -251,14 +251,14 @@ public static class HeldReleaseService
     {
         var result = new List<HeldDeparture>();
 
-        foreach (var entry in scenario.DelayedQueue)
+        foreach (DelayedSpawn entry in scenario.DelayedQueue)
         {
             if (!entry.HeldForRelease || !IsAirportArmed(scenario, DepartureAirportOf(entry.Aircraft.State)))
             {
                 continue;
             }
 
-            var state = entry.Aircraft.State;
+            AircraftState state = entry.Aircraft.State;
             result.Add(
                 new HeldDeparture(
                     state.Callsign,
@@ -272,7 +272,7 @@ public static class HeldReleaseService
             );
         }
 
-        foreach (var ac in world.GetSnapshot())
+        foreach (AircraftState ac in world.GetSnapshot())
         {
             if (!ac.Ground.HeldForRelease)
             {
@@ -295,7 +295,7 @@ public static class HeldReleaseService
         result.Sort(
             (a, b) =>
             {
-                var byAirport = string.CompareOrdinal(a.Airport, b.Airport);
+                int byAirport = string.CompareOrdinal(a.Airport, b.Airport);
                 return byAirport != 0 ? byAirport : a.PendingSinceSeconds.CompareTo(b.PendingSinceSeconds);
             }
         );
@@ -350,7 +350,7 @@ public static class HeldReleaseService
     /// <summary>True when <paramref name="airport"/> matches any airport currently armed for hold-for-release.</summary>
     public static bool IsAirportArmed(SimScenarioState scenario, string airport)
     {
-        foreach (var armed in scenario.HeldDepartureAirports)
+        foreach (string armed in scenario.HeldDepartureAirports)
         {
             if (AirportMatches(armed, airport))
             {

@@ -77,7 +77,7 @@ public sealed class AerialRefuelingAnchorPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        var state = ctx.Aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = ctx.Aircraft.MilitaryRoute;
         state.Designator = Designator;
         state.Kind = MilitaryRouteType.Ar;
         state.Direction = Direction;
@@ -100,7 +100,7 @@ public sealed class AerialRefuelingAnchorPhase : Phase
             OnStart(ctx);
         }
 
-        var state = ctx.Aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = ctx.Aircraft.MilitaryRoute;
 
         // An empty route means the aircraft has flown everything queued: the run-in on the first
         // pass, an orbit lap afterwards. Either way the next thing to fly is another lap -- an
@@ -131,7 +131,7 @@ public sealed class AerialRefuelingAnchorPhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        var state = ctx.Aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = ctx.Aircraft.MilitaryRoute;
 
         // docs/phases.md: ControlTargets state a phase writes that physics depends on has to be
         // reconciled when the phase clears, or the aircraft stays pinned inside a block it is no
@@ -161,7 +161,7 @@ public sealed class AerialRefuelingAnchorPhase : Phase
 
     public override void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx)
     {
-        var state = ctx.Aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = ctx.Aircraft.MilitaryRoute;
         if (IsAltitudeFamilyCommand(cmd) || cmd == CanonicalCommandType.ForceAltitude)
         {
             state.AltitudeSource = MilitaryRouteAltitudeSource.AssignedAltitude;
@@ -177,13 +177,13 @@ public sealed class AerialRefuelingAnchorPhase : Phase
 
     private static void LoadNames(PhaseContext ctx, IReadOnlyList<string> names)
     {
-        var navDb = NavigationDatabase.Instance;
-        var route = ctx.Targets.NavigationRoute;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        List<NavigationTarget> route = ctx.Targets.NavigationRoute;
         route.Clear();
 
-        foreach (var name in names)
+        foreach (string name in names)
         {
-            var position = navDb.GetFixPosition(name);
+            (double Lat, double Lon)? position = navDb.GetFixPosition(name);
             if (position is not null)
             {
                 route.Add(new NavigationTarget { Name = name, Position = new LatLon(position.Value.Lat, position.Value.Lon) });
@@ -194,7 +194,7 @@ public sealed class AerialRefuelingAnchorPhase : Phase
     /// <summary>True once the run-in has been flown and the aircraft is working the orbit itself.</summary>
     private bool IsAtAnchor(PhaseContext ctx)
     {
-        var route = ctx.Targets.NavigationRoute;
+        List<NavigationTarget> route = ctx.Targets.NavigationRoute;
         return route.Count > 0 && PatternNames.Contains(route[0].Name, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -204,13 +204,13 @@ public sealed class AerialRefuelingAnchorPhase : Phase
     /// </summary>
     private void ArmBlock(PhaseContext ctx)
     {
-        var state = ctx.Aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = ctx.Aircraft.MilitaryRoute;
         if (state.AltitudeSource is MilitaryRouteAltitudeSource.AssignedAltitude)
         {
             return;
         }
 
-        var route = NavigationDatabase.Instance.GetMilitaryRoute(Designator);
+        MilitaryRoute? route = NavigationDatabase.Instance.GetMilitaryRoute(Designator);
         double? floor = state.AssignedFloorFt ?? route?.RouteAltitude.FloorFt;
         double? ceiling = state.AssignedCeilingFt ?? route?.RouteAltitude.CeilingFt;
         if (floor is null || ceiling is null)

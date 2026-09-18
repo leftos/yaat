@@ -1,4 +1,5 @@
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
 
@@ -19,22 +20,22 @@ public static class TrackResolver
     /// </summary>
     public static (string Remainder, string? AsOverrideTcp) ExtractAsPrefix(string command)
     {
-        var trimmed = command.TrimStart();
-        var upper = trimmed.ToUpperInvariant();
+        string trimmed = command.TrimStart();
+        string upper = trimmed.ToUpperInvariant();
         if (!upper.StartsWith("AS ", StringComparison.Ordinal))
         {
             return (command, null);
         }
 
-        var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 3)
         {
             // Standalone "AS" or "AS 3Y" — handled by SetActivePositionCommand path
             return (command, null);
         }
 
-        var tcpCode = parts[1].ToUpperInvariant();
-        var remainder = string.Join(' ', parts.Skip(2));
+        string tcpCode = parts[1].ToUpperInvariant();
+        string remainder = string.Join(' ', parts.Skip(2));
         return (remainder, tcpCode);
     }
 
@@ -58,7 +59,7 @@ public static class TrackResolver
             return scenario.StudentPosition;
         }
 
-        foreach (var atc in scenario.AtcPositions)
+        foreach (ResolvedAtcPosition atc in scenario.AtcPositions)
         {
             if (atc.Tcp is not null && string.Equals(atc.Tcp.ToString(), tcpCode, StringComparison.OrdinalIgnoreCase))
             {
@@ -66,16 +67,16 @@ public static class TrackResolver
             }
         }
 
-        var artccConfig = scenario.ArtccConfig;
+        ArtccConfigRoot? artccConfig = scenario.ArtccConfig;
         if (artccConfig is null)
         {
             return null;
         }
 
-        var facilityId = scenario.StudentPosition?.FacilityId;
+        string? facilityId = scenario.StudentPosition?.FacilityId;
         if (!string.IsNullOrEmpty(facilityId))
         {
-            var resolved =
+            TrackOwner? resolved =
                 artccConfig.ResolveTcpCode(facilityId, tcpCode)
                 ?? artccConfig.ResolveEramCode(tcpCode)
                 ?? artccConfig.ResolveStarsHandoffCode(facilityId, tcpCode);
@@ -95,18 +96,18 @@ public static class TrackResolver
     /// </summary>
     private static TrackOwner? ResolvePositionName(ArtccConfigRoot artccConfig, string name)
     {
-        var at = name.IndexOf('@');
+        int at = name.IndexOf('@');
         if (at < 0)
         {
-            var position = artccConfig.FindPositionByCallsign(name);
+            PositionConfig? position = artccConfig.FindPositionByCallsign(name);
             return position is null ? null : artccConfig.ResolvePosition(position.Id);
         }
 
-        var callsign = name[..at];
-        var code = name[(at + 1)..];
-        foreach (var candidate in artccConfig.FindPositionsByCallsign(callsign))
+        string callsign = name[..at];
+        string code = name[(at + 1)..];
+        foreach (PositionConfig candidate in artccConfig.FindPositionsByCallsign(callsign))
         {
-            var owner = artccConfig.ResolvePosition(candidate.Id);
+            TrackOwner? owner = artccConfig.ResolvePosition(candidate.Id);
             if ((owner is not null) && AsPrefixCode(owner).Equals(code, StringComparison.OrdinalIgnoreCase))
             {
                 return owner;
@@ -122,7 +123,7 @@ public static class TrackResolver
     /// </summary>
     public static Tcp? FindTcpByCode(SimScenarioState scenario, string tcpCode)
     {
-        foreach (var atc in scenario.AtcPositions)
+        foreach (ResolvedAtcPosition atc in scenario.AtcPositions)
         {
             if (atc.Tcp is not null && string.Equals(atc.Tcp.ToString(), tcpCode, StringComparison.OrdinalIgnoreCase))
             {
@@ -130,13 +131,13 @@ public static class TrackResolver
             }
         }
 
-        var artccConfig = scenario.ArtccConfig;
+        ArtccConfigRoot? artccConfig = scenario.ArtccConfig;
         if (artccConfig is null)
         {
             return null;
         }
 
-        var facilityId = scenario.StudentPosition?.FacilityId;
+        string? facilityId = scenario.StudentPosition?.FacilityId;
         if (string.IsNullOrEmpty(facilityId))
         {
             return null;
@@ -171,7 +172,7 @@ public static class TrackResolver
     /// </summary>
     public static Tcp? FindTcpForOwner(TrackOwner owner, SimScenarioState scenario)
     {
-        foreach (var atc in scenario.AtcPositions)
+        foreach (ResolvedAtcPosition atc in scenario.AtcPositions)
         {
             if (atc.Owner.Callsign == owner.Callsign)
             {
@@ -204,12 +205,12 @@ public static class TrackResolver
             return ResolveTcpToOwner(scenario, asOverrideTcp);
         }
 
-        if (AiConnectionId.TryParse(connectionId, out var positionId) && scenario.ArtccConfig?.ResolvePosition(positionId) is { } aiPosition)
+        if (AiConnectionId.TryParse(connectionId, out string? positionId) && scenario.ArtccConfig?.ResolvePosition(positionId) is { } aiPosition)
         {
             return aiPosition;
         }
 
-        if (selections.TryGet(connectionId, out var selected))
+        if (selections.TryGet(connectionId, out TrackOwner? selected))
         {
             return selected;
         }

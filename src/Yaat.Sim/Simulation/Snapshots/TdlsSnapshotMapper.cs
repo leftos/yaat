@@ -61,12 +61,12 @@ public static class TdlsSnapshotMapper
             // clearance than the one the controller actually sent.
             tdls.ClearSession();
 
-            foreach (var active in dto.ActiveOpConfigs)
+            foreach (TdlsActiveOpConfigSnapshotDto active in dto.ActiveOpConfigs)
             {
                 tdls.ActiveOpConfigIds[active.FacilityId] = active.OpConfigId;
             }
 
-            foreach (var item in dto.Items)
+            foreach (TdlsItemSnapshotDto item in dto.Items)
             {
                 tdls.Items[item.Id] = new TdlsItemRecord(
                     Id: item.Id,
@@ -83,12 +83,12 @@ public static class TdlsSnapshotMapper
                 );
             }
 
-            foreach (var d in dto.Dumped)
+            foreach (TdlsDumpedSnapshotDto d in dto.Dumped)
             {
                 tdls.Dumped.Add(new DumpedKey(d.FacilityId, d.Callsign));
             }
 
-            foreach (var wilco in dto.ScheduledWilco)
+            foreach (TdlsScheduledWilcoDto wilco in dto.ScheduledWilco)
             {
                 tdls.ScheduledWilcoAt[wilco.ItemId] = wilco.DueUtc;
             }

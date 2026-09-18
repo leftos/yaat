@@ -34,7 +34,12 @@ public class TouchdownPointTests
 
     private static RunwayInfo MakeRunway()
     {
-        var (endLat, endLon) = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, new TrueHeading(RunwayHeadingDeg), 10_000.0 / GeoMath.FeetPerNm);
+        (double endLat, double endLon) = GeoMath.ProjectPoint(
+            ThresholdLat,
+            ThresholdLon,
+            new TrueHeading(RunwayHeadingDeg),
+            10_000.0 / GeoMath.FeetPerNm
+        );
         return new RunwayInfo
         {
             AirportId = "KOAK",
@@ -70,9 +75,9 @@ public class TouchdownPointTests
     /// </summary>
     private ApproachProfile FlyApproach(string aircraftType, double approachSpeedKt, double startDistNm = 4.0)
     {
-        var rwy = MakeRunway();
+        RunwayInfo rwy = MakeRunway();
         var course = new TrueHeading(RunwayHeadingDeg);
-        var (startLat, startLon) = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, course.ToReciprocal(), startDistNm);
+        (double startLat, double startLon) = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, course.ToReciprocal(), startDistNm);
 
         var ac = new AircraftState
         {
@@ -143,7 +148,7 @@ public class TouchdownPointTests
         {
             world.Tick(dt, tick * dt, PreTick);
 
-            foreach (var (callsign, warning) in world.DrainAllWarnings())
+            foreach ((string? callsign, string? warning) in world.DrainAllWarnings())
             {
                 _output.WriteLine($"# tick {tick} {callsign}: {warning}");
                 Assert.DoesNotContain("going around", warning, StringComparison.OrdinalIgnoreCase);
@@ -242,7 +247,7 @@ public class TouchdownPointTests
         double crossingHeight = CategoryPerformance.WheelCrossingHeightFt(category);
         Assert.InRange(crossingHeight, 20.0, 30.0);
 
-        var profile = FlyApproach(aircraftType, approachSpeedKt);
+        ApproachProfile profile = FlyApproach(aircraftType, approachSpeedKt);
 
         Assert.InRange(
             profile.OneNmAgl,
@@ -264,7 +269,7 @@ public class TouchdownPointTests
     {
         double crossingHeight = CategoryPerformance.WheelCrossingHeightFt(category);
 
-        var profile = FlyApproach(aircraftType, approachSpeedKt);
+        ApproachProfile profile = FlyApproach(aircraftType, approachSpeedKt);
 
         Assert.InRange(profile.ThresholdCrossingAgl, crossingHeight - 5, crossingHeight + 5);
     }

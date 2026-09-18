@@ -55,7 +55,7 @@ public static class ScenarioRatingClassifier
             return null;
         }
 
-        return RatingOrdinal.TryGetValue(rating.Trim(), out var ordinal) ? ordinal : null;
+        return RatingOrdinal.TryGetValue(rating.Trim(), out int ordinal) ? ordinal : null;
     }
 
     /// <summary>
@@ -71,13 +71,13 @@ public static class ScenarioRatingClassifier
             return true;
         }
 
-        var required = OrdinalOf(requiredRating);
+        int? required = OrdinalOf(requiredRating);
         if (required is null)
         {
             return false;
         }
 
-        var have = OrdinalOf(rating);
+        int? have = OrdinalOf(rating);
         if (have is null)
         {
             return false;
@@ -93,7 +93,7 @@ public static class ScenarioRatingClassifier
     /// </summary>
     public static bool IsInstructorOrAbove(string? rating)
     {
-        var ordinal = OrdinalOf(rating);
+        int? ordinal = OrdinalOf(rating);
         return ordinal is not null && ordinal.Value >= InstructorThreshold;
     }
 }

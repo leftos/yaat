@@ -15,10 +15,10 @@ public static class KeybindHelper
         key = Key.None;
         modifiers = KeyModifiers.None;
 
-        var parts = combo.Split('+');
-        foreach (var part in parts)
+        string[] parts = combo.Split('+');
+        foreach (string part in parts)
         {
-            var trimmed = part.Trim();
+            string trimmed = part.Trim();
             switch (trimmed)
             {
                 case "Ctrl":

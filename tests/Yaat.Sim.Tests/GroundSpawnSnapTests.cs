@@ -27,7 +27,7 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
             Position = new LatLon(37.0, -122.0),
             Type = GroundNodeType.TaxiwayIntersection,
         };
-        var (n2Lat, n2Lon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
+        (double n2Lat, double n2Lon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
         var n2 = new GroundNode
         {
             Id = 2,
@@ -55,14 +55,14 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
     [Fact]
     public void FindNearestTaxiEdge_ReturnsNearestStraightEdge()
     {
-        var layout = BuildLayout();
+        AirportGroundLayout layout = BuildLayout();
 
         // Aircraft 50 ft south of the midpoint of the taxiway edge.
-        var n1 = layout.Nodes[1];
-        var (midLat, midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
-        var (acLat, acLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(180.0), 50.0 / GeoMath.FeetPerNm);
+        GroundNode n1 = layout.Nodes[1];
+        (double midLat, double midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(180.0), 50.0 / GeoMath.FeetPerNm);
 
-        var result = layout.FindNearestTaxiEdge(acLat, acLon);
+        AirportGroundLayout.NearestTaxiEdge? result = layout.FindNearestTaxiEdge(acLat, acLon);
         Assert.NotNull(result);
         Assert.Equal("A", result.Value.Edge.TaxiwayName);
 
@@ -75,11 +75,11 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
     public void FindNearestTaxiEdge_ExcludesRunwayCenterlines()
     {
         // Add a runway edge closer to the aircraft than the taxi edge.
-        var layout = BuildLayout(l =>
+        AirportGroundLayout layout = BuildLayout(l =>
         {
-            var n1 = l.Nodes[1];
-            var (r1Lat, r1Lon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(180.0), 20.0 / GeoMath.FeetPerNm);
-            var (r2Lat, r2Lon) = GeoMath.ProjectPoint(r1Lat, r1Lon, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
+            GroundNode n1 = l.Nodes[1];
+            (double r1Lat, double r1Lon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(180.0), 20.0 / GeoMath.FeetPerNm);
+            (double r2Lat, double r2Lon) = GeoMath.ProjectPoint(r1Lat, r1Lon, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
             var r1 = new GroundNode
             {
                 Id = 10,
@@ -105,10 +105,10 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
         });
 
         // Aircraft sits between the taxi edge (80 ft north of query) and runway (20 ft south).
-        var n1 = layout.Nodes[1];
-        var (midLat, midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
+        GroundNode n1 = layout.Nodes[1];
+        (double midLat, double midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
 
-        var result = layout.FindNearestTaxiEdge(midLat, midLon);
+        AirportGroundLayout.NearestTaxiEdge? result = layout.FindNearestTaxiEdge(midLat, midLon);
         Assert.NotNull(result);
         // Taxi edge "A" is at 0 ft (aircraft is on it), runway at 20 ft. Both are close, so the
         // relevant assertion is that we DIDN'T pick the runway. Check taxiway name.
@@ -118,11 +118,11 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
     [Fact]
     public void FindNearestTaxiEdge_ExcludesRamps()
     {
-        var layout = BuildLayout(l =>
+        AirportGroundLayout layout = BuildLayout(l =>
         {
             // Ramp edge very close to origin
-            var n1 = l.Nodes[1];
-            var (rampLat, rampLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(270.0), 10.0 / GeoMath.FeetPerNm);
+            GroundNode n1 = l.Nodes[1];
+            (double rampLat, double rampLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(270.0), 10.0 / GeoMath.FeetPerNm);
             var rampNode = new GroundNode
             {
                 Id = 20,
@@ -140,7 +140,7 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
             );
         });
 
-        var result = layout.FindNearestTaxiEdge(layout.Nodes[20].Position);
+        AirportGroundLayout.NearestTaxiEdge? result = layout.FindNearestTaxiEdge(layout.Nodes[20].Position);
         Assert.NotNull(result);
         // Should pick taxi edge A, not the ramp.
         Assert.Equal("A", result.Value.Edge.TaxiwayName);
@@ -149,12 +149,12 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
     [Fact]
     public void Apply_OffEdgeGroundAircraft_SnapsToFootAndRotatesHeading()
     {
-        var layout = BuildLayout();
+        AirportGroundLayout layout = BuildLayout();
 
         // Aircraft 35 ft south of midpoint, heading 80° (close to edge bearing 90°).
-        var n1 = layout.Nodes[1];
-        var (midLat, midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
-        var (acLat, acLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
+        GroundNode n1 = layout.Nodes[1];
+        (double midLat, double midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
 
         var aircraft = new AircraftState
         {
@@ -180,12 +180,12 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
     [Fact]
     public void Apply_ChoosesReverseEdgeDirection_WhenOriginalHeadingCloser()
     {
-        var layout = BuildLayout();
+        AirportGroundLayout layout = BuildLayout();
 
         // Aircraft near midpoint, heading 260° (close to reverse edge bearing 270°).
-        var n1 = layout.Nodes[1];
-        var (midLat, midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
-        var (acLat, acLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
+        GroundNode n1 = layout.Nodes[1];
+        (double midLat, double midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
 
         var aircraft = new AircraftState
         {
@@ -206,11 +206,11 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
     [Fact]
     public void Apply_AirborneAircraft_IsNotSnapped()
     {
-        var layout = BuildLayout();
+        AirportGroundLayout layout = BuildLayout();
 
-        var n1 = layout.Nodes[1];
-        var (midLat, midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
-        var (acLat, acLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
+        GroundNode n1 = layout.Nodes[1];
+        (double midLat, double midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
 
         var aircraft = new AircraftState
         {
@@ -221,7 +221,7 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
             IsOnGround = false,
         };
 
-        var origPos = aircraft.Position;
+        LatLon origPos = aircraft.Position;
         double origHdg = aircraft.TrueHeading.Degrees;
 
         GroundSpawnSnap.Apply(aircraft, layout);
@@ -234,12 +234,12 @@ public class GroundSpawnSnapTests(ITestOutputHelper output)
     [Fact]
     public void Apply_BeyondThreshold_LeavesPoseUnchanged()
     {
-        var layout = BuildLayout();
+        AirportGroundLayout layout = BuildLayout();
 
         // Aircraft 500 ft south of the edge — well beyond the 200 ft snap threshold.
-        var n1 = layout.Nodes[1];
-        var (midLat, midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
-        var (acLat, acLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(180.0), 500.0 / GeoMath.FeetPerNm);
+        GroundNode n1 = layout.Nodes[1];
+        (double midLat, double midLon) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(180.0), 500.0 / GeoMath.FeetPerNm);
 
         var aircraft = new AircraftState
         {

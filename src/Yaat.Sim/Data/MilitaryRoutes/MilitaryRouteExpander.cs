@@ -36,16 +36,16 @@ public static class MilitaryRouteExpander
     /// </summary>
     public static IReadOnlyList<string> Expand(string designator, string? entryAnchor, string? exitAnchor, NavigationDatabase navDb)
     {
-        var route = navDb.GetMilitaryRoute(designator);
+        MilitaryRoute? route = navDb.GetMilitaryRoute(designator);
         if (route is null || route.Points.Count == 0)
         {
             return [];
         }
 
-        var variant = SelectVariant(route, entryAnchor, exitAnchor, navDb);
-        var points = variant?.Points ?? route.Points;
-        var entryPoints = variant?.EntryPoints ?? route.EntryPoints;
-        var exitPoints = variant?.ExitPoints ?? route.ExitPoints;
+        MilitaryRouteVariant? variant = SelectVariant(route, entryAnchor, exitAnchor, navDb);
+        IReadOnlyList<MilitaryRoutePoint> points = variant?.Points ?? route.Points;
+        IReadOnlyList<string> entryPoints = variant?.EntryPoints ?? route.EntryPoints;
+        IReadOnlyList<string> exitPoints = variant?.ExitPoints ?? route.ExitPoints;
 
         int entryIndex = SnapAnchor(route.Designator, points, entryAnchor, navDb)?.Index ?? DefaultIndex(points, entryPoints, 0);
         int exitIndex = SnapAnchor(route.Designator, points, exitAnchor, navDb)?.Index ?? DefaultIndex(points, exitPoints, points.Count - 1);
@@ -90,7 +90,7 @@ public static class MilitaryRouteExpander
 
         MilitaryRouteVariant? best = null;
         double bestScore = double.MaxValue;
-        foreach (var variant in route.Variants)
+        foreach (MilitaryRouteVariant variant in route.Variants)
         {
             double score = ScoreVariant(route.Designator, variant, entryAnchor, exitAnchor, navDb);
             if (score < bestScore)
@@ -112,8 +112,8 @@ public static class MilitaryRouteExpander
         NavigationDatabase navDb
     )
     {
-        var entry = SnapAnchor(designator, variant.Points, entryAnchor, navDb);
-        var exit = SnapAnchor(designator, variant.Points, exitAnchor, navDb);
+        (int Index, double DistanceNm)? entry = SnapAnchor(designator, variant.Points, entryAnchor, navDb);
+        (int Index, double DistanceNm)? exit = SnapAnchor(designator, variant.Points, exitAnchor, navDb);
 
         // An anchor that does not resolve against this direction is no evidence either way, so it
         // costs the tolerance rather than disqualifying the direction outright.
@@ -149,7 +149,7 @@ public static class MilitaryRouteExpander
             return null;
         }
 
-        var position = navDb.ResolveFixOrFrd(anchor);
+        (double Lat, double Lon)? position = navDb.ResolveFixOrFrd(anchor);
         if (position is null)
         {
             return null;
@@ -161,7 +161,7 @@ public static class MilitaryRouteExpander
 
         for (int i = 0; i < points.Count; i++)
         {
-            var point = points[i].Position;
+            LatLon point = points[i].Position;
             double distance = GeoMath.DistanceNm(position.Value.Lat, position.Value.Lon, point.Lat, point.Lon);
             if (distance < best)
             {

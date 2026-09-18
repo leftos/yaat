@@ -41,7 +41,7 @@ internal abstract class ScenarioSceneBase : Scene
         await SceneActions.WaitForConnectionAsync(vm, TimeSpan.FromSeconds(15));
         await SceneActions.CreateRoomAsync(vm, TimeSpan.FromSeconds(10));
 
-        var scenarioPath = Path.Combine(ctx.RepoRoot, "docs", "atctrainer-scenario-examples", ScenarioFile);
+        string scenarioPath = Path.Combine(ctx.RepoRoot, "docs", "atctrainer-scenario-examples", ScenarioFile);
         await SceneActions.LoadScenarioAsync(vm, scenarioPath, TimeSpan.FromSeconds(30));
 
         vm.SelectedTabIndex = TabIndex;

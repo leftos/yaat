@@ -51,7 +51,7 @@ internal static class OuroborosRunner
             return 1;
         }
 
-        var corpusPath = args[0];
+        string corpusPath = args[0];
         string? outDirOverride = null;
         int trials = 1;
         for (int i = 1; i < args.Length; i++)
@@ -81,7 +81,7 @@ internal static class OuroborosRunner
         OuroborosCorpus corpus;
         try
         {
-            var json = await File.ReadAllTextAsync(corpusPath).ConfigureAwait(false);
+            string json = await File.ReadAllTextAsync(corpusPath).ConfigureAwait(false);
             corpus =
                 JsonSerializer.Deserialize(json, OuroborosCorpusJsonContext.Default.OuroborosCorpus)
                 ?? throw new InvalidDataException("Corpus deserialized as null");
@@ -103,7 +103,7 @@ internal static class OuroborosRunner
         Console.WriteLine($"Whisper model: {prefs.WhisperModelSize}");
         Console.WriteLine($"LLM model:     {prefs.LlmModelPath}");
 
-        var voiceDir = PiperSynthesizer.ResolveDefaultVoiceDir();
+        string? voiceDir = PiperSynthesizer.ResolveDefaultVoiceDir();
         if (voiceDir is null)
         {
             Console.Error.WriteLine(
@@ -135,20 +135,20 @@ internal static class OuroborosRunner
             return 2;
         }
 
-        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-        var outDir = outDirOverride ?? Path.Combine(FindRepoRoot(), ".tmp", $"ouroboros-{stamp}");
+        string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        string outDir = outDirOverride ?? Path.Combine(FindRepoRoot(), ".tmp", $"ouroboros-{stamp}");
         Directory.CreateDirectory(outDir);
-        var casesDir = Path.Combine(outDir, "cases");
+        string casesDir = Path.Combine(outDir, "cases");
         Directory.CreateDirectory(casesDir);
         Console.WriteLine($"Output dir:    {outDir}");
         Console.WriteLine();
 
         var results = new List<CaseResult>();
 
-        foreach (var c in corpus.Cases)
+        foreach (OuroborosCase c in corpus.Cases)
         {
             Console.WriteLine($"=== {c.Name} ===");
-            var result = await RunCaseAsync(c, piper, stt, ruleMapper, llmMapper, casesDir, trials).ConfigureAwait(false);
+            CaseResult result = await RunCaseAsync(c, piper, stt, ruleMapper, llmMapper, casesDir, trials).ConfigureAwait(false);
             results.Add(result);
             Console.WriteLine($"  Verdict: {VerdictLabel(result)}");
             Console.WriteLine();
@@ -156,9 +156,9 @@ internal static class OuroborosRunner
 
         await WriteReportAsync(outDir, corpusPath, results, trials).ConfigureAwait(false);
 
-        var passCount = results.Count(r => r.Verdict == CaseVerdict.Pass);
-        var flakyCount = results.Count(r => r.Verdict == CaseVerdict.Flaky);
-        var failCount = results.Count(r => r.Verdict == CaseVerdict.Fail);
+        int passCount = results.Count(r => r.Verdict == CaseVerdict.Pass);
+        int flakyCount = results.Count(r => r.Verdict == CaseVerdict.Flaky);
+        int failCount = results.Count(r => r.Verdict == CaseVerdict.Fail);
         Console.WriteLine($"Summary: {passCount} pass, {flakyCount} flaky, {failCount} fail (of {results.Count}).");
         Console.WriteLine($"Report:  {Path.Combine(outDir, "report.md")}");
         return failCount == 0 && flakyCount == 0 ? 0 : 1;
@@ -177,18 +177,18 @@ internal static class OuroborosRunner
         var result = new CaseResult { Case = c };
 
         // --- Stage 0: parse canonical into a CompoundCommand tree ---
-        var parsed = CommandParser.ParseCompound(c.Canonical);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(c.Canonical);
         if (!parsed.IsSuccess)
         {
             result.SetupFailure = $"input canonical did not parse: {parsed.Reason}";
             await WriteCaseTextAsync(casesDir, result).ConfigureAwait(false);
             return result;
         }
-        var compound = parsed.Value!;
+        CompoundCommand compound = parsed.Value!;
 
         // --- Stage 1: build readback from the compound + minimal aircraft state ---
-        var aircraft = BuildAircraft(c);
-        var readback = PilotResponder.BuildReadback(compound, aircraft);
+        AircraftState aircraft = BuildAircraft(c);
+        PilotSpeechText? readback = PilotResponder.BuildReadback(compound, aircraft);
         if (readback is null)
         {
             result.SetupFailure = "PilotResponder.BuildReadback returned null (no verbalization for this command)";
@@ -196,23 +196,23 @@ internal static class OuroborosRunner
             return result;
         }
         result.ReadbackTerminal = readback.Terminal;
-        var ttsText = readback.Tts;
+        string ttsText = readback.Tts;
         result.ReadbackTts = ttsText;
         Console.WriteLine($"  TTS:     \"{ttsText}\"");
 
         // --- Stage 2: Piper synth ONCE (deterministic), resample to 16 kHz, pad, save as 16 kHz
         // PCM16 so `--pipeline` can replay the exact bytes Whisper consumed. ---
         var synthSw = Stopwatch.StartNew();
-        var synth = piper.Synthesize(ttsText, DefaultSpeakerId, DefaultSpeed);
+        PiperSynthesizer.SynthResult synth = piper.Synthesize(ttsText, DefaultSpeakerId, DefaultSpeed);
         synthSw.Stop();
         result.SynthMs = (int)synthSw.ElapsedMilliseconds;
 
-        var resampled = PiperSynthesizer.Resample(synth.Samples, synth.SampleRate, AudioCaptureService.SampleRate);
-        var sttSamples = PiperSynthesizer.PadWithSilence(resampled, AudioCaptureService.SampleRate, LeadingSilenceMs, TrailingSilenceMs);
-        var wavPath = Path.Combine(casesDir, $"{c.Name}.wav");
-        await using (var fs = File.Create(wavPath))
+        float[] resampled = PiperSynthesizer.Resample(synth.Samples, synth.SampleRate, AudioCaptureService.SampleRate);
+        float[] sttSamples = PiperSynthesizer.PadWithSilence(resampled, AudioCaptureService.SampleRate, LeadingSilenceMs, TrailingSilenceMs);
+        string wavPath = Path.Combine(casesDir, $"{c.Name}.wav");
+        await using (FileStream fs = File.Create(wavPath))
         {
-            var wavStream = WavHeader.WritePcm16(sttSamples, AudioCaptureService.SampleRate);
+            MemoryStream wavStream = WavHeader.WritePcm16(sttSamples, AudioCaptureService.SampleRate);
             await wavStream.CopyToAsync(fs).ConfigureAwait(false);
         }
         result.WavPath = wavPath;
@@ -220,7 +220,7 @@ internal static class OuroborosRunner
         // --- Stage 3+: run N trials of STT + mapping on the same bytes ---
         for (int trialIdx = 0; trialIdx < trials; trialIdx++)
         {
-            var trial = await RunTrialAsync(c, sttSamples, stt, ruleMapper, llmMapper, trialIdx).ConfigureAwait(false);
+            TrialResult trial = await RunTrialAsync(c, sttSamples, stt, ruleMapper, llmMapper, trialIdx).ConfigureAwait(false);
             result.Trials.Add(trial);
             if (trials > 1)
             {
@@ -266,11 +266,11 @@ internal static class OuroborosRunner
             return trial;
         }
 
-        var normalized = AtcNumberParser.NormalizeDigits(transcript);
+        string normalized = AtcNumberParser.NormalizeDigits(transcript);
         trial.Normalized = normalized;
 
         var ruleSw = Stopwatch.StartNew();
-        var ruleResult = await ruleMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
+        MapResult? ruleResult = await ruleMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
         ruleSw.Stop();
         trial.RuleMs = (int)ruleSw.ElapsedMilliseconds;
         trial.RuleCanonical = ruleResult?.CanonicalCommand;
@@ -279,13 +279,13 @@ internal static class OuroborosRunner
         if (ruleResult is null)
         {
             var llmSw = Stopwatch.StartNew();
-            var llmResult = await llmMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
+            MapResult? llmResult = await llmMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
             llmSw.Stop();
             trial.LlmMs = (int)llmSw.ElapsedMilliseconds;
             trial.LlmCanonical = llmResult?.CanonicalCommand;
         }
 
-        var recovered = trial.RuleCanonical ?? trial.LlmCanonical;
+        string? recovered = trial.RuleCanonical ?? trial.LlmCanonical;
         trial.WinnerStage =
             trial.RuleCanonical is not null ? "RULE"
             : trial.LlmCanonical is not null ? "LLM"
@@ -319,7 +319,7 @@ internal static class OuroborosRunner
 
     private static async Task WriteCaseTextAsync(string casesDir, CaseResult r)
     {
-        var c = r.Case;
+        OuroborosCase c = r.Case;
         var sb = new StringBuilder();
         sb.AppendLine($"# {c.Name}");
         sb.AppendLine();
@@ -345,7 +345,7 @@ internal static class OuroborosRunner
         sb.AppendLine();
         for (int i = 0; i < r.Trials.Count; i++)
         {
-            var t = r.Trials[i];
+            TrialResult t = r.Trials[i];
             sb.AppendLine($"--- Trial {i + 1}/{r.Trials.Count} ({(t.Passed ? "PASS" : "FAIL")} via {t.WinnerStage}) ---");
             sb.AppendLine($"Whisper transcript: {t.RawTranscript ?? "<none>"}");
             sb.AppendLine($"Normalized:         {t.Normalized ?? "<none>"}");
@@ -358,7 +358,7 @@ internal static class OuroborosRunner
             sb.AppendLine($"Timings: stt={t.SttMs} ms, rule={t.RuleMs} ms, llm={t.LlmMs} ms");
             sb.AppendLine();
         }
-        var path = Path.Combine(casesDir, $"{c.Name}.txt");
+        string path = Path.Combine(casesDir, $"{c.Name}.txt");
         await File.WriteAllTextAsync(path, sb.ToString()).ConfigureAwait(false);
     }
 
@@ -371,17 +371,17 @@ internal static class OuroborosRunner
         sb.AppendLine();
         sb.AppendLine("| Case | Input | Verdict | Pass/N | Most-frequent recovery | synth ms |");
         sb.AppendLine("| --- | --- | --- | --: | --- | --: |");
-        foreach (var r in results)
+        foreach (CaseResult r in results)
         {
-            var verdict = r.Verdict switch
+            string verdict = r.Verdict switch
             {
                 CaseVerdict.Pass => "PASS",
                 CaseVerdict.Flaky => "**FLAKY**",
                 CaseVerdict.Fail => "**FAIL**",
                 _ => "?",
             };
-            var ratio = $"{r.PassCount}/{r.TrialCount}";
-            var mostFrequent = MostFrequentRecovery(r);
+            string ratio = $"{r.PassCount}/{r.TrialCount}";
+            string mostFrequent = MostFrequentRecovery(r);
             sb.Append("| ")
                 .Append(r.Case.Name)
                 .Append(" | `")
@@ -397,16 +397,16 @@ internal static class OuroborosRunner
                 .AppendLine(" |");
         }
         sb.AppendLine();
-        var passCount = results.Count(r => r.Verdict == CaseVerdict.Pass);
-        var flakyCount = results.Count(r => r.Verdict == CaseVerdict.Flaky);
-        var failCount = results.Count(r => r.Verdict == CaseVerdict.Fail);
+        int passCount = results.Count(r => r.Verdict == CaseVerdict.Pass);
+        int flakyCount = results.Count(r => r.Verdict == CaseVerdict.Flaky);
+        int failCount = results.Count(r => r.Verdict == CaseVerdict.Fail);
         sb.AppendLine($"**{passCount} pass, {flakyCount} flaky, {failCount} fail** (of {results.Count}).");
         sb.AppendLine();
         var notGreen = results.Where(r => r.Verdict != CaseVerdict.Pass).ToList();
         if (notGreen.Count > 0)
         {
             sb.AppendLine("Cases needing attention (per-case dumps at `cases/{name}.txt`):");
-            foreach (var r in notGreen)
+            foreach (CaseResult? r in notGreen)
             {
                 sb.AppendLine($"- `{r.Case.Name}` ({r.PassCount}/{r.TrialCount}) — {r.SetupFailure ?? "see trials"}");
             }
@@ -425,8 +425,8 @@ internal static class OuroborosRunner
             .GroupBy(s => s, StringComparer.OrdinalIgnoreCase)
             .OrderByDescending(g => g.Count())
             .ToList();
-        var top = grouped[0];
-        var label = $"`{MdEscape(top.Key)}` ({top.Count()}/{r.TrialCount})";
+        IGrouping<string, string> top = grouped[0];
+        string label = $"`{MdEscape(top.Key)}` ({top.Count()}/{r.TrialCount})";
         if (grouped.Count > 1)
         {
             label += " + " + (grouped.Count - 1) + " other";

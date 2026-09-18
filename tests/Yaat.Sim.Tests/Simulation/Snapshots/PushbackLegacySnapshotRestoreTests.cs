@@ -66,16 +66,16 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
             return;
         }
 
-        var spot = SpotApproach(ground.Layout);
-        var list = Restore(ground.Layout, LegacyPush(GateNode(ground.Layout).Position, spot.Heading, spot.Staging, pullForward: null));
+        SpotLine spot = SpotApproach(ground.Layout);
+        PhaseList list = Restore(ground.Layout, LegacyPush(GateNode(ground.Layout).Position, spot.Heading, spot.Staging, pullForward: null));
 
-        var phase = Assert.IsType<PushbackPhase>(list.CurrentPhase);
+        PushbackPhase phase = Assert.IsType<PushbackPhase>(list.CurrentPhase);
         Assert.Equal(PushbackLegKind.Push, phase.Kind);
         Assert.Equal(TugMoveShape.ViaLine, phase.Move.Shape);
         Assert.Equal(spot.Staging, phase.Move.StopAt);
         Assert.Equal(spot.Staging, phase.PlannedEnd);
 
-        var ac = Fly(ground, "LEG1", spot.Node, spot.RunUp, pushing: true, list);
+        AircraftState ac = Fly(ground, "LEG1", spot.Node, spot.RunUp, pushing: true, list);
 
         AssertEndsNear(ac, spot.Staging, spot.Heading);
     }
@@ -92,20 +92,20 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
             return;
         }
 
-        var spot = SpotApproach(ground.Layout);
+        SpotLine spot = SpotApproach(ground.Layout);
         using var tap = new CapturingSimLogProvider(LogLevel.Warning, 100);
-        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
         SimLog.InitializeForTest(factory);
 
-        var list = Restore(ground.Layout, LegacyPush(GateNode(ground.Layout).Position, spot.Heading, spot.Staging, spot.Stop));
+        PhaseList list = Restore(ground.Layout, LegacyPush(GateNode(ground.Layout).Position, spot.Heading, spot.Staging, spot.Stop));
 
         var warnings = tap.Drain().Where(r => (r.Level == LogLevel.Warning) && (r.Category == "PushbackPhase")).ToList();
         warnings.ForEach(w => output.WriteLine($"warning: {w.Message}"));
         Assert.Contains(warnings, w => w.Message.Contains("the pull forward onto the spot is dropped", StringComparison.Ordinal));
-        var phase = Assert.IsType<PushbackPhase>(list.CurrentPhase);
+        PushbackPhase phase = Assert.IsType<PushbackPhase>(list.CurrentPhase);
         Assert.Equal(spot.Staging, phase.PlannedEnd);
 
-        var ac = Fly(ground, "LEG2", spot.Node, spot.RunUp, pushing: true, list);
+        AircraftState ac = Fly(ground, "LEG2", spot.Node, spot.RunUp, pushing: true, list);
 
         AssertEndsNear(ac, spot.Staging, spot.Heading);
     }
@@ -122,16 +122,16 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
             return;
         }
 
-        var stand = GateNode(ground.Layout);
+        GroundNode stand = GateNode(ground.Layout);
         double standDeg = Assert.NotNull(stand.TrueHeading).Degrees;
         int heading = (int)Math.Round(new TrueHeading(standDeg - HeadingOnlyTurnDeg).Degrees);
-        var list = Restore(ground.Layout, LegacyPush(stand.Position, heading, target: null, pullForward: null));
+        PhaseList list = Restore(ground.Layout, LegacyPush(stand.Position, heading, target: null, pullForward: null));
 
-        var phase = Assert.IsType<PushbackPhase>(list.CurrentPhase);
+        PushbackPhase phase = Assert.IsType<PushbackPhase>(list.CurrentPhase);
         Assert.Equal(TugMoveShape.TurnTo, phase.Move.Shape);
         Assert.Equal(heading, phase.Move.FacingTrueDeg, 6);
 
-        var ac = Fly(ground, "LEG3", stand, new TugPose(stand.Position, standDeg), pushing: false, list);
+        AircraftState ac = Fly(ground, "LEG3", stand, new TugPose(stand.Position, standDeg), pushing: false, list);
 
         double offDeg = new TrueHeading(heading).AbsAngleTo(ac.TrueHeading);
         output.WriteLine($"nose {ac.TrueHeading.Degrees:F2}° vs heading {heading}° ({offDeg:F2}° off)");
@@ -151,26 +151,26 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
             return;
         }
 
-        var stand = GateNode(ground.Layout);
+        GroundNode stand = GateNode(ground.Layout);
         double standDeg = Assert.NotNull(stand.TrueHeading).Degrees;
         var pushed = new TugPose(
             GeoMath.ProjectPoint(stand.Position, new TrueHeading(standDeg).ToReciprocal(), PushedSoFarFt / GeoMath.FeetPerNm),
             standDeg
         );
-        var first = Restore(ground.Layout, LegacyPush(stand.Position, heading: null, target: null, pullForward: null));
+        PhaseList first = Restore(ground.Layout, LegacyPush(stand.Position, heading: null, target: null, pullForward: null));
 
-        var firstPhase = Assert.IsType<PushbackPhase>(first.CurrentPhase);
+        PushbackPhase firstPhase = Assert.IsType<PushbackPhase>(first.CurrentPhase);
         string firstJson = JsonSerializer.Serialize<PhaseDto>(firstPhase.ToSnapshot(), RecordingJsonOptions.Default);
         output.WriteLine(firstJson);
-        var second = Restore(ground.Layout, JsonNode.Parse(firstJson)!.AsObject());
-        var secondPhase = Assert.IsType<PushbackPhase>(second.CurrentPhase);
+        PhaseList second = Restore(ground.Layout, JsonNode.Parse(firstJson)!.AsObject());
+        PushbackPhase secondPhase = Assert.IsType<PushbackPhase>(second.CurrentPhase);
         string secondJson = JsonSerializer.Serialize<PhaseDto>(secondPhase.ToSnapshot(), RecordingJsonOptions.Default);
 
         Assert.Equal(firstJson, secondJson);
 
-        var original = Fly(ground, "LEG4", stand, pushed, pushing: true, first);
-        var twinGround = SfoGroundHarness.Build(output, autoCross: false)!.Value;
-        var twin = Fly(twinGround, "LEG4", stand, pushed, pushing: true, second);
+        AircraftState original = Fly(ground, "LEG4", stand, pushed, pushing: true, first);
+        SfoGround twinGround = SfoGroundHarness.Build(output, autoCross: false)!.Value;
+        AircraftState twin = Fly(twinGround, "LEG4", stand, pushed, pushing: true, second);
 
         Assert.Equal(original.Position, twin.Position);
         Assert.Equal(original.TrueHeading.Degrees, twin.TrueHeading.Degrees);
@@ -192,12 +192,12 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
             return;
         }
 
-        var spot = SpotApproach(ground.Layout);
-        var mid = MidRouteNode(ground.Layout, spot);
+        SpotLine spot = SpotApproach(ground.Layout);
+        GroundNode mid = MidRouteNode(ground.Layout, spot);
         output.WriteLine($"route: stand {Gate} → node {mid.Id} → spot {AlleySpot} (node {spot.Node.Id})");
-        var list = Restore(ground.Layout, LegacySpotPush(GateNode(ground.Layout), mid, spot.Node, arrived: false));
+        PhaseList list = Restore(ground.Layout, LegacySpotPush(GateNode(ground.Layout), mid, spot.Node, arrived: false));
 
-        var phase = Assert.IsType<PushbackPhase>(list.CurrentPhase);
+        PushbackPhase phase = Assert.IsType<PushbackPhase>(list.CurrentPhase);
         Assert.Equal(PushbackLegKind.Push, phase.Kind);
         Assert.Equal(TugMoveShape.ToPoint, phase.Move.Shape);
         Assert.NotEqual(mid.Position, spot.Node.Position);
@@ -217,10 +217,10 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
             return;
         }
 
-        var spot = SpotApproach(ground.Layout);
-        var list = Restore(ground.Layout, LegacySpotPush(GateNode(ground.Layout), MidRouteNode(ground.Layout, spot), spot.Node, arrived: true));
+        SpotLine spot = SpotApproach(ground.Layout);
+        PhaseList list = Restore(ground.Layout, LegacySpotPush(GateNode(ground.Layout), MidRouteNode(ground.Layout, spot), spot.Node, arrived: true));
 
-        var phase = Assert.IsType<PushbackPhase>(list.CurrentPhase);
+        PushbackPhase phase = Assert.IsType<PushbackPhase>(list.CurrentPhase);
         Assert.Equal(TugMoveShape.Straight, phase.Move.Shape);
         Assert.Equal(0.0, phase.Move.StraightDistanceFt);
         Assert.Equal(spot.Node.Position, phase.PlannedEnd);
@@ -232,11 +232,11 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
 
     private static SpotLine SpotApproach(AirportGroundLayout layout)
     {
-        var node = layout.FindSpotNodeByName(AlleySpot) ?? throw new InvalidOperationException($"the SFO layout has no spot '{AlleySpot}'");
+        GroundNode node = layout.FindSpotNodeByName(AlleySpot) ?? throw new InvalidOperationException($"the SFO layout has no spot '{AlleySpot}'");
         Assert.True(layout.TryGetSpotOutboundHeading(node, out double outDeg), $"spot {AlleySpot} has no nose-out heading");
         int heading = (int)Math.Round(outDeg);
-        var (stop, staging) = TugMovePlanner.SpotStopGeometry(node, heading, AircraftType);
-        var runUp = GeoMath.ProjectPoint(staging, new TrueHeading(heading), RunUpFt / GeoMath.FeetPerNm);
+        (LatLon stop, LatLon staging) = TugMovePlanner.SpotStopGeometry(node, heading, AircraftType);
+        LatLon runUp = GeoMath.ProjectPoint(staging, new TrueHeading(heading), RunUpFt / GeoMath.FeetPerNm);
         return new SpotLine(node, heading, stop, staging, new TugPose(runUp, heading));
     }
 
@@ -255,7 +255,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
     /// </summary>
     private static JsonObject LegacySpotPush(GroundNode stand, GroundNode mid, GroundNode spot, bool arrived)
     {
-        var target = arrived ? spot : mid;
+        GroundNode target = arrived ? spot : mid;
         return new JsonObject
         {
             [Discriminator()] = "PushbackToSpot",
@@ -323,7 +323,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
             JsonSerializer.Serialize<PhaseDto>(new HoldingAfterPushbackPhaseDto { Status = 0, ElapsedSeconds = 0 }, RecordingJsonOptions.Default)
         );
         var json = new JsonObject { ["CurrentIndex"] = 0, ["Phases"] = new JsonArray(pushback, holding) };
-        var dto = Assert.IsType<PhaseListDto>(JsonSerializer.Deserialize<PhaseListDto>(json.ToJsonString(), RecordingJsonOptions.Default));
+        PhaseListDto dto = Assert.IsType<PhaseListDto>(JsonSerializer.Deserialize<PhaseListDto>(json.ToJsonString(), RecordingJsonOptions.Default));
         return PhaseList.FromSnapshot(dto, layout);
     }
 
@@ -343,7 +343,13 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
     /// </summary>
     private AircraftState Fly(SfoGround ground, string callsign, GroundNode node, TugPose pose, bool pushing, PhaseList phases)
     {
-        var ac = SfoGroundHarness.SpawnAt(ground, callsign, AircraftType, (node, new TrueHeading(pose.NoseTrueDeg)), new HoldingAfterPushbackPhase());
+        AircraftState ac = SfoGroundHarness.SpawnAt(
+            ground,
+            callsign,
+            AircraftType,
+            (node, new TrueHeading(pose.NoseTrueDeg)),
+            new HoldingAfterPushbackPhase()
+        );
         ac.Position = pose.Position;
         ac.IndicatedAirspeed = pushing ? CategoryPerformance.PushbackSpeed(AircraftCategory.Jet) : 0.0;
         ac.Ground.PushbackTrueHeading = pushing ? new TrueHeading(pose.NoseTrueDeg).ToReciprocal() : null;

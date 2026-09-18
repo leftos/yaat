@@ -70,12 +70,12 @@ public class ArrivalGeneratorStaggeredStartTests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(
+        List<string> warnings = engine.LoadScenario(
             TwoGeneratorScenario(randomizeInterval),
             rngSeed: 42,
             sessionStartUtc: MagneticDeclination.EvaluationDateUtc
         );
-        foreach (var w in warnings)
+        foreach (string w in warnings)
         {
             output.WriteLine($"[load-warn] {w}");
         }
@@ -85,13 +85,13 @@ public class ArrivalGeneratorStaggeredStartTests(ITestOutputHelper output)
     [Fact]
     public void MultipleRandomizedGenerators_OnlyFirstSpawnsOnFirstTick()
     {
-        var engine = BuildEngine(randomizeInterval: true);
+        SimulationEngine? engine = BuildEngine(randomizeInterval: true);
         if (engine is null)
         {
             return;
         }
 
-        var gens = engine.Scenario!.Generators;
+        List<GeneratorState> gens = engine.Scenario!.Generators;
         Assert.Equal(2, gens.Count);
 
         // The first generator keeps its authored schedule and fires on the first tick.
@@ -112,7 +112,7 @@ public class ArrivalGeneratorStaggeredStartTests(ITestOutputHelper output)
     [Fact]
     public void MultipleDeterministicGenerators_KeepAuthoredStart()
     {
-        var engine = BuildEngine(randomizeInterval: false);
+        SimulationEngine? engine = BuildEngine(randomizeInterval: false);
         if (engine is null)
         {
             return;

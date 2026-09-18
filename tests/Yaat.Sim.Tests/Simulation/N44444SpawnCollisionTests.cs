@@ -93,18 +93,18 @@ public class N44444SpawnCollisionTests(ITestOutputHelper output)
         };
         world.AddAircraft(scenarioAc);
 
-        var snapshot = world.GetSnapshot();
+        List<AircraftState> snapshot = world.GetSnapshot();
         var matches = snapshot.Where(a => a.Callsign == Callsign).ToList();
 
         output.WriteLine($"World contains {matches.Count} aircraft with callsign {Callsign}");
-        foreach (var a in matches)
+        foreach (AircraftState? a in matches)
         {
             output.WriteLine($"  cid={a.Cid} type='{a.AircraftType}' dest={a.FlightPlan.Destination} unsup={a.Ghost.IsUnsupported}");
         }
 
         Assert.Single(matches);
 
-        var survivor = matches[0];
+        AircraftState survivor = matches[0];
         Assert.Equal("C172", survivor.AircraftType);
         Assert.Equal("KHAF", survivor.FlightPlan.Destination);
         Assert.False(survivor.Ghost.IsUnsupported, "Surviving entry must be the spawned aircraft, not the ghost");
@@ -134,7 +134,7 @@ public class N44444SpawnCollisionTests(ITestOutputHelper output)
             return;
         }
 
-        var recording = RecordingLoader.Load(BundlePath);
+        SessionRecording? recording = RecordingLoader.Load(BundlePath);
         if (recording is null)
         {
             output.WriteLine($"Skipped: recording not found at {BundlePath}");
@@ -148,11 +148,11 @@ public class N44444SpawnCollisionTests(ITestOutputHelper output)
         // Scenario spawn for N44444 fires at t=1254 (spawnDelay in scenario JSON).
         engine.Replay(recording, 1260);
 
-        var snapshot = engine.World.GetSnapshot();
+        List<AircraftState> snapshot = engine.World.GetSnapshot();
         var matches = snapshot.Where(a => a.Callsign == Callsign).ToList();
 
         output.WriteLine($"At t=1260 the world has {matches.Count} {Callsign} entries:");
-        foreach (var a in matches)
+        foreach (AircraftState? a in matches)
         {
             output.WriteLine($"  cid={a.Cid} type='{a.AircraftType}' dest={a.FlightPlan.Destination} pos={a.Position} unsup={a.Ghost.IsUnsupported}");
         }

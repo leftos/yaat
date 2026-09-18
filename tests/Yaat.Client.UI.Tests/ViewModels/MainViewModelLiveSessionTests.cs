@@ -73,7 +73,7 @@ public class MainViewModelLiveSessionTests
     public void ParseStartAt_ResolvesTheMostRecentInstantNotAfterNow(string text, string? expectedIso, string? expectedError)
     {
         var now = new DateTimeOffset(2026, 8, 29, 18, 30, 0, TimeSpan.Zero);
-        var parsed = Yaat.Client.Views.LiveSessionWindow.ParseStartAt(text, now, out var error);
+        DateTimeOffset? parsed = Yaat.Client.Views.LiveSessionWindow.ParseStartAt(text, now, out string? error);
         Assert.Equal(expectedError, error);
         Assert.Equal(expectedIso is null ? null : DateTimeOffset.Parse(expectedIso, System.Globalization.CultureInfo.InvariantCulture), parsed);
     }

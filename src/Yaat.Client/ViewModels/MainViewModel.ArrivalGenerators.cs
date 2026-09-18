@@ -36,9 +36,9 @@ public partial class MainViewModel
         var ends = new List<string>();
         if (layout is not null)
         {
-            foreach (var rwy in layout.Runways)
+            foreach (GroundRunway rwy in layout.Runways)
             {
-                foreach (var part in rwy.EndDesignators)
+                foreach (string part in rwy.EndDesignators)
                 {
                     if (!ends.Contains(part))
                     {
@@ -47,7 +47,7 @@ public partial class MainViewModel
                 }
             }
         }
-        foreach (var gen in generators)
+        foreach (ScenarioGeneratorConfig gen in generators)
         {
             if (!string.IsNullOrEmpty(gen.Runway) && !ends.Contains(gen.Runway))
             {

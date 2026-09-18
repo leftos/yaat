@@ -85,7 +85,7 @@ public partial class VfrArrivalGeneratorRowViewModel : ObservableObject
     {
         get
         {
-            var target = string.IsNullOrWhiteSpace(DirectTo) ? "the field" : DirectTo;
+            string target = string.IsNullOrWhiteSpace(DirectTo) ? "the field" : DirectTo;
             return $"{BearingFrom:F0}°-{BearingTo:F0}° · direct {target} · {EngineType} · {IntervalTime}s";
         }
     }

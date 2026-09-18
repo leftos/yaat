@@ -37,7 +37,7 @@ public class Issue396GateBridgeDeepeningTests
         out string? failReason
     )
     {
-        var gate = layout.FindParkingByName(parking);
+        GroundNode? gate = layout.FindParkingByName(parking);
         Assert.True(gate is not null, $"parking {parking} not found in the SFO layout");
 
         return TaxiPathfinder.ResolveExplicitPath(
@@ -58,9 +58,9 @@ public class Issue396GateBridgeDeepeningTests
 
     private static int BridgeEdgeCount(List<string> diag)
     {
-        var line = diag.FirstOrDefault(l => l.StartsWith("[bridge] start=", StringComparison.Ordinal));
+        string? line = diag.FirstOrDefault(l => l.StartsWith("[bridge] start=", StringComparison.Ordinal));
         Assert.True(line is not null, "expected a [bridge] diagnostic line");
-        var match = Regex.Match(line, @"\((\d+) edges");
+        Match match = Regex.Match(line, @"\((\d+) edges");
         Assert.True(match.Success, $"unparseable bridge line: {line}");
         return int.Parse(match.Groups[1].Value);
     }
@@ -68,15 +68,15 @@ public class Issue396GateBridgeDeepeningTests
     [Fact]
     public void TaxiM3M2FromGateB4_EntersM3AtTheRampJunction()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
         var diag = new List<string>();
-        var route = ResolveFromGate(layout, "B4", ["M3", "M2", "A", "H", "B", "M1"], "1L", diag, out string? failReason);
-        foreach (var line in diag.Where(l => l.StartsWith("[bridge]", StringComparison.Ordinal)))
+        TaxiRoute? route = ResolveFromGate(layout, "B4", ["M3", "M2", "A", "H", "B", "M1"], "1L", diag, out string? failReason);
+        foreach (string? line in diag.Where(l => l.StartsWith("[bridge]", StringComparison.Ordinal)))
         {
             _output.WriteLine(line);
         }
@@ -86,7 +86,7 @@ public class Issue396GateBridgeDeepeningTests
 
         // The route must enter M3 at the ramp junction (several RAMP lead-outs meet M3 there) heading
         // south along the lane — not through the corner arc that forces a U-turn.
-        var firstM3 = route.Segments.First(s => s.Edge.Edge.MatchesTaxiway("M3"));
+        TaxiRouteSegment firstM3 = route.Segments.First(s => s.Edge.Edge.MatchesTaxiway("M3"));
         Assert.True(
             firstM3.Edge.FromNode.Edges.Count(e => e.IsRamp) >= 2,
             $"first M3 segment should depart the M3/RAMP junction, departed node {firstM3.FromNodeId} instead"
@@ -99,8 +99,8 @@ public class Issue396GateBridgeDeepeningTests
         double limit = CategoryLimits.MaxHeadingChangeDeg(AircraftCategory.Jet);
         for (int i = 1; i < route.Segments.Count; i++)
         {
-            var prev = route.Segments[i - 1].Edge;
-            var cur = route.Segments[i].Edge;
+            DirectionalEdge prev = route.Segments[i - 1].Edge;
+            DirectionalEdge cur = route.Segments[i].Edge;
             if (GeometricAdmissibility.IsNoOpEdge(prev.Edge) || GeometricAdmissibility.IsNoOpEdge(cur.Edge))
             {
                 continue;
@@ -114,14 +114,14 @@ public class Issue396GateBridgeDeepeningTests
     [Fact]
     public void TaxiYHBFromGateB13_KeepsShallowBridge()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
         var diag = new List<string>();
-        var route = ResolveFromGate(layout, "B13", ["Y", "H", "B", "M1"], "1L", diag, out string? failReason);
+        TaxiRoute? route = ResolveFromGate(layout, "B13", ["Y", "H", "B", "M1"], "1L", diag, out string? failReason);
         Assert.True(route is not null, $"TAXI Y H B M1 1L from B13 must resolve: {failReason}");
 
         // A gate whose three-hop bridge already reaches a usable entry must not be re-searched deeper.

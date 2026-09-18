@@ -85,7 +85,7 @@ public partial class FlightStripControl : UserControl
         Dispatcher.UIThread.Post(
             () =>
             {
-                var field = FirstEditableField(vm);
+                TextBox? field = FirstEditableField(vm);
                 field?.Focus();
                 field?.SelectAll();
             },
@@ -137,7 +137,7 @@ public partial class FlightStripControl : UserControl
     /// </summary>
     private void ApplyOffset(StripItemViewModel vm)
     {
-        var root = this.FindControl<Border>("StripRoot");
+        Border? root = this.FindControl<Border>("StripRoot");
         if (root is null)
         {
             return;
@@ -155,7 +155,7 @@ public partial class FlightStripControl : UserControl
     /// </summary>
     private void DrawBarcode(StripItemViewModel vm)
     {
-        var canvas = this.FindControl<Canvas>("BarcodeCanvas");
+        Canvas? canvas = this.FindControl<Canvas>("BarcodeCanvas");
         if (canvas is null)
         {
             return;
@@ -170,19 +170,19 @@ public partial class FlightStripControl : UserControl
         // Target width: the Canvas stretches to fill col 1 row 3 after the CID
         // text, so use its rendered bounds. Fall back to a reasonable default on
         // first layout pass before Bounds populates.
-        var totalWidth = canvas.Bounds.Width > 0 ? canvas.Bounds.Width : 70.0;
+        double totalWidth = canvas.Bounds.Width > 0 ? canvas.Bounds.Width : 70.0;
         const double height = 14.0;
 
         // Dense pattern: ~1.4 bars per pixel of width. Widths alternate between
         // thin/thick (1.0 / 2.0) and gaps alternate between tight/normal (0.8 / 1.2).
-        var hash = (uint)vm.Id.GetHashCode();
-        var x = 0.0;
-        var i = 0;
+        uint hash = (uint)vm.Id.GetHashCode();
+        double x = 0.0;
+        int i = 0;
         while (x < totalWidth - 1 && i < 64)
         {
-            var bit = (hash >> (i % 32)) & 1u;
-            var barWidth = bit == 1 ? 2.0 : 1.0;
-            var gap = ((hash >> ((i + 3) % 32)) & 1u) == 1 ? 1.2 : 0.8;
+            uint bit = (hash >> (i % 32)) & 1u;
+            double barWidth = bit == 1 ? 2.0 : 1.0;
+            double gap = ((hash >> ((i + 3) % 32)) & 1u) == 1 ? 1.2 : 0.8;
             if (x + barWidth > totalWidth)
             {
                 break;
@@ -261,9 +261,9 @@ public partial class FlightStripControl : UserControl
             return;
         }
 
-        var fullText = vm.RouteText ?? "";
-        var maxLines = block.MaxLines > 0 ? block.MaxLines : 3;
-        var availableWidth = block.Bounds.Width;
+        string fullText = vm.RouteText ?? "";
+        int maxLines = block.MaxLines > 0 ? block.MaxLines : 3;
+        double availableWidth = block.Bounds.Width;
         if (availableWidth <= 0)
         {
             // First layout pass — assign the full text so Avalonia can measure
@@ -278,8 +278,8 @@ public partial class FlightStripControl : UserControl
         // a string that "fits by 0.3 px" still get a 3rd line in the actual
         // render. Subtracting 1px eagerly trims in those edge cases without
         // visibly shrinking the route column.
-        var measureWidth = Math.Max(1.0, availableWidth - 1.0);
-        var tokens = fullText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        double measureWidth = Math.Max(1.0, availableWidth - 1.0);
+        string[] tokens = fullText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         if (tokens.Length <= 2 || FitsWithinMaxLines(fullText, typeface, block.FontSize, measureWidth, maxLines))
         {
@@ -290,13 +290,13 @@ public partial class FlightStripControl : UserControl
         // Middle-truncate by dropping tokens from the tail of the route body
         // (closest to destination first — the start of the route typically
         // identifies the SID / initial fix which we want to keep).
-        var dep = tokens[0];
-        var dest = tokens[^1];
-        var middle = tokens[1..^1];
-        for (var keep = middle.Length - 1; keep > 0; keep--)
+        string dep = tokens[0];
+        string dest = tokens[^1];
+        string[] middle = tokens[1..^1];
+        for (int keep = middle.Length - 1; keep > 0; keep--)
         {
-            var head = string.Join(' ', middle, 0, keep);
-            var candidate = $"{dep} {head} *** {dest}";
+            string head = string.Join(' ', middle, 0, keep);
+            string candidate = $"{dep} {head} *** {dest}";
             if (FitsWithinMaxLines(candidate, typeface, block.FontSize, measureWidth, maxLines))
             {
                 block.Text = candidate;
@@ -346,7 +346,7 @@ public partial class FlightStripControl : UserControl
         {
             return;
         }
-        var caret = tb.CaretIndex;
+        int caret = tb.CaretIndex;
         tb.Text = text.Replace('?', '✓');
         tb.CaretIndex = Math.Min(caret, tb.Text?.Length ?? 0);
     }
@@ -373,7 +373,7 @@ public partial class FlightStripControl : UserControl
         {
             return;
         }
-        var host = this.FindAncestorOfType<Views.VStrips.VStripsView>();
+        VStripsView? host = this.FindAncestorOfType<Views.VStrips.VStripsView>();
         if (host is null || host.DataContext is not VStripsViewModel vm)
         {
             return;
@@ -428,13 +428,13 @@ public partial class FlightStripControl : UserControl
         }
         else if (e.Key == Key.Tab)
         {
-            var forward = !e.KeyModifiers.HasFlag(KeyModifiers.Shift);
-            var nextTag = NextAnnotationTag(box, forward);
+            bool forward = !e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+            string? nextTag = NextAnnotationTag(box, forward);
             if (nextTag is null)
             {
                 return; // out-of-range tag — let default Tab navigation run
             }
-            var nextBox = FindAnnotationTextBox(nextTag);
+            TextBox? nextBox = FindAnnotationTextBox(nextTag);
             if (nextBox is null)
             {
                 return;
@@ -462,14 +462,14 @@ public partial class FlightStripControl : UserControl
         {
             return null;
         }
-        var n = current[0] - '0';
-        var next = forward ? (n == 9 ? 1 : n + 1) : (n == 1 ? 9 : n - 1);
+        int n = current[0] - '0';
+        int next = forward ? (n == 9 ? 1 : n + 1) : (n == 1 ? 9 : n - 1);
         return next.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private TextBox? FindAnnotationTextBox(string tag)
     {
-        foreach (var descendant in this.GetVisualDescendants())
+        foreach (Visual descendant in this.GetVisualDescendants())
         {
             if (descendant is TextBox candidate && candidate.Tag is string candidateTag && candidateTag == tag)
             {
@@ -486,7 +486,7 @@ public partial class FlightStripControl : UserControl
     // visible. Focus the visible one; Focus() on a hidden control is a no-op.
     private TextBox? FirstVisibleField(string tag)
     {
-        foreach (var descendant in this.GetVisualDescendants())
+        foreach (Visual descendant in this.GetVisualDescendants())
         {
             if (descendant is TextBox candidate && Equals(candidate.Tag, tag) && candidate.IsEffectivelyVisible)
             {
@@ -520,19 +520,19 @@ public partial class FlightStripControl : UserControl
         {
             return;
         }
-        if (!int.TryParse(tag.AsSpan(1), out var slot) || slot is < 0 or > 5)
+        if (!int.TryParse(tag.AsSpan(1), out int slot) || slot is < 0 or > 5)
         {
             return;
         }
 
-        var host = this.FindAncestorOfType<Views.VStrips.VStripsView>();
+        VStripsView? host = this.FindAncestorOfType<Views.VStrips.VStripsView>();
         if (host is null || host.DataContext is not VStripsViewModel vm)
         {
             return;
         }
 
-        var slots = new string[6];
-        for (var i = 0; i < 6; i++)
+        string[] slots = new string[6];
+        for (int i = 0; i < 6; i++)
         {
             slots[i] = i < strip.FieldValues.Length ? strip.FieldValues[i] ?? "" : "";
         }
@@ -565,7 +565,7 @@ public partial class FlightStripControl : UserControl
         else if (e.Key == Key.Escape)
         {
             _halfCellCancelPending = true;
-            if (DataContext is StripItemViewModel strip && tag.StartsWith('h') && int.TryParse(tag.AsSpan(1), out var slot) && slot is >= 0 and <= 5)
+            if (DataContext is StripItemViewModel strip && tag.StartsWith('h') && int.TryParse(tag.AsSpan(1), out int slot) && slot is >= 0 and <= 5)
             {
                 tb.Text = slot switch
                 {
@@ -582,13 +582,13 @@ public partial class FlightStripControl : UserControl
         }
         else if (e.Key == Key.Tab)
         {
-            var forward = !e.KeyModifiers.HasFlag(KeyModifiers.Shift);
-            var nextTag = NextHalfCellTag(tag, forward);
+            bool forward = !e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+            string? nextTag = NextHalfCellTag(tag, forward);
             if (nextTag is null)
             {
                 return;
             }
-            var nextBox = FindAnnotationTextBox(nextTag);
+            TextBox? nextBox = FindAnnotationTextBox(nextTag);
             if (nextBox is null)
             {
                 return;
@@ -605,8 +605,8 @@ public partial class FlightStripControl : UserControl
         {
             return null;
         }
-        var n = current[1] - '0';
-        var next = forward ? (n == 5 ? 0 : n + 1) : (n == 0 ? 5 : n - 1);
+        int n = current[1] - '0';
+        int next = forward ? (n == 5 ? 0 : n + 1) : (n == 0 ? 5 : n - 1);
         return $"h{next}";
     }
 
@@ -632,12 +632,12 @@ public partial class FlightStripControl : UserControl
         {
             return;
         }
-        var newLabel = tb.Text ?? "";
+        string newLabel = tb.Text ?? "";
         if (string.Equals(newLabel, strip.SeparatorLabel, StringComparison.Ordinal))
         {
             return;
         }
-        var host = this.FindAncestorOfType<Views.VStrips.VStripsView>();
+        VStripsView? host = this.FindAncestorOfType<Views.VStrips.VStripsView>();
         if (host is null || host.DataContext is not VStripsViewModel vm)
         {
             return;
@@ -674,7 +674,7 @@ public partial class FlightStripControl : UserControl
 
     private void DrawDisconnected(StripItemViewModel vm)
     {
-        var overlay = this.FindControl<Canvas>("DisconnectedOverlay");
+        Canvas? overlay = this.FindControl<Canvas>("DisconnectedOverlay");
         if (overlay is null)
         {
             return;
@@ -686,8 +686,8 @@ public partial class FlightStripControl : UserControl
             return;
         }
 
-        var w = Bounds.Width;
-        var h = Bounds.Height;
+        double w = Bounds.Width;
+        double h = Bounds.Height;
         if (w <= 0 || h <= 0)
         {
             return;

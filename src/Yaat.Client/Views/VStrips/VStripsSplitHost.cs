@@ -101,7 +101,7 @@ public sealed class VStripsSplitHost : ContentControl
         _secondaryView.DataContext = _entry.SecondaryVm;
 
         var grid = new Grid();
-        var ratio = _entry.SplitRatio;
+        double ratio = _entry.SplitRatio;
         GridSplitter splitter;
         if (_entry.SplitMode == StripsSplitMode.SideBySide)
         {
@@ -161,7 +161,7 @@ public sealed class VStripsSplitHost : ContentControl
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                 };
-                for (var i = 0; i < 3; i++)
+                for (int i = 0; i < 3; i++)
                 {
                     dots.Children.Add(
                         new Ellipse
@@ -209,7 +209,7 @@ public sealed class VStripsSplitHost : ContentControl
             first = _splitGrid.RowDefinitions[0].ActualHeight;
             second = _splitGrid.RowDefinitions[2].ActualHeight;
         }
-        var total = first + second;
+        double total = first + second;
         if (total <= 0)
         {
             return;
@@ -231,7 +231,7 @@ public sealed class VStripsSplitHost : ContentControl
         {
             return;
         }
-        var ratio = _entry.SplitRatio;
+        double ratio = _entry.SplitRatio;
         if (_entry.SplitMode == StripsSplitMode.SideBySide)
         {
             _splitGrid.ColumnDefinitions[0].Width = new GridLength(ratio, GridUnitType.Star);

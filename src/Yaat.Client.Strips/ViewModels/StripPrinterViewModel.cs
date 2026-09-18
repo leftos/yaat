@@ -124,7 +124,7 @@ public partial class StripPrinterViewModel : ObservableObject
     {
         if (!string.IsNullOrEmpty(_pendingFocusCallsign))
         {
-            for (var i = 0; i < DepartureQueue.Count; i++)
+            for (int i = 0; i < DepartureQueue.Count; i++)
             {
                 if (string.Equals(DepartureQueue[i].AircraftId, _pendingFocusCallsign, StringComparison.OrdinalIgnoreCase))
                 {
@@ -135,7 +135,7 @@ public partial class StripPrinterViewModel : ObservableObject
             }
             if (_pendingFocusCallsign is not null)
             {
-                for (var i = 0; i < ArrivalQueue.Count; i++)
+                for (int i = 0; i < ArrivalQueue.Count; i++)
                 {
                     if (string.Equals(ArrivalQueue[i].AircraftId, _pendingFocusCallsign, StringComparison.OrdinalIgnoreCase))
                     {
@@ -152,7 +152,7 @@ public partial class StripPrinterViewModel : ObservableObject
             // Newest blank = highest-index BlankStrip in the departure queue.
             // Walk the queue tail-first so the most recently appended blank
             // wins even when the server merged it with other items.
-            for (var i = DepartureQueue.Count - 1; i >= 0; i--)
+            for (int i = DepartureQueue.Count - 1; i >= 0; i--)
             {
                 if (DepartureQueue[i].Type == StripItemType.BlankStrip)
                 {
@@ -194,9 +194,9 @@ public partial class StripPrinterViewModel : ObservableObject
         Queue.Clear();
         DepartureQueue.Clear();
         ArrivalQueue.Clear();
-        foreach (var id in itemIds)
+        foreach (string id in itemIds)
         {
-            if (!itemLookup.TryGetValue(id, out var vm))
+            if (!itemLookup.TryGetValue(id, out StripItemViewModel? vm))
             {
                 continue;
             }

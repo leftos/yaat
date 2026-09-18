@@ -32,7 +32,7 @@ public class StarSpeedAfterTerminatingFixTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
@@ -58,8 +58,8 @@ public class StarSpeedAfterTerminatingFixTests(ITestOutputHelper output)
     [Fact]
     public void Alwys3_DoesNotAccelerateAboveLastConstraintAfterBerks()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -69,11 +69,11 @@ public class StarSpeedAfterTerminatingFixTests(ITestOutputHelper output)
         // SKW5456 spawns at t=660 on ALWYS3 with onAltitudeProfile=true.
         engine.Replay(recording, 662);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
         // Sanity: BERKS is in the route with a 210 kt max.
-        var berksFix = aircraft.Targets.NavigationRoute.FirstOrDefault(f => f.Name.Equals("BERKS", StringComparison.OrdinalIgnoreCase));
+        NavigationTarget? berksFix = aircraft.Targets.NavigationRoute.FirstOrDefault(f => f.Name.Equals("BERKS", StringComparison.OrdinalIgnoreCase));
         Assert.NotNull(berksFix);
         Assert.NotNull(berksFix.SpeedRestriction);
         Assert.Equal(TerminatingFixSpeedKts, berksFix.SpeedRestriction.SpeedKts);
@@ -180,7 +180,7 @@ public class StarSpeedAfterTerminatingFixTests(ITestOutputHelper output)
         ac.Targets.SpeedCeiling = 210;
 
         var cmd = new SpeedCommand(280);
-        var result = CommandDispatcher.Dispatch(cmd, ac, TestDispatch.Context(new SerializableRandom(42)));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success);
         Assert.Null(ac.Procedure.LastProcedureSpeedKts);

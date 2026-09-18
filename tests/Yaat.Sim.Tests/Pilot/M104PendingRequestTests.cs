@@ -13,7 +13,7 @@ public sealed class M104PendingRequestTests
     [Fact]
     public void RecordRequest_SchedulesNormalFollowUp()
     {
-        var ac = NewAircraft();
+        AircraftState ac = NewAircraft();
 
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
 
@@ -28,9 +28,9 @@ public sealed class M104PendingRequestTests
     [Fact]
     public void TickPendingRequests_QueuesFollowUpAtDueTime()
     {
-        var ac = NewAircraft();
+        AircraftState ac = NewAircraft();
         ac.IsOnGround = true;
-        var scenario = NewScenario(elapsedSeconds: 129);
+        SimScenarioState scenario = NewScenario(elapsedSeconds: 129);
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
 
         PilotProactive.TickPendingRequests(ac, scenario);
@@ -39,7 +39,7 @@ public sealed class M104PendingRequestTests
         scenario.ElapsedSeconds = 130;
         PilotProactive.TickPendingRequests(ac, scenario);
 
-        var transmission = Assert.Single(ac.PendingPilotTransmissions);
+        PilotTransmission transmission = Assert.Single(ac.PendingPilotTransmissions);
         // Re-queued follow-up: terminal (SAY) form is the callsign-free stored form (SAY column carries the callsign).
         Assert.Equal("ground, ready to taxi.", transmission.Text);
         Assert.Equal(130, ac.PendingPilotRequest!.LastRequestedAtSeconds);
@@ -52,11 +52,11 @@ public sealed class M104PendingRequestTests
     public void SendCommand_AcknowledgementMovesPendingRequestToStandby(string command)
     {
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(elapsedSeconds: 20) };
-        var ac = NewAircraft();
+        AircraftState ac = NewAircraft();
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
         engine.World.AddAircraft(ac);
 
-        var result = engine.SendCommand(ac.Callsign, command);
+        CommandResult result = engine.SendCommand(ac.Callsign, command);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(PilotPendingRequestResponseState.Standby, ac.PendingPilotRequest!.ResponseState);
@@ -68,7 +68,7 @@ public sealed class M104PendingRequestTests
     [Fact]
     public void SendCommand_TaxiClosesPendingTaxiRequest()
     {
-        var ac = NewAircraft();
+        AircraftState ac = NewAircraft();
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
         var compound = new CompoundCommand([new ParsedBlock(null, [new TaxiCommand(["A"], [], DestinationRunway: "28R")])]);
 
@@ -87,7 +87,7 @@ public sealed class M104PendingRequestTests
     [InlineData(false)]
     public void MakeTraffic_ClosesPendingClosedTrafficLandingRequest(bool left)
     {
-        var ac = NewAircraft();
+        AircraftState ac = NewAircraft();
         ac.IsOnGround = false;
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Landing, nowSeconds: 10, ClosedTrafficLine, PilotRequestContext.None);
         ParsedCommand makeTraffic = left ? new MakeLeftTrafficCommand(null, null) : new MakeRightTrafficCommand(null, null);
@@ -101,7 +101,7 @@ public sealed class M104PendingRequestTests
     [Fact]
     public void ClearedForTakeoff_ClosesPendingTakeoffRequest()
     {
-        var ac = NewAircraft();
+        AircraftState ac = NewAircraft();
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Takeoff, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
         var compound = new CompoundCommand([new ParsedBlock(null, [new ClearedForTakeoffCommand(new DefaultDeparture())])]);
 
@@ -117,7 +117,7 @@ public sealed class M104PendingRequestTests
     [InlineData(PilotPendingRequestKind.Takeoff)]
     public void TryQueueFollowUp_AirborneAircraftClosesGroundOnlyRequest(PilotPendingRequestKind kind)
     {
-        var ac = NewAircraft();
+        AircraftState ac = NewAircraft();
         ac.IsOnGround = false;
         PilotRequestTracker.RecordRequest(ac, kind, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
 
@@ -130,7 +130,7 @@ public sealed class M104PendingRequestTests
     [Fact]
     public void TryQueueFollowUp_OnGroundAircraftStillFollowsUp()
     {
-        var ac = NewAircraft();
+        AircraftState ac = NewAircraft();
         ac.IsOnGround = true;
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Takeoff, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
 
@@ -143,7 +143,7 @@ public sealed class M104PendingRequestTests
     [Fact]
     public void TryQueueFollowUp_AirborneApproachRequestStillFollowsUp()
     {
-        var ac = NewAircraft();
+        AircraftState ac = NewAircraft();
         ac.IsOnGround = false;
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Approach, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
 
@@ -155,7 +155,7 @@ public sealed class M104PendingRequestTests
     [Fact]
     public void AtParking_InitialCallupRecordsTaxiRequest()
     {
-        var ac = NewAircraft();
+        AircraftState ac = NewAircraft();
         ac.IsOnGround = true;
         ac.Ground = new AircraftGroundOps { ParkingSpot = "KILO RAMP" };
         var phase = new AtParkingPhase();

@@ -51,7 +51,7 @@ public sealed class GroundSpeedIntegrationTests
     [Fact]
     public void UpdateSpeed_OnGround_UsesTaxiAccelRate()
     {
-        var ground = MakeB738(onGround: true);
+        AircraftState ground = MakeB738(onGround: true);
         ground.IndicatedAirspeed = 0;
         ground.Targets.TargetSpeed = 30;
 
@@ -60,7 +60,7 @@ public sealed class GroundSpeedIntegrationTests
         Assert.Equal(1.0, CategoryPerformance.TaxiAccelRate(AircraftCategory.Jet), 1e-9);
         Assert.Equal(1.0, ground.IndicatedAirspeed, 1e-9);
 
-        var airborne = MakeB738(onGround: false);
+        AircraftState airborne = MakeB738(onGround: false);
         airborne.IndicatedAirspeed = 200;
         airborne.Targets.TargetSpeed = 250;
 
@@ -76,7 +76,7 @@ public sealed class GroundSpeedIntegrationTests
     [Fact]
     public void UpdateSpeed_OnGround_UsesTaxiDecelRate_UnlessDesiredDecelRateSet()
     {
-        var aircraft = MakeB738(onGround: true);
+        AircraftState aircraft = MakeB738(onGround: true);
         aircraft.IndicatedAirspeed = 30;
         aircraft.Targets.TargetSpeed = 0;
 
@@ -85,7 +85,7 @@ public sealed class GroundSpeedIntegrationTests
         Assert.Equal(5.0, CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet), 1e-9);
         Assert.Equal(25.0, aircraft.IndicatedAirspeed, 1e-9);
 
-        var overridden = MakeB738(onGround: true);
+        AircraftState overridden = MakeB738(onGround: true);
         overridden.IndicatedAirspeed = 30;
         overridden.Targets.TargetSpeed = 0;
         overridden.Targets.DesiredDecelRate = 3.0;
@@ -103,7 +103,7 @@ public sealed class GroundSpeedIntegrationTests
     [Fact]
     public void UpdateSpeed_OnGround_UsesDesiredAccelRate_WhenSet()
     {
-        var aircraft = MakeB738(onGround: true);
+        AircraftState aircraft = MakeB738(onGround: true);
         aircraft.IndicatedAirspeed = 0;
         aircraft.Targets.TargetSpeed = 30;
 
@@ -111,7 +111,7 @@ public sealed class GroundSpeedIntegrationTests
 
         Assert.Equal(1.0, aircraft.IndicatedAirspeed, 1e-9);
 
-        var overridden = MakeB738(onGround: true);
+        AircraftState overridden = MakeB738(onGround: true);
         overridden.IndicatedAirspeed = 0;
         overridden.Targets.TargetSpeed = 30;
         overridden.Targets.DesiredAccelRate = 0.3;
@@ -129,7 +129,7 @@ public sealed class GroundSpeedIntegrationTests
     [Fact]
     public void UpdateSpeed_OnGround_NeverJumpsMoreThanOneSubTick()
     {
-        var aircraft = MakeB738(onGround: true);
+        AircraftState aircraft = MakeB738(onGround: true);
         aircraft.IndicatedAirspeed = 0;
 
         double oneSubTickOfAccel = CategoryPerformance.TaxiAccelRate(AircraftCategory.Jet) * SubTick;
@@ -169,7 +169,7 @@ public sealed class GroundSpeedIntegrationTests
     [Fact]
     public void UpdateSpeed_Airborne_SnapsInsideTwoKts()
     {
-        var aircraft = MakeB738(onGround: false);
+        AircraftState aircraft = MakeB738(onGround: false);
         aircraft.IndicatedAirspeed = 249;
         aircraft.Targets.TargetSpeed = 250;
 
@@ -187,7 +187,7 @@ public sealed class GroundSpeedIntegrationTests
     [Fact]
     public void TaxiingPhase_WhenHeld_DeceleratesAtTaxiDecelRateOnly()
     {
-        var layout = BuildLayout();
+        AirportGroundLayout layout = BuildLayout();
         var aircraft = new AircraftState
         {
             Callsign = "TEST002",

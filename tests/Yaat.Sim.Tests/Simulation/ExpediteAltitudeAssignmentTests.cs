@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -50,7 +52,7 @@ public class ExpediteAltitudeAssignmentTests(ITestOutputHelper output)
     [Fact]
     public void ExpediteWithAltitude_ReclearsBelowTheCurrentAssignment()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -58,8 +60,8 @@ public class ExpediteAltitudeAssignmentTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -67,7 +69,7 @@ public class ExpediteAltitudeAssignmentTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(DescendingTime);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(DescendingTime);
             if (snapshot is null)
             {
                 return;
@@ -75,16 +77,16 @@ public class ExpediteAltitudeAssignmentTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
 
             // Sanity: mid-descent toward 2,000 — the state the controller was looking at.
-            var pre = engine.FindAircraft(Callsign);
+            AircraftState? pre = engine.FindAircraft(Callsign);
             Assert.NotNull(pre);
             Assert.Equal(2000, pre.Targets.AssignedAltitude);
             Assert.True(pre.Altitude > 2500, $"expected N2BP above 2,500 at t={DescendingTime}, was {pre.Altitude:F0}");
 
-            var result = engine.SendCommand(Callsign, "EXP 014");
+            CommandResult result = engine.SendCommand(Callsign, "EXP 014");
             output.WriteLine($"EXP 014 -> Success={result.Success} Message='{result.Message}'");
             Assert.True(result.Success, result.Message);
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
             Assert.Equal(1400, ac.Targets.AssignedAltitude);
             Assert.True(ac.Procedure.IsExpediting);

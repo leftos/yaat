@@ -42,15 +42,15 @@ public static class RunwayCrossingGate
             return false;
         }
 
-        foreach (var other in traffic)
+        foreach (AircraftState other in traffic)
         {
             if (string.Equals(other.Callsign, crosser.Callsign, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            var end = RunwayOccupancy.AlignedEnd(other.TrueTrack.Degrees, pavement);
-            var use = RunwayOccupancy.Classify(other, end, layout);
+            RunwayInfo end = RunwayOccupancy.AlignedEnd(other.TrueTrack.Degrees, pavement);
+            RunwayUse? use = RunwayOccupancy.Classify(other, end, layout);
             if (use is { Kind: not RunwayUseKind.Crossing })
             {
                 reason = $"{other.Callsign} {use.Kind} runway {end.Designator}";

@@ -14,8 +14,8 @@ public sealed class LenientRequiredResolver : DefaultJsonTypeInfoResolver
 {
     public override JsonTypeInfo GetTypeInfo(Type type, JsonSerializerOptions options)
     {
-        var info = base.GetTypeInfo(type, options);
-        foreach (var property in info.Properties)
+        JsonTypeInfo info = base.GetTypeInfo(type, options);
+        foreach (JsonPropertyInfo property in info.Properties)
         {
             property.IsRequired = false;
         }

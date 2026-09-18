@@ -26,13 +26,13 @@ public class LineUpGraphRouteTests(ITestOutputHelper output)
     [Fact]
     public void Ual859Pose_RouteStartsAheadOfTheNose()
     {
-        if (!TryResolveInputs("01R", out var runway, out var layout))
+        if (!TryResolveInputs("01R", out RunwayInfo? runway, out AirportGroundLayout? layout))
         {
             return;
         }
 
         const double headingDeg = 120.85;
-        var plan = LineUpGraphRoute.TryPlan(
+        LineUpArcFollowPlan? plan = LineUpGraphRoute.TryPlan(
             layout,
             new LatLon(37.60687155024075, -122.381946548138),
             new TrueHeading(headingDeg),
@@ -50,13 +50,13 @@ public class LineUpGraphRouteTests(ITestOutputHelper output)
     [Fact]
     public void Dal819Pose_RouteStartsAheadOfTheNose()
     {
-        if (!TryResolveInputs("01L", out var runway, out var layout))
+        if (!TryResolveInputs("01L", out RunwayInfo? runway, out AirportGroundLayout? layout))
         {
             return;
         }
 
         const double headingDeg = 120.79;
-        var plan = LineUpGraphRoute.TryPlan(
+        LineUpArcFollowPlan? plan = LineUpGraphRoute.TryPlan(
             layout,
             new LatLon(37.608439953128396, -122.38383474182635),
             new TrueHeading(headingDeg),
@@ -78,13 +78,13 @@ public class LineUpGraphRouteTests(ITestOutputHelper output)
     [Fact]
     public void Dal2154Pose_StillResolves()
     {
-        if (!TryResolveInputs("01R", out var runway, out var layout))
+        if (!TryResolveInputs("01R", out RunwayInfo? runway, out AirportGroundLayout? layout))
         {
             return;
         }
 
         const double headingDeg = 120.85;
-        var plan = LineUpGraphRoute.TryPlan(
+        LineUpArcFollowPlan? plan = LineUpGraphRoute.TryPlan(
             layout,
             new LatLon(37.60686528515113, -122.38193236056337),
             new TrueHeading(headingDeg),
@@ -107,12 +107,18 @@ public class LineUpGraphRouteTests(ITestOutputHelper output)
     [Fact]
     public void N346GPose_LiningUpOnto28R_TakesTheDepartureSideFilletArc()
     {
-        if (!TryResolveInputs("28R", out var runway, out var layout))
+        if (!TryResolveInputs("28R", out RunwayInfo? runway, out AirportGroundLayout? layout))
         {
             return;
         }
 
-        var plan = LineUpGraphRoute.TryPlan(layout, HoldShortPose, new TrueHeading(HoldShortHeadingDeg), runway, AircraftCategory.Piston);
+        LineUpArcFollowPlan? plan = LineUpGraphRoute.TryPlan(
+            layout,
+            HoldShortPose,
+            new TrueHeading(HoldShortHeadingDeg),
+            runway,
+            AircraftCategory.Piston
+        );
 
         Assert.NotNull(plan);
         output.WriteLine(
@@ -136,7 +142,7 @@ public class LineUpGraphRouteTests(ITestOutputHelper output)
                 + "that is the 10L-side prong, the wrong way down the runway"
         );
 
-        var arcSegment = plan.Route.Segments[^2];
+        TaxiRouteSegment arcSegment = plan.Route.Segments[^2];
         Assert.True(
             arcSegment.Edge.Edge is GroundArc,
             $"second-to-last segment is {arcSegment.Edge.Edge.GetType().Name} on {arcSegment.TaxiwayName}, not the junction fillet arc"
@@ -153,12 +159,21 @@ public class LineUpGraphRouteTests(ITestOutputHelper output)
     [Fact]
     public void N346GPose_LiningUpOnto10L_StillResolvesOnTheSouthEastProng()
     {
-        if (!TryResolveInputs("10L", out var runway, out var layout) || !TryResolveInputs("28R", out var runway28R, out _))
+        if (
+            !TryResolveInputs("10L", out RunwayInfo? runway, out AirportGroundLayout? layout)
+            || !TryResolveInputs("28R", out RunwayInfo? runway28R, out _)
+        )
         {
             return;
         }
 
-        var plan = LineUpGraphRoute.TryPlan(layout, HoldShortPose, new TrueHeading(HoldShortHeadingDeg), runway, AircraftCategory.Piston);
+        LineUpArcFollowPlan? plan = LineUpGraphRoute.TryPlan(
+            layout,
+            HoldShortPose,
+            new TrueHeading(HoldShortHeadingDeg),
+            runway,
+            AircraftCategory.Piston
+        );
 
         Assert.NotNull(plan);
         output.WriteLine(
@@ -189,7 +204,7 @@ public class LineUpGraphRouteTests(ITestOutputHelper output)
 
     private void AssertFirstSegmentPointsForward(TaxiRoute route, double headingDeg)
     {
-        var first = route.Segments[0];
+        TaxiRouteSegment first = route.Segments[0];
         double deltaDeg = GeoMath.AbsBearingDifference(first.Edge.DepartureBearing, headingDeg);
         output.WriteLine(
             $"[first segment] from={first.FromNodeId} to={first.ToNodeId} taxiway={first.TaxiwayName} "
@@ -205,7 +220,7 @@ public class LineUpGraphRouteTests(ITestOutputHelper output)
 
     private void AssertStartsOnARealNode(TaxiRoute route)
     {
-        var first = route.Segments[0];
+        TaxiRouteSegment first = route.Segments[0];
         Assert.True(
             first.FromNodeId >= 0,
             $"route starts on virtual node {first.FromNodeId}: the aircraft is standing on a graph node, so the route must begin "
@@ -237,14 +252,14 @@ public class LineUpGraphRouteTests(ITestOutputHelper output)
             return false;
         }
 
-        var resolvedRunway = TestVnasData.NavigationDb.GetRunway("KSFO", runwayDesignator);
+        RunwayInfo? resolvedRunway = TestVnasData.NavigationDb.GetRunway("KSFO", runwayDesignator);
         if (resolvedRunway is null)
         {
             output.WriteLine($"SKIP: KSFO {runwayDesignator} not in navdata");
             return false;
         }
 
-        var resolvedLayout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? resolvedLayout = new TestAirportGroundData().GetLayout("SFO");
         if (resolvedLayout is null)
         {
             output.WriteLine("SKIP: SFO ground layout not available");

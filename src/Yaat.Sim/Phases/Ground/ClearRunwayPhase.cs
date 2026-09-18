@@ -66,7 +66,7 @@ public sealed class ClearRunwayPhase : Phase
         }
 
         bool isLastSegment = _route.CurrentSegmentIndex + 1 >= _route.Segments.Count;
-        var result = _navigator.Tick(ctx, isLastSegment, _ => true);
+        NavigatorResult result = _navigator.Tick(ctx, isLastSegment, _ => true);
         if (result == NavigatorResult.ArrivedAtNode)
         {
             _route.CurrentSegmentIndex += 1;
@@ -88,8 +88,11 @@ public sealed class ClearRunwayPhase : Phase
             return;
         }
 
-        var layout = ctx.GroundLayout;
-        if (!layout.Nodes.TryGetValue(_runwayNodeId, out var runwayNode) || !layout.Nodes.TryGetValue(_approachNodeId, out var approachNode))
+        AirportGroundLayout layout = ctx.GroundLayout;
+        if (
+            !layout.Nodes.TryGetValue(_runwayNodeId, out GroundNode? runwayNode)
+            || !layout.Nodes.TryGetValue(_approachNodeId, out GroundNode? approachNode)
+        )
         {
             Log.LogWarning(
                 "[ClearRunway] {Callsign}: missing geometry (runway={Rwy}, approach={App}) — cannot build clearance route",
@@ -105,8 +108,8 @@ public sealed class ClearRunwayPhase : Phase
 
         // The clearance target: ½ aircraft length past the runway hold-short, away from the runway —
         // the tail just clears the bars (identical to the crossing tail-clearance offset).
-        var target = VirtualNode.OffsetPast(layout, runwayNode, approachNode, halfLengthNm);
-        var segment = VirtualNode.CreateSegment(runwayNode, target, ctx.Aircraft.Ground.CurrentTaxiway ?? "");
+        GroundNode target = VirtualNode.OffsetPast(layout, runwayNode, approachNode, halfLengthNm);
+        TaxiRouteSegment segment = VirtualNode.CreateSegment(runwayNode, target, ctx.Aircraft.Ground.CurrentTaxiway ?? "");
         _route = new TaxiRoute { Segments = [segment], HoldShortPoints = [] };
 
         _navigator = new GroundNavigator();

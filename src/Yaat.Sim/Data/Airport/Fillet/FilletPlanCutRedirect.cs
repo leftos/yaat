@@ -35,17 +35,17 @@ internal static class FilletPlanCutRedirect
     {
         var usedAnchorIds = new HashSet<int>();
 
-        foreach (var (cutId, cut) in cuts)
+        foreach ((CutId cutId, ResolvedArmCut? cut) in cuts)
         {
             // Skip cuts that are already redirected away (they're merged into another cut).
-            if (redirect.TryGetValue(cutId, out var existing) && (existing is FilletEndpoint.Cut c) && (c.Id != cutId))
+            if (redirect.TryGetValue(cutId, out FilletEndpoint? existing) && (existing is FilletEndpoint.Cut c) && (c.Id != cutId))
             {
                 continue;
             }
 
             int? bestAnchorId = null;
             double bestDistFt = double.MaxValue;
-            foreach (var (candidateId, candidateNode) in preFilletStableNodes)
+            foreach ((int candidateId, GroundNode? candidateNode) in preFilletStableNodes)
             {
                 double distFt = GeoMath.DistanceNm(cut.Position, candidateNode.Position) * GeoMath.FeetPerNm;
                 if ((distFt > thresholdFt) || (distFt >= bestDistFt))
@@ -65,7 +65,7 @@ internal static class FilletPlanCutRedirect
             var anchorEndpoint = new FilletEndpoint.Node(anchorId);
 
             // Repoint every cut that was pointing at this cutId to the anchor node instead.
-            foreach (var key in redirect.Keys.ToList())
+            foreach (CutId key in redirect.Keys.ToList())
             {
                 if ((redirect[key] is FilletEndpoint.Cut fc) && (fc.Id == cutId))
                 {
@@ -97,7 +97,7 @@ internal static class FilletPlanCutRedirect
 
         CutId Find(CutId x)
         {
-            if (!parent.TryGetValue(x, out var p))
+            if (!parent.TryGetValue(x, out CutId p))
             {
                 parent[x] = x;
                 return x;
@@ -113,21 +113,21 @@ internal static class FilletPlanCutRedirect
 
         void Union(CutId a, CutId b)
         {
-            var ra = Find(a);
-            var rb = Find(b);
+            CutId ra = Find(a);
+            CutId rb = Find(b);
             // Pick the lower integer value as survivor to match original Math.Min(ra, rb) semantics.
-            var survivor = ra.Value <= rb.Value ? ra : rb;
-            var child = ra.Value <= rb.Value ? rb : ra;
+            CutId survivor = ra.Value <= rb.Value ? ra : rb;
+            CutId child = ra.Value <= rb.Value ? rb : ra;
             parent[child] = survivor;
         }
 
-        foreach (var m in merges)
+        foreach (TangentMergeOp m in merges)
         {
             Union(m.CutIdA, m.CutIdB);
         }
 
         var redirect = new Dictionary<CutId, FilletEndpoint>();
-        foreach (var id in parent.Keys)
+        foreach (CutId id in parent.Keys)
         {
             redirect[id] = new FilletEndpoint.Cut(Find(id));
         }
@@ -140,7 +140,7 @@ internal static class FilletPlanCutRedirect
     /// If not in the map the CutId survives as-is (no merge, no anchor).
     /// </summary>
     public static FilletEndpoint Resolve(CutId cutId, IReadOnlyDictionary<CutId, FilletEndpoint> redirect) =>
-        redirect.TryGetValue(cutId, out var ep) ? ep : new FilletEndpoint.Cut(cutId);
+        redirect.TryGetValue(cutId, out FilletEndpoint? ep) ? ep : new FilletEndpoint.Cut(cutId);
 
     public static Dictionary<CutId, ResolvedArmCut> PruneCuts(
         IReadOnlyDictionary<CutId, ResolvedArmCut> cuts,
@@ -152,7 +152,7 @@ internal static class FilletPlanCutRedirect
     public static IReadOnlyList<CornerArcOp> RedirectCornerArcs(IReadOnlyList<CornerArcOp> ops, IReadOnlyDictionary<CutId, FilletEndpoint> redirect)
     {
         var result = new List<CornerArcOp>();
-        foreach (var o in ops)
+        foreach (CornerArcOp o in ops)
         {
             FilletEndpoint epA = ResolveEndpoint(o.EndpointAtArmA, redirect);
             FilletEndpoint epB = ResolveEndpoint(o.EndpointAtArmB, redirect);
@@ -175,7 +175,7 @@ internal static class FilletPlanCutRedirect
     )
     {
         var result = new List<StraightConnectorOp>();
-        foreach (var o in ops)
+        foreach (StraightConnectorOp o in ops)
         {
             FilletEndpoint epA = ResolveEndpoint(o.EndpointAtArmA, redirect);
             FilletEndpoint epB = ResolveEndpoint(o.EndpointAtArmB, redirect);

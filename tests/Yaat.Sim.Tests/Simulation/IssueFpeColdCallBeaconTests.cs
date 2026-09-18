@@ -51,8 +51,8 @@ public class IssueFpeColdCallBeaconTests(ITestOutputHelper output)
     [Fact]
     public void FpeAmend_OnColdCallTarget_EstablishesPlanAndAssignsBeacon()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -60,7 +60,7 @@ public class IssueFpeColdCallBeaconTests(ITestOutputHelper output)
 
         engine.Replay(recording, 900);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
         output.WriteLine(

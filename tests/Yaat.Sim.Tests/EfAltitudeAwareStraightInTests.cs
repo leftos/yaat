@@ -73,15 +73,25 @@ public class EfAltitudeAwareStraightInTests : IDisposable
     private static (double Lat, double Lon) PositionFromThreshold(RunwayInfo runway, double alongTrackOutboundNm, double crossTrackRightNm)
     {
         var reciprocal = new TrueHeading((runway.TrueHeading.Degrees + 180) % 360);
-        var centerline = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, alongTrackOutboundNm);
+        (double Lat, double Lon) centerline = GeoMath.ProjectPoint(
+            runway.ThresholdLatitude,
+            runway.ThresholdLongitude,
+            reciprocal,
+            alongTrackOutboundNm
+        );
         double crossHdg = crossTrackRightNm >= 0 ? (runway.TrueHeading.Degrees + 90) % 360 : (runway.TrueHeading.Degrees + 270) % 360;
-        var result = GeoMath.ProjectPoint(centerline.Lat, centerline.Lon, new TrueHeading(crossHdg), Math.Abs(crossTrackRightNm));
+        (double Lat, double Lon) result = GeoMath.ProjectPoint(
+            centerline.Lat,
+            centerline.Lon,
+            new TrueHeading(crossHdg),
+            Math.Abs(crossTrackRightNm)
+        );
         return (result.Lat, result.Lon);
     }
 
     private PatternEntryPhase RequireEntryPhase(AircraftState aircraft)
     {
-        var entry = aircraft.Phases!.Phases.OfType<PatternEntryPhase>().FirstOrDefault();
+        PatternEntryPhase? entry = aircraft.Phases!.Phases.OfType<PatternEntryPhase>().FirstOrDefault();
         Assert.NotNull(entry);
         return entry!;
     }
@@ -110,14 +120,14 @@ public class EfAltitudeAwareStraightInTests : IDisposable
     /// </summary>
     private (double JoinNm, bool Warned, double CrossNm) RunEf(RunwayInfo runway, double altAgl)
     {
-        var (lat, lon) = PositionFromThreshold(runway, AlongTrackNm, CrossTrackNm);
-        var aircraft = MakeAircraft(lat, lon, alt: runway.ElevationFt + altAgl, heading: HeadingDeg);
+        (double lat, double lon) = PositionFromThreshold(runway, AlongTrackNm, CrossTrackNm);
+        AircraftState aircraft = MakeAircraft(lat, lon, alt: runway.ElevationFt + altAgl, heading: HeadingDeg);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
         Assert.True(result.Success, result.Message);
 
-        var entry = RequireEntryPhase(aircraft);
+        PatternEntryPhase entry = RequireEntryPhase(aircraft);
         double join = EntryDistanceToThresholdNm(runway, entry);
         double cross = EntryCrossTrackNm(runway, entry);
         bool warned = aircraft.PendingWarnings.Count > 0;
@@ -128,8 +138,8 @@ public class EfAltitudeAwareStraightInTests : IDisposable
     [Fact]
     public void EF_HighButDescendable_ShortcutsCloseToThreshold()
     {
-        var runway = MakeOak28R();
-        var (join, warned, cross) = RunEf(runway, altAgl: 2491);
+        RunwayInfo runway = MakeOak28R();
+        (double join, bool warned, double cross) = RunEf(runway, altAgl: 2491);
 
         // ~2491 ft over a ~7 nm diagonal at 700 fpm is plenty to reach the glideslope by a
         // ~1 nm final, so EF shortcuts close-in — NOT the old fixed ~3.14 nm base, and NOT
@@ -144,7 +154,7 @@ public class EfAltitudeAwareStraightInTests : IDisposable
     [Fact]
     public void EF_JoinDistanceIsMonotonicInAltitude()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         double low = RunEf(runway, altAgl: 800).JoinNm;
         double mid = RunEf(runway, altAgl: 2491).JoinNm;
@@ -169,8 +179,8 @@ public class EfAltitudeAwareStraightInTests : IDisposable
     [Fact]
     public void EF_TooHighToDescend_CapsAtAlongTrackWithWarning()
     {
-        var runway = MakeOak28R();
-        var (join, warned, _) = RunEf(runway, altAgl: 8000);
+        RunwayInfo runway = MakeOak28R();
+        (double join, bool warned, double _) = RunEf(runway, altAgl: 8000);
 
         // Command still succeeds (RPO decides), capped at along-track (no outbound)...
         Assert.InRange(join, AlongTrackNm - 0.3, AlongTrackNm + 0.2);

@@ -26,19 +26,19 @@ public static class CfrDepartureService
             return $"{aircraft.Callsign} release window cleared";
         }
 
-        var window = CfrWindowResolver.Resolve(cmd.Hhmm, nowUtc);
+        ReleaseWindow window = CfrWindowResolver.Resolve(cmd.Hhmm, nowUtc);
         aircraft.Ground.ReleaseWindowStartUtc = window.StartUtc;
         aircraft.Ground.ReleaseWindowEndUtc = window.EndUtc;
 
         // "released for departure" is the FAA phrase (7110.65 §4-3-4.a/.c.3). A timed release shows the
         // assigned anchor alongside the −2/+1 bracket; a bare CFR is an immediate release ("now").
-        var bracket = $"window {window.StartUtc:HHmm}–{window.EndUtc:HHmm}Z";
+        string bracket = $"window {window.StartUtc:HHmm}–{window.EndUtc:HHmm}Z";
         if (cmd.Hhmm is null)
         {
             return $"{aircraft.Callsign} released for departure now ({bracket})";
         }
 
-        var assigned = window.StartUtc.AddSeconds(CfrWindow.WindowBeforeSeconds);
+        DateTime assigned = window.StartUtc.AddSeconds(CfrWindow.WindowBeforeSeconds);
         return $"{aircraft.Callsign} released for departure at {assigned:HHmm}Z ({bracket})";
     }
 
@@ -54,8 +54,8 @@ public static class CfrDepartureService
             return $"{aircraft.Callsign} has no active release window";
         }
 
-        var remaining = CfrCountdown.Evaluate(new ReleaseWindow(start, end), nowUtc);
-        var bracket = $"window {start:HHmm}–{end:HHmm}Z";
+        CfrRemaining remaining = CfrCountdown.Evaluate(new ReleaseWindow(start, end), nowUtc);
+        string bracket = $"window {start:HHmm}–{end:HHmm}Z";
         return remaining.Phase switch
         {
             CfrPhase.BeforeOpen => $"{aircraft.Callsign} release {bracket} — opens in {FormatMinSec(remaining.Seconds)}",

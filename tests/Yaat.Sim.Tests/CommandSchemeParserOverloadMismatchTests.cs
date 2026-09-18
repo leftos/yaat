@@ -60,7 +60,7 @@ public class CommandSchemeParserOverloadMismatchTests : IDisposable
     [MemberData(nameof(RequiredArgVerbs))]
     public void RequiredArgVerb_WithoutArgument_ProducesDescriptiveFailure(CanonicalCommandType type, string alias)
     {
-        var result = CommandSchemeParser.ParseCompound(alias, Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(alias, Scheme, out ParseFailure? failure);
 
         if (result is not null)
         {
@@ -84,8 +84,8 @@ public class CommandSchemeParserOverloadMismatchTests : IDisposable
     {
         // Typing "VERB JUNK" when the verb takes no arguments must produce a
         // structured ParseFailure with the expected signature.
-        var input = $"{alias} 99";
-        var result = CommandSchemeParser.ParseCompound(input, Scheme, out var failure);
+        string input = $"{alias} 99";
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme, out ParseFailure? failure);
 
         if (result is not null)
         {
@@ -105,7 +105,7 @@ public class CommandSchemeParserOverloadMismatchTests : IDisposable
     [Fact]
     public void UnrecognizedVerb_ProducesIsNotARecognizedCommand()
     {
-        var result = CommandSchemeParser.ParseCompound("XYZZY 99", Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("XYZZY 99", Scheme, out ParseFailure? failure);
 
         Assert.Null(result);
         Assert.NotNull(failure);
@@ -121,9 +121,9 @@ public class CommandSchemeParserOverloadMismatchTests : IDisposable
         // Guard rail for the RenderSignature helper itself: no command in the registry
         // should produce an empty signature. If a new CommandDefinition is added with
         // empty aliases, this test will fail the contract.
-        foreach (var (type, def) in CommandRegistry.All)
+        foreach ((CanonicalCommandType type, CommandDefinition? def) in CommandRegistry.All)
         {
-            var sig = CommandRegistry.RenderSignature(type);
+            string sig = CommandRegistry.RenderSignature(type);
             Assert.False(string.IsNullOrWhiteSpace(sig), $"{type} ({def.Label}) produced empty RenderSignature");
         }
     }
@@ -136,7 +136,7 @@ public class CommandSchemeParserOverloadMismatchTests : IDisposable
         Assert.Equal("FH <heading>", CommandRegistry.RenderSignature(CanonicalCommandType.FlyHeading));
         Assert.Equal("SPD <speed>", CommandRegistry.RenderSignature(CanonicalCommandType.Speed));
         // Optional overload rendering: EXP has bare and altitude variants
-        var exp = CommandRegistry.RenderSignature(CanonicalCommandType.Expedite);
+        string exp = CommandRegistry.RenderSignature(CanonicalCommandType.Expedite);
         Assert.Contains("EXP", exp);
         Assert.Contains("<altitude>", exp);
         Assert.Contains("|", exp);

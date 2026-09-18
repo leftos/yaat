@@ -98,7 +98,7 @@ public static class LiveTrafficKinematics
             sumTV = 0;
         int n = 0;
         double earliest = latest;
-        foreach (var h in lt.History)
+        foreach (LiveTrafficHistoryPoint h in lt.History)
         {
             if (h.ObservedAtSimSeconds < latest - windowSeconds)
             {
@@ -156,7 +156,7 @@ public static class LiveTrafficKinematics
     /// </summary>
     public static bool Apply(AircraftState ac, LiveTrafficSample sample)
     {
-        var lt = ac.LiveTraffic ?? throw new InvalidOperationException($"{ac.Callsign} is not a shadow aircraft");
+        AircraftLiveTraffic lt = ac.LiveTraffic ?? throw new InvalidOperationException($"{ac.Callsign} is not a shadow aircraft");
         if (sample.ObservedAtSimSeconds <= lt.ObservedAtSimSeconds)
         {
             Log.LogDebug(
@@ -244,7 +244,7 @@ public static class LiveTrafficKinematics
             return 0;
         }
 
-        var previous = lt.History[^1];
+        LiveTrafficHistoryPoint previous = lt.History[^1];
         double dt = sample.ObservedAtSimSeconds - previous.ObservedAtSimSeconds;
         if (dt <= 0)
         {
@@ -264,7 +264,7 @@ public static class LiveTrafficKinematics
     /// </summary>
     public static void Resync(AircraftState ac, double simNowSeconds, WeatherProfile? weather)
     {
-        var lt = ac.LiveTraffic ?? throw new InvalidOperationException($"{ac.Callsign} is not a shadow aircraft");
+        AircraftLiveTraffic lt = ac.LiveTraffic ?? throw new InvalidOperationException($"{ac.Callsign} is not a shadow aircraft");
         lt.SecondsSinceSample = Math.Max(0, simNowSeconds - lt.ObservedAtSimSeconds);
         Advance(ac, 0, weather, simNowSeconds);
     }
@@ -276,7 +276,7 @@ public static class LiveTrafficKinematics
     /// </summary>
     public static void Advance(AircraftState ac, double deltaSeconds, WeatherProfile? weather, double simTimeSeconds)
     {
-        var lt = ac.LiveTraffic ?? throw new InvalidOperationException($"{ac.Callsign} is not a shadow aircraft");
+        AircraftLiveTraffic lt = ac.LiveTraffic ?? throw new InvalidOperationException($"{ac.Callsign} is not a shadow aircraft");
         lt.SecondsSinceSample += deltaSeconds;
         double t = lt.SecondsSinceSample;
         // Coast measures delivery silence (time since the last applied sample), not observation age: the feed

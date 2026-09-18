@@ -142,7 +142,7 @@ public class GeoMathTests
     [Fact]
     public void ProjectPoint_DueNorth60Nm_LatIncreasesBy1Degree()
     {
-        var (lat, lon) = GeoMath.ProjectPoint(0.0, 0.0, new TrueHeading(0.0), 60.0);
+        (double lat, double lon) = GeoMath.ProjectPoint(0.0, 0.0, new TrueHeading(0.0), 60.0);
         Assert.InRange(lat, 0.99, 1.01);
         Assert.Equal(0.0, lon, precision: 5);
     }
@@ -150,7 +150,7 @@ public class GeoMathTests
     [Fact]
     public void ProjectPoint_DueEast60NmAtEquator_LonIncreasesBy1Degree()
     {
-        var (lat, lon) = GeoMath.ProjectPoint(0.0, 0.0, new TrueHeading(90.0), 60.0);
+        (double lat, double lon) = GeoMath.ProjectPoint(0.0, 0.0, new TrueHeading(90.0), 60.0);
         Assert.Equal(0.0, lat, precision: 5);
         Assert.InRange(lon, 0.99, 1.01);
     }
@@ -158,14 +158,14 @@ public class GeoMathTests
     [Fact]
     public void ProjectPoint_DueSouth60Nm_LatDecreases()
     {
-        var (lat, _) = GeoMath.ProjectPoint(0.0, 0.0, new TrueHeading(180.0), 60.0);
+        (double lat, double _) = GeoMath.ProjectPoint(0.0, 0.0, new TrueHeading(180.0), 60.0);
         Assert.InRange(lat, -1.01, -0.99);
     }
 
     [Fact]
     public void ProjectPoint_DueWest60NmAtEquator_LonDecreases()
     {
-        var (_, lon) = GeoMath.ProjectPoint(0.0, 0.0, new TrueHeading(270.0), 60.0);
+        (double _, double lon) = GeoMath.ProjectPoint(0.0, 0.0, new TrueHeading(270.0), 60.0);
         Assert.InRange(lon, -1.01, -0.99);
     }
 
@@ -177,7 +177,7 @@ public class GeoMathTests
         double headingDeg = 045.0;
         double distanceNm = 25.0;
 
-        var (newLat, newLon) = GeoMath.ProjectPoint(startLat, startLon, new TrueHeading(headingDeg), distanceNm);
+        (double newLat, double newLon) = GeoMath.ProjectPoint(startLat, startLon, new TrueHeading(headingDeg), distanceNm);
         double roundTripDist = GeoMath.DistanceNm(startLat, startLon, newLat, newLon);
 
         Assert.InRange(roundTripDist, 24.9, 25.1);
@@ -191,7 +191,7 @@ public class GeoMathTests
     public void GenerateArcPoints_RightArc90Degrees_Step30_Returns3Points()
     {
         // Right turn 0→90, step 30: intermediates at 30, 60; end at 90 → 3 total
-        var pts = GeoMath.GenerateArcPoints(0.0, 0.0, 10.0, 0.0, 90.0, turnRight: true, stepDeg: 30.0);
+        List<(double Lat, double Lon)> pts = GeoMath.GenerateArcPoints(0.0, 0.0, 10.0, 0.0, 90.0, turnRight: true, stepDeg: 30.0);
         Assert.Equal(3, pts.Count);
     }
 
@@ -199,7 +199,7 @@ public class GeoMathTests
     public void GenerateArcPoints_ArcSmallerThanStep_ReturnsOnlyEndPoint()
     {
         // Right turn 0→3, step 5: totalSweep=3 < stepDeg=5, loop never runs → only end
-        var pts = GeoMath.GenerateArcPoints(0.0, 0.0, 10.0, 0.0, 3.0, turnRight: true, stepDeg: 5.0);
+        List<(double Lat, double Lon)> pts = GeoMath.GenerateArcPoints(0.0, 0.0, 10.0, 0.0, 3.0, turnRight: true, stepDeg: 5.0);
         Assert.Single(pts);
     }
 
@@ -207,7 +207,7 @@ public class GeoMathTests
     public void GenerateArcPoints_FullCircle_Returns72Points()
     {
         // start==end, turnRight: totalSweep=0 → +=360; step=5 → 71 intermediates + 1 end = 72
-        var pts = GeoMath.GenerateArcPoints(0.0, 0.0, 10.0, 0.0, 0.0, turnRight: true, stepDeg: 5.0);
+        List<(double Lat, double Lon)> pts = GeoMath.GenerateArcPoints(0.0, 0.0, 10.0, 0.0, 0.0, turnRight: true, stepDeg: 5.0);
         Assert.Equal(72, pts.Count);
     }
 
@@ -215,7 +215,7 @@ public class GeoMathTests
     public void GenerateArcPoints_LeftArc90Degrees_Step30_Returns3Points()
     {
         // Left turn 90→0, step 30: intermediates at 60, 30; end at 0 → 3 total
-        var pts = GeoMath.GenerateArcPoints(0.0, 0.0, 10.0, 90.0, 0.0, turnRight: false, stepDeg: 30.0);
+        List<(double Lat, double Lon)> pts = GeoMath.GenerateArcPoints(0.0, 0.0, 10.0, 90.0, 0.0, turnRight: false, stepDeg: 30.0);
         Assert.Equal(3, pts.Count);
     }
 
@@ -227,8 +227,16 @@ public class GeoMathTests
         double radiusNm = 5.0;
         double endBearing = 90.0;
 
-        var pts = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, 0.0, endBearing, turnRight: true, stepDeg: 30.0);
-        var expectedEnd = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(endBearing), radiusNm);
+        List<(double Lat, double Lon)> pts = GeoMath.GenerateArcPoints(
+            centerLat,
+            centerLon,
+            radiusNm,
+            0.0,
+            endBearing,
+            turnRight: true,
+            stepDeg: 30.0
+        );
+        (double Lat, double Lon) expectedEnd = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(endBearing), radiusNm);
 
         Assert.Equal(expectedEnd.Lat, pts[^1].Lat, precision: 10);
         Assert.Equal(expectedEnd.Lon, pts[^1].Lon, precision: 10);
@@ -238,7 +246,7 @@ public class GeoMathTests
     public void GenerateArcPoints_RightArcAcross360Boundary_ReturnsCorrectCount()
     {
         // Right turn 330→60: totalSweep = 60-330 = -270 → +=360 = 90; step 30 → intermediates at 360/0, 30; end 60 → 3 total
-        var pts = GeoMath.GenerateArcPoints(0.0, 0.0, 10.0, 330.0, 60.0, turnRight: true, stepDeg: 30.0);
+        List<(double Lat, double Lon)> pts = GeoMath.GenerateArcPoints(0.0, 0.0, 10.0, 330.0, 60.0, turnRight: true, stepDeg: 30.0);
         Assert.Equal(3, pts.Count);
     }
 

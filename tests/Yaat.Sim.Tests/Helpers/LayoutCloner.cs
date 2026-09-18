@@ -15,7 +15,7 @@ public static class LayoutCloner
         var clone = new AirportGroundLayout { AirportId = source.AirportId };
         var nodesById = new Dictionary<int, GroundNode>(source.Nodes.Count);
 
-        foreach (var node in source.Nodes.Values)
+        foreach (GroundNode node in source.Nodes.Values)
         {
             var copy = new GroundNode
             {
@@ -32,17 +32,17 @@ public static class LayoutCloner
             clone.Nodes[node.Id] = copy;
         }
 
-        foreach (var edge in source.Edges)
+        foreach (GroundEdge edge in source.Edges)
         {
             clone.Edges.Add(CloneEdge(edge, nodesById));
         }
 
-        foreach (var arc in source.Arcs)
+        foreach (GroundArc arc in source.Arcs)
         {
             clone.Arcs.Add(CloneArc(arc, nodesById));
         }
 
-        foreach (var runway in source.Runways)
+        foreach (GroundRunway runway in source.Runways)
         {
             clone.Runways.Add(
                 new GroundRunway

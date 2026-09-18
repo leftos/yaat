@@ -55,7 +55,7 @@ public partial class StripBayViewModel : ObservableObject
         NumberOfRacks = config.NumberOfRacks;
         FacilityId = config.FacilityId;
         IsExternal = config.IsExternal;
-        for (var i = 0; i < NumberOfRacks; i++)
+        for (int i = 0; i < NumberOfRacks; i++)
         {
             Racks.Add(new StripRackViewModel(i));
         }

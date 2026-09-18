@@ -1,6 +1,8 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Tests.Helpers;
 
@@ -66,24 +68,24 @@ public class N182akCcrS19RFawneIafTests(ITestOutputHelper output)
     [Fact]
     public void SelectBestTransition_AtFawneWithEmptyNavRoute_ReturnsNullNotRejoy()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             output.WriteLine("NavData not available, skipping");
             return;
         }
 
-        var procedure = navDb.GetApproach("KCCR", "S19R");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KCCR", "S19R");
         if (procedure is null)
         {
             output.WriteLine("KCCR S19R not found, skipping");
             return;
         }
 
-        var aircraft = MakeC182NearFawne(navDb, trueHeading: 28.0);
+        AircraftState aircraft = MakeC182NearFawne(navDb, trueHeading: 28.0);
         Assert.Empty(aircraft.Targets.NavigationRoute);
 
-        var selected = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
+        CifpTransition? selected = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
         output.WriteLine($"Selected transition: {selected?.Name ?? "(none)"}");
 
         Assert.Null(selected);
@@ -100,14 +102,14 @@ public class N182akCcrS19RFawneIafTests(ITestOutputHelper output)
     [Fact]
     public void Capp_AtFawneWithEmptyNavRoute_S19RDoesNotRouteBackToRejoy()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null || navDb.GetApproach("KCCR", "S19R") is null)
         {
             output.WriteLine("NavData/S19R not available, skipping");
             return;
         }
 
-        var aircraft = MakeC182NearFawne(navDb, trueHeading: 28.0);
+        AircraftState aircraft = MakeC182NearFawne(navDb, trueHeading: 28.0);
 
         var cmd = new ClearedApproachCommand(
             "S19R",
@@ -122,18 +124,18 @@ public class N182akCcrS19RFawneIafTests(ITestOutputHelper output)
             CrossFixAltitude: null,
             CrossFixAltType: null
         );
-        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
 
         output.WriteLine($"CAPP result: {result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases);
 
-        foreach (var phase in aircraft.Phases.Phases)
+        foreach (Phase phase in aircraft.Phases.Phases)
         {
             output.WriteLine($"Phase: {phase.GetType().Name}");
         }
 
-        var navPhase = aircraft.Phases.Phases.OfType<ApproachNavigationPhase>().FirstOrDefault();
+        ApproachNavigationPhase? navPhase = aircraft.Phases.Phases.OfType<ApproachNavigationPhase>().FirstOrDefault();
         Assert.NotNull(navPhase);
         var fixNames = navPhase.Fixes.Select(f => f.Name).ToList();
         output.WriteLine($"Approach fixes: {string.Join(" → ", fixNames)}");
@@ -144,7 +146,7 @@ public class N182akCcrS19RFawneIafTests(ITestOutputHelper output)
         Assert.Contains("CCR", fixNames);
 
         // No procedure turn — the published feeder delivers alignment.
-        var pt = aircraft.Phases.Phases.OfType<ProcedureTurnPhase>().FirstOrDefault();
+        ProcedureTurnPhase? pt = aircraft.Phases.Phases.OfType<ProcedureTurnPhase>().FirstOrDefault();
         Assert.Null(pt);
     }
 }

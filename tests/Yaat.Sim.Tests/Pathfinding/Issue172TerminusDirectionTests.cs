@@ -38,20 +38,20 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
     [Fact]
     public void TaxiGB_TerminatesAtGbIntersection_DoesNotWalkTaxiwayB()
     {
-        var layout = SfoLayout(output);
+        AirportGroundLayout? layout = SfoLayout(output);
         if (layout is null)
         {
             return;
         }
 
-        var gHoldShort = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "01L", "G");
-        var gbIntersection = layout.FindIntersectionNode("G", "B");
+        GroundNode? gHoldShort = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "01L", "G");
+        GroundNode? gbIntersection = layout.FindIntersectionNode("G", "B");
         if (gHoldShort is null || gbIntersection is null)
         {
             return;
         }
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: gHoldShort.Id,
             taxiwayNames: ["G", "B"],
@@ -65,7 +65,7 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
 
         for (int i = 0; i < route.Segments.Count; i++)
         {
-            var s = route.Segments[i];
+            TaxiRouteSegment s = route.Segments[i];
             output.WriteLine($"  [{i, 2}] {s.FromNodeId, 5} -> {s.ToNodeId, 5} ({s.TaxiwayName})");
         }
 
@@ -77,20 +77,20 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
     [Fact]
     public void TaxiBK_HoldShort10R_WalksKTowardTheHoldShort()
     {
-        var layout = SfoLayout(output);
+        AirportGroundLayout? layout = SfoLayout(output);
         if (layout is null)
         {
             return;
         }
 
-        var f1bIntersection = layout.FindIntersectionNode("F1", "B");
+        GroundNode? f1bIntersection = layout.FindIntersectionNode("F1", "B");
         var rwy10RHoldShortsOnK = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "10R", "K").Select(n => n.Id).ToHashSet();
         if (f1bIntersection is null || rwy10RHoldShortsOnK.Count == 0)
         {
             return;
         }
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: f1bIntersection.Id,
             taxiwayNames: ["B", "K"],

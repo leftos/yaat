@@ -15,7 +15,7 @@ internal static class CommandFlyout
 {
     public static void Open(Control anchor, string callsign, Func<string, Task> onSubmit)
     {
-        var popup = TextEntryPopup.Build(
+        Popup popup = TextEntryPopup.Build(
             anchor,
             title: $"Command — {callsign}",
             subtitle: null,
@@ -25,7 +25,7 @@ internal static class CommandFlyout
             extraActions: [],
             onSubmit: async value =>
             {
-                var trimmed = value.Trim();
+                string trimmed = value.Trim();
                 if (trimmed.Length > 0)
                 {
                     await onSubmit(trimmed);

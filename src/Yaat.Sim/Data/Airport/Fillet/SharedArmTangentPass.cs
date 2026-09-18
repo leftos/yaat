@@ -12,7 +12,7 @@ internal static class SharedArmTangentPass
     {
         var merges = new List<TangentMergeOp>();
 
-        foreach (var arm in junction.Arms)
+        foreach (TaxiwayArm arm in junction.Arms)
         {
             var armCuts = cuts
                 .Values.Where(c => (c.JunctionNodeId == junction.JunctionNodeId) && (c.ArmId == arm.Id))
@@ -25,14 +25,14 @@ internal static class SharedArmTangentPass
 
             for (int i = 1; i < armCuts.Count; i++)
             {
-                var prev = armCuts[i - 1];
-                var curr = armCuts[i];
+                ResolvedArmCut prev = armCuts[i - 1];
+                ResolvedArmCut curr = armCuts[i];
                 double gapFt = GeoMath.DistanceNm(prev.Position, curr.Position) * GeoMath.FeetPerNm;
                 if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
                 {
                     // Pick the lower integer value as the survivor (mirrors the old Math.Min behavior).
-                    var survivor = prev.CutId.Value <= curr.CutId.Value ? prev.CutId : curr.CutId;
-                    var child = prev.CutId.Value <= curr.CutId.Value ? curr.CutId : prev.CutId;
+                    CutId survivor = prev.CutId.Value <= curr.CutId.Value ? prev.CutId : curr.CutId;
+                    CutId child = prev.CutId.Value <= curr.CutId.Value ? curr.CutId : prev.CutId;
                     merges.Add(new TangentMergeOp(survivor, child));
                 }
             }
@@ -70,8 +70,8 @@ internal static class SharedArmTangentPass
         {
             for (int j = i + 1; j < junctionCuts.Count; j++)
             {
-                var a = junctionCuts[i];
-                var b = junctionCuts[j];
+                ResolvedArmCut a = junctionCuts[i];
+                ResolvedArmCut b = junctionCuts[j];
                 if (a.ArmId == b.ArmId)
                 {
                     continue;
@@ -81,8 +81,8 @@ internal static class SharedArmTangentPass
                 if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
                 {
                     // Lower integer value survives (mirrors the intra-arm / cross-junction convention).
-                    var survivor = a.CutId.Value <= b.CutId.Value ? a.CutId : b.CutId;
-                    var child = a.CutId.Value <= b.CutId.Value ? b.CutId : a.CutId;
+                    CutId survivor = a.CutId.Value <= b.CutId.Value ? a.CutId : b.CutId;
+                    CutId child = a.CutId.Value <= b.CutId.Value ? b.CutId : a.CutId;
                     merges.Add(new TangentMergeOp(survivor, child));
                 }
             }
@@ -121,13 +121,13 @@ internal static class SharedArmTangentPass
         {
             for (int j = i + 1; j < ordered.Count; j++)
             {
-                var a = ordered[i];
-                var b = ordered[j];
+                ResolvedArmCut a = ordered[i];
+                ResolvedArmCut b = ordered[j];
                 double gapFt = GeoMath.DistanceNm(a.Position, b.Position) * GeoMath.FeetPerNm;
                 if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
                 {
-                    var survivor = a.CutId.Value <= b.CutId.Value ? a.CutId : b.CutId;
-                    var child = a.CutId.Value <= b.CutId.Value ? b.CutId : a.CutId;
+                    CutId survivor = a.CutId.Value <= b.CutId.Value ? a.CutId : b.CutId;
+                    CutId child = a.CutId.Value <= b.CutId.Value ? b.CutId : a.CutId;
                     merges.Add(new TangentMergeOp(survivor, child));
                 }
             }
@@ -160,16 +160,16 @@ internal static class SharedArmTangentPass
         var planById = junctionPlans.ToDictionary(p => p.JunctionNodeId);
         var processed = new HashSet<(int, int, string)>();
 
-        foreach (var jp1 in junctionPlans)
+        foreach (JunctionPlan jp1 in junctionPlans)
         {
-            foreach (var arm1 in jp1.Arms.Where(a => a.Terminus == TaxiwayArmTerminus.OtherIntersection))
+            foreach (TaxiwayArm? arm1 in jp1.Arms.Where(a => a.Terminus == TaxiwayArmTerminus.OtherIntersection))
             {
-                if (!planById.TryGetValue(arm1.TerminalNode.Id, out var jp2))
+                if (!planById.TryGetValue(arm1.TerminalNode.Id, out JunctionPlan? jp2))
                 {
                     continue;
                 }
 
-                var arm2 = jp2.Arms.FirstOrDefault(a => a.TerminalNode.Id == jp1.JunctionNodeId && a.TaxiwayName == arm1.TaxiwayName);
+                TaxiwayArm? arm2 = jp2.Arms.FirstOrDefault(a => a.TerminalNode.Id == jp1.JunctionNodeId && a.TaxiwayName == arm1.TaxiwayName);
                 if (arm2 is null)
                 {
                     continue;
@@ -179,14 +179,14 @@ internal static class SharedArmTangentPass
             }
         }
 
-        foreach (var edgeArms in GroupArmsByLocatedCutEdge(planById, allCuts))
+        foreach (List<(JunctionPlan Plan, TaxiwayArm Arm)> edgeArms in GroupArmsByLocatedCutEdge(planById, allCuts))
         {
             for (int i = 0; i < edgeArms.Count; i++)
             {
                 for (int j = i + 1; j < edgeArms.Count; j++)
                 {
-                    var (jpA, armA) = edgeArms[i];
-                    var (jpB, armB) = edgeArms[j];
+                    (JunctionPlan? jpA, TaxiwayArm? armA) = edgeArms[i];
+                    (JunctionPlan? jpB, TaxiwayArm? armB) = edgeArms[j];
                     if (jpA.JunctionNodeId == jpB.JunctionNodeId)
                     {
                         continue;
@@ -217,25 +217,25 @@ internal static class SharedArmTangentPass
     )
     {
         var byEdge = new Dictionary<GroundEdge, List<(JunctionPlan Plan, TaxiwayArm Arm)>>();
-        foreach (var cut in allCuts.Values)
+        foreach (ResolvedArmCut cut in allCuts.Values)
         {
-            if (!planById.TryGetValue(cut.JunctionNodeId, out var jp))
+            if (!planById.TryGetValue(cut.JunctionNodeId, out JunctionPlan? jp))
             {
                 continue;
             }
 
-            var arm = jp.Arms.FirstOrDefault(a => a.Id == cut.ArmId);
+            TaxiwayArm? arm = jp.Arms.FirstOrDefault(a => a.Id == cut.ArmId);
             if (arm is null)
             {
                 continue;
             }
 
-            var loc = TaxiwayWalk.LocateDistanceFt(arm.Walk, jp.JunctionNode, cut.DistanceAlongArmFt);
+            TaxiwayWalk.EdgeLocation loc = TaxiwayWalk.LocateDistanceFt(arm.Walk, jp.JunctionNode, cut.DistanceAlongArmFt);
             if (!loc.Edge.IsRunwayCenterline)
             {
                 continue;
             }
-            if (!byEdge.TryGetValue(loc.Edge, out var list))
+            if (!byEdge.TryGetValue(loc.Edge, out List<(JunctionPlan Plan, TaxiwayArm Arm)>? list))
             {
                 list = [];
                 byEdge[loc.Edge] = list;
@@ -271,7 +271,7 @@ internal static class SharedArmTangentPass
     {
         int lo = Math.Min(jp1.JunctionNodeId, jp2.JunctionNodeId);
         int hi = Math.Max(jp1.JunctionNodeId, jp2.JunctionNodeId);
-        var key = (lo, hi, arm1.TaxiwayName);
+        (int lo, int hi, string TaxiwayName) key = (lo, hi, arm1.TaxiwayName);
         if (!processed.Add(key))
         {
             return;
@@ -333,11 +333,11 @@ internal static class SharedArmTangentPass
             )
         );
 
-        var far1 = allCuts
+        ResolvedArmCut? far1 = allCuts
             .Values.Where(c => (c.JunctionNodeId == jp1.JunctionNodeId) && (c.ArmId == arm1.Id))
             .OrderByDescending(c => c.DistanceAlongArmFt)
             .FirstOrDefault();
-        var far2 = allCuts
+        ResolvedArmCut? far2 = allCuts
             .Values.Where(c => (c.JunctionNodeId == jp2.JunctionNodeId) && (c.ArmId == arm2.Id))
             .OrderByDescending(c => c.DistanceAlongArmFt)
             .FirstOrDefault();
@@ -347,8 +347,8 @@ internal static class SharedArmTangentPass
             if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
             {
                 // Pick the lower integer value as the survivor (mirrors the old Math.Min behavior).
-                var survivor = far1.CutId.Value <= far2.CutId.Value ? far1.CutId : far2.CutId;
-                var child = far1.CutId.Value <= far2.CutId.Value ? far2.CutId : far1.CutId;
+                CutId survivor = far1.CutId.Value <= far2.CutId.Value ? far1.CutId : far2.CutId;
+                CutId child = far1.CutId.Value <= far2.CutId.Value ? far2.CutId : far1.CutId;
                 merges.Add(new TangentMergeOp(survivor, child));
             }
         }
@@ -362,11 +362,11 @@ internal static class SharedArmTangentPass
         Dictionary<CutId, ResolvedArmCut> allCuts
     )
     {
-        foreach (var cut in cutsOnArm)
+        foreach (ResolvedArmCut cut in cutsOnArm)
         {
             double newDist = cut.DistanceAlongArmFt * scale;
-            var (pos, brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, newDist);
-            var updated = cut with { DistanceAlongArmFt = newDist, Position = pos, BearingTowardJunctionDeg = brg };
+            (LatLon pos, double brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, newDist);
+            ResolvedArmCut updated = cut with { DistanceAlongArmFt = newDist, Position = pos, BearingTowardJunctionDeg = brg };
             allCuts[cut.CutId] = updated;
         }
     }

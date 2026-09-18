@@ -21,7 +21,7 @@ internal static class RadarLineStyle
     /// </summary>
     public static float GetScale(SKCanvas canvas)
     {
-        var m = canvas.TotalMatrix;
+        SKMatrix m = canvas.TotalMatrix;
         float scale = MathF.Sqrt((m.ScaleX * m.ScaleX) + (m.SkewY * m.SkewY));
         return scale > 0f ? scale : 1f;
     }
@@ -36,7 +36,7 @@ internal static class RadarLineStyle
     {
         for (int i = 0; i < paints.Count; i++)
         {
-            var (paint, baseWidth) = paints[i];
+            (SKPaint? paint, float baseWidth) = paints[i];
             paint.IsAntialias = false;
             paint.StrokeWidth = (baseWidth <= 1f) ? 0f : (baseWidth / scale);
         }

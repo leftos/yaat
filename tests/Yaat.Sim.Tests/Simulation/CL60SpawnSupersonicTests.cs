@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -23,7 +24,7 @@ public class CL60SpawnSupersonicTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -44,7 +45,7 @@ public class CL60SpawnSupersonicTests(ITestOutputHelper output)
     public void DefaultSpeed_CL60_AtFL280_ReturnsIasNotTas()
     {
         TestVnasData.EnsureInitialized();
-        var category = AircraftCategorization.Categorize("CL60");
+        AircraftCategory category = AircraftCategorization.Categorize("CL60");
 
         double speed = AircraftPerformance.DefaultSpeed("CL60", category, 28000, targetAltitude: null);
 
@@ -64,7 +65,7 @@ public class CL60SpawnSupersonicTests(ITestOutputHelper output)
     public void DefaultSpeed_CL60_AtSeaLevel_RespectsSpeedLimit()
     {
         TestVnasData.EnsureInitialized();
-        var category = AircraftCategorization.Categorize("CL60");
+        AircraftCategory category = AircraftCategorization.Categorize("CL60");
 
         double speed = AircraftPerformance.DefaultSpeed("CL60", category, 0, targetAltitude: null);
 
@@ -79,8 +80,8 @@ public class CL60SpawnSupersonicTests(ITestOutputHelper output)
     [Fact]
     public void KFB7_SpawnsSubsonic()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -89,7 +90,7 @@ public class CL60SpawnSupersonicTests(ITestOutputHelper output)
 
         engine.Replay(recording, 0);
 
-        var aircraft = engine.FindAircraft("KFB7");
+        AircraftState? aircraft = engine.FindAircraft("KFB7");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"KFB7 at spawn: alt={aircraft.Altitude:F0} IAS={aircraft.IndicatedAirspeed:F1} type={aircraft.AircraftType}");

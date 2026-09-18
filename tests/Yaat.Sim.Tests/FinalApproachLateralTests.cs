@@ -29,14 +29,14 @@ public class FinalApproachLateralTests
         int maxTicks = 600
     )
     {
-        var rwy = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6);
+        RunwayInfo rwy = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6);
 
         // Place aircraft: offset perpendicular to centerline at given along-track distance
-        var reciprocal = rwy.TrueHeading.ToReciprocal();
-        var alongPoint = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, alongTrackNm);
+        TrueHeading reciprocal = rwy.TrueHeading.ToReciprocal();
+        (double Lat, double Lon) alongPoint = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, alongTrackNm);
         double perpSign = patternDir == PatternDirection.Left ? -90.0 : 90.0;
-        var perpHeading = rwy.TrueHeading + perpSign;
-        var startPos = GeoMath.ProjectPoint(new LatLon(alongPoint.Lat, alongPoint.Lon), perpHeading, offsetNm);
+        TrueHeading perpHeading = rwy.TrueHeading + perpSign;
+        LatLon startPos = GeoMath.ProjectPoint(new LatLon(alongPoint.Lat, alongPoint.Lon), perpHeading, offsetNm);
 
         var ac = new AircraftState
         {
@@ -115,7 +115,7 @@ public class FinalApproachLateralTests
     [Fact]
     public void VFR_Pattern_1nm_Final()
     {
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6),
             AircraftCategory.Piston,
             "",
@@ -127,7 +127,7 @@ public class FinalApproachLateralTests
             authoredRunway: null
         );
 
-        var r = RunScenario(
+        ScenarioResult r = RunScenario(
             "VFR Pattern 1nm",
             alongTrackNm: 1.0,
             offsetNm: 0.8,
@@ -145,7 +145,7 @@ public class FinalApproachLateralTests
     [Fact]
     public void VFR_Pattern_3nm_Final()
     {
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6),
             AircraftCategory.Piston,
             "",
@@ -157,7 +157,7 @@ public class FinalApproachLateralTests
             authoredRunway: null
         );
 
-        var r = RunScenario(
+        ScenarioResult r = RunScenario(
             "VFR Pattern 3nm",
             alongTrackNm: 3.0,
             offsetNm: 0.8,
@@ -175,7 +175,7 @@ public class FinalApproachLateralTests
     [Fact]
     public void VFR_Pattern_RightTraffic_1nm()
     {
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6),
             AircraftCategory.Piston,
             "",
@@ -187,7 +187,7 @@ public class FinalApproachLateralTests
             authoredRunway: null
         );
 
-        var r = RunScenario(
+        ScenarioResult r = RunScenario(
             "VFR Right Pattern 1nm",
             alongTrackNm: 1.0,
             offsetNm: 0.8,
@@ -209,7 +209,7 @@ public class FinalApproachLateralTests
     public void IFR_Visual_3nm_Final()
     {
         // Realistic: 30° intercept heading (250° for rwy 280), 0.8nm offset, 130kts
-        var r = RunScenario(
+        ScenarioResult r = RunScenario(
             "IFR Visual 3nm",
             alongTrackNm: 3.0,
             offsetNm: 0.8,
@@ -228,7 +228,7 @@ public class FinalApproachLateralTests
     public void IFR_Visual_5nm_Final()
     {
         // Realistic: 30° intercept heading, 1.5nm offset, 160kts jet
-        var r = RunScenario(
+        ScenarioResult r = RunScenario(
             "IFR Visual 5nm",
             alongTrackNm: 5.0,
             offsetNm: 1.5,
@@ -246,7 +246,7 @@ public class FinalApproachLateralTests
     [Fact]
     public void IFR_Visual_10nm_Final()
     {
-        var r = RunScenario(
+        ScenarioResult r = RunScenario(
             "IFR Visual 10nm",
             alongTrackNm: 10.0,
             offsetNm: 2.0,

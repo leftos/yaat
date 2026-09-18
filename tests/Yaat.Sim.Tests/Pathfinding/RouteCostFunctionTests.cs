@@ -39,7 +39,7 @@ public class RouteCostFunctionTests
     private static AirportGroundLayout MakeLayout(params GroundNode[] nodes)
     {
         var layout = new AirportGroundLayout { AirportId = "TEST" };
-        foreach (var n in nodes)
+        foreach (GroundNode n in nodes)
         {
             layout.Nodes[n.Id] = n;
         }
@@ -93,17 +93,17 @@ public class RouteCostFunctionTests
     [Fact]
     public void DistanceAccumulation_StraightRoute_EqualsSumOfSegmentDistances()
     {
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var n2 = MakeNode(2, 37.702, -122.200);
-        var layout = MakeLayout(n0, n1, n2);
-        var e01 = MakeEdge(n0, n1, "A");
-        var e12 = MakeEdge(n1, n2, "A");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        GroundNode n2 = MakeNode(2, 37.702, -122.200);
+        AirportGroundLayout layout = MakeLayout(n0, n1, n2);
+        GroundEdge e01 = MakeEdge(n0, n1, "A");
+        GroundEdge e12 = MakeEdge(n1, n2, "A");
 
-        var ctx = MakeContext(layout, 0, RoutePreference.Shortest);
-        var route0 = StartRoute(0);
-        var route1 = ExtendRoute(route0, e01, n1, ctx);
-        var route2 = ExtendRoute(route1, e12, n2, ctx);
+        SearchContext ctx = MakeContext(layout, 0, RoutePreference.Shortest);
+        PartialRoute route0 = StartRoute(0);
+        PartialRoute route1 = ExtendRoute(route0, e01, n1, ctx);
+        PartialRoute route2 = ExtendRoute(route1, e12, n2, ctx);
 
         double expected = e01.DistanceNm + e12.DistanceNm;
         Assert.Equal(expected, route2.AccumulatedCost, precision: 9);
@@ -117,19 +117,19 @@ public class RouteCostFunctionTests
     public void TurnPenalty_90DegTurn_AddsExpectedCost()
     {
         // n0 → n1 heading north, n1 → n2 heading east: 90° turn.
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var n2 = MakeNode(2, 37.701, -122.199);
-        var layout = MakeLayout(n0, n1, n2);
-        var e01 = MakeEdge(n0, n1, "A");
-        var e12 = MakeEdge(n1, n2, "A");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        GroundNode n2 = MakeNode(2, 37.701, -122.199);
+        AirportGroundLayout layout = MakeLayout(n0, n1, n2);
+        GroundEdge e01 = MakeEdge(n0, n1, "A");
+        GroundEdge e12 = MakeEdge(n1, n2, "A");
 
-        var ctx = MakeContext(layout, 0);
-        var route0 = StartRoute(0);
-        var route1 = ExtendRoute(route0, e01, n1, ctx);
+        SearchContext ctx = MakeContext(layout, 0);
+        PartialRoute route0 = StartRoute(0);
+        PartialRoute route1 = ExtendRoute(route0, e01, n1, ctx);
 
         double costBefore = route1.AccumulatedCost;
-        var route2 = ExtendRoute(route1, e12, n2, ctx);
+        PartialRoute route2 = ExtendRoute(route1, e12, n2, ctx);
         double costAfter = route2.AccumulatedCost;
 
         double turnDelta = RouteCostFunction.HeadingDelta(
@@ -146,20 +146,20 @@ public class RouteCostFunctionTests
     public void TurnPenalty_180DegTurn_ProducesExpectedCost()
     {
         // n0 → n1 heading north (bearing ≈ 0°), n1 → n2 heading south (bearing ≈ 180°).
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var n2 = MakeNode(2, 37.700, -122.200);
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        GroundNode n2 = MakeNode(2, 37.700, -122.200);
 
         // Duplicate position would be degenerate — nudge n2 slightly south.
-        var n2b = MakeNode(2, 37.6995, -122.200);
-        var layout = MakeLayout(n0, n1, n2b);
-        var e01 = MakeEdge(n0, n1, "A");
-        var e12 = MakeEdge(n1, n2b, "A");
+        GroundNode n2b = MakeNode(2, 37.6995, -122.200);
+        AirportGroundLayout layout = MakeLayout(n0, n1, n2b);
+        GroundEdge e01 = MakeEdge(n0, n1, "A");
+        GroundEdge e12 = MakeEdge(n1, n2b, "A");
 
-        var ctx = MakeContext(layout, 0);
-        var route0 = StartRoute(0);
-        var route1 = ExtendRoute(route0, e01, n1, ctx);
-        var route2 = ExtendRoute(route1, e12, n2b, ctx);
+        SearchContext ctx = MakeContext(layout, 0);
+        PartialRoute route0 = StartRoute(0);
+        PartialRoute route1 = ExtendRoute(route0, e01, n1, ctx);
+        PartialRoute route2 = ExtendRoute(route1, e12, n2b, ctx);
 
         double costSegment2 = route2.AccumulatedCost - route1.AccumulatedCost;
         double distCost = e12.DistanceNm;
@@ -177,23 +177,23 @@ public class RouteCostFunctionTests
     public void TransitionPenalty_ThreeNamedTaxiways_AddsTwoTransitions()
     {
         // Route A → B → C (two transitions).
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var n2 = MakeNode(2, 37.702, -122.200);
-        var n3 = MakeNode(3, 37.703, -122.200);
-        var layout = MakeLayout(n0, n1, n2, n3);
-        var eAB = MakeEdge(n0, n1, "A");
-        var eBB = MakeEdge(n1, n2, "B");
-        var eBC = MakeEdge(n2, n3, "C");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        GroundNode n2 = MakeNode(2, 37.702, -122.200);
+        GroundNode n3 = MakeNode(3, 37.703, -122.200);
+        AirportGroundLayout layout = MakeLayout(n0, n1, n2, n3);
+        GroundEdge eAB = MakeEdge(n0, n1, "A");
+        GroundEdge eBB = MakeEdge(n1, n2, "B");
+        GroundEdge eBC = MakeEdge(n2, n3, "C");
 
-        var ctx = MakeContext(layout, 0);
-        var r0 = StartRoute(0);
+        SearchContext ctx = MakeContext(layout, 0);
+        PartialRoute r0 = StartRoute(0);
 
         double costE1 = RouteCostFunction.IncrementalCost(r0, eAB, n1, ctx);
-        var r1 = ExtendRoute(r0, eAB, n1, ctx);
+        PartialRoute r1 = ExtendRoute(r0, eAB, n1, ctx);
 
         double costE2 = RouteCostFunction.IncrementalCost(r1, eBB, n2, ctx);
-        var r2 = ExtendRoute(r1, eBB, n2, ctx);
+        PartialRoute r2 = ExtendRoute(r1, eBB, n2, ctx);
 
         double costE3 = RouteCostFunction.IncrementalCost(r2, eBC, n3, ctx);
 
@@ -209,14 +209,14 @@ public class RouteCostFunctionTests
     [Fact]
     public void RunwayCrossing_HoldShortNode_AddsRunwayCrossingCost()
     {
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
         n1.RunwayId = new RunwayIdentifier("28R", "10L");
-        var layout = MakeLayout(n0, n1);
-        var e = MakeEdge(n0, n1, "A");
+        AirportGroundLayout layout = MakeLayout(n0, n1);
+        GroundEdge e = MakeEdge(n0, n1, "A");
 
-        var ctx = MakeContext(layout, 0);
-        var r0 = StartRoute(0);
+        SearchContext ctx = MakeContext(layout, 0);
+        PartialRoute r0 = StartRoute(0);
         double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
 
         double distCost = e.DistanceNm;
@@ -234,15 +234,15 @@ public class RouteCostFunctionTests
     [Fact]
     public void UnauthorizedTaxiway_FirstUse_AddsPenalty()
     {
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var layout = MakeLayout(n0, n1);
-        var e = MakeEdge(n0, n1, "X");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        AirportGroundLayout layout = MakeLayout(n0, n1);
+        GroundEdge e = MakeEdge(n0, n1, "X");
 
         var authorized = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "A" };
-        var ctx = MakeContext(layout, 0, null, authorized);
+        SearchContext ctx = MakeContext(layout, 0, null, authorized);
 
-        var r0 = StartRoute(0);
+        PartialRoute r0 = StartRoute(0);
         double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
 
         Assert.InRange(cost, e.DistanceNm + RouteCostFunction.UnauthorizedTaxiwayFirstUseCostNm - 1e-9, double.MaxValue);
@@ -251,18 +251,18 @@ public class RouteCostFunctionTests
     [Fact]
     public void UnauthorizedTaxiway_SubsequentUse_NoExtraCost()
     {
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var n2 = MakeNode(2, 37.702, -122.200);
-        var layout = MakeLayout(n0, n1, n2);
-        var e01 = MakeEdge(n0, n1, "X");
-        var e12 = MakeEdge(n1, n2, "X");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        GroundNode n2 = MakeNode(2, 37.702, -122.200);
+        AirportGroundLayout layout = MakeLayout(n0, n1, n2);
+        GroundEdge e01 = MakeEdge(n0, n1, "X");
+        GroundEdge e12 = MakeEdge(n1, n2, "X");
 
         var authorized = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "A" };
-        var ctx = MakeContext(layout, 0, null, authorized);
+        SearchContext ctx = MakeContext(layout, 0, null, authorized);
 
-        var r0 = StartRoute(0);
-        var r1 = ExtendRoute(r0, e01, n1, ctx);
+        PartialRoute r0 = StartRoute(0);
+        PartialRoute r1 = ExtendRoute(r0, e01, n1, ctx);
         double cost2 = RouteCostFunction.IncrementalCost(r1, e12, n2, ctx);
 
         // Second segment on same unauthorized taxiway — no additional unauthorized penalty.
@@ -295,15 +295,15 @@ public class RouteCostFunctionTests
         // A RAMP edge outside the authorized set must NOT incur the unauthorized-taxiway penalty —
         // apron / parking access is always permitted. Mirror of UnauthorizedTaxiway_FirstUse_AddsPenalty
         // but with RAMP, which a controller never explicitly authorizes.
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var layout = MakeLayout(n0, n1);
-        var e = MakeEdge(n0, n1, "RAMP");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        AirportGroundLayout layout = MakeLayout(n0, n1);
+        GroundEdge e = MakeEdge(n0, n1, "RAMP");
 
         var authorized = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "A" };
-        var ctx = MakeContext(layout, 0, null, authorized);
+        SearchContext ctx = MakeContext(layout, 0, null, authorized);
 
-        var r0 = StartRoute(0);
+        PartialRoute r0 = StartRoute(0);
         double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
 
         // Cost is only the segment distance — no UnauthorizedTaxiwayFirstUseCostNm.
@@ -317,19 +317,19 @@ public class RouteCostFunctionTests
     [Fact]
     public void FewestTurns_TurnWeightMultiplied()
     {
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var n2 = MakeNode(2, 37.701, -122.199);
-        var layout = MakeLayout(n0, n1, n2);
-        var e01 = MakeEdge(n0, n1, "A");
-        var e12 = MakeEdge(n1, n2, "B");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        GroundNode n2 = MakeNode(2, 37.701, -122.199);
+        AirportGroundLayout layout = MakeLayout(n0, n1, n2);
+        GroundEdge e01 = MakeEdge(n0, n1, "A");
+        GroundEdge e12 = MakeEdge(n1, n2, "B");
 
-        var ctxDefault = MakeContext(layout, 0);
-        var ctxFewest = MakeContext(layout, 0, RoutePreference.FewestTurns);
+        SearchContext ctxDefault = MakeContext(layout, 0);
+        SearchContext ctxFewest = MakeContext(layout, 0, RoutePreference.FewestTurns);
 
-        var r0 = StartRoute(0);
-        var r1Default = ExtendRoute(r0, e01, n1, ctxDefault);
-        var r1Fewest = ExtendRoute(r0, e01, n1, ctxFewest);
+        PartialRoute r0 = StartRoute(0);
+        PartialRoute r1Default = ExtendRoute(r0, e01, n1, ctxDefault);
+        PartialRoute r1Fewest = ExtendRoute(r0, e01, n1, ctxFewest);
 
         double costDefaultSeg2 = RouteCostFunction.IncrementalCost(r1Default, e12, n2, ctxDefault);
         double costFewestSeg2 = RouteCostFunction.IncrementalCost(r1Fewest, e12, n2, ctxFewest);
@@ -342,16 +342,16 @@ public class RouteCostFunctionTests
     public void Shortest_NonDistanceWeightsAreZero()
     {
         // A 90° turn with Shortest preference should cost only the segment distance.
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var n2 = MakeNode(2, 37.701, -122.199);
-        var layout = MakeLayout(n0, n1, n2);
-        var e01 = MakeEdge(n0, n1, "A");
-        var e12 = MakeEdge(n1, n2, "B");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        GroundNode n2 = MakeNode(2, 37.701, -122.199);
+        AirportGroundLayout layout = MakeLayout(n0, n1, n2);
+        GroundEdge e01 = MakeEdge(n0, n1, "A");
+        GroundEdge e12 = MakeEdge(n1, n2, "B");
 
-        var ctx = MakeContext(layout, 0, RoutePreference.Shortest);
-        var r0 = StartRoute(0);
-        var r1 = ExtendRoute(r0, e01, n1, ctx);
+        SearchContext ctx = MakeContext(layout, 0, RoutePreference.Shortest);
+        PartialRoute r0 = StartRoute(0);
+        PartialRoute r1 = ExtendRoute(r0, e01, n1, ctx);
         double cost2 = RouteCostFunction.IncrementalCost(r1, e12, n2, ctx);
 
         Assert.Equal(e12.DistanceNm, cost2, precision: 9);
@@ -366,14 +366,14 @@ public class RouteCostFunctionTests
     {
         // A straight route from A to B: true cost = segment distance.
         // Heuristic = great-circle distance = segment distance for a straight edge.
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.710, -122.200);
-        var layout = MakeLayout(n0, n1);
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.710, -122.200);
+        AirportGroundLayout layout = MakeLayout(n0, n1);
         MakeEdge(n0, n1, "A");
 
-        var ctx = MakeContext(layout, 0, RoutePreference.Shortest);
-        var r0 = StartRoute(0);
-        var e = n0.Edges[0];
+        SearchContext ctx = MakeContext(layout, 0, RoutePreference.Shortest);
+        PartialRoute r0 = StartRoute(0);
+        IGroundEdge e = n0.Edges[0];
 
         double trueCost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
         double heuristic = RouteCostFunction.Heuristic(n0, n1);
@@ -385,18 +385,18 @@ public class RouteCostFunctionTests
     public void Heuristic_TwoHopRoute_NeverExceedsTrueCost()
     {
         // Route n0→n1→n2; heuristic from n0 is straight-line to n2 which is ≤ sum of segments.
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var n2 = MakeNode(2, 37.701, -122.190);
-        var layout = MakeLayout(n0, n1, n2);
-        var e01 = MakeEdge(n0, n1, "A");
-        var e12 = MakeEdge(n1, n2, "A");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        GroundNode n2 = MakeNode(2, 37.701, -122.190);
+        AirportGroundLayout layout = MakeLayout(n0, n1, n2);
+        GroundEdge e01 = MakeEdge(n0, n1, "A");
+        GroundEdge e12 = MakeEdge(n1, n2, "A");
 
-        var ctx = MakeContext(layout, 0, RoutePreference.Shortest);
-        var r0 = StartRoute(0);
+        SearchContext ctx = MakeContext(layout, 0, RoutePreference.Shortest);
+        PartialRoute r0 = StartRoute(0);
 
         double cost1 = RouteCostFunction.IncrementalCost(r0, e01, n1, ctx);
-        var r1 = ExtendRoute(r0, e01, n1, ctx);
+        PartialRoute r1 = ExtendRoute(r0, e01, n1, ctx);
         double cost2 = RouteCostFunction.IncrementalCost(r1, e12, n2, ctx);
         double trueCost = cost1 + cost2;
 
@@ -421,16 +421,16 @@ public class RouteCostFunctionTests
     public void FixA_DestinationHoldShort_NoCrossingPenalty()
     {
         // A hold-short node that IS the destination runway should not add a crossing penalty.
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
         n1.RunwayId = new RunwayIdentifier("28R", "10L");
-        var layout = MakeLayout(n0, n1);
-        var e = MakeEdge(n0, n1, "A");
+        AirportGroundLayout layout = MakeLayout(n0, n1);
+        GroundEdge e = MakeEdge(n0, n1, "A");
 
         var dest = new DestinationDescriptor(null, "28R", null, null, DestinationKind.Runway);
         var ctx = new SearchContext(layout, 0, dest, [], null, new HashSet<HoldShortTarget>(), AircraftCategory.Jet, null, null);
 
-        var r0 = StartRoute(0);
+        PartialRoute r0 = StartRoute(0);
         double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
 
         // Cost should be ONLY the segment distance — no crossing penalty.
@@ -441,17 +441,17 @@ public class RouteCostFunctionTests
     public void FixA_NonDestinationHoldShort_AddsCrossingPenalty()
     {
         // A hold-short node on a DIFFERENT runway than the destination should still add the penalty.
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
         n1.RunwayId = new RunwayIdentifier("10L", "28R");
-        var layout = MakeLayout(n0, n1);
-        var e = MakeEdge(n0, n1, "A");
+        AirportGroundLayout layout = MakeLayout(n0, n1);
+        GroundEdge e = MakeEdge(n0, n1, "A");
 
         // Destination is 30, not 10L/28R — so this hold-short IS a crossing.
         var dest = new DestinationDescriptor(null, "30", null, null, DestinationKind.Runway);
         var ctx = new SearchContext(layout, 0, dest, [], null, new HashSet<HoldShortTarget>(), AircraftCategory.Jet, null, null);
 
-        var r0 = StartRoute(0);
+        PartialRoute r0 = StartRoute(0);
         double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
 
         Assert.InRange(cost, e.DistanceNm + RouteCostFunction.RunwayCrossingCostNm - 1e-9, double.MaxValue);
@@ -465,15 +465,15 @@ public class RouteCostFunctionTests
     public void FixB_Fastest_StraightEdge_AddsTimeCost()
     {
         // A straight edge is priced at the category's taxi speed under Fastest, on top of its distance.
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var layout = MakeLayout(n0, n1);
-        var e = MakeEdge(n0, n1, "A");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        AirportGroundLayout layout = MakeLayout(n0, n1);
+        GroundEdge e = MakeEdge(n0, n1, "A");
 
-        var ctxDefault = MakeContext(layout, 0);
-        var ctxFastest = MakeContext(layout, 0, RoutePreference.Fastest);
+        SearchContext ctxDefault = MakeContext(layout, 0);
+        SearchContext ctxFastest = MakeContext(layout, 0, RoutePreference.Fastest);
 
-        var r0 = StartRoute(0);
+        PartialRoute r0 = StartRoute(0);
         double costDefault = RouteCostFunction.IncrementalCost(r0, e, n1, ctxDefault);
         double costFastest = RouteCostFunction.IncrementalCost(r0, e, n1, ctxFastest);
 
@@ -493,21 +493,21 @@ public class RouteCostFunctionTests
         // never be cheaper — the navigator rounds a square corner at the nose-wheel radius near walking
         // pace, while the arc is flown at its cornering speed (S2-OAK-2, the OAK U/W corner).
         const double legFt = 100.0;
-        var a = MakeNode(0, 37.700, -122.200);
-        var (bLat, bLon) = GeoMath.ProjectPoint(a.Position, new TrueHeading(90.0), legFt / GeoMath.FeetPerNm);
-        var b = MakeNode(1, bLat, bLon);
-        var (cLat, cLon) = GeoMath.ProjectPoint(b.Position, new TrueHeading(0.0), legFt / GeoMath.FeetPerNm);
-        var c = MakeNode(2, cLat, cLon);
-        var (originLat, originLon) = GeoMath.ProjectPoint(a.Position, new TrueHeading(270.0), 300.0 / GeoMath.FeetPerNm);
-        var origin = MakeNode(3, originLat, originLon);
+        GroundNode a = MakeNode(0, 37.700, -122.200);
+        (double bLat, double bLon) = GeoMath.ProjectPoint(a.Position, new TrueHeading(90.0), legFt / GeoMath.FeetPerNm);
+        GroundNode b = MakeNode(1, bLat, bLon);
+        (double cLat, double cLon) = GeoMath.ProjectPoint(b.Position, new TrueHeading(0.0), legFt / GeoMath.FeetPerNm);
+        GroundNode c = MakeNode(2, cLat, cLon);
+        (double originLat, double originLon) = GeoMath.ProjectPoint(a.Position, new TrueHeading(270.0), 300.0 / GeoMath.FeetPerNm);
+        GroundNode origin = MakeNode(3, originLat, originLon);
 
-        var inbound = MakeEdge(origin, a, "U");
-        var legIn = MakeEdge(a, b, "U");
-        var legOut = MakeEdge(b, c, "W");
+        GroundEdge inbound = MakeEdge(origin, a, "U");
+        GroundEdge legIn = MakeEdge(a, b, "U");
+        GroundEdge legOut = MakeEdge(b, c, "W");
 
         // Quarter-circle cubic: control points 55 ft along each arm toward the centre (kappa ≈ 0.5523 × r).
-        var (p1Lat, p1Lon) = GeoMath.ProjectPoint(a.Position, new TrueHeading(90.0), 55.0 / GeoMath.FeetPerNm);
-        var (p2Lat, p2Lon) = GeoMath.ProjectPoint(c.Position, new TrueHeading(180.0), 55.0 / GeoMath.FeetPerNm);
+        (double p1Lat, double p1Lon) = GeoMath.ProjectPoint(a.Position, new TrueHeading(90.0), 55.0 / GeoMath.FeetPerNm);
+        (double p2Lat, double p2Lon) = GeoMath.ProjectPoint(c.Position, new TrueHeading(180.0), 55.0 / GeoMath.FeetPerNm);
         var arc = new GroundArc
         {
             Nodes = [a, c],
@@ -523,14 +523,14 @@ public class RouteCostFunctionTests
         a.Edges.Add(arc);
         c.Edges.Add(arc);
 
-        var layout = MakeLayout(origin, a, b, c);
-        foreach (var preference in new[] { RoutePreference.Fastest, RoutePreference.FewestTurns, RoutePreference.Shortest })
+        AirportGroundLayout layout = MakeLayout(origin, a, b, c);
+        foreach (RoutePreference preference in new[] { RoutePreference.Fastest, RoutePreference.FewestTurns, RoutePreference.Shortest })
         {
-            var ctx = MakeContext(layout, origin.Id, preference);
-            var atA = ExtendRoute(StartRoute(origin.Id), inbound, a, ctx);
+            SearchContext ctx = MakeContext(layout, origin.Id, preference);
+            PartialRoute atA = ExtendRoute(StartRoute(origin.Id), inbound, a, ctx);
 
             double pivotCost = RouteCostFunction.IncrementalCost(atA, legIn, b, ctx);
-            var atB = ExtendRoute(atA, legIn, b, ctx);
+            PartialRoute atB = ExtendRoute(atA, legIn, b, ctx);
             pivotCost += RouteCostFunction.IncrementalCost(atB, legOut, c, ctx);
             double arcCost = RouteCostFunction.IncrementalCost(atA, arc, c, ctx);
 
@@ -542,11 +542,11 @@ public class RouteCostFunctionTests
     public void FixB_Fastest_Arc_AddsTimeCostAboveDistance()
     {
         // An arc with finite MaxSafeSpeedKts should add a meaningful time cost.
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var n2 = MakeNode(2, 37.701, -122.199);
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        GroundNode n2 = MakeNode(2, 37.701, -122.199);
 
-        var eForward = MakeEdge(n0, n1, "A");
+        GroundEdge eForward = MakeEdge(n0, n1, "A");
 
         // Arc with tight radius (200 ft) — MaxSafeSpeedKts will be small.
         var arc = new GroundArc
@@ -563,11 +563,11 @@ public class RouteCostFunctionTests
         n1.Edges.Add(arc);
         n2.Edges.Add(arc);
 
-        var layout = MakeLayout(n0, n1, n2);
-        var ctxFastest = MakeContext(layout, 0, RoutePreference.Fastest);
+        AirportGroundLayout layout = MakeLayout(n0, n1, n2);
+        SearchContext ctxFastest = MakeContext(layout, 0, RoutePreference.Fastest);
 
-        var r0 = StartRoute(0);
-        var r1 = ExtendRoute(r0, eForward, n1, ctxFastest);
+        PartialRoute r0 = StartRoute(0);
+        PartialRoute r1 = ExtendRoute(r0, eForward, n1, ctxFastest);
         double costWithArc = RouteCostFunction.IncrementalCost(r1, arc, n2, ctxFastest);
 
         // Fastest adds the fillet's traversal along its local cornering-speed profile (plus the speed dip into it).
@@ -584,13 +584,13 @@ public class RouteCostFunctionTests
     public void FixD_FirstEdge_NoTransitionPenalty()
     {
         // At Depth==0, transitioning from empty LastTaxiwayName to "A" must not add a transition penalty.
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var layout = MakeLayout(n0, n1);
-        var e = MakeEdge(n0, n1, "A");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        AirportGroundLayout layout = MakeLayout(n0, n1);
+        GroundEdge e = MakeEdge(n0, n1, "A");
 
-        var ctx = MakeContext(layout, 0);
-        var r0 = StartRoute(0); // Depth == 0, LastTaxiwayName == ""
+        SearchContext ctx = MakeContext(layout, 0);
+        PartialRoute r0 = StartRoute(0); // Depth == 0, LastTaxiwayName == ""
 
         double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
 
@@ -602,16 +602,16 @@ public class RouteCostFunctionTests
     public void FixD_SecondEdge_SameTaxiway_NoTransitionPenalty()
     {
         // Depth==1, same taxiway name — no transition penalty.
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var n2 = MakeNode(2, 37.702, -122.200);
-        var layout = MakeLayout(n0, n1, n2);
-        var e01 = MakeEdge(n0, n1, "A");
-        var e12 = MakeEdge(n1, n2, "A");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        GroundNode n2 = MakeNode(2, 37.702, -122.200);
+        AirportGroundLayout layout = MakeLayout(n0, n1, n2);
+        GroundEdge e01 = MakeEdge(n0, n1, "A");
+        GroundEdge e12 = MakeEdge(n1, n2, "A");
 
-        var ctx = MakeContext(layout, 0, RoutePreference.Shortest);
-        var r0 = StartRoute(0);
-        var r1 = ExtendRoute(r0, e01, n1, ctx);
+        SearchContext ctx = MakeContext(layout, 0, RoutePreference.Shortest);
+        PartialRoute r0 = StartRoute(0);
+        PartialRoute r1 = ExtendRoute(r0, e01, n1, ctx);
 
         double cost = RouteCostFunction.IncrementalCost(r1, e12, n2, ctx);
         // With Shortest preference: only distance.
@@ -622,16 +622,16 @@ public class RouteCostFunctionTests
     public void FixD_SecondEdge_DifferentTaxiway_AddsTransitionPenalty()
     {
         // Depth==1, different taxiway name — transition penalty must fire.
-        var n0 = MakeNode(0, 37.700, -122.200);
-        var n1 = MakeNode(1, 37.701, -122.200);
-        var n2 = MakeNode(2, 37.702, -122.200);
-        var layout = MakeLayout(n0, n1, n2);
-        var e01 = MakeEdge(n0, n1, "A");
-        var e12 = MakeEdge(n1, n2, "B");
+        GroundNode n0 = MakeNode(0, 37.700, -122.200);
+        GroundNode n1 = MakeNode(1, 37.701, -122.200);
+        GroundNode n2 = MakeNode(2, 37.702, -122.200);
+        AirportGroundLayout layout = MakeLayout(n0, n1, n2);
+        GroundEdge e01 = MakeEdge(n0, n1, "A");
+        GroundEdge e12 = MakeEdge(n1, n2, "B");
 
-        var ctx = MakeContext(layout, 0);
-        var r0 = StartRoute(0);
-        var r1 = ExtendRoute(r0, e01, n1, ctx);
+        SearchContext ctx = MakeContext(layout, 0);
+        PartialRoute r0 = StartRoute(0);
+        PartialRoute r1 = ExtendRoute(r0, e01, n1, ctx);
 
         double cost2 = RouteCostFunction.IncrementalCost(r1, e12, n2, ctx);
 

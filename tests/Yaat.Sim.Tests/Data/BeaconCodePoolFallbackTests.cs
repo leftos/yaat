@@ -22,7 +22,7 @@ public class BeaconCodePoolFallbackTests
             },
         ]);
 
-        var code = pool.AssignNextCode(isVfr: true);
+        uint code = pool.AssignNextCode(isVfr: true);
 
         Assert.NotEqual(0u, code);
         Assert.True(BeaconCodePool.IsAssignableCode(code), $"fallback produced non-assignable code {code:D4}");
@@ -40,7 +40,7 @@ public class BeaconCodePoolFallbackTests
             },
         ]);
 
-        var code = pool.AssignNextCode(isVfr: false);
+        uint code = pool.AssignNextCode(isVfr: false);
 
         Assert.NotEqual(0u, code);
         Assert.True(BeaconCodePool.IsAssignableCode(code), $"fallback produced non-assignable code {code:D4}");
@@ -61,7 +61,7 @@ public class BeaconCodePoolFallbackTests
 
         Assert.Equal(401u, pool.AssignNextCode(isVfr: false));
 
-        var second = pool.AssignNextCode(isVfr: false);
+        uint second = pool.AssignNextCode(isVfr: false);
         Assert.NotEqual(0u, second);
         Assert.NotEqual(401u, second);
         Assert.True(BeaconCodePool.IsAssignableCode(second), $"fallback produced non-assignable code {second:D4}");

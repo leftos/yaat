@@ -35,8 +35,8 @@ public class DatablockDeconflictionTests
 
     private static SKRect ResolvedRect(DatablockDeconfliction.Item item, IReadOnlyDictionary<string, SKPoint> resolved)
     {
-        var o = resolved[item.Callsign];
-        var r = item.RectAtOrigin;
+        SKPoint o = resolved[item.Callsign];
+        SKRect r = item.RectAtOrigin;
         return new SKRect(r.Left + item.Anchor.X + o.X, r.Top + item.Anchor.Y + o.Y, r.Right + item.Anchor.X + o.X, r.Bottom + item.Anchor.Y + o.Y);
     }
 
@@ -54,7 +54,7 @@ public class DatablockDeconflictionTests
     // block) means the deconfliction pass extended the leader to clear a conflict.
     private static float LeaderLength(DatablockDeconfliction.Item item, IReadOnlyDictionary<string, SKPoint> resolved)
     {
-        var rect = ResolvedRect(item, resolved);
+        SKRect rect = ResolvedRect(item, resolved);
         float cx = Math.Clamp(item.Anchor.X, rect.Left, rect.Right);
         float cy = Math.Clamp(item.Anchor.Y, rect.Top, rect.Bottom);
         float dx = item.Anchor.X - cx;
@@ -93,7 +93,7 @@ public class DatablockDeconflictionTests
     public void CompassSnap_SingleAircraft_KeepsPreferred()
     {
         var pref = new SKPoint(28, -28);
-        var items = new[] { Item("AAL1", 500, 500, pref) };
+        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 500, 500, pref) };
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -111,7 +111,7 @@ public class DatablockDeconflictionTests
     public void CompassSnap_TwoOverlapping_Separates()
     {
         var pref = new SKPoint(28, -28);
-        var items = new[] { Item("AAL1", 500, 500, pref), Item("UAL2", 500, 500, pref) };
+        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 500, 500, pref), Item("UAL2", 500, 500, pref) };
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -129,8 +129,8 @@ public class DatablockDeconflictionTests
     public void CompassSnap_PinnedNeverMoves_OthersAvoidIt()
     {
         var pref = new SKPoint(28, -28);
-        var pinned = Item("AAL1", 500, 500, pref, pinned: true);
-        var movable = Item("UAL2", 500, 500, pref);
+        DatablockDeconfliction.Item pinned = Item("AAL1", 500, 500, pref, pinned: true);
+        DatablockDeconfliction.Item movable = Item("UAL2", 500, 500, pref);
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -149,7 +149,7 @@ public class DatablockDeconflictionTests
     public void CompassSnap_Deterministic()
     {
         var pref = new SKPoint(28, -28);
-        var items = new[] { Item("AAL1", 500, 500, pref), Item("UAL2", 510, 505, pref), Item("DAL3", 495, 498, pref) };
+        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 500, 500, pref), Item("UAL2", 510, 505, pref), Item("DAL3", 495, 498, pref) };
 
         var first = new Dictionary<string, SKPoint>();
         DatablockDeconfliction.Resolve(
@@ -168,7 +168,7 @@ public class DatablockDeconflictionTests
             second
         );
 
-        foreach (var key in first.Keys)
+        foreach (string key in first.Keys)
         {
             Assert.Equal(first[key], second[key]);
         }
@@ -180,12 +180,12 @@ public class DatablockDeconflictionTests
         var pref = new SKPoint(28, -28);
         var options = DatablockDeconfliction.Options.Default(Screen);
 
-        var items = new[] { Item("AAL1", 500, 500, pref), Item("UAL2", 500, 500, pref) };
+        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 500, 500, pref), Item("UAL2", 500, 500, pref) };
         var prev = new Dictionary<string, SKPoint>();
         DatablockDeconfliction.Resolve(DatablockDeconflictMode.CompassSnap, items, options, new Dictionary<string, SKPoint>(), prev);
 
         // Nudge anchors by a fraction of a pixel and feed the prior result back as the stability seed.
-        var nudged = new[] { Item("AAL1", 500.3f, 500.2f, pref), Item("UAL2", 500.2f, 500.3f, pref) };
+        DatablockDeconfliction.Item[] nudged = new[] { Item("AAL1", 500.3f, 500.2f, pref), Item("UAL2", 500.2f, 500.3f, pref) };
         var next = new Dictionary<string, SKPoint>();
         DatablockDeconfliction.Resolve(DatablockDeconflictMode.CompassSnap, nudged, options, prev, next);
 
@@ -197,8 +197,8 @@ public class DatablockDeconflictionTests
     public void CompassSnap_PriorityAircraftKeepsPreferred()
     {
         var pref = new SKPoint(28, -28);
-        var priority = Item("AAL1", 500, 500, pref, priority: true);
-        var other = Item("UAL2", 500, 500, pref);
+        DatablockDeconfliction.Item priority = Item("AAL1", 500, 500, pref, priority: true);
+        DatablockDeconfliction.Item other = Item("UAL2", 500, 500, pref);
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -217,8 +217,8 @@ public class DatablockDeconflictionTests
     public void FreeForm_TwoOverlapping_ReducesOverlap()
     {
         var pref = new SKPoint(28, -28);
-        var items = new[] { Item("AAL1", 500, 500, pref), Item("UAL2", 500, 500, pref) };
-        var initialOverlap = Overlap(new SKRect(528, 472, 568, 502), new SKRect(528, 472, 568, 502));
+        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 500, 500, pref), Item("UAL2", 500, 500, pref) };
+        float initialOverlap = Overlap(new SKRect(528, 472, 568, 502), new SKRect(528, 472, 568, 502));
 
         var resolved = new Dictionary<string, SKPoint>();
         DatablockDeconfliction.Resolve(
@@ -238,7 +238,7 @@ public class DatablockDeconflictionTests
         var smallScreen = new SKRect(0, 0, 120, 120);
         var pref = new SKPoint(28, -28);
         // Anchors clustered near the top-right corner so repulsion would push blocks off-screen if unclamped.
-        var items = new[] { Item("AAL1", 110, 15, pref), Item("UAL2", 110, 15, pref), Item("DAL3", 108, 18, pref) };
+        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 110, 15, pref), Item("UAL2", 110, 15, pref), Item("DAL3", 108, 18, pref) };
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -249,9 +249,9 @@ public class DatablockDeconflictionTests
             resolved
         );
 
-        foreach (var item in items)
+        foreach (DatablockDeconfliction.Item item in items)
         {
-            var rect = ResolvedRect(item, resolved);
+            SKRect rect = ResolvedRect(item, resolved);
             Assert.True(rect.Left >= smallScreen.Left - 0.5f);
             Assert.True(rect.Top >= smallScreen.Top - 0.5f);
             Assert.True(rect.Right <= smallScreen.Right + 0.5f);
@@ -264,7 +264,7 @@ public class DatablockDeconflictionTests
     {
         var prefA = new SKPoint(28, -28);
         var prefB = new SKPoint(10, 10);
-        var items = new[] { Item("AAL1", 500, 500, prefA), Item("UAL2", 500, 500, prefB) };
+        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 500, 500, prefA), Item("UAL2", 500, 500, prefB) };
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -285,7 +285,7 @@ public class DatablockDeconflictionTests
         var pref = new SKPoint(28, -28);
         // Six co-located aircraft: the eight fixed compass slots cannot seat them all without overlap,
         // so the pass must extend leaders onto larger rings to fully deconflict.
-        var items = new[]
+        DatablockDeconfliction.Item[] items = new[]
         {
             Item("AAL1", 500, 500, pref),
             Item("UAL2", 500, 500, pref),
@@ -313,7 +313,7 @@ public class DatablockDeconflictionTests
     {
         var pref = new SKPoint(28, -28);
         // Two aircraft far apart: neither block overlaps, so both keep their base-ring preferred offset.
-        var items = new[] { Item("AAL1", 300, 300, pref), Item("UAL2", 700, 700, pref) };
+        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 300, 300, pref), Item("UAL2", 700, 700, pref) };
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -324,7 +324,7 @@ public class DatablockDeconflictionTests
             resolved
         );
 
-        foreach (var it in items)
+        foreach (DatablockDeconfliction.Item it in items)
         {
             Assert.True(LeaderLength(it, resolved) <= 32f, $"{it.Callsign} extended its leader unnecessarily ({LeaderLength(it, resolved):F1}px)");
         }
@@ -336,7 +336,13 @@ public class DatablockDeconflictionTests
         var pref = new SKPoint(28, -28);
         // Four aircraft in a left-to-right row, packed tighter than a block width so labels must move.
         // Items are listed in left-to-right anchor order; resolved block centers must not cross.
-        var items = new[] { Item("AAA1", 480, 500, pref), Item("BBB2", 505, 500, pref), Item("CCC3", 530, 500, pref), Item("DDD4", 555, 500, pref) };
+        DatablockDeconfliction.Item[] items = new[]
+        {
+            Item("AAA1", 480, 500, pref),
+            Item("BBB2", 505, 500, pref),
+            Item("CCC3", 530, 500, pref),
+            Item("DDD4", 555, 500, pref),
+        };
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -349,7 +355,7 @@ public class DatablockDeconflictionTests
 
         const float tol = 4f;
         float prevX = float.NegativeInfinity;
-        foreach (var it in items)
+        foreach (DatablockDeconfliction.Item it in items)
         {
             float cx = Center(ResolvedRect(it, resolved)).X;
             Assert.True(cx >= prevX - tol, $"{it.Callsign} block center {cx:F1} crosses left of previous {prevX:F1}");
@@ -362,7 +368,13 @@ public class DatablockDeconflictionTests
     {
         var pref = new SKPoint(28, -28);
         // Four aircraft stacked top-to-bottom, packed tighter than a block height so labels must move.
-        var items = new[] { Item("AAA1", 500, 470, pref), Item("BBB2", 500, 490, pref), Item("CCC3", 500, 510, pref), Item("DDD4", 500, 530, pref) };
+        DatablockDeconfliction.Item[] items = new[]
+        {
+            Item("AAA1", 500, 470, pref),
+            Item("BBB2", 500, 490, pref),
+            Item("CCC3", 500, 510, pref),
+            Item("DDD4", 500, 530, pref),
+        };
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -375,7 +387,7 @@ public class DatablockDeconflictionTests
 
         const float tol = 4f;
         float prevY = float.NegativeInfinity;
-        foreach (var it in items)
+        foreach (DatablockDeconfliction.Item it in items)
         {
             float cy = Center(ResolvedRect(it, resolved)).Y;
             Assert.True(cy >= prevY - tol, $"{it.Callsign} block center {cy:F1} crosses above previous {prevY:F1}");
@@ -387,7 +399,13 @@ public class DatablockDeconflictionTests
     public void FreeForm_HorizontalRow_PreservesOrder()
     {
         var pref = new SKPoint(28, -28);
-        var items = new[] { Item("AAA1", 480, 500, pref), Item("BBB2", 505, 500, pref), Item("CCC3", 530, 500, pref), Item("DDD4", 555, 500, pref) };
+        DatablockDeconfliction.Item[] items = new[]
+        {
+            Item("AAA1", 480, 500, pref),
+            Item("BBB2", 505, 500, pref),
+            Item("CCC3", 530, 500, pref),
+            Item("DDD4", 555, 500, pref),
+        };
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -400,7 +418,7 @@ public class DatablockDeconflictionTests
 
         const float tol = 4f;
         float prevX = float.NegativeInfinity;
-        foreach (var it in items)
+        foreach (DatablockDeconfliction.Item it in items)
         {
             float cx = Center(ResolvedRect(it, resolved)).X;
             Assert.True(cx >= prevX - tol, $"{it.Callsign} block center {cx:F1} crosses left of previous {prevX:F1}");
@@ -412,7 +430,7 @@ public class DatablockDeconflictionTests
     public void CompassSnap_DenseCluster_Deterministic()
     {
         var pref = new SKPoint(28, -28);
-        var items = new[]
+        DatablockDeconfliction.Item[] items = new[]
         {
             Item("AAL1", 500, 500, pref),
             Item("UAL2", 500, 500, pref),
@@ -439,7 +457,7 @@ public class DatablockDeconflictionTests
             second
         );
 
-        foreach (var key in first.Keys)
+        foreach (string key in first.Keys)
         {
             Assert.Equal(first[key], second[key]);
         }
@@ -454,7 +472,7 @@ public class DatablockDeconflictionTests
         // Anchor far to the left of the 1000x1000 screen: the symbol is off-display, so its datablock
         // must not be clamped into the viewport. The pass emits no offset and the view falls back to its
         // default placement, which clips off-screen with the symbol instead of stranding a block at the edge.
-        var items = new[] { Item("OFF", -800, 500, pref) };
+        DatablockDeconfliction.Item[] items = new[] { Item("OFF", -800, 500, pref) };
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(mode, items, DatablockDeconfliction.Options.Default(Screen), new Dictionary<string, SKPoint>(), resolved);
@@ -466,8 +484,8 @@ public class DatablockDeconflictionTests
     public void OffscreenAnchor_Dropped_WhileOnscreenKept()
     {
         var pref = new SKPoint(28, -28);
-        var onScreen = Item("ON", 500, 500, pref);
-        var offScreen = Item("OFF", 500, 2000, pref); // 1000px below the bottom edge
+        DatablockDeconfliction.Item onScreen = Item("ON", 500, 500, pref);
+        DatablockDeconfliction.Item offScreen = Item("OFF", 500, 2000, pref); // 1000px below the bottom edge
 
         var resolved = new Dictionary<string, SKPoint>();
         DatablockDeconfliction.Resolve(
@@ -488,7 +506,7 @@ public class DatablockDeconflictionTests
     public void OffscreenPinned_NotWrittenThrough()
     {
         var pref = new SKPoint(28, -28);
-        var pinnedOff = Item("PIN", -500, 500, pref, pinned: true);
+        DatablockDeconfliction.Item pinnedOff = Item("PIN", -500, 500, pref, pinned: true);
 
         var resolved = new Dictionary<string, SKPoint>();
         DatablockDeconfliction.Resolve(
@@ -507,7 +525,7 @@ public class DatablockDeconflictionTests
     {
         var pref = new SKPoint(28, -28);
         // A symbol a few pixels past the left edge is still partly visible, so its block keeps deconflicting.
-        var items = new[] { Item("EDGE", -10, 500, pref) };
+        DatablockDeconfliction.Item[] items = new[] { Item("EDGE", -10, 500, pref) };
 
         var resolved = new Dictionary<string, SKPoint>();
         DatablockDeconfliction.Resolve(
@@ -542,7 +560,7 @@ public class DatablockDeconflictionTests
         float maxOther = 0f;
         for (float x = 300; x <= 1500; x += stepPx)
         {
-            var items = new[]
+            DatablockDeconfliction.Item[] items = new[]
             {
                 new DatablockDeconfliction.Item
                 {
@@ -577,7 +595,7 @@ public class DatablockDeconflictionTests
     public void FreeForm_MovingAnchorPassingStationary_StaysNearPreferred()
     {
         var pref = new SKPoint(30, -25);
-        var (mover, other, finalMover, finalOther) = RollPast(2f, otherPinned: false, otherPreferred: pref);
+        (float mover, float other, SKPoint finalMover, SKPoint finalOther) = RollPast(2f, otherPinned: false, otherPreferred: pref);
 
         Assert.True(mover <= 45f, $"moving block drifted {mover:F0} px from preferred");
         Assert.True(other <= 45f, $"stationary block was dragged {other:F0} px from preferred");
@@ -589,7 +607,7 @@ public class DatablockDeconflictionTests
     public void FreeForm_MovingAnchorPassingPinned_StaysNearPreferred()
     {
         var pinnedPref = new SKPoint(-80, -25);
-        var (mover, _, finalMover, finalOther) = RollPast(2f, otherPinned: true, otherPreferred: pinnedPref);
+        (float mover, float _, SKPoint finalMover, SKPoint finalOther) = RollPast(2f, otherPinned: true, otherPreferred: pinnedPref);
 
         Assert.True(mover <= 45f, $"moving block drifted {mover:F0} px from preferred");
         Assert.True(Dist(finalMover, new SKPoint(30, -25)) < 1f, $"moving block ended at {finalMover}");
@@ -600,7 +618,7 @@ public class DatablockDeconflictionTests
     public void FreeForm_FastAnchor_StaysNearPreferred()
     {
         var pref = new SKPoint(30, -25);
-        var (mover, other, finalMover, _) = RollPast(10f, otherPinned: false, otherPreferred: pref);
+        (float mover, float other, SKPoint finalMover, SKPoint _) = RollPast(10f, otherPinned: false, otherPreferred: pref);
 
         Assert.True(mover <= 45f, $"moving block drifted {mover:F0} px from preferred");
         Assert.True(other <= 45f, $"stationary block was dragged {other:F0} px from preferred");
@@ -613,7 +631,7 @@ public class DatablockDeconflictionTests
         // Once the blocks have parted, nothing should hold a block off its preferred placement — the old
         // symbol-margin push expelled toward the anchor and parked blocks hugging their own symbol.
         var pref = new SKPoint(30, -25);
-        var (_, _, finalMover, finalOther) = RollPast(2f, otherPinned: false, otherPreferred: pref);
+        (float _, float _, SKPoint finalMover, SKPoint finalOther) = RollPast(2f, otherPinned: false, otherPreferred: pref);
         Assert.True(Dist(finalMover, pref) < 1f, $"moving block rests at {finalMover}, not {pref}");
         Assert.True(Dist(finalOther, pref) < 1f, $"stationary block rests at {finalOther}, not {pref}");
     }
@@ -622,7 +640,7 @@ public class DatablockDeconflictionTests
     public void FreeForm_SameRowPair_HopsOppositeWays()
     {
         var pref = new SKPoint(30, -25);
-        var items = new[]
+        DatablockDeconfliction.Item[] items = new[]
         {
             new DatablockDeconfliction.Item
             {
@@ -653,8 +671,8 @@ public class DatablockDeconflictionTests
 
         // The spring/repulsion equilibrium leaves at most a ~2 px sliver of overlap; what matters is that
         // the pair parted vertically (one above the other) instead of sliding apart along the row.
-        var ra = ResolvedRect(items[0], res);
-        var rb = ResolvedRect(items[1], res);
+        SKRect ra = ResolvedRect(items[0], res);
+        SKRect rb = ResolvedRect(items[1], res);
         Assert.True(Overlap(ra, rb) < 0.1f * ra.Width * ra.Height, $"pair still overlaps: A={res["AAA1"]} B={res["BBB2"]}");
         Assert.True(MathF.Abs(Center(ra).Y - Center(rb).Y) > 20f, $"pair did not part vertically: A={res["AAA1"]} B={res["BBB2"]}");
         Assert.True((Dist(res["AAA1"], pref) <= 45f) && (Dist(res["BBB2"], pref) <= 45f), "pair separated by sliding along the row");
@@ -686,10 +704,10 @@ public class DatablockDeconflictionTests
         var items = new List<DatablockDeconfliction.Item>(cluster.Length);
         for (int k = 0; k < cluster.Length; k++)
         {
-            var (cs, x, y) = cluster[k];
+            (string? cs, float x, float y) = cluster[k];
             // Alternate 3-line (105x40) and 2-line (95x27) ground blocks like a real gate row (some
             // aircraft show a SqStby line, some don't).
-            var rect = k % 2 == 0 ? new SKRect(0, -12, 95, 15) : new SKRect(0, -12, 105, 28);
+            SKRect rect = k % 2 == 0 ? new SKRect(0, -12, 95, 15) : new SKRect(0, -12, 105, 28);
             items.Add(
                 new DatablockDeconfliction.Item
                 {
@@ -707,7 +725,7 @@ public class DatablockDeconflictionTests
 
     private static (Dictionary<string, SKPoint> Final, float LateFrameMaxMove) RunDenseMixedCluster(int frames, int settleAfter)
     {
-        var items = DenseMixedCluster();
+        List<DatablockDeconfliction.Item> items = DenseMixedCluster();
         var bounds = new SKRect(0, 0, 888, 666);
         var prev = new Dictionary<string, SKPoint>();
         var res = new Dictionary<string, SKPoint>();
@@ -718,7 +736,7 @@ public class DatablockDeconflictionTests
             if (frame >= settleAfter)
             {
                 float moved = 0f;
-                foreach (var item in items)
+                foreach (DatablockDeconfliction.Item item in items)
                 {
                     moved += Dist(res[item.Callsign], prev[item.Callsign]);
                 }
@@ -733,15 +751,15 @@ public class DatablockDeconflictionTests
     [Fact]
     public void FreeForm_DenseMixedCluster_Converges()
     {
-        var (_, lateMaxMove) = RunDenseMixedCluster(frames: 90, settleAfter: 60);
+        (Dictionary<string, SKPoint> _, float lateMaxMove) = RunDenseMixedCluster(frames: 90, settleAfter: 60);
         Assert.True(lateMaxMove < 1f, $"cluster still moving {lateMaxMove:F1} px/frame after 60 settle frames");
     }
 
     [Fact]
     public void FreeForm_DenseMixedCluster_NoResidualOverlap()
     {
-        var (final, _) = RunDenseMixedCluster(frames: 90, settleAfter: 60);
-        var items = DenseMixedCluster();
+        (Dictionary<string, SKPoint>? final, float _) = RunDenseMixedCluster(frames: 90, settleAfter: 60);
+        List<DatablockDeconfliction.Item> items = DenseMixedCluster();
         float overlap = TotalOverlap(items, final);
         Assert.True(overlap < 50f, $"cluster settled with {overlap:F0} px^2 of block-on-block overlap");
     }

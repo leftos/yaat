@@ -1,3 +1,4 @@
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -8,13 +9,13 @@ public static class PhaseRunner
 {
     public static void Tick(AircraftState aircraft, PhaseContext ctx)
     {
-        var phases = aircraft.Phases;
+        PhaseList? phases = aircraft.Phases;
         if (phases is null || phases.IsComplete)
         {
             return;
         }
 
-        var current = phases.CurrentPhase;
+        Phase? current = phases.CurrentPhase;
         if (current is null)
         {
             return;
@@ -84,7 +85,7 @@ public static class PhaseRunner
             // truth for what should happen next. Branching on TrafficDirection
             // misroutes a CLAND'd aircraft to auto-cycle when it was given ERB/ELB
             // after CLAND (ERB stamps direction *after* the chain is built).
-            var persistentDir = aircraft.Pattern.TrafficDirection;
+            PatternDirection? persistentDir = aircraft.Pattern.TrafficDirection;
 
             // Full-stop terminator → exit the runway regardless of pattern state.
             if (wasFullStopTerminator && phases.IsComplete)
@@ -132,15 +133,15 @@ public static class PhaseRunner
                 // direction actually being flown.
                 phases.TrafficDirection = dir;
                 VoidArmedPatternRunwayOnGoAround(ctx, phases, current, dir);
-                var runway = phases.PatternRunway ?? phases.AssignedRunway;
-                var airportRunways = Data.NavigationDatabase.Instance.GetRunways(runway.AirportId);
+                RunwayInfo runway = phases.PatternRunway ?? phases.AssignedRunway;
+                IReadOnlyList<RunwayInfo> airportRunways = Data.NavigationDatabase.Instance.GetRunways(runway.AirportId);
                 // Resolve authored pattern data from the context's resolved ground layout (which falls
                 // back to the assigned-runway airport when the per-aircraft Ground.Layout is unset);
                 // otherwise an airborne pattern aircraft with no cached layout reverts to the category
                 // default TPA and flies a long, climb-bound upwind (issue #210).
-                var patternLayout = ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout;
-                var authoredRunway = patternLayout?.FindRunway(runway.Designator);
-                var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+                AirportGroundLayout? patternLayout = ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout;
+                GroundRunway? authoredRunway = patternLayout?.FindRunway(runway.Designator);
+                (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(
                     runway,
                     authoredRunway,
                     ctx.Category,
@@ -158,9 +159,9 @@ public static class PhaseRunner
                 // circuit belongs to the new runway, so the assignment moves with it. A cross-runway CTO
                 // has already moved AssignedRunway to the pattern runway at clearance time, so its
                 // designators match here and it takes the plain next circuit.
-                var flownRunway = phases.AssignedRunway;
+                RunwayInfo flownRunway = phases.AssignedRunway;
                 bool runwayTransition = !string.Equals(flownRunway.Designator, runway.Designator, StringComparison.OrdinalIgnoreCase);
-                var nextCircuit = runwayTransition
+                List<Phase> nextCircuit = runwayTransition
                     ? PatternBuilder.BuildRunwayTransitionCircuit(
                         flownRunway,
                         runway,
@@ -201,7 +202,7 @@ public static class PhaseRunner
                 // IsExtended=true; the flag clears after consumption.
                 if (ctx.Aircraft.Pattern.ExtendNextUpwind)
                 {
-                    var firstUpwind = nextCircuit.OfType<UpwindPhase>().FirstOrDefault();
+                    UpwindPhase? firstUpwind = nextCircuit.OfType<UpwindPhase>().FirstOrDefault();
                     if (firstUpwind is not null)
                     {
                         firstUpwind.IsExtended = true;

@@ -13,7 +13,7 @@ internal sealed class CaptureContext
 
     private static string FindRepoRoot()
     {
-        var dir = AppContext.BaseDirectory;
+        string? dir = AppContext.BaseDirectory;
         while (dir is not null)
         {
             if (File.Exists(Path.Combine(dir, "yaat.slnx")))

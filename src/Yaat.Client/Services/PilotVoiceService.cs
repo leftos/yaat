@@ -61,7 +61,7 @@ public sealed class PilotVoiceService : IAsyncDisposable
     {
         try
         {
-            await foreach (var request in _queue.Reader.ReadAllAsync(_cts.Token))
+            await foreach (PilotVoiceRequest request in _queue.Reader.ReadAllAsync(_cts.Token))
             {
                 try
                 {
@@ -108,19 +108,19 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer : IPilotVoiceSynthesizer
 
     public async Task SpeakAsync(PilotVoiceRequest request, CancellationToken ct)
     {
-        var tts = await EnsureLoadedAsync(ct).ConfigureAwait(false);
+        OfflineTts? tts = await EnsureLoadedAsync(ct).ConfigureAwait(false);
         if (tts is null)
         {
             return;
         }
 
-        var (samples, sampleRate) = await Task.Run(
+        (float[]? samples, int sampleRate) = await Task.Run(
                 () =>
                 {
-                    var sid = Math.Abs(request.SpeakerId) % 904;
+                    int sid = Math.Abs(request.SpeakerId) % 904;
                     var gen = new OfflineTtsGenerationConfig { Sid = sid, Speed = 1.0f };
                     var sw = Stopwatch.StartNew();
-                    var audio = tts.GenerateWithConfig(request.Text, gen, null);
+                    OfflineTtsGeneratedAudio audio = tts.GenerateWithConfig(request.Text, gen, null);
                     sw.Stop();
                     Log.LogDebug(
                         "Synthesized pilot voice for {Callsign}: sid={Sid}, samples={Samples}, sampleRate={SampleRate}, latencyMs={LatencyMs}",
@@ -168,7 +168,7 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer : IPilotVoiceSynthesizer
                 return _tts;
             }
 
-            var voiceDir = TryFindVoiceDir();
+            string? voiceDir = TryFindVoiceDir();
             if (voiceDir is null)
             {
                 Log.LogInformation("Pilot voice pack is not installed; pilot voice remains silent.");
@@ -176,9 +176,9 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer : IPilotVoiceSynthesizer
             }
 
             var dirInfo = new DirectoryInfo(voiceDir);
-            var onnxFile = dirInfo.GetFiles("*.onnx").FirstOrDefault();
-            var tokensPath = Path.Combine(voiceDir, PilotVoicePack.TokensFileName);
-            var dataDir = Path.Combine(voiceDir, PilotVoicePack.EspeakDataDirectoryName);
+            FileInfo? onnxFile = dirInfo.GetFiles("*.onnx").FirstOrDefault();
+            string tokensPath = Path.Combine(voiceDir, PilotVoicePack.TokensFileName);
+            string dataDir = Path.Combine(voiceDir, PilotVoicePack.EspeakDataDirectoryName);
             if (onnxFile is null || !File.Exists(tokensPath) || !Directory.Exists(dataDir))
             {
                 Log.LogWarning("Pilot voice pack at {VoiceDir} is incomplete.", voiceDir);
@@ -246,7 +246,7 @@ internal static class RadioAudioFx
         var hp = BiQuadFilter.HighPassFilter(sampleRate, 200f, 0.7f);
 
         int squelchTailSamples = (int)(sampleRate * (squelchMs / 1000.0));
-        var output = new float[input.Length + squelchTailSamples];
+        float[] output = new float[input.Length + squelchTailSamples];
 
         for (int i = 0; i < input.Length; i++)
         {
@@ -313,7 +313,7 @@ internal sealed class PortAudioFloatPlayer
             return;
         }
 
-        var devInfo = PortAudio.GetDeviceInfo(outDev);
+        DeviceInfo devInfo = PortAudio.GetDeviceInfo(outDev);
         var outParams = new StreamParameters
         {
             device = outDev,
@@ -349,7 +349,7 @@ internal sealed class PortAudioFloatPlayer
 
             if (toCopy < frameCount)
             {
-                var zeroDest = IntPtr.Add(output, toCopy * sizeof(float));
+                nint zeroDest = IntPtr.Add(output, toCopy * sizeof(float));
                 ZeroFill(zeroDest, (int)frameCount - toCopy);
                 return StreamCallbackResult.Complete;
             }
@@ -410,18 +410,18 @@ internal sealed class PortAudioFloatPlayer
 
         // Match by exact name first, then fall back to a case-insensitive substring match so users
         // can type "Headset" and get "Realtek USB Audio Headset" without copy-pasting the full name.
-        for (var i = 0; i < PortAudio.DeviceCount; i++)
+        for (int i = 0; i < PortAudio.DeviceCount; i++)
         {
-            var info = PortAudio.GetDeviceInfo(i);
+            DeviceInfo info = PortAudio.GetDeviceInfo(i);
             if (info.maxOutputChannels > 0 && string.Equals(info.name, preferred, StringComparison.Ordinal))
             {
                 return i;
             }
         }
 
-        for (var i = 0; i < PortAudio.DeviceCount; i++)
+        for (int i = 0; i < PortAudio.DeviceCount; i++)
         {
-            var info = PortAudio.GetDeviceInfo(i);
+            DeviceInfo info = PortAudio.GetDeviceInfo(i);
             if (info.maxOutputChannels > 0 && info.name.Contains(preferred, StringComparison.OrdinalIgnoreCase))
             {
                 return i;
@@ -434,7 +434,7 @@ internal sealed class PortAudioFloatPlayer
 
     private static void ZeroFill(IntPtr dest, int floatCount)
     {
-        var zeros = new float[floatCount];
+        float[] zeros = new float[floatCount];
         Marshal.Copy(zeros, 0, dest, floatCount);
     }
 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -23,14 +24,14 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -49,8 +50,8 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
     [Fact]
     public void OnAltitudeProfile_EnablesStarViaMode()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -59,15 +60,15 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
         // SWA797 has spawnDelay=60, replay to t=62 so it's alive
         engine.Replay(recording, 62);
 
-        var aircraft = engine.FindAircraft("SWA797");
+        AircraftState? aircraft = engine.FindAircraft("SWA797");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"SWA797: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");
         output.WriteLine($"  Altitude: {aircraft.Altitude:F0}, TargetAlt: {aircraft.Targets.TargetAltitude:F0}");
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         output.WriteLine($"  Route ({route.Count} fixes):");
-        foreach (var fix in route)
+        foreach (NavigationTarget fix in route)
         {
             string constraint = fix.AltitudeRestriction is not null ? $" [alt: {fix.AltitudeRestriction}]" : "";
             string speed = fix.SpeedRestriction is not null ? $" [spd: {fix.SpeedRestriction}]" : "";
@@ -85,8 +86,8 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
     [Fact]
     public void OnAltitudeProfile_DescentLog()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -94,7 +95,7 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
 
         engine.Replay(recording, 62);
 
-        var aircraft = engine.FindAircraft("SWA797");
+        AircraftState? aircraft = engine.FindAircraft("SWA797");
         Assert.NotNull(aircraft);
 
         output.WriteLine("=== SWA797 Descent Profile (onAltitudeProfile=true, StarViaMode=true) ===");
@@ -108,7 +109,7 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
                 aircraft = engine.FindAircraft("SWA797");
                 Assert.NotNull(aircraft);
 
-                var route = aircraft.Targets.NavigationRoute;
+                List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
                 string nextFix = route.Count > 0 ? route[0].Name : "(none)";
                 string nextFixAlt = route.Count > 0 && route[0].AltitudeRestriction is { } ar ? $"{ar.Altitude1Ft:F0}" : "-";
 
@@ -128,8 +129,8 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
     [Fact]
     public void OnAltitudeProfile_RouteHasAltitudeConstraints()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -137,10 +138,10 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
 
         engine.Replay(recording, 62);
 
-        var aircraft = engine.FindAircraft("SWA797");
+        AircraftState? aircraft = engine.FindAircraft("SWA797");
         Assert.NotNull(aircraft);
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         int constraintCount = route.Count(t => t.AltitudeRestriction is not null);
 
         output.WriteLine($"SWA797 route has {constraintCount}/{route.Count} fixes with altitude constraints");
@@ -154,8 +155,8 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
     [Fact]
     public void ManualDvia_ImmediatelyStartsDescent()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -164,7 +165,7 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
         // Replay to just after the DVIA command at t=1152
         engine.Replay(recording, 1153);
 
-        var aircraft = engine.FindAircraft("SWA2384");
+        AircraftState? aircraft = engine.FindAircraft("SWA2384");
         if (aircraft is null)
         {
             output.WriteLine("SWA2384 not found at t=1153, skipping");
@@ -203,8 +204,8 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
     [Fact]
     public void OnAltitudeProfile_AircraftDescends()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -213,7 +214,7 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
         // SWA797 starts at 22000, replay far enough for descent to begin
         engine.Replay(recording, 62);
 
-        var aircraft = engine.FindAircraft("SWA797");
+        AircraftState? aircraft = engine.FindAircraft("SWA797");
         Assert.NotNull(aircraft);
 
         double initialAlt = aircraft.Altitude;

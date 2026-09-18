@@ -34,7 +34,7 @@ public class Issue321IfrGoAroundAutoCycleTests
     [Fact]
     public void IfrGoAround_WithStalePersistentPatternDirection_DoesNotAutoEnterPattern()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
@@ -71,7 +71,7 @@ public class Issue321IfrGoAroundAutoCycleTests
             }
         );
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
         aircraft.Phases.Start(ctx);
         Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
         Assert.Null(aircraft.Phases.TrafficDirection);
@@ -80,10 +80,10 @@ public class Issue321IfrGoAroundAutoCycleTests
         // post-completion routing.
         PhaseRunner.Tick(aircraft, ctx);
 
-        var appendedPatternLegs =
+        List<Phase> appendedPatternLegs =
             aircraft.Phases?.Phases.Where(p => p is UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase or PatternEntryPhase).ToList() ?? [];
 
-        foreach (var leg in appendedPatternLegs)
+        foreach (Phase? leg in appendedPatternLegs)
         {
             _output.WriteLine($"WRONGLY appended pattern leg: {leg.GetType().Name}");
         }
@@ -103,7 +103,7 @@ public class Issue321IfrGoAroundAutoCycleTests
     [Fact]
     public void VfrGoAround_WithPersistentPatternDirection_DoesAutoEnterPattern()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
@@ -133,11 +133,12 @@ public class Issue321IfrGoAroundAutoCycleTests
             }
         );
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
         aircraft.Phases.Start(ctx);
         PhaseRunner.Tick(aircraft, ctx);
 
-        var appendedPatternLegs = aircraft.Phases?.Phases.Where(p => p is UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase).ToList() ?? [];
+        List<Phase> appendedPatternLegs =
+            aircraft.Phases?.Phases.Where(p => p is UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase).ToList() ?? [];
 
         Assert.True(appendedPatternLegs.Count > 0, "A VFR pattern go-around should auto-enter the pattern.");
     }

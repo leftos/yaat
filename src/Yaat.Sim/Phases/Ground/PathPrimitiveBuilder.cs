@@ -42,7 +42,7 @@ public static class PathPrimitiveBuilder
     /// </summary>
     public static PathPrimitive FromSegment(TaxiRouteSegment segment)
     {
-        var edge = segment.Edge;
+        DirectionalEdge edge = segment.Edge;
         double lengthFt = edge.DistanceNm * GeoMath.FeetPerNm;
 
         if (edge.Edge is GroundArc arc)
@@ -55,8 +55,8 @@ public static class PathPrimitiveBuilder
 
     private static PathPrimitiveStraight BuildStraight(DirectionalEdge edge, double lengthFt)
     {
-        var from = edge.FromNode;
-        var to = edge.ToNode;
+        GroundNode from = edge.FromNode;
+        GroundNode to = edge.ToNode;
         return new PathPrimitiveStraight
         {
             Kind = PathPrimitiveKind.Straight,
@@ -79,9 +79,9 @@ public static class PathPrimitiveBuilder
     /// </summary>
     private static PathPrimitiveBezier BuildBezier(DirectionalEdge edge, GroundArc arc, double lengthFt)
     {
-        var stored = arc.ToBezier();
+        CubicBezier stored = arc.ToBezier();
         bool forward = edge.FromNode.Id == arc.Nodes[0].Id;
-        var oriented = forward
+        CubicBezier oriented = forward
             ? stored
             : new CubicBezier(stored.P3Lat, stored.P3Lon, stored.P2Lat, stored.P2Lon, stored.P1Lat, stored.P1Lon, stored.P0Lat, stored.P0Lon);
 
@@ -132,8 +132,28 @@ public static class PathPrimitiveBuilder
         int toNodeId
     )
     {
-        var right = SlowTurnToPointDirected(fromLat, fromLon, fromHdgDeg, radiusFt, targetLat, targetLon, maxSpeedKts, toNodeId, rightTurn: true);
-        var left = SlowTurnToPointDirected(fromLat, fromLon, fromHdgDeg, radiusFt, targetLat, targetLon, maxSpeedKts, toNodeId, rightTurn: false);
+        PathPrimitiveSlowTurn? right = SlowTurnToPointDirected(
+            fromLat,
+            fromLon,
+            fromHdgDeg,
+            radiusFt,
+            targetLat,
+            targetLon,
+            maxSpeedKts,
+            toNodeId,
+            rightTurn: true
+        );
+        PathPrimitiveSlowTurn? left = SlowTurnToPointDirected(
+            fromLat,
+            fromLon,
+            fromHdgDeg,
+            radiusFt,
+            targetLat,
+            targetLon,
+            maxSpeedKts,
+            toNodeId,
+            rightTurn: false
+        );
 
         if (right is null)
         {
@@ -216,7 +236,7 @@ public static class PathPrimitiveBuilder
     )
     {
         double perpHdgDeg = fromHdgDeg + (rightTurn ? 90.0 : -90.0);
-        var (centerLat, centerLon) = GeoMath.ProjectPoint(fromLat, fromLon, new TrueHeading(perpHdgDeg), radiusFt / GeoMath.FeetPerNm);
+        (double centerLat, double centerLon) = GeoMath.ProjectPoint(fromLat, fromLon, new TrueHeading(perpHdgDeg), radiusFt / GeoMath.FeetPerNm);
 
         double centerToTargetFt = GeoMath.DistanceNm(centerLat, centerLon, targetLat, targetLon) * GeoMath.FeetPerNm;
         if (centerToTargetFt <= radiusFt)
@@ -327,7 +347,7 @@ public static class PathPrimitiveBuilder
     {
         double perpHdgDeg = Normalise360(fromHdgDeg + (rightTurn ? 90.0 : -90.0));
         double radiusNm = radiusFt / GeoMath.FeetPerNm;
-        var (centerLat, centerLon) = GeoMath.ProjectPoint(fromLat, fromLon, new TrueHeading(perpHdgDeg), radiusNm);
+        (double centerLat, double centerLon) = GeoMath.ProjectPoint(fromLat, fromLon, new TrueHeading(perpHdgDeg), radiusNm);
 
         double startBearingFromCenterDeg = Normalise360(perpHdgDeg + 180.0);
         double lengthFt = sweepDeg * radiusFt * Math.PI / 180.0;

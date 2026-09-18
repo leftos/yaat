@@ -55,7 +55,7 @@ public sealed class CrcAliasStore
             return overrideDirectory;
         }
 
-        var configDir = CrcConfigService.GetCrcConfigDir();
+        string? configDir = CrcConfigService.GetCrcConfigDir();
         return configDir is null ? null : Path.Combine(configDir, AliasesDirectoryName);
     }
 
@@ -70,7 +70,7 @@ public sealed class CrcAliasStore
     {
         _aliases.Clear();
 
-        var directory = ResolveDirectory(overrideDirectory);
+        string? directory = ResolveDirectory(overrideDirectory);
         if (directory is null || !Directory.Exists(directory))
         {
             Log.LogInformation("No CRC alias directory found (resolved {Directory}); CRC aliases unavailable", directory ?? "<none>");
@@ -108,7 +108,7 @@ public sealed class CrcAliasStore
 
         try
         {
-            foreach (var alias in CrcAliasFileParser.Parse(File.ReadAllLines(path), Path.GetFileName(path)))
+            foreach (CrcAlias alias in CrcAliasFileParser.Parse(File.ReadAllLines(path), Path.GetFileName(path)))
             {
                 _aliases[alias.Name] = alias;
             }
@@ -133,10 +133,10 @@ public sealed class CrcAliasStore
     public bool TryExpand(string input, out string expanded, out string? error)
     {
         error = null;
-        var tokens = CrcAliasFileParser.Tokenize(input).ToList();
-        var budget = MaxSubstitutions;
+        List<string> tokens = CrcAliasFileParser.Tokenize(input).ToList();
+        int budget = MaxSubstitutions;
 
-        for (var i = tokens.Count - 1; i >= 0; i--)
+        for (int i = tokens.Count - 1; i >= 0; i--)
         {
             if (--budget <= 0)
             {
@@ -145,16 +145,16 @@ public sealed class CrcAliasStore
                 return false;
             }
 
-            if (!_aliases.TryGetValue(tokens[i], out var alias))
+            if (!_aliases.TryGetValue(tokens[i], out CrcAlias? alias))
             {
                 continue;
             }
 
             var arguments = new List<string>(alias.ArgumentCount);
-            var consumed = 0;
-            for (var a = 0; a < alias.ArgumentCount; a++)
+            int consumed = 0;
+            for (int a = 0; a < alias.ArgumentCount; a++)
             {
-                var index = i + 1 + a;
+                int index = i + 1 + a;
                 if (index < tokens.Count)
                 {
                     arguments.Add(tokens[index]);
@@ -166,7 +166,8 @@ public sealed class CrcAliasStore
                 }
             }
 
-            var replacement = arguments.Count == 0 ? alias.ReplacementTokens : SubstituteArguments(alias.ReplacementTokens, arguments);
+            IReadOnlyList<string> replacement =
+                arguments.Count == 0 ? alias.ReplacementTokens : SubstituteArguments(alias.ReplacementTokens, arguments);
             tokens.RemoveRange(i, consumed + 1);
             tokens.InsertRange(i, replacement);
             i = tokens.Count;
@@ -183,10 +184,10 @@ public sealed class CrcAliasStore
     private static List<string> SubstituteArguments(IReadOnlyList<string> tokens, List<string> arguments)
     {
         var result = new List<string>(tokens.Count);
-        foreach (var token in tokens)
+        foreach (string token in tokens)
         {
-            var substituted = token;
-            for (var a = 0; a < arguments.Count; a++)
+            string substituted = token;
+            for (int a = 0; a < arguments.Count; a++)
             {
                 substituted = substituted.Replace($"${a + 1}", arguments[a], StringComparison.Ordinal);
             }

@@ -42,10 +42,10 @@ public class Edg320Sig4JetTaxiOutTests(ITestOutputHelper output)
 
         var groundData = new TestAirportGroundData(FilletMode.Standard);
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Information).InitializeSimLog();
-        var layout = groundData.GetLayout("OAK");
+        AirportGroundLayout? layout = groundData.GetLayout("OAK");
         Assert.NotNull(layout);
 
-        var origin = layout.FindParkingByName("SIG4");
+        GroundNode? origin = layout.FindParkingByName("SIG4");
         Assert.NotNull(origin);
 
         var engine = new SimulationEngine(groundData);
@@ -82,10 +82,10 @@ public class Edg320Sig4JetTaxiOutTests(ITestOutputHelper output)
             AutoCrossRunway = true,
         };
 
-        var result = engine.SendCommand("EDG320", "TAXIAUTO 28R");
+        CommandResult result = engine.SendCommand("EDG320", "TAXIAUTO 28R");
         Assert.True(result.Success, $"command failed: {result.Message}");
 
-        var startPos = aircraft.Position;
+        LatLon startPos = aircraft.Position;
         double prevHdg = aircraft.TrueHeading.Degrees;
         double cumAbs30 = 0;
         double cumSigned30 = 0;

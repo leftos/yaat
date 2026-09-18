@@ -73,15 +73,15 @@ public sealed partial class RangeBearingViewState : ObservableObject
             return;
         }
 
-        var lineView = _store.PendingAnchor.Value.View;
-        var slot = _store.Complete(endpoint);
+        RblView lineView = _store.PendingAnchor.Value.View;
+        int? slot = _store.Complete(endpoint);
         Report(slot is { } placed ? DescribePlaced(placed, lookup, units, lineView) : FullStatus);
     }
 
     /// <summary>Places a whole measurement at once, for the modifier-drag and text-command paths.</summary>
     public void Place(RblEndpoint from, RblEndpoint to, RblView view, RblTrackLookup lookup, RblUnits units)
     {
-        var slot = _store.Add(from, to, view);
+        int? slot = _store.Add(from, to, view);
         Report(slot is { } placed ? DescribePlaced(placed, lookup, units, view) : FullStatus);
     }
 
@@ -106,7 +106,7 @@ public sealed partial class RangeBearingViewState : ObservableObject
     /// <summary>Removes every measurement.</summary>
     public void Clear()
     {
-        var had = _store.HasLines;
+        bool had = _store.HasLines;
         _store.Clear();
         Report(had ? "Measurements cleared" : "No measurements to clear");
     }
@@ -124,7 +124,7 @@ public sealed partial class RangeBearingViewState : ObservableObject
     public static RblTrackLookup TrackLookup(Func<string, AircraftModel?> findAircraft) =>
         callsign =>
         {
-            var aircraft = findAircraft(callsign);
+            AircraftModel? aircraft = findAircraft(callsign);
             return aircraft is null ? null : new RblTrack(aircraft.Position, aircraft.GroundSpeed);
         };
 
@@ -132,7 +132,7 @@ public sealed partial class RangeBearingViewState : ObservableObject
     {
         // Report the reading in the status bar too — the on-scope label can sit under a datablock or off
         // the edge of the view, and the number is the whole point of the tool.
-        foreach (var resolved in RangeBearingLineResolver.Resolve(Lines, lookup, units, view))
+        foreach (ResolvedRbl resolved in RangeBearingLineResolver.Resolve(Lines, lookup, units, view))
         {
             if (resolved.Slot == slot)
             {

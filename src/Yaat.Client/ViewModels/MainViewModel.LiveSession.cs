@@ -101,7 +101,8 @@ public partial class MainViewModel
         if (behindSeconds is { } behind && behind >= 1)
         {
             var span = TimeSpan.FromSeconds(behind);
-            var text = span.TotalHours >= 1 ? $"{(int)span.TotalHours}:{span.Minutes:D2}:{span.Seconds:D2}" : $"{span.Minutes:D2}:{span.Seconds:D2}";
+            string text =
+                span.TotalHours >= 1 ? $"{(int)span.TotalHours}:{span.Minutes:D2}:{span.Seconds:D2}" : $"{span.Minutes:D2}:{span.Seconds:D2}";
             return feedConnected ? $"LIVE −{text}" : $"LIVE −{text} · feed lost";
         }
 
@@ -137,7 +138,7 @@ public partial class MainViewModel
         try
         {
             StatusText = $"Moving live traffic to {feedUtc:HH:mm:ss}Z…";
-            var result = await _connection.SeekLiveTrafficAsync(feedUtc);
+            CommandResultDto result = await _connection.SeekLiveTrafficAsync(feedUtc);
             StatusText = result.Success ? $"Live traffic at {feedUtc:HH:mm:ss}Z" : result.Message ?? "Seek refused";
         }
         catch (Exception ex)
@@ -157,12 +158,12 @@ public partial class MainViewModel
         try
         {
             StatusText = $"Starting live session at {choice.PositionLabel} / {choice.AirportId}…";
-            var result = await _connection.StartLiveSessionAsync(
+            LoadScenarioResultDto result = await _connection.StartLiveSessionAsync(
                 new LiveSessionRequestDto(choice.PositionId, choice.AirportId, choice.CeilingFt, choice.StartUtc, choice.Filter)
             );
             if (!result.Success)
             {
-                var reason = result.Warnings.FirstOrDefault() ?? "Live session refused";
+                string reason = result.Warnings.FirstOrDefault() ?? "Live session refused";
                 _log.LogWarning("Live session refused: {Reason}", reason);
                 StatusText = reason;
                 AddSystemEntry($"Live session refused: {reason}");
@@ -193,7 +194,7 @@ public partial class MainViewModel
     {
         try
         {
-            var result = await _connection.GoLiveAsync();
+            CommandResultDto result = await _connection.GoLiveAsync();
             if (!result.Success)
             {
                 StatusText = result.Message ?? "Go live refused";

@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
@@ -58,14 +59,14 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
     [Fact]
     public void Cva_FromNorthDownwind_RfisThenCvaThenCland_Lands()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var runway30 = navDb.GetRunway("OAK", "30");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? runway30 = navDb.GetRunway("OAK", "30");
         Assert.NotNull(runway30);
 
         // 5 nm at bearing 350° (slightly NW of due north) puts the field on the right-front
@@ -74,7 +75,7 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
         // lands us right on the boundary. Nudging 10° west keeps "5 nm north of KOAK on
         // a vectored downwind for 30" semantically intact while putting KOAK clearly
         // inside the forward cone.
-        var (spawnLat, spawnLon) = GeoMath.ProjectPointRaw(KoakArpLat, KoakArpLon, 350.0, 5.0);
+        (double spawnLat, double spawnLon) = GeoMath.ProjectPointRaw(KoakArpLat, KoakArpLon, 350.0, 5.0);
         var aircraft = new AircraftState
         {
             Callsign = "UAL738",
@@ -96,12 +97,12 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
         engine.World.AddAircraft(aircraft);
         output.WriteLine($"Spawned UAL738 at ({spawnLat:F6},{spawnLon:F6}), hdg=090, alt=5000, ias=230");
 
-        var rfis = engine.SendCommand("UAL738", "RFIS");
+        CommandResult rfis = engine.SendCommand("UAL738", "RFIS");
         output.WriteLine($"RFIS result: {rfis.Success} — {rfis.Message}");
         Assert.True(rfis.Success, $"RFIS failed: {rfis.Message}");
         Assert.True(aircraft.Approach.HasReportedFieldInSight, $"RFIS soft-failed (field not visible). Diagnostic: {rfis.Message}");
 
-        var cva = engine.SendCommand("UAL738", "CVA 30");
+        CommandResult cva = engine.SendCommand("UAL738", "CVA 30");
         output.WriteLine($"CVA 30 result: {cva.Success} — {cva.Message}");
         Assert.True(cva.Success, $"CVA 30 failed: {cva.Message}");
 
@@ -117,7 +118,7 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
         Assert.Contains(typeof(FinalApproachPhase), phaseTypes);
         Assert.Contains(typeof(LandingPhase), phaseTypes);
 
-        var cland = engine.SendCommand("UAL738", "CLAND");
+        CommandResult cland = engine.SendCommand("UAL738", "CLAND");
         output.WriteLine($"CLAND result: {cland.Success} — {cland.Message}");
         Assert.True(cland.Success, $"CLAND failed: {cland.Message}");
         Assert.Equal(ClearanceType.ClearedToLand, aircraft.Phases.LandingClearance);
@@ -137,18 +138,18 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
     [Fact]
     public void Cva_FromNortheastBase_RfisThenCvaThenCland_Lands()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var runway30 = navDb.GetRunway("OAK", "30");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? runway30 = navDb.GetRunway("OAK", "30");
         Assert.NotNull(runway30);
 
         double baseHeading = (runway30.TrueHeading.Degrees - 80 + 360) % 360;
-        var (spawnLat, spawnLon) = GeoMath.ProjectPointRaw(KoakArpLat, KoakArpLon, 45.0, 15.0);
+        (double spawnLat, double spawnLon) = GeoMath.ProjectPointRaw(KoakArpLat, KoakArpLon, 45.0, 15.0);
         var aircraft = new AircraftState
         {
             Callsign = "DAL738",
@@ -170,12 +171,12 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
         engine.World.AddAircraft(aircraft);
         output.WriteLine($"Spawned DAL738 at ({spawnLat:F6},{spawnLon:F6}), hdg={baseHeading:F1} (final-80°), alt=4000, ias=230");
 
-        var rfis = engine.SendCommand("DAL738", "RFIS");
+        CommandResult rfis = engine.SendCommand("DAL738", "RFIS");
         output.WriteLine($"RFIS result: {rfis.Success} — {rfis.Message}");
         Assert.True(rfis.Success, $"RFIS failed: {rfis.Message}");
         Assert.True(aircraft.Approach.HasReportedFieldInSight, "RFIS soft-failed: field should be visible from base leg.");
 
-        var cva = engine.SendCommand("DAL738", "CVA 30");
+        CommandResult cva = engine.SendCommand("DAL738", "CVA 30");
         output.WriteLine($"CVA 30 result: {cva.Success} — {cva.Message}");
         Assert.True(cva.Success, $"CVA 30 failed: {cva.Message}");
 
@@ -192,7 +193,7 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
         Assert.DoesNotContain(typeof(BasePhase), phaseTypes);
         Assert.DoesNotContain(typeof(PatternEntryPhase), phaseTypes);
 
-        var cland = engine.SendCommand("DAL738", "CLAND");
+        CommandResult cland = engine.SendCommand("DAL738", "CLAND");
         output.WriteLine($"CLAND result: {cland.Success} — {cland.Message}");
         Assert.True(cland.Success, $"CLAND failed: {cland.Message}");
         Assert.Equal(ClearanceType.ClearedToLand, aircraft.Phases.LandingClearance);
@@ -213,17 +214,17 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
     [Fact]
     public void Cva_FromEastStraightIn_RfisThenCvaThenCland_Lands()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var runway30 = navDb.GetRunway("OAK", "30");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? runway30 = navDb.GetRunway("OAK", "30");
         Assert.NotNull(runway30);
 
-        var (spawnLat, spawnLon) = GeoMath.ProjectPointRaw(KoakArpLat, KoakArpLon, 90.0, 15.0);
+        (double spawnLat, double spawnLon) = GeoMath.ProjectPointRaw(KoakArpLat, KoakArpLon, 90.0, 15.0);
         var aircraft = new AircraftState
         {
             Callsign = "AAL738",
@@ -245,12 +246,12 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
         engine.World.AddAircraft(aircraft);
         output.WriteLine($"Spawned AAL738 at ({spawnLat:F6},{spawnLon:F6}), hdg=280, alt=3400, ias=230");
 
-        var rfis = engine.SendCommand("AAL738", "RFIS");
+        CommandResult rfis = engine.SendCommand("AAL738", "RFIS");
         output.WriteLine($"RFIS result: {rfis.Success} — {rfis.Message}");
         Assert.True(rfis.Success, $"RFIS failed: {rfis.Message}");
         Assert.True(aircraft.Approach.HasReportedFieldInSight, $"RFIS soft-failed: field should be visible. Diagnostic: {rfis.Message}");
 
-        var cva = engine.SendCommand("AAL738", "CVA 30");
+        CommandResult cva = engine.SendCommand("AAL738", "CVA 30");
         output.WriteLine($"CVA 30 result: {cva.Success} — {cva.Message}");
         Assert.True(cva.Success, $"CVA 30 failed: {cva.Message}");
 
@@ -267,7 +268,7 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
         Assert.DoesNotContain(typeof(BasePhase), phaseTypes);
         Assert.DoesNotContain(typeof(PatternEntryPhase), phaseTypes);
 
-        var cland = engine.SendCommand("AAL738", "CLAND");
+        CommandResult cland = engine.SendCommand("AAL738", "CLAND");
         output.WriteLine($"CLAND result: {cland.Success} — {cland.Message}");
         Assert.True(cland.Success, $"CLAND failed: {cland.Message}");
         Assert.Equal(ClearanceType.ClearedToLand, aircraft.Phases.LandingClearance);
@@ -292,7 +293,7 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
                 break;
             }
 
-            foreach (var w in aircraft.PendingWarnings)
+            foreach (string w in aircraft.PendingWarnings)
             {
                 if (w.Contains("going around", StringComparison.OrdinalIgnoreCase))
                 {

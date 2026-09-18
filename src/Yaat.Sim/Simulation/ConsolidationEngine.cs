@@ -24,29 +24,29 @@ public static class ConsolidationEngine
     )
     {
         var byId = new Dictionary<string, Tcp>();
-        foreach (var tcp in allTcps)
+        foreach (Tcp tcp in allTcps)
         {
             byId[tcp.Id] = tcp;
         }
 
-        var childrenOf = BuildChildrenIndex(allTcps);
+        Dictionary<string, List<Tcp>> childrenOf = BuildChildrenIndex(allTcps);
 
         var results = new List<ConsolidationItem>();
 
         // Collect IDs of TCPs that have manual overrides — these should
         // be excluded from auto-computed children lists since they've
         // been moved to a different receiver.
-        var manuallyOverriddenIds = manualOverrides is not null ? manualOverrides.GetSnapshot().Keys.ToHashSet() : new HashSet<string>();
+        HashSet<string> manuallyOverriddenIds = manualOverrides is not null ? manualOverrides.GetSnapshot().Keys.ToHashSet() : new HashSet<string>();
 
-        foreach (var tcp in allTcps)
+        foreach (Tcp tcp in allTcps)
         {
             // Check for manual override first
-            var manualOv = manualOverrides?.GetOverride(tcp.Id);
+            ConsolidationState.ManualOverride? manualOv = manualOverrides?.GetOverride(tcp.Id);
             if (manualOv is not null && byId.ContainsKey(manualOv.ReceivingTcpId))
             {
                 // Manual override: ResolveOwner follows the override to the receiving
                 // TCP, then onward to whoever actually owns it.
-                var owner = ResolveOwner(tcp, byId, isAttended, manualOverrides, autoConsolidate);
+                Tcp? owner = ResolveOwner(tcp, byId, isAttended, manualOverrides, autoConsolidate);
                 results.Add(new ConsolidationItem(tcp, owner, [], manualOv.IsBasic));
                 continue;
             }
@@ -55,7 +55,7 @@ public static class ConsolidationEngine
             // Owner = some TCP means "I'm consolidated under that TCP".
             // With auto off, ResolveOwner still discovers an ancestor's manual
             // override; natural folding into an attended ancestor doesn't occur.
-            var autoOwner = ResolveOwner(tcp, byId, isAttended, manualOverrides, autoConsolidate);
+            Tcp? autoOwner = ResolveOwner(tcp, byId, isAttended, manualOverrides, autoConsolidate);
             // If the resolved owner is the TCP itself, it's the root → null
             if (autoOwner is not null && autoOwner.Id == tcp.Id)
             {
@@ -66,7 +66,7 @@ public static class ConsolidationEngine
             // self from children to avoid duplicates. Natural descendants fold
             // in only under automatic consolidation; with auto off, children
             // come solely from the manual-override pass below.
-            var allDescendants =
+            List<Tcp> allDescendants =
                 (autoConsolidate) && (isAttended(tcp)) ? CollectConsolidatedDescendants(tcp, childrenOf, isAttended, manuallyOverriddenIds) : [];
             var children = allDescendants.Where(c => c.Id != tcp.Id).ToList();
 
@@ -78,16 +78,16 @@ public static class ConsolidationEngine
         // the children list.
         if (manualOverrides is not null)
         {
-            var overrideSnapshot = manualOverrides.GetSnapshot();
-            foreach (var (sendingId, ov) in overrideSnapshot)
+            Dictionary<string, ConsolidationState.ManualOverride> overrideSnapshot = manualOverrides.GetSnapshot();
+            foreach ((string? sendingId, ConsolidationState.ManualOverride? ov) in overrideSnapshot)
             {
-                if (!byId.TryGetValue(sendingId, out var sendingTcp))
+                if (!byId.TryGetValue(sendingId, out Tcp? sendingTcp))
                 {
                     continue;
                 }
 
                 // Find the result entry for the receiving TCP
-                var receivingResult = results.FirstOrDefault(r => r.Tcp.Id == ov.ReceivingTcpId);
+                ConsolidationItem? receivingResult = results.FirstOrDefault(r => r.Tcp.Id == ov.ReceivingTcpId);
                 if (receivingResult is null)
                 {
                     continue;
@@ -96,8 +96,8 @@ public static class ConsolidationEngine
                 // Owner == null means the TCP owns itself (attended root).
                 // Owner != null means it's consolidated under another TCP.
                 // In either case, find the actual owning result to add children to.
-                var ownerTcp = receivingResult.Owner ?? receivingResult.Tcp;
-                var ownerResult = results.FirstOrDefault(r => r.Tcp.Id == ownerTcp.Id);
+                Tcp ownerTcp = receivingResult.Owner ?? receivingResult.Tcp;
+                ConsolidationItem? ownerResult = results.FirstOrDefault(r => r.Tcp.Id == ownerTcp.Id);
                 if (ownerResult is null)
                 {
                     continue;
@@ -113,8 +113,8 @@ public static class ConsolidationEngine
                 // manual override (manuallyOverriddenIds) — they follow their
                 // own override receiver, not this sender's, and would otherwise
                 // be double-counted under both owners.
-                var descendants = CollectConsolidatedDescendants(sendingTcp, childrenOf, isAttended, manuallyOverriddenIds);
-                foreach (var desc in descendants)
+                List<Tcp> descendants = CollectConsolidatedDescendants(sendingTcp, childrenOf, isAttended, manuallyOverriddenIds);
+                foreach (Tcp desc in descendants)
                 {
                     if (desc.Id != sendingTcp.Id && !ownerResult.Children.Contains(desc))
                     {
@@ -140,7 +140,7 @@ public static class ConsolidationEngine
     )
     {
         var byId = new Dictionary<string, Tcp>();
-        foreach (var t in allTcps)
+        foreach (Tcp t in allTcps)
         {
             byId[t.Id] = t;
         }
@@ -158,8 +158,8 @@ public static class ConsolidationEngine
     /// </summary>
     public static List<Tcp> GetConsolidatedDescendants(List<Tcp> allTcps, Tcp tcp, Func<Tcp, bool> isAttended, ConsolidationState? manualOverrides)
     {
-        var childrenOf = BuildChildrenIndex(allTcps);
-        var overriddenIds = manualOverrides is not null ? manualOverrides.GetSnapshot().Keys.ToHashSet() : [];
+        Dictionary<string, List<Tcp>> childrenOf = BuildChildrenIndex(allTcps);
+        HashSet<string> overriddenIds = manualOverrides is not null ? manualOverrides.GetSnapshot().Keys.ToHashSet() : [];
         return CollectConsolidatedDescendants(tcp, childrenOf, isAttended, overriddenIds);
     }
 
@@ -169,7 +169,7 @@ public static class ConsolidationEngine
     /// </summary>
     public static List<Tcp> GetDefaultConsolidation(List<Tcp> allTcps, Tcp tcp)
     {
-        var childrenOf = BuildChildrenIndex(allTcps);
+        Dictionary<string, List<Tcp>> childrenOf = BuildChildrenIndex(allTcps);
 
         // Only this TCP is "attended" → collect all descendants
         return CollectConsolidatedDescendants(tcp, childrenOf, _ => false);
@@ -182,9 +182,9 @@ public static class ConsolidationEngine
     private static Dictionary<string, List<Tcp>> BuildChildrenIndex(List<Tcp> allTcps)
     {
         var childrenOf = new Dictionary<string, List<Tcp>>();
-        foreach (var tcp in allTcps)
+        foreach (Tcp tcp in allTcps)
         {
-            var parentKey = tcp.ParentTcpId ?? "";
+            string parentKey = tcp.ParentTcpId ?? "";
             if (!childrenOf.ContainsKey(parentKey))
             {
                 childrenOf[parentKey] = [];
@@ -219,9 +219,9 @@ public static class ConsolidationEngine
         bool autoConsolidate
     )
     {
-        var current = tcp;
-        var isStart = true;
-        var reachedViaOverride = false;
+        Tcp? current = tcp;
+        bool isStart = true;
+        bool reachedViaOverride = false;
         var visited = new HashSet<string>();
         while (current is not null)
         {
@@ -230,8 +230,8 @@ public static class ConsolidationEngine
                 return null;
             }
 
-            var manualOv = manualOverrides?.GetOverride(current.Id);
-            if (manualOv is not null && byId.TryGetValue(manualOv.ReceivingTcpId, out var receivingTcp))
+            ConsolidationState.ManualOverride? manualOv = manualOverrides?.GetOverride(current.Id);
+            if (manualOv is not null && byId.TryGetValue(manualOv.ReceivingTcpId, out Tcp? receivingTcp))
             {
                 current = receivingTcp;
                 reachedViaOverride = true;
@@ -250,7 +250,7 @@ public static class ConsolidationEngine
             // override on the start's own chain; with auto off it must not continue
             // past an override receiver (the receiver doesn't fold into ITS parent
             // without auto).
-            if ((!autoConsolidate && reachedViaOverride) || current.ParentTcpId is null || !byId.TryGetValue(current.ParentTcpId, out var parent))
+            if ((!autoConsolidate && reachedViaOverride) || current.ParentTcpId is null || !byId.TryGetValue(current.ParentTcpId, out Tcp? parent))
             {
                 return null;
             }
@@ -276,13 +276,13 @@ public static class ConsolidationEngine
 
         while (stack.Count > 0)
         {
-            var current = stack.Pop();
-            if (!childrenOf.TryGetValue(current.Id, out var kids))
+            Tcp current = stack.Pop();
+            if (!childrenOf.TryGetValue(current.Id, out List<Tcp>? kids))
             {
                 continue;
             }
 
-            foreach (var child in kids)
+            foreach (Tcp child in kids)
             {
                 if (isAttended(child))
                 {

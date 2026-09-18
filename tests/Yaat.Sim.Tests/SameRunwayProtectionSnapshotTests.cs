@@ -28,7 +28,7 @@ public class SameRunwayProtectionSnapshotTests
     [Fact]
     public void SpeedCommandProvenance_SurvivesSnapshotRoundTrip()
     {
-        var aircraft = Arrival();
+        AircraftState aircraft = Arrival();
         aircraft.Targets.HasExplicitSpeedCommand = true;
         aircraft.Targets.SpeedCommandIsControllerIssued = true;
 
@@ -41,7 +41,7 @@ public class SameRunwayProtectionSnapshotTests
     [Fact]
     public void ScriptedSpeedProvenance_SurvivesSnapshotRoundTrip()
     {
-        var aircraft = Arrival();
+        AircraftState aircraft = Arrival();
         aircraft.Targets.HasExplicitSpeedCommand = true;
         aircraft.Targets.SpeedCommandIsControllerIssued = false;
 
@@ -56,7 +56,7 @@ public class SameRunwayProtectionSnapshotTests
     [Fact]
     public void ProtectionCeilingAndDisplacedCeiling_SurviveSnapshotRoundTrip()
     {
-        var aircraft = Arrival();
+        AircraftState aircraft = Arrival();
         aircraft.Targets.SpeedCeiling = 163.5;
         aircraft.Approach.SameRunwayProtectionCeilingKts = 163.5;
         aircraft.Approach.SameRunwayProtectionDisplacedCeilingKts = 210.0;
@@ -71,7 +71,7 @@ public class SameRunwayProtectionSnapshotTests
     [Fact]
     public void ProtectionEngagedOverNoCeiling_RestoresWithNoDisplacedValue()
     {
-        var aircraft = Arrival();
+        AircraftState aircraft = Arrival();
         aircraft.Targets.SpeedCeiling = 170.0;
         aircraft.Approach.SameRunwayProtectionCeilingKts = 170.0;
         aircraft.Approach.SameRunwayProtectionDisplacedCeilingKts = null;
@@ -87,7 +87,7 @@ public class SameRunwayProtectionSnapshotTests
     [Fact]
     public void FasInstructedLatch_SurvivesSnapshotRoundTrip()
     {
-        var aircraft = Arrival();
+        AircraftState aircraft = Arrival();
         aircraft.Targets.SpeedCeiling = 151.0;
         aircraft.Approach.SameRunwayProtectionCeilingKts = 151.0;
         aircraft.Approach.SameRunwayProtectionFasInstructed = true;

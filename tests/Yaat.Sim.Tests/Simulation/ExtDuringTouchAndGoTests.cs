@@ -57,8 +57,8 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
     [Fact]
     public void ExtDuringTouchAndGo_ArmsNextUpwind()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -71,7 +71,7 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         // between it and the next Upwind at t=1078 — the nearest are COPT at t=895 and EXT at t=1143.
         engine.Replay(recording, 1043);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.IsType<TouchAndGoPhase>(aircraft.Phases?.CurrentPhase);
 
@@ -79,7 +79,7 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         Assert.False(aircraft.Pattern.ExtendNextUpwind);
         Assert.DoesNotContain(aircraft.Phases!.Phases, p => p is UpwindPhase { Status: PhaseStatus.Pending });
 
-        var result = engine.SendCommand(Callsign, "EXT");
+        CommandResult result = engine.SendCommand(Callsign, "EXT");
         output.WriteLine($"EXT result: Success={result.Success}, Message={result.Message}");
 
         Assert.True(result.Success, $"EXT during TouchAndGo should succeed but got: {result.Message}");
@@ -92,7 +92,7 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         for (int dt = 1; dt <= 120; dt++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
             if (ac.Phases?.CurrentPhase is UpwindPhase up)
             {
@@ -110,8 +110,8 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
     [Fact]
     public void ExtDuringFinalApproach_BeforeTouchAndGo_ArmsNextUpwind()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -121,12 +121,12 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         // The aircraft is committed to T/G (TouchAndGoPhase is queued next).
         engine.Replay(recording, 540);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.IsType<FinalApproachPhase>(aircraft.Phases?.CurrentPhase);
         Assert.Contains(aircraft.Phases!.Phases, p => p is TouchAndGoPhase);
 
-        var result = engine.SendCommand(Callsign, "EXT");
+        CommandResult result = engine.SendCommand(Callsign, "EXT");
         output.WriteLine($"EXT result: Success={result.Success}, Message={result.Message}");
 
         Assert.True(result.Success, $"EXT during pre-T/G FinalApproach should succeed but got: {result.Message}");
@@ -137,7 +137,7 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         for (int dt = 1; dt <= 180; dt++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
             if (ac.Phases?.CurrentPhase is UpwindPhase up)
             {
@@ -154,8 +154,8 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
     [Fact]
     public void ExtDuringHoldingShort_ArmsPendingUpwind_Directly()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -167,14 +167,14 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         // UpwindPhase already exists in the queue.
         engine.Replay(recording, 215);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
-        var pendingUpwindBefore = aircraft.Phases?.Phases.OfType<UpwindPhase>().FirstOrDefault(p => p.Status == PhaseStatus.Pending);
+        UpwindPhase? pendingUpwindBefore = aircraft.Phases?.Phases.OfType<UpwindPhase>().FirstOrDefault(p => p.Status == PhaseStatus.Pending);
         Assert.NotNull(pendingUpwindBefore);
         Assert.False(pendingUpwindBefore!.IsExtended);
 
-        var result = engine.SendCommand(Callsign, "EXT");
+        CommandResult result = engine.SendCommand(Callsign, "EXT");
         output.WriteLine($"EXT result: Success={result.Success}, Message={result.Message}");
 
         Assert.True(result.Success, $"EXT during HoldingShort/LineUp with pending Upwind should succeed but got: {result.Message}");
@@ -194,8 +194,8 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         // crosswind. Root cause: `IsImmediatePhaseModifierBlock` only whitelisted
         // SA/MNA, so the EXT block was enqueued and never fired while phases were
         // active (UpdateCommandQueue short-circuits with an active phase).
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -203,12 +203,12 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
 
         engine.Replay(recording, 540);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.IsType<FinalApproachPhase>(aircraft.Phases?.CurrentPhase);
         Assert.Contains(aircraft.Phases!.Phases, p => p is TouchAndGoPhase);
 
-        var result = engine.SendCommand(Callsign, "COPT; EXT UPWIND");
+        CommandResult result = engine.SendCommand(Callsign, "COPT; EXT UPWIND");
         output.WriteLine($"COPT; EXT UPWIND result: Success={result.Success}, Message={result.Message}");
 
         Assert.True(result.Success, $"COPT; EXT UPWIND should succeed but got: {result.Message}");
@@ -221,7 +221,7 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         for (int dt = 1; dt <= 180; dt++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
             if (ac.Phases?.CurrentPhase is UpwindPhase up)
             {
@@ -243,8 +243,8 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         // → default branch → TryArmNextUpwind, identical end-state to EXT UPWIND.
         // Without the IsImmediatePhaseModifierBlock fix, the EXT block is enqueued
         // and never fires while T/G + new circuit phases are continuously active.
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -252,11 +252,11 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
 
         engine.Replay(recording, 540);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.IsType<FinalApproachPhase>(aircraft.Phases?.CurrentPhase);
 
-        var result = engine.SendCommand(Callsign, "COPT; EXT");
+        CommandResult result = engine.SendCommand(Callsign, "COPT; EXT");
         output.WriteLine($"COPT; EXT result: Success={result.Success}, Message={result.Message}");
 
         Assert.True(result.Success, $"COPT; EXT should succeed but got: {result.Message}");
@@ -266,7 +266,7 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         for (int dt = 1; dt <= 180; dt++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
             if (ac.Phases?.CurrentPhase is UpwindPhase up)
             {
@@ -294,14 +294,24 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
 
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        RunwayInfo rwy = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
         // Place the aircraft right at the right-pattern downwind abeam point so
         // ERD installs Downwind as the current phase immediately (no upstream
         // PatternEntryPhase / MidfieldCrossingPhase). That way the assertion can
         // inspect the just-installed Downwind directly.
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Piston,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
         var ac = new AircraftState
         {
             Callsign = "TEST1",
@@ -324,10 +334,10 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         // DispatchCompoundCore (skips DispatchWithPhase entirely, falls into the
         // ApplyBlock + post-apply tower-modifier loop at line 222–254).
 
-        var parseResult = CommandParser.ParseCompound("ERD 28R; EXT", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound("ERD 28R; EXT", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var dispatchResult = CommandDispatcher.DispatchCompound(
+        CommandResult dispatchResult = CommandDispatcher.DispatchCompound(
             parseResult.Value!,
             ac,
             TestDispatch.Context(new Random(42), validateDctFixes: false)
@@ -350,8 +360,8 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
     [Fact]
     public void ExtCrosswind_DuringTouchAndGo_StillRejects()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -362,11 +372,11 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         // Crosswind in queue yet.
         engine.Replay(recording, 1043);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.IsType<TouchAndGoPhase>(aircraft.Phases?.CurrentPhase);
 
-        var result = engine.SendCommand(Callsign, "EXT C");
+        CommandResult result = engine.SendCommand(Callsign, "EXT C");
         output.WriteLine($"EXT C result: Success={result.Success}, Message={result.Message}");
 
         // EXT CROSSWIND rejects here because no Crosswind is queued — the next lap after the

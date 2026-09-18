@@ -5,6 +5,7 @@ using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
+using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Mva;
@@ -630,7 +631,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         {
             return;
         }
-        foreach (var ac in Aircraft)
+        foreach (AircraftModel ac in Aircraft)
         {
             if (ac.Callsign == callsign && ac.SpeechBubble is not null)
             {
@@ -653,9 +654,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        foreach (var ac in Aircraft)
+        foreach (AircraftModel ac in Aircraft)
         {
-            if (LastBubbleRects.TryGetValue(ac.Callsign, out var rect) && rect.Contains((float)screenPos.X, (float)screenPos.Y))
+            if (LastBubbleRects.TryGetValue(ac.Callsign, out SKRect rect) && rect.Contains((float)screenPos.X, (float)screenPos.Y))
             {
                 return ac;
             }
@@ -674,7 +675,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public void EnterHeadingMode(string callsign, Point dragOrigin)
     {
-        var (lat, lon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
+        (double lat, double lon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
         _renderer.HeadingPreview = new Flyouts.HeadingModeState
         {
             Callsign = callsign,
@@ -699,17 +700,17 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     private void ConfirmHeadingAt(Point pos)
     {
-        var headingState = _renderer.HeadingPreview;
+        HeadingModeState? headingState = _renderer.HeadingPreview;
         if (headingState is null)
         {
             return;
         }
-        var ac = Aircraft?.FirstOrDefault(a => string.Equals(a.Callsign, headingState.Callsign, StringComparison.OrdinalIgnoreCase));
+        AircraftModel? ac = Aircraft?.FirstOrDefault(a => string.Equals(a.Callsign, headingState.Callsign, StringComparison.OrdinalIgnoreCase));
         if (ac is null)
         {
             return;
         }
-        var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
+        (double lat, double lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
         double trueBearing = GeoMath.BearingTo(ac.Position.Lat, ac.Position.Lon, lat, lon);
         double magBearing = MagneticDeclination.TrueToMagnetic(trueBearing, ac.Position);
         int hdg = Flyouts.HeadingPreviewRenderer.SnapHeadingTo5(magBearing);
@@ -971,7 +972,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// </summary>
     private RblTrackLookup BuildMeasureLookup()
     {
-        var aircraft = Aircraft;
+        IReadOnlyList<AircraftModel>? aircraft = Aircraft;
         return callsign =>
         {
             if (aircraft is null)
@@ -979,7 +980,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 return null;
             }
 
-            foreach (var ac in aircraft)
+            foreach (AircraftModel ac in aircraft)
             {
                 if (string.Equals(ac.Callsign, callsign, StringComparison.Ordinal))
                 {
@@ -1002,7 +1003,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        var resolved = RangeBearingLineResolver.Resolve(lines, BuildMeasureLookup(), RadarViewModel.MeasureUnits, RadarViewModel.MeasureView);
+        List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(
+            lines,
+            BuildMeasureLookup(),
+            RadarViewModel.MeasureUnits,
+            RadarViewModel.MeasureView
+        );
         return RangeBearingHitTest.NearestSlot(resolved, Viewport, (float)pos.X, (float)pos.Y, MeasurePickRadiusPx);
     }
 
@@ -1012,14 +1018,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// </summary>
     private RblEndpoint MeasureEndpointAt(Point pos)
     {
-        var aircraft = FindAircraftAtPoint(pos) ?? FindDataBlockAtPoint(pos);
+        AircraftModel? aircraft = FindAircraftAtPoint(pos) ?? FindDataBlockAtPoint(pos);
         if (aircraft is not null)
         {
             return RblEndpoint.OnAircraft(aircraft.Callsign);
         }
 
-        var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
-        var label = (Fixes is not null ? FrdResolver.ToFrd(lat, lon, Fixes) : null) ?? "";
+        (double lat, double lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
+        string label = (Fixes is not null ? FrdResolver.ToFrd(lat, lon, Fixes) : null) ?? "";
         return RblEndpoint.AtPoint(new LatLon(lat, lon), label);
     }
 
@@ -1047,7 +1053,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 drawRouteWaypoints = DrawnWaypoints;
             }
 
-            var cursorLatLon = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
+            (double Lat, double Lon) cursorLatLon = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
             drawRouteCursorLatLon = cursorLatLon;
             if (Fixes is not null)
             {
@@ -1058,26 +1064,26 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         (string Text, SKPoint Pos)? mvaHover = null;
         if (_ctrlHeldAtPointer && IsPointerOver && Viewport.PixelWidth >= 1)
         {
-            var (mvaLat, mvaLon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
-            var sector = MvaDatabase.Default.FindSector(new LatLon(mvaLat, mvaLon));
+            (double mvaLat, double mvaLon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
+            MvaSector? sector = MvaDatabase.Default.FindSector(new LatLon(mvaLat, mvaLon));
             string mvaText = sector is null ? "MVA: no data" : $"MVA {sector.FloorFtMsl} ({sector.Sector})";
             mvaHover = (mvaText, new SKPoint((float)_lastPointerPos.X, (float)_lastPointerPos.Y));
         }
 
-        var sorted = SortByZOrder(
+        IReadOnlyList<AircraftModel> sorted = SortByZOrder(
             FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
             State.DataBlockZOrder
         );
-        var deconflictOffsets = RunDeconfliction(sorted);
+        IReadOnlyDictionary<string, SKPoint> deconflictOffsets = RunDeconfliction(sorted);
 
         List<ResolvedRbl>? measurements = null;
         ResolvedRbl? pendingMeasurement = null;
-        var placedMeasurements = RangeBearingLines;
+        IReadOnlyList<RangeBearingLine>? placedMeasurements = RangeBearingLines;
         // A half-placed anchor picked in the other view previews there, not here.
-        var measureAnchor = _measureDragAnchor ?? (MeasureAnchor is { View: RblView.Radar } pending ? pending.Endpoint : (RblEndpoint?)null);
+        RblEndpoint? measureAnchor = _measureDragAnchor ?? (MeasureAnchor is { View: RblView.Radar } pending ? pending.Endpoint : (RblEndpoint?)null);
         if (placedMeasurements is { Count: > 0 } || measureAnchor is not null)
         {
-            var lookup = BuildMeasureLookup();
+            RblTrackLookup lookup = BuildMeasureLookup();
             if (placedMeasurements is { Count: > 0 })
             {
                 measurements = RangeBearingLineResolver.Resolve(placedMeasurements, lookup, RadarViewModel.MeasureUnits, RadarViewModel.MeasureView);
@@ -1085,7 +1091,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             if (measureAnchor is not null)
             {
-                var (lat, lon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
+                (double lat, double lon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
                 pendingMeasurement = RangeBearingLineResolver.ResolvePending(
                     measureAnchor,
                     new LatLon(lat, lon),
@@ -1145,12 +1151,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         string? bestName = null;
         float bestDist = hitRadius;
 
-        foreach (var fix in fixes)
+        foreach ((string Name, double Lat, double Lon) fix in fixes)
         {
-            var (sx, sy) = Viewport.LatLonToScreen(fix.Lat, fix.Lon);
-            var dx = (float)mousePos.X - sx;
-            var dy = (float)mousePos.Y - sy;
-            var dist = MathF.Sqrt(dx * dx + dy * dy);
+            (float sx, float sy) = Viewport.LatLonToScreen(fix.Lat, fix.Lon);
+            float dx = (float)mousePos.X - sx;
+            float dy = (float)mousePos.Y - sy;
+            float dist = MathF.Sqrt(dx * dx + dy * dy);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -1213,8 +1219,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
-        var pos = e.GetPosition(this);
-        var props = e.GetCurrentPoint(this).Properties;
+        Point pos = e.GetPosition(this);
+        PointerPointProperties props = e.GetCurrentPoint(this).Properties;
 
         // Heading mode: click-to-confirm path (only relevant after the user released the
         // initial button without dragging). When the button is still held from entry we let
@@ -1270,14 +1276,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             if (props.IsLeftButtonPressed)
             {
                 // Snap check: if clicking near an existing waypoint, ignore (no-op)
-                var nearIdx = FindNearestDrawnWaypointIndex(pos);
+                int nearIdx = FindNearestDrawnWaypointIndex(pos);
                 if (nearIdx >= 0)
                 {
                     e.Handled = true;
                     return;
                 }
 
-                var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
+                (double lat, double lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
                 RoutePointPlaced?.Invoke(lat, lon);
                 e.Handled = true;
                 return;
@@ -1285,7 +1291,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             if (props.IsMiddleButtonPressed)
             {
-                var wpIdx = FindNearestDrawnWaypointIndex(pos);
+                int wpIdx = FindNearestDrawnWaypointIndex(pos);
                 if (wpIdx >= 0)
                 {
                     RoutePointConditionRequested?.Invoke(wpIdx, pos);
@@ -1297,7 +1303,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             if (props.IsRightButtonPressed)
             {
-                var wpIdx = FindNearestDrawnWaypointIndex(pos);
+                int wpIdx = FindNearestDrawnWaypointIndex(pos);
                 if (wpIdx >= 0)
                 {
                     RouteWaypointRightClicked?.Invoke(wpIdx, pos);
@@ -1310,7 +1316,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         if (props.IsMiddleButtonPressed)
         {
-            var hitAc = FindDataBlockAtPoint(pos) ?? FindAircraftAtPoint(pos);
+            AircraftModel? hitAc = FindDataBlockAtPoint(pos) ?? FindAircraftAtPoint(pos);
             if (hitAc is not null)
             {
                 State.ToggleHighlight(hitAc.Callsign);
@@ -1327,7 +1333,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // through so existing behaviour (selection, drag, context menu) keeps working.
         if (EuroScopeMode && props.IsLeftButtonPressed && !Services.PlatformHelper.HasActionModifier(e.KeyModifiers))
         {
-            var (fieldAc, field) = FindTagFieldAtPoint(pos);
+            (AircraftModel? fieldAc, TagFieldId field) = FindTagFieldAtPoint(pos);
             if (fieldAc is not null && field != TagFieldId.None && EuroScopeFieldClicked is not null)
             {
                 SurfaceDataBlock(fieldAc.Callsign);
@@ -1341,7 +1347,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // Fields without a registered handler fall through to the full aircraft right-click menu.
         if (EuroScopeMode && props.IsRightButtonPressed && EuroScopeFieldRightClicked is not null)
         {
-            var (fieldAc, field) = FindTagFieldAtPoint(pos);
+            (AircraftModel? fieldAc, TagFieldId field) = FindTagFieldAtPoint(pos);
             if (fieldAc is not null && field != TagFieldId.None)
             {
                 SurfaceDataBlock(fieldAc.Callsign);
@@ -1353,7 +1359,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             }
         }
 
-        var dataBlockAc = FindDataBlockAtPoint(pos);
+        AircraftModel? dataBlockAc = FindDataBlockAtPoint(pos);
         if (dataBlockAc is not null)
         {
             SurfaceDataBlock(dataBlockAc.Callsign);
@@ -1388,7 +1394,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         if (props.IsRightButtonPressed)
         {
-            var ac = FindAircraftAtPoint(pos);
+            AircraftModel? ac = FindAircraftAtPoint(pos);
             if (ac is not null)
             {
                 AircraftRightClicked?.Invoke(ac.Callsign, pos);
@@ -1410,14 +1416,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         {
             if (IsPlacingRangeRing)
             {
-                var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
+                (double lat, double lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
                 RangeRingPlaced?.Invoke(lat, lon);
                 IsPlacingRangeRing = false;
                 e.Handled = true;
                 return;
             }
 
-            var ac = FindAircraftAtPoint(pos);
+            AircraftModel? ac = FindAircraftAtPoint(pos);
             if (ac is not null)
             {
                 SurfaceDataBlock(ac.Callsign);
@@ -1436,7 +1442,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             // Speech-bubble click-to-dismiss: record the press but don't dismiss yet — let
             // pan/drag still initiate via base.OnPointerPressed below. Release-side checks
             // pointer movement and commits the dismiss only when the user really clicked.
-            var bubbleAc = FindBubbleAircraftAtPoint(pos);
+            AircraftModel? bubbleAc = FindBubbleAircraftAtPoint(pos);
             if (bubbleAc is not null)
             {
                 _bubblePressCallsign = bubbleAc.Callsign;
@@ -1455,9 +1461,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         if (_isDraggingDataBlock)
         {
-            var pos = e.GetPosition(this);
-            var dx = (float)(pos.X - _dragStartMousePos.X);
-            var dy = (float)(pos.Y - _dragStartMousePos.Y);
+            Point pos = e.GetPosition(this);
+            float dx = (float)(pos.X - _dragStartMousePos.X);
+            float dy = (float)(pos.Y - _dragStartMousePos.Y);
 
             if (!_dragThresholdMet && dx * dx + dy * dy > 16)
             {
@@ -1474,7 +1480,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return;
         }
 
-        var currentPos = e.GetPosition(this);
+        Point currentPos = e.GetPosition(this);
         _lastPointerPos = currentPos;
 
         // Ctrl+hover surfaces the MVA at the cursor. Repaint while held (so the label follows the
@@ -1488,7 +1494,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         if (_renderer.HeadingPreview is { } headingState)
         {
-            var (lat, lon) = Viewport.ScreenToLatLon((float)currentPos.X, (float)currentPos.Y);
+            (double lat, double lon) = Viewport.ScreenToLatLon((float)currentPos.X, (float)currentPos.Y);
             headingState.CursorPos = new LatLon(lat, lon);
             if (headingState.ButtonHeld && !headingState.DraggedPastThreshold)
             {
@@ -1522,11 +1528,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         if (_measureDragAnchor is { } measureAnchor && e.InitialPressMouseButton == MouseButton.Left)
         {
-            var releasePos = e.GetPosition(this);
+            Point releasePos = e.GetPosition(this);
             _measureDragAnchor = null;
 
-            var dx = releasePos.X - _measureDragStart.X;
-            var dy = releasePos.Y - _measureDragStart.Y;
+            double dx = releasePos.X - _measureDragStart.X;
+            double dy = releasePos.Y - _measureDragStart.Y;
             if ((dx * dx) + (dy * dy) > MeasureDragThresholdSq)
             {
                 MeasureDragCompleted?.Invoke(measureAnchor, MeasureEndpointAt(releasePos));
@@ -1572,9 +1578,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // (panned the map) the bubble stays — they didn't "click" it.
         if (_bubblePressCallsign is not null && e.InitialPressMouseButton == MouseButton.Left)
         {
-            var releasePos = e.GetPosition(this);
-            var dx = releasePos.X - _bubblePressPos.X;
-            var dy = releasePos.Y - _bubblePressPos.Y;
+            Point releasePos = e.GetPosition(this);
+            double dx = releasePos.X - _bubblePressPos.X;
+            double dy = releasePos.Y - _bubblePressPos.Y;
             if (dx * dx + dy * dy <= BubbleClickMaxMovementSq)
             {
                 DismissSpeechBubble(_bubblePressCallsign);
@@ -1586,7 +1592,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // Quick right-click (no drag) — show map context menu. A drag was a pan and owes no menu.
         if (e.InitialPressMouseButton == MouseButton.Right && _rightClick.Release() is { } rightClickPos)
         {
-            var (lat, lon) = Viewport.ScreenToLatLon((float)rightClickPos.X, (float)rightClickPos.Y);
+            (double lat, double lon) = Viewport.ScreenToLatLon((float)rightClickPos.X, (float)rightClickPos.Y);
             MapRightClicked?.Invoke(lat, lon, rightClickPos);
         }
 
@@ -1605,17 +1611,17 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return (null, TagFieldId.None);
         }
 
-        var tags = LastEuroScopeTags;
-        var sorted = SortByZOrder(
+        IReadOnlyDictionary<string, EuroScopeTagResult> tags = LastEuroScopeTags;
+        IReadOnlyList<AircraftModel> sorted = SortByZOrder(
             FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
             State.DataBlockZOrder
         );
         AircraftModel? bestAc = null;
-        var bestField = TagFieldId.None;
+        TagFieldId bestField = TagFieldId.None;
 
-        foreach (var ac in sorted)
+        foreach (AircraftModel ac in sorted)
         {
-            if (!tags.TryGetValue(ac.Callsign, out var result))
+            if (!tags.TryGetValue(ac.Callsign, out EuroScopeTagResult result))
             {
                 continue;
             }
@@ -1625,7 +1631,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             }
             // Iterate fields to find the most specific hit. Last write wins for overlapping rects
             // (which shouldn't happen but defensive).
-            foreach (var f in result.Fields)
+            foreach (TagFieldRect f in result.Fields)
             {
                 if (f.Rect.Contains((float)screenPos.X, (float)screenPos.Y))
                 {
@@ -1659,15 +1665,15 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         // Use z-order-sorted list so the topmost (last-drawn) datablock wins
-        var sorted = SortByZOrder(
+        IReadOnlyList<AircraftModel> sorted = SortByZOrder(
             FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
             State.DataBlockZOrder
         );
         AircraftModel? best = null;
 
-        foreach (var ac in sorted)
+        foreach (AircraftModel ac in sorted)
         {
-            var blockRect = ComputeDataBlockRect(ac);
+            SKRect blockRect = ComputeDataBlockRect(ac);
             if (blockRect.Contains((float)screenPos.X, (float)screenPos.Y))
             {
                 best = ac;
@@ -1692,15 +1698,19 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         // EuroScope path uses the bounds the renderer cached during the last frame so
         // hit testing always matches what's actually on screen.
-        if (EuroScopeMode && !State.MinifiedCallsigns.Contains(ac.Callsign) && LastEuroScopeTags.TryGetValue(ac.Callsign, out var esResult))
+        if (
+            EuroScopeMode
+            && !State.MinifiedCallsigns.Contains(ac.Callsign)
+            && LastEuroScopeTags.TryGetValue(ac.Callsign, out EuroScopeTagResult esResult)
+        )
         {
             return (hasManual ? manualOffset : RadarDatablockLayout.DefaultOffset, esResult.Bounds);
         }
 
-        var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-        var rectAtOrigin = ComputeStableRectAtOrigin(ac);
-        var deconflict = DeconflictOffsetFor(ac.Callsign);
-        var offset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManual, manualOffset, rectAtOrigin, deconflict);
+        (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        SKRect rectAtOrigin = ComputeStableRectAtOrigin(ac);
+        SKPoint? deconflict = DeconflictOffsetFor(ac.Callsign);
+        SKPoint offset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManual, manualOffset, rectAtOrigin, deconflict);
         var rect = new SKRect(
             rectAtOrigin.Left + sx + offset.X,
             rectAtOrigin.Top + sy + offset.Y,
@@ -1767,7 +1777,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        foreach (var candidate in Aircraft)
+        foreach (AircraftModel candidate in Aircraft)
         {
             if (string.Equals(candidate.Callsign, callsign, StringComparison.Ordinal))
             {
@@ -1780,7 +1790,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     /// <summary>The deconfliction-resolved offset for a callsign, or null when deconfliction is off or absent.</summary>
     private SKPoint? DeconflictOffsetFor(string callsign) =>
-        DeconflictMode != DatablockDeconflictMode.Off && _resolvedDeconflictOffsets.TryGetValue(callsign, out var off) ? off : null;
+        DeconflictMode != DatablockDeconflictMode.Off && _resolvedDeconflictOffsets.TryGetValue(callsign, out SKPoint off) ? off : null;
 
     /// <summary>
     /// Runs the deconfliction pass for the current frame and returns an immutable copy for the snapshot.
@@ -1795,7 +1805,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return EmptyOffsets;
         }
 
-        var items = BuildDeconflictItems(sorted);
+        List<DatablockDeconfliction.Item> items = BuildDeconflictItems(sorted);
         var bounds = new SKRect(0, 0, Viewport.PixelWidth, Viewport.PixelHeight);
         DatablockDeconfliction.Resolve(
             DeconflictMode,
@@ -1806,7 +1816,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         );
 
         _resolvedDeconflictOffsets.Clear();
-        foreach (var kvp in _deconflictScratch)
+        foreach (KeyValuePair<string, SKPoint> kvp in _deconflictScratch)
         {
             _resolvedDeconflictOffsets[kvp.Key] = kvp.Value;
         }
@@ -1817,18 +1827,22 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private List<DatablockDeconfliction.Item> BuildDeconflictItems(IReadOnlyList<AircraftModel> sorted)
     {
         var items = new List<DatablockDeconfliction.Item>(sorted.Count);
-        foreach (var ac in sorted)
+        foreach (AircraftModel ac in sorted)
         {
-            var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             var anchor = new SKPoint(sx, sy);
-            bool hasManual = State.ManualOffsets.TryGetValue(ac.Callsign, out var manualOffset);
+            bool hasManual = State.ManualOffsets.TryGetValue(ac.Callsign, out SKPoint manualOffset);
             bool isPriority = ReferenceEquals(ac, SelectedAircraft);
 
             // EuroScope tags are pinned for v1: their per-field hit rects are cached from the draw, so
             // moving the tag would desync field hit-testing. Anchor the cached bounds as an obstacle.
-            if (EuroScopeMode && !State.MinifiedCallsigns.Contains(ac.Callsign) && LastEuroScopeTags.TryGetValue(ac.Callsign, out var es))
+            if (
+                EuroScopeMode
+                && !State.MinifiedCallsigns.Contains(ac.Callsign)
+                && LastEuroScopeTags.TryGetValue(ac.Callsign, out EuroScopeTagResult es)
+            )
             {
-                var esOffset = hasManual ? manualOffset : RadarDatablockLayout.DefaultOffset;
+                SKPoint esOffset = hasManual ? manualOffset : RadarDatablockLayout.DefaultOffset;
                 float ox = sx + esOffset.X;
                 float oy = sy + esOffset.Y;
                 var esAtOrigin = new SKRect(es.Bounds.Left - ox, es.Bounds.Top - oy, es.Bounds.Right - ox, es.Bounds.Bottom - oy);
@@ -1846,8 +1860,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 continue;
             }
 
-            var rectAtOrigin = ComputeStableRectAtOrigin(ac);
-            var preferred = hasManual
+            SKRect rectAtOrigin = ComputeStableRectAtOrigin(ac);
+            SKPoint preferred = hasManual
                 ? manualOffset
                 : RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, false, default, rectAtOrigin, null);
             items.Add(
@@ -1878,13 +1892,20 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         float closestDist = hitRadius;
 
         foreach (
-            var ac in FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow)
+            AircraftModel ac in FilterAircraft(
+                Aircraft,
+                ShowTopDown,
+                ShowSpeechBubbles,
+                AlwaysShowGroundBubblesOnRadar,
+                GroundShownAirportId,
+                DateTime.UtcNow
+            )
         )
         {
-            var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-            var dx = (float)screenPos.X - sx;
-            var dy = (float)screenPos.Y - sy;
-            var dist = MathF.Sqrt(dx * dx + dy * dy);
+            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+            float dx = (float)screenPos.X - sx;
+            float dy = (float)screenPos.Y - sy;
+            float dist = MathF.Sqrt(dx * dx + dy * dy);
 
             if (dist < closestDist)
             {
@@ -1929,8 +1950,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         const double defaultPixelsPerDeg = 5000.0;
-        var maxPixels = Math.Max(Viewport.PixelWidth, Viewport.PixelHeight);
-        var targetZoom = maxPixels * 60.0 / (defaultPixelsPerDeg * RangeNm);
+        float maxPixels = Math.Max(Viewport.PixelWidth, Viewport.PixelHeight);
+        double targetZoom = maxPixels * 60.0 / (defaultPixelsPerDeg * RangeNm);
         Viewport.Zoom = Math.Clamp(targetZoom, 0.02, 10000.0);
         InvalidateVisual();
     }
@@ -1956,7 +1977,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         if (_initialFitDone)
         {
             // Sync RangeNm back from viewport zoom (suppress re-fit to avoid feedback loop)
-            var rounded = Math.Max(1, (int)Math.Round(ViewRangeNm));
+            int rounded = Math.Max(1, (int)Math.Round(ViewRangeNm));
             if (Math.Abs(rounded - RangeNm) >= 1)
             {
                 _suppressRangeFit = true;
@@ -1978,7 +1999,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         if (IsAdjustingRangeRingSize)
         {
-            var direction = e.Delta.Y > 0 ? 1 : -1;
+            int direction = e.Delta.Y > 0 ? 1 : -1;
             int steps = _rangeRingSizeScroll.Accumulate(direction, ScrollSensitivity);
             for (int i = 0; i < Math.Abs(steps); i++)
             {
@@ -2064,8 +2085,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         const double defaultPixelsPerDeg = 5000.0;
-        var maxPixels = Math.Max(Viewport.PixelWidth, Viewport.PixelHeight);
-        var rangeNm = maxPixels * 60.0 / (defaultPixelsPerDeg * Viewport.Zoom);
+        float maxPixels = Math.Max(Viewport.PixelWidth, Viewport.PixelHeight);
+        double rangeNm = maxPixels * 60.0 / (defaultPixelsPerDeg * Viewport.Zoom);
         ViewRangeNm = rangeNm;
     }
 
@@ -2082,11 +2103,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         for (int i = 0; i < DrawnWaypoints.Count; i++)
         {
-            var wp = DrawnWaypoints[i];
-            var (sx, sy) = Viewport.LatLonToScreen(wp.Lat, wp.Lon);
-            var dx = (float)screenPos.X - sx;
-            var dy = (float)screenPos.Y - sy;
-            var dist = MathF.Sqrt(dx * dx + dy * dy);
+            DrawnWaypoint wp = DrawnWaypoints[i];
+            (float sx, float sy) = Viewport.LatLonToScreen(wp.Lat, wp.Lon);
+            float dx = (float)screenPos.X - sx;
+            float dy = (float)screenPos.Y - sy;
+            float dist = MathF.Sqrt(dx * dx + dy * dy);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -2108,8 +2129,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         sorted.Sort(
             (a, b) =>
             {
-                zOrder.TryGetValue(a.Callsign, out var za);
-                zOrder.TryGetValue(b.Callsign, out var zb);
+                zOrder.TryGetValue(a.Callsign, out int za);
+                zOrder.TryGetValue(b.Callsign, out int zb);
                 return za.CompareTo(zb);
             }
         );
@@ -2138,7 +2159,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         var result = new List<AircraftModel>(aircraft.Count);
-        foreach (var ac in aircraft)
+        foreach (AircraftModel ac in aircraft)
         {
             if (ac.IsDelayed)
             {

@@ -28,13 +28,13 @@ public class ParkingRouteWarningsTests(ITestOutputHelper output)
     [Fact]
     public void ParkingDestination_KeepsMaterialiserWarnings()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var f5 = layout.FindParkingByName("F5");
+        GroundNode? f5 = layout.FindParkingByName("F5");
         Assert.NotNull(f5);
         Assert.NotNull(layout.FindParkingByName("F10"));
 
@@ -51,13 +51,13 @@ public class ParkingRouteWarningsTests(ITestOutputHelper output)
         };
         ac.Phases = new PhaseList();
 
-        var parsed = CommandParser.Parse("TAXI T7A A @F10 HS 28L");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("TAXI T7A A @F10 HS 28L");
         Assert.True(parsed.IsSuccess, $"parse failed: {parsed.Reason}");
-        var taxi = Assert.IsType<TaxiCommand>(parsed.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(parsed.Value);
 
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"TAXI failed: {result.Message}");
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine($"message={result.Message}");
         output.WriteLine($"warnings=[{string.Join(" | ", route.Warnings)}]");

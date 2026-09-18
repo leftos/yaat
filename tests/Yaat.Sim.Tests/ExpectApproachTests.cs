@@ -66,12 +66,12 @@ public class ExpectApproachTests
     [Fact]
     public void Eapp_SetsExpectedApproach()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.Approach.Expected);
@@ -80,12 +80,12 @@ public class ExpectApproachTests
     [Fact]
     public void Eapp_ReturnsConfirmationMessage()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ExpectApproachCommand("I28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("Expecting", result.Message);
@@ -95,13 +95,13 @@ public class ExpectApproachTests
     [Fact]
     public void Eapp_WithExplicitAirport_SetsExpectedApproach()
     {
-        var aircraft = MakeAircraft(destination: "SFO");
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(destination: "SFO");
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Explicit airport overrides destination
         var cmd = new ExpectApproachCommand("ILS28R", "OAK");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.Approach.Expected);
@@ -110,12 +110,12 @@ public class ExpectApproachTests
     [Fact]
     public void Eapp_UnknownApproach_ReturnsError()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ExpectApproachCommand("VOR99", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
@@ -124,13 +124,13 @@ public class ExpectApproachTests
     [Fact]
     public void Eapp_OverwritesPreviousExpectedApproach()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Approach.Expected = "V28L";
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.Approach.Expected);
@@ -143,26 +143,26 @@ public class ExpectApproachTests
         // EAPP I30 must extend the route with the RW30 transition fixes so the published
         // FM vector arrow at CRSEN can render on the radar overlay.
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
         NavigationDatabase.SetInstance(navDb);
 
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Procedure.ActiveStarId = "WNDSR2";
         // Pre-load the common-leg fixes as if JARR WNDSR2 WEBRR had already run without a
         // destination runway set.
-        var webrr = navDb.GetFixPosition("WEBRR")!.Value;
-        var boyys = navDb.GetFixPosition("BOYYS")!.Value;
-        var hopta = navDb.GetFixPosition("HOPTA")!.Value;
+        (double Lat, double Lon) webrr = navDb.GetFixPosition("WEBRR")!.Value;
+        (double Lat, double Lon) boyys = navDb.GetFixPosition("BOYYS")!.Value;
+        (double Lat, double Lon) hopta = navDb.GetFixPosition("HOPTA")!.Value;
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "WEBRR", Position = new LatLon(webrr.Lat, webrr.Lon) });
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "BOYYS", Position = new LatLon(boyys.Lat, boyys.Lon) });
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HOPTA", Position = new LatLon(hopta.Lat, hopta.Lon) });
 
         var cmd = new ExpectApproachCommand("I30", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"EAPP I30 should succeed. Got: {result.Message}");
         Assert.Equal("30", aircraft.Procedure.DestinationRunway);
@@ -182,25 +182,25 @@ public class ExpectApproachTests
         // contains the 28B transition and the controller issues EAPP I30, AAAME must not
         // remain — otherwise the pilot flies the wrong path after the runway change.
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
         NavigationDatabase.SetInstance(navDb);
 
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Procedure.ActiveStarId = "WNDSR2";
         aircraft.Procedure.DestinationRunway = "28B";
 
-        foreach (var name in new[] { "WEBRR", "BOYYS", "HOPTA", "AAAME" })
+        foreach (string? name in new[] { "WEBRR", "BOYYS", "HOPTA", "AAAME" })
         {
-            var pos = navDb.GetFixPosition(name)!.Value;
+            (double Lat, double Lon) pos = navDb.GetFixPosition(name)!.Value;
             aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = name, Position = new LatLon(pos.Lat, pos.Lon) });
         }
 
         var cmd = new ExpectApproachCommand("I30", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"EAPP I30 should succeed. Got: {result.Message}");
         Assert.Equal("30", aircraft.Procedure.DestinationRunway);
@@ -214,14 +214,14 @@ public class ExpectApproachTests
     [Fact]
     public void Eapp_SetsDestinationRunwayFromResolvedApproach()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         Assert.Null(aircraft.Procedure.DestinationRunway);
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("28R", aircraft.Procedure.DestinationRunway);
@@ -231,26 +231,26 @@ public class ExpectApproachTests
     public void Dct_OnStar_Truncation_RemovesStaleOtherRunwayTransitionFixes()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
         NavigationDatabase.SetInstance(navDb);
 
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Procedure.ActiveStarId = "WNDSR2";
         aircraft.Procedure.DestinationRunway = "30";
 
-        foreach (var name in new[] { "WEBRR", "BOYYS", "HOPTA", "AAAME" })
+        foreach (string? name in new[] { "WEBRR", "BOYYS", "HOPTA", "AAAME" })
         {
-            var pos = navDb.GetFixPosition(name)!.Value;
+            (double Lat, double Lon) pos = navDb.GetFixPosition(name)!.Value;
             aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = name, Position = new LatLon(pos.Lat, pos.Lon) });
         }
 
-        var hopta = navDb.GetFixPosition("HOPTA")!.Value;
+        (double Lat, double Lon) hopta = navDb.GetFixPosition("HOPTA")!.Value;
         var cmd = new DirectToCommand([new ResolvedFix("HOPTA", hopta.Lat, hopta.Lon)], []);
-        var result = FlightCommandHandler.ApplyDirectTo(cmd, aircraft, validateDctFixes: false);
+        CommandResult result = FlightCommandHandler.ApplyDirectTo(cmd, aircraft, validateDctFixes: false);
 
         Assert.True(result.Success);
         var names = aircraft.Targets.NavigationRoute.Select(t => t.Name).ToList();
@@ -261,13 +261,13 @@ public class ExpectApproachTests
     [Fact]
     public void Eapp_ResolvesShorthandId()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // "ILS28R" should resolve to "I28R"
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.Approach.Expected);

@@ -28,7 +28,7 @@ public class FinalApproachSpeedVarietyTests(ITestOutputHelper output)
     [Fact]
     public void ComputeReachGateNm_AlwaysWithinFloorAndCap()
     {
-        foreach (var callsign in SampleCallsigns())
+        foreach (string callsign in SampleCallsigns())
         {
             double gate = FinalApproachSpeedVariety.ComputeReachGateNm(callsign);
             Assert.InRange(gate, FinalApproachSpeedVariety.FloorNm, FinalApproachSpeedVariety.CapNm);
@@ -154,7 +154,7 @@ public class FinalApproachSpeedVarietyTests(ITestOutputHelper output)
     /// </summary>
     private double DistanceAtWhichFasReached(double? explicitGate, bool varietyEnabled, string callsign = "UAL999")
     {
-        var rwy = TestRunwayFactory.Make(
+        RunwayInfo rwy = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "OAK",
             thresholdLat: 37.72,
@@ -166,7 +166,12 @@ public class FinalApproachSpeedVarietyTests(ITestOutputHelper output)
         const double startDistNm = 8.0;
         double vref = AircraftPerformance.ApproachSpeed("B738", AircraftCategory.Jet);
         double startSpeed = vref * 1.5;
-        var startPos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), startDistNm);
+        (double Lat, double Lon) startPos = GeoMath.ProjectPoint(
+            rwy.ThresholdLatitude,
+            rwy.ThresholdLongitude,
+            rwy.TrueHeading.ToReciprocal(),
+            startDistNm
+        );
 
         var ac = new AircraftState
         {
@@ -238,7 +243,7 @@ public class FinalApproachSpeedVarietyTests(ITestOutputHelper output)
     private static IEnumerable<string> SampleCallsigns()
     {
         string[] prefixes = ["AAL", "UAL", "DAL", "SWA", "JBU", "ASA", "FFT", "NKS", "N", "SKW"];
-        foreach (var prefix in prefixes)
+        foreach (string prefix in prefixes)
         {
             for (int n = 1; n <= 500; n++)
             {

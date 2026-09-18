@@ -29,7 +29,7 @@ public partial class LiveTrafficFilterWindow : Window
 
         _applyButton.Click += (_, _) =>
         {
-            if (_editor.TryGetFilterText(out var text, out _))
+            if (_editor.TryGetFilterText(out string? text, out _))
             {
                 Close(text);
             }

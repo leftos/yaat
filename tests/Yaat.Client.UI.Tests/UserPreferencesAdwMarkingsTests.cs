@@ -51,7 +51,7 @@ public class UserPreferencesAdwMarkingsTests
     {
         var original = new SavedGroundSettings { ShowAdwMarkings = false };
 
-        var clone = original.Clone();
+        SavedGroundSettings clone = original.Clone();
         clone.ShowAdwMarkings = true;
 
         Assert.False(original.ShowAdwMarkings);

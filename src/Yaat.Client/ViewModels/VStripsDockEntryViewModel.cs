@@ -115,8 +115,8 @@ public partial class VStripsDockEntryViewModel : ObservableObject
     {
         get
         {
-            var facility = !string.IsNullOrEmpty(Vm.FacilityId) ? Vm.FacilityId : Vm.FacilityName;
-            var baseTitle = ClientProductTitle.Build(Vm.Printer.PendingCount, facility, "vStrips", includeYaatSuffix: false);
+            string? facility = !string.IsNullOrEmpty(Vm.FacilityId) ? Vm.FacilityId : Vm.FacilityName;
+            string baseTitle = ClientProductTitle.Build(Vm.Printer.PendingCount, facility, "vStrips", includeYaatSuffix: false);
             return DuplicateOrdinal >= 2 ? $"{baseTitle} #{DuplicateOrdinal}" : baseTitle;
         }
     }

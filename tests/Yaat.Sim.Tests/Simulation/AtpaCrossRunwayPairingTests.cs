@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -36,13 +37,13 @@ public class AtpaCrossRunwayPairingTests(ITestOutputHelper output)
     [Fact]
     public void ArrivalsOnDifferentOakFinals_AreNotPairedByAtpa()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -50,8 +51,8 @@ public class AtpaCrossRunwayPairingTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var starsConfig = archive.DeserializeArtccConfig()?.GetStarsConfigForFacility(StudentFacilityId);
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            StarsConfig? starsConfig = archive.DeserializeArtccConfig()?.GetStarsConfigForFacility(StudentFacilityId);
             if (starsConfig is null || starsConfig.AtpaVolumes.Count == 0)
             {
                 output.WriteLine("No ZOA/NCT ATPA volumes in bundle — skipping");
@@ -60,7 +61,7 @@ public class AtpaCrossRunwayPairingTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(776);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(776);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=776 — skipping");
@@ -68,10 +69,10 @@ public class AtpaCrossRunwayPairingTests(ITestOutputHelper output)
             }
             engine.RestoreFromSnapshot(snapshot.State);
 
-            var aircraft = engine.World.GetSnapshot();
-            var results = new AtpaProcessor().Process(aircraft, starsConfig.AtpaVolumes, starsConfig);
+            List<AircraftState> aircraft = engine.World.GetSnapshot();
+            Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(aircraft, starsConfig.AtpaVolumes, starsConfig);
 
-            foreach (var (callsign, r) in results)
+            foreach ((string? callsign, AtpaResult? r) in results)
             {
                 output.WriteLine(
                     $"{callsign}: state={r.ConeState} target={r.TargetTrackId} allowed={r.AllowedSeparation:F1} actual={r.ActualSeparation:F1}"
@@ -82,11 +83,11 @@ public class AtpaCrossRunwayPairingTests(ITestOutputHelper output)
             // may be paired (in-trail cone) against the other. Before the single-volume-association fix,
             // the wide OAK 30 volume pulled N474TK in and FDX858 was coned against it.
             Assert.False(
-                results.TryGetValue("FDX858", out var fdx) && fdx.TargetTrackId == "CALLSIGNN474TK",
+                results.TryGetValue("FDX858", out AtpaResult? fdx) && fdx.TargetTrackId == "CALLSIGNN474TK",
                 "FDX858 (runway 30) must not be ATPA-paired with N474TK (runway 28R) — different finals"
             );
             Assert.False(
-                results.TryGetValue("N474TK", out var ntk) && ntk.TargetTrackId == "CALLSIGNFDX858",
+                results.TryGetValue("N474TK", out AtpaResult? ntk) && ntk.TargetTrackId == "CALLSIGNFDX858",
                 "N474TK (runway 28R) must not be ATPA-paired with FDX858 (runway 30) — different finals"
             );
         }

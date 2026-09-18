@@ -12,7 +12,7 @@ public class WeatherTimelineParserTests
     [Fact]
     public void V1Json_ReturnsProfile()
     {
-        var json = JsonSerializer.Serialize(
+        string json = JsonSerializer.Serialize(
             new
             {
                 name = "SFOW",
@@ -30,7 +30,7 @@ public class WeatherTimelineParserTests
             }
         );
 
-        var result = WeatherTimelineParser.Parse(json);
+        WeatherParseResult result = WeatherTimelineParser.Parse(json);
 
         Assert.True(result.IsProfile);
         Assert.False(result.IsTimeline);
@@ -47,7 +47,7 @@ public class WeatherTimelineParserTests
     [Fact]
     public void V2Json_ReturnsTimeline()
     {
-        var json = JsonSerializer.Serialize(
+        string json = JsonSerializer.Serialize(
             new
             {
                 name = "SFOW to SFOE",
@@ -88,7 +88,7 @@ public class WeatherTimelineParserTests
             }
         );
 
-        var result = WeatherTimelineParser.Parse(json);
+        WeatherParseResult result = WeatherTimelineParser.Parse(json);
 
         Assert.True(result.IsTimeline);
         Assert.False(result.IsProfile);
@@ -104,7 +104,7 @@ public class WeatherTimelineParserTests
     [Fact]
     public void InvalidJson_ReturnsError()
     {
-        var result = WeatherTimelineParser.Parse("not valid json {{{");
+        WeatherParseResult result = WeatherTimelineParser.Parse("not valid json {{{");
 
         Assert.True(result.IsError);
         Assert.Contains("Invalid JSON", result.Error);
@@ -117,9 +117,9 @@ public class WeatherTimelineParserTests
     [Fact]
     public void V2_ZeroPeriods_ReturnsError()
     {
-        var json = JsonSerializer.Serialize(new { name = "Empty", periods = Array.Empty<object>() });
+        string json = JsonSerializer.Serialize(new { name = "Empty", periods = Array.Empty<object>() });
 
-        var result = WeatherTimelineParser.Parse(json);
+        WeatherParseResult result = WeatherTimelineParser.Parse(json);
 
         Assert.True(result.IsError);
         Assert.Contains("no periods", result.Error);
@@ -132,7 +132,7 @@ public class WeatherTimelineParserTests
     [Fact]
     public void V2_PeriodMissingWindLayers_ReturnsError()
     {
-        var json = JsonSerializer.Serialize(
+        string json = JsonSerializer.Serialize(
             new
             {
                 name = "Bad period",
@@ -148,7 +148,7 @@ public class WeatherTimelineParserTests
             }
         );
 
-        var result = WeatherTimelineParser.Parse(json);
+        WeatherParseResult result = WeatherTimelineParser.Parse(json);
 
         Assert.True(result.IsError);
         Assert.Contains("no wind layers", result.Error);
@@ -161,7 +161,7 @@ public class WeatherTimelineParserTests
     [Fact]
     public void V2_PeriodsAreSortedByStartMinutes()
     {
-        var json = JsonSerializer.Serialize(
+        string json = JsonSerializer.Serialize(
             new
             {
                 name = "Unsorted",
@@ -199,7 +199,7 @@ public class WeatherTimelineParserTests
             }
         );
 
-        var result = WeatherTimelineParser.Parse(json);
+        WeatherParseResult result = WeatherTimelineParser.Parse(json);
 
         Assert.True(result.IsTimeline);
         Assert.Equal(0, result.Timeline!.Periods[0].StartMinutes);
@@ -213,9 +213,9 @@ public class WeatherTimelineParserTests
     [Fact]
     public void V1_NoWindLayers_ReturnsProfile()
     {
-        var json = JsonSerializer.Serialize(new { name = "Calm", artccId = "ZOA" });
+        string json = JsonSerializer.Serialize(new { name = "Calm", artccId = "ZOA" });
 
-        var result = WeatherTimelineParser.Parse(json);
+        WeatherParseResult result = WeatherTimelineParser.Parse(json);
 
         Assert.True(result.IsProfile);
         Assert.Empty(result.Profile!.WindLayers);

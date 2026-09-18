@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -52,23 +53,23 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
     /// </summary>
     private void AssertLineUpCompletesCleanly(string callsign, int ctoSecond, int budgetSeconds)
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("SKIP: recording or navdata not available");
             return;
         }
 
-        var runway = TestVnasData.NavigationDb!.GetRunway("KOAK", "28R");
+        RunwayInfo? runway = TestVnasData.NavigationDb!.GetRunway("KOAK", "28R");
         Assert.NotNull(runway);
-        var rwyHdg = runway.TrueHeading;
+        TrueHeading rwyHdg = runway.TrueHeading;
         double rwyThreshLat = runway.ThresholdLatitude;
         double rwyThreshLon = runway.ThresholdLongitude;
 
         engine.Replay(recording, ctoSecond - 1);
 
-        var ac = engine.FindAircraft(callsign);
+        AircraftState? ac = engine.FindAircraft(callsign);
         Assert.NotNull(ac);
 
         bool enteredLineUp = false;
@@ -89,7 +90,7 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
             ac = engine.FindAircraft(callsign);
             Assert.NotNull(ac);
 
-            var phase = ac.Phases?.CurrentPhase;
+            Phase? phase = ac.Phases?.CurrentPhase;
 
             if (!enteredLineUp && phase is LineUpPhase)
             {
@@ -184,17 +185,17 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
     [Fact]
     public void N436MS_LineUp28R_DoesNotBackToRunwayStartCorner()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("SKIP: recording or navdata not available");
             return;
         }
 
-        var runway = TestVnasData.NavigationDb!.GetRunway("KOAK", "28R");
+        RunwayInfo? runway = TestVnasData.NavigationDb!.GetRunway("KOAK", "28R");
         Assert.NotNull(runway);
-        var rwyHdg = runway.TrueHeading;
+        TrueHeading rwyHdg = runway.TrueHeading;
         double rwyThreshLat = runway.ThresholdLatitude;
         double rwyThreshLon = runway.ThresholdLongitude;
 
@@ -202,7 +203,7 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
         const int budgetSeconds = 60;
         engine.Replay(recording, ctoSecond - 1);
 
-        var ac = engine.FindAircraft("N436MS");
+        AircraftState? ac = engine.FindAircraft("N436MS");
         Assert.NotNull(ac);
 
         bool enteredLineUp = false;
@@ -216,7 +217,7 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
             ac = engine.FindAircraft("N436MS");
             Assert.NotNull(ac);
 
-            var phase = ac.Phases?.CurrentPhase;
+            Phase? phase = ac.Phases?.CurrentPhase;
             if (phase is LineUpPhase)
             {
                 enteredLineUp = true;

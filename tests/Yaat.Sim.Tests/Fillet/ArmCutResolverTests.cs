@@ -10,9 +10,9 @@ public class ArmCutResolverTests
     [Fact]
     public void Simple90Degree_SingleCutPerArm()
     {
-        var junction = BuildJunction(arms: [(0, 0.0, 800), (1, 90.0, 800)], corners: [(0, 1, 75.0)]);
+        JunctionPlan junction = BuildJunction(arms: [(0, 0.0, 800), (1, 90.0, 800)], corners: [(0, 1, 75.0)]);
 
-        var result = Resolve(junction);
+        ArmCutResolver.JunctionCutResult result = Resolve(junction);
 
         Assert.Equal(2, result.Cuts.Count);
         Assert.All(result.Cuts.Values, c => Assert.Single(c.OwningCornerIds));
@@ -23,12 +23,12 @@ public class ArmCutResolverTests
     [Fact]
     public void SymmetricFourWay_SingleCutPerArm()
     {
-        var junction = BuildJunction(
+        JunctionPlan junction = BuildJunction(
             arms: [(0, 0.0, 800), (1, 90.0, 800), (2, 180.0, 800), (3, 270.0, 800)],
             corners: [(0, 1, 75.0), (1, 2, 75.0), (2, 3, 75.0), (3, 0, 75.0)]
         );
 
-        var result = Resolve(junction);
+        ArmCutResolver.JunctionCutResult result = Resolve(junction);
 
         Assert.Equal(4, result.Cuts.Count);
         Assert.Equal(4, result.CornerArcs.Count);
@@ -38,9 +38,12 @@ public class ArmCutResolverTests
     [Fact]
     public void ThreeWay0_100_200_MultiCutOnWideAngleArms()
     {
-        var junction = BuildJunction(arms: [(0, 0.0, 800), (1, 100.0, 800), (2, 200.0, 800)], corners: [(0, 1, 75.0), (0, 2, 75.0), (1, 2, 75.0)]);
+        JunctionPlan junction = BuildJunction(
+            arms: [(0, 0.0, 800), (1, 100.0, 800), (2, 200.0, 800)],
+            corners: [(0, 1, 75.0), (0, 2, 75.0), (1, 2, 75.0)]
+        );
 
-        var result = Resolve(junction);
+        ArmCutResolver.JunctionCutResult result = Resolve(junction);
 
         var arm0Cuts = CutsOnArm(result, 0).OrderBy(c => c.DistanceAlongArmFt).Select(c => c.DistanceAlongArmFt).ToList();
         var arm2Cuts = CutsOnArm(result, 2).OrderBy(c => c.DistanceAlongArmFt).Select(c => c.DistanceAlongArmFt).ToList();
@@ -61,10 +64,10 @@ public class ArmCutResolverTests
         Assert.Equal(3, result.CornerArcs.Count);
         Assert.DoesNotContain(result.Warnings, w => w.Code == PlanWarning.DegenerateRadius);
 
-        var acute = junction.Corners.First(c => c.ArmIdA == 0 && c.ArmIdB == 2);
-        var arc = result.CornerArcs.First(a => a.CornerId == acute.CornerId);
-        var cutA = Assert.IsType<FilletEndpoint.Cut>(arc.EndpointAtArmA);
-        var cutB = Assert.IsType<FilletEndpoint.Cut>(arc.EndpointAtArmB);
+        CornerSpec acute = junction.Corners.First(c => c.ArmIdA == 0 && c.ArmIdB == 2);
+        CornerArcOp arc = result.CornerArcs.First(a => a.CornerId == acute.CornerId);
+        FilletEndpoint.Cut cutA = Assert.IsType<FilletEndpoint.Cut>(arc.EndpointAtArmA);
+        FilletEndpoint.Cut cutB = Assert.IsType<FilletEndpoint.Cut>(arc.EndpointAtArmB);
         double ta = result.Cuts[cutA.Id].DistanceAlongArmFt;
         double tb = result.Cuts[cutB.Id].DistanceAlongArmFt;
         Assert.InRange(ta, 10.0, 20.0);
@@ -77,8 +80,8 @@ public class ArmCutResolverTests
     {
         double dist13 = 13.0 / GeoMath.FeetPerNm;
         double dist63 = 63.0 / GeoMath.FeetPerNm;
-        var posA = GeoMath.ProjectPoint(LatLon.Zero, new TrueHeading(0), dist13);
-        var posB = GeoMath.ProjectPoint(LatLon.Zero, new TrueHeading(200), dist63);
+        LatLon posA = GeoMath.ProjectPoint(LatLon.Zero, new TrueHeading(0), dist13);
+        LatLon posB = GeoMath.ProjectPoint(LatLon.Zero, new TrueHeading(200), dist63);
 
         double r = FilletGeometry.EffectiveMinRadiusFt(13, 63, 0, 200, posA, posB);
 
@@ -89,9 +92,12 @@ public class ArmCutResolverTests
     [Fact]
     public void IdealsWithinCoincidentThreshold_CoalescedSingleCut()
     {
-        var junction = BuildJunction(arms: [(0, 0.0, 800), (1, 90.0, 800), (2, 45.0, 800)], corners: [(0, 1, 75.0), (0, 2, 50.0), (1, 2, 52.0)]);
+        JunctionPlan junction = BuildJunction(
+            arms: [(0, 0.0, 800), (1, 90.0, 800), (2, 45.0, 800)],
+            corners: [(0, 1, 75.0), (0, 2, 50.0), (1, 2, 52.0)]
+        );
 
-        var result = Resolve(junction);
+        ArmCutResolver.JunctionCutResult result = Resolve(junction);
 
         Assert.Single(CutsOnArm(result, 0));
         Assert.Single(CutsOnArm(result, 1));
@@ -100,14 +106,14 @@ public class ArmCutResolverTests
     [Fact]
     public void SharedShortArm_ScalesAndMergesAcrossJunctions()
     {
-        var layout = BuildSharedArmLayout(sharedLengthFt: 80);
-        var jp1 = PlanAt(layout, 1);
-        var jp2 = PlanAt(layout, 2);
+        AirportGroundLayout layout = BuildSharedArmLayout(sharedLengthFt: 80);
+        JunctionPlan jp1 = PlanAt(layout, 1);
+        JunctionPlan jp2 = PlanAt(layout, 2);
 
         var nextCutId = new CutId(1);
-        var r1 = ArmCutResolver.Resolve(jp1, ref nextCutId);
-        var r2 = ArmCutResolver.Resolve(jp2, ref nextCutId);
-        var plan = FilletPlanBuilder.Build(layout, [jp1, jp2], [r1, r2]);
+        ArmCutResolver.JunctionCutResult r1 = ArmCutResolver.Resolve(jp1, ref nextCutId);
+        ArmCutResolver.JunctionCutResult r2 = ArmCutResolver.Resolve(jp2, ref nextCutId);
+        FilletPlan plan = FilletPlanBuilder.Build(layout, [jp1, jp2], [r1, r2]);
 
         Assert.Contains(plan.Warnings, w => w.Code == PlanWarning.SharedArmScaled);
         Assert.NotEmpty(plan.TangentMerges);
@@ -116,12 +122,12 @@ public class ArmCutResolverTests
     [Fact]
     public void FourWay_OneCornerArcPerArmPair()
     {
-        var junction = BuildJunction(
+        JunctionPlan junction = BuildJunction(
             arms: [(0, 0.0, 800), (1, 90.0, 800), (2, 180.0, 800), (3, 270.0, 800)],
             corners: [(0, 1, 75.0), (1, 2, 75.0), (2, 3, 75.0), (3, 0, 75.0)]
         );
 
-        var result = Resolve(junction);
+        ArmCutResolver.JunctionCutResult result = Resolve(junction);
 
         Assert.Equal(result.SurvivingCorners.Count, result.CornerArcs.Count);
         Assert.Equal(result.SurvivingCorners.Count, result.CornerArcs.Select(a => a.CornerId).Distinct().Count());
@@ -131,12 +137,12 @@ public class ArmCutResolverTests
     [Fact]
     public void MultiCut_EnforceGap_DemotesWithCornerDemotedWarning()
     {
-        var junction = BuildJunctionWithExplicitIdeals(
+        JunctionPlan junction = BuildJunctionWithExplicitIdeals(
             arms: [(0, 0.0, 800), (1, 90.0, 800), (2, 180.0, 800), (3, 270.0, 800)],
             corners: [(0, 1, 15.01), (0, 2, 10.0), (0, 3, 18.0)]
         );
 
-        var result = Resolve(junction);
+        ArmCutResolver.JunctionCutResult result = Resolve(junction);
 
         Assert.Contains(result.Warnings, w => w.Code == PlanWarning.CornerDemoted);
         var arm0Cuts = CutsOnArm(result, 0).OrderBy(c => c.DistanceAlongArmFt).Select(c => c.DistanceAlongArmFt).ToList();
@@ -149,14 +155,14 @@ public class ArmCutResolverTests
     [Fact]
     public void Apply_RepairCountersRemainZero_OnSimple90()
     {
-        var stats = new FilletArcGenerator().Apply(BuildSimpleIntersectionLayout());
+        FilletStatistics stats = new FilletArcGenerator().Apply(BuildSimpleIntersectionLayout());
         AssertRepairCountersZero(stats);
     }
 
     [Fact]
     public void Apply_RepairCountersRemainZero_OnThreeWayMultiCut()
     {
-        var stats = new FilletArcGenerator().Apply(BuildThreeWayLayout());
+        FilletStatistics stats = new FilletArcGenerator().Apply(BuildThreeWayLayout());
         AssertRepairCountersZero(stats);
         Assert.True(stats.ArcsCreated >= 3);
     }
@@ -164,7 +170,7 @@ public class ArmCutResolverTests
     [Fact]
     public void Apply_YPattern_CollinearThroughConnectsStraightArmTangents()
     {
-        var layout = BuildYPatternLayout();
+        AirportGroundLayout layout = BuildYPatternLayout();
         new FilletArcGenerator().Apply(layout);
 
         // The collinear straight-through arms stay connected end-to-end after filleting.
@@ -198,12 +204,12 @@ public class ArmCutResolverTests
                 return true;
             }
 
-            if (!layout.Nodes.TryGetValue(id, out var node))
+            if (!layout.Nodes.TryGetValue(id, out GroundNode? node))
             {
                 continue;
             }
 
-            foreach (var e in node.Edges)
+            foreach (IGroundEdge e in node.Edges)
             {
                 if (e is not GroundEdge ge || !allowed.Contains(ge.TaxiwayName))
                 {
@@ -232,9 +238,9 @@ public class ArmCutResolverTests
 
     private static JunctionPlan PlanAt(AirportGroundLayout layout, int nodeId)
     {
-        var node = layout.Nodes[nodeId];
-        var arms = TaxiwayArmBuilder.BuildArms(node, []);
-        var (corners, collinear) = CornerPlanner.PlanCorners(node, arms);
+        GroundNode node = layout.Nodes[nodeId];
+        IReadOnlyList<TaxiwayArm> arms = TaxiwayArmBuilder.BuildArms(node, []);
+        (IReadOnlyList<CornerSpec>? corners, IReadOnlyList<(int, int)>? collinear) = CornerPlanner.PlanCorners(node, arms);
         return new JunctionPlan(nodeId, node, JunctionKind.MultiCorner, collinear.Count > 0, arms, corners, collinear);
     }
 
@@ -253,7 +259,7 @@ public class ArmCutResolverTests
         layout.Nodes[0] = junction;
 
         var builtArms = new List<TaxiwayArm>();
-        foreach (var (id, bearing, lengthFt) in arms)
+        foreach ((int id, double bearing, double lengthFt) in arms)
         {
             double distNm = lengthFt / GeoMath.FeetPerNm;
             var terminal = new GroundNode
@@ -271,7 +277,7 @@ public class ArmCutResolverTests
             };
             layout.Edges.Add(edge);
 
-            var walk = TaxiwayWalk.Walk(edge, junction, []);
+            TaxiwayWalk.WalkResult walk = TaxiwayWalk.Walk(edge, junction, []);
             builtArms.Add(
                 new TaxiwayArm(
                     id,
@@ -293,10 +299,10 @@ public class ArmCutResolverTests
 
         var cornerSpecs = new List<CornerSpec>();
         int cornerId = 0;
-        foreach (var (armA, armB, radius) in corners)
+        foreach ((int armA, int armB, double radius) in corners)
         {
-            var a = builtArms.First(x => x.Id == armA);
-            var b = builtArms.First(x => x.Id == armB);
+            TaxiwayArm a = builtArms.First(x => x.Id == armA);
+            TaxiwayArm b = builtArms.First(x => x.Id == armB);
             double turn = FilletGeometry.ComputeTurnAngle(a.BearingFromJunctionDeg, b.BearingFromJunctionDeg);
             double ideal = FilletGeometry.ComputeIdealTangentFt(
                 turn,
@@ -343,7 +349,7 @@ public class ArmCutResolverTests
         layout.Nodes[0] = junction;
 
         var builtArms = new List<TaxiwayArm>();
-        foreach (var (id, bearing, lengthFt) in arms)
+        foreach ((int id, double bearing, double lengthFt) in arms)
         {
             double distNm = lengthFt / GeoMath.FeetPerNm;
             var terminal = new GroundNode
@@ -361,7 +367,7 @@ public class ArmCutResolverTests
             };
             layout.Edges.Add(edge);
 
-            var walk = TaxiwayWalk.Walk(edge, junction, []);
+            TaxiwayWalk.WalkResult walk = TaxiwayWalk.Walk(edge, junction, []);
             builtArms.Add(
                 new TaxiwayArm(
                     id,
@@ -383,10 +389,10 @@ public class ArmCutResolverTests
 
         var cornerSpecs = new List<CornerSpec>();
         int cornerId = 0;
-        foreach (var (armA, armB, ideal) in corners)
+        foreach ((int armA, int armB, double ideal) in corners)
         {
-            var a = builtArms.First(x => x.Id == armA);
-            var b = builtArms.First(x => x.Id == armB);
+            TaxiwayArm a = builtArms.First(x => x.Id == armA);
+            TaxiwayArm b = builtArms.First(x => x.Id == armB);
             double turn = FilletGeometry.ComputeTurnAngle(a.BearingFromJunctionDeg, b.BearingFromJunctionDeg);
             cornerSpecs.Add(
                 new CornerSpec(
@@ -439,7 +445,7 @@ public class ArmCutResolverTests
             Type = GroundNodeType.TaxiwayIntersection,
         };
 
-        foreach (var n in new[] { j1, j2, north, south })
+        foreach (GroundNode? n in new[] { j1, j2, north, south })
         {
             layout.Nodes[n.Id] = n;
         }
@@ -476,9 +482,9 @@ public class ArmCutResolverTests
         layout.Nodes[0] = junction;
 
         double distNm = 800.0 / GeoMath.FeetPerNm;
-        foreach (var (id, bearing) in new[] { (1, 0.0), (2, 100.0), (3, 200.0) })
+        foreach ((int id, double bearing) in new[] { (1, 0.0), (2, 100.0), (3, 200.0) })
         {
-            var pos = GeoMath.ProjectPoint(LatLon.Zero, new TrueHeading(bearing), distNm);
+            LatLon pos = GeoMath.ProjectPoint(LatLon.Zero, new TrueHeading(bearing), distNm);
             var node = new GroundNode
             {
                 Id = id,
@@ -514,7 +520,7 @@ public class ArmCutResolverTests
         double distNm = 800.0 / GeoMath.FeetPerNm;
         void AddArm(int nodeId, double bearingDeg, string taxiway)
         {
-            var pos = GeoMath.ProjectPoint(LatLon.Zero, new TrueHeading(bearingDeg), distNm);
+            LatLon pos = GeoMath.ProjectPoint(LatLon.Zero, new TrueHeading(bearingDeg), distNm);
             var node = new GroundNode
             {
                 Id = nodeId,

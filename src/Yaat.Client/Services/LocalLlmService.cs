@@ -94,7 +94,7 @@ public sealed class LocalLlmService : IDisposable
     {
         get
         {
-            var source = _config.ModelPath;
+            string source = _config.ModelPath;
             if (string.IsNullOrWhiteSpace(source))
             {
                 return false;
@@ -150,7 +150,7 @@ public sealed class LocalLlmService : IDisposable
                 return null;
             }
 
-            var model = _model;
+            LM? model = _model;
             if (model is null)
             {
                 return null;
@@ -182,8 +182,8 @@ public sealed class LocalLlmService : IDisposable
                 chat.Grammar = new Grammar(gbnfGrammar, "root");
             }
 
-            var result = await chat.SubmitAsync(userPrompt, ct).ConfigureAwait(false);
-            var raw = result?.Completion?.Trim();
+            TextGenerationResult result = await chat.SubmitAsync(userPrompt, ct).ConfigureAwait(false);
+            string? raw = result?.Completion?.Trim();
             Log.LogDebug("LLM raw output for transcript: {Raw}", raw);
             return string.IsNullOrEmpty(raw) ? null : raw;
         }
@@ -233,7 +233,7 @@ public sealed class LocalLlmService : IDisposable
                 return;
             }
 
-            var model = _model;
+            LM? model = _model;
             if (model is null)
             {
                 return;
@@ -269,8 +269,8 @@ public sealed class LocalLlmService : IDisposable
 
     private bool EnsureLoaded()
     {
-        var source = _config.ModelPath;
-        var gpuLayers = _config.GpuLayers;
+        string source = _config.ModelPath;
+        int gpuLayers = _config.GpuLayers;
 
         if (_model is not null && _loadedSource == source && _loadedGpuLayers == gpuLayers)
         {
@@ -298,7 +298,7 @@ public sealed class LocalLlmService : IDisposable
             {
                 _model = new LM(source, deviceConfig, loadingOptions: null, loadingProgress: null);
             }
-            else if (Uri.TryCreate(source, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https")
+            else if (Uri.TryCreate(source, UriKind.Absolute, out Uri? uri) && uri.Scheme is "http" or "https")
             {
                 _model = new LM(uri, storagePath: null, deviceConfig, loadingOptions: null, downloadingProgress: null, loadingProgress: null);
             }

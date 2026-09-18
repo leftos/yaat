@@ -47,7 +47,7 @@ public static class ScenarioCallsignExtractor
         // Pass 1: labeled quoted (strongest signal).
         foreach (Match m in LabeledQuoted.Matches(remarks))
         {
-            var cs = NormalizeCandidate(m.Groups[1].Value);
+            string cs = NormalizeCandidate(m.Groups[1].Value);
             if (cs.Length > 0 && seen.Add(cs))
             {
                 results.Add(cs);
@@ -57,7 +57,7 @@ public static class ScenarioCallsignExtractor
         // Pass 2: bare quoted (weaker but still reliable — any quoted token in remarks).
         foreach (Match m in BareQuoted.Matches(remarks))
         {
-            var cs = NormalizeCandidate(m.Groups[1].Value);
+            string cs = NormalizeCandidate(m.Groups[1].Value);
             if (cs.Length > 0 && seen.Add(cs))
             {
                 results.Add(cs);
@@ -74,18 +74,18 @@ public static class ScenarioCallsignExtractor
     /// </summary>
     private static string NormalizeCandidate(string raw)
     {
-        var trimmed = raw.Trim();
+        string trimmed = raw.Trim();
         if (trimmed.Length < 3 || trimmed.Length > 30)
         {
             return "";
         }
         // Only A-Z, space, hyphen. Reject anything with digits or punctuation — those aren't
         // telephony phrases, they're flight plan remarks (routes, frequencies, etc.).
-        foreach (var c in trimmed)
+        foreach (char c in trimmed)
         {
-            var isUpperLetter = c >= 'A' && c <= 'Z';
-            var isLowerLetter = c >= 'a' && c <= 'z';
-            var isSpaceOrHyphen = c == ' ' || c == '-';
+            bool isUpperLetter = c >= 'A' && c <= 'Z';
+            bool isLowerLetter = c >= 'a' && c <= 'z';
+            bool isSpaceOrHyphen = c == ' ' || c == '-';
             if (!(isUpperLetter || isLowerLetter || isSpaceOrHyphen))
             {
                 return "";

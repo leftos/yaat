@@ -1,10 +1,12 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -66,8 +68,8 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
     [Fact]
     public void Follower_SequencesOntoRunwayFinal_DescendingBehindLead()
     {
-        var navDb = TestVnasData.NavigationDb;
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (navDb is null || archive is null)
         {
             return;
@@ -75,15 +77,15 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
             engine.Replay(recording, 0);
-            var snapshot = archive.ReadSnapshotAt(740);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(740);
             if (snapshot is null)
             {
                 return;
@@ -91,10 +93,10 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             engine.ReplayRange((int)snapshot.ElapsedSeconds, 860, recording.Actions);
 
-            var follower = engine.FindAircraft(Follower);
+            AircraftState? follower = engine.FindAircraft(Follower);
             Assert.NotNull(follower);
 
-            var phase = follower.Phases?.CurrentPhase;
+            Phase? phase = follower.Phases?.CurrentPhase;
             Assert.True(
                 phase is FinalApproachPhase or LandingPhase,
                 $"Follower should be on the runway final, got {phase?.GetType().Name ?? "(null)"} at alt {follower.Altitude:F0}ft"
@@ -106,7 +108,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
             Assert.True(follower.Altitude < 850, $"Follower should have descended below 850 ft, was {follower.Altitude:F0}ft");
 
             // Stayed genuinely behind the landing traffic (never cut in front).
-            var lead = engine.FindAircraft(Leader);
+            AircraftState? lead = engine.FindAircraft(Leader);
             if (lead is not null && !lead.IsOnGround)
             {
                 var threshold = new LatLon(navDb.GetRunway("KOAK", "28R")!.ThresholdLatitude, navDb.GetRunway("KOAK", "28R")!.ThresholdLongitude);
@@ -125,7 +127,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
     [Fact]
     public void Follower_LandsAfterClearedToLand()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -133,15 +135,15 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
             engine.Replay(recording, 0);
-            var snapshot = archive.ReadSnapshotAt(740);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(740);
             if (snapshot is null)
             {
                 return;
@@ -149,7 +151,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             engine.ReplayRange((int)snapshot.ElapsedSeconds, 830, recording.Actions);
 
-            var follower = engine.FindAircraft(Follower);
+            AircraftState? follower = engine.FindAircraft(Follower);
             Assert.NotNull(follower);
             Assert.True(
                 follower.Phases?.CurrentPhase is FinalApproachPhase,
@@ -157,7 +159,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
             );
             Assert.Equal("28R", follower.Phases?.AssignedRunway?.Designator);
 
-            var clandResult = engine.SendCommand(Follower, "CLAND");
+            CommandResult clandResult = engine.SendCommand(Follower, "CLAND");
             Assert.True(clandResult.Success, $"CLAND should succeed once the follower is on final: {clandResult.Message}");
 
             // Physics-only ticks: do not re-apply the recording (its DEL at t=929 would
@@ -198,7 +200,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
     [Fact]
     public void Follower_LandsOnArmedClearance_ClandRunwayWhileFollowing()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -206,15 +208,15 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
             engine.Replay(recording, 0);
-            var snapshot = archive.ReadSnapshotAt(740);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(740);
             if (snapshot is null)
             {
                 return;
@@ -224,7 +226,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
 
             // Advance a few seconds so FOLLOW (t=742) installs VfrFollowPhase.
             engine.ReplayRange(start, 760, recording.Actions);
-            var follower = engine.FindAircraft(Follower);
+            AircraftState? follower = engine.FindAircraft(Follower);
             Assert.NotNull(follower);
             Assert.True(
                 follower.Phases?.CurrentPhase is VfrFollowPhase,
@@ -233,7 +235,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
             Assert.Null(follower.Phases?.AssignedRunway);
 
             // Clear it to land 28R while it has no runway of its own — arms the clearance.
-            var cland = engine.SendCommand(Follower, "CLAND 28R");
+            CommandResult cland = engine.SendCommand(Follower, "CLAND 28R");
             Assert.True(cland.Success, $"CLAND 28R should arm while following: {cland.Message}");
             Assert.Equal(ClearanceType.ClearedToLand, follower.Phases?.LandingClearance);
 
@@ -288,11 +290,11 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
             return;
         }
 
-        var follower = MakeAirborneVfr("N456CD", "C172");
+        AircraftState follower = MakeAirborneVfr("N456CD", "C172");
         follower.Approach.HasReportedTrafficInSight = true;
 
-        var superLead = MakeAirborneVfr("BAW286", "A388");
-        var jetLead = MakeAirborneVfr("UAL77", "B738");
+        AircraftState superLead = MakeAirborneVfr("BAW286", "A388");
+        AircraftState jetLead = MakeAirborneVfr("UAL77", "B738");
 
         Func<string, AircraftState?> lookup = cs =>
             cs == "N456CD" ? follower
@@ -300,7 +302,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
             : cs == "UAL77" ? jetLead
             : null;
 
-        var superResult = CommandDispatcher.Dispatch(
+        CommandResult superResult = CommandDispatcher.Dispatch(
             new FollowCommand("BAW286", false),
             follower,
             TestDispatch.Context(System.Random.Shared, findAircraft: lookup)
@@ -308,7 +310,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
         Assert.False(superResult.Success, "FOLLOW behind a super should be rejected");
         Assert.Contains("super", superResult.Message, System.StringComparison.OrdinalIgnoreCase);
 
-        var jetResult = CommandDispatcher.Dispatch(
+        CommandResult jetResult = CommandDispatcher.Dispatch(
             new FollowCommand("UAL77", false),
             follower,
             TestDispatch.Context(System.Random.Shared, findAircraft: lookup)

@@ -41,7 +41,7 @@ public class WindowGeometryHelperTests
         window.Close();
         Dispatcher.UIThread.RunJobs();
 
-        var saved = new UserPreferences().GetWindowGeometry(windowName);
+        SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);
         Assert.NotNull(saved);
         Assert.Equal(240, saved.X);
         Assert.Equal(180, saved.Y);
@@ -84,7 +84,7 @@ public class WindowGeometryHelperTests
         window.Close();
         Dispatcher.UIThread.RunJobs();
 
-        var saved = new UserPreferences().GetWindowGeometry(windowName);
+        SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);
         Assert.NotNull(saved);
         Assert.Equal(240, saved.X);
         Assert.Equal(180, saved.Y);
@@ -115,7 +115,7 @@ public class WindowGeometryHelperTests
         // Window stays open — simulating Velopack restart that never fires the
         // window-closing pipeline. Reload prefs from disk to verify the flush
         // wrote through.
-        var saved = new UserPreferences().GetWindowGeometry(windowName);
+        SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);
         Assert.NotNull(saved);
         Assert.Equal(150, saved.X);
         Assert.Equal(75, saved.Y);
@@ -156,8 +156,8 @@ public class WindowGeometryHelperTests
         WindowGeometryHelper.FlushAllSavedGeometries();
 
         var reloaded = new UserPreferences();
-        var savedFirst = reloaded.GetWindowGeometry(firstName);
-        var savedSecond = reloaded.GetWindowGeometry(secondName);
+        SavedWindowGeometry? savedFirst = reloaded.GetWindowGeometry(firstName);
+        SavedWindowGeometry? savedSecond = reloaded.GetWindowGeometry(secondName);
 
         Assert.NotNull(savedFirst);
         Assert.Equal(50, savedFirst.X);
@@ -195,7 +195,7 @@ public class WindowGeometryHelperTests
 
         helper.FlushSavedGeometry();
 
-        var saved = new UserPreferences().GetWindowGeometry(windowName);
+        SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);
         Assert.NotNull(saved);
         Assert.Equal(-7, saved.X);
         Assert.Equal(0, saved.Y);
@@ -225,7 +225,7 @@ public class WindowGeometryHelperTests
 
         helper.FlushSavedGeometry();
 
-        var saved = new UserPreferences().GetWindowGeometry(windowName);
+        SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);
         Assert.NotNull(saved);
         Assert.Equal(-7, saved.X);
         Assert.Equal(610, saved.Width);
@@ -268,7 +268,7 @@ public class WindowGeometryHelperTests
         // other tests, and each writes its own UserPreferences snapshot over the shared file.
         helper.FlushSavedGeometry();
 
-        var saved = new UserPreferences().GetWindowGeometry(windowName);
+        SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);
         Assert.NotNull(saved);
         Assert.Equal(-7, saved.X);
         Assert.Equal(610, saved.Width);

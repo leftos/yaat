@@ -47,21 +47,21 @@ public class Issue311CrossThenDeleteTests(ITestOutputHelper output)
     /// </summary>
     private (SimulationEngine Engine, AircraftState Aircraft)? SetupLandingAtSfo19L()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return null;
         }
 
-        var runway = NavigationDatabase.Instance.GetRunway("SFO", "19L");
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("SFO", "19L");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         if (runway is null || layout is null)
         {
             return null;
         }
 
         double reciprocal = (runway.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 1.0);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 1.0);
 
         var aircraft = new AircraftState
         {
@@ -159,7 +159,7 @@ public class Issue311CrossThenDeleteTests(ITestOutputHelper output)
 
             // Inspect the phase BEFORE the sweep: the trigger fires during physics, so the aircraft
             // can leave CrossingRunwayPhase and be queued for delete within the same tick.
-            var beforeSweep = engine.FindAircraft(Callsign);
+            AircraftState? beforeSweep = engine.FindAircraft(Callsign);
             if (beforeSweep?.Phases?.CurrentPhase is CrossingRunwayPhase)
             {
                 sawCrossing = true;
@@ -183,11 +183,11 @@ public class Issue311CrossThenDeleteTests(ITestOutputHelper output)
     [Fact]
     public void CrossThenDelete_ParsesAsTwoBlocks()
     {
-        var compound = CommandParser.ParseCompound("CROSS 19R; DEL");
+        ParseResult<CompoundCommand> compound = CommandParser.ParseCompound("CROSS 19R; DEL");
         Assert.True(compound.IsSuccess, compound.Reason);
 
         Assert.Equal(2, compound.Value!.Blocks.Count);
-        var cross = Assert.IsType<CrossRunwayCommand>(compound.Value.Blocks[0].Commands[0]);
+        CrossRunwayCommand cross = Assert.IsType<CrossRunwayCommand>(compound.Value.Blocks[0].Commands[0]);
         Assert.Equal("19R", Assert.Single(cross.RunwayIds));
         Assert.IsType<DeleteCommand>(compound.Value.Blocks[1].Commands[0]);
     }
@@ -198,18 +198,18 @@ public class Issue311CrossThenDeleteTests(ITestOutputHelper output)
     [Fact]
     public void CrossThenDelete_FromHoldShort_DeletesAfterCrossing()
     {
-        var setup = SetupLandingAtSfo19L();
+        (SimulationEngine Engine, AircraftState Aircraft)? setup = SetupLandingAtSfo19L();
         if (setup is null)
         {
             return;
         }
 
-        var (engine, ac) = setup.Value;
+        (SimulationEngine? engine, AircraftState? ac) = setup.Value;
 
-        var holding = TickToHoldShortOfParallel(engine, ac);
+        HoldingShortPhase? holding = TickToHoldShortOfParallel(engine, ac);
         Assert.NotNull(holding);
 
-        var result = engine.SendCommand(Callsign, "CROSS 19R; DEL");
+        CommandResult result = engine.SendCommand(Callsign, "CROSS 19R; DEL");
         Assert.True(result.Success, $"CROSS 19R; DEL should dispatch: {result.Message}");
         Assert.False(ac.Ground.PendingAutoDelete, "DEL must not apply at dispatch time — it is chained behind the crossing");
 
@@ -224,17 +224,17 @@ public class Issue311CrossThenDeleteTests(ITestOutputHelper output)
     [Fact]
     public void CrossThenDelete_PreClearedWhileTaxiing_DeletesAfterCrossing()
     {
-        var setup = SetupLandingAtSfo19L();
+        (SimulationEngine Engine, AircraftState Aircraft)? setup = SetupLandingAtSfo19L();
         if (setup is null)
         {
             return;
         }
 
-        var (engine, ac) = setup.Value;
+        (SimulationEngine? engine, AircraftState? ac) = setup.Value;
 
         Assert.True(TickToTaxiTowardParallel(engine, ac), "aircraft never reached the auto-pull-up taxi leg toward 19R");
 
-        var result = engine.SendCommand(Callsign, "CROSS 19R; DEL");
+        CommandResult result = engine.SendCommand(Callsign, "CROSS 19R; DEL");
         Assert.True(result.Success, $"CROSS 19R; DEL should dispatch: {result.Message}");
         Assert.False(ac.Ground.PendingAutoDelete, "DEL must not apply at dispatch time — it is chained behind the crossing");
 
@@ -249,18 +249,18 @@ public class Issue311CrossThenDeleteTests(ITestOutputHelper output)
     [Fact]
     public void CrossThenDelete_QueuedBlockIsMarkedAndSurvivesSnapshotRoundTrip()
     {
-        var setup = SetupLandingAtSfo19L();
+        (SimulationEngine Engine, AircraftState Aircraft)? setup = SetupLandingAtSfo19L();
         if (setup is null)
         {
             return;
         }
 
-        var (engine, ac) = setup.Value;
+        (SimulationEngine? engine, AircraftState? ac) = setup.Value;
 
         Assert.NotNull(TickToHoldShortOfParallel(engine, ac));
         Assert.True(engine.SendCommand(Callsign, "CROSS 19R; DEL").Success);
 
-        var queued = Assert.Single(ac.Queue.Blocks);
+        CommandBlock queued = Assert.Single(ac.Queue.Blocks);
         Assert.True(queued.HasDeleteCommand, "the queued DEL block must be flagged so NODEL and the datablock marker can find it");
         Assert.Equal(BlockTriggerType.AfterRunwayCrossing, queued.Trigger?.Type);
 
@@ -276,18 +276,18 @@ public class Issue311CrossThenDeleteTests(ITestOutputHelper output)
     [Fact]
     public void Nodel_CancelsQueuedCrossDelete()
     {
-        var setup = SetupLandingAtSfo19L();
+        (SimulationEngine Engine, AircraftState Aircraft)? setup = SetupLandingAtSfo19L();
         if (setup is null)
         {
             return;
         }
 
-        var (engine, ac) = setup.Value;
+        (SimulationEngine? engine, AircraftState? ac) = setup.Value;
 
         Assert.NotNull(TickToHoldShortOfParallel(engine, ac));
         Assert.True(engine.SendCommand(Callsign, "CROSS 19R; DEL").Success);
 
-        var nodel = engine.SendCommand(Callsign, "NODEL");
+        CommandResult nodel = engine.SendCommand(Callsign, "NODEL");
         Assert.True(nodel.Success, $"NODEL should dispatch: {nodel.Message}");
         Assert.DoesNotContain(ac.Queue.Blocks, b => b.HasDeleteCommand);
 
@@ -295,7 +295,7 @@ public class Issue311CrossThenDeleteTests(ITestOutputHelper output)
         for (int t = 1; t <= 300; t++)
         {
             engine.TickOneSecond();
-            var live = engine.FindAircraft(Callsign);
+            AircraftState? live = engine.FindAircraft(Callsign);
             if (live?.Phases?.CurrentPhase is CrossingRunwayPhase)
             {
                 sawCrossing = true;

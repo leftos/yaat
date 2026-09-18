@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -28,7 +29,7 @@ public class N7ljCrossingRunwayInfoTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -43,8 +44,8 @@ public class N7ljCrossingRunwayInfoTests(ITestOutputHelper output)
     [Fact]
     public void CrossingRunwayPhase_ReportsCrossingRunwayId_NotDepartureRunway()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -55,7 +56,7 @@ public class N7ljCrossingRunwayInfoTests(ITestOutputHelper output)
         // parallel pair from SIG6 parking), still 20+ seconds before completing.
         engine.Replay(recording, 1390);
 
-        var ac = engine.FindAircraft("N7LJ");
+        AircraftState? ac = engine.FindAircraft("N7LJ");
         Assert.NotNull(ac);
 
         var crossing = ac.Phases?.CurrentPhase as CrossingRunwayPhase;

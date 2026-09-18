@@ -39,7 +39,7 @@ public class IssueN513sjNimiRvSidCifpMissTests
     [Fact]
     public void IsRadarVectorsSidWithoutLateralPath_DetectsNimiAndOak6FromNavData()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
@@ -63,7 +63,7 @@ public class IssueN513sjNimiRvSidCifpMissTests
     [Fact]
     public void ResolveDepartureRoute_NimiRvSid_WhenCifpMissing_HoldsRunwayHeadingNotDirectToFix()
     {
-        var missDb = BuildCifpMissNavDb();
+        NavigationDatabase? missDb = BuildCifpMissNavDb();
         if (missDb is null)
         {
             return;
@@ -76,10 +76,10 @@ public class IssueN513sjNimiRvSidCifpMissTests
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(missDb);
-        var ac = MakeOakDeparture("NIMI6 OAK V6 SAC", "28R", 292.0);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(missDb);
+        AircraftState ac = MakeOakDeparture("NIMI6 OAK V6 SAC", "28R", 292.0);
 
-        var result = DepartureClearanceHandler.ResolveDepartureRoute(new DefaultDeparture(), ac);
+        DepartureRouteResult? result = DepartureClearanceHandler.ResolveDepartureRoute(new DefaultDeparture(), ac);
 
         Assert.NotNull(result);
         Assert.True(result.RvSidHoldRunwayHeading, "RV SID with unresolvable heading must hold runway heading, not navigate direct.");
@@ -100,7 +100,7 @@ public class IssueN513sjNimiRvSidCifpMissTests
     {
         const double fieldElev = 9.0;
         const double runwayTrueHeading = 292.0;
-        var runway = TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: runwayTrueHeading, elevationFt: fieldElev);
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: runwayTrueHeading, elevationFt: fieldElev);
         var ac = new AircraftState
         {
             Callsign = "N513SJ",
@@ -207,14 +207,14 @@ public class IssueN513sjNimiRvSidCifpMissTests
     /// </summary>
     private static NavigationDatabase? BuildCifpMissNavDb()
     {
-        var navDataPath = Path.Combine(AppContext.BaseDirectory, "TestData", "NavData.dat");
-        var cifpPath = TestVnasData.GetCifpPath();
+        string navDataPath = Path.Combine(AppContext.BaseDirectory, "TestData", "NavData.dat");
+        string? cifpPath = TestVnasData.GetCifpPath();
         if (!File.Exists(navDataPath) || cifpPath is null)
         {
             return null;
         }
 
-        var navData = NavDataSet.Parser.ParseFrom(File.ReadAllBytes(navDataPath));
+        NavDataSet navData = NavDataSet.Parser.ParseFrom(File.ReadAllBytes(navDataPath));
         var db = new NavigationDatabase(navData, cifpPath, artccsBaseDir: "", supplementaryCifpFilePaths: null);
 
         // Guard: NavData must still carry NIMI (the whole premise of the degradation path).

@@ -62,7 +62,7 @@ public static class NavDataPathResolver
             }
 
             options ??= new NavDataResolveOptions();
-            var (path, serial) = ResolveCore(options);
+            (string? path, long? serial) = ResolveCore(options);
             _cachedPath = path;
             _resolvedNavDataSerial = serial;
             _ensured = true;
@@ -88,7 +88,7 @@ public static class NavDataPathResolver
         // and costs a TLS round-trip (~240 ms) on every process start. Callers that resolve
         // offline — the test assembly above all — must not pay that, nor depend on VATSIM being
         // reachable. Downstream, a null config simply means "no live serial to compare against".
-        var wantsDownload = options.AllowDownload && !IsDownloadSkipped();
+        bool wantsDownload = options.AllowDownload && !IsDownloadSkipped();
 
         VnasConfig? config = null;
         if (wantsDownload)
@@ -104,15 +104,15 @@ public static class NavDataPathResolver
             }
         }
 
-        var cachePath = GetCachePath();
-        var cachedSerial = ReadCacheManifestSerial();
+        string cachePath = GetCachePath();
+        long? cachedSerial = ReadCacheManifestSerial();
 
         if (config is not null)
         {
             bool needsDownload = !File.Exists(cachePath) || cachedSerial != config.NavDataSerial;
             if (needsDownload)
             {
-                var downloaded = DownloadNavDataAsync(config, cachePath, CancellationToken.None).GetAwaiter().GetResult();
+                bool downloaded = DownloadNavDataAsync(config, cachePath, CancellationToken.None).GetAwaiter().GetResult();
                 if (downloaded)
                 {
                     UpdateCacheManifestSerial(config.NavDataSerial);
@@ -121,8 +121,8 @@ public static class NavDataPathResolver
             }
         }
 
-        var path = PickResolvedPath(options, config, cachePath, cachedSerial);
-        var serial = ResolveSerialForPath(path, options, config, cachePath, cachedSerial);
+        string? path = PickResolvedPath(options, config, cachePath, cachedSerial);
+        long? serial = ResolveSerialForPath(path, options, config, cachePath, cachedSerial);
         return (path, serial);
     }
 
@@ -178,9 +178,9 @@ public static class NavDataPathResolver
             return null;
         }
 
-        var bundledSerial = ReadBundledManifestSerial(options);
-        var bundledCycle = ReadBundledManifestCycle(options);
-        var currentCycle = AiracCycle.GetCurrentCycleId();
+        long? bundledSerial = ReadBundledManifestSerial(options);
+        string? bundledCycle = ReadBundledManifestCycle(options);
+        string currentCycle = AiracCycle.GetCurrentCycleId();
 
         if (bundledCycle is not null && bundledCycle != currentCycle)
         {
@@ -212,7 +212,7 @@ public static class NavDataPathResolver
 
     private static bool IsDownloadSkipped()
     {
-        var v = Environment.GetEnvironmentVariable("YAAT_SKIP_NAVDATA_DOWNLOAD");
+        string? v = Environment.GetEnvironmentVariable("YAAT_SKIP_NAVDATA_DOWNLOAD");
         return string.Equals(v, "1", StringComparison.Ordinal) || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -220,7 +220,7 @@ public static class NavDataPathResolver
     {
         Interlocked.Increment(ref _configFetchCount);
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        var json = await http.GetStringAsync(ConfigUrl, cancellationToken).ConfigureAwait(false);
+        string json = await http.GetStringAsync(ConfigUrl, cancellationToken).ConfigureAwait(false);
         return JsonSerializer.Deserialize<VnasConfig>(json, JsonOptions);
     }
 
@@ -238,7 +238,7 @@ public static class NavDataPathResolver
             Console.Error.WriteLine($"[NavDataPathResolver] Downloading NavData.dat (serial {config.NavDataSerial})...");
 
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
-            var bytes = await http.GetByteArrayAsync(config.NavDataUrl, cancellationToken).ConfigureAwait(false);
+            byte[] bytes = await http.GetByteArrayAsync(config.NavDataUrl, cancellationToken).ConfigureAwait(false);
             await File.WriteAllBytesAsync(cachePath, bytes, cancellationToken).ConfigureAwait(false);
 
             Log.LogInformation("NavData.dat cached ({Size:N0} bytes)", bytes.Length);
@@ -254,19 +254,19 @@ public static class NavDataPathResolver
 
     private static long? ReadCacheManifestSerial()
     {
-        var manifest = ReadCacheManifest();
+        CacheManifest? manifest = ReadCacheManifest();
         return manifest?.NavDataSerial;
     }
 
     private static void UpdateCacheManifestSerial(long navDataSerial)
     {
-        var path = GetCacheManifestPath();
+        string path = GetCacheManifestPath();
         CacheManifest manifest;
         if (File.Exists(path))
         {
             try
             {
-                var json = File.ReadAllText(path);
+                string json = File.ReadAllText(path);
                 manifest = JsonSerializer.Deserialize<CacheManifest>(json, JsonOptions) ?? new CacheManifest();
             }
             catch
@@ -289,7 +289,7 @@ public static class NavDataPathResolver
 
     private static CacheManifest? ReadCacheManifest()
     {
-        var path = GetCacheManifestPath();
+        string path = GetCacheManifestPath();
         if (!File.Exists(path))
         {
             return null;
@@ -297,7 +297,7 @@ public static class NavDataPathResolver
 
         try
         {
-            var json = File.ReadAllText(path);
+            string json = File.ReadAllText(path);
             return JsonSerializer.Deserialize<CacheManifest>(json, JsonOptions);
         }
         catch (Exception ex)
@@ -309,13 +309,13 @@ public static class NavDataPathResolver
 
     private static long? ReadBundledManifestSerial(NavDataResolveOptions options)
     {
-        var doc = ReadBundledManifest(options);
+        NavDataManifest? doc = ReadBundledManifest(options);
         return doc?.NavDataSerial;
     }
 
     private static string? ReadBundledManifestCycle(NavDataResolveOptions options)
     {
-        var doc = ReadBundledManifest(options);
+        NavDataManifest? doc = ReadBundledManifest(options);
         return doc?.AiracCycle;
     }
 
@@ -328,7 +328,7 @@ public static class NavDataPathResolver
 
         try
         {
-            var json = File.ReadAllText(manifestPath);
+            string json = File.ReadAllText(manifestPath);
             return JsonSerializer.Deserialize<NavDataManifest>(json, JsonOptions);
         }
         catch (Exception ex)

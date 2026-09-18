@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -48,8 +49,8 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
 
     private SimulationEngine? SpawnSwa1360()
     {
-        var scenarioJson = LoadScenarioJson();
-        var engine = BuildEngine();
+        string? scenarioJson = LoadScenarioJson();
+        SimulationEngine? engine = BuildEngine();
         if (scenarioJson is null || engine is null)
         {
             return null;
@@ -74,22 +75,22 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
     [Fact]
     public void HeadingOnlyPush_DuringActivePushback_UpdatesFaceDirection()
     {
-        var engine = SpawnSwa1360();
+        SimulationEngine? engine = SpawnSwa1360();
         if ((engine is null) || (LoadSfo() is not { } layout))
         {
             return;
         }
 
-        var ac = engine.FindAircraft("SWA1360");
+        AircraftState? ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
-        var exit = layout.FindExitByTaxiway(ac.Position, "Y") ?? throw new InvalidOperationException("no taxiway Y exit near B12");
+        GroundNode exit = layout.FindExitByTaxiway(ac.Position, "Y") ?? throw new InvalidOperationException("no taxiway Y exit near B12");
         double northbound = Assert.NotNull(layout.GetEdgeBearingForTaxiway(exit, "Y", MagneticDeclination.MagneticToTrue(360.0, ac.Position)));
         double southbound = Assert.NotNull(layout.GetEdgeBearingForTaxiway(exit, "Y", MagneticDeclination.MagneticToTrue(180.0, ac.Position)));
         _output.WriteLine($"taxiway Y at node {exit.Id}: northbound {northbound:F1}°, southbound {southbound:F1}° true");
 
-        var result = engine.SendCommand("SWA1360", PushYankeeFacingNorth);
+        CommandResult result = engine.SendCommand("SWA1360", PushYankeeFacingNorth);
         Assert.True(result.Success, $"Initial PUSH failed: {result.Message}");
-        var pushOff = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        PushbackPhase pushOff = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
         Assert.True(pushOff.StartsAtStand, "the first move off B12 is the stand push-off");
 
         // A few seconds in, the push-off is still running: nothing has turned yet.
@@ -99,7 +100,7 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
         }
         Assert.Same(pushOff, ac.Phases?.CurrentPhase);
 
-        var amend = engine.SendCommand("SWA1360", "PUSH FACE S");
+        CommandResult amend = engine.SendCommand("SWA1360", "PUSH FACE S");
         _output.WriteLine($"Amend result: success={amend.Success} msg={amend.Message}");
         Assert.True(amend.Success, $"PUSH FACE S amendment failed: {amend.Message}");
         Assert.Same(pushOff, ac.Phases?.CurrentPhase);
@@ -132,20 +133,20 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
     [Fact]
     public void NonHeadingPush_DuringActivePushback_Rejected()
     {
-        var engine = SpawnSwa1360();
+        SimulationEngine? engine = SpawnSwa1360();
         if (engine is null)
         {
             return;
         }
 
-        var ac = engine.FindAircraft("SWA1360");
+        AircraftState? ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
 
         Assert.True(engine.SendCommand("SWA1360", PushYankeeFacingNorth).Success);
         Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
 
         // Try a non-heading-only PUSH — should fail without disturbing the active phase
-        var bad = engine.SendCommand("SWA1360", "PUSH @B12");
+        CommandResult bad = engine.SendCommand("SWA1360", "PUSH @B12");
         _output.WriteLine($"Bad PUSH result: success={bad.Success} msg={bad.Message}");
         Assert.False(bad.Success, "Non-heading-only PUSH during active pushback should fail");
         Assert.Contains("face/tail amendment", bad.Message, StringComparison.OrdinalIgnoreCase);
@@ -159,22 +160,22 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
     [Fact]
     public void HeadingOnlyPush_DuringAStandPushback_Refused()
     {
-        var engine = SpawnSwa1360();
+        SimulationEngine? engine = SpawnSwa1360();
         if (engine is null)
         {
             return;
         }
 
-        var ac = engine.FindAircraft("SWA1360");
+        AircraftState? ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
-        var push = engine.SendCommand("SWA1360", "PUSH @B13");
+        CommandResult push = engine.SendCommand("SWA1360", "PUSH @B13");
         Assert.True(push.Success, $"PUSH @B13 failed: {push.Message}");
-        var pushOff = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        PushbackPhase pushOff = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
         Assert.True(pushOff.StartsAtStand, "the first move off B12 is the stand push-off");
         engine.TickOneSecond();
         Assert.Same(pushOff, ac.Phases?.CurrentPhase);
 
-        var amend = engine.SendCommand("SWA1360", "PUSH FACE S");
+        CommandResult amend = engine.SendCommand("SWA1360", "PUSH FACE S");
         _output.WriteLine($"Amend result: success={amend.Success} msg={amend.Message}");
 
         Assert.False(amend.Success, "a facing change on a push to a stand was accepted");
@@ -189,17 +190,17 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
     [Fact]
     public void HeadingOnlyPush_AfterThePushOffCompleted_Rejected()
     {
-        var engine = SpawnSwa1360();
+        SimulationEngine? engine = SpawnSwa1360();
         if (engine is null)
         {
             return;
         }
 
-        var ac = engine.FindAircraft("SWA1360");
+        AircraftState? ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
 
         Assert.True(engine.SendCommand("SWA1360", PushYankeeFacingNorth).Success);
-        var pushOff = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        PushbackPhase pushOff = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
         Assert.True(pushOff.StartsAtStand, "the first move off B12 is the stand push-off");
 
         bool pastPushOff = false;
@@ -210,10 +211,10 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
         }
 
         Assert.True(pastPushOff, "test setup: the push-off never finished");
-        var running = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        PushbackPhase running = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
         Assert.False(running.StartsAtStand);
 
-        var late = engine.SendCommand("SWA1360", "PUSH FACE E");
+        CommandResult late = engine.SendCommand("SWA1360", "PUSH FACE E");
         _output.WriteLine($"Late amend result: success={late.Success} msg={late.Message} phase={ac.Phases?.CurrentPhase?.Name ?? "null"}");
 
         Assert.False(late.Success, "a facing change after the push-off was accepted");
@@ -228,24 +229,24 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
     [Fact]
     public void PushFaceEastAmendedToWest_DuringThePushOff_EndsOnTrueWest()
     {
-        var engine = SpawnSwa1360();
+        SimulationEngine? engine = SpawnSwa1360();
         if (engine is null)
         {
             return;
         }
 
-        var ac = engine.FindAircraft("SWA1360");
+        AircraftState? ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
 
-        var push = engine.SendCommand("SWA1360", "PUSH FACE E");
+        CommandResult push = engine.SendCommand("SWA1360", "PUSH FACE E");
         Assert.True(push.Success, $"PUSH FACE E failed: {push.Message}");
-        var pushOff = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        PushbackPhase pushOff = Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
         engine.TickOneSecond();
         engine.TickOneSecond();
         engine.TickOneSecond();
         Assert.Same(pushOff, ac.Phases?.CurrentPhase);
 
-        var amend = engine.SendCommand("SWA1360", "PUSH FACE W");
+        CommandResult amend = engine.SendCommand("SWA1360", "PUSH FACE W");
         _output.WriteLine($"Amend result: success={amend.Success} msg={amend.Message}");
         Assert.True(amend.Success, $"PUSH FACE W amendment failed: {amend.Message}");
         Assert.Same(pushOff, ac.Phases?.CurrentPhase);
@@ -264,16 +265,16 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
     [Fact]
     public void PushFaceEast_EndsOnTheTrueHeadingOfMagneticEast()
     {
-        var engine = SpawnSwa1360();
+        SimulationEngine? engine = SpawnSwa1360();
         if (engine is null)
         {
             return;
         }
 
-        var ac = engine.FindAircraft("SWA1360");
+        AircraftState? ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
 
-        var push = engine.SendCommand("SWA1360", "PUSH FACE E");
+        CommandResult push = engine.SendCommand("SWA1360", "PUSH FACE E");
         Assert.True(push.Success, $"PUSH FACE E failed: {push.Message}");
         Assert.True(TickUntilHolding(engine, ac), $"the push never finished; phase={ac.Phases?.CurrentPhase?.Name ?? "null"}");
 

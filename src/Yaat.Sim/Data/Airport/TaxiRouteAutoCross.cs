@@ -27,7 +27,7 @@ public static class TaxiRouteAutoCross
     /// </summary>
     public static void Apply(TaxiRoute route, bool autoCross)
     {
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             if (hs.Reason != HoldShortReason.RunwayCrossing)
             {

@@ -8,40 +8,40 @@ public class ScratchpadParserTests
     [Fact]
     public void BareSp1_ParsesToClearCommand()
     {
-        var result = CommandParser.Parse("SP1");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SP1");
 
         Assert.True(result.IsSuccess);
-        var cmd = Assert.IsType<Scratchpad1Command>(result.Value);
+        Scratchpad1Command cmd = Assert.IsType<Scratchpad1Command>(result.Value);
         Assert.Equal("", cmd.Text);
     }
 
     [Fact]
     public void BareSp2_ParsesToClearCommand()
     {
-        var result = CommandParser.Parse("SP2");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SP2");
 
         Assert.True(result.IsSuccess);
-        var cmd = Assert.IsType<Scratchpad2Command>(result.Value);
+        Scratchpad2Command cmd = Assert.IsType<Scratchpad2Command>(result.Value);
         Assert.Equal("", cmd.Text);
     }
 
     [Fact]
     public void Sp1WithArg_StillWorks()
     {
-        var result = CommandParser.Parse("SP1 ABC");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SP1 ABC");
 
         Assert.True(result.IsSuccess);
-        var cmd = Assert.IsType<Scratchpad1Command>(result.Value);
+        Scratchpad1Command cmd = Assert.IsType<Scratchpad1Command>(result.Value);
         Assert.Equal("ABC", cmd.Text);
     }
 
     [Fact]
     public void Sp2WithArg_StillWorks()
     {
-        var result = CommandParser.Parse("SP2 XYZ");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SP2 XYZ");
 
         Assert.True(result.IsSuccess);
-        var cmd = Assert.IsType<Scratchpad2Command>(result.Value);
+        Scratchpad2Command cmd = Assert.IsType<Scratchpad2Command>(result.Value);
         Assert.Equal("XYZ", cmd.Text);
     }
 }
@@ -55,7 +55,7 @@ public class ScratchpadUndoTests
     [Fact]
     public void Sp1_SetThenClearThenClearAgain_RestoresPrevious()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         TrackEngine.HandleScratchpad1(ac, "ABC", MaxLen);
         TrackEngine.HandleScratchpad1(ac, "", MaxLen);
@@ -68,7 +68,7 @@ public class ScratchpadUndoTests
     [Fact]
     public void Sp1_SetThenSetSameValue_RestoresPrevious()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         TrackEngine.HandleScratchpad1(ac, "ABC", MaxLen);
         TrackEngine.HandleScratchpad1(ac, "ABC", MaxLen);
@@ -79,7 +79,7 @@ public class ScratchpadUndoTests
     [Fact]
     public void Sp1_SetTwoValues_ToggleSecondRestoresFirst()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         TrackEngine.HandleScratchpad1(ac, "ABC", MaxLen);
         TrackEngine.HandleScratchpad1(ac, "XYZ", MaxLen);
@@ -91,7 +91,7 @@ public class ScratchpadUndoTests
     [Fact]
     public void Sp1_ClearFromNull_NoopThenUndoRestoresNull()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         // Initial state: null, not cleared
         TrackEngine.HandleScratchpad1(ac, "", MaxLen);
@@ -105,7 +105,7 @@ public class ScratchpadUndoTests
     [Fact]
     public void Sp2_SetThenClearThenClearAgain_RestoresPrevious()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         TrackEngine.HandleScratchpad2(ac, "XYZ", MaxLen);
         TrackEngine.HandleScratchpad2(ac, "", MaxLen);
@@ -117,7 +117,7 @@ public class ScratchpadUndoTests
     [Fact]
     public void Sp2_SetThenSetSameValue_RestoresPrevious()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         TrackEngine.HandleScratchpad2(ac, "XYZ", MaxLen);
         TrackEngine.HandleScratchpad2(ac, "XYZ", MaxLen);
@@ -128,7 +128,7 @@ public class ScratchpadUndoTests
     [Fact]
     public void Sp2_SetTwoValues_ToggleSecondRestoresFirst()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         TrackEngine.HandleScratchpad2(ac, "ABC", MaxLen);
         TrackEngine.HandleScratchpad2(ac, "XYZ", MaxLen);
@@ -145,9 +145,9 @@ public class ScratchpadLengthLimitTests
     [Fact]
     public void Sp1_AtLimit_Accepted()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
-        var result = TrackEngine.HandleScratchpad1(ac, "ABC", 3);
+        CommandResult result = TrackEngine.HandleScratchpad1(ac, "ABC", 3);
 
         Assert.True(result.Success);
         Assert.Equal("ABC", ac.Stars.Scratchpad1);
@@ -156,10 +156,10 @@ public class ScratchpadLengthLimitTests
     [Fact]
     public void Sp1_OverLimit_RejectedAndUnchanged()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         TrackEngine.HandleScratchpad1(ac, "ABC", 3);
 
-        var result = TrackEngine.HandleScratchpad1(ac, "N346G", 3);
+        CommandResult result = TrackEngine.HandleScratchpad1(ac, "N346G", 3);
 
         Assert.False(result.Success);
         Assert.Equal("FORMAT", result.Message);
@@ -169,13 +169,13 @@ public class ScratchpadLengthLimitTests
     [Fact]
     public void Sp1_FourChars_RejectedAtLimit3_AcceptedAtLimit4()
     {
-        var rejected = MakeAircraft();
-        var rejResult = TrackEngine.HandleScratchpad1(rejected, "OAK1", 3);
+        AircraftState rejected = MakeAircraft();
+        CommandResult rejResult = TrackEngine.HandleScratchpad1(rejected, "OAK1", 3);
         Assert.False(rejResult.Success);
         Assert.Null(rejected.Stars.Scratchpad1);
 
-        var allowed = MakeAircraft();
-        var okResult = TrackEngine.HandleScratchpad1(allowed, "OAK1", 4);
+        AircraftState allowed = MakeAircraft();
+        CommandResult okResult = TrackEngine.HandleScratchpad1(allowed, "OAK1", 4);
         Assert.True(okResult.Success);
         Assert.Equal("OAK1", allowed.Stars.Scratchpad1);
     }
@@ -183,9 +183,9 @@ public class ScratchpadLengthLimitTests
     [Fact]
     public void Sp1_FiveChars_RejectedEvenWhenFourAllowed()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
-        var result = TrackEngine.HandleScratchpad1(ac, "N346G", 4);
+        CommandResult result = TrackEngine.HandleScratchpad1(ac, "N346G", 4);
 
         Assert.False(result.Success);
         Assert.Null(ac.Stars.Scratchpad1);
@@ -194,10 +194,10 @@ public class ScratchpadLengthLimitTests
     [Fact]
     public void Sp2_OverLimit_RejectedAndUnchanged()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         TrackEngine.HandleScratchpad2(ac, "XYZ", 3);
 
-        var result = TrackEngine.HandleScratchpad2(ac, "ABCD", 3);
+        CommandResult result = TrackEngine.HandleScratchpad2(ac, "ABCD", 3);
 
         Assert.False(result.Success);
         Assert.Equal("FORMAT", result.Message);

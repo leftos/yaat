@@ -28,7 +28,7 @@ public partial class DataGridView
     {
         Task Cmd(string raw) => vm.Connection.SendCommandAsync(callsign, raw, initials);
 
-        var phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase ?? "";
 
         // Ground movement (taxi/push/hold)
         if (ac.IsOnGround)
@@ -48,7 +48,7 @@ public partial class DataGridView
             if (phase.StartsWith("Holding Short", StringComparison.Ordinal))
             {
                 menu.Items.Add(MakeItem("Resume taxi", () => Cmd("RES")));
-                var heldRwy = HoldShortMenuHelper.HeldRunway(phase, ac);
+                string? heldRwy = HoldShortMenuHelper.HeldRunway(phase, ac);
                 if (!string.IsNullOrEmpty(heldRwy))
                 {
                     menu.Items.Add(MakeItem($"Cross {RunwayIdentifier.ToDisplayDesignator(heldRwy)}", () => Cmd($"CROSS {heldRwy}")));
@@ -64,8 +64,8 @@ public partial class DataGridView
         // Departure clearances. The runway is shown in the label for context, but the
         // command is always the bare verb — LUAW and CTO have no runway argument; the
         // server resolves the departure runway from the aircraft's assigned runway.
-        var depRwy = HoldShortMenuHelper.HeldRunway(phase, ac);
-        var depRwyLabel = !string.IsNullOrEmpty(depRwy) ? $" {RunwayIdentifier.ToDisplayDesignator(depRwy)}" : "";
+        string? depRwy = HoldShortMenuHelper.HeldRunway(phase, ac);
+        string depRwyLabel = !string.IsNullOrEmpty(depRwy) ? $" {RunwayIdentifier.ToDisplayDesignator(depRwy)}" : "";
 
         if (AircraftCommandApplicability.CanLineUpAndWait(ac))
         {
@@ -108,7 +108,7 @@ public partial class DataGridView
     private static void AddLandingItems(ContextMenu menu, AircraftModel ac, MainViewModel vm, string callsign, string initials)
     {
         Task Cmd(string raw) => vm.Connection.SendCommandAsync(callsign, raw, initials);
-        var rwy = !string.IsNullOrEmpty(ac.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
+        string rwy = !string.IsNullOrEmpty(ac.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
 
         if (AircraftCommandApplicability.CanClearToLand(ac))
         {
@@ -155,7 +155,7 @@ public partial class DataGridView
         menu.Items.Add(MakeItem("Spawn now", () => Cmd("SPAWN")));
 
         var delayMenu = new MenuItem { Header = "Change spawn delay" };
-        foreach (var (label, seconds) in SpawnDelayPresets)
+        foreach ((string? label, int seconds) in SpawnDelayPresets)
         {
             delayMenu.Items.Add(MakeItem(label, () => Cmd($"SPAWNDELAY {seconds}")));
         }
@@ -182,7 +182,7 @@ public partial class DataGridView
             }
 
             e.Handled = true;
-            var seconds = ParseDelayInput(textBox.Text);
+            int? seconds = ParseDelayInput(textBox.Text);
             if (seconds is null)
             {
                 return;
@@ -201,26 +201,26 @@ public partial class DataGridView
 
     internal static int? ParseDelayInput(string? input)
     {
-        var trimmed = input?.Trim();
+        string? trimmed = input?.Trim();
         if (string.IsNullOrEmpty(trimmed))
         {
             return null;
         }
 
-        if (int.TryParse(trimmed, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var bareSeconds))
+        if (int.TryParse(trimmed, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int bareSeconds))
         {
             return bareSeconds;
         }
 
-        var match = DelayUnitsPattern.Match(trimmed);
+        Match match = DelayUnitsPattern.Match(trimmed);
         if (!match.Success)
         {
             return null;
         }
 
-        var hours = match.Groups["h"];
-        var minutes = match.Groups["m"];
-        var secs = match.Groups["s"];
+        Group hours = match.Groups["h"];
+        Group minutes = match.Groups["m"];
+        Group secs = match.Groups["s"];
         if (!hours.Success && !minutes.Success && !secs.Success)
         {
             return null;

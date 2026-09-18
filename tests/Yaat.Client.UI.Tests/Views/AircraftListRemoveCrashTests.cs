@@ -64,7 +64,7 @@ public class AircraftListRemoveCrashTests
         };
         window.ShowAndRunLayout();
 
-        var grid = view.GetDataGrid()!;
+        DataGrid grid = view.GetDataGrid()!;
         Assert.NotNull(grid);
         return (window, vm, grid);
     }
@@ -104,8 +104,8 @@ public class AircraftListRemoveCrashTests
         // Currency sits on the last row, exactly as the grid places it when that row is selected.
         vm.AircraftView.MoveCurrentToPosition(vm.AircraftView.Count - 1);
 
-        var bystander = vm.Aircraft.First(a => a.Callsign == "BBB1");
-        var reentered = false;
+        AircraftModel bystander = vm.Aircraft.First(a => a.Callsign == "BBB1");
+        bool reentered = false;
         vm.AircraftView.CurrentChanging += (_, _) =>
         {
             if (reentered)
@@ -129,7 +129,7 @@ public class AircraftListRemoveCrashTests
     [AvaloniaFact]
     public void DeletingAircraft_WithFilterSortAndSelection_DoesNotCrash()
     {
-        var (window, vm, grid) = HostGrid([
+        (Window? window, MainViewModel? vm, DataGrid? grid) = HostGrid([
             MakeAircraft("AAA1"),
             MakeAircraft("BBB1"),
             MakeAircraft("CCC1"),
@@ -168,7 +168,7 @@ public class AircraftListRemoveCrashTests
     [AvaloniaFact]
     public void DeletingSelectedAircraft_ClearsSelection_WithoutCrash()
     {
-        var (window, vm, grid) = HostGrid([MakeAircraft("AAA1"), MakeAircraft("BBB1"), MakeAircraft("CCC1")]);
+        (Window? window, MainViewModel? vm, DataGrid? grid) = HostGrid([MakeAircraft("AAA1"), MakeAircraft("BBB1"), MakeAircraft("CCC1")]);
 
         grid.SelectedItem = vm.Aircraft.First(a => a.Callsign == "BBB1");
         window.UpdateLayout();
@@ -186,7 +186,7 @@ public class AircraftListRemoveCrashTests
     [AvaloniaFact]
     public void DeletingOtherAircraft_PreservesSelection_WithoutCrash()
     {
-        var (window, vm, grid) = HostGrid([MakeAircraft("AAA1"), MakeAircraft("BBB1"), MakeAircraft("CCC1")]);
+        (Window? window, MainViewModel? vm, DataGrid? grid) = HostGrid([MakeAircraft("AAA1"), MakeAircraft("BBB1"), MakeAircraft("CCC1")]);
 
         grid.SelectedItem = vm.Aircraft.First(a => a.Callsign == "BBB1");
         window.UpdateLayout();
@@ -211,11 +211,16 @@ public class AircraftListRemoveCrashTests
     [AvaloniaFact]
     public void SortingCompiledBoundColumn_ThenDeleting_KeepsListConsistent()
     {
-        var (window, vm, grid) = HostGrid([MakeAircraft("N436MS"), MakeAircraft("N172SP"), MakeAircraft("N346G"), MakeAircraft("N569SX")]);
+        (Window? window, MainViewModel? vm, DataGrid? grid) = HostGrid([
+            MakeAircraft("N436MS"),
+            MakeAircraft("N172SP"),
+            MakeAircraft("N346G"),
+            MakeAircraft("N569SX"),
+        ]);
 
         // Build the sort comparer exactly as SetupDataGrid does, from the real (compiled-binding)
         // Callsign column, then apply it — under the regression this throws inside SortList.
-        var callsignColumn = grid.Columns.First(c => c.Header as string == "Callsign");
+        DataGridColumn callsignColumn = grid.Columns.First(c => c.Header as string == "Callsign");
         var comparer = new GroupStableSortComparer(MainWindow.GetColumnSortComparer(callsignColumn));
         vm.AircraftView.SortDescriptions.Add(DataGridSortDescription.FromComparer(comparer));
         vm.AircraftView.Refresh();
@@ -239,7 +244,7 @@ public class AircraftListRemoveCrashTests
     [AvaloniaFact]
     public void SortingUnsortableColumn_IsNoOp_AndDoesNotThrow()
     {
-        var (_, vm, _) = HostGrid([MakeAircraft("N1"), MakeAircraft("N2"), MakeAircraft("N3")]);
+        (Window _, MainViewModel? vm, DataGrid _) = HostGrid([MakeAircraft("N1"), MakeAircraft("N2"), MakeAircraft("N3")]);
 
         var comparer = new GroupStableSortComparer(MainWindow.GetColumnSortComparer(new DataGridTemplateColumn()));
         vm.AircraftView.SortDescriptions.Add(DataGridSortDescription.FromComparer(comparer));

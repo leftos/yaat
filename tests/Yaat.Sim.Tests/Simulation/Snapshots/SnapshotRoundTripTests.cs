@@ -90,7 +90,7 @@ public class SnapshotRoundTripTests
         ac.Targets.AssignedAltitude = 10000;
         ac.Targets.TargetTrueHeading = new TrueHeading(270);
 
-        var dto = ac.ToSnapshot();
+        AircraftSnapshotDto dto = ac.ToSnapshot();
         var restored = AircraftState.FromSnapshot(dto, null);
 
         Assert.Equal(ac.Callsign, restored.Callsign);
@@ -160,7 +160,7 @@ public class SnapshotRoundTripTests
             DesiredAccelRate = 0.3,
         };
 
-        var dto = targets.ToSnapshot();
+        ControlTargetsDto dto = targets.ToSnapshot();
         Assert.Equal(4.5, dto.DesiredDecelRate);
         Assert.Equal(0.3, dto.DesiredAccelRate);
 
@@ -177,7 +177,7 @@ public class SnapshotRoundTripTests
     {
         var targets = new ControlTargets { TargetSpeed = 100.0 };
 
-        var dto = targets.ToSnapshot();
+        ControlTargetsDto dto = targets.ToSnapshot();
         Assert.Null(dto.DesiredDecelRate);
         Assert.Null(dto.DesiredAccelRate);
 
@@ -197,9 +197,9 @@ public class SnapshotRoundTripTests
             RequestedExit = new ExitPreference { Side = ExitSide.Left, Taxiway = "A3" },
         };
 
-        var dto = phases.ToSnapshot();
-        var json = JsonSerializer.Serialize(dto, RecordingJsonOptions.Default);
-        var back = JsonSerializer.Deserialize<PhaseListDto>(json, RecordingJsonOptions.Default)!;
+        PhaseListDto dto = phases.ToSnapshot();
+        string json = JsonSerializer.Serialize(dto, RecordingJsonOptions.Default);
+        PhaseListDto back = JsonSerializer.Deserialize<PhaseListDto>(json, RecordingJsonOptions.Default)!;
         var restored = PhaseList.FromSnapshot(back, null);
 
         Assert.NotNull(restored.RequestedExit);
@@ -398,8 +398,8 @@ public class SnapshotRoundTripTests
         };
 
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var json = JsonSerializer.Serialize(snapshot, options);
-        var deserialized = JsonSerializer.Deserialize<StateSnapshotDto>(json, options);
+        string json = JsonSerializer.Serialize(snapshot, options);
+        StateSnapshotDto? deserialized = JsonSerializer.Deserialize<StateSnapshotDto>(json, options);
 
         Assert.NotNull(deserialized);
         Assert.Equal(snapshot.ElapsedSeconds, deserialized.ElapsedSeconds);
@@ -518,7 +518,7 @@ public class SnapshotRoundTripTests
               "Scenario": { "ScenarioId": "t", "ScenarioName": "T", "RngSeed": 1, "ElapsedSeconds": 10, "SimRate": 1 }
             }
             """;
-        var snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+        StateSnapshotDto snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
         Assert.Null(Assert.Single(snapshot.Aircraft).FlightPlan); // precondition: lenient resolver yields null
 
         SnapshotSchemaMigrator.Migrate(snapshot);
@@ -560,8 +560,8 @@ public class SnapshotRoundTripTests
               "Scenario": { "ScenarioId": "t", "ScenarioName": "T", "RngSeed": 1, "ElapsedSeconds": 10, "SimRate": 1 }
             }
             """;
-        var snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
-        var shared = Assert.Single(Assert.Single(snapshot.Aircraft).Stars.SharedState!).Value;
+        StateSnapshotDto snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+        SharedStateDto shared = Assert.Single(Assert.Single(snapshot.Aircraft).Stars.SharedState!).Value;
         Assert.True(shared.ForceFdb); // precondition: the legacy entry itself deserialized
 
         SnapshotSchemaMigrator.Migrate(snapshot);
@@ -620,8 +620,8 @@ public class SnapshotRoundTripTests
         };
 
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var json = JsonSerializer.Serialize(snapshot, options);
-        var deserialized = JsonSerializer.Deserialize<StateSnapshotDto>(json, options);
+        string json = JsonSerializer.Serialize(snapshot, options);
+        StateSnapshotDto? deserialized = JsonSerializer.Deserialize<StateSnapshotDto>(json, options);
 
         Assert.NotNull(deserialized);
         Assert.NotNull(deserialized.Server);
@@ -644,13 +644,13 @@ public class SnapshotRoundTripTests
 
         state.Consolidate(tcp2, tcp1, true);
 
-        var snapshot = state.GetSnapshot();
+        Dictionary<string, ConsolidationState.ManualOverride> snapshot = state.GetSnapshot();
         Assert.Single(snapshot);
 
         var fresh = new ConsolidationState();
         fresh.Restore(snapshot);
 
-        var restored = fresh.GetSnapshot();
+        Dictionary<string, ConsolidationState.ManualOverride> restored = fresh.GetSnapshot();
         Assert.Single(restored);
         Assert.Equal("12B", restored["12A"].ReceivingTcpId);
         Assert.True(restored["12A"].IsBasic);
@@ -672,7 +672,7 @@ public class SnapshotRoundTripTests
         var newOverrides = new Dictionary<string, ConsolidationState.ManualOverride> { ["12C"] = new("12A", false) };
         state.Restore(newOverrides);
 
-        var restored = state.GetSnapshot();
+        Dictionary<string, ConsolidationState.ManualOverride> restored = state.GetSnapshot();
         Assert.Single(restored);
         Assert.Equal("12A", restored["12C"].ReceivingTcpId);
     }
@@ -688,7 +688,7 @@ public class SnapshotRoundTripTests
 
         // After clear, previously used codes should be assignable again
         pool.MarkUsed(1234);
-        var code = pool.AssignNextCode(false);
+        uint code = pool.AssignNextCode(false);
         // Sequential starts at 0001 after clear, should get 0001 (1234 is re-marked)
         Assert.Equal((uint)0001, code);
     }
@@ -713,7 +713,7 @@ public class SnapshotRoundTripTests
         // After clear, bank config should still be active (assigns from bank, not sequential). The bank
         // starts at 0100, but that is a non-discrete block code (ends in "00"), so the first assignable
         // code drawn from the bank is 0101.
-        var code = pool.AssignNextCode(false);
+        uint code = pool.AssignNextCode(false);
         Assert.Equal((uint)101, code);
     }
 
@@ -747,8 +747,8 @@ public class SnapshotRoundTripTests
         };
 
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var json = JsonSerializer.Serialize(snapshot, options);
-        var deserialized = JsonSerializer.Deserialize<StateSnapshotDto>(json, options);
+        string json = JsonSerializer.Serialize(snapshot, options);
+        StateSnapshotDto? deserialized = JsonSerializer.Deserialize<StateSnapshotDto>(json, options);
 
         Assert.NotNull(deserialized);
         Assert.NotNull(deserialized.Scenario.DelayedQueue);
@@ -827,13 +827,13 @@ public class SnapshotRoundTripTests
         };
 
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var json = JsonSerializer.Serialize(snapshot, options);
-        var deserialized = JsonSerializer.Deserialize<StateSnapshotDto>(json, options);
+        string json = JsonSerializer.Serialize(snapshot, options);
+        StateSnapshotDto? deserialized = JsonSerializer.Deserialize<StateSnapshotDto>(json, options);
 
         Assert.NotNull(deserialized);
         Assert.NotNull(deserialized.Scenario.Generators);
         Assert.Single(deserialized.Scenario.Generators);
-        var gen = deserialized.Scenario.Generators[0];
+        GeneratorStateDto gen = deserialized.Scenario.Generators[0];
         Assert.Contains("gen1", gen.ConfigJson);
         Assert.Equal("KOAK", gen.Runway.AirportId);
         Assert.Equal("28R", gen.Runway.Designator);
@@ -841,13 +841,13 @@ public class SnapshotRoundTripTests
         Assert.True(gen.WasActive);
 
         Assert.NotNull(deserialized.Scenario.VfrArrivalGenerators);
-        var vfrGen = Assert.Single(deserialized.Scenario.VfrArrivalGenerators);
+        VfrArrivalGeneratorStateDto vfrGen = Assert.Single(deserialized.Scenario.VfrArrivalGenerators);
         Assert.Contains("vfr1", vfrGen.ConfigJson);
         Assert.Equal(240.0, vfrGen.NextSpawnSeconds);
         Assert.True(vfrGen.WasActive);
 
         Assert.NotNull(deserialized.Scenario.OverflightGenerators);
-        var overflightGen = Assert.Single(deserialized.Scenario.OverflightGenerators);
+        OverflightGeneratorStateDto overflightGen = Assert.Single(deserialized.Scenario.OverflightGenerators);
         Assert.Contains("of1", overflightGen.ConfigJson);
         Assert.Equal(300.0, overflightGen.NextSpawnSeconds);
         Assert.False(overflightGen.WasActive);
@@ -856,7 +856,7 @@ public class SnapshotRoundTripTests
     [Fact]
     public void SessionRecording_V1_HasNoSnapshots()
     {
-        var json = """
+        string json = """
             {
                 "ScenarioJson": "{}",
                 "RngSeed": 42,
@@ -865,7 +865,10 @@ public class SnapshotRoundTripTests
             }
             """;
 
-        var recording = JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        SessionRecording? recording = JsonSerializer.Deserialize<SessionRecording>(
+            json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
 
         Assert.NotNull(recording);
         Assert.Equal(1, recording.Version);

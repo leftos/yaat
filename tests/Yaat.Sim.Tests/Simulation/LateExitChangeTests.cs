@@ -25,16 +25,16 @@ public class LateExitChangeTests(ITestOutputHelper output)
 
     private static (GroundNode Branch, GroundNode HoldShort, string Taxiway)? FindExitPair(AirportGroundLayout layout, string runwayId)
     {
-        foreach (var holdShort in layout.GetRunwayHoldShortNodes(runwayId))
+        foreach (GroundNode holdShort in layout.GetRunwayHoldShortNodes(runwayId))
         {
-            foreach (var edge in holdShort.Edges)
+            foreach (IGroundEdge edge in holdShort.Edges)
             {
                 if (string.IsNullOrEmpty(edge.TaxiwayName))
                 {
                     continue;
                 }
 
-                foreach (var node in edge.Nodes)
+                foreach (GroundNode node in edge.Nodes)
                 {
                     if (node.Id != holdShort.Id)
                     {
@@ -57,19 +57,19 @@ public class LateExitChangeTests(ITestOutputHelper output)
 
     private static AircraftState? BuildCommittedExit(RunwayExitPhase.ExitState state, double distToBranchFt, bool turnStarted, double speedKts)
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return null;
         }
 
-        var pair = FindExitPair(layout, "28R");
+        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
         if (pair is null)
         {
             return null;
         }
 
-        var (branch, holdShort, taxiway) = pair.Value;
+        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
 
         var dto = new RunwayExitPhaseDto
         {
@@ -89,7 +89,7 @@ public class LateExitChangeTests(ITestOutputHelper output)
 
         // Back up along the reciprocal so the branch node sits distToBranchFt ahead on the runway heading.
         var reciprocal = new TrueHeading((RunwayHeadingDeg + 180.0) % 360.0);
-        var position = GeoMath.ProjectPoint(branch.Position, reciprocal, distToBranchFt / GeoMath.FeetPerNm);
+        LatLon position = GeoMath.ProjectPoint(branch.Position, reciprocal, distToBranchFt / GeoMath.FeetPerNm);
 
         var aircraft = new AircraftState
         {
@@ -112,13 +112,18 @@ public class LateExitChangeTests(ITestOutputHelper output)
     [Fact]
     public void ExitChange_Committed_ButStillWellShortOfTheBranch_IsAccepted()
     {
-        var aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt: 2000.0, turnStarted: false);
+        AircraftState? aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt: 2000.0, turnStarted: false);
         if (aircraft is null)
         {
             return;
         }
 
-        var result = GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Left }, noDelete: false, expedite: false);
+        CommandResult result = GroundCommandHandler.TryExitCommand(
+            aircraft,
+            new ExitPreference { Side = ExitSide.Left },
+            noDelete: false,
+            expedite: false
+        );
 
         output.WriteLine($"result={result.Success} msg={result.Message}");
 
@@ -129,14 +134,19 @@ public class LateExitChangeTests(ITestOutputHelper output)
     [Fact]
     public void ExitChange_Committed_AfterTheTurnHasStarted_IsRefused()
     {
-        var aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt: 2000.0, turnStarted: true);
+        AircraftState? aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt: 2000.0, turnStarted: true);
         if (aircraft is null)
         {
             return;
         }
 
-        var before = aircraft.Phases!.RequestedExit;
-        var result = GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Left }, noDelete: false, expedite: false);
+        ExitPreference? before = aircraft.Phases!.RequestedExit;
+        CommandResult result = GroundCommandHandler.TryExitCommand(
+            aircraft,
+            new ExitPreference { Side = ExitSide.Left },
+            noDelete: false,
+            expedite: false
+        );
 
         output.WriteLine($"result={result.Success} msg={result.Message}");
 
@@ -148,14 +158,19 @@ public class LateExitChangeTests(ITestOutputHelper output)
     [Fact]
     public void ExitChange_Committed_InsideTheTurnLeadMargin_IsRefused()
     {
-        var aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt: 0.0, turnStarted: false);
+        AircraftState? aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt: 0.0, turnStarted: false);
         if (aircraft is null)
         {
             return;
         }
 
-        var before = aircraft.Phases!.RequestedExit;
-        var result = GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Left }, noDelete: false, expedite: false);
+        ExitPreference? before = aircraft.Phases!.RequestedExit;
+        CommandResult result = GroundCommandHandler.TryExitCommand(
+            aircraft,
+            new ExitPreference { Side = ExitSide.Left },
+            noDelete: false,
+            expedite: false
+        );
 
         output.WriteLine($"result={result.Success} msg={result.Message}");
 
@@ -166,14 +181,19 @@ public class LateExitChangeTests(ITestOutputHelper output)
     [Fact]
     public void ExitChange_Committed_NamedTaxiwayNotAhead_IsRefused()
     {
-        var aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt: 2000.0, turnStarted: false);
+        AircraftState? aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt: 2000.0, turnStarted: false);
         if (aircraft is null)
         {
             return;
         }
 
-        var before = aircraft.Phases!.RequestedExit;
-        var result = GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Taxiway = "ZZ9" }, noDelete: false, expedite: false);
+        ExitPreference? before = aircraft.Phases!.RequestedExit;
+        CommandResult result = GroundCommandHandler.TryExitCommand(
+            aircraft,
+            new ExitPreference { Taxiway = "ZZ9" },
+            noDelete: false,
+            expedite: false
+        );
 
         output.WriteLine($"result={result.Success} msg={result.Message}");
 
@@ -192,15 +212,35 @@ public class LateExitChangeTests(ITestOutputHelper output)
     [Fact]
     public void ExitChange_ToAnExitTheAircraftCannotBrakeFor_IsRefused()
     {
-        var slow = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt: 2000.0, turnStarted: false, speedKts: 25.0);
-        var fast = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt: 2000.0, turnStarted: false, speedKts: 150.0);
+        AircraftState? slow = BuildCommittedExit(
+            RunwayExitPhase.ExitState.FollowingExitPath,
+            distToBranchFt: 2000.0,
+            turnStarted: false,
+            speedKts: 25.0
+        );
+        AircraftState? fast = BuildCommittedExit(
+            RunwayExitPhase.ExitState.FollowingExitPath,
+            distToBranchFt: 2000.0,
+            turnStarted: false,
+            speedKts: 150.0
+        );
         if (slow is null || fast is null)
         {
             return;
         }
 
-        var atTaxiSpeed = GroundCommandHandler.TryExitCommand(slow, new ExitPreference { Side = ExitSide.Left }, noDelete: false, expedite: false);
-        var atHighEnergy = GroundCommandHandler.TryExitCommand(fast, new ExitPreference { Side = ExitSide.Left }, noDelete: false, expedite: false);
+        CommandResult atTaxiSpeed = GroundCommandHandler.TryExitCommand(
+            slow,
+            new ExitPreference { Side = ExitSide.Left },
+            noDelete: false,
+            expedite: false
+        );
+        CommandResult atHighEnergy = GroundCommandHandler.TryExitCommand(
+            fast,
+            new ExitPreference { Side = ExitSide.Left },
+            noDelete: false,
+            expedite: false
+        );
 
         output.WriteLine($"25kt -> {atTaxiSpeed.Success} ({atTaxiSpeed.Message}); 150kt -> {atHighEnergy.Success} ({atHighEnergy.Message})");
 
@@ -221,17 +261,17 @@ public class LateExitChangeTests(ITestOutputHelper output)
     [InlineData(true, 2000.0, null)] // turn already started
     public void RefusalText_SurvivesThePilotUnablePipeline(bool turnStarted, double distToBranchFt, string? taxiway)
     {
-        var aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt, turnStarted);
+        AircraftState? aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt, turnStarted);
         if (aircraft is null)
         {
             return;
         }
 
-        var preference = taxiway is null ? new ExitPreference { Side = ExitSide.Left } : new ExitPreference { Taxiway = taxiway };
-        var result = GroundCommandHandler.TryExitCommand(aircraft, preference, noDelete: false, expedite: false);
+        ExitPreference preference = taxiway is null ? new ExitPreference { Side = ExitSide.Left } : new ExitPreference { Taxiway = taxiway };
+        CommandResult result = GroundCommandHandler.TryExitCommand(aircraft, preference, noDelete: false, expedite: false);
         Assert.False(result.Success);
 
-        var speech = PilotResponder.BuildUnable(aircraft, result.Message);
+        PilotSpeechText speech = PilotResponder.BuildUnable(aircraft, result.Message);
         output.WriteLine($"msg={result.Message} -> terminal={speech.Terminal} tts={speech.Tts}");
 
         Assert.Matches("^unable, [a-z]", speech.Terminal);
@@ -248,13 +288,13 @@ public class LateExitChangeTests(ITestOutputHelper output)
     [Fact]
     public void StandingPreference_OnACommittedPhase_DoesNotRetarget()
     {
-        var aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt: 2000.0, turnStarted: false);
+        AircraftState? aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.FollowingExitPath, distToBranchFt: 2000.0, turnStarted: false);
         if (aircraft is null)
         {
             return;
         }
 
-        var phase = Assert.IsType<RunwayExitPhase>(aircraft.Phases!.CurrentPhase);
+        RunwayExitPhase phase = Assert.IsType<RunwayExitPhase>(aircraft.Phases!.CurrentPhase);
         string? committedTaxiway = ((RunwayExitPhaseDto)phase.ToSnapshot()).ExitTaxiway;
         Assert.NotNull(committedTaxiway);
 
@@ -268,7 +308,7 @@ public class LateExitChangeTests(ITestOutputHelper output)
 
         aircraft.Phases.RequestedExit = new ExitPreference { Taxiway = AheadTaxiway };
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, aircraft.Ground.Layout!);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, aircraft.Ground.Layout!);
         phase.OnTick(ctx);
 
         string? afterTick = ((RunwayExitPhaseDto)phase.ToSnapshot()).ExitTaxiway;
@@ -280,13 +320,13 @@ public class LateExitChangeTests(ITestOutputHelper output)
     [Fact]
     public void ExitChange_WhileStillOnTheCenterline_IsAccepted()
     {
-        var aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.RollingOnCenterline, distToBranchFt: 0.0, turnStarted: false);
+        AircraftState? aircraft = BuildCommittedExit(RunwayExitPhase.ExitState.RollingOnCenterline, distToBranchFt: 0.0, turnStarted: false);
         if (aircraft is null)
         {
             return;
         }
 
-        var result = GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Taxiway = "B" }, noDelete: false, expedite: false);
+        CommandResult result = GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Taxiway = "B" }, noDelete: false, expedite: false);
 
         output.WriteLine($"result={result.Success} msg={result.Message}");
 

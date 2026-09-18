@@ -70,12 +70,12 @@ internal static class TaxiCoverageRunner
 
     private static GroundNode? ResolveRunwayDeparture(AirportGroundLayout layout, string designator)
     {
-        var holdShorts = layout.GetRunwayHoldShortNodes(designator);
+        List<GroundNode> holdShorts = layout.GetRunwayHoldShortNodes(designator);
         if (holdShorts.Count == 0)
         {
             return null;
         }
-        var runway = NavigationDatabase.Instance.GetRunway(layout.AirportId, designator);
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway(layout.AirportId, designator);
         if (runway is null)
         {
             return holdShorts[0];
@@ -85,7 +85,7 @@ internal static class TaxiCoverageRunner
 
     private static GroundNode? ResolveRunwayExit(AirportGroundLayout layout, string name, GroundNode? tieBreakerToNode)
     {
-        var parts = name.Split('/', 2);
+        string[] parts = name.Split('/', 2);
         if (parts.Length != 2)
         {
             return null;
@@ -109,9 +109,9 @@ internal static class TaxiCoverageRunner
 
         GroundNode? best = null;
         double bestDistNm = double.MaxValue;
-        foreach (var candidate in candidates)
+        foreach (GroundNode? candidate in candidates)
         {
-            var route = TaxiPathfinder.FindRoute(layout, candidate.Id, tieBreakerToNode.Id, AircraftCategory.Jet);
+            TaxiRoute? route = TaxiPathfinder.FindRoute(layout, candidate.Id, tieBreakerToNode.Id, AircraftCategory.Jet);
             if (route is null)
             {
                 continue;
@@ -133,13 +133,13 @@ internal static class TaxiCoverageRunner
     /// </summary>
     public static TrueHeading TaxiwayDepartureHeading(GroundNode holdShort)
     {
-        foreach (var edge in holdShort.Edges)
+        foreach (IGroundEdge edge in holdShort.Edges)
         {
             if (edge.IsRunwayCenterline)
             {
                 continue;
             }
-            var other = edge.OtherNode(holdShort);
+            GroundNode other = edge.OtherNode(holdShort);
             return new TrueHeading(GeoMath.BearingTo(holdShort.Position, other.Position));
         }
         return new TrueHeading(0);
@@ -173,16 +173,16 @@ internal static class TaxiCoverageRunner
             return;
         }
 
-        var budget = TaxiBudgetDeriver.Derive(layout, origin.Id, destination.Id, pair.Category);
+        TaxiBudgetDeriver.TaxiBudget budget = TaxiBudgetDeriver.Derive(layout, origin.Id, destination.Id, pair.Category);
         output.WriteLine(
             $"{pair.PairId}: optimal {budget.OptimalDistFt:F0}ft / {budget.OptimalTurnDeg:F0}deg / {budget.CornerCount} corners "
                 + $"/ {budget.OptimalTimeSec:F0}s → budget {budget.TimeBudgetSec:F0}s, {budget.TurnBudgetDeg:F0}deg"
         );
 
-        var engine = engineFactory();
+        SimulationEngine? engine = engineFactory();
         Assert.NotNull(engine);
 
-        var aircraft = SpawnAircraft(pair, origin, layout);
+        AircraftState aircraft = SpawnAircraft(pair, origin, layout);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
         {
@@ -194,12 +194,12 @@ internal static class TaxiCoverageRunner
             AutoCrossRunway = true,
         };
 
-        using var recorder = MaybeAttachRecorder(engine, pair, aircraft.Callsign, output);
+        using IDisposable? recorder = MaybeAttachRecorder(engine, pair, aircraft.Callsign, output);
 
         string command = BuildTaxiCommand(pair);
-        var result = engine.SendCommand(aircraft.Callsign, command);
+        CommandResult result = engine.SendCommand(aircraft.Callsign, command);
         Assert.True(result.Success, $"{pair.PairId}: command '{command}' failed: {result.Message}");
-        var assignedRoute = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? assignedRoute = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(assignedRoute);
         RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(assignedRoute, pair.PairId);
 
@@ -263,8 +263,8 @@ internal static class TaxiCoverageRunner
 
     private static AircraftState SpawnAircraft(TaxiPair pair, GroundNode origin, AirportGroundLayout layout)
     {
-        var callsign = $"N{origin.Id:D4}";
-        var spawnHeading = pair.OriginKind switch
+        string callsign = $"N{origin.Id:D4}";
+        TrueHeading spawnHeading = pair.OriginKind switch
         {
             TaxiNodeKind.Parking => origin.TrueHeading ?? new TrueHeading(0),
             TaxiNodeKind.RunwayExit => TaxiwayDepartureHeading(origin),
@@ -291,7 +291,7 @@ internal static class TaxiCoverageRunner
 
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(BuildInitialPhase(pair, origin));
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(startCtx);
         aircraft.Ground.Layout = layout;
         return aircraft;
@@ -317,13 +317,13 @@ internal static class TaxiCoverageRunner
 
     private static string? ExtractRunwayFromName(string originName)
     {
-        var parts = originName.Split('/', 2);
+        string[] parts = originName.Split('/', 2);
         return parts.Length == 2 ? parts[0] : null;
     }
 
     private static string? ExtractTaxiwayFromName(string originName)
     {
-        var parts = originName.Split('/', 2);
+        string[] parts = originName.Split('/', 2);
         return parts.Length == 2 ? parts[1] : null;
     }
 
@@ -339,7 +339,7 @@ internal static class TaxiCoverageRunner
 
     private static bool IsArrived(AircraftState aircraft, TaxiPair pair, GroundNode destination)
     {
-        var phase = aircraft.Phases?.CurrentPhase;
+        Phase? phase = aircraft.Phases?.CurrentPhase;
         return pair.DestinationKind switch
         {
             TaxiNodeKind.RunwayExit => phase is HoldingShortPhase or HoldingInPositionPhase,

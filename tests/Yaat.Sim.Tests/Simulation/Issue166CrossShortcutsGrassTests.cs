@@ -55,14 +55,14 @@ public class Issue166CrossShortcutsGrassTests(ITestOutputHelper output)
     [Fact]
     public void Ual19_CrossingDiagnostic()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
 
         engine.Replay(recording, 310);
@@ -70,7 +70,7 @@ public class Issue166CrossShortcutsGrassTests(ITestOutputHelper output)
         for (int t = 310; t <= 360; t++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft("UAL19");
+            AircraftState? ac = engine.FindAircraft("UAL19");
             if (ac is null)
             {
                 continue;
@@ -86,14 +86,14 @@ public class Issue166CrossShortcutsGrassTests(ITestOutputHelper output)
     [Fact]
     public void Ual19_FollowsHTaxiLineThroughRunwayCrossing()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
 
         AssertFollowsHLineThroughCrossing(engine, layout, recording, output);
@@ -130,7 +130,7 @@ public class Issue166CrossShortcutsGrassTests(ITestOutputHelper output)
         for (int t = 311; t <= 380; t++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft("UAL19");
+            AircraftState? ac = engine.FindAircraft("UAL19");
             if (ac is null)
             {
                 continue;
@@ -197,7 +197,7 @@ public class Issue166CrossShortcutsGrassTests(ITestOutputHelper output)
     internal static void AddCloseHNodes(AircraftState ac, AirportGroundLayout layout, double maxDistFt, HashSet<int> into)
     {
         double maxDistNm = maxDistFt / 6076.12;
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             double distNm = GeoMath.DistanceNm(ac.Position, node.Position);
             if (distNm > maxDistNm)
@@ -236,14 +236,14 @@ public class Issue166CrossPreClearedTests(ITestOutputHelper output)
             return;
         }
 
-        var recording = RecordingLoader.Load(RecordingPath);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         if (recording is null)
         {
             return;
         }
 
         var groundData = new TestAirportGroundData(FilletMode.Standard);
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         Assert.NotNull(layout);
 
         SimLogBuilder
@@ -273,7 +273,7 @@ public class Issue166CrossPreClearedTests(ITestOutputHelper output)
             return;
         }
 
-        var recording = RecordingLoader.Load(RecordingPath);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         if (recording is null)
         {
             return;
@@ -289,7 +289,7 @@ public class Issue166CrossPreClearedTests(ITestOutputHelper output)
         for (int t = 251; t <= 360; t++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft("UAL19");
+            AircraftState? ac = engine.FindAircraft("UAL19");
             if (ac?.Phases?.CurrentPhase is CrossingRunwayPhase crossing && crossing.RunwayId is { Length: > 0 } rwy)
             {
                 crossedRunways.Add(rwy);

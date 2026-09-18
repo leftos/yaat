@@ -26,7 +26,7 @@ public static class InitialContactTransferLoader
             return result;
         }
 
-        foreach (var artccDir in Directory.EnumerateDirectories(artccsBaseDir))
+        foreach (string artccDir in Directory.EnumerateDirectories(artccsBaseDir))
         {
             string categoryDir = Path.Combine(artccDir, "InitialContactTransfers");
             if (!Directory.Exists(categoryDir))
@@ -34,8 +34,8 @@ public static class InitialContactTransferLoader
                 continue;
             }
 
-            var artccId = Path.GetFileName(artccDir).Trim().ToUpperInvariant();
-            foreach (var file in Directory.GetFiles(categoryDir, "*.json"))
+            string artccId = Path.GetFileName(artccDir).Trim().ToUpperInvariant();
+            foreach (string file in Directory.GetFiles(categoryDir, "*.json"))
             {
                 LoadFile(file, artccId, result);
             }
@@ -49,7 +49,7 @@ public static class InitialContactTransferLoader
         List<InitialContactTransferRule>? rules;
         try
         {
-            var json = File.ReadAllText(filePath);
+            string json = File.ReadAllText(filePath);
             rules = JsonSerializer.Deserialize<List<InitialContactTransferRule>>(json, JsonOptions);
         }
         catch (Exception ex)
@@ -66,8 +66,8 @@ public static class InitialContactTransferLoader
 
         for (int i = 0; i < rules.Count; i++)
         {
-            var rule = rules[i];
-            var location = $"{filePath}[{i}]";
+            InitialContactTransferRule rule = rules[i];
+            string location = $"{filePath}[{i}]";
 
             if (string.IsNullOrWhiteSpace(rule.FromPositionType) && string.IsNullOrWhiteSpace(rule.FromCallsign))
             {
@@ -81,7 +81,7 @@ public static class InitialContactTransferLoader
                 continue;
             }
 
-            if (!TryResolveTiming(rule, out var timing))
+            if (!TryResolveTiming(rule, out InitialContactTransferTiming timing))
             {
                 result.Warnings.Add($"{location}: invalid or missing contactAllowedWhen, skipping");
                 continue;
@@ -112,7 +112,7 @@ public static class InitialContactTransferLoader
 
     private static bool TryParseTiming(string? value, out InitialContactTransferTiming timing)
     {
-        var normalized = value?.Trim().Replace("-", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal).ToUpperInvariant();
+        string? normalized = value?.Trim().Replace("-", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal).ToUpperInvariant();
         switch (normalized)
         {
             case "HANDOFFINITIATED":

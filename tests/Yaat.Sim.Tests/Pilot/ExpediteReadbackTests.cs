@@ -35,9 +35,9 @@ public sealed class ExpediteReadbackTests
 
     private static PilotSpeechText Readback(AircraftState aircraft, string text)
     {
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess);
-        var result = PilotResponder.BuildReadback(parsed.Value!, aircraft);
+        PilotSpeechText? result = PilotResponder.BuildReadback(parsed.Value!, aircraft);
         Assert.NotNull(result);
         return result!;
     }
@@ -45,11 +45,11 @@ public sealed class ExpediteReadbackTests
     [Fact]
     public void ExpediteToLowerAltitude_ReadsBackADescent()
     {
-        var ac = Aircraft(2658);
+        AircraftState ac = Aircraft(2658);
         ac.Targets.TargetAltitude = 2000;
         ac.Targets.AssignedAltitude = 2000;
 
-        var result = Readback(ac, "EXP 014");
+        PilotSpeechText result = Readback(ac, "EXP 014");
 
         Assert.Equal("descend and maintain 1400, expedite descent", result.Terminal);
         Assert.Contains("descend and maintain one thousand four hundred, expedite descent", result.Tts);
@@ -59,11 +59,11 @@ public sealed class ExpediteReadbackTests
     [Fact]
     public void ExpediteToHigherAltitude_ReadsBackAClimb()
     {
-        var ac = Aircraft(2000);
+        AircraftState ac = Aircraft(2000);
         ac.Targets.TargetAltitude = 2000;
         ac.Targets.AssignedAltitude = 2000;
 
-        var result = Readback(ac, "EXP 110");
+        PilotSpeechText result = Readback(ac, "EXP 110");
 
         Assert.Equal("climb and maintain 11000, expedite climb", result.Terminal);
         Assert.Contains("climb and maintain one one thousand, expedite climb", result.Tts);
@@ -73,10 +73,10 @@ public sealed class ExpediteReadbackTests
     [Fact]
     public void BareExpedite_WhileDescending_ReadsBackADescent()
     {
-        var ac = Aircraft(5000);
+        AircraftState ac = Aircraft(5000);
         ac.Targets.TargetAltitude = 2000;
 
-        var result = Readback(ac, "EXP");
+        PilotSpeechText result = Readback(ac, "EXP");
 
         Assert.Equal("expedite descent", result.Terminal);
         Assert.DoesNotContain("climb", result.Tts);
@@ -85,10 +85,10 @@ public sealed class ExpediteReadbackTests
     [Fact]
     public void BareExpedite_WhileClimbing_ReadsBackAClimb()
     {
-        var ac = Aircraft(2000);
+        AircraftState ac = Aircraft(2000);
         ac.Targets.TargetAltitude = 9000;
 
-        var result = Readback(ac, "EXP");
+        PilotSpeechText result = Readback(ac, "EXP");
 
         Assert.Equal("expedite climb", result.Terminal);
         Assert.DoesNotContain("descen", result.Tts);
@@ -97,11 +97,11 @@ public sealed class ExpediteReadbackTests
     [Fact]
     public void BareExpedite_WhileTaxiing_ReadsBackTaxiWithoutDelay()
     {
-        var ac = Aircraft(13);
+        AircraftState ac = Aircraft(13);
         ac.IsOnGround = true;
         ac.Ground.AssignedTaxiRoute = new TaxiRoute { Segments = [], HoldShortPoints = [] };
 
-        var result = Readback(ac, "EXP");
+        PilotSpeechText result = Readback(ac, "EXP");
 
         Assert.Equal("taxi without delay", result.Terminal);
         Assert.DoesNotContain("climb", result.Tts);

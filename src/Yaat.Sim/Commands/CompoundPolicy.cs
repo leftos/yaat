@@ -81,7 +81,7 @@ public static class CompoundPolicy
     /// </summary>
     public static ParsedCommand? FindNonCompoundableInChain(string command)
     {
-        if (!TryParseGenuineCompound(command, out var compound))
+        if (!TryParseGenuineCompound(command, out CompoundCommand? compound))
         {
             return null;
         }
@@ -111,15 +111,15 @@ public static class CompoundPolicy
     {
         compound = null;
 
-        var single = CommandParser.Parse(command);
+        ParseResult<ParsedCommand> single = CommandParser.Parse(command);
         if ((single.IsSuccess) && (single.Value is not null) && IsFreeTextCommand(single.Value))
         {
             return false;
         }
 
-        if (TryWalkUnits(command, out _, out var freeText) && freeText.Exists)
+        if (TryWalkUnits(command, out _, out FreeTextTail freeText) && freeText.Exists)
         {
-            var head = freeText.Normalized[..freeText.NormalizedStart].TrimEnd(' ', '\t', ';', ',');
+            string head = freeText.Normalized[..freeText.NormalizedStart].TrimEnd(' ', '\t', ';', ',');
             if (head.Length == 0)
             {
                 return false;
@@ -138,7 +138,7 @@ public static class CompoundPolicy
     {
         compound = null;
 
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         if ((!parsed.IsSuccess) || (parsed.Value is null) || (parsed.Value.Blocks.Sum(b => b.Commands.Count) < minCommands))
         {
             return false;
@@ -156,14 +156,14 @@ public static class CompoundPolicy
     /// </summary>
     private static ParsedCommand? FindTakeoffPairedWithImmediateTurn(CompoundCommand compound)
     {
-        foreach (var block in compound.Blocks)
+        foreach (ParsedBlock block in compound.Blocks)
         {
             if (!block.Commands.Any(IsTakeoffClearance))
             {
                 continue;
             }
 
-            var turn = block.Commands.FirstOrDefault(IsImmediateTurn);
+            ParsedCommand? turn = block.Commands.FirstOrDefault(IsImmediateTurn);
             if (turn is not null)
             {
                 return turn;
@@ -178,7 +178,7 @@ public static class CompoundPolicy
     /// the typed line, not a parsed compound.
     /// </summary>
     public static ParsedCommand? FindTakeoffPairedWithImmediateTurn(string command) =>
-        TryParseGenuineCompound(command, out var compound) ? FindTakeoffPairedWithImmediateTurn(compound) : null;
+        TryParseGenuineCompound(command, out CompoundCommand? compound) ? FindTakeoffPairedWithImmediateTurn(compound) : null;
 
     /// <summary>The single wording of the paired-turn refusal, so the server and the client cannot drift.</summary>
     public static string TakeoffPairedWithImmediateTurnMessage(ParsedCommand turn) =>
@@ -242,7 +242,7 @@ public static class CompoundPolicy
     /// </summary>
     private static bool IsFreeTextLine(string text)
     {
-        var parsed = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
         return (parsed.IsSuccess) && (parsed.Value is not null) && IsFreeTextSpecial(parsed.Value);
     }
 
@@ -278,7 +278,7 @@ public static class CompoundPolicy
     {
         units = [];
 
-        if (!TryWalkUnits(command, out var walked, out var freeText))
+        if (!TryWalkUnits(command, out List<CompoundUnit>? walked, out FreeTextTail freeText))
         {
             return false;
         }
@@ -288,8 +288,11 @@ public static class CompoundPolicy
             return false;
         }
 
-        var freeTextUnits = freeText.Exists ? 1 : 0;
-        if ((!TryParseUnitCommands(walked, walked.Count - freeTextUnits, out var commands)) || (!IsSplittableChain(commands, freeTextUnits)))
+        int freeTextUnits = freeText.Exists ? 1 : 0;
+        if (
+            (!TryParseUnitCommands(walked, walked.Count - freeTextUnits, out List<ParsedCommand>? commands))
+            || (!IsSplittableChain(commands, freeTextUnits))
+        )
         {
             return false;
         }
@@ -318,7 +321,7 @@ public static class CompoundPolicy
     {
         units = [];
 
-        var normalized = CommandSchemeParser.NormalizeSeparatorAliases(command);
+        string normalized = CommandSchemeParser.NormalizeSeparatorAliases(command);
         freeText = new FreeTextTail(-1, -1, normalized);
 
         if (MapNormalizedToOriginal(command, normalized) is not { } map)
@@ -326,17 +329,17 @@ public static class CompoundPolicy
             return false;
         }
 
-        var blockStrings = normalized.Split(';');
-        var blockStart = 0;
+        string[] blockStrings = normalized.Split(';');
+        int blockStart = 0;
         for (int bi = 0; bi < blockStrings.Length; bi++)
         {
-            if (!TryBlockPieces(blockStrings[bi], blockStart, out var pieces))
+            if (!TryBlockPieces(blockStrings[bi], blockStart, out List<LinePiece>? pieces))
             {
                 units = [];
                 return false;
             }
 
-            foreach (var piece in pieces)
+            foreach (LinePiece piece in pieces)
             {
                 if (IsFreeTextLine(piece.Text))
                 {
@@ -377,8 +380,8 @@ public static class CompoundPolicy
     /// </summary>
     private static int[]? MapNormalizedToOriginal(string original, string normalized)
     {
-        var map = new int[normalized.Length + 1];
-        var oi = 0;
+        int[] map = new int[normalized.Length + 1];
+        int oi = 0;
 
         for (int ni = 0; ni < normalized.Length; ni++)
         {
@@ -390,7 +393,7 @@ public static class CompoundPolicy
                 continue;
             }
 
-            var alias = AliasWordFor(normalized[ni]);
+            string? alias = AliasWordFor(normalized[ni]);
             if ((alias is null) || (!original.AsSpan(oi).StartsWith(alias, StringComparison.OrdinalIgnoreCase)))
             {
                 Log.LogWarning(
@@ -416,7 +419,7 @@ public static class CompoundPolicy
     /// </summary>
     private static string? AliasWordFor(char separator)
     {
-        foreach (var (word, aliasSeparator) in CommandSchemeParser.SeparatorAliases)
+        foreach ((string? word, char aliasSeparator) in CommandSchemeParser.SeparatorAliases)
         {
             if (aliasSeparator == separator)
             {
@@ -436,13 +439,13 @@ public static class CompoundPolicy
     {
         pieces = [];
 
-        var trimmed = block.Trim();
+        string trimmed = block.Trim();
         if (trimmed.Length == 0)
         {
             return false;
         }
 
-        var parsed = CommandParser.ParseCompound(trimmed);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(trimmed);
         if ((!parsed.IsSuccess) || (parsed.Value is null))
         {
             return false;
@@ -464,10 +467,10 @@ public static class CompoundPolicy
     /// </summary>
     private static bool TryCommaPieces(string block, int blockStart, List<LinePiece> pieces)
     {
-        var pieceStart = blockStart;
-        foreach (var piece in block.Split(','))
+        int pieceStart = blockStart;
+        foreach (string piece in block.Split(','))
         {
-            var text = piece.Trim();
+            string text = piece.Trim();
             if ((text.Length == 0) || (!CommandParser.ParseCompound(text).IsSuccess))
             {
                 return false;
@@ -491,7 +494,7 @@ public static class CompoundPolicy
 
         for (int i = 0; i < count; i++)
         {
-            var parsed = CommandParser.ParseCompound(units[i].Text);
+            ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(units[i].Text);
             if ((!parsed.IsSuccess) || (parsed.Value is null))
             {
                 return false;

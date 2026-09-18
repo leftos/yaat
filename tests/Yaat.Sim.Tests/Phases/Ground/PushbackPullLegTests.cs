@@ -67,11 +67,11 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             return;
         }
 
-        var start = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, StandPosition(ground));
-        var target = NearestNodeOnTaxiway(ground.Layout, MovementTaxiway, start.Position);
+        GroundNode start = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, StandPosition(ground));
+        GroundNode target = NearestNodeOnTaxiway(ground.Layout, MovementTaxiway, start.Position);
         double bearingDeg = GeoMath.BearingTo(start.Position, target.Position);
 
-        var run = RunLeg(ground, new LegSetup("PUL1", PushbackLegKind.Pull, start, bearingDeg, target));
+        LegRun run = RunLeg(ground, new LegSetup("PUL1", PushbackLegKind.Pull, start, bearingDeg, target));
 
         double startDistFt = DistanceFt(run.StartPosition, target.Position);
         double finalDistFt = DistanceFt(run.Aircraft.Position, target.Position);
@@ -108,13 +108,13 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             return;
         }
 
-        var stand = FindStand(ground);
-        var target = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, stand.Position);
+        GroundNode stand = FindStand(ground);
+        GroundNode target = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, stand.Position);
 
         // Nose away from the target so the tail points at it — the pose a stand pushing onto its lane is in,
         // and inside the phase's alignment window so the leg starts reversing without an in-place pivot.
         double noseDeg = new TrueHeading(GeoMath.BearingTo(stand.Position, target.Position)).ToReciprocal().Degrees;
-        var run = RunLeg(ground, new LegSetup("PSH1", PushbackLegKind.Push, stand, noseDeg, target));
+        LegRun run = RunLeg(ground, new LegSetup("PSH1", PushbackLegKind.Push, stand, noseDeg, target));
 
         double startDistFt = DistanceFt(run.StartPosition, target.Position);
         double finalDistFt = DistanceFt(run.Aircraft.Position, target.Position);
@@ -146,11 +146,11 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             return;
         }
 
-        var start = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, StandPosition(ground));
-        var target = NearestNodeOnTaxiway(ground.Layout, MovementTaxiway, start.Position);
+        GroundNode start = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, StandPosition(ground));
+        GroundNode target = NearestNodeOnTaxiway(ground.Layout, MovementTaxiway, start.Position);
         double startHeadingDeg = new TrueHeading(GeoMath.BearingTo(start.Position, target.Position) + StartOffsetDeg).Degrees;
 
-        var run = RunLeg(ground, new LegSetup("PUL2", PushbackLegKind.Pull, start, startHeadingDeg, target));
+        LegRun run = RunLeg(ground, new LegSetup("PUL2", PushbackLegKind.Pull, start, startHeadingDeg, target));
         Assert.True(run.CompletedSecond > 0, $"the pull leg never completed within {LegBudgetSeconds}s (phase={PhaseName(run.Aircraft)})");
 
         double travelledBearingDeg = GeoMath.BearingTo(run.StartPosition, run.Aircraft.Position);
@@ -188,12 +188,12 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             return;
         }
 
-        var start = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, StandPosition(ground));
+        GroundNode start = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, StandPosition(ground));
         double noseDeg = GeoMath.BearingTo(start.Position, NearestNodeOnTaxiway(ground.Layout, MovementTaxiway, start.Position).Position);
         double lineDeg = noseDeg + LineOffsetDeg;
-        var linePoint = GeoMath.ProjectPoint(start.Position, new TrueHeading(noseDeg), LineOffsetFt / GeoMath.FeetPerNm);
+        LatLon linePoint = GeoMath.ProjectPoint(start.Position, new TrueHeading(noseDeg), LineOffsetFt / GeoMath.FeetPerNm);
         var move = TugMove.ViaLine(PushbackLegKind.Pull, linePoint, lineDeg, stopAt: null);
-        var planned = TugKinematics.Simulate(new TugPose(start.Position, noseDeg), [move], AircraftType, 1.0).End.Position;
+        LatLon planned = TugKinematics.Simulate(new TugPose(start.Position, noseDeg), [move], AircraftType, 1.0).End.Position;
         var phase = new PushbackPhase
         {
             Move = move,
@@ -201,11 +201,11 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             ContinuesIntoNextMove = false,
             ContinuesStandPushOff = false,
         };
-        var ac = SfoGroundHarness.SpawnAt(ground, "PUL4", AircraftType, (start, new TrueHeading(noseDeg)), phase);
+        AircraftState ac = SfoGroundHarness.SpawnAt(ground, "PUL4", AircraftType, (start, new TrueHeading(noseDeg)), phase);
         double radiusFt = TugKinematics.TurnRadiusFt(AircraftType, tight: false);
 
-        var previousPosition = ac.Position;
-        var previousNose = ac.TrueHeading;
+        LatLon previousPosition = ac.Position;
+        TrueHeading previousNose = ac.TrueHeading;
         double worstRatio = 0.0;
         double totalTurnDeg = 0.0;
         int completed = SfoGroundHarness.TickUntil(
@@ -251,16 +251,18 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             ContinuesStandPushOff = false,
         };
 
-        var dto = Assert.IsType<PushbackPhaseDto>(phase.ToSnapshot());
+        PushbackPhaseDto dto = Assert.IsType<PushbackPhaseDto>(phase.ToSnapshot());
         Assert.Equal(PushbackLegKind.Pull, dto.Kind);
         Assert.Equal(PushbackLegKind.Pull, PushbackPhase.FromSnapshot(dto).Kind);
 
         string json = JsonSerializer.Serialize<PhaseDto>(dto, RecordingJsonOptions.Default);
-        var written = JsonNode.Parse(json)?.AsObject();
+        JsonObject? written = JsonNode.Parse(json)?.AsObject();
         Assert.NotNull(written);
         Assert.True(written.Remove("Kind"), $"the pushback snapshot carries no Kind property to remove: {json}");
 
-        var restored = Assert.IsType<PushbackPhaseDto>(JsonSerializer.Deserialize<PhaseDto>(written.ToJsonString(), RecordingJsonOptions.Default));
+        PushbackPhaseDto restored = Assert.IsType<PushbackPhaseDto>(
+            JsonSerializer.Deserialize<PhaseDto>(written.ToJsonString(), RecordingJsonOptions.Default)
+        );
         Assert.Equal(PushbackLegKind.Push, restored.Kind);
         Assert.Equal(PushbackLegKind.Push, PushbackPhase.FromSnapshot(restored).Kind);
     }
@@ -289,11 +291,11 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             IsOnGround = true,
         };
 
-        var dto = Assert.IsType<PushbackPhaseDto>(phase.ToSnapshot());
+        PushbackPhaseDto dto = Assert.IsType<PushbackPhaseDto>(phase.ToSnapshot());
         Assert.True(dto.ContinuesStandPushOff);
 
         string json = JsonSerializer.Serialize<PhaseDto>(dto, RecordingJsonOptions.Default);
-        var readBack = Assert.IsType<PushbackPhaseDto>(JsonSerializer.Deserialize<PhaseDto>(json, RecordingJsonOptions.Default));
+        PushbackPhaseDto readBack = Assert.IsType<PushbackPhaseDto>(JsonSerializer.Deserialize<PhaseDto>(json, RecordingJsonOptions.Default));
         var restored = PushbackPhase.FromSnapshot(readBack);
 
         Assert.True(restored.ContinuesStandPushOff);
@@ -313,11 +315,11 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             return;
         }
 
-        var stand = FindStand(ground);
-        var target = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, stand.Position);
+        GroundNode stand = FindStand(ground);
+        GroundNode target = NearestNodeOnTaxiway(ground.Layout, LaneTaxiway, stand.Position);
         double noseDeg = new TrueHeading(GeoMath.BearingTo(stand.Position, target.Position)).ToReciprocal().Degrees;
         var standPose = new TugPose(stand.Position, noseDeg);
-        var move = TugMove.ToPoint(PushbackLegKind.Push, target.Position) with { Creep = true, DwellBefore = true, Tight = true };
+        TugMove move = TugMove.ToPoint(PushbackLegKind.Push, target.Position) with { Creep = true, DwellBefore = true, Tight = true };
         var phase = new PushbackPhase
         {
             Move = move,
@@ -328,14 +330,14 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             Amendment = TugAmendment.For(TugGoal.TaxiwayLine(target, LaneTaxiway, noseDeg), standPose),
         };
         Assert.NotNull(phase.Amendment);
-        var ac = SfoGroundHarness.SpawnAt(ground, "PSH2", AircraftType, (stand, new TrueHeading(noseDeg)), phase);
+        AircraftState ac = SfoGroundHarness.SpawnAt(ground, "PSH2", AircraftType, (stand, new TrueHeading(noseDeg)), phase);
         SfoGroundHarness.TickUntil(ground.Engine, () => false, 15, null);
         Assert.Same(phase, ac.Phases?.CurrentPhase);
 
-        var dto = Assert.IsType<PushbackPhaseDto>(phase.ToSnapshot());
+        PushbackPhaseDto dto = Assert.IsType<PushbackPhaseDto>(phase.ToSnapshot());
         string json = JsonSerializer.Serialize<PhaseDto>(dto, RecordingJsonOptions.Default);
         output.WriteLine(json);
-        var readBack = Assert.IsType<PushbackPhaseDto>(JsonSerializer.Deserialize<PhaseDto>(json, RecordingJsonOptions.Default));
+        PushbackPhaseDto readBack = Assert.IsType<PushbackPhaseDto>(JsonSerializer.Deserialize<PhaseDto>(json, RecordingJsonOptions.Default));
         var restored = PushbackPhase.FromSnapshot(readBack);
         string rewritten = JsonSerializer.Serialize<PhaseDto>(restored.ToSnapshot(), RecordingJsonOptions.Default);
 
@@ -350,8 +352,8 @@ public class PushbackPullLegTests(ITestOutputHelper output)
         Assert.Equal(phase.HasRampPriority(ac), restored.HasRampPriority(ac));
 
         // A fresh engine, so the original aircraft still on the same path cannot hold the restored one.
-        var restoredGround = SfoGroundHarness.Build(output, autoCross: false)!.Value;
-        var twin = SfoGroundHarness.SpawnAt(restoredGround, "PSH3", AircraftType, (stand, new TrueHeading(noseDeg)), restored);
+        SfoGround restoredGround = SfoGroundHarness.Build(output, autoCross: false)!.Value;
+        AircraftState twin = SfoGroundHarness.SpawnAt(restoredGround, "PSH3", AircraftType, (stand, new TrueHeading(noseDeg)), restored);
         twin.Position = ac.Position;
         twin.TrueHeading = ac.TrueHeading;
         twin.IndicatedAirspeed = ac.IndicatedAirspeed;
@@ -409,8 +411,14 @@ public class PushbackPullLegTests(ITestOutputHelper output)
             ContinuesIntoNextMove = false,
             ContinuesStandPushOff = false,
         };
-        var ac = SfoGroundHarness.SpawnAt(ground, setup.Callsign, AircraftType, (setup.From, new TrueHeading(setup.StartHeadingDeg)), phase);
-        var startPosition = ac.Position;
+        AircraftState ac = SfoGroundHarness.SpawnAt(
+            ground,
+            setup.Callsign,
+            AircraftType,
+            (setup.From, new TrueHeading(setup.StartHeadingDeg)),
+            phase
+        );
+        LatLon startPosition = ac.Position;
 
         bool everSet = false;
         bool everNull = false;
@@ -442,7 +450,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
 
     private static GroundNode FindStand(SfoGround ground)
     {
-        var stand = ground.Layout.FindParkingByName(Stand);
+        GroundNode? stand = ground.Layout.FindParkingByName(Stand);
         Assert.True(stand is not null, $"the SFO layout has no parking named '{Stand}'");
         return stand!;
     }
@@ -454,7 +462,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
     {
         GroundNode? best = null;
         double bestNm = double.MaxValue;
-        foreach (var node in layout.GetNodesOnTaxiway(taxiway))
+        foreach (GroundNode node in layout.GetNodesOnTaxiway(taxiway))
         {
             double distNm = GeoMath.DistanceNm(from, node.Position);
             if (distNm < bestNm)

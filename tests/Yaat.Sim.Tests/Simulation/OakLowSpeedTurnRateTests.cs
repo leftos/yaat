@@ -47,15 +47,15 @@ public class OakLowSpeedTurnRateTests(ITestOutputHelper output)
     [InlineData("N172SP")]
     public void TaxiOut_DoesNotPivotFasterThanRealistic(string callsign)
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 0);
-        var ac = engine.FindAircraft(callsign);
+        AircraftState? ac = engine.FindAircraft(callsign);
         Assert.NotNull(ac);
 
         double prevHdg = ac.TrueHeading.Degrees;

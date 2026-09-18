@@ -19,7 +19,7 @@ public class AiAnomalyLogTests
         log.Close(AiAnomalyKind.StuckAircraft, "gnd", "N1", 80);
         Assert.False(log.IsOpen(AiAnomalyKind.StuckAircraft, "gnd", "N1"));
 
-        var events = log.Drain();
+        IReadOnlyList<AiAnomalyEvent> events = log.Drain();
         Assert.Equal(2, events.Count);
         Assert.Equal(AiAnomalyEventKind.Opened, events[0].Event);
         Assert.Equal(10, events[0].AtSeconds);
@@ -37,7 +37,7 @@ public class AiAnomalyLogTests
         log.Record(AiAnomalyKind.CommandRejected, "gnd", "N1", 5, "CTO: aircraft is parked");
         log.Open(AiAnomalyKind.UnansweredPilotRequest, "gnd", "N2", 6, "taxi");
 
-        var events = log.Drain();
+        IReadOnlyList<AiAnomalyEvent> events = log.Drain();
         Assert.Equal(AiAnomalyEventKind.Instant, events[0].Event);
         Assert.Equal(0, events[0].DurationSeconds);
 

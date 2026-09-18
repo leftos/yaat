@@ -43,7 +43,7 @@ public class AircraftModelHeadingDisplayTests
         const double trueHdg = 270.0;
         var ac = new AircraftModel { Heading = new TrueHeading(trueHdg), Position = pos };
 
-        var expected = new TrueHeading(trueHdg).ToMagnetic(MagneticDeclination.GetDeclination(pos)).ToDisplayString();
+        string expected = new TrueHeading(trueHdg).ToMagnetic(MagneticDeclination.GetDeclination(pos)).ToDisplayString();
         Assert.Equal(expected, ac.HeadingDisplay);
         Assert.Equal(3, ac.HeadingDisplay.Length);
 

@@ -73,14 +73,14 @@ public sealed class AudioCaptureService : IDisposable
             {
                 EnsurePortAudioInitialized();
 
-                var deviceIndex = ResolveInputDevice(_preferences.AudioInputDevice);
+                int deviceIndex = ResolveInputDevice(_preferences.AudioInputDevice);
                 if (deviceIndex == PortAudio.NoDevice)
                 {
                     Log.LogError("No audio input device available");
                     return false;
                 }
 
-                var info = PortAudio.GetDeviceInfo(deviceIndex);
+                DeviceInfo info = PortAudio.GetDeviceInfo(deviceIndex);
                 var param = new StreamParameters
                 {
                     device = deviceIndex,
@@ -128,7 +128,7 @@ public sealed class AudioCaptureService : IDisposable
             }
 
             StopStreamUnsafe();
-            var samples = _capturedSamples.ToArray();
+            float[] samples = _capturedSamples.ToArray();
             _capturedSamples = [];
             Log.LogInformation("Audio capture stopped: {SampleCount} samples ({Seconds:F2}s)", samples.Length, samples.Length / (float)SampleRate);
             return samples;
@@ -146,9 +146,9 @@ public sealed class AudioCaptureService : IDisposable
         {
             EnsurePortAudioInitialized();
             var devices = new List<(int, string)>();
-            for (var i = 0; i < PortAudio.DeviceCount; i++)
+            for (int i = 0; i < PortAudio.DeviceCount; i++)
             {
-                var info = PortAudio.GetDeviceInfo(i);
+                DeviceInfo info = PortAudio.GetDeviceInfo(i);
                 if (info.maxInputChannels > 0)
                 {
                     devices.Add((i, info.name));
@@ -176,9 +176,9 @@ public sealed class AudioCaptureService : IDisposable
         {
             EnsurePortAudioInitialized();
             var devices = new List<(int, string)>();
-            for (var i = 0; i < PortAudio.DeviceCount; i++)
+            for (int i = 0; i < PortAudio.DeviceCount; i++)
             {
-                var info = PortAudio.GetDeviceInfo(i);
+                DeviceInfo info = PortAudio.GetDeviceInfo(i);
                 if (info.maxOutputChannels > 0)
                 {
                     devices.Add((i, info.name));
@@ -215,18 +215,18 @@ public sealed class AudioCaptureService : IDisposable
 
         // Match by exact name first, then fall back to a case-insensitive substring match so users
         // can type "Rode" and get "Rode NT-USB Mini" without copy-pasting the full name.
-        for (var i = 0; i < PortAudio.DeviceCount; i++)
+        for (int i = 0; i < PortAudio.DeviceCount; i++)
         {
-            var info = PortAudio.GetDeviceInfo(i);
+            DeviceInfo info = PortAudio.GetDeviceInfo(i);
             if (info.maxInputChannels > 0 && string.Equals(info.name, preferred, StringComparison.Ordinal))
             {
                 return i;
             }
         }
 
-        for (var i = 0; i < PortAudio.DeviceCount; i++)
+        for (int i = 0; i < PortAudio.DeviceCount; i++)
         {
-            var info = PortAudio.GetDeviceInfo(i);
+            DeviceInfo info = PortAudio.GetDeviceInfo(i);
             if (info.maxInputChannels > 0 && info.name.Contains(preferred, StringComparison.OrdinalIgnoreCase))
             {
                 return i;
@@ -253,7 +253,7 @@ public sealed class AudioCaptureService : IDisposable
             return StreamCallbackResult.Continue;
         }
 
-        var samples = new float[frameCount];
+        float[] samples = new float[frameCount];
         Marshal.Copy(input, samples, 0, (int)frameCount);
 
         lock (_bufferLock)

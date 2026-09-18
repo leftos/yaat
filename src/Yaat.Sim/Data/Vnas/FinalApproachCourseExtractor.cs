@@ -55,7 +55,7 @@ public static class FinalApproachCourseExtractor
             navDb.GetAirportMagneticVariation(runway.AirportId)
             ?? MagneticDeclination.GetDeclination(runway.ThresholdLatitude, runway.ThresholdLongitude);
 
-        var (mapLeg, mapIndex) = FindMapLeg(procedure.CommonLegs);
+        (CifpLeg? mapLeg, int mapIndex) = FindMapLeg(procedure.CommonLegs);
         if (mapLeg is null)
         {
             Log.LogDebug("[FacExtract] {ApproachId}: no MAP leg found in CommonLegs, falling back to runway heading", procedure.ApproachId);
@@ -80,7 +80,7 @@ public static class FinalApproachCourseExtractor
             course = runway.TrueHeading;
         }
 
-        var (anchorLat, anchorLon) = DetermineAnchor(mapLeg, runway, navDb);
+        (double? anchorLat, double? anchorLon) = DetermineAnchor(mapLeg, runway, navDb);
 
         Log.LogDebug(
             "[FacExtract] {ApproachId}: course={Course:F1} (rwy {RwyHdg:F1}, declination {Dec:F1}), anchor={Anchor}",
@@ -117,14 +117,14 @@ public static class FinalApproachCourseExtractor
 
     private static TrueHeading? CourseFromBearing(IReadOnlyList<CifpLeg> legs, int mapIndex, RunwayInfo runway, NavigationDatabase navDb)
     {
-        var prev = FindPreviousLeg(legs, mapIndex);
+        CifpLeg? prev = FindPreviousLeg(legs, mapIndex);
         if (prev is null)
         {
             return null;
         }
 
-        var prevPos = ResolveFixOrThreshold(prev, runway, navDb);
-        var mapPos = ResolveFixOrThreshold(legs[mapIndex], runway, navDb);
+        (double Lat, double Lon)? prevPos = ResolveFixOrThreshold(prev, runway, navDb);
+        (double Lat, double Lon)? mapPos = ResolveFixOrThreshold(legs[mapIndex], runway, navDb);
         if (prevPos is null || mapPos is null)
         {
             return null;
@@ -138,7 +138,7 @@ public static class FinalApproachCourseExtractor
     {
         for (int i = mapIndex - 1; i >= 0; i--)
         {
-            var leg = legs[i];
+            CifpLeg leg = legs[i];
             // Skip continuation records (parser tags them with PathTerminator.Other and may have empty
             // fix id) and course/heading-to-distance/radial legs, whose named fix (if any) is the leg's
             // origin, not its terminus — using it as the segment's end point would skew the bearing.
@@ -183,7 +183,7 @@ public static class FinalApproachCourseExtractor
             return (null, null);
         }
 
-        var pos = mapLeg.ResolveFixPosition(navDb);
+        (double Lat, double Lon)? pos = mapLeg.ResolveFixPosition(navDb);
         if (pos is null)
         {
             return (null, null);

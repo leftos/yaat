@@ -409,7 +409,7 @@ public sealed class TargetRenderer : IDisposable
         _callsignIndex.Clear();
         if (ShowConflictAlerts || ShowAtpa)
         {
-            foreach (var ac in aircraft)
+            foreach (AircraftModel ac in aircraft)
             {
                 _callsignIndex[ac.Callsign] = ac;
             }
@@ -421,9 +421,9 @@ public sealed class TargetRenderer : IDisposable
         // the bubble we're trying to surface. List is allocated only when speech bubbles
         // are enabled; otherwise the per-aircraft check is a single property read.
         List<AircraftModel>? deferred = null;
-        var now = ShowSpeechBubbles ? DateTime.UtcNow : default;
+        DateTime now = ShowSpeechBubbles ? DateTime.UtcNow : default;
 
-        foreach (var ac in aircraft)
+        foreach (AircraftModel ac in aircraft)
         {
             if (ShowSpeechBubbles && IsBubbleActive(ac.SpeechBubble, now))
             {
@@ -450,7 +450,7 @@ public sealed class TargetRenderer : IDisposable
 
         if (deferred is not null)
         {
-            foreach (var ac in deferred)
+            foreach (AircraftModel ac in deferred)
             {
                 DrawOneAircraft(
                     canvas,
@@ -489,7 +489,7 @@ public sealed class TargetRenderer : IDisposable
         bool drawBubble
     )
     {
-        var (sx, sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        (float sx, float sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
 
         bool isSelected = ac == selectedAircraft;
         bool isOnGround = showTopDown && (int)(ac.Altitude / 100) < 1;
@@ -511,7 +511,7 @@ public sealed class TargetRenderer : IDisposable
         // Student STARS color (when sync is on) sits below an explicit RPO tint but above the ground /
         // white defaults, so the datablock reflects how the student's scope colors the track.
         SKColor? studentColor = SyncStudentColors ? StudentDatablockColorFor(ac) : null;
-        var (symbolColor, dbColor) = ResolveTargetColors(
+        (SKColor symbolColor, SKColor dbColor) = ResolveTargetColors(
             new TargetColorInputs(
                 isSelected,
                 isHighlighted,
@@ -529,7 +529,7 @@ public sealed class TargetRenderer : IDisposable
             DrawPtlLine(canvas, vp, sx, sy, ac, ptlLengthMinutes);
         }
 
-        var atpaLead = ResolveAtpaLead(ac);
+        AircraftModel? atpaLead = ResolveAtpaLead(ac);
 
         if (ac.TpaType != 0 && ac.TpaSize > 0)
         {
@@ -547,11 +547,11 @@ public sealed class TargetRenderer : IDisposable
         }
 
         DrawPositionSymbol(canvas, sx, sy, symbolColor, ac.IsLiveTraffic);
-        var blockRect = DrawLeaderAndDataBlock(canvas, sx, sy, ac, dbColor, dataBlockOffsets, deconflictOffsets, isMinified, isSelected);
+        SKRect blockRect = DrawLeaderAndDataBlock(canvas, sx, sy, ac, dbColor, dataBlockOffsets, deconflictOffsets, isMinified, isSelected);
 
         if (drawBubble && ac.SpeechBubble is { } bubble)
         {
-            var bubbleRect = DrawSpeechBubble(canvas, blockRect, bubble.Text, bubble.Severity);
+            SKRect? bubbleRect = DrawSpeechBubble(canvas, blockRect, bubble.Text, bubble.Severity);
             if (bubbleRect is { } r)
             {
                 _lastBubbleRects[ac.Callsign] = r;
@@ -584,10 +584,10 @@ public sealed class TargetRenderer : IDisposable
     /// </summary>
     internal static (SKColor Symbol, SKColor DataBlock) ResolveTargetColors(TargetColorInputs i)
     {
-        var baseSymbolColor = i.TintColor ?? (i.IsOnGround ? GroundColor : SymbolColor);
-        var baseDbColor = i.TintColor ?? i.StudentColor ?? (i.IsOnGround ? GroundColor : DataBlockColor);
-        var symbolColor = i.IsSelected ? i.SelectedColor : baseSymbolColor;
-        var dbColor = i.IsHighlighted ? SKColors.Cyan : baseDbColor;
+        SKColor baseSymbolColor = i.TintColor ?? (i.IsOnGround ? GroundColor : SymbolColor);
+        SKColor baseDbColor = i.TintColor ?? i.StudentColor ?? (i.IsOnGround ? GroundColor : DataBlockColor);
+        SKColor symbolColor = i.IsSelected ? i.SelectedColor : baseSymbolColor;
+        SKColor dbColor = i.IsHighlighted ? SKColors.Cyan : baseDbColor;
         return i.IsStale ? (symbolColor.WithAlpha(StaleAlpha), dbColor.WithAlpha(StaleAlpha)) : (symbolColor, dbColor);
     }
 
@@ -608,9 +608,9 @@ public sealed class TargetRenderer : IDisposable
             return;
         }
 
-        var distNm = ac.GroundSpeed * minutes / 60.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(ac.Position, ac.Heading, distNm);
-        var (ex, ey) = vp.LatLonToScreen(endLat, endLon);
+        double distNm = ac.GroundSpeed * minutes / 60.0;
+        (double endLat, double endLon) = GeoMath.ProjectPoint(ac.Position, ac.Heading, distNm);
+        (float ex, float ey) = vp.LatLonToScreen(endLat, endLon);
 
         _ptlPaint.Color = SKColors.White;
         canvas.DrawLine(sx, sy, ex, ey, _ptlPaint);
@@ -635,8 +635,8 @@ public sealed class TargetRenderer : IDisposable
         using var path = new SKPath();
         for (int deg = 0; deg <= 360; deg += 5)
         {
-            var (lat, lon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(deg), ConflictRingRadiusNm);
-            var (px, py) = vp.LatLonToScreen(lat, lon);
+            (double lat, double lon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(deg), ConflictRingRadiusNm);
+            (float px, float py) = vp.LatLonToScreen(lat, lon);
             if (deg == 0)
             {
                 path.MoveTo(px, py);
@@ -706,12 +706,12 @@ public sealed class TargetRenderer : IDisposable
 
         // GeoMath.ProjectPoint takes true headings; the viewport applies the display rotation.
         double axis = GeoMath.BearingTo(ac.Position, lead.Position);
-        var (leftLat, leftLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis + TpaConeHalfAngleDegrees), lengthNm);
-        var (rightLat, rightLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis - TpaConeHalfAngleDegrees), lengthNm);
-        var (lx, ly) = vp.LatLonToScreen(leftLat, leftLon);
-        var (rx, ry) = vp.LatLonToScreen(rightLat, rightLon);
+        (double leftLat, double leftLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis + TpaConeHalfAngleDegrees), lengthNm);
+        (double rightLat, double rightLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis - TpaConeHalfAngleDegrees), lengthNm);
+        (float lx, float ly) = vp.LatLonToScreen(leftLat, leftLon);
+        (float rx, float ry) = vp.LatLonToScreen(rightLat, rightLon);
 
-        var coneColor = AtpaConeColorFor(ac.AtpaConeState);
+        SKColor coneColor = AtpaConeColorFor(ac.AtpaConeState);
         using var path = new SKPath();
         path.MoveTo(sx, sy);
         path.LineTo(lx, ly);
@@ -721,8 +721,8 @@ public sealed class TargetRenderer : IDisposable
         canvas.DrawPath(path, _tpaPaint);
         _tpaPaint.Color = TpaColor;
 
-        var (midLat, midLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis), lengthNm / 2.0);
-        var (mx, my) = vp.LatLonToScreen(midLat, midLon);
+        (double midLat, double midLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis), lengthNm / 2.0);
+        (float mx, float my) = vp.LatLonToScreen(midLat, midLon);
         _tpaTextPaint.Color = coneColor;
         DrawTpaSizeLabel(canvas, mx, my, lengthNm);
         _tpaTextPaint.Color = TpaColor;
@@ -733,8 +733,8 @@ public sealed class TargetRenderer : IDisposable
         using var path = new SKPath();
         for (int deg = 0; deg <= 360; deg += 5)
         {
-            var (lat, lon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(deg), ac.TpaSize);
-            var (px, py) = vp.LatLonToScreen(lat, lon);
+            (double lat, double lon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(deg), ac.TpaSize);
+            (float px, float py) = vp.LatLonToScreen(lat, lon);
             if (deg == 0)
             {
                 path.MoveTo(px, py);
@@ -749,8 +749,8 @@ public sealed class TargetRenderer : IDisposable
         canvas.DrawPath(path, _tpaPaint);
 
         // Size label at the south edge of the ring (clear of the typical NE datablock).
-        var (lblLat, lblLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(180), ac.TpaSize);
-        var (lx, ly) = vp.LatLonToScreen(lblLat, lblLon);
+        (double lblLat, double lblLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(180), ac.TpaSize);
+        (float lx, float ly) = vp.LatLonToScreen(lblLat, lblLon);
         DrawTpaSizeLabel(canvas, lx, ly, ac.TpaSize);
     }
 
@@ -758,11 +758,11 @@ public sealed class TargetRenderer : IDisposable
     {
         // CRC projects the cone along ground track; YAAT draws its leader line along Heading, so the
         // cone shares that axis to stay visually consistent with the rest of the YAAT target.
-        var axis = ac.Heading.Degrees;
-        var (leftLat, leftLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis + TpaConeHalfAngleDegrees), ac.TpaSize);
-        var (rightLat, rightLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis - TpaConeHalfAngleDegrees), ac.TpaSize);
-        var (lx, ly) = vp.LatLonToScreen(leftLat, leftLon);
-        var (rx, ry) = vp.LatLonToScreen(rightLat, rightLon);
+        double axis = ac.Heading.Degrees;
+        (double leftLat, double leftLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis + TpaConeHalfAngleDegrees), ac.TpaSize);
+        (double rightLat, double rightLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis - TpaConeHalfAngleDegrees), ac.TpaSize);
+        (float lx, float ly) = vp.LatLonToScreen(leftLat, leftLon);
+        (float rx, float ry) = vp.LatLonToScreen(rightLat, rightLon);
 
         using var path = new SKPath();
         path.MoveTo(sx, sy);
@@ -772,18 +772,18 @@ public sealed class TargetRenderer : IDisposable
         canvas.DrawPath(path, _tpaPaint);
 
         // Size label at the cone's midpoint along the track axis (mirrors CRC).
-        var (midLat, midLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis), ac.TpaSize / 2.0);
-        var (mx, my) = vp.LatLonToScreen(midLat, midLon);
+        (double midLat, double midLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis), ac.TpaSize / 2.0);
+        (float mx, float my) = vp.LatLonToScreen(midLat, midLon);
         DrawTpaSizeLabel(canvas, mx, my, ac.TpaSize);
     }
 
     private void DrawTpaSizeLabel(SKCanvas canvas, float centerX, float centerY, double sizeNm)
     {
-        var text = sizeNm.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
-        var width = _tpaTextFont.MeasureText(text);
-        var height = _tpaTextFont.Size;
-        var baselineX = centerX - (width / 2f);
-        var baselineY = centerY + (height / 2f);
+        string text = sizeNm.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        float width = _tpaTextFont.MeasureText(text);
+        float height = _tpaTextFont.Size;
+        float baselineX = centerX - (width / 2f);
+        float baselineY = centerY + (height / 2f);
 
         // Black backing rect keeps the value legible over targets / video maps (mirrors CRC's RenderQuad).
         canvas.DrawRect(baselineX - 2f, baselineY - height - 1f, width + 4f, height + 4f, _tpaLabelBackingPaint);
@@ -802,7 +802,7 @@ public sealed class TargetRenderer : IDisposable
 
     private void DrawPositionSymbol(SKCanvas canvas, float cx, float cy, SKColor color, bool isLiveTraffic)
     {
-        var paint = isLiveTraffic ? _shadowSymbolPaint : _symbolPaint;
+        SKPaint paint = isLiveTraffic ? _shadowSymbolPaint : _symbolPaint;
         paint.Color = color;
         canvas.DrawCircle(cx, cy, SymbolSize, paint);
     }
@@ -822,7 +822,7 @@ public sealed class TargetRenderer : IDisposable
             return null;
         }
 
-        var (relation, _) = MvaDatabase.Default.Classify(ac.Position, ac.Altitude, MvaAtBandFt);
+        (MvaRelation relation, MvaSector? _) = MvaDatabase.Default.Classify(ac.Position, ac.Altitude, MvaAtBandFt);
         return relation switch
         {
             MvaRelation.Below => MvaBelowColor,
@@ -861,7 +861,7 @@ public sealed class TargetRenderer : IDisposable
             return;
         }
 
-        var blockColor = _dataBlockPaint.Color;
+        SKColor blockColor = _dataBlockPaint.Color;
         int firstSpace = line.IndexOf(' ');
         // A tinted line with no space is all altitude token, so the tint covers the whole line.
         int headLength = altTint is null ? 0 : (firstSpace >= 0 ? firstSpace : line.Length);
@@ -960,12 +960,12 @@ public sealed class TargetRenderer : IDisposable
         SKPoint manualOffset = default;
         bool hasManualOffset = dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out manualOffset);
         SKPoint? deconflictOffset =
-            deconflictOffsets is not null && deconflictOffsets.TryGetValue(ac.Callsign, out var resolvedOffset) ? resolvedOffset : null;
+            deconflictOffsets is not null && deconflictOffsets.TryGetValue(ac.Callsign, out SKPoint resolvedOffset) ? resolvedOffset : null;
 
         if (EuroScopeMode && !isMinified)
         {
             // EuroScope tags keep manual/default placement; student-scope sync targets STARS tags only.
-            var esOffset = hasManualOffset ? manualOffset : RadarDatablockLayout.DefaultOffset;
+            SKPoint esOffset = hasManualOffset ? manualOffset : RadarDatablockLayout.DefaultOffset;
             return DrawEuroScopeBlock(canvas, cx, cy, cx + esOffset.X, cy + esOffset.Y, ac, color, isSelected);
         }
 
@@ -983,8 +983,8 @@ public sealed class TargetRenderer : IDisposable
         // Full STARS block, optionally annotated with the student's (LDB)/(PDB) marker.
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
         var overlays = new DatablockOverlays(ShowConflictAlerts, ResolveConflictPeer(ac), ShowAtpa, ResolveAtpaLead(ac));
-        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, DataBlockStyle, FlashNoLandingClearance, overlays, marker).Rect;
-        var offset = RadarDatablockLayout.ResolveBlockOffset(
+        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, DataBlockStyle, FlashNoLandingClearance, overlays, marker).Rect;
+        SKPoint offset = RadarDatablockLayout.ResolveBlockOffset(
             ac,
             SyncStudentLeaderDirection,
             hasManualOffset,
@@ -1002,7 +1002,7 @@ public sealed class TargetRenderer : IDisposable
             canvas.DrawRect(layout.Rect, _selectedBorderPaint);
         }
 
-        var leaderEndStars = ClampToBlockEdge(cx, cy, layout.Rect);
+        SKPoint leaderEndStars = ClampToBlockEdge(cx, cy, layout.Rect);
         _leaderPaint.Color = color;
         canvas.DrawLine(cx, cy, leaderEndStars.X, leaderEndStars.Y, _leaderPaint);
 
@@ -1047,7 +1047,7 @@ public sealed class TargetRenderer : IDisposable
         {
             // Steady (never flashed): the in-trail distance is a continuous readout, and a Monitor-state
             // pairing is routine enough to stay in the block's own colour.
-            var prev = _dataBlockPaint.Color;
+            SKColor prev = _dataBlockPaint.Color;
             if (ac.AtpaConeState != AtpaConeState.Monitor)
             {
                 _dataBlockPaint.Color = AtpaConeColorFor(ac.AtpaConeState);
@@ -1071,7 +1071,7 @@ public sealed class TargetRenderer : IDisposable
             // field below doesn't jump up during the off-phase.
             if (layout.Line5.Length > 0)
             {
-                var prev = _dataBlockPaint.Color;
+                SKColor prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = SKColors.Red;
                 canvas.DrawText(
                     layout.Line5,
@@ -1088,7 +1088,7 @@ public sealed class TargetRenderer : IDisposable
 
         if (layout.ReserveConflictSlot && layout.ConflictLine.Length > 0)
         {
-            var prev = _dataBlockPaint.Color;
+            SKColor prev = _dataBlockPaint.Color;
             _dataBlockPaint.Color = ConflictAlertColor;
             canvas.DrawText(
                 layout.ConflictLine,
@@ -1104,7 +1104,7 @@ public sealed class TargetRenderer : IDisposable
         // Instructor note: always the bottom line of the block, drawn in amber.
         if (layout.Line6.Length > 0)
         {
-            var prev = _dataBlockPaint.Color;
+            SKColor prev = _dataBlockPaint.Color;
             _dataBlockPaint.Color = NoteColor;
             canvas.DrawText(
                 layout.Line6,
@@ -1134,8 +1134,8 @@ public sealed class TargetRenderer : IDisposable
         SKPoint? deconflictOffset
     )
     {
-        var rectAtOrigin = RadarDatablockLayout.ReducedRect(lines, DataBlockStyle, 0, 0);
-        var offset = RadarDatablockLayout.ResolveBlockOffset(
+        SKRect rectAtOrigin = RadarDatablockLayout.ReducedRect(lines, DataBlockStyle, 0, 0);
+        SKPoint offset = RadarDatablockLayout.ResolveBlockOffset(
             ac,
             SyncStudentLeaderDirection,
             hasManualOffset,
@@ -1145,14 +1145,14 @@ public sealed class TargetRenderer : IDisposable
         );
         float blockX = cx + offset.X;
         float blockY = cy + offset.Y;
-        var rect = RadarDatablockLayout.ReducedRect(lines, DataBlockStyle, blockX, blockY);
+        SKRect rect = RadarDatablockLayout.ReducedRect(lines, DataBlockStyle, blockX, blockY);
 
         if (isSelected)
         {
             canvas.DrawRect(rect, _selectedBorderPaint);
         }
 
-        var leaderEnd = ClampToBlockEdge(cx, cy, rect);
+        SKPoint leaderEnd = ClampToBlockEdge(cx, cy, rect);
         _leaderPaint.Color = color;
         canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
 
@@ -1177,7 +1177,7 @@ public sealed class TargetRenderer : IDisposable
 
     private void DrawStrikethrough(SKCanvas canvas, float textX, float textBaseline, string text, TextStyle style, SKColor color)
     {
-        var metrics = style.Font.Metrics;
+        SKFontMetrics metrics = style.Font.Metrics;
         // StrikeoutPosition is negative (above baseline). Some fonts report null/0 — fall back to one-third of cap height.
         float strikeOffset = metrics.StrikeoutPosition.GetValueOrDefault();
         if (strikeOffset == 0)
@@ -1202,7 +1202,7 @@ public sealed class TargetRenderer : IDisposable
         bool isSelected
     )
     {
-        var result = EuroScopeTagLayout.Layout(
+        EuroScopeTagResult result = EuroScopeTagLayout.Layout(
             ac,
             blockX,
             blockY,
@@ -1213,22 +1213,22 @@ public sealed class TargetRenderer : IDisposable
             ResolveConflictPeer(ac)
         );
         _lastEuroScopeTags[ac.Callsign] = result;
-        var mvaTint = ResolveMvaAltitudeTint(ac);
+        SKColor? mvaTint = ResolveMvaAltitudeTint(ac);
 
         if (isSelected)
         {
             canvas.DrawRect(result.Bounds, _selectedBorderPaint);
         }
 
-        var leaderEnd = ClampToBlockEdge(cx, cy, result.Bounds);
+        SKPoint leaderEnd = ClampToBlockEdge(cx, cy, result.Bounds);
         _leaderPaint.Color = color;
         canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
 
-        foreach (var f in result.Fields)
+        foreach (TagFieldRect f in result.Fields)
         {
             if (f.Field == TagFieldId.NoLandingClearance)
             {
-                var prev = _dataBlockPaint.Color;
+                SKColor prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = SKColors.Red;
                 canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
                 _dataBlockPaint.Color = prev;
@@ -1237,7 +1237,7 @@ public sealed class TargetRenderer : IDisposable
 
             if (f.Field == TagFieldId.ConflictAlert)
             {
-                var prev = _dataBlockPaint.Color;
+                SKColor prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = ConflictAlertColor;
                 canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
                 _dataBlockPaint.Color = prev;
@@ -1246,7 +1246,7 @@ public sealed class TargetRenderer : IDisposable
 
             if (f.Field == TagFieldId.Note)
             {
-                var prev = _dataBlockPaint.Color;
+                SKColor prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = NoteColor;
                 canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
                 _dataBlockPaint.Color = prev;
@@ -1255,7 +1255,7 @@ public sealed class TargetRenderer : IDisposable
 
             if (f.Field == TagFieldId.CurrentAltitude && mvaTint is { } altTint)
             {
-                var prev = _dataBlockPaint.Color;
+                SKColor prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = altTint;
                 canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
                 _dataBlockPaint.Color = prev;
@@ -1304,7 +1304,7 @@ public sealed class TargetRenderer : IDisposable
             return null;
         }
 
-        var lines = WrapBubbleText(text);
+        List<string> lines = WrapBubbleText(text);
         if (lines.Count == 0)
         {
             return null;
@@ -1312,7 +1312,7 @@ public sealed class TargetRenderer : IDisposable
 
         float lineH = _bubbleTextFont.Size + 2;
         float maxLineWidth = 0;
-        foreach (var line in lines)
+        foreach (string line in lines)
         {
             float w = _bubbleTextFont.MeasureText(line);
             if (w > maxLineWidth)
@@ -1329,8 +1329,8 @@ public sealed class TargetRenderer : IDisposable
         float bottom = top + lines.Count * lineH + 2 * pad - 2;
         var rect = new SKRect(left, top, right, bottom);
 
-        var fillPaint = severity == SpeechBubbleSeverity.Warning ? _bubbleFillPaintWarning : _bubbleFillPaint;
-        var borderPaint = severity == SpeechBubbleSeverity.Warning ? _bubbleBorderPaintWarning : _bubbleBorderPaint;
+        SKPaint fillPaint = severity == SpeechBubbleSeverity.Warning ? _bubbleFillPaintWarning : _bubbleFillPaint;
+        SKPaint borderPaint = severity == SpeechBubbleSeverity.Warning ? _bubbleBorderPaintWarning : _bubbleBorderPaint;
         canvas.DrawRoundRect(rect, 3f, 3f, fillPaint);
         canvas.DrawRoundRect(rect, 3f, 3f, borderPaint);
 
@@ -1350,9 +1350,9 @@ public sealed class TargetRenderer : IDisposable
     private static List<string> WrapBubbleText(string text)
     {
         var lines = new List<string>();
-        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var current = new System.Text.StringBuilder();
-        foreach (var word in words)
+        foreach (string word in words)
         {
             // Word longer than the line width on its own: hard-break it.
             if (word.Length >= SpeechBubbleMaxLineChars)
@@ -1401,7 +1401,7 @@ public sealed class TargetRenderer : IDisposable
             int totalUsed = lines.Sum(l => l.Length) + (lines.Count - 1);
             if (totalUsed < text.Length)
             {
-                var last = lines[^1];
+                string last = lines[^1];
                 if (last.Length >= SpeechBubbleMaxLineChars - 1)
                 {
                     last = last[..(SpeechBubbleMaxLineChars - 1)];
@@ -1427,14 +1427,14 @@ public sealed class TargetRenderer : IDisposable
     {
         float baseAlpha = 255 * HistoryBrightness;
 
-        foreach (var ac in aircraft)
+        foreach (AircraftModel ac in aircraft)
         {
             if (ac.PositionHistory is not { Count: > 0 })
             {
                 continue;
             }
 
-            var dots = ac.PositionHistory;
+            IReadOnlyList<double[]> dots = ac.PositionHistory;
             int start = Math.Max(0, dots.Count - historyCount);
             int visibleCount = dots.Count - start;
             for (int i = start; i < dots.Count; i++)
@@ -1442,8 +1442,8 @@ public sealed class TargetRenderer : IDisposable
                 int dotIndex = i - start;
                 byte alpha = (byte)(baseAlpha * (dotIndex + 1) / visibleCount);
                 _historyPaint.Color = HistoryColor.WithAlpha(alpha);
-                var dot = dots[i];
-                var (hx, hy) = vp.LatLonToScreen(dot[0], dot[1]);
+                double[] dot = dots[i];
+                (float hx, float hy) = vp.LatLonToScreen(dot[0], dot[1]);
                 canvas.DrawCircle(hx, hy, SymbolSize / 2f, _historyPaint);
             }
         }

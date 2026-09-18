@@ -21,18 +21,18 @@ public class RunwayAwareExitTests
     [Fact]
     public void OAK_FindNearestExit_28L_ReturnsExitOnCorrectRunway()
     {
-        var layout = LoadAirportLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadAirportLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
         // Get 28L runway centerline to compute a midpoint position on 28L
-        var rwy28L = layout.FindGroundRunway("28L");
+        GroundRunway? rwy28L = layout.FindGroundRunway("28L");
         Assert.NotNull(rwy28L);
 
         // Compute a midpoint along 28L's centerline
-        var coords = rwy28L.Coordinates;
+        List<(double Lat, double Lon)> coords = rwy28L.Coordinates;
         int midIdx = coords.Count / 2;
         double midLat = coords[midIdx].Lat;
         double midLon = coords[midIdx].Lon;
@@ -40,11 +40,11 @@ public class RunwayAwareExitTests
         // Runway heading for 28L (~280°)
         double heading = 280.0;
 
-        var exitNode = layout.FindNearestExit(midLat, midLon, new TrueHeading(heading), "28L");
+        GroundNode? exitNode = layout.FindNearestExit(midLat, midLon, new TrueHeading(heading), "28L");
         Assert.NotNull(exitNode);
 
         // Verify: the exit node should be closer to 28L than to 28R
-        var rwy28R = layout.FindGroundRunway("28R");
+        GroundRunway? rwy28R = layout.FindGroundRunway("28R");
         Assert.NotNull(rwy28R);
 
         double distTo28L = MinDistToRunway(exitNode, rwy28L);
@@ -59,26 +59,26 @@ public class RunwayAwareExitTests
     [Fact]
     public void OAK_FindNearestExit_28R_ReturnsExitOnCorrectRunway()
     {
-        var layout = LoadAirportLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadAirportLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var rwy28R = layout.FindGroundRunway("28R");
+        GroundRunway? rwy28R = layout.FindGroundRunway("28R");
         Assert.NotNull(rwy28R);
 
-        var coords = rwy28R.Coordinates;
+        List<(double Lat, double Lon)> coords = rwy28R.Coordinates;
         int midIdx = coords.Count / 2;
         double midLat = coords[midIdx].Lat;
         double midLon = coords[midIdx].Lon;
 
         double heading = 280.0;
 
-        var exitNode = layout.FindNearestExit(midLat, midLon, new TrueHeading(heading), "28R");
+        GroundNode? exitNode = layout.FindNearestExit(midLat, midLon, new TrueHeading(heading), "28R");
         Assert.NotNull(exitNode);
 
-        var rwy28L = layout.FindGroundRunway("28L");
+        GroundRunway? rwy28L = layout.FindGroundRunway("28L");
         Assert.NotNull(rwy28L);
 
         double distTo28R = MinDistToRunway(exitNode, rwy28R);
@@ -93,29 +93,29 @@ public class RunwayAwareExitTests
     [Fact]
     public void OAK_FindNearestExit_NullDesignator_ReturnsSomeExit()
     {
-        var layout = LoadAirportLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadAirportLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var rwy28L = layout.FindGroundRunway("28L");
+        GroundRunway? rwy28L = layout.FindGroundRunway("28L");
         Assert.NotNull(rwy28L);
 
-        var coords = rwy28L.Coordinates;
+        List<(double Lat, double Lon)> coords = rwy28L.Coordinates;
         int midIdx = coords.Count / 2;
         double midLat = coords[midIdx].Lat;
         double midLon = coords[midIdx].Lon;
 
         // Without a runway designator, should still return an exit (current behavior)
-        var exitNode = layout.FindNearestExit(midLat, midLon, new TrueHeading(280.0), null);
+        GroundNode? exitNode = layout.FindNearestExit(midLat, midLon, new TrueHeading(280.0), null);
         Assert.NotNull(exitNode);
     }
 
     [Fact]
     public void OAK_FindNearestExit_28R_PrefersRightSideTowardParking()
     {
-        var layout = LoadAirportLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadAirportLayout("OAK", "oak");
         if (layout is null)
         {
             return;
@@ -125,16 +125,16 @@ public class RunwayAwareExitTests
         // Exits to the left just connect to 28L with no nearby parking.
         // The parking proximity bias should cause FindNearestExit to prefer
         // exits on the right (parking) side.
-        var rwy28R = layout.FindGroundRunway("28R");
+        GroundRunway? rwy28R = layout.FindGroundRunway("28R");
         Assert.NotNull(rwy28R);
 
-        var coords = rwy28R.Coordinates;
+        List<(double Lat, double Lon)> coords = rwy28R.Coordinates;
         int midIdx = coords.Count / 2;
         double midLat = coords[midIdx].Lat;
         double midLon = coords[midIdx].Lon;
         double heading = 280.0;
 
-        var exitNode = layout.FindNearestExit(midLat, midLon, new TrueHeading(heading), "28R");
+        GroundNode? exitNode = layout.FindNearestExit(midLat, midLon, new TrueHeading(heading), "28R");
         Assert.NotNull(exitNode);
 
         // The exit should be to the right (north) of the runway heading.
@@ -148,13 +148,13 @@ public class RunwayAwareExitTests
     [Fact]
     public void FindGroundRunway_Finds28L()
     {
-        var layout = LoadAirportLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadAirportLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var rwy = layout.FindGroundRunway("28L");
+        GroundRunway? rwy = layout.FindGroundRunway("28L");
         Assert.NotNull(rwy);
         Assert.Contains("28L", rwy.Name);
     }
@@ -162,21 +162,21 @@ public class RunwayAwareExitTests
     [Fact]
     public void FindGroundRunway_Finds10R()
     {
-        var layout = LoadAirportLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadAirportLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
         // 10R is the opposite end of 28L
-        var rwy = layout.FindGroundRunway("10R");
+        GroundRunway? rwy = layout.FindGroundRunway("10R");
         Assert.NotNull(rwy);
     }
 
     private static double MinDistToRunway(GroundNode node, GroundRunway runway)
     {
         double minDist = double.MaxValue;
-        var coords = runway.Coordinates;
+        List<(double Lat, double Lon)> coords = runway.Coordinates;
 
         for (int i = 0; i < coords.Count - 1; i++)
         {

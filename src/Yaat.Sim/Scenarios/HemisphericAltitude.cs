@@ -23,7 +23,7 @@ public static class HemisphericAltitude
     /// <summary>True when a level flying <paramref name="magneticCourseDeg"/> conforms to the rule.</summary>
     public static bool IsConforming(double magneticCourseDeg, double altitudeFt)
     {
-        var thousands = (altitudeFt - 500) / 1000.0;
+        double thousands = (altitudeFt - 500) / 1000.0;
         if (Math.Abs(thousands - Math.Round(thousands)) > 1e-6)
         {
             return false;
@@ -39,23 +39,23 @@ public static class HemisphericAltitude
     /// </summary>
     public static double? Snap(double magneticCourseDeg, double desiredFt, double minFt, double maxFt)
     {
-        var wantOdd = WantsOddThousands(magneticCourseDeg);
+        bool wantOdd = WantsOddThousands(magneticCourseDeg);
 
         // Walk every candidate level spanning the band plus its tolerance, nearest-to-desired first.
-        var lowestThousands = (int)Math.Floor((minFt - BandToleranceFt - 500) / 1000.0);
-        var highestThousands = (int)Math.Ceiling((maxFt + BandToleranceFt - 500) / 1000.0);
+        int lowestThousands = (int)Math.Floor((minFt - BandToleranceFt - 500) / 1000.0);
+        int highestThousands = (int)Math.Ceiling((maxFt + BandToleranceFt - 500) / 1000.0);
 
         double? bestInBand = null;
         double? bestInTolerance = null;
 
-        for (var thousands = lowestThousands; thousands <= highestThousands; thousands++)
+        for (int thousands = lowestThousands; thousands <= highestThousands; thousands++)
         {
             if (thousands < 0 || IsOdd(thousands) != wantOdd)
             {
                 continue;
             }
 
-            var candidate = (thousands * 1000.0) + 500.0;
+            double candidate = (thousands * 1000.0) + 500.0;
             if (candidate >= minFt && candidate <= maxFt)
             {
                 bestInBand = Nearer(bestInBand, candidate, desiredFt);
@@ -72,7 +72,7 @@ public static class HemisphericAltitude
     /// <summary>Magnetic course 0°–179° flies odd thousands + 500; 180°–359° flies even thousands + 500.</summary>
     private static bool WantsOddThousands(double magneticCourseDeg)
     {
-        var course = magneticCourseDeg % 360.0;
+        double course = magneticCourseDeg % 360.0;
         if (course < 0)
         {
             course += 360.0;

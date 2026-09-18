@@ -8,7 +8,7 @@ public sealed class MvaDatabaseTests
     [Fact]
     public void Default_LoadsAllFaaFacilities()
     {
-        var db = MvaDatabase.Default;
+        MvaDatabase db = MvaDatabase.Default;
 
         // The merged FAA FUS3 fixture spans every facility the FAA publishes (~148), not just NorCal.
         Assert.True(db.Sectors.Count > 3000, $"expected the merged all-facility fixture, got {db.Sectors.Count} sectors");
@@ -23,7 +23,7 @@ public sealed class MvaDatabaseTests
     [InlineData(32.8998, -97.0403, 2000, "D10")] // DFW — Dallas TRACON
     public void FindSector_ResolvesAcrossFacilities(double lat, double lon, int expectedFloor, string expectedFacility)
     {
-        var sector = MvaDatabase.Default.FindSector(new LatLon(lat, lon));
+        MvaSector? sector = MvaDatabase.Default.FindSector(new LatLon(lat, lon));
 
         Assert.NotNull(sector);
         Assert.Equal(expectedFloor, sector!.FloorFtMsl);
@@ -111,7 +111,7 @@ public sealed class MvaDatabaseTests
     public void Classify_AppliesAtBandAroundFloor(double altitudeFt, MvaRelation expected)
     {
         // SFO point sits in a 2600 ft sector.
-        var (relation, sector) = MvaDatabase.Default.Classify(new LatLon(37.6189, -122.3750), altitudeFt, atBandFt: 100);
+        (MvaRelation relation, MvaSector? sector) = MvaDatabase.Default.Classify(new LatLon(37.6189, -122.3750), altitudeFt, atBandFt: 100);
 
         Assert.Equal(expected, relation);
         Assert.Equal(2600, sector!.FloorFtMsl);
@@ -120,7 +120,7 @@ public sealed class MvaDatabaseTests
     [Fact]
     public void Classify_OutsideCoverage_IsNoData()
     {
-        var (relation, sector) = MvaDatabase.Default.Classify(new LatLon(40.0, -70.0), 5000, atBandFt: 100);
+        (MvaRelation relation, MvaSector? sector) = MvaDatabase.Default.Classify(new LatLon(40.0, -70.0), 5000, atBandFt: 100);
 
         Assert.Equal(MvaRelation.NoData, relation);
         Assert.Null(sector);

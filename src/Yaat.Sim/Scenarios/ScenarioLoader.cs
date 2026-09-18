@@ -82,7 +82,7 @@ public static class ScenarioLoader
     /// </summary>
     public static ScenarioLoadResult Load(string json, IAirportGroundData? groundData, Random rng, DateTime magneticModelDateUtc)
     {
-        var scenario = JsonSerializer.Deserialize<Scenario>(json, JsonOptions);
+        Scenario? scenario = JsonSerializer.Deserialize<Scenario>(json, JsonOptions);
 
         if (scenario is null)
         {
@@ -94,9 +94,17 @@ public static class ScenarioLoader
         var delayed = new List<LoadedAircraft>();
         var deferred = new List<LoadedAircraft>();
 
-        foreach (var ac in scenario.Aircraft)
+        foreach (ScenarioAircraft ac in scenario.Aircraft)
         {
-            var loaded = LoadAircraft(ac, warnings, groundData, scenario.PrimaryAirportId, scenario.PrimaryApproach, rng, magneticModelDateUtc);
+            LoadedAircraft? loaded = LoadAircraft(
+                ac,
+                warnings,
+                groundData,
+                scenario.PrimaryAirportId,
+                scenario.PrimaryApproach,
+                rng,
+                magneticModelDateUtc
+            );
             if (loaded is null)
             {
                 continue;
@@ -166,7 +174,7 @@ public static class ScenarioLoader
         }
 
         var callsignById = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var ac in scenario.Aircraft)
+        foreach (ScenarioAircraft ac in scenario.Aircraft)
         {
             if (!string.IsNullOrEmpty(ac.Id) && !string.IsNullOrEmpty(ac.AircraftId))
             {
@@ -174,7 +182,7 @@ public static class ScenarioLoader
             }
         }
 
-        foreach (var config in scenario.FlightStripConfigurations)
+        foreach (FlightStripConfiguration config in scenario.FlightStripConfigurations)
         {
             if (string.IsNullOrEmpty(config.BayId))
             {
@@ -182,9 +190,9 @@ public static class ScenarioLoader
             }
 
             var assignment = new ScenarioStripBayAssignment(config.FacilityId ?? "", config.BayId, config.Rack);
-            foreach (var aircraftId in config.AircraftIds)
+            foreach (string aircraftId in config.AircraftIds)
             {
-                if (callsignById.TryGetValue(aircraftId, out var callsign))
+                if (callsignById.TryGetValue(aircraftId, out string? callsign))
                 {
                     map[callsign] = assignment;
                 }
@@ -201,11 +209,11 @@ public static class ScenarioLoader
         // from the filed string when present, else from the actual type so legacy scenarios
         // without a filed type still surface a sensible suffix on strips. Cold calls (no
         // scenario flightPlan block) get a blank suffix — controllers file via DA / VP.
-        var hasFiledFp = ac.FlightPlan is not null;
-        var actualType = ac.AircraftType;
-        var filedType = ac.FlightPlan?.AircraftType ?? "";
-        var suffixSource = !string.IsNullOrEmpty(filedType) ? filedType : actualType;
-        var equipmentSuffix = hasFiledFp ? ExtractSuffix(suffixSource) : "";
+        bool hasFiledFp = ac.FlightPlan is not null;
+        string actualType = ac.AircraftType;
+        string filedType = ac.FlightPlan?.AircraftType ?? "";
+        string suffixSource = !string.IsNullOrEmpty(filedType) ? filedType : actualType;
+        string equipmentSuffix = hasFiledFp ? ExtractSuffix(suffixSource) : "";
 
         // primaryApproach is only intended for the scenario's primary airport.
         // Aircraft destined elsewhere must not inherit it — even if the same approach ID
@@ -213,7 +221,7 @@ public static class ScenarioLoader
         string? effectiveApproach = ac.ExpectedApproach;
         if (effectiveApproach is null && primaryApproach is not null)
         {
-            var dest = ac.FlightPlan?.Destination;
+            string? dest = ac.FlightPlan?.Destination;
             bool destMatchesPrimary =
                 primaryAirportId is null
                 || string.IsNullOrEmpty(dest)
@@ -272,7 +280,7 @@ public static class ScenarioLoader
     /// </summary>
     public static PlannedAltitude BuildFiledAltitude(ScenarioFlightPlan? fp)
     {
-        var feet = fp?.CruiseAltitude ?? 0;
+        int feet = fp?.CruiseAltitude ?? 0;
         if (InferFlightRules(fp).Equals("VFR", StringComparison.OrdinalIgnoreCase))
         {
             return PlannedAltitude.Vfr(feet > 0 ? feet : null);
@@ -293,12 +301,12 @@ public static class ScenarioLoader
     /// </summary>
     public static void AssignSpawnBeacons(BeaconCodePool beaconPool, IEnumerable<AircraftState> aircraft)
     {
-        foreach (var state in aircraft)
+        foreach (AircraftState state in aircraft)
         {
             if (state.FlightPlan.HasFlightPlan)
             {
                 // 0 means every code is in use. Squawk 1200 rather than the illegal all-zeros code.
-                var code = beaconPool.AssignNextCode(state.FlightPlan.IsVfr);
+                uint code = beaconPool.AssignNextCode(state.FlightPlan.IsVfr);
                 if (code == 0)
                 {
                     Log.LogWarning("Beacon code pool exhausted; loading {Callsign} on 1200 without a discrete code", state.Callsign);
@@ -329,20 +337,20 @@ public static class ScenarioLoader
         DateTime magneticModelDateUtc
     )
     {
-        var cond = ac.StartingConditions;
+        StartingConditions cond = ac.StartingConditions;
         double lat,
             lon,
             alt,
             speed;
 
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         // The field under a Coordinates/FixOrFrd spawn: airportId first (the way the OnRunway/OnFinal
         // paths and FieldElevationResolver resolve it), then the filed departure/destination, then the
         // scenario's primary airport, which is what CreateBaseState assigns the aircraft anyway. A
         // cold-call ground spawn usually has no flight plan, and an unresolved field (elevation 0)
         // would fail the ground gate at any high-elevation airport and spawn it airborne.
-        var groundAirportId = ac.AirportId ?? ac.FlightPlan?.Departure ?? ac.FlightPlan?.Destination ?? primaryAirportId;
-        var fieldElevation = !string.IsNullOrEmpty(groundAirportId) ? navDb.GetAirportElevation(groundAirportId) ?? 0 : 0;
+        string? groundAirportId = ac.AirportId ?? ac.FlightPlan?.Departure ?? ac.FlightPlan?.Destination ?? primaryAirportId;
+        double fieldElevation = !string.IsNullOrEmpty(groundAirportId) ? navDb.GetAirportElevation(groundAirportId) ?? 0 : 0;
 
         switch (cond.Type)
         {
@@ -364,7 +372,7 @@ public static class ScenarioLoader
                     warnings.Add($"{ac.AircraftId}: FixOrFrd type " + "but no fix provided");
                     return null;
                 }
-                var resolved = FrdResolver.Resolve(cond.Fix, navDb);
+                LatLon? resolved = FrdResolver.Resolve(cond.Fix, navDb);
                 if (resolved is null)
                 {
                     warnings.Add($"{ac.AircraftId}: Could not " + $"resolve fix '{cond.Fix}'");
@@ -390,15 +398,15 @@ public static class ScenarioLoader
                 return null;
         }
 
-        var category = AircraftCategorization.Categorize(ac.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(ac.AircraftType);
 
         // Ground detection runs against the *unresolved* speed sentinel, before the cruise-speed
         // default. `speed` is 0 (altitude and speed both omitted) or -1 (altitude authored at field
         // elevation, speed omitted) — both mean "no positive authored speed", i.e. a ground spawn.
         // Resolving DefaultSpeed first would turn the -1 sentinel into a positive cruise speed and
         // make the gate fail, spawning a departure that sits at field elevation airborne.
-        var agl = alt - fieldElevation;
-        var onGround = speed <= 0 && agl < 200;
+        double agl = alt - fieldElevation;
+        bool onGround = speed <= 0 && agl < 200;
         if (onGround)
         {
             speed = 0;
@@ -408,7 +416,7 @@ public static class ScenarioLoader
             speed = AircraftPerformance.DefaultSpeed(ac.AircraftType, category, alt, null);
         }
 
-        var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
+        AircraftState state = CreateBaseState(ac, primaryAirportId, primaryApproach);
         state.Position = new LatLon(lat, lon);
         state.Altitude = alt;
         state.IndicatedAirspeed = speed;
@@ -428,7 +436,7 @@ public static class ScenarioLoader
             state.Ground.IsScriptedDeparture = HasTaxiPreset(ac.PresetCommands);
         }
 
-        var navigationPath = ResolveVersionChanges(cond.NavigationPath ?? "", state, warnings);
+        string navigationPath = ResolveVersionChanges(cond.NavigationPath ?? "", state, warnings);
         ArrivalRouteResolver.PopulateNavigationRoute(state, navigationPath, warnings);
 
         // Derive heading: scenario-assigned heading (magnetic) or bearing to first nav route fix (already true)
@@ -442,7 +450,7 @@ public static class ScenarioLoader
         else if (state.Targets.NavigationRoute.Count > 0)
         {
             // BearingTo returns a true bearing
-            var first = state.Targets.NavigationRoute[0];
+            NavigationTarget first = state.Targets.NavigationRoute[0];
             double bearingDeg = GeoMath.BearingTo(new LatLon(lat, lon), first.Position);
             state.TrueHeading = new TrueHeading(bearingDeg);
             state.TrueTrack = state.TrueHeading;
@@ -491,8 +499,8 @@ public static class ScenarioLoader
         Random rng
     )
     {
-        var runwayId = ac.StartingConditions.Runway;
-        var airportId = ac.AirportId ?? ac.FlightPlan?.Departure ?? "";
+        string? runwayId = ac.StartingConditions.Runway;
+        string airportId = ac.AirportId ?? ac.FlightPlan?.Departure ?? "";
 
         if (string.IsNullOrEmpty(runwayId) || string.IsNullOrEmpty(airportId))
         {
@@ -500,17 +508,17 @@ public static class ScenarioLoader
             return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, "OnRunway (missing runway/airport)");
         }
 
-        var rwy = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
         if (rwy is null)
         {
             warnings.Add($"{ac.AircraftId}: Could not find runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} at {airportId}");
             return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, $"OnRunway ({airportId}/{runwayId} not found)");
         }
 
-        var rwyCategory = AircraftCategorization.Categorize(ac.AircraftType);
-        var init = AircraftInitializer.InitializeOnRunway(rwy, rwyCategory);
+        AircraftCategory rwyCategory = AircraftCategorization.Categorize(ac.AircraftType);
+        PhaseInitResult init = AircraftInitializer.InitializeOnRunway(rwy, rwyCategory);
 
-        var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
+        AircraftState state = CreateBaseState(ac, primaryAirportId, primaryApproach);
         state.Position = init.Position;
         state.TrueHeading = init.TrueHeading;
         state.TrueTrack = init.TrueHeading;
@@ -538,8 +546,8 @@ public static class ScenarioLoader
         Random rng
     )
     {
-        var runwayId = ac.StartingConditions.Runway;
-        var airportId = ac.AirportId ?? ac.FlightPlan?.Departure ?? "";
+        string? runwayId = ac.StartingConditions.Runway;
+        string airportId = ac.AirportId ?? ac.FlightPlan?.Departure ?? "";
 
         if (string.IsNullOrEmpty(runwayId) || string.IsNullOrEmpty(airportId))
         {
@@ -547,15 +555,15 @@ public static class ScenarioLoader
             return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, "OnFinal (missing runway/airport)");
         }
 
-        var rwy = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
         if (rwy is null)
         {
             warnings.Add($"{ac.AircraftId}: Could not find runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} at {airportId}");
             return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, $"OnFinal ({airportId}/{runwayId} not found)");
         }
 
-        var category = AircraftCategorization.Categorize(ac.AircraftType);
-        var init = AircraftInitializer.InitializeOnFinal(
+        AircraftCategory category = AircraftCategorization.Categorize(ac.AircraftType);
+        PhaseInitResult init = AircraftInitializer.InitializeOnFinal(
             rwy,
             category,
             ac.AircraftId,
@@ -565,7 +573,7 @@ public static class ScenarioLoader
             ac.AircraftType
         );
 
-        var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
+        AircraftState state = CreateBaseState(ac, primaryAirportId, primaryApproach);
         state.Position = init.Position;
         state.TrueHeading = init.TrueHeading;
         state.TrueTrack = init.TrueHeading;
@@ -575,7 +583,7 @@ public static class ScenarioLoader
         state.Phases = init.Phases;
 
         // Arriving aircraft: use destination airport layout for runway exit after landing
-        var destId = ac.FlightPlan?.Destination;
+        string? destId = ac.FlightPlan?.Destination;
         state.Ground.Layout = !string.IsNullOrEmpty(destId) ? groundData?.GetLayout(destId) : null;
 
         return new LoadedAircraft
@@ -596,8 +604,8 @@ public static class ScenarioLoader
         Random rng
     )
     {
-        var cond = ac.StartingConditions;
-        var airportId = ac.AirportId ?? primaryAirportId ?? ac.FlightPlan?.Departure ?? "";
+        StartingConditions cond = ac.StartingConditions;
+        string airportId = ac.AirportId ?? primaryAirportId ?? ac.FlightPlan?.Departure ?? "";
 
         if (string.IsNullOrEmpty(airportId))
         {
@@ -611,14 +619,14 @@ public static class ScenarioLoader
             return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, "Parking (no ground data)");
         }
 
-        var layout = groundData.GetLayout(airportId);
+        AirportGroundLayout? layout = groundData.GetLayout(airportId);
         if (layout is null)
         {
             warnings.Add($"{ac.AircraftId}: No ground layout for {airportId}");
             return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, $"Parking ({airportId} has no ground data)");
         }
 
-        var parkingName = cond.Parking;
+        string? parkingName = cond.Parking;
         if (string.IsNullOrEmpty(parkingName))
         {
             warnings.Add($"{ac.AircraftId}: Parking type but no parking name");
@@ -626,17 +634,17 @@ public static class ScenarioLoader
         }
 
         // Search parking first, then helipads and other spots
-        var node = layout.FindParkingByName(parkingName) ?? layout.FindSpotByName(parkingName);
+        GroundNode? node = layout.FindParkingByName(parkingName) ?? layout.FindSpotByName(parkingName);
         if (node is null)
         {
             warnings.Add($"{ac.AircraftId}: Parking '{parkingName}' not found at {airportId}");
             return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, $"Parking ({parkingName} not found)");
         }
 
-        var elevation = NavigationDatabase.Instance.GetAirportElevation(airportId) ?? 0;
-        var init = AircraftInitializer.InitializeAtParking(node, elevation);
+        double elevation = NavigationDatabase.Instance.GetAirportElevation(airportId) ?? 0;
+        PhaseInitResult init = AircraftInitializer.InitializeAtParking(node, elevation);
 
-        var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
+        AircraftState state = CreateBaseState(ac, primaryAirportId, primaryApproach);
         state.Position = init.Position;
         state.TrueHeading = init.TrueHeading;
         state.TrueTrack = init.TrueHeading;
@@ -669,16 +677,16 @@ public static class ScenarioLoader
     /// </summary>
     public static bool HasTaxiPreset(IEnumerable<PresetCommand> presets)
     {
-        foreach (var preset in presets)
+        foreach (PresetCommand preset in presets)
         {
             if (string.IsNullOrWhiteSpace(preset.Command))
             {
                 continue;
             }
 
-            var firstToken = preset.Command.AsSpan().Trim();
+            ReadOnlySpan<char> firstToken = preset.Command.AsSpan().Trim();
             int spaceIdx = firstToken.IndexOf(' ');
-            var verb = (spaceIdx < 0 ? firstToken : firstToken[..spaceIdx]).ToString();
+            string verb = (spaceIdx < 0 ? firstToken : firstToken[..spaceIdx]).ToString();
             if (CommandRegistry.IsAliasFor(CanonicalCommandType.Taxi, verb))
             {
                 return true;
@@ -710,15 +718,15 @@ public static class ScenarioLoader
             return navigationPath;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var routeTokens = state.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string[] tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        List<string> routeTokens = state.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
         bool modified = false;
 
         for (int i = 0; i < tokens.Length; i++)
         {
-            var dotParts = tokens[i].Split('.');
-            var rawName = dotParts[0];
+            string[] dotParts = tokens[i].Split('.');
+            string rawName = dotParts[0];
 
             // Skip numeric tokens (altitude/speed constraints)
             if (double.TryParse(rawName, out _))
@@ -727,7 +735,7 @@ public static class ScenarioLoader
             }
 
             // --- SID upgrade ---
-            var resolvedSidId = navDb.ResolveSidId(rawName);
+            string? resolvedSidId = navDb.ResolveSidId(rawName);
             if (resolvedSidId is not null && !resolvedSidId.Equals(rawName, StringComparison.OrdinalIgnoreCase))
             {
                 warnings.Add($"{state.Callsign}: SID {rawName} not found, using current version {resolvedSidId}");
@@ -742,14 +750,14 @@ public static class ScenarioLoader
                 int nextIdx = FindNextNonNumericTokenIndex(tokens, i + 1);
                 if (nextIdx >= 0)
                 {
-                    var nextFixDotParts = tokens[nextIdx].Split('.');
-                    var nextFixName = nextFixDotParts[0];
+                    string[] nextFixDotParts = tokens[nextIdx].Split('.');
+                    string nextFixName = nextFixDotParts[0];
                     if (!IsFixOnSid(nextFixName, resolvedSidId, state.FlightPlan.Departure, navDb))
                     {
-                        var transitions = navDb.GetSidTransitions(resolvedSidId);
+                        IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? transitions = navDb.GetSidTransitions(resolvedSidId);
                         if (transitions is not null && transitions.Count > 0)
                         {
-                            var closest = FindClosestTransitionFix(nextFixName, transitions, navDb);
+                            string? closest = FindClosestTransitionFix(nextFixName, transitions, navDb);
 
                             // Fallback: old fix not in navdb — use the fix after it as a
                             // geographic reference (the aircraft is heading toward that fix).
@@ -758,7 +766,7 @@ public static class ScenarioLoader
                                 int beyondIdx = FindNextNonNumericTokenIndex(tokens, nextIdx + 1);
                                 if (beyondIdx >= 0)
                                 {
-                                    var beyondPos = ResolveTokenPosition(tokens[beyondIdx], navDb);
+                                    (double Lat, double Lon)? beyondPos = ResolveTokenPosition(tokens[beyondIdx], navDb);
                                     if (beyondPos is not null)
                                     {
                                         closest = FindClosestTransitionFixToPosition(beyondPos.Value, transitions, navDb);
@@ -769,7 +777,7 @@ public static class ScenarioLoader
                             if (closest is not null)
                             {
                                 warnings.Add($"{state.Callsign}: SID fix {nextFixName} not on {resolvedSidId}, using closest transition: {closest}");
-                                var newToken = nextFixDotParts.Length > 1 ? closest + "." + nextFixDotParts[1] : closest;
+                                string newToken = nextFixDotParts.Length > 1 ? closest + "." + nextFixDotParts[1] : closest;
                                 ReplaceInRoute(routeTokens, nextFixName, closest);
                                 tokens[nextIdx] = newToken;
                                 modified = true;
@@ -786,7 +794,7 @@ public static class ScenarioLoader
             }
 
             // --- STAR upgrade ---
-            var resolvedStarId = navDb.ResolveStarId(rawName);
+            string? resolvedStarId = navDb.ResolveStarId(rawName);
             if (resolvedStarId is not null && !resolvedStarId.Equals(rawName, StringComparison.OrdinalIgnoreCase))
             {
                 warnings.Add($"{state.Callsign}: STAR {rawName} not found, using current version {resolvedStarId}");
@@ -801,14 +809,14 @@ public static class ScenarioLoader
                 int prevIdx = FindPrecedingNonNumericTokenIndex(tokens, i - 1);
                 if (prevIdx >= 0)
                 {
-                    var prevFixDotParts = tokens[prevIdx].Split('.');
-                    var prevFixName = prevFixDotParts[0];
+                    string[] prevFixDotParts = tokens[prevIdx].Split('.');
+                    string prevFixName = prevFixDotParts[0];
                     if (!IsFixOnStar(prevFixName, resolvedStarId, state.FlightPlan.Destination, navDb))
                     {
-                        var transitions = navDb.GetStarTransitions(resolvedStarId);
+                        IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? transitions = navDb.GetStarTransitions(resolvedStarId);
                         if (transitions is not null && transitions.Count > 0)
                         {
-                            var closest = FindClosestTransitionFix(prevFixName, transitions, navDb);
+                            string? closest = FindClosestTransitionFix(prevFixName, transitions, navDb);
 
                             // Fallback: old fix not in navdb — use the fix before it as a
                             // geographic reference (the aircraft is coming from that fix).
@@ -817,7 +825,7 @@ public static class ScenarioLoader
                                 int beforeIdx = FindPrecedingNonNumericTokenIndex(tokens, prevIdx - 1);
                                 if (beforeIdx >= 0)
                                 {
-                                    var beforePos = ResolveTokenPosition(tokens[beforeIdx], navDb);
+                                    (double Lat, double Lon)? beforePos = ResolveTokenPosition(tokens[beforeIdx], navDb);
                                     if (beforePos is not null)
                                     {
                                         closest = FindClosestTransitionFixToPosition(beforePos.Value, transitions, navDb);
@@ -830,7 +838,7 @@ public static class ScenarioLoader
                                 warnings.Add(
                                     $"{state.Callsign}: STAR fix {prevFixName} not on {resolvedStarId}, using closest transition: {closest}"
                                 );
-                                var newToken = prevFixDotParts.Length > 1 ? closest + "." + prevFixDotParts[1] : closest;
+                                string newToken = prevFixDotParts.Length > 1 ? closest + "." + prevFixDotParts[1] : closest;
                                 ReplaceInRoute(routeTokens, prevFixName, closest);
                                 tokens[prevIdx] = newToken;
                                 modified = true;
@@ -865,7 +873,7 @@ public static class ScenarioLoader
         {
             if (routeTokens[i].Split('.')[0].Equals(oldName, StringComparison.OrdinalIgnoreCase))
             {
-                var parts = routeTokens[i].Split('.');
+                string[] parts = routeTokens[i].Split('.');
                 routeTokens[i] = parts.Length > 1 ? newName + "." + parts[1] : newName;
                 return;
             }
@@ -879,13 +887,13 @@ public static class ScenarioLoader
     /// </summary>
     internal static bool IsFixOnSid(string fixName, string sidId, string airportCode, NavigationDatabase navDb)
     {
-        var body = navDb.GetSidBody(sidId);
+        IReadOnlyList<string>? body = navDb.GetSidBody(sidId);
         if (body is not null && body.Any(f => f.Equals(fixName, StringComparison.OrdinalIgnoreCase)))
         {
             return true;
         }
 
-        var transitions = navDb.GetSidTransitions(sidId);
+        IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? transitions = navDb.GetSidTransitions(sidId);
         if (
             transitions is not null
             && transitions.Any(t =>
@@ -899,7 +907,7 @@ public static class ScenarioLoader
         // Check CIFP runway transitions (not in NavData)
         if (!string.IsNullOrEmpty(airportCode))
         {
-            var cifpSid = navDb.GetSid(airportCode, sidId);
+            CifpSidProcedure? cifpSid = navDb.GetSid(airportCode, sidId);
             if (cifpSid is not null && HasFixInRunwayTransitions(fixName, cifpSid.RunwayTransitions))
             {
                 return true;
@@ -916,13 +924,13 @@ public static class ScenarioLoader
     /// </summary>
     internal static bool IsFixOnStar(string fixName, string starId, string airportCode, NavigationDatabase navDb)
     {
-        var body = navDb.GetStarBody(starId);
+        IReadOnlyList<string>? body = navDb.GetStarBody(starId);
         if (body is not null && body.Any(f => f.Equals(fixName, StringComparison.OrdinalIgnoreCase)))
         {
             return true;
         }
 
-        var transitions = navDb.GetStarTransitions(starId);
+        IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? transitions = navDb.GetStarTransitions(starId);
         if (
             transitions is not null
             && transitions.Any(t =>
@@ -936,7 +944,7 @@ public static class ScenarioLoader
         // Check CIFP runway transitions (not in NavData)
         if (!string.IsNullOrEmpty(airportCode))
         {
-            var cifpStar = navDb.GetStar(airportCode, starId);
+            CifpStarProcedure? cifpStar = navDb.GetStar(airportCode, starId);
             if (cifpStar is not null && HasFixInRunwayTransitions(fixName, cifpStar.RunwayTransitions))
             {
                 return true;
@@ -948,7 +956,7 @@ public static class ScenarioLoader
 
     private static bool HasFixInRunwayTransitions(string fixName, IReadOnlyDictionary<string, CifpTransition> runwayTransitions)
     {
-        foreach (var (_, transition) in runwayTransitions)
+        foreach ((string _, CifpTransition? transition) in runwayTransitions)
         {
             if (transition.Legs.Any(leg => leg.FixIdentifier.Equals(fixName, StringComparison.OrdinalIgnoreCase)))
             {
@@ -965,7 +973,7 @@ public static class ScenarioLoader
         NavigationDatabase navDb
     )
     {
-        var oldPos = navDb.GetFixPosition(oldFixName);
+        (double Lat, double Lon)? oldPos = navDb.GetFixPosition(oldFixName);
         if (oldPos is null)
         {
             return null;
@@ -983,9 +991,9 @@ public static class ScenarioLoader
         string? closest = null;
         double minDist = double.MaxValue;
 
-        foreach (var trans in transitions)
+        foreach ((string Name, IReadOnlyList<string> Fixes) trans in transitions)
         {
-            var pos = navDb.GetFixPosition(trans.Name);
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(trans.Name);
             if (pos is null)
             {
                 continue;
@@ -1008,24 +1016,24 @@ public static class ScenarioLoader
     /// </summary>
     internal static (double Lat, double Lon)? ResolveTokenPosition(string token, NavigationDatabase navDb)
     {
-        var rawName = token.Split('.')[0];
+        string rawName = token.Split('.')[0];
 
         // 1. Named fix
-        var fixPos = navDb.GetFixPosition(rawName);
+        (double Lat, double Lon)? fixPos = navDb.GetFixPosition(rawName);
         if (fixPos is not null)
         {
             return fixPos;
         }
 
         // 2. FRD (e.g., "LNK136052")
-        var frd = FrdResolver.Resolve(rawName, navDb);
+        LatLon? frd = FrdResolver.Resolve(rawName, navDb);
         if (frd is not null)
         {
             return (frd.Value.Lat, frd.Value.Lon);
         }
 
         // 3. Lat/lon coordinate (e.g., "3904N/10916W")
-        var coord = ParseNavPathCoordinate(rawName);
+        (double Lat, double Lon)? coord = ParseNavPathCoordinate(rawName);
         if (coord is not null)
         {
             return coord;
@@ -1040,14 +1048,14 @@ public static class ScenarioLoader
     /// </summary>
     internal static (double Lat, double Lon)? ParseNavPathCoordinate(string token)
     {
-        var slashIdx = token.IndexOf('/');
+        int slashIdx = token.IndexOf('/');
         if (slashIdx < 3)
         {
             return null;
         }
 
-        var latPart = token[..slashIdx];
-        var lonPart = token[(slashIdx + 1)..];
+        string latPart = token[..slashIdx];
+        string lonPart = token[(slashIdx + 1)..];
 
         if (latPart.Length < 3 || lonPart.Length < 4)
         {
@@ -1113,7 +1121,7 @@ public static class ScenarioLoader
     {
         if (equipType.Contains('/'))
         {
-            var parts = equipType.Split('/');
+            string[] parts = equipType.Split('/');
             return parts[^1];
         }
         return "A";

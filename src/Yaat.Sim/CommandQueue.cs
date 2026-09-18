@@ -380,7 +380,7 @@ public class CommandQueue
 
         for (int i = Blocks.Count - 1; i > failedIndex; i--)
         {
-            var block = Blocks[i];
+            CommandBlock block = Blocks[i];
             if (block.IsApplied || !string.Equals(block.SourceCommandText, failedBlock.SourceCommandText, StringComparison.Ordinal))
             {
                 continue;
@@ -392,7 +392,7 @@ public class CommandQueue
 
         discarded.Reverse();
 
-        foreach (var cmd in failedBlock.Commands)
+        foreach (TrackedCommand cmd in failedBlock.Commands)
         {
             cmd.IsComplete = true;
         }
@@ -410,7 +410,7 @@ public class CommandQueue
     public static CommandQueue FromSnapshot(CommandQueueDto dto)
     {
         var queue = new CommandQueue { CurrentBlockIndex = dto.CurrentBlockIndex };
-        foreach (var blockDto in dto.Blocks)
+        foreach (CommandBlockDto blockDto in dto.Blocks)
         {
             queue.Blocks.Add(CommandBlock.FromSnapshot(blockDto));
         }
@@ -495,7 +495,7 @@ public sealed class DeferredDispatch
             return null;
         }
 
-        var parseResult = Commands.CommandParser.ParseCompound(dto.SourceText);
+        ParseResult<CompoundCommand> parseResult = Commands.CommandParser.ParseCompound(dto.SourceText);
         if (!parseResult.IsSuccess)
         {
             return null;
@@ -506,7 +506,7 @@ public sealed class DeferredDispatch
         // restored payload re-enters the deferral path when it fires — a WAIT restarts its full countdown, and a
         // BEHIND whose target has since been deleted is rejected and its clearance discarded. Reaction delays store
         // the whole command as their payload and carry no gate, so they are left intact.
-        var payload = parseResult.Value!;
+        CompoundCommand payload = parseResult.Value!;
         if (!dto.IsReactionDelay && Commands.CommandDispatcher.StripDeferralGateBlocks(payload) is { } payloadBlocks)
         {
             // Mirror the dispatch path's SourceText handling: the give-way payload carries the original text, the

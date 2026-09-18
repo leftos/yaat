@@ -22,8 +22,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_IfrPairInsideThreeMiles_RecordsSafetyEvent()
     {
-        var a = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(37.6213, -122.3790), altitude: 5000, isOnGround: false);
-        var b = CreateAircraft(
+        AircraftState a = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(37.6213, -122.3790), altitude: 5000, isOnGround: false);
+        AircraftState b = CreateAircraft(
             "UAL2",
             "A320",
             flightRules: "IFR",
@@ -33,10 +33,10 @@ public sealed class SoloTrainingEvaluatorTests
         );
         var evaluator = new SoloTrainingEvaluator();
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 100, new ApproachReportData([], [], 100, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 100, new ApproachReportData([], [], 100, "N/A"), AircraftDebriefContext.Empty);
 
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
         Assert.Equal(SoloTrainingEventSeverity.Safety, notice.Severity);
         Assert.Contains("7110.65 §5-5-4", notice.RuleReference);
         Assert.Single(report.ActiveEvents, e => e.Category == SoloTrainingEventCategory.Separation);
@@ -46,8 +46,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ClassBVfrBehindTurbojet_UsesOnePointFiveMilesOrFiveHundredFeet()
     {
-        var jet = CreateAircraft("SWA1", "B738", flightRules: "IFR", new LatLon(37.6213, -122.3790), altitude: 3000, isOnGround: false);
-        var vfr = CreateAircraft(
+        AircraftState jet = CreateAircraft("SWA1", "B738", flightRules: "IFR", new LatLon(37.6213, -122.3790), altitude: 3000, isOnGround: false);
+        AircraftState vfr = CreateAircraft(
             "N123AB",
             "C172",
             flightRules: "VFR",
@@ -55,7 +55,7 @@ public sealed class SoloTrainingEvaluatorTests
             altitude: 3000,
             isOnGround: false
         );
-        var requirement = SoloTrainingEvaluator.ResolveRequirement(jet, vfr, AirspaceDatabase.Default);
+        SoloTrainingEvaluator.SeparationRequirement? requirement = SoloTrainingEvaluator.ResolveRequirement(jet, vfr, AirspaceDatabase.Default);
 
         Assert.NotNull(requirement);
         Assert.Equal(1.5, requirement.RequiredHorizontalNm);
@@ -66,8 +66,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ClassBSmallVfrPair_UsesTargetResolutionOrFiveHundredFeet()
     {
-        var first = CreateAircraft("N123AB", "C172", flightRules: "VFR", new LatLon(37.6213, -122.3790), altitude: 2500, isOnGround: false);
-        var second = CreateAircraft(
+        AircraftState first = CreateAircraft("N123AB", "C172", flightRules: "VFR", new LatLon(37.6213, -122.3790), altitude: 2500, isOnGround: false);
+        AircraftState second = CreateAircraft(
             "N456CD",
             "C172",
             flightRules: "VFR",
@@ -75,7 +75,7 @@ public sealed class SoloTrainingEvaluatorTests
             altitude: 2500,
             isOnGround: false
         );
-        var requirement = SoloTrainingEvaluator.ResolveRequirement(first, second, AirspaceDatabase.Default);
+        SoloTrainingEvaluator.SeparationRequirement? requirement = SoloTrainingEvaluator.ResolveRequirement(first, second, AirspaceDatabase.Default);
 
         Assert.NotNull(requirement);
         Assert.Equal(0.25, requirement.RequiredHorizontalNm);
@@ -86,8 +86,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ClassCIfrVfrPairInsideCharlie_UsesTargetResolutionOrFiveHundredFeet()
     {
-        var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.7213, -122.2208), altitude: 1000, isOnGround: false);
-        var vfr = CreateAircraft(
+        AircraftState ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.7213, -122.2208), altitude: 1000, isOnGround: false);
+        AircraftState vfr = CreateAircraft(
             "N123AB",
             "C172",
             flightRules: "VFR",
@@ -97,9 +97,9 @@ public sealed class SoloTrainingEvaluatorTests
         );
         var evaluator = new SoloTrainingEvaluator();
 
-        var notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
 
-        var separation = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
+        SoloTrainingEvent separation = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
         Assert.Equal(SoloTrainingEventSeverity.Safety, separation.Severity);
         Assert.Contains("7110.65 §7-8-3", separation.RuleReference);
         Assert.Equal(0.25, separation.RequiredHorizontalNm);
@@ -109,8 +109,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ClassCIfrVfrPairOutsideCharlie_DoesNotRecordSeparationEvent()
     {
-        var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.0000, -121.0000), altitude: 2500, isOnGround: false);
-        var vfr = CreateAircraft(
+        AircraftState ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.0000, -121.0000), altitude: 2500, isOnGround: false);
+        AircraftState vfr = CreateAircraft(
             "N123AB",
             "C172",
             flightRules: "VFR",
@@ -120,8 +120,8 @@ public sealed class SoloTrainingEvaluatorTests
         );
         var evaluator = new SoloTrainingEvaluator();
 
-        var notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 20, new ApproachReportData([], [], 20, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 20, new ApproachReportData([], [], 20, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.Separation);
         Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
@@ -131,8 +131,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ClassCVfrPairInsideCharlie_DoesNotRecordSeparationEvent()
     {
-        var first = CreateAircraft("N123AB", "C172", flightRules: "VFR", new LatLon(37.7213, -122.2208), altitude: 1000, isOnGround: false);
-        var second = CreateAircraft(
+        AircraftState first = CreateAircraft("N123AB", "C172", flightRules: "VFR", new LatLon(37.7213, -122.2208), altitude: 1000, isOnGround: false);
+        AircraftState second = CreateAircraft(
             "N456CD",
             "C172",
             flightRules: "VFR",
@@ -142,8 +142,8 @@ public sealed class SoloTrainingEvaluatorTests
         );
         var evaluator = new SoloTrainingEvaluator();
 
-        var notices = evaluator.Evaluate([first, second], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 20, new ApproachReportData([], [], 20, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([first, second], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 20, new ApproachReportData([], [], 20, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.Separation);
         Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
@@ -153,8 +153,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ProjectedClassCEntryUsesProjectedAirspaceForCoach()
     {
-        var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.8300, -122.4200), altitude: 2000, isOnGround: false);
-        var vfr = CreateAircraft(
+        AircraftState ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.8300, -122.4200), altitude: 2000, isOnGround: false);
+        AircraftState vfr = CreateAircraft(
             "N123AB",
             "C172",
             flightRules: "VFR",
@@ -168,15 +168,24 @@ public sealed class SoloTrainingEvaluatorTests
         vfr.IndicatedAirspeed = 120;
         var evaluator = new SoloTrainingEvaluator();
 
-        var currentRequirement = SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default);
-        var projectedRequirement = SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default, lookaheadSeconds: 60);
+        SoloTrainingEvaluator.SeparationRequirement? currentRequirement = SoloTrainingEvaluator.ResolveRequirement(
+            ifr,
+            vfr,
+            AirspaceDatabase.Default
+        );
+        SoloTrainingEvaluator.SeparationRequirement? projectedRequirement = SoloTrainingEvaluator.ResolveRequirement(
+            ifr,
+            vfr,
+            AirspaceDatabase.Default,
+            lookaheadSeconds: 60
+        );
         Assert.NotNull(currentRequirement);
         Assert.Contains("outer-area", currentRequirement.Name);
         Assert.NotNull(projectedRequirement);
 
-        var notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
 
-        var separation = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
+        SoloTrainingEvent separation = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
         Assert.Equal(SoloTrainingEventSeverity.Safety, separation.Severity);
         Assert.Contains("7110.65 §7-8-3", separation.RuleReference);
     }
@@ -184,8 +193,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void ResolveRequirement_SkipsClassCShelfUntilProjectedAltitudeEntersVolume()
     {
-        var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.8400, -122.3000), altitude: 1000, isOnGround: false);
-        var vfr = CreateAircraft(
+        AircraftState ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.8400, -122.3000), altitude: 1000, isOnGround: false);
+        AircraftState vfr = CreateAircraft(
             "N123AB",
             "C172",
             flightRules: "VFR",
@@ -194,14 +203,23 @@ public sealed class SoloTrainingEvaluatorTests
             isOnGround: false
         );
 
-        var currentRequirement = SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default);
+        SoloTrainingEvaluator.SeparationRequirement? currentRequirement = SoloTrainingEvaluator.ResolveRequirement(
+            ifr,
+            vfr,
+            AirspaceDatabase.Default
+        );
         Assert.NotNull(currentRequirement);
         Assert.Contains("outer-area", currentRequirement.Name);
 
         ifr.VerticalSpeed = 600;
         vfr.VerticalSpeed = 600;
 
-        var projectedRequirement = SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default, lookaheadSeconds: 60);
+        SoloTrainingEvaluator.SeparationRequirement? projectedRequirement = SoloTrainingEvaluator.ResolveRequirement(
+            ifr,
+            vfr,
+            AirspaceDatabase.Default,
+            lookaheadSeconds: 60
+        );
         Assert.NotNull(projectedRequirement);
         Assert.Contains("7110.65 §7-8-3", projectedRequirement.RuleReference);
     }
@@ -209,8 +227,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ClassCSafetyAlertUsesDirectedSafalProof()
     {
-        var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.7213, -122.2208), altitude: 1000, isOnGround: false);
-        var vfr = CreateAircraft(
+        AircraftState ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.7213, -122.2208), altitude: 1000, isOnGround: false);
+        AircraftState vfr = CreateAircraft(
             "N123AB",
             "C172",
             flightRules: "VFR",
@@ -226,10 +244,10 @@ public sealed class SoloTrainingEvaluatorTests
             [ifr, vfr]
         );
 
-        var notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([ifr, vfr], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
 
         Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
-        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        SoloTrainingEvent advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
         Assert.Equal(vfr.Callsign, advisory.Callsigns[0]);
         Assert.Equal(ifr.Callsign, advisory.Callsigns[1]);
         Assert.Contains("7110.65 §2-1-6", advisory.RuleReference);
@@ -238,8 +256,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_VisualFollowPair_DoesNotRecordSeparationEvent()
     {
-        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", new LatLon(37.6213, -122.3790), altitude: 2500, isOnGround: false);
-        var follower = CreateAircraft(
+        AircraftState lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", new LatLon(37.6213, -122.3790), altitude: 2500, isOnGround: false);
+        AircraftState follower = CreateAircraft(
             "N222BB",
             "C172",
             flightRules: "VFR",
@@ -251,8 +269,8 @@ public sealed class SoloTrainingEvaluatorTests
         follower.Approach.FollowingCallsign = lead.Callsign;
         var evaluator = new SoloTrainingEvaluator();
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 30, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 30, new ApproachReportData([], [], 30, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 30, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 30, new ApproachReportData([], [], 30, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
@@ -261,10 +279,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_MissingTrafficAdvisoryForProjectedSeparationLoss_RecordsAdvisoryEvents()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
         var advisories = notices.Where(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual).ToList();
         Assert.Equal(2, advisories.Count);
@@ -276,7 +294,7 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_StructuredRtisProofSuppressesOnlyDirectedAdvisory()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
         evaluator.RecordControllerCommand(
             a,
@@ -285,9 +303,9 @@ public sealed class SoloTrainingEvaluatorTests
             [a, b]
         );
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
-        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        SoloTrainingEvent advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
         Assert.Equal(b.Callsign, advisory.Callsigns[0]);
         Assert.Equal(a.Callsign, advisory.Callsigns[1]);
     }
@@ -295,7 +313,7 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ExactStructuredRtis_AddsNoImpreciseNote()
     {
-        var (a, b) = CreateClosingIfrPair(); // b is at a's 12 o'clock, 5 NM, westbound, 5,000 ft
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair(); // b is at a's 12 o'clock, 5 NM, westbound, 5,000 ft
         var evaluator = new SoloTrainingEvaluator();
         evaluator.RecordControllerCommand(
             a,
@@ -304,7 +322,7 @@ public sealed class SoloTrainingEvaluatorTests
             [a, b]
         );
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
         Assert.DoesNotContain(notices, e => e.Title == "Traffic advisory imprecise");
     }
@@ -312,7 +330,7 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ImpreciseButAcceptedRtis_ClearsNeededAndAddsCoachNote()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
         // Clock off 2 (called 10, actual 12) — within tolerance, so it resolves and proves the advisory,
         // but it is imprecise, so it also earns a low-severity coaching note.
@@ -323,11 +341,11 @@ public sealed class SoloTrainingEvaluatorTests
             [a, b]
         );
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
         // The a->b "advisory needed" is cleared by the accepted (if imprecise) call.
         Assert.DoesNotContain(notices, e => e.Title == "Traffic advisory needed" && e.Callsigns[0] == a.Callsign && e.Callsigns[1] == b.Callsign);
-        var imprecise = Assert.Single(notices, e => e.Title == "Traffic advisory imprecise");
+        SoloTrainingEvent imprecise = Assert.Single(notices, e => e.Title == "Traffic advisory imprecise");
         Assert.Equal(SoloTrainingEventSeverity.Coach, imprecise.Severity);
         Assert.Equal(SoloTrainingEventCategory.AdvisoryVisual, imprecise.Category);
         Assert.Equal(a.Callsign, imprecise.Callsigns[0]);
@@ -338,7 +356,7 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_RelativeVfrRtis_SuppressesAdvisoryNeeded()
     {
-        var (a, b) = CreateClosingIfrPair(); // b is at a's 12 o'clock, 5 NM
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair(); // b is at a's 12 o'clock, 5 NM
         var evaluator = new SoloTrainingEvaluator();
         evaluator.RecordControllerCommand(
             a,
@@ -347,7 +365,7 @@ public sealed class SoloTrainingEvaluatorTests
             [a, b]
         );
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
         Assert.DoesNotContain(notices, e => e.Title == "Traffic advisory needed" && e.Callsigns[0] == a.Callsign && e.Callsigns[1] == b.Callsign);
     }
@@ -355,12 +373,12 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_RpoShortcutRtisDoesNotSuppressAdvisoryScoring()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
         evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(b.Callsign)), scenarioElapsedSeconds: 5, [a, b]);
         evaluator.RecordControllerCommand(b, SingleCommand(new ReportTrafficInSightForcedCommand(a.Callsign)), scenarioElapsedSeconds: 6, [a, b]);
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
         Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed"));
     }
@@ -368,12 +386,12 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_BareRtisDoesNotSuppressAdvisoryScoring()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         a.Approach.LastReportedTrafficCallsign = b.Callsign;
         var evaluator = new SoloTrainingEvaluator();
         evaluator.RecordControllerCommand(a, SingleCommand(new ReportTrafficInSightCommand(null)), scenarioElapsedSeconds: 5, [a, b]);
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
         Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed"));
     }
@@ -381,7 +399,7 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_QueuedRtisDoesNotCountBeforeDispatch()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
         var queuedCommand = new CompoundCommand([
             new ParsedBlock(null, [new WaitCommand(10)]),
@@ -389,7 +407,7 @@ public sealed class SoloTrainingEvaluatorTests
         ]);
         evaluator.RecordControllerCommand(a, queuedCommand, scenarioElapsedSeconds: 5, [a, b]);
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
         Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
     }
@@ -397,7 +415,7 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_AdvisoryProofAfterActiveEventClearsOnNextEvaluation()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
@@ -414,7 +432,7 @@ public sealed class SoloTrainingEvaluatorTests
             [a, b]
         );
         evaluator.Evaluate([a, b], scenarioElapsedSeconds: 12, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 12, new ApproachReportData([], [], 12, "N/A"), AircraftDebriefContext.Empty);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 12, new ApproachReportData([], [], 12, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.DoesNotContain(report.ActiveEvents, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
         Assert.Equal(2, report.Timeline.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
@@ -423,7 +441,7 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_WrongRtisTargetDoesNotSuppressAdvisory()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
         evaluator.RecordControllerCommand(
             a,
@@ -438,9 +456,9 @@ public sealed class SoloTrainingEvaluatorTests
             [a, b]
         );
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
-        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        SoloTrainingEvent advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
         Assert.Equal(a.Callsign, advisory.Callsigns[0]);
         Assert.Equal(b.Callsign, advisory.Callsigns[1]);
     }
@@ -448,12 +466,12 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_MissingTrafficAdvisory_DedupesAcrossRepeatedTicks()
     {
-        var (a, b) = CreateConflictingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateConflictingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
 
-        var first = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
-        var second = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 11, new ApproachReportData([], [], 11, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> first = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> second = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 11, new ApproachReportData([], [], 11, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.Equal(2, first.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
         Assert.Empty(second);
@@ -463,7 +481,7 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Reset_ClearsTrafficAdvisoryProofAndEvents()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
         evaluator.RecordControllerCommand(
             a,
@@ -483,7 +501,7 @@ public sealed class SoloTrainingEvaluatorTests
         );
 
         evaluator.Reset();
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
 
         Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
     }
@@ -491,16 +509,16 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void SendCommand_StructuredRtisRecordsTrafficAdvisoryProofIntoEvaluator()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 5) };
         engine.World.AddAircraft(a);
         engine.World.AddAircraft(b);
 
-        var result = engine.SendCommand(a.Callsign, $"RTIS 12 5 W {b.AircraftType} 050");
-        var notices = engine.SoloTrainingEvaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        CommandResult result = engine.SendCommand(a.Callsign, $"RTIS 12 5 W {b.AircraftType} 050");
+        List<SoloTrainingEvent> notices = engine.SoloTrainingEvaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
         Assert.True(result.Success, result.Message);
-        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        SoloTrainingEvent advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
         Assert.Equal(b.Callsign, advisory.Callsigns[0]);
         Assert.Equal(a.Callsign, advisory.Callsigns[1]);
     }
@@ -522,16 +540,16 @@ public sealed class SoloTrainingEvaluatorTests
         };
 
         engine.Replay(recording, 2);
-        var a = engine.FindAircraft("AAL1");
-        var b = engine.FindAircraft("UAL2");
+        AircraftState? a = engine.FindAircraft("AAL1");
+        AircraftState? b = engine.FindAircraft("UAL2");
         Assert.NotNull(a);
         Assert.NotNull(b);
         a.HasMadeInitialContact = true;
         b.HasMadeInitialContact = true;
 
-        var notices = engine.SoloTrainingEvaluator.Evaluate([a, b], scenarioElapsedSeconds: 2, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = engine.SoloTrainingEvaluator.Evaluate([a, b], scenarioElapsedSeconds: 2, AirspaceDatabase.Default);
 
-        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
+        SoloTrainingEvent advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
         Assert.Equal(b.Callsign, advisory.Callsigns[0]);
         Assert.Equal(a.Callsign, advisory.Callsigns[1]);
     }
@@ -539,10 +557,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void SendCommand_StructuredRfisRecordsProofAndStartsFieldAcquisition()
     {
-        var aircraft = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(38.10, -122.70), altitude: 5000, isOnGround: false);
+        AircraftState aircraft = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(38.10, -122.70), altitude: 5000, isOnGround: false);
         aircraft.FlightPlan.Destination = "KOAK";
-        var other = CreateAircraft("UAL2", "A320", flightRules: "IFR", new LatLon(39.00, -123.00), altitude: 7000, isOnGround: false);
-        var runway = CreateRunway();
+        AircraftState other = CreateAircraft("UAL2", "A320", flightRules: "IFR", new LatLon(39.00, -123.00), altitude: 7000, isOnGround: false);
+        RunwayInfo runway = CreateRunway();
         aircraft.Phases = new PhaseList
         {
             AssignedRunway = runway,
@@ -558,8 +576,12 @@ public sealed class SoloTrainingEvaluatorTests
         engine.World.AddAircraft(aircraft);
         engine.World.AddAircraft(other);
 
-        var result = engine.SendCommand(aircraft.Callsign, "RFIS 12 12");
-        var notices = engine.SoloTrainingEvaluator.Evaluate([aircraft, other], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        CommandResult result = engine.SendCommand(aircraft.Callsign, "RFIS 12 12");
+        List<SoloTrainingEvent> notices = engine.SoloTrainingEvaluator.Evaluate(
+            [aircraft, other],
+            scenarioElapsedSeconds: 10,
+            AirspaceDatabase.Default
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.True(
@@ -572,9 +594,9 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_CvaWithoutFieldProofRecordsVisualWarningUntilRfisProof()
     {
-        var (aircraft, other) = CreateClosingIfrPair();
+        (AircraftState? aircraft, AircraftState? other) = CreateClosingIfrPair();
         other.Position = GeoMath.ProjectPoint(aircraft.Position, new TrueHeading(90), 10.0);
-        var runway = CreateRunway();
+        RunwayInfo runway = CreateRunway();
         aircraft.Phases = new PhaseList
         {
             AssignedRunway = runway,
@@ -588,8 +610,8 @@ public sealed class SoloTrainingEvaluatorTests
         };
         var evaluator = new SoloTrainingEvaluator();
 
-        var notices = evaluator.Evaluate([aircraft, other], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
-        var visual = Assert.Single(notices, e => e.Title == "Visual approach field proof missing");
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([aircraft, other], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        SoloTrainingEvent visual = Assert.Single(notices, e => e.Title == "Visual approach field proof missing");
         Assert.Contains("7110.65 §7-4-3", visual.RuleReference);
 
         evaluator.RecordControllerCommand(
@@ -599,7 +621,7 @@ public sealed class SoloTrainingEvaluatorTests
             [aircraft, other]
         );
         evaluator.Evaluate([aircraft, other], scenarioElapsedSeconds: 12, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 12, new ApproachReportData([], [], 12, "N/A"), AircraftDebriefContext.Empty);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 12, new ApproachReportData([], [], 12, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.DoesNotContain(report.ActiveEvents, e => e.Title == "Visual approach field proof missing");
     }
@@ -607,8 +629,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_CvaWithoutFieldProofScoresOnceWithoutTrafficPair()
     {
-        var aircraft = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(38.10, -122.70), altitude: 5000, isOnGround: false);
-        var runway = CreateRunway();
+        AircraftState aircraft = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(38.10, -122.70), altitude: 5000, isOnGround: false);
+        RunwayInfo runway = CreateRunway();
         aircraft.Phases = new PhaseList
         {
             AssignedRunway = runway,
@@ -622,7 +644,7 @@ public sealed class SoloTrainingEvaluatorTests
         };
         var evaluator = new SoloTrainingEvaluator();
 
-        var notices = evaluator.Evaluate([aircraft], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([aircraft], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
         Assert.Single(notices, e => e.Title == "Visual approach field proof missing");
     }
@@ -630,8 +652,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void ResolveRequirement_ClassCOuterAreaIfrVfrPair_AppliesTargetResolution()
     {
-        var ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.95, -122.22), altitude: 2500, isOnGround: false);
-        var vfr = CreateAircraft(
+        AircraftState ifr = CreateAircraft("AAL1", "C172", flightRules: "IFR", new LatLon(37.95, -122.22), altitude: 2500, isOnGround: false);
+        AircraftState vfr = CreateAircraft(
             "N123AB",
             "C172",
             flightRules: "VFR",
@@ -640,7 +662,7 @@ public sealed class SoloTrainingEvaluatorTests
             isOnGround: false
         );
 
-        var requirement = SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default);
+        SoloTrainingEvaluator.SeparationRequirement? requirement = SoloTrainingEvaluator.ResolveRequirement(ifr, vfr, AirspaceDatabase.Default);
 
         Assert.NotNull(requirement);
         Assert.Contains("outer-area", requirement.Name);
@@ -657,8 +679,8 @@ public sealed class SoloTrainingEvaluatorTests
     {
         // Outside Class B/C, IFR separation is not applied to VFR-on-top — only a traffic advisory
         // (7110.65 §7-3-1 NOTE 2). A plain IFR/IFR pair here would be owed 3 NM / 1000 ft.
-        var otp = CreateOtpAircraft("AAL1", new LatLon(37.0000, -121.0000), altitude: 2500);
-        var ifr = CreateAircraft(
+        AircraftState otp = CreateOtpAircraft("AAL1", new LatLon(37.0000, -121.0000), altitude: 2500);
+        AircraftState ifr = CreateAircraft(
             "UAL2",
             "C172",
             flightRules: "IFR",
@@ -675,8 +697,8 @@ public sealed class SoloTrainingEvaluatorTests
     {
         // VFR-on-top in Class B gets the reduced Class B VFR standard (0.25 NM / 500 ft for light
         // aircraft, 7110.65 §7-9-4), NOT 3 NM / 1000 ft IFR radar separation.
-        var otp = CreateOtpAircraft("AAL1", new LatLon(37.6213, -122.3790), altitude: 2500);
-        var ifr = CreateAircraft(
+        AircraftState otp = CreateOtpAircraft("AAL1", new LatLon(37.6213, -122.3790), altitude: 2500);
+        AircraftState ifr = CreateAircraft(
             "UAL2",
             "C172",
             flightRules: "IFR",
@@ -685,7 +707,7 @@ public sealed class SoloTrainingEvaluatorTests
             isOnGround: false
         );
 
-        var requirement = SoloTrainingEvaluator.ResolveRequirement(otp, ifr, AirspaceDatabase.Default);
+        SoloTrainingEvaluator.SeparationRequirement? requirement = SoloTrainingEvaluator.ResolveRequirement(otp, ifr, AirspaceDatabase.Default);
 
         Assert.NotNull(requirement);
         Assert.Equal(0.25, requirement.RequiredHorizontalNm);
@@ -697,8 +719,8 @@ public sealed class SoloTrainingEvaluatorTests
     public void ResolveRequirement_OtpVsIfr_InClassC_UsesTargetResolution()
     {
         // Class C separates IFR-from-VFR; the OTP aircraft is the VFR party (7110.65 §7-8-3).
-        var otp = CreateOtpAircraft("AAL1", new LatLon(37.7213, -122.2208), altitude: 1000);
-        var ifr = CreateAircraft(
+        AircraftState otp = CreateOtpAircraft("AAL1", new LatLon(37.7213, -122.2208), altitude: 1000);
+        AircraftState ifr = CreateAircraft(
             "UAL2",
             "C172",
             flightRules: "IFR",
@@ -707,7 +729,7 @@ public sealed class SoloTrainingEvaluatorTests
             isOnGround: false
         );
 
-        var requirement = SoloTrainingEvaluator.ResolveRequirement(otp, ifr, AirspaceDatabase.Default);
+        SoloTrainingEvaluator.SeparationRequirement? requirement = SoloTrainingEvaluator.ResolveRequirement(otp, ifr, AirspaceDatabase.Default);
 
         Assert.NotNull(requirement);
         Assert.Equal(0.25, requirement.RequiredHorizontalNm);
@@ -720,8 +742,8 @@ public sealed class SoloTrainingEvaluatorTests
     {
         // Class C separates IFR-from-VFR but not VFR-from-VFR; two VFR-on-top aircraft are
         // advisory-only (7110.65 §7-8-2).
-        var a = CreateOtpAircraft("AAL1", new LatLon(37.7213, -122.2208), altitude: 1000);
-        var b = CreateOtpAircraft("UAL2", GeoMath.ProjectPoint(a.Position, new TrueHeading(90), 0.2), altitude: 1000);
+        AircraftState a = CreateOtpAircraft("AAL1", new LatLon(37.7213, -122.2208), altitude: 1000);
+        AircraftState b = CreateOtpAircraft("UAL2", GeoMath.ProjectPoint(a.Position, new TrueHeading(90), 0.2), altitude: 1000);
 
         Assert.Null(SoloTrainingEvaluator.ResolveRequirement(a, b, AirspaceDatabase.Default));
     }
@@ -732,10 +754,10 @@ public sealed class SoloTrainingEvaluatorTests
         // Class B DOES separate VFR-from-VFR (unlike Class C): two VFR-on-top aircraft in Class B
         // still take the reduced Class B standard (0.25 NM / 500 ft light, 7110.65 §7-9-4.3). This
         // locks the B-vs-C asymmetry — the Class B branch must never be gated on a mixed pair.
-        var a = CreateOtpAircraft("AAL1", new LatLon(37.6213, -122.3790), altitude: 2500);
-        var b = CreateOtpAircraft("UAL2", GeoMath.ProjectPoint(a.Position, new TrueHeading(90), 0.2), altitude: 2500);
+        AircraftState a = CreateOtpAircraft("AAL1", new LatLon(37.6213, -122.3790), altitude: 2500);
+        AircraftState b = CreateOtpAircraft("UAL2", GeoMath.ProjectPoint(a.Position, new TrueHeading(90), 0.2), altitude: 2500);
 
-        var requirement = SoloTrainingEvaluator.ResolveRequirement(a, b, AirspaceDatabase.Default);
+        SoloTrainingEvaluator.SeparationRequirement? requirement = SoloTrainingEvaluator.ResolveRequirement(a, b, AirspaceDatabase.Default);
 
         Assert.NotNull(requirement);
         Assert.Equal(0.25, requirement.RequiredHorizontalNm);
@@ -752,8 +774,8 @@ public sealed class SoloTrainingEvaluatorTests
         // §7-9-4.3: a VFR aircraft separated from a ≤19,000 lb aircraft gets target resolution. The
         // VFR party being a turbojet is irrelevant — the standard keys on the *other* (light IFR)
         // aircraft, so this pair is 0.25 NM, not 1.5 NM.
-        var vfrJet = CreateAircraft("SWA1", "B738", flightRules: "VFR", new LatLon(37.6213, -122.3790), altitude: 3000, isOnGround: false);
-        var lightIfr = CreateAircraft(
+        AircraftState vfrJet = CreateAircraft("SWA1", "B738", flightRules: "VFR", new LatLon(37.6213, -122.3790), altitude: 3000, isOnGround: false);
+        AircraftState lightIfr = CreateAircraft(
             "N123AB",
             "C172",
             flightRules: "IFR",
@@ -762,7 +784,11 @@ public sealed class SoloTrainingEvaluatorTests
             isOnGround: false
         );
 
-        var requirement = SoloTrainingEvaluator.ResolveRequirement(vfrJet, lightIfr, AirspaceDatabase.Default);
+        SoloTrainingEvaluator.SeparationRequirement? requirement = SoloTrainingEvaluator.ResolveRequirement(
+            vfrJet,
+            lightIfr,
+            AirspaceDatabase.Default
+        );
 
         Assert.NotNull(requirement);
         Assert.Equal(0.25, requirement.RequiredHorizontalNm);
@@ -774,8 +800,8 @@ public sealed class SoloTrainingEvaluatorTests
     {
         // §7-9-4.2: in a VFR-from-VFR pair each aircraft is separated from the other, so a turbojet
         // on either side binds the 1.5 NM standard (the light aircraft must be 1.5 from the jet).
-        var vfrJet = CreateAircraft("SWA1", "B738", flightRules: "VFR", new LatLon(37.6213, -122.3790), altitude: 3000, isOnGround: false);
-        var lightVfr = CreateAircraft(
+        AircraftState vfrJet = CreateAircraft("SWA1", "B738", flightRules: "VFR", new LatLon(37.6213, -122.3790), altitude: 3000, isOnGround: false);
+        AircraftState lightVfr = CreateAircraft(
             "N123AB",
             "C172",
             flightRules: "VFR",
@@ -784,7 +810,11 @@ public sealed class SoloTrainingEvaluatorTests
             isOnGround: false
         );
 
-        var requirement = SoloTrainingEvaluator.ResolveRequirement(vfrJet, lightVfr, AirspaceDatabase.Default);
+        SoloTrainingEvaluator.SeparationRequirement? requirement = SoloTrainingEvaluator.ResolveRequirement(
+            vfrJet,
+            lightVfr,
+            AirspaceDatabase.Default
+        );
 
         Assert.NotNull(requirement);
         Assert.Equal(1.5, requirement.RequiredHorizontalNm);
@@ -794,8 +824,8 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_NoMinimaProximityCreatesAdvisoryOnlyEvents()
     {
-        var first = CreateAircraft("N123AB", "C172", flightRules: "VFR", new LatLon(37.0000, -121.0000), altitude: 2500, isOnGround: false);
-        var second = CreateAircraft(
+        AircraftState first = CreateAircraft("N123AB", "C172", flightRules: "VFR", new LatLon(37.0000, -121.0000), altitude: 2500, isOnGround: false);
+        AircraftState second = CreateAircraft(
             "N456CD",
             "C172",
             flightRules: "VFR",
@@ -805,7 +835,7 @@ public sealed class SoloTrainingEvaluatorTests
         );
         var evaluator = new SoloTrainingEvaluator();
 
-        var notices = evaluator.Evaluate([first, second], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([first, second], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
 
         Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.Separation);
         Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual));
@@ -815,13 +845,16 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_TransferredAwayRecipientDoesNotReceiveMissingAdvisoryScoring()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
         evaluator.RecordControllerCommand(a, SingleCommand(new FrequencyChangeApprovedCommand()), scenarioElapsedSeconds: 5, [a, b]);
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
-        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed");
+        SoloTrainingEvent advisory = Assert.Single(
+            notices,
+            e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed"
+        );
         Assert.Equal(b.Callsign, advisory.Callsigns[0]);
         Assert.Equal(a.Callsign, advisory.Callsigns[1]);
     }
@@ -829,15 +862,18 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_DifferentOwnerRecipientDoesNotReceiveMissingAdvisoryScoringWhenStudentPositionKnown()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var student = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
         a.Track.Owner = TrackOwner.CreateStars("NCT_APP", "NCT", 4, "A");
         b.Track.Owner = student;
         var evaluator = new SoloTrainingEvaluator();
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default, student);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default, student);
 
-        var advisory = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed");
+        SoloTrainingEvent advisory = Assert.Single(
+            notices,
+            e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed"
+        );
         Assert.Equal(b.Callsign, advisory.Callsigns[0]);
         Assert.Equal(a.Callsign, advisory.Callsigns[1]);
     }
@@ -845,7 +881,7 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_TowerStudentScoresRecipientWhenOriginatingControllerHasInitiatedHandoff()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var student = TrackOwner.CreateStars("SFO_TWR", "SFO", 3, "T");
         a.Track.Owner = TrackOwner.CreateStars("NCT_APP", "NCT", 4, "A");
         a.Track.HandoffPeer = student;
@@ -856,7 +892,7 @@ public sealed class SoloTrainingEvaluatorTests
             WakeDirectiveCatalog.Empty
         );
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default, serviceContext);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default, serviceContext);
 
         Assert.Equal(2, notices.Count(e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Traffic advisory needed"));
     }
@@ -864,7 +900,7 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_SafetyAlertProofSuppressesOnlyCurrentSafetyAlertScoring()
     {
-        var (a, b) = CreateConflictingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateConflictingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
         evaluator.RecordControllerCommand(
             a,
@@ -879,7 +915,7 @@ public sealed class SoloTrainingEvaluatorTests
             [a, b]
         );
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
         Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual);
         Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.Separation);
@@ -888,7 +924,7 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_SafetyAlertOutsideCurrentSafetyStateRecordsOveruse()
     {
-        var (a, b) = CreateClosingIfrPair();
+        (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
         evaluator.RecordControllerCommand(
             a,
@@ -897,7 +933,7 @@ public sealed class SoloTrainingEvaluatorTests
             [a, b]
         );
 
-        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
         Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Safety alert overused");
     }
@@ -905,10 +941,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_DepartureBehindDepartureBeforeDerOrSpacing_RecordsRunwayWakeSafetyEvent()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
@@ -918,8 +954,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Equal(SoloTrainingEventSeverity.Safety, notice.Severity);
         Assert.Equal("28R", notice.RunwayId);
@@ -930,10 +966,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_DepartureBehindDepartureAfterDer_DoesNotRecordViolation()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
@@ -943,8 +979,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 11, new ApproachReportData([], [], 11, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 11, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 11, new ApproachReportData([], [], 11, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -952,18 +988,18 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_DepartureBehindLandingStillOnRunway_RecordsRunwayWakeSafetyEvent()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 1500), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 1500), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new LandingPhase());
-        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 20, AirspaceDatabase.Default);
 
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 21, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 21, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Contains("7110.65 §3-9-6(b)", notice.RuleReference);
         Assert.Contains("clear of the runway", notice.RequiredText);
     }
@@ -971,10 +1007,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ArrivalBehindDepartureInsideRequiredThresholdDistance_RecordsRunwayWakeSafetyEvent()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 2500), altitude: 500, isOnGround: false);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 2500), altitude: 500, isOnGround: false);
         SetPhase(lead, runway, new InitialClimbPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway, -500), altitude: 100, isOnGround: false);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway, -500), altitude: 100, isOnGround: false);
         SetPhase(follower, runway, new FinalApproachPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 30, AirspaceDatabase.Default);
@@ -982,8 +1018,8 @@ public sealed class SoloTrainingEvaluatorTests
         follower.Position = PositionOnRunway(runway, 100);
         SetPhase(follower, runway, new LandingPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 31, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 31, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Contains("7110.65 §3-10-3(a)(2)", notice.RuleReference);
         Assert.Contains("6,000 ft", notice.RequiredText);
     }
@@ -991,19 +1027,26 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ArrivalBehindLandedAircraft_AppliesCategoryOneDistanceException()
     {
-        var runway = CreateRunway();
+        RunwayInfo runway = CreateRunway();
         var evaluator = new SoloTrainingEvaluator();
-        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 2500), altitude: 10, isOnGround: true);
+        AircraftState lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 2500), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new LandingPhase());
-        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, -500), altitude: 100, isOnGround: false);
+        AircraftState follower = CreateAircraft(
+            "N222BB",
+            "C172",
+            flightRules: "VFR",
+            PositionOnRunway(runway, -500),
+            altitude: 100,
+            isOnGround: false
+        );
         SetPhase(follower, runway, new FinalApproachPhase());
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 40, AirspaceDatabase.Default);
 
         follower.Position = PositionOnRunway(runway, 100);
         SetPhase(follower, runway, new LandingPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 41, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 41, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Contains("7110.65 §3-10-3(a)(1)", notice.RuleReference);
         Assert.Contains("3,000 ft", notice.RequiredText);
 
@@ -1017,7 +1060,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(follower, runway, new LandingPhase());
 
         notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 51, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 51, new ApproachReportData([], [], 51, "N/A"), AircraftDebriefContext.Empty);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 51, new ApproachReportData([], [], 51, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1031,14 +1074,21 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ArrivalBehindLandedAircraft_DisplacedThreshold_MeasuresFromTheLandingThreshold()
     {
-        var runway = CreateRunway();
-        var layout = DisplacedLayout(runway, "28R", displacementFt: 2000);
+        RunwayInfo runway = CreateRunway();
+        AirportGroundLayout layout = DisplacedLayout(runway, "28R", displacementFt: 2000);
         var evaluator = new SoloTrainingEvaluator();
 
-        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 3500), altitude: 10, isOnGround: true);
+        AircraftState lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 3500), altitude: 10, isOnGround: true);
         lead.Ground.Layout = layout;
         SetPhase(lead, runway, new LandingPhase());
-        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, -500), altitude: 100, isOnGround: false);
+        AircraftState follower = CreateAircraft(
+            "N222BB",
+            "C172",
+            flightRules: "VFR",
+            PositionOnRunway(runway, -500),
+            altitude: 100,
+            isOnGround: false
+        );
         follower.Ground.Layout = layout;
         SetPhase(follower, runway, new FinalApproachPhase());
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 40, AirspaceDatabase.Default);
@@ -1046,9 +1096,9 @@ public sealed class SoloTrainingEvaluatorTests
         follower.Position = PositionOnRunway(runway, 2100); // 100 ft past the displaced landing threshold
         SetPhase(follower, runway, new LandingPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 41, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 41, AirspaceDatabase.Default);
 
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Contains("7110.65 §3-10-3(a)(1)", notice.RuleReference);
         Assert.Contains("3,000 ft", notice.RequiredText);
     }
@@ -1060,12 +1110,19 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ArrivalBehindLandedAircraft_NoDisplacement_StillClearsAtTheSameGeometry()
     {
-        var runway = CreateRunway();
+        RunwayInfo runway = CreateRunway();
         var evaluator = new SoloTrainingEvaluator();
 
-        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 3500), altitude: 10, isOnGround: true);
+        AircraftState lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 3500), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new LandingPhase());
-        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, -500), altitude: 100, isOnGround: false);
+        AircraftState follower = CreateAircraft(
+            "N222BB",
+            "C172",
+            flightRules: "VFR",
+            PositionOnRunway(runway, -500),
+            altitude: 100,
+            isOnGround: false
+        );
         SetPhase(follower, runway, new FinalApproachPhase());
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 40, AirspaceDatabase.Default);
 
@@ -1093,10 +1150,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_SameRunwayViolation_DedupesAcrossRepeatedTicks()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 60, AirspaceDatabase.Default);
@@ -1106,9 +1163,9 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 61, AirspaceDatabase.Default);
-        var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 62, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 62, new ApproachReportData([], [], 62, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 61, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 62, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 62, new ApproachReportData([], [], 62, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.Single(first, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Empty(second);
@@ -1119,10 +1176,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Reset_ClearsSameRunwayTrackerState()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 70, AirspaceDatabase.Default);
@@ -1135,8 +1192,8 @@ public sealed class SoloTrainingEvaluatorTests
 
         evaluator.Reset();
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 72, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 72, new ApproachReportData([], [], 72, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 72, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 72, new ApproachReportData([], [], 72, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1144,11 +1201,11 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ReciprocalDepartureBeforePrecedingDepartureCrossesRunwayEnd_RecordsRunwayWakeSafetyEvent()
     {
-        var runway28R = CreateRunway();
-        var runway10L = runway28R.ForApproach("10L");
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway28R, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway28R = CreateRunway();
+        RunwayInfo runway10L = runway28R.ForApproach("10L");
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway28R, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway28R, new TakeoffPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway10L, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway10L, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway10L, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 73, AirspaceDatabase.Default);
@@ -1158,8 +1215,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway28R, new InitialClimbPhase());
         SetPhase(follower, runway10L, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 74, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 74, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Equal(SoloTrainingEventSeverity.Safety, notice.Severity);
         Assert.Equal("28R/10L", notice.RunwayId);
@@ -1171,11 +1228,11 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ReciprocalDepartureAfterPrecedingDepartureCrossesRunwayEnd_DoesNotRecordViolation()
     {
-        var runway28R = CreateRunway();
-        var runway10L = runway28R.ForApproach("10L");
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway28R, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway28R = CreateRunway();
+        RunwayInfo runway10L = runway28R.ForApproach("10L");
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway28R, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway28R, new TakeoffPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway10L, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway10L, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway10L, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 75, AirspaceDatabase.Default);
@@ -1185,8 +1242,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway28R, new InitialClimbPhase());
         SetPhase(follower, runway10L, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 76, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 76, new ApproachReportData([], [], 76, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 76, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 76, new ApproachReportData([], [], 76, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1194,11 +1251,11 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_IntersectingDepartureBehindDepartureBeforeIntersection_RecordsRunwayWakeSafetyEvent()
     {
-        var runway = CreateRunway();
-        var crossing = CreateCrossingRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 2000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        RunwayInfo crossing = CreateCrossingRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 2000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(crossing, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(crossing, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, crossing, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 77, AirspaceDatabase.Default);
@@ -1208,8 +1265,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, crossing, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 78, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 78, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-9-8", notice.RuleReference);
         Assert.Contains("intersecting-runway", notice.Title);
@@ -1220,11 +1277,11 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_IntersectingDepartureBehindDepartureAfterIntersection_DoesNotRecordViolation()
     {
-        var runway = CreateRunway();
-        var crossing = CreateCrossingRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 2000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        RunwayInfo crossing = CreateCrossingRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 2000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(crossing, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(crossing, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, crossing, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 79, AirspaceDatabase.Default);
@@ -1234,8 +1291,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, crossing, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 80, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 80, new ApproachReportData([], [], 80, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 80, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 80, new ApproachReportData([], [], 80, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1243,19 +1300,19 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_IntersectingDepartureBehindLandingBeforeIntersection_RecordsRunwayWakeSafetyEvent()
     {
-        var runway = CreateRunway();
-        var crossing = CreateCrossingRunway();
-        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        RunwayInfo crossing = CreateCrossingRunway();
+        AircraftState lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new LandingPhase());
-        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(crossing, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(crossing, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, crossing, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 81, AirspaceDatabase.Default);
 
         SetPhase(follower, crossing, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 82, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 82, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-9-8", notice.RuleReference);
         Assert.Contains("Departure behind landing intersecting-runway", notice.Title);
@@ -1265,11 +1322,18 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_IntersectingArrivalBehindDepartureBeforeIntersection_RecordsRunwayWakeSafetyEvent()
     {
-        var runway = CreateRunway();
-        var crossing = CreateCrossingRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 3000), altitude: 500, isOnGround: false);
+        RunwayInfo runway = CreateRunway();
+        RunwayInfo crossing = CreateCrossingRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 3000), altitude: 500, isOnGround: false);
         SetPhase(lead, runway, new InitialClimbPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(crossing, -500), altitude: 100, isOnGround: false);
+        AircraftState follower = CreateAircraft(
+            "UAL2",
+            "B738",
+            flightRules: "IFR",
+            PositionOnRunway(crossing, -500),
+            altitude: 100,
+            isOnGround: false
+        );
         SetPhase(follower, crossing, new FinalApproachPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 83, AirspaceDatabase.Default);
@@ -1277,8 +1341,8 @@ public sealed class SoloTrainingEvaluatorTests
         follower.Position = PositionOnRunway(crossing, 100);
         SetPhase(follower, crossing, new LandingPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 84, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 84, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-10-4", notice.RuleReference);
         Assert.Contains("Arrival behind departure intersecting-runway", notice.Title);
@@ -1288,11 +1352,18 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_IntersectingArrivalBehindLandingBeforeIntersection_RecordsRunwayWakeSafetyEvent()
     {
-        var runway = CreateRunway();
-        var crossing = CreateCrossingRunway();
-        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        RunwayInfo crossing = CreateCrossingRunway();
+        AircraftState lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new LandingPhase());
-        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(crossing, -500), altitude: 100, isOnGround: false);
+        AircraftState follower = CreateAircraft(
+            "N222BB",
+            "C172",
+            flightRules: "VFR",
+            PositionOnRunway(crossing, -500),
+            altitude: 100,
+            isOnGround: false
+        );
         SetPhase(follower, crossing, new FinalApproachPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 81, AirspaceDatabase.Default);
@@ -1300,8 +1371,8 @@ public sealed class SoloTrainingEvaluatorTests
         follower.Position = PositionOnRunway(crossing, 100);
         SetPhase(follower, crossing, new LandingPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 82, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 82, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-10-4", notice.RuleReference);
         Assert.Contains("intersecting-runway", notice.Title);
@@ -1311,11 +1382,11 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ConvergingDepartureBehindDepartureBeforeProjectedIntersection_RecordsRunwayWakeSafetyEvent()
     {
-        var runway = CreateRunway();
-        var converging = CreateProjectedConvergingRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        RunwayInfo converging = CreateProjectedConvergingRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, converging, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 85, AirspaceDatabase.Default);
@@ -1325,8 +1396,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, converging, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 86, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 86, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Equal("28R/16", notice.RunwayId);
         Assert.Contains("7110.65 §3-9-9", notice.RuleReference);
@@ -1338,11 +1409,11 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ConvergingDepartureBehindDepartureAfterProjectedIntersection_DoesNotRecordViolation()
     {
-        var runway = CreateRunway();
-        var converging = CreateProjectedConvergingRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        RunwayInfo converging = CreateProjectedConvergingRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, converging, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 87, AirspaceDatabase.Default);
@@ -1352,8 +1423,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, converging, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 88, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 88, new ApproachReportData([], [], 88, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 88, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 88, new ApproachReportData([], [], 88, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1361,19 +1432,26 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ConvergingDepartureBehindLandingBeforeProjectedIntersection_RecordsRunwayWakeSafetyEvent()
     {
-        var runway = CreateRunway();
-        var converging = CreateProjectedConvergingRunway();
-        var lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 5000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        RunwayInfo converging = CreateProjectedConvergingRunway();
+        AircraftState lead = CreateAircraft("N111AA", "C172", flightRules: "VFR", PositionOnRunway(runway, 5000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new LandingPhase());
-        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft(
+            "N222BB",
+            "C172",
+            flightRules: "VFR",
+            PositionOnRunway(converging, 0),
+            altitude: 10,
+            isOnGround: true
+        );
         SetPhase(follower, converging, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 89, AirspaceDatabase.Default);
 
         SetPhase(follower, converging, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 90, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 90, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-9-9", notice.RuleReference);
         Assert.Contains("Departure behind landing converging-runway", notice.Title);
@@ -1383,11 +1461,18 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ConvergingArrivalBehindDepartureBeforeProjectedIntersection_RecordsRunwayWakeSafetyEvent()
     {
-        var runway = CreateRunway();
-        var converging = CreateProjectedConvergingRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 5000), altitude: 500, isOnGround: false);
+        RunwayInfo runway = CreateRunway();
+        RunwayInfo converging = CreateProjectedConvergingRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 5000), altitude: 500, isOnGround: false);
         SetPhase(lead, runway, new InitialClimbPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, -500), altitude: 100, isOnGround: false);
+        AircraftState follower = CreateAircraft(
+            "UAL2",
+            "B738",
+            flightRules: "IFR",
+            PositionOnRunway(converging, -500),
+            altitude: 100,
+            isOnGround: false
+        );
         SetPhase(follower, converging, new FinalApproachPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 91, AirspaceDatabase.Default);
@@ -1395,8 +1480,8 @@ public sealed class SoloTrainingEvaluatorTests
         follower.Position = PositionOnRunway(converging, 100);
         SetPhase(follower, converging, new LandingPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 92, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 92, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-10-4", notice.RuleReference);
         Assert.Contains("Arrival behind departure converging-runway", notice.Title);
@@ -1406,11 +1491,11 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ConvergingRunwayViolation_DedupesAcrossRepeatedTicks()
     {
-        var runway = CreateRunway();
-        var converging = CreateProjectedConvergingRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        RunwayInfo converging = CreateProjectedConvergingRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 3000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, converging, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 93, AirspaceDatabase.Default);
@@ -1420,9 +1505,9 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, converging, new TakeoffPhase());
 
-        var first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 94, AirspaceDatabase.Default);
-        var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 95, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 95, new ApproachReportData([], [], 95, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 94, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 95, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 95, new ApproachReportData([], [], 95, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.Single(first, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Empty(second);
@@ -1433,11 +1518,11 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_NonIntersectingConvergingRunways_DoNotRecordRunwayConflict()
     {
-        var runway = CreateRunway();
-        var converging = CreateNonIntersectingConvergingRunway();
-        var lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 2000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        RunwayInfo converging = CreateNonIntersectingConvergingRunway();
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 2000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(converging, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, converging, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 83, AirspaceDatabase.Default);
@@ -1447,8 +1532,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, converging, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 84, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 84, new ApproachReportData([], [], 84, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 84, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 84, new ApproachReportData([], [], 84, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1456,10 +1541,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_DepartureWakeIntervalBeforeRequiredTime_RecordsRunwayWakeSafetyEvent()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -1469,8 +1554,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
-        var notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        SoloTrainingEvent notice = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Equal(SoloTrainingEventCategory.RunwayWake, notice.Category);
         Assert.Contains("7110.65 §3-9-6(f)", notice.RuleReference);
         Assert.Contains("2 minutes", notice.RequiredText);
@@ -1480,10 +1565,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_DepartureWakeIntervalWithoutCwtProof_RecordsAdvisoryEvent()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -1493,10 +1578,10 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
 
         Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake && e.Title == "Departure wake interval");
-        var advisory = Assert.Single(
+        SoloTrainingEvent advisory = Assert.Single(
             notices,
             e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing"
         );
@@ -1508,10 +1593,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_CwtProofSuppressesSingleWakeAdvisoryContext()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -1527,7 +1612,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
 
         Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake && e.Title == "Departure wake interval");
         Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
@@ -1536,10 +1621,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_BareCwtProofSuppressesCurrentSingleWakeAdvisoryContext()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -1549,12 +1634,12 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
         Assert.Contains(first, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
 
         evaluator.RecordControllerCommand(follower, SingleCommand(new WakeAdvisoryCommand()), scenarioElapsedSeconds: 161, [lead, follower]);
-        var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 162, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 162, new ApproachReportData([], [], 162, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 162, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 162, new ApproachReportData([], [], 162, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.DoesNotContain(second, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
         Assert.DoesNotContain(
@@ -1566,10 +1651,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_EarlyBareCwtProofDoesNotSuppressLaterWakeAdvisoryContext()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -1580,7 +1665,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
 
         Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
     }
@@ -1588,10 +1673,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_QueuedCwtProofDoesNotCountBeforeDispatch()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -1603,7 +1688,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
 
         Assert.Contains(notices, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
     }
@@ -1611,10 +1696,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_WakeDirectiveSuppressesMatchingWakeIntervalButKeepsAdvisoryRequirement()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate(
@@ -1629,7 +1714,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate(
+        List<SoloTrainingEvent> notices = evaluator.Evaluate(
             [lead, follower],
             scenarioElapsedSeconds: 160,
             AirspaceDatabase.Default,
@@ -1637,7 +1722,7 @@ public sealed class SoloTrainingEvaluatorTests
         );
 
         Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake && e.Title == "Departure wake interval");
-        var advisory = Assert.Single(
+        SoloTrainingEvent advisory = Assert.Single(
             notices,
             e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing"
         );
@@ -1649,10 +1734,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_WakeDirectiveDoesNotSuppressNonMatchingCwtCategory()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate(
@@ -1667,7 +1752,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate(
+        List<SoloTrainingEvent> notices = evaluator.Evaluate(
             [lead, follower],
             scenarioElapsedSeconds: 160,
             AirspaceDatabase.Default,
@@ -1680,10 +1765,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_WakeDirectiveRequiresAdvisoryWhenWakeIntervalIsSatisfied()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate(
@@ -1698,7 +1783,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate(
+        List<SoloTrainingEvent> notices = evaluator.Evaluate(
             [lead, follower],
             scenarioElapsedSeconds: 230,
             AirspaceDatabase.Default,
@@ -1712,10 +1797,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_WakeDirectiveAdvisoryIsSuppressedByCwtProof()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate(
@@ -1736,7 +1821,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate(
+        List<SoloTrainingEvent> notices = evaluator.Evaluate(
             [lead, follower],
             scenarioElapsedSeconds: 230,
             AirspaceDatabase.Default,
@@ -1749,10 +1834,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_WakeDirectiveSuppressesAdvisoryOnly()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate(
@@ -1767,7 +1852,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate(
+        List<SoloTrainingEvent> notices = evaluator.Evaluate(
             [lead, follower],
             scenarioElapsedSeconds: 160,
             AirspaceDatabase.Default,
@@ -1781,10 +1866,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_DepartureWakeIntervalAfterRequiredTime_DoesNotRecordViolation()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -1794,8 +1879,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 221, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 221, new ApproachReportData([], [], 221, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 221, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 221, new ApproachReportData([], [], 221, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1803,10 +1888,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_DepartureWakeIntervalBeforeRequiredTime_DoesNotRecordWhenCwtDistanceExists()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -1816,8 +1901,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 160, new ApproachReportData([], [], 160, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 160, new ApproachReportData([], [], 160, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1825,11 +1910,18 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ParallelRunwayUnderWakeThreshold_AppliesDepartureWakeInterval()
     {
-        var leadRunway = CreateRunway();
-        var followerRunway = CreateParallelRunway("28L", offsetFt: 1000);
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(leadRunway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo leadRunway = CreateRunway();
+        RunwayInfo followerRunway = CreateParallelRunway("28L", offsetFt: 1000);
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(leadRunway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, leadRunway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(followerRunway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft(
+            "SWA2",
+            "B738",
+            flightRules: "IFR",
+            PositionOnRunway(followerRunway, 0),
+            altitude: 10,
+            isOnGround: true
+        );
         SetPhase(follower, followerRunway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -1839,7 +1931,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, leadRunway, new InitialClimbPhase());
         SetPhase(follower, followerRunway, new TakeoffPhase());
 
-        var notice = Assert.Single(
+        SoloTrainingEvent notice = Assert.Single(
             evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default),
             e => e.Category == SoloTrainingEventCategory.RunwayWake
         );
@@ -1850,11 +1942,18 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_ParallelRunwayOutsideWakeThreshold_DoesNotApplyDepartureWakeInterval()
     {
-        var leadRunway = CreateRunway();
-        var followerRunway = CreateParallelRunway("28L", offsetFt: 3000);
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(leadRunway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo leadRunway = CreateRunway();
+        RunwayInfo followerRunway = CreateParallelRunway("28L", offsetFt: 3000);
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(leadRunway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, leadRunway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(followerRunway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft(
+            "SWA2",
+            "B738",
+            flightRules: "IFR",
+            PositionOnRunway(followerRunway, 0),
+            altitude: 10,
+            isOnGround: true
+        );
         SetPhase(follower, followerRunway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -1864,8 +1963,8 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, leadRunway, new InitialClimbPhase());
         SetPhase(follower, followerRunway, new TakeoffPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 160, new ApproachReportData([], [], 160, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 160, new ApproachReportData([], [], 160, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1873,10 +1972,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_IntersectionDepartureWakeInterval_UsesSection397()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("UAL1", "B752", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("UAL1", "B752", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -1886,7 +1985,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notice = Assert.Single(
+        SoloTrainingEvent notice = Assert.Single(
             evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 220, AirspaceDatabase.Default),
             e => e.Category == SoloTrainingEventCategory.RunwayWake
         );
@@ -1898,10 +1997,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_IntersectionDepartureWakeIntervalWithoutMileAlternative_ReportsTimeOnly()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("FFT1", "A320", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("FFT1", "A320", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("N222BB", "C172", flightRules: "VFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -1911,7 +2010,7 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var notice = Assert.Single(
+        SoloTrainingEvent notice = Assert.Single(
             evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default),
             e => e.Category == SoloTrainingEventCategory.RunwayWake
         );
@@ -1923,10 +2022,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_TerminalApproachCwtSpacingInsideRequiredDistance_RecordsRunwayWakeSafetyEvent()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("UAE1", "A388", flightRules: "IFR", PositionOnRunway(runway, -100), altitude: 100, isOnGround: false);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("UAE1", "A388", flightRules: "IFR", PositionOnRunway(runway, -100), altitude: 100, isOnGround: false);
         SetPhase(lead, runway, new FinalApproachPhase());
-        var follower = CreateAircraft(
+        AircraftState follower = CreateAircraft(
             "SWA2",
             "B738",
             flightRules: "IFR",
@@ -1941,7 +2040,7 @@ public sealed class SoloTrainingEvaluatorTests
         lead.Position = PositionOnRunway(runway, 0);
         SetPhase(lead, runway, new LandingPhase());
 
-        var notice = Assert.Single(
+        SoloTrainingEvent notice = Assert.Single(
             evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 301, AirspaceDatabase.Default),
             e => e.Category == SoloTrainingEventCategory.RunwayWake
         );
@@ -1954,10 +2053,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_TerminalApproachCwtSpacingAtRequiredDistance_DoesNotRecordViolation()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("UAE1", "A388", flightRules: "IFR", PositionOnRunway(runway, -100), altitude: 100, isOnGround: false);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("UAE1", "A388", flightRules: "IFR", PositionOnRunway(runway, -100), altitude: 100, isOnGround: false);
         SetPhase(lead, runway, new FinalApproachPhase());
-        var follower = CreateAircraft(
+        AircraftState follower = CreateAircraft(
             "SWA2",
             "B738",
             flightRules: "IFR",
@@ -1972,8 +2071,8 @@ public sealed class SoloTrainingEvaluatorTests
         lead.Position = PositionOnRunway(runway, 0);
         SetPhase(lead, runway, new LandingPhase());
 
-        var notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 301, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 301, new ApproachReportData([], [], 301, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 301, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 301, new ApproachReportData([], [], 301, "N/A"), AircraftDebriefContext.Empty);
         Assert.Empty(notices);
         Assert.Empty(report.Timeline);
     }
@@ -1985,10 +2084,10 @@ public sealed class SoloTrainingEvaluatorTests
         // violation. A facility directive requires the wake advisory anyway, so the only finding is the
         // directive-required "Wake turbulence advisory missing" note. That note must be one stable finding
         // for the encounter, not a fresh one every tick.
-        var runway = CreateRunway();
-        var lead = CreateAircraft("UAE1", "A388", flightRules: "IFR", PositionOnRunway(runway, -100), altitude: 100, isOnGround: false);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("UAE1", "A388", flightRules: "IFR", PositionOnRunway(runway, -100), altitude: 100, isOnGround: false);
         SetPhase(lead, runway, new FinalApproachPhase());
-        var follower = CreateAircraft(
+        AircraftState follower = CreateAircraft(
             "SWA2",
             "B738",
             flightRules: "IFR",
@@ -2009,9 +2108,9 @@ public sealed class SoloTrainingEvaluatorTests
         lead.Position = PositionOnRunway(runway, 0);
         SetPhase(lead, runway, new LandingPhase());
 
-        var first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 301, AirspaceDatabase.Default, serviceContext);
-        var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 302, AirspaceDatabase.Default, serviceContext);
-        var report = evaluator.BuildReport(true, 302, new ApproachReportData([], [], 302, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 301, AirspaceDatabase.Default, serviceContext);
+        List<SoloTrainingEvent> second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 302, AirspaceDatabase.Default, serviceContext);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 302, new ApproachReportData([], [], 302, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.Contains(first, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
         Assert.DoesNotContain(second, e => e.Category == SoloTrainingEventCategory.AdvisoryVisual && e.Title == "Wake turbulence advisory missing");
@@ -2021,10 +2120,10 @@ public sealed class SoloTrainingEvaluatorTests
     [Fact]
     public void Evaluate_WakeIntervalViolation_DedupesAcrossRepeatedTicks()
     {
-        var runway = CreateRunway();
-        var lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        RunwayInfo runway = CreateRunway();
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
         SetPhase(lead, runway, new TakeoffPhase());
-        var follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
         SetPhase(follower, runway, new LinedUpAndWaitingPhase());
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
@@ -2034,9 +2133,9 @@ public sealed class SoloTrainingEvaluatorTests
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
 
-        var first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
-        var second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 161, AirspaceDatabase.Default);
-        var report = evaluator.BuildReport(true, 161, new ApproachReportData([], [], 161, "N/A"), AircraftDebriefContext.Empty);
+        List<SoloTrainingEvent> first = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 160, AirspaceDatabase.Default);
+        List<SoloTrainingEvent> second = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 161, AirspaceDatabase.Default);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 161, new ApproachReportData([], [], 161, "N/A"), AircraftDebriefContext.Empty);
 
         Assert.Single(first, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Empty(second);
@@ -2074,15 +2173,15 @@ public sealed class SoloTrainingEvaluatorTests
     // VFR-on-top: an IFR flight plan carrying the VFR-on-top altitude notation.
     private static AircraftState CreateOtpAircraft(string callsign, LatLon position, double altitude)
     {
-        var ac = CreateAircraft(callsign, "C172", flightRules: "IFR", position, altitude, isOnGround: false);
+        AircraftState ac = CreateAircraft(callsign, "C172", flightRules: "IFR", position, altitude, isOnGround: false);
         ac.FlightPlan.Altitude = PlannedAltitude.Otp(null);
         return ac;
     }
 
     private static (AircraftState A, AircraftState B) CreateConflictingIfrPair()
     {
-        var a = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(37.6213, -122.3790), altitude: 5000, isOnGround: false);
-        var b = CreateAircraft(
+        AircraftState a = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(37.6213, -122.3790), altitude: 5000, isOnGround: false);
+        AircraftState b = CreateAircraft(
             "UAL2",
             "A320",
             flightRules: "IFR",
@@ -2095,8 +2194,8 @@ public sealed class SoloTrainingEvaluatorTests
 
     private static (AircraftState A, AircraftState B) CreateClosingIfrPair()
     {
-        var a = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(37.6213, -122.3790), altitude: 5000, isOnGround: false);
-        var b = CreateAircraft(
+        AircraftState a = CreateAircraft("AAL1", "B738", flightRules: "IFR", new LatLon(37.6213, -122.3790), altitude: 5000, isOnGround: false);
+        AircraftState b = CreateAircraft(
             "UAL2",
             "A320",
             flightRules: "IFR",
@@ -2264,9 +2363,9 @@ public sealed class SoloTrainingEvaluatorTests
 
     private static RunwayInfo CreateParallelRunway(string designator, double offsetFt)
     {
-        var baseRunway = CreateRunway();
-        var start = GeoMath.ProjectPoint(new LatLon(baseRunway.Lat1, baseRunway.Lon1), new TrueHeading(0), offsetFt / GeoMath.FeetPerNm);
-        var end = GeoMath.ProjectPoint(new LatLon(baseRunway.Lat2, baseRunway.Lon2), new TrueHeading(0), offsetFt / GeoMath.FeetPerNm);
+        RunwayInfo baseRunway = CreateRunway();
+        LatLon start = GeoMath.ProjectPoint(new LatLon(baseRunway.Lat1, baseRunway.Lon1), new TrueHeading(0), offsetFt / GeoMath.FeetPerNm);
+        LatLon end = GeoMath.ProjectPoint(new LatLon(baseRunway.Lat2, baseRunway.Lon2), new TrueHeading(0), offsetFt / GeoMath.FeetPerNm);
         return new RunwayInfo
         {
             AirportId = baseRunway.AirportId,

@@ -44,20 +44,20 @@ public class IssueN929awHoverHoldTests(ITestOutputHelper output)
     [Fact]
     public void Hpp_OnFixedWing_IsRejected_AndDoesNotHover()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 1245);
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.False(aircraft.IsOnGround);
         Assert.True(aircraft.IndicatedAirspeed > 100, $"precondition: cruising, was {aircraft.IndicatedAirspeed:F1} kt");
 
-        var result = engine.SendCommand(Callsign, "HPP");
+        CommandResult result = engine.SendCommand(Callsign, "HPP");
         Assert.False(result.Success, $"HPP must be rejected for a fixed-wing aircraft (msg: {result.Message})");
 
         double minIas = aircraft.IndicatedAirspeed;
@@ -99,9 +99,9 @@ public class IssueN929awHoverHoldTests(ITestOutputHelper output)
     [Fact]
     public void Hpp_FixedWingVfr_RejectedWithGuidance()
     {
-        var ac = MakeAirborneVfr("N929AW", "BE33");
+        AircraftState ac = MakeAirborneVfr("N929AW", "BE33");
 
-        var result = Dispatch(ac, new HoldPresentPositionHoverCommand());
+        CommandResult result = Dispatch(ac, new HoldPresentPositionHoverCommand());
 
         output.WriteLine($"HPP/BE33: Success={result.Success} Message={result.Message}");
         Assert.False(result.Success);
@@ -112,9 +112,9 @@ public class IssueN929awHoverHoldTests(ITestOutputHelper output)
     [Fact]
     public void Hpp_HelicopterVfr_StillHovers()
     {
-        var ac = MakeAirborneVfr("N911HP", "EC35");
+        AircraftState ac = MakeAirborneVfr("N911HP", "EC35");
 
-        var result = Dispatch(ac, new HoldPresentPositionHoverCommand());
+        CommandResult result = Dispatch(ac, new HoldPresentPositionHoverCommand());
 
         output.WriteLine($"HPP/EC35: Success={result.Success} Message={result.Message}");
         Assert.True(result.Success, result.Message);
@@ -125,9 +125,9 @@ public class IssueN929awHoverHoldTests(ITestOutputHelper output)
     [Fact]
     public void Hfix_FixedWingVfr_RejectedWithGuidance()
     {
-        var ac = MakeAirborneVfr("N929AW", "BE33");
+        AircraftState ac = MakeAirborneVfr("N929AW", "BE33");
 
-        var result = Dispatch(ac, new HoldAtFixHoverCommand("VPCBT", 37.80, -122.09));
+        CommandResult result = Dispatch(ac, new HoldAtFixHoverCommand("VPCBT", 37.80, -122.09));
 
         output.WriteLine($"HFIX/BE33: Success={result.Success} Message={result.Message}");
         Assert.False(result.Success);
@@ -137,9 +137,9 @@ public class IssueN929awHoverHoldTests(ITestOutputHelper output)
     [Fact]
     public void Hfix_HelicopterVfr_StillHolds()
     {
-        var ac = MakeAirborneVfr("N911HP", "EC35");
+        AircraftState ac = MakeAirborneVfr("N911HP", "EC35");
 
-        var result = Dispatch(ac, new HoldAtFixHoverCommand("VPCBT", 37.80, -122.09));
+        CommandResult result = Dispatch(ac, new HoldAtFixHoverCommand("VPCBT", 37.80, -122.09));
 
         output.WriteLine($"HFIX/EC35: Success={result.Success} Message={result.Message}");
         Assert.True(result.Success, result.Message);
@@ -151,9 +151,9 @@ public class IssueN929awHoverHoldTests(ITestOutputHelper output)
     [InlineData(TurnDirection.Right, "right 360s")]
     public void Hfix_OrbitResponse_Uses360sNotOrbits(TurnDirection direction, string expected)
     {
-        var ac = MakeAirborneVfr("N929AW", "BE33");
+        AircraftState ac = MakeAirborneVfr("N929AW", "BE33");
 
-        var result = Dispatch(ac, new HoldAtFixOrbitCommand("VPCBT", 37.80, -122.09, direction));
+        CommandResult result = Dispatch(ac, new HoldAtFixOrbitCommand("VPCBT", 37.80, -122.09, direction));
 
         output.WriteLine($"HFIX/{direction}: Success={result.Success} Message={result.Message}");
         Assert.True(result.Success, result.Message);

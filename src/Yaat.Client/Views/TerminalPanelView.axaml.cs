@@ -8,7 +8,10 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using AvaloniaEdit;
+using AvaloniaEdit.Document;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
@@ -38,7 +41,7 @@ public partial class TerminalPanelView : UserControl
     {
         base.OnLoaded(e);
 
-        var prefs = (DataContext as MainViewModel)?.Preferences;
+        UserPreferences? prefs = (DataContext as MainViewModel)?.Preferences;
         _colorizer = new TerminalColorizer(_lineKinds, () => prefs?.TerminalColors ?? Yaat.Client.Models.TerminalColorScheme.Default);
         TerminalEditor.TextArea.TextView.LineTransformers.Add(_colorizer);
         TerminalEditor.TextArea.Caret.CaretBrush = Brushes.Transparent;
@@ -54,7 +57,7 @@ public partial class TerminalPanelView : UserControl
             _scrollViewer.ScrollChanged += OnScrollChanged;
         }
 
-        foreach (var (toggle, _) in EnumerateCategoryToggles())
+        foreach ((ToggleButton? toggle, TerminalEntryKind _) in EnumerateCategoryToggles())
         {
             // Tunnel routing fires before ToggleButton's built-in click handling so we
             // can suppress the IsChecked toggle when the user is Shift+Clicking to solo.
@@ -92,7 +95,7 @@ public partial class TerminalPanelView : UserControl
     {
         TerminalEditor.RemoveHandler(ContextRequestedEvent, OnTerminalContextRequested);
 
-        foreach (var (toggle, _) in EnumerateCategoryToggles())
+        foreach ((ToggleButton? toggle, TerminalEntryKind _) in EnumerateCategoryToggles())
         {
             toggle.RemoveHandler(PointerPressedEvent, OnTogglePointerPressed);
         }
@@ -152,7 +155,7 @@ public partial class TerminalPanelView : UserControl
             return;
         }
 
-        var match = EnumerateCategoryToggles().FirstOrDefault(t => ReferenceEquals(t.Button, btn));
+        (ToggleButton Button, TerminalEntryKind Kind) match = EnumerateCategoryToggles().FirstOrDefault(t => ReferenceEquals(t.Button, btn));
         if (match.Button is null)
         {
             return;
@@ -173,9 +176,9 @@ public partial class TerminalPanelView : UserControl
         // which resets the ScrollViewer to the top and (via OnScrollChanged) would clobber
         // _autoScroll to false. Restoring it keeps a bottom-pinned view pinned across a filter
         // rebuild — e.g. undoing a Shift+Click solo — instead of jumping to the top.
-        var stickToBottom = _autoScroll;
-        var newSearch = vm.TerminalSearchText ?? string.Empty;
-        var searchJustCleared = _lastSearchText.Length > 0 && newSearch.Length == 0;
+        bool stickToBottom = _autoScroll;
+        string newSearch = vm.TerminalSearchText ?? string.Empty;
+        bool searchJustCleared = _lastSearchText.Length > 0 && newSearch.Length == 0;
         _lastSearchText = newSearch;
 
         RebuildDocument(vm);
@@ -189,7 +192,7 @@ public partial class TerminalPanelView : UserControl
     private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         var vm = DataContext as MainViewModel;
-        var doc = TerminalEditor.Document;
+        TextDocument doc = TerminalEditor.Document;
 
         switch (e.Action)
         {
@@ -201,7 +204,7 @@ public partial class TerminalPanelView : UserControl
                     break;
                 }
 
-                var text = FormatEntry(entry, vm?.TerminalTimestampMode ?? TerminalTimestampMode.WallClock);
+                string text = FormatEntry(entry, vm?.TerminalTimestampMode ?? TerminalTimestampMode.WallClock);
                 if (doc.TextLength > 0)
                 {
                     doc.Insert(doc.TextLength, "\n" + text);
@@ -248,8 +251,8 @@ public partial class TerminalPanelView : UserControl
         _lineKinds.Clear();
         _lineEntries.Clear();
         var sb = new StringBuilder();
-        var first = true;
-        foreach (var entry in vm.GetFilteredTerminalEntries())
+        bool first = true;
+        foreach (TerminalEntry entry in vm.GetFilteredTerminalEntries())
         {
             if (!first)
             {
@@ -272,7 +275,7 @@ public partial class TerminalPanelView : UserControl
             return;
         }
 
-        var atBottom = _scrollViewer.Offset.Y >= _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height - 20;
+        bool atBottom = _scrollViewer.Offset.Y >= _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height - 20;
         _autoScroll = atBottom;
     }
 
@@ -292,12 +295,12 @@ public partial class TerminalPanelView : UserControl
     private void OnTerminalContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         _contextEntry = null;
-        if (e.TryGetPosition(TerminalEditor, out var point))
+        if (e.TryGetPosition(TerminalEditor, out Point point))
         {
-            var pos = TerminalEditor.GetPositionFromPoint(point);
+            TextViewPosition? pos = TerminalEditor.GetPositionFromPoint(point);
             if (pos is { } p)
             {
-                var lineIndex = p.Line - 1; // TextViewPosition.Line is 1-based.
+                int lineIndex = p.Line - 1; // TextViewPosition.Line is 1-based.
                 if (lineIndex >= 0 && lineIndex < _lineEntries.Count)
                 {
                     _contextEntry = _lineEntries[lineIndex];
@@ -316,8 +319,8 @@ public partial class TerminalPanelView : UserControl
         }
 
         var vm = DataContext as MainViewModel;
-        var elapsed = _contextEntry?.ElapsedSeconds;
-        var canRewind = elapsed is not null && vm is { IsTimelineAvailable: true };
+        double? elapsed = _contextEntry?.ElapsedSeconds;
+        bool canRewind = elapsed is not null && vm is { IsTimelineAvailable: true };
         _rewindMenuItem.IsEnabled = canRewind;
         _rewindMenuItem.Header = canRewind ? $"Rewind to {FormatElapsed(elapsed!.Value)}" : "Rewind to this moment";
     }
@@ -354,8 +357,8 @@ public partial class TerminalPanelView : UserControl
 
     private static void AppendTimestamp(StringBuilder sb, TerminalEntry entry, TerminalTimestampMode mode)
     {
-        var wall = entry.Timestamp.ToString("HH:mm:ss");
-        var sim = entry.ElapsedSeconds is { } seconds ? FormatElapsed(seconds) : "--:--";
+        string wall = entry.Timestamp.ToString("HH:mm:ss");
+        string sim = entry.ElapsedSeconds is { } seconds ? FormatElapsed(seconds) : "--:--";
         switch (mode)
         {
             case TerminalTimestampMode.SimElapsed:

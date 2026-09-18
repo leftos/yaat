@@ -76,18 +76,18 @@ internal static class TextEntryPopup
         };
 
         var presetWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-        foreach (var (label, value) in presets)
+        foreach ((string? label, string? value) in presets)
         {
-            var v = value;
+            string v = value;
             var btn = new Button { Content = label, Margin = new Thickness(0, 0, 4, 4) };
             btn.Click += async (_, _) => await Submit(v);
             presetWrap.Children.Add(btn);
         }
 
         var actionWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-        foreach (var (label, action) in extraActions)
+        foreach ((string? label, Func<Task>? action) in extraActions)
         {
-            var act = action;
+            Func<Task> act = action;
             var btn = new Button { Content = label, Margin = new Thickness(0, 0, 4, 4) };
             btn.Click += async (_, _) =>
             {

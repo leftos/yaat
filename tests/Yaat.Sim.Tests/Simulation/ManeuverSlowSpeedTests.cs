@@ -30,8 +30,8 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     [Fact]
     public void Recording_N44444_L360_SlowsToHoldingSpeed_ThenResumes()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -40,7 +40,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
 
         engine.Replay(recording, L360DispatchTime - 1);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
         double startIas = ac.IndicatedAirspeed;
@@ -51,7 +51,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
         // The recording must exercise a real slow-down (current speed above holding speed).
         Assert.True(startIas > maxHold + 5, $"Expected start IAS ({startIas:F1}) above holding speed ({maxHold:F0})");
 
-        var dispatch = engine.SendCommand(Callsign, "L360");
+        CommandResult dispatch = engine.SendCommand(Callsign, "L360");
         Assert.True(dispatch.Success, $"L360 dispatch should succeed: {dispatch.Message}");
 
         double slowestIas = startIas;
@@ -97,8 +97,8 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     [Fact]
     public void MakeTurn_Jet_SlowsToHoldingSpeed_OnStart()
     {
-        var ac = MakeAircraft("B738", altitude: 5000, ias: 250);
-        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        AircraftState ac = MakeAircraft("B738", altitude: 5000, ias: 250);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
         double maxHold = AircraftPerformance.HoldingSpeed("B738", 5000);
 
         var phase = new MakeTurnPhase { Direction = TurnDirection.Right, TargetDegrees = 360 };
@@ -112,8 +112,8 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     [Fact]
     public void MakeTurn_NoPriorSpeed_ResumesScheduleOnEnd()
     {
-        var ac = MakeAircraft("B738", altitude: 5000, ias: 250);
-        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        AircraftState ac = MakeAircraft("B738", altitude: 5000, ias: 250);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
 
         var phase = new MakeTurnPhase { Direction = TurnDirection.Right, TargetDegrees = 360 };
         phase.OnStart(ctx);
@@ -132,11 +132,11 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     [Fact]
     public void MakeTurn_WithPriorAssignedSpeed_RestoresItOnEnd()
     {
-        var ac = MakeAircraft("B738", altitude: 5000, ias: 250);
+        AircraftState ac = MakeAircraft("B738", altitude: 5000, ias: 250);
         ac.Targets.TargetSpeed = 230;
         ac.Targets.AssignedSpeed = 230;
         ac.Targets.HasExplicitSpeedCommand = true;
-        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
 
         var phase = new MakeTurnPhase { Direction = TurnDirection.Left, TargetDegrees = 360 };
         phase.OnStart(ctx);
@@ -154,8 +154,8 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     public void MakeTurn_AlreadySlowerThanHolding_NotSpedUp_NorResumed()
     {
         // C172 holding speed is 82; flying 78 (below holding) must be left untouched.
-        var ac = MakeAircraft("C172", altitude: 2000, ias: 78);
-        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        AircraftState ac = MakeAircraft("C172", altitude: 2000, ias: 78);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
 
         var phase = new MakeTurnPhase { Direction = TurnDirection.Left, TargetDegrees = 360 };
         phase.OnStart(ctx);
@@ -169,8 +169,8 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     [Fact]
     public void MakeTurn_MidManeuverSpeedCommand_NotClobberedOnEnd()
     {
-        var ac = MakeAircraft("B738", altitude: 5000, ias: 250);
-        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        AircraftState ac = MakeAircraft("B738", altitude: 5000, ias: 250);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
 
         var phase = new MakeTurnPhase { Direction = TurnDirection.Right, TargetDegrees = 360 };
         phase.OnStart(ctx);
@@ -190,8 +190,8 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     [Fact]
     public void VfrHold_HoldPresentPosition_SlowsToHoldingSpeed()
     {
-        var ac = MakeAircraft("B738", altitude: 5000, ias: 250);
-        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        AircraftState ac = MakeAircraft("B738", altitude: 5000, ias: 250);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
         double maxHold = AircraftPerformance.HoldingSpeed("B738", 5000);
 
         var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Left };
@@ -207,7 +207,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     {
         // 7110.65 §5-7-1.b.4: no speed adjustment inside the FAF / 5 nm final. A fast jet
         // S-turned close-in must NOT be slowed (the never-speed-up guard alone is not enough).
-        var runway = TestRunwayFactory.Make(
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "OAK",
             thresholdLat: 37.72,
@@ -217,10 +217,10 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
             heading: 280,
             elevationFt: 9
         );
-        var ac = MakeAircraft("B738", altitude: 2000, ias: 250);
+        AircraftState ac = MakeAircraft("B738", altitude: 2000, ias: 250);
         ac.Targets.TargetSpeed = 250;
         ac.Phases = new PhaseList { AssignedRunway = runway }; // aircraft is at the threshold (0 nm)
-        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
 
         var phase = new STurnPhase { InitialDirection = TurnDirection.Left };
         phase.OnStart(ctx);
@@ -233,7 +233,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     public void STurn_OutsideFinal_SlowsToHoldingSpeed()
     {
         // Outside the FAF / 5 nm, S-turns are a legal place to slow to holding speed.
-        var runway = TestRunwayFactory.Make(
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "OAK",
             thresholdLat: 37.50, // ~13 nm south of the aircraft
@@ -243,9 +243,9 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
             heading: 280,
             elevationFt: 9
         );
-        var ac = MakeAircraft("B738", altitude: 5000, ias: 250);
+        AircraftState ac = MakeAircraft("B738", altitude: 5000, ias: 250);
         ac.Phases = new PhaseList { AssignedRunway = runway };
-        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
         double maxHold = AircraftPerformance.HoldingSpeed("B738", 5000);
 
         var phase = new STurnPhase { InitialDirection = TurnDirection.Left };
@@ -267,7 +267,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     [InlineData("mr360", CanonicalCommandType.MakeRight360)]
     public void Aliases_Resolve_ToMakeTurn(string alias, CanonicalCommandType expected)
     {
-        Assert.True(CommandRegistry.AliasToCanonicType.TryGetValue(alias, out var type), $"Alias {alias} should resolve");
+        Assert.True(CommandRegistry.AliasToCanonicType.TryGetValue(alias, out CanonicalCommandType type), $"Alias {alias} should resolve");
         Assert.Equal(expected, type);
     }
 

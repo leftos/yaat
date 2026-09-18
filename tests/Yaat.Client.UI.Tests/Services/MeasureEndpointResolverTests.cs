@@ -16,7 +16,7 @@ public class MeasureEndpointResolverTests
     [Fact]
     public void ExactCallsignWinsEvenWhenTheTokenIsAlsoAFix()
     {
-        var (endpoint, error) = MeasureEndpointResolver.Resolve("UAL123", [Plane("UAL123")], _ => Oakland);
+        (Client.Views.Map.RblEndpoint? endpoint, string? error) = MeasureEndpointResolver.Resolve("UAL123", [Plane("UAL123")], _ => Oakland);
 
         Assert.Null(error);
         Assert.True(endpoint!.Value.IsLatched);
@@ -28,7 +28,7 @@ public class MeasureEndpointResolverTests
     {
         // "OAK" is a substring of the callsign but names a fix — the fix must win, or common navaids
         // become untypeable while certain aircraft are on frequency.
-        var (endpoint, error) = MeasureEndpointResolver.Resolve("OAK", [Plane("N123OAK")], _ => Oakland);
+        (Client.Views.Map.RblEndpoint? endpoint, string? error) = MeasureEndpointResolver.Resolve("OAK", [Plane("N123OAK")], _ => Oakland);
 
         Assert.Null(error);
         Assert.False(endpoint!.Value.IsLatched);
@@ -39,7 +39,11 @@ public class MeasureEndpointResolverTests
     [Fact]
     public void PartialCallsignResolvesWhenTheTokenIsNotAFix()
     {
-        var (endpoint, error) = MeasureEndpointResolver.Resolve("123", [Plane("UAL123"), Plane("SWA45")], _ => null);
+        (Client.Views.Map.RblEndpoint? endpoint, string? error) = MeasureEndpointResolver.Resolve(
+            "123",
+            [Plane("UAL123"), Plane("SWA45")],
+            _ => null
+        );
 
         Assert.Null(error);
         Assert.Equal("UAL123", endpoint!.Value.Callsign);
@@ -48,7 +52,7 @@ public class MeasureEndpointResolverTests
     [Fact]
     public void FixLabelIsUppercased()
     {
-        var (endpoint, _) = MeasureEndpointResolver.Resolve("oak169015", [], _ => Oakland);
+        (Client.Views.Map.RblEndpoint? endpoint, string? _) = MeasureEndpointResolver.Resolve("oak169015", [], _ => Oakland);
 
         Assert.Equal("OAK169015", endpoint!.Value.Label);
     }
@@ -56,7 +60,11 @@ public class MeasureEndpointResolverTests
     [Fact]
     public void AmbiguousPartialCallsignReportsTheCandidates()
     {
-        var (endpoint, error) = MeasureEndpointResolver.Resolve("UAL", [Plane("UAL123"), Plane("UAL456")], _ => null);
+        (Client.Views.Map.RblEndpoint? endpoint, string? error) = MeasureEndpointResolver.Resolve(
+            "UAL",
+            [Plane("UAL123"), Plane("UAL456")],
+            _ => null
+        );
 
         Assert.Null(endpoint);
         Assert.Contains("UAL123", error, StringComparison.Ordinal);
@@ -66,7 +74,7 @@ public class MeasureEndpointResolverTests
     [Fact]
     public void UnknownTokenReportsAnError()
     {
-        var (endpoint, error) = MeasureEndpointResolver.Resolve("nope", [Plane("UAL123")], _ => null);
+        (Client.Views.Map.RblEndpoint? endpoint, string? error) = MeasureEndpointResolver.Resolve("nope", [Plane("UAL123")], _ => null);
 
         Assert.Null(endpoint);
         Assert.Equal("Unknown fix or callsign: NOPE", error);
@@ -75,7 +83,7 @@ public class MeasureEndpointResolverTests
     [Fact]
     public void UnknownTokenWhileNavdataLoadsSaysFixesAreUnavailable()
     {
-        var (endpoint, error) = MeasureEndpointResolver.Resolve("MOD", [], null);
+        (Client.Views.Map.RblEndpoint? endpoint, string? error) = MeasureEndpointResolver.Resolve("MOD", [], null);
 
         Assert.Null(endpoint);
         Assert.Contains("navdata still loading", error, StringComparison.Ordinal);

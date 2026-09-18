@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -63,7 +64,7 @@ public class CommandRunDelayTests
     /// <summary>The aviation arm's decide-then-defer pair for a fresh human command, without the dispatch that follows it.</summary>
     private static double? Defer(SimulationEngine engine, AircraftState ac, CompoundCommand compound)
     {
-        var delay = ReactionDelayPolicy.Decide(engine.Scenario!, engine.World, ac, compound, baked: null);
+        double? delay = ReactionDelayPolicy.Decide(engine.Scenario!, engine.World, ac, compound, baked: null);
         if (delay is double seconds)
         {
             engine.DeferForReaction(ac, compound, seconds, DispatchOrigin.Human);
@@ -75,15 +76,15 @@ public class CommandRunDelayTests
     [Fact]
     public void Command_TakesEffectOnlyAfterDelay()
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        AircraftState ac = AddAirborne(engine);
 
-        var result = engine.SendCommand("UAL123", "FH 270");
+        CommandResult result = engine.SendCommand("UAL123", "FH 270");
 
         Assert.True(result.Success);
         Assert.Contains("complying", result.Message, System.StringComparison.OrdinalIgnoreCase);
         // Deferred, not yet applied: one reaction deferral, no heading assigned.
-        var reaction = Assert.Single(ac.DeferredDispatches);
+        DeferredDispatch reaction = Assert.Single(ac.DeferredDispatches);
         Assert.True(reaction.IsReactionDelay);
         Assert.Null(ac.Targets.AssignedMagneticHeading);
 
@@ -107,13 +108,13 @@ public class CommandRunDelayTests
     [Fact]
     public void FixedDelay_WhenMinEqualsMax_DoesNotConsumeRng()
     {
-        var engine = BuildEngine(minDelay: 4, maxDelay: 4);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 4, maxDelay: 4);
+        AircraftState ac = AddAirborne(engine);
 
-        var delay = Defer(engine, ac, CommandParser.ParseCompound("FH 270").Value!);
+        double? delay = Defer(engine, ac, CommandParser.ParseCompound("FH 270").Value!);
 
         Assert.Equal(4.0, delay);
-        var reaction = Assert.Single(ac.DeferredDispatches);
+        DeferredDispatch reaction = Assert.Single(ac.DeferredDispatches);
         Assert.Equal(4.0, reaction.RemainingSeconds);
         // min == max takes the fixed value without drawing — the RNG is untouched.
         Assert.Equal(new SerializableRandom(42).Next(0, 1000), engine.World.ReactionDelayRng.Next(0, 1000));
@@ -123,10 +124,10 @@ public class CommandRunDelayTests
     public void RandomRange_SamplesDeterministically_FromReactionRng()
     {
         const int seed = 777;
-        var engine = BuildEngine(minDelay: 2, maxDelay: 10, rngSeed: seed);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 2, maxDelay: 10, rngSeed: seed);
+        AircraftState ac = AddAirborne(engine);
 
-        var delay = Defer(engine, ac, CommandParser.ParseCompound("FH 270").Value!);
+        double? delay = Defer(engine, ac, CommandParser.ParseCompound("FH 270").Value!);
 
         double expected = new SerializableRandom(seed).Next(2, 11);
         Assert.Equal(expected, delay);
@@ -136,15 +137,15 @@ public class CommandRunDelayTests
     [Fact]
     public void SoloTrainingMode_SuppressesDelayAcknowledgement()
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
         engine.Scenario!.SoloTrainingMode = true;
-        var ac = AddAirborne(engine);
+        AircraftState ac = AddAirborne(engine);
 
-        var result = engine.SendCommand("UAL123", "FH 270");
+        CommandResult result = engine.SendCommand("UAL123", "FH 270");
 
         // The command still lands and is deferred by the reaction delay...
         Assert.True(result.Success);
-        var reaction = Assert.Single(ac.DeferredDispatches);
+        DeferredDispatch reaction = Assert.Single(ac.DeferredDispatches);
         Assert.True(reaction.IsReactionDelay);
         Assert.Null(ac.Targets.AssignedMagneticHeading);
 
@@ -155,10 +156,10 @@ public class CommandRunDelayTests
     [Fact]
     public void NonSoloMode_StillReportsDelayAcknowledgement()
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        AircraftState ac = AddAirborne(engine);
 
-        var result = engine.SendCommand("UAL123", "FH 270");
+        CommandResult result = engine.SendCommand("UAL123", "FH 270");
 
         Assert.True(result.Success);
         Assert.Single(ac.DeferredDispatches);
@@ -169,8 +170,8 @@ public class CommandRunDelayTests
     [Fact]
     public void Disabled_WhenMaxIsZero_DispatchesImmediately()
     {
-        var engine = BuildEngine(minDelay: 0, maxDelay: 0);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 0, maxDelay: 0);
+        AircraftState ac = AddAirborne(engine);
 
         engine.SendCommand("UAL123", "FH 270");
 
@@ -182,13 +183,13 @@ public class CommandRunDelayTests
     [Fact]
     public void ExplicitWait_IsNotReactionDelayed()
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        AircraftState ac = AddAirborne(engine);
 
         // A controller-authored WAIT already models the wait — no extra reaction delay stacked on top.
         // Build the WAIT+FH structure directly (matches the parsed shape TryDeferLeadingWait detects).
         var waitCompound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10), new FlyHeadingCommand(new MagneticHeading(270))])]);
-        var delay = Defer(engine, ac, waitCompound);
+        double? delay = Defer(engine, ac, waitCompound);
 
         Assert.Null(delay);
         Assert.Empty(ac.DeferredDispatches);
@@ -197,12 +198,12 @@ public class CommandRunDelayTests
     [Fact]
     public void FrequencyChange_IsNotReactionDelayed()
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        AircraftState ac = AddAirborne(engine);
 
         // A pure frequency-change / contact command switches ASAP (AIM 4-2-3) — never reaction-delayed.
         var contact = new CompoundCommand([new ParsedBlock(null, [new ContactCommand("TWR")])]);
-        var delay = Defer(engine, ac, contact);
+        double? delay = Defer(engine, ac, contact);
 
         Assert.Null(delay);
         Assert.Empty(ac.DeferredDispatches);
@@ -211,13 +212,13 @@ public class CommandRunDelayTests
     [Fact]
     public void MixedFlightAndComm_IsStillReactionDelayed()
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        AircraftState ac = AddAirborne(engine);
 
         // A flight command riding with a contact verb is delayed as a whole — only a purely-comm
         // compound is exempt.
         var mixed = new CompoundCommand([new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(270)), new ContactCommand("TWR")])]);
-        var delay = Defer(engine, ac, mixed);
+        double? delay = Defer(engine, ac, mixed);
 
         Assert.Equal(5.0, delay);
         Assert.Single(ac.DeferredDispatches);
@@ -226,11 +227,11 @@ public class CommandRunDelayTests
     [Fact]
     public void ForceHeading_IsNotReactionDelayed()
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        AircraftState ac = AddAirborne(engine);
 
         // FHN is an instructor verb: it sets the state directly, with no pilot in the loop to react.
-        var result = engine.SendCommand("UAL123", "FHN 270");
+        CommandResult result = engine.SendCommand("UAL123", "FHN 270");
 
         Assert.True(result.Success);
         Assert.DoesNotContain("complying", result.Message, System.StringComparison.OrdinalIgnoreCase);
@@ -246,14 +247,14 @@ public class CommandRunDelayTests
     [InlineData("FH 270; DEL")]
     public void InstructorVerbs_AreNotReactionDelayed(string text)
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        AircraftState ac = AddAirborne(engine);
 
         // Every "Sim Control" verb is exempt, and one riding in a chain exempts the whole compound.
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.Value is not null, $"'{text}' failed to parse: {parsed.Reason}");
 
-        var delay = Defer(engine, ac, parsed.Value!);
+        double? delay = Defer(engine, ac, parsed.Value!);
 
         Assert.Null(delay);
         Assert.Empty(ac.DeferredDispatches);
@@ -262,12 +263,12 @@ public class CommandRunDelayTests
     [Fact]
     public void Warp_IsNotReactionDelayed()
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        AircraftState ac = AddAirborne(engine);
 
         // A teleport has no pilot action to delay. Hand-built so this timing test stays off FRD/navdata resolution.
         var warp = new CompoundCommand([new ParsedBlock(null, [new WarpCommand("OAK090010", 37.7, -122.0, null, null, null)])]);
-        var delay = Defer(engine, ac, warp);
+        double? delay = Defer(engine, ac, warp);
 
         Assert.Null(delay);
         Assert.Empty(ac.DeferredDispatches);
@@ -276,13 +277,13 @@ public class CommandRunDelayTests
     [Fact]
     public void WarpGround_IsNotReactionDelayed()
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        AircraftState ac = AddAirborne(engine);
 
         // The ground teleport is exempt for the same reason. Hand-built so this timing test stays off ground-layout
         // resolution.
         var warp = new CompoundCommand([new ParsedBlock(null, [new WarpGroundCommand("B", "C", null, null, null)])]);
-        var delay = Defer(engine, ac, warp);
+        double? delay = Defer(engine, ac, warp);
 
         Assert.Null(delay);
         Assert.Empty(ac.DeferredDispatches);
@@ -321,7 +322,11 @@ public class CommandRunDelayTests
             CanonicalCommandType.WarpGround,
         ];
 
-        var actual = CommandRegistry.ByCategory("Sim Control").Select(d => d.Type).OrderBy(t => t.ToString(), StringComparer.Ordinal).ToArray();
+        CanonicalCommandType[] actual = CommandRegistry
+            .ByCategory("Sim Control")
+            .Select(d => d.Type)
+            .OrderBy(t => t.ToString(), StringComparer.Ordinal)
+            .ToArray();
 
         Assert.Equal(expected, actual);
     }
@@ -329,14 +334,14 @@ public class CommandRunDelayTests
     [Fact]
     public void MixedInstructorAndFlight_IsImmediate()
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        AircraftState ac = AddAirborne(engine);
 
         // Unlike the comm exemption (pure-comm only), one instructor verb makes the whole compound immediate.
         var mixed = new CompoundCommand([
             new ParsedBlock(null, [new ForceHeadingCommand(new MagneticHeading(270)), new FlyHeadingCommand(new MagneticHeading(090))]),
         ]);
-        var delay = Defer(engine, ac, mixed);
+        double? delay = Defer(engine, ac, mixed);
 
         Assert.Null(delay);
         Assert.Empty(ac.DeferredDispatches);
@@ -345,12 +350,12 @@ public class CommandRunDelayTests
     [Fact]
     public void UnsupportedCommand_DoesNotThrow_UnderReactionDelay()
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        AircraftState ac = AddAirborne(engine);
 
         // "MLS 99" parses (the count is out of range) into an UnsupportedCommand, which has no canonical type —
         // deciding the delay must not ask the describer for one. The refusal lands at once, not after the delay.
-        var result = engine.SendCommand("UAL123", "MLS 99");
+        CommandResult result = engine.SendCommand("UAL123", "MLS 99");
 
         Assert.False(result.Success);
         Assert.Contains("not yet supported", result.Message, System.StringComparison.OrdinalIgnoreCase);
@@ -360,20 +365,20 @@ public class CommandRunDelayTests
     [Fact]
     public void ConditionedMidChainWait_IsStillReactionDelayed()
     {
-        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        AircraftState ac = AddAirborne(engine);
 
         // This WAIT is not leading timing, and it shares the "Sim Control" category with the instructor verbs —
         // the WaitCommand/WaitDistanceCommand skip in ContainsInstructorAction is what keeps this compound delayed.
-        var parsed = CommandParser.ParseCompound("FH 090; AT 4000 WAIT 10 FH 270");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("FH 090; AT 4000 WAIT 10 FH 270");
         Assert.True(parsed.Value is not null, $"parse failed: {parsed.Reason}");
-        var compound = parsed.Value!;
+        CompoundCommand compound = parsed.Value!;
         Assert.True(compound.Blocks.Count >= 2);
         Assert.Null(compound.Blocks[0].Condition);
         Assert.NotNull(compound.Blocks[1].Condition);
         Assert.Contains(compound.Blocks[1].Commands, cmd => cmd is WaitCommand);
 
-        var delay = Defer(engine, ac, compound);
+        double? delay = Defer(engine, ac, compound);
 
         Assert.Equal(5.0, delay);
         Assert.Single(ac.DeferredDispatches);
@@ -382,8 +387,8 @@ public class CommandRunDelayTests
     [Fact]
     public void IssueOrder_IsPreserved_UnderRandomRange()
     {
-        var engine = BuildEngine(minDelay: 2, maxDelay: 12);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 2, maxDelay: 12);
+        AircraftState ac = AddAirborne(engine);
 
         engine.SendCommand("UAL123", "FH 090");
         engine.SendCommand("UAL123", "FH 270");
@@ -407,12 +412,12 @@ public class CommandRunDelayTests
     {
         // Live sampling here would yield a fixed 2 s (min == max). The recorded command carries 7 s; replay
         // must reproduce the recorded value, proving it does not re-roll.
-        var engine = BuildEngine(minDelay: 2, maxDelay: 2);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 2, maxDelay: 2);
+        AircraftState ac = AddAirborne(engine);
 
         engine.Actions.Apply(new RecordedCommand(0, "UAL123", "FH 270", "XX", "") { ReactionDelaySeconds = 7.0 });
 
-        var reaction = Assert.Single(ac.DeferredDispatches);
+        DeferredDispatch reaction = Assert.Single(ac.DeferredDispatches);
         Assert.True(reaction.IsReactionDelay);
         Assert.Equal(7.0, reaction.RemainingSeconds);
         Assert.Null(ac.Targets.AssignedMagneticHeading);
@@ -431,7 +436,7 @@ public class CommandRunDelayTests
             CommandRunDelayMaxSeconds = 9,
         };
 
-        var dto = scenario.ToSnapshot();
+        ScenarioSnapshotDto dto = scenario.ToSnapshot();
 
         Assert.Equal(3, dto.CommandRunDelayMinSeconds);
         Assert.Equal(9, dto.CommandRunDelayMaxSeconds);
@@ -440,7 +445,7 @@ public class CommandRunDelayTests
     [Fact]
     public void ReactionDeferral_RoundTripsThroughSnapshot()
     {
-        var payload = CommandParser.ParseCompound("FH 270").Value!;
+        CompoundCommand payload = CommandParser.ParseCompound("FH 270").Value!;
         var deferral = new DeferredDispatch(5.0, payload) { SourceText = "FH 270", IsReactionDelay = true };
 
         var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot());
@@ -459,17 +464,17 @@ public class CommandRunDelayTests
     [Fact]
     public void FreshImmediate_SupersedesPendingWait_EvenWhenReactionDelayActive()
     {
-        var engine = BuildEngine(minDelay: 3, maxDelay: 3);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 3, maxDelay: 3);
+        AircraftState ac = AddAirborne(engine);
 
         // A controller-authored WAIT carries its own timing, so it is exempt from the reaction delay and parks
         // itself as a deferral firing at t=30.
-        var wait = engine.SendCommand("UAL123", "WAIT 30 FH 090");
+        CommandResult wait = engine.SendCommand("UAL123", "WAIT 30 FH 090");
         Assert.True(wait.Success);
         Assert.Single(ac.DeferredDispatches);
 
         // A fresh immediate heading — reaction-delayed 3 s — supersedes that pending WAIT at issue time.
-        var fresh = engine.SendCommand("UAL123", "FH 270");
+        CommandResult fresh = engine.SendCommand("UAL123", "FH 270");
         Assert.True(fresh.Success);
 
         for (int i = 0; i < 35; i++)
@@ -490,14 +495,14 @@ public class CommandRunDelayTests
     [Fact]
     public void ConditionalIncoming_KeepsPendingWait_WhenReactionDelayActive()
     {
-        var engine = BuildEngine(minDelay: 3, maxDelay: 3);
-        var ac = AddAirborne(engine);
+        SimulationEngine engine = BuildEngine(minDelay: 3, maxDelay: 3);
+        AircraftState ac = AddAirborne(engine);
 
-        var wait = engine.SendCommand("UAL123", "WAIT 30 FH 090");
+        CommandResult wait = engine.SendCommand("UAL123", "WAIT 30 FH 090");
         Assert.True(wait.Success);
         Assert.Single(ac.DeferredDispatches);
 
-        var conditional = engine.SendCommand("UAL123", "AT 6000 FH 270");
+        CommandResult conditional = engine.SendCommand("UAL123", "AT 6000 FH 270");
         Assert.True(conditional.Success);
         // Both survive the issue: the WAIT deferral and the conditional's own reaction deferral.
         Assert.Equal(2, ac.DeferredDispatches.Count);

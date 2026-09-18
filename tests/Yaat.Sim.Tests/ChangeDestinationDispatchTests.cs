@@ -39,11 +39,11 @@ public class ChangeDestinationDispatchTests
     [Fact]
     public void Unconditioned_Dispatch_ChangesDestination_Canonicalized()
     {
-        var aircraft = MakeAircraft(altitude: 5000);
-        var compound = CommandParser.ParseCompound("APT OAK");
+        AircraftState aircraft = MakeAircraft(altitude: 5000);
+        ParseResult<CompoundCommand> compound = CommandParser.ParseCompound("APT OAK");
         Assert.True(compound.IsSuccess);
 
-        var result = CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("KOAK", aircraft.FlightPlan.Destination);
@@ -52,8 +52,8 @@ public class ChangeDestinationDispatchTests
     [Fact]
     public void Conditional_AtAltitude_ChangesDestination_WhenTriggerFires()
     {
-        var aircraft = MakeAircraft(altitude: 3000);
-        var compound = CommandParser.ParseCompound("AT 5000 APT OAK");
+        AircraftState aircraft = MakeAircraft(altitude: 3000);
+        ParseResult<CompoundCommand> compound = CommandParser.ParseCompound("AT 5000 APT OAK");
         Assert.True(compound.IsSuccess);
 
         CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
@@ -76,11 +76,11 @@ public class ChangeDestinationDispatchTests
     [Fact]
     public void UnknownAirport_Fails_WithoutMutatingDestination()
     {
-        var aircraft = MakeAircraft(altitude: 5000);
-        var compound = CommandParser.ParseCompound("APT ZZZQ");
+        AircraftState aircraft = MakeAircraft(altitude: 5000);
+        ParseResult<CompoundCommand> compound = CommandParser.ParseCompound("APT ZZZQ");
         Assert.True(compound.IsSuccess);
 
-        var result = CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Unknown airport", result.Message);

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -52,7 +53,7 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -84,9 +85,9 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     [InlineData("CTO MRT 020")]
     public void CtoVfrModifier_ClassifiedVfrOnly(string command)
     {
-        var parseResult = CommandParser.ParseCompound(command);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound(command);
         Assert.True(parseResult.IsSuccess, $"Parse failed for '{command}': {parseResult.Reason}");
-        var parsed = Assert.Single(Assert.Single(parseResult.Value!.Blocks).Commands);
+        ParsedCommand parsed = Assert.Single(Assert.Single(parseResult.Value!.Blocks).Commands);
 
         output.WriteLine($"{command} -> {parsed.GetType().Name}");
 
@@ -104,8 +105,8 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     [Fact]
     public void CtoMrc_AcceptedForIfrAircraft_GateIsClientSide()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -115,11 +116,11 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
         // The aircraft is in HoldingShortPhase (rebuilt at t=745).
         engine.Replay(recording, 767);
 
-        var n152sp = engine.FindAircraft("N152SP");
+        AircraftState? n152sp = engine.FindAircraft("N152SP");
         Assert.NotNull(n152sp);
         Assert.False(n152sp.FlightPlan.IsVfr, "Recording fixture invariant: N152SP filed IFR.");
 
-        var result = engine.SendCommand("N152SP", "CTO MRC 020");
+        CommandResult result = engine.SendCommand("N152SP", "CTO MRC 020");
 
         output.WriteLine($"CTO MRC 020 result: success={result.Success} message={result.Message}");
 
@@ -133,18 +134,18 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     [Fact]
     public void BareCto_AcceptedForIfrAircraft()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 767);
-        var n152sp = engine.FindAircraft("N152SP");
+        AircraftState? n152sp = engine.FindAircraft("N152SP");
         Assert.NotNull(n152sp);
 
-        var result = engine.SendCommand("N152SP", "CTO 020");
+        CommandResult result = engine.SendCommand("N152SP", "CTO 020");
 
         output.WriteLine($"CTO 020 result: success={result.Success} message={result.Message}");
 
@@ -159,18 +160,18 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     [Fact]
     public void Cto360_AcceptedForIfrAircraft()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 767);
-        var n152sp = engine.FindAircraft("N152SP");
+        AircraftState? n152sp = engine.FindAircraft("N152SP");
         Assert.NotNull(n152sp);
 
-        var result = engine.SendCommand("N152SP", "CTO 360 020");
+        CommandResult result = engine.SendCommand("N152SP", "CTO 360 020");
 
         output.WriteLine($"CTO 360 020 result: success={result.Success} message={result.Message}");
 
@@ -185,19 +186,19 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     [Fact]
     public void CtoRunwayHeading_AcceptedForIfrAircraft()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 767);
-        var n152sp = engine.FindAircraft("N152SP");
+        AircraftState? n152sp = engine.FindAircraft("N152SP");
         Assert.NotNull(n152sp);
         Assert.False(n152sp.FlightPlan.IsVfr, "Recording fixture invariant: N152SP filed IFR.");
 
-        var result = engine.SendCommand("N152SP", "CTO RH 020");
+        CommandResult result = engine.SendCommand("N152SP", "CTO RH 020");
 
         output.WriteLine($"CTO RH 020 result: success={result.Success} message={result.Message}");
 
@@ -219,7 +220,7 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     public void Ifr_InitialClimb_FlyHeading_DefersTurnUntil400Agl_IgnoringDerPosition()
     {
         const double runwayHdg = 280.0;
-        var runway = TestRunwayFactory.Make(
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "KOAK",
             heading: runwayHdg,
@@ -242,7 +243,7 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
             Altitude = FieldElevation + IfrTurnAglFloor, // just at TakeoffPhase completion
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -272,7 +273,7 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
         // regression guard for the original N152SP "turn at Vr (~100 AGL)" bug; the 400 ft floor
         // alone prevents it.
         aircraft.Altitude = FieldElevation + 200;
-        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.5);
+        LatLon pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.5);
         aircraft.Position = pastDer;
         climbPhase.OnTick(ctx);
         Assert.True(
@@ -303,7 +304,7 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     public void Ifr_TakeoffPhase_FlyHeading_KeepsRunwayHeadingThroughAirborneClimb()
     {
         const double runwayHdg = 280.0;
-        var runway = TestRunwayFactory.Make(
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "KOAK",
             heading: runwayHdg,
@@ -326,7 +327,7 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
             Altitude = FieldElevation,
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -380,8 +381,8 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     [Fact]
     public void N152sp_FullReplayThroughBugMoment_DefersTheRecordedCtoMrcTurn()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -395,7 +396,7 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
         // (406 ft) (measured), so t=829 (196 ft AGL) sits mid-way between the two.
         engine.Replay(recording, SampleSecond);
 
-        var n152sp = engine.FindAircraft("N152SP");
+        AircraftState? n152sp = engine.FindAircraft("N152SP");
         Assert.NotNull(n152sp);
 
         double aglFt = n152sp.Altitude - FieldElevation;

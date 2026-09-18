@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
@@ -77,15 +78,15 @@ public class SfoSimultaneousAlleyPushTests
     [Fact]
     public void FiveAlley_TailToTail_BothPushesComplete_NeitherHeldLong()
     {
-        var built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
         if (built is null)
         {
             return;
         }
 
-        var ground = built.Value;
-        var spotNorth = ground.Layout.FindSpotNodeByName("5A");
-        var spotSouth = ground.Layout.FindSpotNodeByName("5B");
+        SfoGround ground = built.Value;
+        GroundNode? spotNorth = ground.Layout.FindSpotNodeByName("5A");
+        GroundNode? spotSouth = ground.Layout.FindSpotNodeByName("5B");
         if (spotNorth is null || spotSouth is null)
         {
             return;
@@ -114,7 +115,7 @@ public class SfoSimultaneousAlleyPushTests
             second => Observe(ground, second, new Alley(spotNorth, spotSouth, minCentroidSeparationFt), watch)
         );
 
-        foreach (var tracker in new[] { watch.North, watch.South })
+        foreach (PinTracker? tracker in new[] { watch.North, watch.South })
         {
             _output.WriteLine(tracker.Describe());
             if (tracker.ExceedsBudget)
@@ -152,13 +153,13 @@ public class SfoSimultaneousAlleyPushTests
     [Fact]
     public void PushbackYield_DeadAheadStops_AbeamClears()
     {
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         if (layout is null)
         {
             return;
         }
 
-        var spot = layout.FindSpotNodeByName("5A");
+        GroundNode? spot = layout.FindSpotNodeByName("5A");
         if (spot is null)
         {
             return;
@@ -167,8 +168,8 @@ public class SfoSimultaneousAlleyPushTests
         Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outboundDeg), "SFO layout gives spot 5A no outbound heading");
         double pushDirDeg = new TrueHeading(outboundDeg).ToReciprocal().Degrees;
 
-        var pusher = MakePushing("PSHA", NorthType, spot.Position, pushDirDeg);
-        var deadAhead = MakePushing("PSHB", SouthType, Project(spot.Position, pushDirDeg, AheadFt), pushDirDeg + 180.0);
+        AircraftState pusher = MakePushing("PSHA", NorthType, spot.Position, pushDirDeg);
+        AircraftState deadAhead = MakePushing("PSHB", SouthType, Project(spot.Position, pushDirDeg, AheadFt), pushDirDeg + 180.0);
         GroundConflictDetector.ApplySpeedLimits([pusher, deadAhead], layout);
         _output.WriteLine($"dead-ahead ({AheadFt:F0}ft, 0ft lateral): limit={Format(pusher.Ground.SpeedLimit)}");
         Assert.True(
@@ -176,7 +177,7 @@ public class SfoSimultaneousAlleyPushTests
             $"a pusher aimed at another aircraft's fuselage {AheadFt:F0}ft away must still stop, got limit={Format(pusher.Ground.SpeedLimit)}"
         );
 
-        var abeam = MakePushing(
+        AircraftState abeam = MakePushing(
             "PSHC",
             SouthType,
             Project(Project(spot.Position, pushDirDeg, AheadFt), pushDirDeg + 90.0, LaneOffsetFt),
@@ -199,13 +200,13 @@ public class SfoSimultaneousAlleyPushTests
     [Fact]
     public void PushbackYield_AbeamPushers_NeitherCapped()
     {
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         if (layout is null)
         {
             return;
         }
 
-        var spot = layout.FindSpotNodeByName("5A");
+        GroundNode? spot = layout.FindSpotNodeByName("5A");
         if (spot is null)
         {
             return;
@@ -216,9 +217,9 @@ public class SfoSimultaneousAlleyPushTests
 
         // Same push direction, one lane over, the far one StaggerFt further down the alley: the lead is
         // ahead of the trail's push axis (the yield's trigger) but LaneOffsetFt clear of it.
-        var trail = MakePushing("PSHD", NorthType, spot.Position, pushDirDeg);
-        var leadPosition = Project(Project(spot.Position, pushDirDeg, StaggerFt), pushDirDeg + 90.0, LaneOffsetFt);
-        var lead = MakePushing("PSHE", SouthType, leadPosition, pushDirDeg);
+        AircraftState trail = MakePushing("PSHD", NorthType, spot.Position, pushDirDeg);
+        LatLon leadPosition = Project(Project(spot.Position, pushDirDeg, StaggerFt), pushDirDeg + 90.0, LaneOffsetFt);
+        AircraftState lead = MakePushing("PSHE", SouthType, leadPosition, pushDirDeg);
         GroundConflictDetector.ApplySpeedLimits([trail, lead], layout);
 
         _output.WriteLine(
@@ -241,8 +242,8 @@ public class SfoSimultaneousAlleyPushTests
 
     private void Observe(SfoGround ground, int second, Alley alley, Watch watch)
     {
-        var north = ground.Engine.FindAircraft(NorthCallsign);
-        var south = ground.Engine.FindAircraft(SouthCallsign);
+        AircraftState? north = ground.Engine.FindAircraft(NorthCallsign);
+        AircraftState? south = ground.Engine.FindAircraft(SouthCallsign);
         if (north is null || south is null)
         {
             return;
@@ -347,7 +348,7 @@ public class SfoSimultaneousAlleyPushTests
 
     private void AssertRestingAtSpot(SfoGround ground, string callsign, GroundNode spot)
     {
-        var ac = ground.Engine.FindAircraft(callsign);
+        AircraftState? ac = ground.Engine.FindAircraft(callsign);
         Assert.NotNull(ac);
 
         double halfLengthFt = (FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? 110.0) / 2.0;
@@ -371,7 +372,7 @@ public class SfoSimultaneousAlleyPushTests
 
     private static void Push(SfoGround ground, string callsign, string command)
     {
-        var result = ground.Engine.SendCommand(callsign, command);
+        CommandResult result = ground.Engine.SendCommand(callsign, command);
         Assert.True(result.Success, $"'{command}' for {callsign} failed: {result.Message}");
     }
 
@@ -401,7 +402,7 @@ public class SfoSimultaneousAlleyPushTests
 
     private static LatLon Parking(SfoGround ground, string parkingName)
     {
-        var parking = ground.Layout.FindParkingByName(parkingName);
+        GroundNode? parking = ground.Layout.FindParkingByName(parkingName);
         Assert.NotNull(parking);
         return parking.Position;
     }

@@ -41,7 +41,7 @@ public static class ApproachCommandHandler
 
     public static CommandResult TryClearedApproach(ClearedApproachCommand cmd, AircraftState aircraft)
     {
-        var resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft);
+        ResolvedApproach resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft);
         return AttachProcedureSourceAdvisory(TryClearedApproachCore(cmd, aircraft, resolved), resolved);
     }
 
@@ -76,17 +76,19 @@ public static class ApproachCommandHandler
             return new CommandResult(false, resolved.Error);
         }
 
-        var (procedure, approachRunway, airport) = resolved;
+        (CifpApproachProcedure? procedure, RunwayInfo? approachRunway, string? airport) = resolved;
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1
         aircraft.Targets.TargetSpeed = null;
 
-        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
+        FinalApproachCourseResult facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
         TrueHeading finalCourse = facResult.Course;
 
         // Build approach fix sequence, selecting best transition if available
-        var transition = SelectBestTransition(procedure, aircraft);
-        var approachFixes = transition is not null ? BuildApproachFixesWithTransition(transition, procedure) : BuildApproachFixes(procedure);
+        CifpTransition? transition = SelectBestTransition(procedure, aircraft);
+        List<ApproachFix> approachFixes = transition is not null
+            ? BuildApproachFixesWithTransition(transition, procedure)
+            : BuildApproachFixes(procedure);
 
         // Check conditions for deferred vs immediate approach activation
         bool hasDctFix = cmd.DctFix is not null;
@@ -94,7 +96,7 @@ public static class ApproachCommandHandler
         // The vector the aircraft is on is the angle an implied-PTAC intercept is judged against, so
         // it is captured here — with the flag derived from the same read — and not after
         // ClearExistingPhases, which can drop the assigned heading before the clearance does.
-        var interceptHeading = aircraft.Targets.AssignedMagneticHeading;
+        MagneticHeading? interceptHeading = aircraft.Targets.AssignedMagneticHeading;
         bool isOnAssignedHeading = interceptHeading is not null;
 
         // A transition that ends with HF/HM/HA carries a hold-in-lieu of procedure turn at
@@ -142,7 +144,7 @@ public static class ApproachCommandHandler
         // DCT always activates immediately (it implies leaving the STAR route).
         if (transition is not null && !hasDctFix && !isOnAssignedHeading && !transitionHasHilpt && !needsProcedureTurn)
         {
-            var trimmedFixes = TrimToNavRouteConnection(approachFixes, aircraft);
+            List<ApproachFix> trimmedFixes = TrimToNavRouteConnection(approachFixes, aircraft);
             string connectingFix = trimmedFixes.Count > 0 ? trimmedFixes[0].Name : "";
 
             // AT fix must match the connecting fix (or no AT fix at all) for deferred path
@@ -150,7 +152,7 @@ public static class ApproachCommandHandler
 
             if (trimmedFixes.Count > 0 && atFixMatchesConnection && NavRouteContainsFix(aircraft, connectingFix))
             {
-                var clearance = BuildClearance(procedure, airport, facResult, approachRunway, cmd.Force);
+                ApproachClearance clearance = BuildClearance(procedure, airport, facResult, approachRunway, cmd.Force);
                 aircraft.Approach.PendingClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = approachRunway };
                 aircraft.Procedure.DestinationRunway = approachRunway.Designator;
 
@@ -170,7 +172,7 @@ public static class ApproachCommandHandler
         // Clear existing phases
         ClearExistingPhases(aircraft);
 
-        var immClearance = BuildClearance(procedure, airport, facResult, approachRunway, cmd.Force);
+        ApproachClearance immClearance = BuildClearance(procedure, airport, facResult, approachRunway, cmd.Force);
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = immClearance };
         aircraft.Procedure.DestinationRunway = approachRunway.Designator;
@@ -191,7 +193,7 @@ public static class ApproachCommandHandler
 
             // The intercept's threshold is the landing threshold: its distance is scored against the
             // approach gate, which the P/CG measures from there.
-            var interceptThreshold = LandingThreshold.Resolve(approachRunway, aircraft.Ground.Layout);
+            LatLon interceptThreshold = LandingThreshold.Resolve(approachRunway, aircraft.Ground.Layout);
 
             if (cmd.CrossFixAltitude is { } interceptCxAlt && interceptCxAlt > 0)
             {
@@ -211,7 +213,7 @@ public static class ApproachCommandHandler
                 }
             );
             aircraft.Phases.Add(new FinalApproachPhase());
-            var isHeliIntercept = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+            bool isHeliIntercept = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
             aircraft.Phases.Add(isHeliIntercept ? new HelicopterLandingPhase() : new LandingPhase());
 
             StartPhases(aircraft);
@@ -268,7 +270,7 @@ public static class ApproachCommandHandler
         // exclusive on real procedures).
         if (cappProcedureTurn is null && transitionHasHilpt && procedure.HoldInLieuLeg is { } cappHoldLeg)
         {
-            var holdPhase = BuildHoldInLieuPhase(cappHoldLeg, approachFixes, finalCourse);
+            HoldingPatternPhase? holdPhase = BuildHoldInLieuPhase(cappHoldLeg, approachFixes, finalCourse);
             if (holdPhase is not null)
             {
                 aircraft.Phases.Add(holdPhase);
@@ -276,7 +278,7 @@ public static class ApproachCommandHandler
         }
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        bool isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         aircraft.Phases.Add(isHeliApch ? new HelicopterLandingPhase() : new LandingPhase());
 
         StartPhases(aircraft);
@@ -290,7 +292,7 @@ public static class ApproachCommandHandler
 
     public static CommandResult TryJoinApproach(string approachId, string? airportCode, bool force, bool straightIn, AircraftState aircraft)
     {
-        var resolved = ResolveApproach(approachId, airportCode, aircraft);
+        ResolvedApproach resolved = ResolveApproach(approachId, airportCode, aircraft);
         return AttachProcedureSourceAdvisory(TryJoinApproachCore(approachId, airportCode, force, straightIn, aircraft, resolved), resolved);
     }
 
@@ -308,20 +310,22 @@ public static class ApproachCommandHandler
             return new CommandResult(false, resolved.Error);
         }
 
-        var (procedure, approachRunway, airport) = resolved;
+        (CifpApproachProcedure? procedure, RunwayInfo? approachRunway, string? airport) = resolved;
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1
         aircraft.Targets.TargetSpeed = null;
 
-        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
+        FinalApproachCourseResult facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
         TrueHeading finalCourse = facResult.Course;
 
         // Build approach fix sequence, selecting best transition if available
-        var transition = SelectBestTransition(procedure, aircraft);
-        var approachFixes = transition is not null ? BuildApproachFixesWithTransition(transition, procedure) : BuildApproachFixes(procedure);
+        CifpTransition? transition = SelectBestTransition(procedure, aircraft);
+        List<ApproachFix> approachFixes = transition is not null
+            ? BuildApproachFixesWithTransition(transition, procedure)
+            : BuildApproachFixes(procedure);
 
         // For JAPP: find nearest IAF/IF ahead of aircraft
-        var trimmedFixes = TrimToNearestEntry(approachFixes, aircraft);
+        List<ApproachFix> trimmedFixes = TrimToNearestEntry(approachFixes, aircraft);
 
         // Hold-in-lieu: if procedure has one and NOT straight-in, insert hold
         bool needsHold = procedure.HasHoldInLieu && !straightIn;
@@ -386,7 +390,7 @@ public static class ApproachCommandHandler
         // Insert hold-in-lieu if needed (skipped when a PT is already engaged)
         if (jappProcedureTurn is null && needsHold && procedure.HoldInLieuLeg is { } holdLeg)
         {
-            var holdPhase = BuildHoldInLieuPhase(holdLeg, trimmedFixes, finalCourse);
+            HoldingPatternPhase? holdPhase = BuildHoldInLieuPhase(holdLeg, trimmedFixes, finalCourse);
             if (holdPhase is not null)
             {
                 aircraft.Phases.Add(holdPhase);
@@ -399,7 +403,7 @@ public static class ApproachCommandHandler
         }
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        bool isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         aircraft.Phases.Add(isHeliApch ? new HelicopterLandingPhase() : new LandingPhase());
 
         StartPhases(aircraft);
@@ -414,15 +418,15 @@ public static class ApproachCommandHandler
 
     public static CommandResult TryPtac(PositionTurnAltitudeClearanceCommand cmd, AircraftState aircraft)
     {
-        var resolved = ResolveApproach(cmd.ApproachId, null, aircraft);
+        ResolvedApproach resolved = ResolveApproach(cmd.ApproachId, null, aircraft);
         if (!resolved.Success)
         {
             return new CommandResult(false, resolved.Error);
         }
 
-        var (procedure, approachRunway, airport) = resolved;
+        (CifpApproachProcedure? procedure, RunwayInfo? approachRunway, string? airport) = resolved;
 
-        var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
+        FinalApproachCourseResult facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
         TrueHeading finalCourse = facResult.Course;
 
         // Resolve heading: explicit or present
@@ -464,7 +468,7 @@ public static class ApproachCommandHandler
 
         // The intercept's threshold is the landing threshold: its distance is scored against the
         // approach gate, which the P/CG measures from there.
-        var interceptThreshold = LandingThreshold.Resolve(approachRunway, aircraft.Ground.Layout);
+        LatLon interceptThreshold = LandingThreshold.Resolve(approachRunway, aircraft.Ground.Layout);
 
         aircraft.Phases.Add(
             new InterceptCoursePhase
@@ -478,7 +482,7 @@ public static class ApproachCommandHandler
             }
         );
         aircraft.Phases.Add(new FinalApproachPhase());
-        var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        bool isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         aircraft.Phases.Add(isHeliApch ? new HelicopterLandingPhase() : new LandingPhase());
 
         StartPhases(aircraft);
@@ -564,11 +568,11 @@ public static class ApproachCommandHandler
             return new CommandResult(false, "Field not in sight — issue RFIS first");
         }
 
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         string airport;
         if (cmd.AirportCode is not null)
         {
-            if (!navDb.TryResolveAirport(cmd.AirportCode, out var canonical))
+            if (!navDb.TryResolveAirport(cmd.AirportCode, out string? canonical))
             {
                 return new CommandResult(false, $"Unknown airport {cmd.AirportCode.Trim().ToUpperInvariant()}");
             }
@@ -584,13 +588,13 @@ public static class ApproachCommandHandler
             return new CommandResult(false, "Cannot determine airport for visual approach");
         }
 
-        var runway = navDb.GetRunway(airport, cmd.RunwayId);
+        RunwayInfo? runway = navDb.GetRunway(airport, cmd.RunwayId);
         if (runway is null)
         {
             return new CommandResult(false, $"Unknown runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayId)} at {airport}");
         }
 
-        var approachRunway = runway.IsActiveEnd(cmd.RunwayId) ? runway : runway.ForApproach(cmd.RunwayId);
+        RunwayInfo approachRunway = runway.IsActiveEnd(cmd.RunwayId) ? runway : runway.ForApproach(cmd.RunwayId);
 
         // Weather gates. 7110.65 §7-4-3.b / AIM §5-5-11.b.1: no visual approach clearance
         // unless the reported weather is at/above basic-VFR minimums (1000 ft ceiling /
@@ -666,7 +670,7 @@ public static class ApproachCommandHandler
             aircraft.Approach.FollowingCallsign = cmd.FollowCallsign;
         }
 
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool isHeli = category == AircraftCategory.Helicopter;
 
         if (angleOff <= 30.0)
@@ -679,7 +683,7 @@ public static class ApproachCommandHandler
         {
             // Angled join: navigate to intercept point, then final
             double interceptDistNm = category is AircraftCategory.Jet ? 5.0 : 3.0;
-            var interceptPoint = ComputeInterceptPoint(approachRunway, interceptDistNm);
+            (double Lat, double Lon) interceptPoint = ComputeInterceptPoint(approachRunway, interceptDistNm);
 
             aircraft.Phases.Add(new ApproachNavigationPhase { Fixes = [new ApproachFix("INTCP", interceptPoint.Lat, interceptPoint.Lon)] });
             aircraft.Phases.Add(new FinalApproachPhase());
@@ -695,14 +699,14 @@ public static class ApproachCommandHandler
             // conflict with low approaches / departures / arrivals on parallel runways,
             // so we skip the runway-deconfliction step that VFR pattern entry uses.
             // Authored size/altitude overrides also bypassed: those are tuned for VFR.
-            var direction = cmd.TrafficDirection ?? DeterminePatternDirection(aircraft, approachRunway);
+            PatternDirection direction = cmd.TrafficDirection ?? DeterminePatternDirection(aircraft, approachRunway);
 
             double ifrPatternAltMsl = approachRunway.AirportElevationFt + IfrVisualDownwindAltAglFt;
             // The authored size/altitude are deliberately bypassed above, but the threshold displacement
             // is not an override — it is where the runway's landing surface starts, so the ground runway
             // is still supplied for it.
-            var authoredRunway = (ctx.GroundLayout ?? aircraft.Ground.Layout)?.FindRunway(approachRunway.Designator);
-            var waypoints = PatternGeometry.Compute(
+            GroundRunway? authoredRunway = (ctx.GroundLayout ?? aircraft.Ground.Layout)?.FindRunway(approachRunway.Designator);
+            PatternWaypoints waypoints = PatternGeometry.Compute(
                 approachRunway,
                 category,
                 aircraft.AircraftType,
@@ -714,7 +718,7 @@ public static class ApproachCommandHandler
                 authoredRunway
             );
 
-            var circuitPhases = PatternBuilder.BuildCircuit(
+            List<Phase> circuitPhases = PatternBuilder.BuildCircuit(
                 approachRunway,
                 category,
                 aircraft.AircraftType,
@@ -748,7 +752,12 @@ public static class ApproachCommandHandler
                 if (distToEntry > 1.0)
                 {
                     TrueHeading reverseDownwind = waypoints.DownwindHeading.ToReciprocal();
-                    var leadIn = GeoMath.ProjectPoint(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon, reverseDownwind, 1.5);
+                    (double Lat, double Lon) leadIn = GeoMath.ProjectPoint(
+                        waypoints.DownwindAbeamLat,
+                        waypoints.DownwindAbeamLon,
+                        reverseDownwind,
+                        1.5
+                    );
 
                     aircraft.Phases.Add(
                         new PatternEntryPhase
@@ -771,7 +780,7 @@ public static class ApproachCommandHandler
                 }
             }
 
-            foreach (var phase in circuitPhases)
+            foreach (Phase phase in circuitPhases)
             {
                 aircraft.Phases.Add(phase);
             }
@@ -779,7 +788,7 @@ public static class ApproachCommandHandler
 
         StartPhases(aircraft);
 
-        var msg = $"Cleared visual approach runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayId)}";
+        string msg = $"Cleared visual approach runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayId)}";
         if (cmd.FollowCallsign is not null)
         {
             msg += $", follow {cmd.FollowCallsign}";
@@ -816,11 +825,11 @@ public static class ApproachCommandHandler
 
     internal static ResolvedApproach ResolveApproach(string? approachId, string? airportCode, AircraftState aircraft)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         string airport;
         if (airportCode is not null)
         {
-            if (!navDb.TryResolveAirport(airportCode, out var canonical))
+            if (!navDb.TryResolveAirport(airportCode, out string? canonical))
             {
                 return ResolvedApproach.Fail($"Unknown airport {airportCode.Trim().ToUpperInvariant()}");
             }
@@ -841,7 +850,7 @@ public static class ApproachCommandHandler
             return AutoResolveApproach(navDb, airport, aircraft);
         }
 
-        var candidates = navDb.ResolveApproachCandidates(airport, approachId);
+        List<string> candidates = navDb.ResolveApproachCandidates(airport, approachId);
         if (candidates.Count == 0)
         {
             return ResolvedApproach.Fail($"Unknown approach: {approachId} at {airport}");
@@ -869,20 +878,20 @@ public static class ApproachCommandHandler
     /// </summary>
     private static ResolvedApproach AutoResolveApproach(NavigationDatabase navDb, string airport, AircraftState aircraft)
     {
-        var knownFixes = BuildKnownFixes(aircraft);
+        HashSet<string> knownFixes = BuildKnownFixes(aircraft);
         bool onNavRoute = aircraft.Targets.NavigationRoute.Count > 0;
 
         // Tier 1: try hint sources in priority order
         string?[] sources = [aircraft.Approach.Expected, aircraft.Procedure.DestinationRunway];
 
-        foreach (var source in sources)
+        foreach (string? source in sources)
         {
             if (source is null)
             {
                 continue;
             }
 
-            var candidates = navDb.ResolveApproachCandidates(airport, source);
+            List<string> candidates = navDb.ResolveApproachCandidates(airport, source);
             if (candidates.Count == 0)
             {
                 continue;
@@ -891,7 +900,7 @@ public static class ApproachCommandHandler
             if (onNavRoute)
             {
                 // Verify route connectivity — don't blindly use a disconnected approach
-                var connected = FindConnectedCandidate(navDb, airport, candidates, knownFixes);
+                string? connected = FindConnectedCandidate(navDb, airport, candidates, knownFixes);
                 if (connected is not null)
                 {
                     return BuildResolved(navDb, airport, connected);
@@ -912,8 +921,8 @@ public static class ApproachCommandHandler
         // Tier 2: auto-discover any approach at the airport that connects to the route
         if (onNavRoute)
         {
-            var allApproaches = navDb.GetApproaches(airport);
-            foreach (var proc in allApproaches)
+            IReadOnlyList<CifpApproachProcedure> allApproaches = navDb.GetApproaches(airport);
+            foreach (CifpApproachProcedure proc in allApproaches)
             {
                 if (HasRouteConnectivity(proc, knownFixes))
                 {
@@ -934,7 +943,7 @@ public static class ApproachCommandHandler
     {
         foreach (string candidateId in candidates)
         {
-            var proc = navDb.GetApproach(airport, candidateId);
+            CifpApproachProcedure? proc = navDb.GetApproach(airport, candidateId);
             if (proc is not null && HasRouteConnectivity(proc, knownFixes))
             {
                 return candidateId;
@@ -955,15 +964,15 @@ public static class ApproachCommandHandler
         AircraftState aircraft
     )
     {
-        var knownFixes = BuildKnownFixes(aircraft);
+        HashSet<string> knownFixes = BuildKnownFixes(aircraft);
 
         // Priority 1: ExpectedApproach, if it matches one of the candidates and connects
         if (aircraft.Approach.Expected is not null)
         {
-            var expMatch = candidates.FirstOrDefault(c => c.Equals(aircraft.Approach.Expected, StringComparison.OrdinalIgnoreCase));
+            string? expMatch = candidates.FirstOrDefault(c => c.Equals(aircraft.Approach.Expected, StringComparison.OrdinalIgnoreCase));
             if (expMatch is not null)
             {
-                var expProc = navDb.GetApproach(airport, expMatch);
+                CifpApproachProcedure? expProc = navDb.GetApproach(airport, expMatch);
                 if (expProc is not null && HasRouteConnectivity(expProc, knownFixes))
                 {
                     return BuildResolved(navDb, airport, expMatch);
@@ -974,7 +983,7 @@ public static class ApproachCommandHandler
         // Priority 2: first candidate whose fixes overlap with the aircraft's route
         foreach (string candidateId in candidates)
         {
-            var proc = navDb.GetApproach(airport, candidateId);
+            CifpApproachProcedure? proc = navDb.GetApproach(airport, candidateId);
             if (proc is not null && HasRouteConnectivity(proc, knownFixes))
             {
                 return BuildResolved(navDb, airport, candidateId);
@@ -987,19 +996,19 @@ public static class ApproachCommandHandler
 
     private static ResolvedApproach BuildResolved(NavigationDatabase navDb, string airport, string approachId)
     {
-        var procedure = navDb.GetApproach(airport, approachId, out var procedureSource);
+        CifpApproachProcedure? procedure = navDb.GetApproach(airport, approachId, out ProcedureSource? procedureSource);
         if (procedure?.Runway is null)
         {
             return ResolvedApproach.Fail($"No runway for approach {approachId}");
         }
 
-        var runway = navDb.GetRunway(airport, procedure.Runway);
+        RunwayInfo? runway = navDb.GetRunway(airport, procedure.Runway);
         if (runway is null)
         {
             return ResolvedApproach.Fail($"Unknown runway {RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "")} at {airport}");
         }
 
-        var approachRunway = runway.IsActiveEnd(procedure.Runway) ? runway : runway.ForApproach(procedure.Runway);
+        RunwayInfo approachRunway = runway.IsActiveEnd(procedure.Runway) ? runway : runway.ForApproach(procedure.Runway);
 
         return new ResolvedApproach(procedure, approachRunway, airport, procedureSource);
     }
@@ -1013,10 +1022,10 @@ public static class ApproachCommandHandler
         var fixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrEmpty(aircraft.FlightPlan.Route))
         {
-            foreach (var token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            foreach (string token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
-                var dotIdx = token.IndexOf('.');
-                var fixName = dotIdx >= 0 ? token[..dotIdx] : token;
+                int dotIdx = token.IndexOf('.');
+                string fixName = dotIdx >= 0 ? token[..dotIdx] : token;
                 if (!string.IsNullOrEmpty(fixName))
                 {
                     fixes.Add(fixName);
@@ -1024,7 +1033,7 @@ public static class ApproachCommandHandler
             }
         }
 
-        foreach (var navTarget in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget navTarget in aircraft.Targets.NavigationRoute)
         {
             fixes.Add(navTarget.Name);
         }
@@ -1039,9 +1048,9 @@ public static class ApproachCommandHandler
     /// </summary>
     private static bool HasRouteConnectivity(CifpApproachProcedure procedure, HashSet<string> knownFixes)
     {
-        foreach (var transition in procedure.Transitions.Values)
+        foreach (CifpTransition transition in procedure.Transitions.Values)
         {
-            foreach (var leg in transition.Legs)
+            foreach (CifpLeg leg in transition.Legs)
             {
                 if (!string.IsNullOrEmpty(leg.FixIdentifier) && knownFixes.Contains(leg.FixIdentifier))
                 {
@@ -1050,7 +1059,7 @@ public static class ApproachCommandHandler
             }
         }
 
-        foreach (var leg in procedure.CommonLegs)
+        foreach (CifpLeg leg in procedure.CommonLegs)
         {
             if (!string.IsNullOrEmpty(leg.FixIdentifier) && knownFixes.Contains(leg.FixIdentifier))
             {
@@ -1066,9 +1075,9 @@ public static class ApproachCommandHandler
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Collect transition fixes (all transitions — EAPP programs all of them for DCT validation)
-        foreach (var transition in procedure.Transitions.Values)
+        foreach (CifpTransition transition in procedure.Transitions.Values)
         {
-            foreach (var leg in transition.Legs)
+            foreach (CifpLeg leg in transition.Legs)
             {
                 if (!string.IsNullOrEmpty(leg.FixIdentifier))
                 {
@@ -1078,7 +1087,7 @@ public static class ApproachCommandHandler
         }
 
         // Collect common segment fixes (stop before MAP)
-        foreach (var leg in procedure.CommonLegs)
+        foreach (CifpLeg leg in procedure.CommonLegs)
         {
             if (string.IsNullOrEmpty(leg.FixIdentifier))
             {
@@ -1100,7 +1109,7 @@ public static class ApproachCommandHandler
     /// </summary>
     public static int? ExtractMapAltitude(CifpApproachProcedure procedure)
     {
-        foreach (var leg in procedure.CommonLegs)
+        foreach (CifpLeg leg in procedure.CommonLegs)
         {
             if (leg.FixRole == CifpFixRole.MAP && leg.Altitude is not null)
             {
@@ -1117,15 +1126,15 @@ public static class ApproachCommandHandler
     /// </summary>
     public static double? ExtractMapDistance(CifpApproachProcedure procedure, RunwayInfo runway)
     {
-        var navDb = NavigationDatabase.Instance;
-        foreach (var leg in procedure.CommonLegs)
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        foreach (CifpLeg leg in procedure.CommonLegs)
         {
             if (leg.FixRole != CifpFixRole.MAP || string.IsNullOrEmpty(leg.FixIdentifier))
             {
                 continue;
             }
 
-            var pos = leg.ResolveFixPosition(navDb);
+            (double Lat, double Lon)? pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -1139,11 +1148,11 @@ public static class ApproachCommandHandler
 
     internal static List<ApproachFix> BuildMissedApproachFixes(CifpApproachProcedure procedure)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         var result = new List<ApproachFix>();
         (double Lat, double Lon)? previousFixPos = null;
 
-        foreach (var leg in procedure.MissedApproachLegs)
+        foreach (CifpLeg leg in procedure.MissedApproachLegs)
         {
             if (string.IsNullOrEmpty(leg.FixIdentifier))
             {
@@ -1155,7 +1164,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = leg.ResolveFixPosition(navDb);
+            (double Lat, double Lon)? pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -1187,7 +1196,7 @@ public static class ApproachCommandHandler
                 && previousFixPos is not null
             )
             {
-                var navaidPos = navDb.GetFixPosition(leg.RecommendedNavaidId);
+                (double Lat, double Lon)? navaidPos = navDb.GetFixPosition(leg.RecommendedNavaidId);
                 if (navaidPos is not null)
                 {
                     ExpandApproachArcFixes(
@@ -1217,7 +1226,7 @@ public static class ApproachCommandHandler
     /// </summary>
     internal static List<Phase> BuildMissedApproachPhases(AircraftState aircraft)
     {
-        var clearance = aircraft.Phases?.ActiveApproach;
+        ApproachClearance? clearance = aircraft.Phases?.ActiveApproach;
         if (clearance?.Procedure is null || clearance.MissedApproachFixes.Count == 0)
         {
             return [];
@@ -1257,7 +1266,7 @@ public static class ApproachCommandHandler
     /// </summary>
     internal static int? GetMissedApproachAltitude(IReadOnlyList<ApproachFix> mapFixes)
     {
-        foreach (var fix in mapFixes)
+        foreach (ApproachFix fix in mapFixes)
         {
             if (fix.Altitude is { } alt)
             {
@@ -1274,10 +1283,10 @@ public static class ApproachCommandHandler
     /// </summary>
     internal static MissedApproachHold? ExtractMissedApproachHold(CifpApproachProcedure procedure)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         for (int i = procedure.MissedApproachLegs.Count - 1; i >= 0; i--)
         {
-            var leg = procedure.MissedApproachLegs[i];
+            CifpLeg leg = procedure.MissedApproachLegs[i];
             if (leg.PathTerminator is not (CifpPathTerminator.HA or CifpPathTerminator.HF or CifpPathTerminator.HM))
             {
                 continue;
@@ -1288,7 +1297,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = leg.ResolveFixPosition(navDb);
+            (double Lat, double Lon)? pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -1297,7 +1306,7 @@ public static class ApproachCommandHandler
             int inboundCourse = leg.OutboundCourse.HasValue ? (int)((leg.OutboundCourse.Value + 180) % 360) : 0;
             double legLength = leg.LegDistanceNm ?? 1.0;
             bool isMinuteBased = leg.LegDistanceNm is null;
-            var direction = leg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right;
+            TurnDirection direction = leg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right;
 
             return new MissedApproachHold(leg.FixIdentifier, pos.Value.Lat, pos.Value.Lon, inboundCourse, legLength, isMinuteBased, direction);
         }
@@ -1316,10 +1325,10 @@ public static class ApproachCommandHandler
         var knownFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrEmpty(aircraft.FlightPlan.Route))
         {
-            foreach (var token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            foreach (string token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
-                var dotIdx = token.IndexOf('.');
-                var fixName = dotIdx >= 0 ? token[..dotIdx] : token;
+                int dotIdx = token.IndexOf('.');
+                string fixName = dotIdx >= 0 ? token[..dotIdx] : token;
                 if (!string.IsNullOrEmpty(fixName))
                 {
                     knownFixes.Add(fixName);
@@ -1327,14 +1336,14 @@ public static class ApproachCommandHandler
             }
         }
 
-        foreach (var navTarget in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget navTarget in aircraft.Targets.NavigationRoute)
         {
             knownFixes.Add(navTarget.Name);
         }
 
         // Build set of all fix names in the approach (transitions + common legs).
         var approachFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var leg in procedure.CommonLegs)
+        foreach (CifpLeg leg in procedure.CommonLegs)
         {
             if (!string.IsNullOrEmpty(leg.FixIdentifier))
             {
@@ -1342,9 +1351,9 @@ public static class ApproachCommandHandler
             }
         }
 
-        foreach (var transition in procedure.Transitions.Values)
+        foreach (CifpTransition transition in procedure.Transitions.Values)
         {
-            foreach (var leg in transition.Legs)
+            foreach (CifpLeg leg in transition.Legs)
             {
                 if (!string.IsNullOrEmpty(leg.FixIdentifier))
                 {
@@ -1356,7 +1365,7 @@ public static class ApproachCommandHandler
         // If the aircraft's active NavigationRoute contains an approach fix, check where
         // it lives: CommonLegs fix → no transition needed (aircraft heading into common segment);
         // transition-only fix → return that transition (aircraft needs its legs to reach CommonLegs).
-        foreach (var navTarget in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget navTarget in aircraft.Targets.NavigationRoute)
         {
             if (!approachFixes.Contains(navTarget.Name))
             {
@@ -1366,9 +1375,9 @@ public static class ApproachCommandHandler
             // If the matched fix anchors a course-reversal leg (PI/HM/HF/HA) in any transition,
             // prefer that transition even if the fix also lives in CommonLegs. The controller
             // said "DCT <fix>" implying entry at <fix> with the published course reversal.
-            foreach (var transition in procedure.Transitions.Values)
+            foreach (CifpTransition transition in procedure.Transitions.Values)
             {
-                foreach (var leg in transition.Legs)
+                foreach (CifpLeg leg in transition.Legs)
                 {
                     if (string.IsNullOrEmpty(leg.FixIdentifier))
                     {
@@ -1398,9 +1407,9 @@ public static class ApproachCommandHandler
 
             // Fix is only in a transition (e.g. HIRMO) — return that transition so the full
             // fix sequence (transition legs + common legs) is built.
-            foreach (var transition in procedure.Transitions.Values)
+            foreach (CifpTransition transition in procedure.Transitions.Values)
             {
-                foreach (var leg in transition.Legs)
+                foreach (CifpLeg leg in transition.Legs)
                 {
                     if (!string.IsNullOrEmpty(leg.FixIdentifier) && leg.FixIdentifier.Equals(navTarget.Name, StringComparison.OrdinalIgnoreCase))
                     {
@@ -1413,9 +1422,9 @@ public static class ApproachCommandHandler
         // Try route-based match: find a transition whose fix appears in known fixes.
         if (knownFixes.Count > 0)
         {
-            foreach (var transition in procedure.Transitions.Values)
+            foreach (CifpTransition transition in procedure.Transitions.Values)
             {
-                foreach (var leg in transition.Legs)
+                foreach (CifpLeg leg in transition.Legs)
                 {
                     if (!string.IsNullOrEmpty(leg.FixIdentifier) && knownFixes.Contains(leg.FixIdentifier))
                     {
@@ -1432,15 +1441,15 @@ public static class ApproachCommandHandler
         // nearest *transition* IAF would route an aircraft already on top of a common-leg IAF
         // backwards to the transition entry. Mirrors TrimToNearestEntry's logic at the
         // transition-selection layer.
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         CifpTransition? bestTransition = null;
         bool bestIsCommonLeg = false;
         double bestDist = double.MaxValue;
 
-        foreach (var transition in procedure.Transitions.Values)
+        foreach (CifpTransition transition in procedure.Transitions.Values)
         {
             CifpLeg? firstLeg = null;
-            foreach (var leg in transition.Legs)
+            foreach (CifpLeg leg in transition.Legs)
             {
                 if (!string.IsNullOrEmpty(leg.FixIdentifier))
                 {
@@ -1454,7 +1463,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = firstLeg.ResolveFixPosition(navDb);
+            (double Lat, double Lon)? pos = firstLeg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -1476,7 +1485,7 @@ public static class ApproachCommandHandler
             }
         }
 
-        foreach (var leg in procedure.CommonLegs)
+        foreach (CifpLeg leg in procedure.CommonLegs)
         {
             if (leg.FixRole is not (CifpFixRole.IAF or CifpFixRole.IF))
             {
@@ -1487,7 +1496,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = leg.ResolveFixPosition(navDb);
+            (double Lat, double Lon)? pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -1521,7 +1530,7 @@ public static class ApproachCommandHandler
     /// </summary>
     private static HoldingPatternPhase? BuildHoldInLieuPhase(CifpLeg holdLeg, IReadOnlyList<ApproachFix> approachFixes, TrueHeading finalCourse)
     {
-        var holdFix = approachFixes.FirstOrDefault(f => f.Name.Equals(holdLeg.FixIdentifier, StringComparison.OrdinalIgnoreCase));
+        ApproachFix? holdFix = approachFixes.FirstOrDefault(f => f.Name.Equals(holdLeg.FixIdentifier, StringComparison.OrdinalIgnoreCase));
         if (holdFix is null)
         {
             return null;
@@ -1549,15 +1558,15 @@ public static class ApproachCommandHandler
     /// </summary>
     private static ProcedureTurnPhase? BuildProcedureTurnPhase(CifpLeg piLeg, AircraftState aircraft, TrueHeading finalCourse)
     {
-        var navDb = NavigationDatabase.Instance;
-        var pos = piLeg.ResolveFixPosition(navDb);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        (double Lat, double Lon)? pos = piLeg.ResolveFixPosition(navDb);
         if (pos is null)
         {
             return null;
         }
 
         double publishedPtMagDeg = piLeg.OutboundCourse ?? finalCourse.ToMagnetic(aircraft.Declination).Degrees;
-        var ptOutboundTrue = new MagneticHeading(publishedPtMagDeg).ToTrue(aircraft.Declination);
+        TrueHeading ptOutboundTrue = new MagneticHeading(publishedPtMagDeg).ToTrue(aircraft.Declination);
 
         int minAlt = piLeg.Altitude is { } restriction ? restriction.Altitude1Ft : 0;
 
@@ -1602,8 +1611,8 @@ public static class ApproachCommandHandler
 
     private static List<ApproachFix> BuildApproachFixesWithTransition(CifpTransition transition, CifpApproachProcedure procedure)
     {
-        var transitionFixes = BuildFixesFromLegs(transition.Legs, stopAtMahp: false);
-        var commonFixes = BuildFixesFromLegs(procedure.CommonLegs, stopAtMahp: true);
+        List<ApproachFix> transitionFixes = BuildFixesFromLegs(transition.Legs, stopAtMahp: false);
+        List<ApproachFix> commonFixes = BuildFixesFromLegs(procedure.CommonLegs, stopAtMahp: true);
 
         // Trim common-leg fixes that the transition has already passed. Standard case
         // (e.g. FRA transition ending at DLRAY, common starts at DLRAY): drop the index-0
@@ -1633,11 +1642,11 @@ public static class ApproachCommandHandler
 
     private static List<ApproachFix> BuildFixesFromLegs(IReadOnlyList<CifpLeg> legs, bool stopAtMahp)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         var result = new List<ApproachFix>();
         (double Lat, double Lon)? previousFixPos = null;
 
-        foreach (var leg in legs)
+        foreach (CifpLeg leg in legs)
         {
             if (string.IsNullOrEmpty(leg.FixIdentifier))
             {
@@ -1656,7 +1665,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = leg.ResolveFixPosition(navDb);
+            (double Lat, double Lon)? pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -1690,7 +1699,7 @@ public static class ApproachCommandHandler
                 && previousFixPos is not null
             )
             {
-                var navaidPos = navDb.GetFixPosition(leg.RecommendedNavaidId);
+                (double Lat, double Lon)? navaidPos = navDb.GetFixPosition(leg.RecommendedNavaidId);
                 if (navaidPos is not null)
                 {
                     ExpandApproachArcFixes(
@@ -1736,7 +1745,7 @@ public static class ApproachCommandHandler
         double endBearing = GeoMath.BearingTo(centerLat, centerLon, terminatorFix.Lat, terminatorFix.Lon);
         bool turnRight = GeoMath.ResolveArcTurnRight(turnDirection, startBearing, endBearing);
 
-        var arcPoints = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, startBearing, endBearing, turnRight);
+        List<(double Lat, double Lon)> arcPoints = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, startBearing, endBearing, turnRight);
 
         // Insert intermediate points (skip the last one — that's the terminator fix)
         for (int i = 0; i < arcPoints.Count - 1; i++)
@@ -1792,7 +1801,7 @@ public static class ApproachCommandHandler
 
     private static bool NavRouteContainsFix(AircraftState aircraft, string fixName)
     {
-        foreach (var target in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget target in aircraft.Targets.NavigationRoute)
         {
             if (target.Name.Equals(fixName, StringComparison.OrdinalIgnoreCase))
             {
@@ -1816,7 +1825,7 @@ public static class ApproachCommandHandler
         }
 
         string connectingFix = approachFixes[0].Name;
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
 
         // Find the connecting fix in the route
         int insertAfter = -1;
@@ -1844,7 +1853,7 @@ public static class ApproachCommandHandler
         var newTargets = new List<NavigationTarget>();
         for (int i = 1; i < approachFixes.Count; i++)
         {
-            var fix = approachFixes[i];
+            ApproachFix fix = approachFixes[i];
             newTargets.Add(
                 new NavigationTarget
                 {
@@ -1875,10 +1884,10 @@ public static class ApproachCommandHandler
 
         aircraft.Phases = new PhaseList { AssignedRunway = pending.AssignedRunway, ActiveApproach = pending.Clearance };
         aircraft.Phases.Add(new FinalApproachPhase());
-        var isHeli = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        bool isHeli = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         aircraft.Phases.Add(isHeli ? new HelicopterLandingPhase() : new LandingPhase());
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(ctx);
     }
 
@@ -1895,7 +1904,7 @@ public static class ApproachCommandHandler
 
         for (int i = 0; i < fixes.Count; i++)
         {
-            var fix = fixes[i];
+            ApproachFix fix = fixes[i];
             if (fix.Role is not (CifpFixRole.IAF or CifpFixRole.IF))
             {
                 continue;
@@ -1948,7 +1957,7 @@ public static class ApproachCommandHandler
 
         if (hadArrivalApproach && aircraft.Phases is not null)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
         }
 
@@ -2020,7 +2029,7 @@ public static class ApproachCommandHandler
     /// </summary>
     internal static bool IsInboundToLand(AircraftState aircraft)
     {
-        var phases = aircraft.Phases;
+        PhaseList? phases = aircraft.Phases;
         if (phases is null || phases.CurrentPhase is GoAroundPhase)
         {
             return false;
@@ -2033,7 +2042,7 @@ public static class ApproachCommandHandler
     {
         if (aircraft.Phases is not null)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
         }
 
@@ -2055,7 +2064,7 @@ public static class ApproachCommandHandler
     {
         if (aircraft.Phases is not null)
         {
-            var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Start(startCtx);
         }
     }

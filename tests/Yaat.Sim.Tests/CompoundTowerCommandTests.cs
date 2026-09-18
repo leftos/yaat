@@ -25,7 +25,7 @@ public class CompoundTowerCommandTests
 
     private static PhaseContext MakePhaseContext(AircraftState ac, double delta = 1.0)
     {
-        var runway = ac.Phases?.AssignedRunway;
+        RunwayInfo? runway = ac.Phases?.AssignedRunway;
         return new PhaseContext
         {
             Aircraft = ac,
@@ -52,9 +52,9 @@ public class CompoundTowerCommandTests
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
 
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        RunwayInfo rwy = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
         var ac = new AircraftState
         {
             Callsign = "N42416",
@@ -73,14 +73,24 @@ public class CompoundTowerCommandTests
                 HasFlightPlan = true,
             },
         };
-        var waypoints = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
+        PatternWaypoints waypoints = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Piston,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
         var phases = new PhaseList { AssignedRunway = rwy };
         phases.Add(new Yaat.Sim.Phases.Pattern.DownwindPhase { Waypoints = waypoints });
         ac.Phases = phases;
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
         var compound = new CompoundCommand([new ParsedBlock(null, [new EnterFinalCommand("28R"), new ClearedToLandCommand()])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
         Assert.NotNull(result.Message);
@@ -102,15 +112,19 @@ public class CompoundTowerCommandTests
             return;
         }
 
-        var ac = LinedUpAircraft.AtOak28R("TEST1");
+        AircraftState ac = LinedUpAircraft.AtOak28R("TEST1");
 
         // Parse the compound command
-        var parseResult = CommandParser.ParseCompound("CTO MR270; DCT SUNOL", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound("CTO MR270; DCT SUNOL", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
         Assert.Equal(2, parseResult.Value!.Blocks.Count);
 
         // Dispatch the compound command
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parseResult.Value,
+            ac,
+            TestDispatch.Context(Random.Shared, validateDctFixes: false)
+        );
 
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
 
@@ -135,13 +149,17 @@ public class CompoundTowerCommandTests
             return;
         }
 
-        var ac = LinedUpAircraft.AtOak28R("TEST1");
+        AircraftState ac = LinedUpAircraft.AtOak28R("TEST1");
 
         // Parse and dispatch
-        var parseResult = CommandParser.ParseCompound("CTO MR270; DCT SUNOL", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound("CTO MR270; DCT SUNOL", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parseResult.Value!,
+            ac,
+            TestDispatch.Context(Random.Shared, validateDctFixes: false)
+        );
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
 
         // Tick the simulation: PhaseRunner then FlightPhysics per tick
@@ -152,7 +170,7 @@ public class CompoundTowerCommandTests
         for (int tick = 0; tick < maxTicks; tick++)
         {
             // PhaseRunner first (matches SimulationEngine order)
-            var ctx = MakePhaseContext(ac);
+            PhaseContext ctx = MakePhaseContext(ac);
             PhaseRunner.Tick(ac, ctx);
 
             // FlightPhysics (includes UpdateCommandQueue)
@@ -224,12 +242,16 @@ public class CompoundTowerCommandTests
             return;
         }
 
-        var ac = MakeAircraftWithoutPhases();
+        AircraftState ac = MakeAircraftWithoutPhases();
 
-        var parseResult = CommandParser.ParseCompound("ERD 28R, CL", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound("ERD 28R, CL", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parseResult.Value!,
+            ac,
+            TestDispatch.Context(new Random(42), validateDctFixes: false)
+        );
 
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
         Assert.NotNull(ac.Phases);
@@ -245,12 +267,16 @@ public class CompoundTowerCommandTests
             return;
         }
 
-        var ac = MakeAircraftWithoutPhases();
+        AircraftState ac = MakeAircraftWithoutPhases();
 
-        var parseResult = CommandParser.ParseCompound("ERD 28R; CL", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound("ERD 28R; CL", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parseResult.Value!,
+            ac,
+            TestDispatch.Context(new Random(42), validateDctFixes: false)
+        );
 
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
         Assert.NotNull(ac.Phases);
@@ -267,12 +293,16 @@ public class CompoundTowerCommandTests
             return;
         }
 
-        var ac = MakeAircraftWithoutPhases();
+        AircraftState ac = MakeAircraftWithoutPhases();
 
-        var parseResult = CommandParser.ParseCompound("CL", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound("CL", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parseResult.Value!,
+            ac,
+            TestDispatch.Context(new Random(42), validateDctFixes: false)
+        );
 
         Assert.False(result.Success, "CLAND without phases should fail");
     }
@@ -280,13 +310,17 @@ public class CompoundTowerCommandTests
     [Fact]
     public void Ground_Command_Fails_While_Airborne()
     {
-        var ac = MakeAircraftWithoutPhases();
+        AircraftState ac = MakeAircraftWithoutPhases();
         ac.IsOnGround = false;
 
-        var parseResult = CommandParser.ParseCompound("TAXI A", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound("TAXI A", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parseResult.Value!,
+            ac,
+            TestDispatch.Context(new Random(42), validateDctFixes: false)
+        );
 
         Assert.False(result.Success, "Ground command while airborne should fail");
     }
@@ -296,14 +330,14 @@ public class CompoundTowerCommandTests
     [Fact]
     public void ParseCompound_AndAlias_ProducesSameStructureAsComma()
     {
-        var aliasResult = CommandParser.ParseCompound("CTO MRT 28R, CL");
-        var aliasResult2 = CommandParser.ParseCompound("CTO MRT 28R AND CL");
+        ParseResult<CompoundCommand> aliasResult = CommandParser.ParseCompound("CTO MRT 28R, CL");
+        ParseResult<CompoundCommand> aliasResult2 = CommandParser.ParseCompound("CTO MRT 28R AND CL");
 
         Assert.True(aliasResult.IsSuccess, $"comma form failed: {aliasResult.Reason}");
         Assert.True(aliasResult2.IsSuccess, $"AND form failed: {aliasResult2.Reason}");
 
-        var commaBlocks = aliasResult.Value!.Blocks;
-        var andBlocks = aliasResult2.Value!.Blocks;
+        List<ParsedBlock> commaBlocks = aliasResult.Value!.Blocks;
+        List<ParsedBlock> andBlocks = aliasResult2.Value!.Blocks;
 
         Assert.Equal(commaBlocks.Count, andBlocks.Count);
         for (int b = 0; b < commaBlocks.Count; b++)
@@ -319,14 +353,14 @@ public class CompoundTowerCommandTests
     [Fact]
     public void ParseCompound_ThenAlias_ProducesSameStructureAsSemicolon()
     {
-        var semiResult = CommandParser.ParseCompound("CTO MRT 28R; CL");
-        var thenResult = CommandParser.ParseCompound("CTO MRT 28R THEN CL");
+        ParseResult<CompoundCommand> semiResult = CommandParser.ParseCompound("CTO MRT 28R; CL");
+        ParseResult<CompoundCommand> thenResult = CommandParser.ParseCompound("CTO MRT 28R THEN CL");
 
         Assert.True(semiResult.IsSuccess, $"semicolon form failed: {semiResult.Reason}");
         Assert.True(thenResult.IsSuccess, $"THEN form failed: {thenResult.Reason}");
 
-        var semiBlocks = semiResult.Value!.Blocks;
-        var thenBlocks = thenResult.Value!.Blocks;
+        List<ParsedBlock> semiBlocks = semiResult.Value!.Blocks;
+        List<ParsedBlock> thenBlocks = thenResult.Value!.Blocks;
 
         Assert.Equal(semiBlocks.Count, thenBlocks.Count);
         for (int b = 0; b < semiBlocks.Count; b++)
@@ -346,10 +380,10 @@ public class CompoundTowerCommandTests
     [Fact]
     public void CtoImmediate_SetsExpeditingLineupFlag()
     {
-        var ac = LinedUpAircraft.AtOak28R("TEST1");
-        var compound = Block(new ClearedForTakeoffCommand(new DefaultDeparture()) { Immediate = true });
+        AircraftState ac = LinedUpAircraft.AtOak28R("TEST1");
+        CompoundCommand compound = Block(new ClearedForTakeoffCommand(new DefaultDeparture()) { Immediate = true });
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
         Assert.True(ac.Ground.IsExpeditingLineup);
@@ -358,10 +392,10 @@ public class CompoundTowerCommandTests
     [Fact]
     public void PlainCto_DoesNotSetExpeditingLineupFlag()
     {
-        var ac = LinedUpAircraft.AtOak28R("TEST1");
-        var compound = Block(new ClearedForTakeoffCommand(new DefaultDeparture()));
+        AircraftState ac = LinedUpAircraft.AtOak28R("TEST1");
+        CompoundCommand compound = Block(new ClearedForTakeoffCommand(new DefaultDeparture()));
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
         Assert.False(ac.Ground.IsExpeditingLineup);
@@ -370,7 +404,7 @@ public class CompoundTowerCommandTests
     [Fact]
     public void Ctoc_ClearsExpeditingLineupFlag()
     {
-        var ac = LinedUpAircraft.AtOak28R("TEST1");
+        AircraftState ac = LinedUpAircraft.AtOak28R("TEST1");
         CommandDispatcher.DispatchCompound(
             Block(new ClearedForTakeoffCommand(new DefaultDeparture()) { Immediate = true }),
             ac,
@@ -396,12 +430,16 @@ public class CompoundTowerCommandTests
     [Fact]
     public void CtoComma_R270_OnGround_DoesNotWedge()
     {
-        var ac = LinedUpAircraft.AtOak28R("TEST1");
+        AircraftState ac = LinedUpAircraft.AtOak28R("TEST1");
 
-        var parseResult = CommandParser.ParseCompound("CTO, R270", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound("CTO, R270", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parseResult.Value!,
+            ac,
+            TestDispatch.Context(new Random(42), validateDctFixes: false)
+        );
 
         _output.WriteLine($"CTO, R270: Success={result.Success} Message={result.Message}");
 
@@ -409,13 +447,13 @@ public class CompoundTowerCommandTests
         Assert.DoesNotContain(ac.Phases!.Phases, p => p is MakeTurnPhase);
 
         // CTO applied before the sibling turn failed: the lineup phase's takeoff-clearance requirement is satisfied.
-        var lineUp = Assert.IsType<LinedUpAndWaitingPhase>(ac.Phases.CurrentPhase);
+        LinedUpAndWaitingPhase lineUp = Assert.IsType<LinedUpAndWaitingPhase>(ac.Phases.CurrentPhase);
         Assert.True(
             lineUp.Requirements.Single(r => r.Type == ClearanceType.ClearedForTakeoff).IsSatisfied,
             "CTO was applied before the sibling failed, so the takeoff clearance requirement should be satisfied"
         );
 
-        var ctoc = CommandDispatcher.DispatchCompound(
+        CommandResult ctoc = CommandDispatcher.DispatchCompound(
             Block(new CancelTakeoffClearanceCommand()),
             ac,
             TestDispatch.Context(new Random(42), validateDctFixes: false)

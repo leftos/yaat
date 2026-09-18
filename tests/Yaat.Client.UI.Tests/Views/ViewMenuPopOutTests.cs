@@ -28,16 +28,16 @@ public class ViewMenuPopOutTests
 
     private static MenuItem ViewMenuItem(MainWindow window, string header)
     {
-        var view = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_View");
+        MenuItem view = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_View");
         return view.Items.OfType<MenuItem>().Single(m => m.Header is string s && s == header);
     }
 
     [AvaloniaFact]
     public void ViewMenu_HasAPopOutItemForEveryDockablePanel()
     {
-        var (window, _) = BootMainWindow();
+        (MainWindow? window, MainViewModel _) = BootMainWindow();
 
-        var view = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_View");
+        MenuItem view = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_View");
         var popOutHeaders = view
             .Items.OfType<MenuItem>()
             .Select(m => m.Header as string)
@@ -53,12 +53,12 @@ public class ViewMenuPopOutTests
     [AvaloniaFact]
     public void ViewMenu_HasNewRadarAndGroundWindowItems()
     {
-        var (window, _) = BootMainWindow();
+        (MainWindow? window, MainViewModel _) = BootMainWindow();
 
         // Both items open a modal airport picker from code-behind rather than binding a command, so the
         // menu-level contract is only that they are there and clickable.
-        var radarItem = ViewMenuItem(window, "New Radar _Window");
-        var groundItem = ViewMenuItem(window, "New Gr_ound Window");
+        MenuItem radarItem = ViewMenuItem(window, "New Radar _Window");
+        MenuItem groundItem = ViewMenuItem(window, "New Gr_ound Window");
 
         Assert.True(radarItem.IsEnabled);
         Assert.True(groundItem.IsEnabled);
@@ -67,8 +67,8 @@ public class ViewMenuPopOutTests
     [AvaloniaFact]
     public void ViewMenu_TerminalItem_TracksAndDrivesThePoppedOutState()
     {
-        var (window, vm) = BootMainWindow();
-        var item = ViewMenuItem(window, "Pop Out T_erminal");
+        (MainWindow? window, MainViewModel? vm) = BootMainWindow();
+        MenuItem item = ViewMenuItem(window, "Pop Out T_erminal");
 
         vm.IsTerminalPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
@@ -116,7 +116,7 @@ public class ViewMenuPopOutTests
     [AvaloniaFact]
     public void TerminalPanel_HasNoDockButtonOfItsOwn()
     {
-        var (window, vm) = BootMainWindow();
+        (MainWindow? window, MainViewModel? vm) = BootMainWindow();
         vm.IsTerminalPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
         window.UpdateLayout();

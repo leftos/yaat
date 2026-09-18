@@ -10,8 +10,8 @@ public class AirportAirlinesTests
     {
         Assert.True(AirportAirlines.AirportCount >= 60);
         Assert.Equal("OAK", AirportAirlines.NormalizeAirportId("KOAK"));
-        Assert.True(AirportAirlines.TryGetAirlinesForAirport("OAK", out var oakAirlines));
-        Assert.True(AirportAirlines.TryGetAirlinesForAirport("KOAK", out var koakAirlines));
+        Assert.True(AirportAirlines.TryGetAirlinesForAirport("OAK", out IReadOnlyList<AirportAirlineEntry>? oakAirlines));
+        Assert.True(AirportAirlines.TryGetAirlinesForAirport("KOAK", out IReadOnlyList<AirportAirlineEntry>? koakAirlines));
         Assert.Same(oakAirlines, koakAirlines);
         Assert.Contains(oakAirlines, a => a.Icao == "SWA" && a.Arrivals > 1000 && a.Confidence == "regular");
     }
@@ -36,9 +36,12 @@ public class AirportAirlinesTests
     public void Fixture_DoesNotContainMislabeledCarrier(string icao)
     {
         var hits = new List<string>();
-        foreach (var airport in new[] { "OAK", "LAX", "MIA", "ATL", "CLT", "DEN", "DFW", "SFO", "SEA", "ORD", "PHX" })
+        foreach (string? airport in new[] { "OAK", "LAX", "MIA", "ATL", "CLT", "DEN", "DFW", "SFO", "SEA", "ORD", "PHX" })
         {
-            if (AirportAirlines.TryGetAirlinesForAirport(airport, out var airlines) && airlines.Any(a => a.Icao == icao))
+            if (
+                AirportAirlines.TryGetAirlinesForAirport(airport, out IReadOnlyList<AirportAirlineEntry>? airlines)
+                && airlines.Any(a => a.Icao == icao)
+            )
             {
                 hits.Add(airport);
             }
@@ -51,7 +54,7 @@ public class AirportAirlinesTests
     public void Fixture_MapsRealUsCargoCarrier_NotForeignCollision()
     {
         // 8C's real operator is Air Transport International (ATN), recovered by the crosswalk fix.
-        Assert.True(AirportAirlines.TryGetAirlinesForAirport("SEA", out var sea));
+        Assert.True(AirportAirlines.TryGetAirlinesForAirport("SEA", out IReadOnlyList<AirportAirlineEntry>? sea));
         Assert.Contains(sea, a => a.Icao == "ATN" && a.Arrivals > 100);
     }
 }

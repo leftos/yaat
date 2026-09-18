@@ -216,7 +216,7 @@ public sealed class UiThreadWatchdog : IDisposable
 
             long workingSetMb;
             int threadCount;
-            using (Process self = Process.GetCurrentProcess())
+            using (var self = Process.GetCurrentProcess())
             {
                 workingSetMb = self.WorkingSet64 / OneMb;
                 threadCount = self.Threads.Count;

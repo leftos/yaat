@@ -83,7 +83,7 @@ public class WeatherProfile
     /// </summary>
     public MetarParser.ParsedMetar? GetWeatherForAirport(string airportId)
     {
-        if (ParsedMetarOverrides is not null && ParsedMetarOverrides.TryGetValue(airportId, out var over))
+        if (ParsedMetarOverrides is not null && ParsedMetarOverrides.TryGetValue(airportId, out MetarParser.ParsedMetar? over))
         {
             return over;
         }
@@ -93,12 +93,12 @@ public class WeatherProfile
             return null;
         }
 
-        if (_metarCache.TryGetValue(airportId, out var cached))
+        if (_metarCache.TryGetValue(airportId, out MetarParser.ParsedMetar? cached))
         {
             return cached;
         }
 
-        var result = MetarInterpolator.GetWeatherForAirport(Metars, airportId);
+        MetarParser.ParsedMetar? result = MetarInterpolator.GetWeatherForAirport(Metars, airportId);
         _metarCache[airportId] = result;
         return result;
     }
@@ -117,7 +117,7 @@ public class WeatherProfile
 
         string? nearestId = null;
         double nearestDist = maxRangeNm;
-        foreach (var (airportId, stationPos) in _stationIndex)
+        foreach ((string? airportId, LatLon stationPos) in _stationIndex)
         {
             double dist = GeoMath.DistanceNm(position, stationPos);
             if (dist <= nearestDist)
@@ -133,9 +133,9 @@ public class WeatherProfile
         // ParsedMetarOverrides mutates at runtime while the Metars index does not.
         if (ParsedMetarOverrides is not null)
         {
-            foreach (var stationKey in ParsedMetarOverrides.Keys)
+            foreach (string stationKey in ParsedMetarOverrides.Keys)
             {
-                var resolved = ResolveStationAirport(stationKey);
+                (string AirportId, LatLon Position)? resolved = ResolveStationAirport(stationKey);
                 if (resolved is not { } station)
                 {
                     continue;
@@ -155,7 +155,7 @@ public class WeatherProfile
             return null;
         }
 
-        var metar = GetWeatherForAirport(nearestId);
+        MetarParser.ParsedMetar? metar = GetWeatherForAirport(nearestId);
         return metar is null ? null : (metar, nearestId);
     }
 
@@ -180,10 +180,10 @@ public class WeatherProfile
         }
 
         _surfaceElevationResolved = true;
-        var navDb = NavigationDatabase.Instance;
-        foreach (var metarStr in Metars)
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        foreach (string metarStr in Metars)
         {
-            var parsed = MetarParser.Parse(metarStr);
+            MetarParser.ParsedMetar? parsed = MetarParser.Parse(metarStr);
             if (parsed is null)
             {
                 continue;
@@ -208,9 +208,9 @@ public class WeatherProfile
     private List<(string AirportId, LatLon Position)> BuildStationIndex()
     {
         var index = new List<(string, LatLon)>();
-        foreach (var metarStr in Metars)
+        foreach (string metarStr in Metars)
         {
-            var parsed = MetarParser.Parse(metarStr);
+            MetarParser.ParsedMetar? parsed = MetarParser.Parse(metarStr);
             if (parsed is null)
             {
                 continue;
@@ -234,8 +234,8 @@ public class WeatherProfile
     /// </summary>
     private static (string AirportId, LatLon Position)? ResolveStationAirport(string stationId)
     {
-        var navDb = NavigationDatabase.Instance;
-        var pos = navDb.GetFixPosition(stationId);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(stationId);
         if (pos is null && stationId.Length == 4 && (stationId[0] is 'K' or 'k'))
         {
             pos = navDb.GetFixPosition(stationId[1..]);

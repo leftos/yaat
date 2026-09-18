@@ -76,7 +76,7 @@ public static class ArrivalParkingPicker
             free = names.ToList();
         }
 
-        var pool = Candidates(callsign, free);
+        IReadOnlyList<string> pool = Candidates(callsign, free);
         double u = FinalApproachSpeedVariety.UnitInterval(callsign, "taxi-in" + salt.ToString(CultureInfo.InvariantCulture));
         return pool[(int)(u * pool.Count)];
     }
@@ -85,7 +85,7 @@ public static class ArrivalParkingPicker
     public static HashSet<string> TakenSpots(IReadOnlyList<AircraftState> others, string selfCallsign)
     {
         var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var other in others)
+        foreach (AircraftState other in others)
         {
             if (string.Equals(other.Callsign, selfCallsign, StringComparison.OrdinalIgnoreCase))
             {
@@ -117,7 +117,7 @@ public static class ArrivalParkingPicker
     /// <summary>The names an operator would taxi to, in ordinal order; never empty when <paramref name="names"/> is not.</summary>
     public static IReadOnlyList<string> Candidates(string callsign, IReadOnlyList<string> names)
     {
-        var operatorCode = OperatorCode(callsign);
+        string? operatorCode = OperatorCode(callsign);
         if (operatorCode is null)
         {
             var general = names
@@ -126,7 +126,7 @@ public static class ArrivalParkingPicker
             return general.Count > 0 ? general : names;
         }
 
-        var ramp = RampAliases.GetValueOrDefault(operatorCode, operatorCode);
+        string ramp = RampAliases.GetValueOrDefault(operatorCode, operatorCode);
         var own = names.Where(n => IsRampOf(n, ramp)).ToList();
         if (own.Count > 0)
         {
@@ -154,7 +154,7 @@ public static class ArrivalParkingPicker
             return null;
         }
 
-        var code = callsign[..3];
+        string code = callsign[..3];
         return AirlineFleets.TryGetAirline(code, out _) || RampAliases.ContainsKey(code) ? code : null;
     }
 

@@ -19,14 +19,14 @@ public static class RouteChainer
             return;
         }
 
-        var lastFix = resolved[^1].Name;
-        var routeTokens = aircraftRoute.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string lastFix = resolved[^1].Name;
+        string[] routeTokens = aircraftRoute.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         int matchIndex = -1;
 
         for (int i = 0; i < routeTokens.Length; i++)
         {
             // Route entries may have altitude/speed constraints like "FIX.A50"
-            var fixPart = routeTokens[i].Split('.')[0].ToUpperInvariant();
+            string fixPart = routeTokens[i].Split('.')[0].ToUpperInvariant();
             if (fixPart == lastFix)
             {
                 matchIndex = i;
@@ -40,11 +40,11 @@ public static class RouteChainer
         }
 
         // Join remainder tokens and expand via RouteExpander. Flight-plan context.
-        var navDb = NavigationDatabase.Instance;
-        var remainder = string.Join(' ', routeTokens.Skip(matchIndex + 1));
-        var expanded = RouteExpander.Expand(remainder, navDb, includeAllTransitionsOnMismatch: false);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string remainder = string.Join(' ', routeTokens.Skip(matchIndex + 1));
+        List<string> expanded = RouteExpander.Expand(remainder, navDb, includeAllTransitionsOnMismatch: false);
 
-        foreach (var fixName in expanded)
+        foreach (string fixName in expanded)
         {
             if (resolved.Count > 0 && fixName.Equals(resolved[^1].Name, StringComparison.OrdinalIgnoreCase))
             {
@@ -54,7 +54,7 @@ public static class RouteChainer
             // ResolveFixOrFrd so fix/radial/distance tokens in the filed route chain like any other
             // fix, matching ArrivalRouteResolver. Unresolvable names are logged rather than dropped
             // in silence — this path previously discarded them with no trace at all.
-            var pos = navDb.ResolveFixOrFrd(fixName);
+            (double Lat, double Lon)? pos = navDb.ResolveFixOrFrd(fixName);
             if (pos is null)
             {
                 Log.LogWarning("Could not resolve nav fix '{Fix}' while chaining the filed route; skipping", fixName);

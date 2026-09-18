@@ -35,7 +35,7 @@ public partial class MainViewModel
     /// </summary>
     internal void SetActiveTcpFromServer(string? tcp)
     {
-        var normalized = string.IsNullOrEmpty(tcp) ? null : tcp;
+        string? normalized = string.IsNullOrEmpty(tcp) ? null : tcp;
         _suppressActiveTcpCommand = true;
         try
         {
@@ -64,7 +64,7 @@ public partial class MainViewModel
             desired.Add(activeTcp);
         }
 
-        var others = OnlineControllers
+        IOrderedEnumerable<string> others = OnlineControllers
             .Select(c => c.Tcp)
             .Where(t => !string.IsNullOrEmpty(t))
             .Select(t => t!)
@@ -81,7 +81,7 @@ public partial class MainViewModel
             }
         }
 
-        foreach (var tcp in desired)
+        foreach (string tcp in desired)
         {
             if (!ActiveTcpOptions.Contains(tcp, StringComparer.OrdinalIgnoreCase))
             {

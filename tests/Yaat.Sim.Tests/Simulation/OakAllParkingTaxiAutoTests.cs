@@ -51,13 +51,13 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
     public static IEnumerable<object[]> AllOakParking()
     {
         TestVnasData.EnsureInitialized();
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             yield break;
         }
 
-        foreach (var node in layout.Nodes.Values.Where(n => n.Type == GroundNodeType.Parking).OrderBy(n => n.Id))
+        foreach (GroundNode? node in layout.Nodes.Values.Where(n => n.Type == GroundNodeType.Parking).OrderBy(n => n.Id))
         {
             yield return new object[] { node.Name ?? $"node{node.Id}", node.Id };
         }
@@ -67,15 +67,15 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
     [MemberData(nameof(AllOakParking))]
     public void TaxiAutoFromParking_ReachesHoldShort(string parkingName, int parkingNodeId)
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
-        Assert.True(layout.Nodes.TryGetValue(parkingNodeId, out var parking));
+        Assert.True(layout.Nodes.TryGetValue(parkingNodeId, out GroundNode? parking));
         Assert.Equal(GroundNodeType.Parking, parking.Type);
 
         // North-field aircraft taxi to 28R (full-length lineup at east end / taxiway B);
@@ -85,14 +85,14 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
         bool isNorthField = parking.Position.Lat > 37.7255;
         string assignedRunway = isNorthField ? "28R" : "30";
         string aircraftType = "C172";
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", assignedRunway);
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", assignedRunway);
         if (runway is null)
         {
             output.WriteLine($"SKIP {parkingName} (node {parkingNodeId}): no runway data for OAK {assignedRunway}");
             return;
         }
 
-        var holdShortNodes = layout.GetRunwayHoldShortNodes(runway.Designator);
+        List<GroundNode> holdShortNodes = layout.GetRunwayHoldShortNodes(runway.Designator);
         if (holdShortNodes.Count == 0)
         {
             output.WriteLine($"SKIP {parkingName} (node {parkingNodeId}): no hold-short nodes for {runway.Designator}");
@@ -107,7 +107,7 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
             return;
         }
 
-        var callsign = $"N{parkingNodeId:D3}T";
+        string callsign = $"N{parkingNodeId:D3}T";
         var aircraft = new AircraftState
         {
             Callsign = callsign,
@@ -128,7 +128,7 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
 
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AtParkingPhase());
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(startCtx);
         aircraft.Ground.Layout = layout;
 
@@ -143,7 +143,7 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
             AutoCrossRunway = true,
         };
 
-        var result = engine.SendCommand(callsign, $"TAXIAUTO {runway.Designator}");
+        CommandResult result = engine.SendCommand(callsign, $"TAXIAUTO {runway.Designator}");
         Assert.True(result.Success, $"{parkingName}: TAXIAUTO {runway.Designator} failed: {result.Message}");
 
         // C172 nominal taxi speed is 20 kt but fillet-arc corners drop the
@@ -154,9 +154,9 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
         const int maxSeconds = 900;
         bool reached = TickUntil(engine, aircraft, maxSeconds, ac => ac.Phases?.CurrentPhase is HoldingShortPhase or HoldingInPositionPhase);
 
-        var finalPhase = aircraft.Phases?.CurrentPhase?.Name ?? "(none)";
-        var finalRoute = aircraft.Ground.AssignedTaxiRoute;
-        var segInfo = finalRoute is null ? "no-route" : $"seg {finalRoute.CurrentSegmentIndex}/{finalRoute.Segments.Count}";
+        string finalPhase = aircraft.Phases?.CurrentPhase?.Name ?? "(none)";
+        TaxiRoute? finalRoute = aircraft.Ground.AssignedTaxiRoute;
+        string segInfo = finalRoute is null ? "no-route" : $"seg {finalRoute.CurrentSegmentIndex}/{finalRoute.Segments.Count}";
 
         Assert.True(
             reached,

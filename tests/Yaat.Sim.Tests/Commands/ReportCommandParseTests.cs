@@ -18,9 +18,9 @@ public class ReportCommandParseTests
 
     private static ReportCommand Parse(string input)
     {
-        var result = CommandParser.ParseCompound(input);
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound(input);
         Assert.True(result.IsSuccess, result.Reason);
-        var block = Assert.Single(result.Value!.Blocks);
+        ParsedBlock block = Assert.Single(result.Value!.Blocks);
         return Assert.IsType<ReportCommand>(Assert.Single(block.Commands));
     }
 
@@ -33,7 +33,7 @@ public class ReportCommandParseTests
     [InlineData("REPORT DW", ReportTrigger.Downwind)]
     public void Parse_PatternLeg(string input, ReportTrigger expected)
     {
-        var cmd = Parse(input);
+        ReportCommand cmd = Parse(input);
         Assert.Equal(expected, cmd.Trigger);
         Assert.Null(cmd.DistanceNm);
         Assert.Null(cmd.FixName);
@@ -45,7 +45,7 @@ public class ReportCommandParseTests
     [InlineData("REPORT 10 FINAL", 10)]
     public void Parse_MileFinal(string input, int miles)
     {
-        var cmd = Parse(input);
+        ReportCommand cmd = Parse(input);
         Assert.Equal(ReportTrigger.MileFinal, cmd.Trigger);
         Assert.Equal(miles, cmd.DistanceNm);
     }
@@ -55,7 +55,7 @@ public class ReportCommandParseTests
     [InlineData("REPORT SUNOL", "SUNOL")]
     public void Parse_AtFix(string input, string fix)
     {
-        var cmd = Parse(input);
+        ReportCommand cmd = Parse(input);
         Assert.Equal(ReportTrigger.AtFix, cmd.Trigger);
         Assert.Equal(fix, cmd.FixName);
     }
@@ -67,7 +67,7 @@ public class ReportCommandParseTests
     [InlineData("REPORT NONE")]
     public void Parse_CancelAll(string input)
     {
-        var cmd = Parse(input);
+        ReportCommand cmd = Parse(input);
         Assert.Equal(ReportTrigger.Cancel, cmd.Trigger);
         Assert.Null(cmd.CancelTarget);
     }
@@ -80,7 +80,7 @@ public class ReportCommandParseTests
     [InlineData("REPORT DOWNWIND OFF", ReportTrigger.Downwind)]
     public void Parse_CancelSpecificLeg(string input, ReportTrigger leg)
     {
-        var cmd = Parse(input);
+        ReportCommand cmd = Parse(input);
         Assert.Equal(ReportTrigger.Cancel, cmd.Trigger);
         Assert.Equal(leg, cmd.CancelTarget);
     }
@@ -88,7 +88,7 @@ public class ReportCommandParseTests
     [Fact]
     public void Parse_BareReport_Fails()
     {
-        var result = CommandParser.ParseCompound("REPORT");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("REPORT");
         Assert.False(result.IsSuccess);
     }
 

@@ -59,9 +59,9 @@ public class StackedWaitDispatchTests
         };
         engine.World.AddAircraft(ac);
 
-        var r1 = engine.SendCommand(ac.Callsign, "WAIT 5 FH 090");
+        CommandResult r1 = engine.SendCommand(ac.Callsign, "WAIT 5 FH 090");
         Assert.True(r1.Success, r1.Message);
-        var r2 = engine.SendCommand(ac.Callsign, "WAIT 12 CM 8000");
+        CommandResult r2 = engine.SendCommand(ac.Callsign, "WAIT 12 CM 8000");
         Assert.True(r2.Success, r2.Message);
         Assert.Equal(2, ac.DeferredDispatches.Count);
 
@@ -71,8 +71,8 @@ public class StackedWaitDispatchTests
             engine.TickOneSecond();
         }
 
-        var tgtHdg = ac.Targets.TargetTrueHeading?.Degrees.ToString("F0") ?? "null";
-        var tgtAlt = ac.Targets.TargetAltitude?.ToString() ?? "null";
+        string tgtHdg = ac.Targets.TargetTrueHeading?.Degrees.ToString("F0") ?? "null";
+        string tgtAlt = ac.Targets.TargetAltitude?.ToString() ?? "null";
         _output.WriteLine($"t=8: tgtHdg={tgtHdg} tgtAlt={tgtAlt} deferred={ac.DeferredDispatches.Count}");
         Assert.NotNull(ac.Targets.TargetTrueHeading);
         Assert.Null(ac.Targets.TargetAltitude);

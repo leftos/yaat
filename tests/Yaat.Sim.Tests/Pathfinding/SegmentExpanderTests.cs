@@ -50,7 +50,7 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     private static AirportGroundLayout Layout(params GroundNode[] nodes)
     {
         var layout = new AirportGroundLayout { AirportId = "TEST" };
-        foreach (var n in nodes)
+        foreach (GroundNode n in nodes)
         {
             layout.Nodes[n.Id] = n;
         }
@@ -93,16 +93,16 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     public void SingleTaxiway_WalksToNaturalTerminus()
     {
         // n0 — A — n1 — A — n2 (terminus)
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.702, -122.200);
-        var layout = Layout(n0, n1, n2);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1, n2);
         Edge(layout, n0, n1, "A");
         Edge(layout, n1, n2, "A");
         layout.RebuildAdjacencyLists();
 
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A"]);
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A"]);
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -118,18 +118,18 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     public void TwoTaxiways_SingleJunction_BuildsChain()
     {
         // n0 —A— n1 —A— n2(junction) —B— n3
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.702, -122.200);
-        var n3 = Node(3, 37.702, -122.195);
-        var layout = Layout(n0, n1, n2, n3);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        GroundNode n3 = Node(3, 37.702, -122.195);
+        AirportGroundLayout layout = Layout(n0, n1, n2, n3);
         Edge(layout, n0, n1, "A");
         Edge(layout, n1, n2, "A");
         Edge(layout, n2, n3, "B");
         layout.RebuildAdjacencyLists();
 
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"]);
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"]);
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -154,13 +154,13 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         //                  n5(junction-near) —B— n3
         //         n1 also has an edge to n5 via B
         // So there are two junctions from A to B: n3 and n5 (n5 is closer to n0)
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.702, -122.200);
-        var n3 = Node(3, 37.703, -122.200);
-        var n4 = Node(4, 37.703, -122.195); // B terminus
-        var n5 = Node(5, 37.701, -122.195); // B second entry near n1
-        var layout = Layout(n0, n1, n2, n3, n4, n5);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        GroundNode n3 = Node(3, 37.703, -122.200);
+        GroundNode n4 = Node(4, 37.703, -122.195); // B terminus
+        GroundNode n5 = Node(5, 37.701, -122.195); // B second entry near n1
+        AirportGroundLayout layout = Layout(n0, n1, n2, n3, n4, n5);
         Edge(layout, n0, n1, "A");
         Edge(layout, n1, n2, "A");
         Edge(layout, n2, n3, "A");
@@ -169,8 +169,8 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         Edge(layout, n5, n4, "B");
         layout.RebuildAdjacencyLists();
 
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -190,16 +190,16 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     {
         // Layout:
         //   n0 —W— n1(W-terminus) — W1 — n2(hold-short 28R)
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = HoldShortNode(2, 37.702, -122.200, "28R");
-        var layout = Layout(n0, n1, n2);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = HoldShortNode(2, 37.702, -122.200, "28R");
+        AirportGroundLayout layout = Layout(n0, n1, n2);
         Edge(layout, n0, n1, "W");
         Edge(layout, n1, n2, "W1");
         layout.RebuildAdjacencyLists();
 
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["W"], destRunway: "28R");
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["W"], destRunway: "28R");
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -216,18 +216,18 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         // Layout:
         //   n0 —W— n1 — W1 — n2(hold-short 28R)
         //          n1 — W2 — n3(hold-short 28R)
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = HoldShortNode(2, 37.702, -122.200, "28R");
-        var n3 = HoldShortNode(3, 37.702, -122.205, "28R");
-        var layout = Layout(n0, n1, n2, n3);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = HoldShortNode(2, 37.702, -122.200, "28R");
+        GroundNode n3 = HoldShortNode(3, 37.702, -122.205, "28R");
+        AirportGroundLayout layout = Layout(n0, n1, n2, n3);
         Edge(layout, n0, n1, "W");
         Edge(layout, n1, n2, "W1");
         Edge(layout, n1, n3, "W2");
         layout.RebuildAdjacencyLists();
 
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["W"], destRunway: "28R");
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["W"], destRunway: "28R");
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         Assert.Null(route);
         Assert.NotNull(failure);
@@ -245,18 +245,18 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     {
         // Layout: A has no edge to B directly, but via a numbered connector N1.
         // n0 —A— n1 —N1— n2 —B— n3
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.702, -122.200);
-        var n3 = Node(3, 37.703, -122.200);
-        var layout = Layout(n0, n1, n2, n3);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        GroundNode n3 = Node(3, 37.703, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1, n2, n3);
         Edge(layout, n0, n1, "A");
         Edge(layout, n1, n2, "N1"); // numbered connector (no A→B direct junction)
         Edge(layout, n2, n3, "B");
         layout.RebuildAdjacencyLists();
 
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         // The pathfinder should find the detour via N1 and hold where it reaches B (n2) — the bare
         // final taxiway has no onward direction, so B is not walked.
@@ -277,12 +277,12 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         // connector "N1" (slightly longer) and an unauthorized letter taxiway "Q" (shorter).
         // The detour must prefer the numbered connector — the letter taxiway, not in the "A B"
         // clearance, carries the unauthorized-taxiway penalty that outweighs its small distance edge.
-        var n0 = Node(0, 37.7000, -122.2000); // A start
-        var n1 = Node(1, 37.7010, -122.2000); // A, bridge origin
-        var nB = Node(2, 37.7010, -122.1990); // B, bridge destination
-        var nB2 = Node(3, 37.7010, -122.1980); // B, further east
-        var nN = Node(4, 37.7013, -122.1995); // N1 bridge midpoint (bowed north → slightly longer)
-        var layout = Layout(n0, n1, nB, nB2, nN);
+        GroundNode n0 = Node(0, 37.7000, -122.2000); // A start
+        GroundNode n1 = Node(1, 37.7010, -122.2000); // A, bridge origin
+        GroundNode nB = Node(2, 37.7010, -122.1990); // B, bridge destination
+        GroundNode nB2 = Node(3, 37.7010, -122.1980); // B, further east
+        GroundNode nN = Node(4, 37.7013, -122.1995); // N1 bridge midpoint (bowed north → slightly longer)
+        AirportGroundLayout layout = Layout(n0, n1, nB, nB2, nN);
         Edge(layout, n0, n1, "A");
         Edge(layout, n1, nB, "Q"); // unauthorized letter taxiway — direct, shorter
         Edge(layout, n1, nN, "N1"); // numbered connector — two hops, slightly longer
@@ -290,8 +290,8 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         Edge(layout, nB, nB2, "B");
         layout.RebuildAdjacencyLists();
 
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -305,18 +305,18 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         // When the only physical bridge between two cleared taxiways is an unauthorized letter
         // taxiway, the soft policy still resolves the route (never fails a resolvable clearance)
         // and surfaces the insertion as an informative connector notification — not a deviation warning.
-        var n0 = Node(0, 37.7000, -122.2000);
-        var n1 = Node(1, 37.7010, -122.2000);
-        var nB = Node(2, 37.7010, -122.1990);
-        var nB2 = Node(3, 37.7010, -122.1980);
-        var layout = Layout(n0, n1, nB, nB2);
+        GroundNode n0 = Node(0, 37.7000, -122.2000);
+        GroundNode n1 = Node(1, 37.7010, -122.2000);
+        GroundNode nB = Node(2, 37.7010, -122.1990);
+        GroundNode nB2 = Node(3, 37.7010, -122.1980);
+        AirportGroundLayout layout = Layout(n0, n1, nB, nB2);
         Edge(layout, n0, n1, "A");
         Edge(layout, n1, nB, "Q"); // only bridge is the letter taxiway
         Edge(layout, nB, nB2, "B");
         layout.RebuildAdjacencyLists();
 
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -337,17 +337,17 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         // Layout: A and B are completely disconnected.
         // n0 —A— n1
         // n2 —B— n3 (not connected to n0/n1 at all)
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.700, -122.190);
-        var n3 = Node(3, 37.701, -122.190);
-        var layout = Layout(n0, n1, n2, n3);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.700, -122.190);
+        GroundNode n3 = Node(3, 37.701, -122.190);
+        AirportGroundLayout layout = Layout(n0, n1, n2, n3);
         Edge(layout, n0, n1, "A");
         Edge(layout, n2, n3, "B");
         layout.RebuildAdjacencyLists();
 
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         Assert.Null(route);
         Assert.NotNull(failure);
@@ -362,8 +362,8 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     public void ParkingExtension_ExplicitPath_RouteEndsAtParking()
     {
         // n0 —A— n1 —RAMP— n2(parking "D8")
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
         var n2 = new GroundNode
         {
             Id = 2,
@@ -371,13 +371,13 @@ public class SegmentExpanderTests(ITestOutputHelper output)
             Type = GroundNodeType.Parking,
             Name = "D8",
         };
-        var layout = Layout(n0, n1, n2);
+        AirportGroundLayout layout = Layout(n0, n1, n2);
         Edge(layout, n0, n1, "A");
         Edge(layout, n1, n2, "RAMP");
         layout.RebuildAdjacencyLists();
 
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A"], destParking: "D8");
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A"], destParking: "D8");
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -393,8 +393,8 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     public void SpotExtension_ExplicitPath_RouteEndsAtSpot()
     {
         // n0 —A— n1 —RAMP— n2(spot "GA3")
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
         var n2 = new GroundNode
         {
             Id = 2,
@@ -402,7 +402,7 @@ public class SegmentExpanderTests(ITestOutputHelper output)
             Type = GroundNodeType.Spot,
             Name = "GA3",
         };
-        var layout = Layout(n0, n1, n2);
+        AirportGroundLayout layout = Layout(n0, n1, n2);
         Edge(layout, n0, n1, "A");
         Edge(layout, n1, n2, "RAMP");
         layout.RebuildAdjacencyLists();
@@ -423,7 +423,7 @@ public class SegmentExpanderTests(ITestOutputHelper output)
             startHeadingTrue: null
         );
 
-        var (route, failure) = SegmentExpander.Run(searchCtx);
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(searchCtx);
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -439,18 +439,18 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     {
         // n0 —A— n1 —A— n2 —B— n3
         // Waypoints: ["A", "#2", "B"] should route A walk then explicitly to node 2 then B
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.702, -122.200);
-        var n3 = Node(3, 37.702, -122.195);
-        var layout = Layout(n0, n1, n2, n3);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        GroundNode n3 = Node(3, 37.702, -122.195);
+        AirportGroundLayout layout = Layout(n0, n1, n2, n3);
         Edge(layout, n0, n1, "A");
         Edge(layout, n1, n2, "A");
         Edge(layout, n2, n3, "B");
         layout.RebuildAdjacencyLists();
 
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "#2", "B"]);
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "#2", "B"]);
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -468,11 +468,11 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         // Straight: n0 —A— n1(junction) —B— n3
         // Zigzag:  n0 —A— n2(junction-far, zig-zag direction) —B— n3
         // Set up so the straight junction is geometrically obvious.
-        var n0 = Node(0, 37.700, -122.200); // start, heading east
-        var n1 = Node(1, 37.700, -122.195); // straight east junction
-        var n2 = Node(2, 37.702, -122.200); // zig up (north) junction
-        var n3 = Node(3, 37.700, -122.190); // B terminus
-        var layout = Layout(n0, n1, n2, n3);
+        GroundNode n0 = Node(0, 37.700, -122.200); // start, heading east
+        GroundNode n1 = Node(1, 37.700, -122.195); // straight east junction
+        GroundNode n2 = Node(2, 37.702, -122.200); // zig up (north) junction
+        GroundNode n3 = Node(3, 37.700, -122.190); // B terminus
+        AirportGroundLayout layout = Layout(n0, n1, n2, n3);
         Edge(layout, n0, n1, "A"); // goes east (bearing ~090)
         Edge(layout, n0, n2, "A"); // goes north (bearing ~000, causes reversal when heading east)
         Edge(layout, n1, n3, "B"); // straight junction
@@ -480,14 +480,14 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         layout.RebuildAdjacencyLists();
 
         var diagLines = new List<string>();
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => diagLines.Add(s));
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => diagLines.Add(s));
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         Assert.Null(failure);
         Assert.NotNull(route);
         // Route should use the straight junction (n1) for lower total cost.
         // Either outcome is acceptable — the key is no crash and a valid route.
-        foreach (var line in diagLines)
+        foreach (string line in diagLines)
         {
             output.WriteLine(line);
         }
@@ -521,11 +521,11 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     [Fact]
     public void EmptyWaypointSequence_ReturnsFailure()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var layout = Layout(n0);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        AirportGroundLayout layout = Layout(n0);
 
-        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: []);
-        var (route, failure) = SegmentExpander.Run(ctx);
+        SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: []);
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         Assert.Null(route);
         Assert.NotNull(failure);
@@ -552,7 +552,7 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
 
         // Load the real SFO layout. Skip if the geojson is not in TestData.
-        var layout = SfoGroundData.GetLayout("SFO");
+        AirportGroundLayout? layout = SfoGroundData.GetLayout("SFO");
         if (layout is null)
         {
             return;
@@ -584,7 +584,7 @@ public class SegmentExpanderTests(ITestOutputHelper output)
             startHeadingTrue: null
         );
 
-        var (route, failure) = SegmentExpander.Run(ctx);
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
         output.WriteLine($"[issue165] route={route?.Segments.Count} segs, failure={failure?.Kind}:{failure?.HumanMessage}");
 

@@ -215,7 +215,7 @@ public sealed class LineUpPhase : Phase
         _needsRestoreRebuild = false;
         ctx.Aircraft.IsOnGround = true;
 
-        if (TryResolveRunway(ctx, out var rwy))
+        if (TryResolveRunway(ctx, out RunwayInfo? rwy))
         {
             PlanFromCurrentPose(ctx, rwy);
         }
@@ -281,7 +281,13 @@ public sealed class LineUpPhase : Phase
             return true;
         }
 
-        var plan = LineUpGeometry.Compute(rwy, ctx.Aircraft.Position.Lat, ctx.Aircraft.Position.Lon, ctx.Aircraft.TrueHeading, ctx.Category);
+        LineUpPathPlan plan = LineUpGeometry.Compute(
+            rwy,
+            ctx.Aircraft.Position.Lat,
+            ctx.Aircraft.Position.Lon,
+            ctx.Aircraft.TrueHeading,
+            ctx.Category
+        );
         PathPlan = plan;
 
         if (plan.Kind == LineUpPathKind.Fault)
@@ -348,7 +354,7 @@ public sealed class LineUpPhase : Phase
             return false;
         }
 
-        var plan = LineUpGraphRoute.TryPlan(ctx.GroundLayout, ctx.Aircraft.Position, ctx.Aircraft.TrueHeading, rwy, ctx.Category);
+        LineUpArcFollowPlan? plan = LineUpGraphRoute.TryPlan(ctx.GroundLayout, ctx.Aircraft.Position, ctx.Aircraft.TrueHeading, rwy, ctx.Category);
         if (plan is null)
         {
             return false;
@@ -404,7 +410,7 @@ public sealed class LineUpPhase : Phase
         // fillet arc must complete carrying speed rather than braking to a stop
         // mid-arc.
         bool isLastSegment = _lineUpRoute.CurrentSegmentIndex + 1 >= _lineUpRoute.Segments.Count;
-        var result = _navigator.Tick(ctx, isLastSegment, _ => true);
+        NavigatorResult result = _navigator.Tick(ctx, isLastSegment, _ => true);
 
         if (result == NavigatorResult.ArrivedAtNode)
         {
@@ -672,7 +678,7 @@ public sealed class LineUpPhase : Phase
         _arcState.Advance(dAngleDeg);
 
         // Write pose directly from the closed-form state (invariant I2).
-        var (lat, lon) = _arcState.CurrentPosition();
+        (double lat, double lon) = _arcState.CurrentPosition();
         ctx.Aircraft.Position = new LatLon(lat, lon);
         ctx.Aircraft.TrueHeading = new TrueHeading(_arcState.TangentHeadingDeg);
 
@@ -848,7 +854,7 @@ public sealed class LineUpPhase : Phase
     /// </summary>
     private bool DetectRollingModeFromPhaseList(PhaseContext ctx)
     {
-        var phases = ctx.Aircraft.Phases?.Phases;
+        List<Phase>? phases = ctx.Aircraft.Phases?.Phases;
         if (phases is null)
         {
             return false;
@@ -858,7 +864,7 @@ public sealed class LineUpPhase : Phase
         {
             return false;
         }
-        var next = phases[selfIdx + 1];
+        Phase next = phases[selfIdx + 1];
         return next is TakeoffPhase or HelicopterTakeoffPhase;
     }
 
@@ -873,7 +879,7 @@ public sealed class LineUpPhase : Phase
     /// </summary>
     public static bool IsAircraftEligibleForRollingTakeoff(string aircraftType)
     {
-        var profile = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? profile = AircraftProfileDatabase.Get(aircraftType);
         return profile is null || !profile.IsHeavy;
     }
 
@@ -992,7 +998,7 @@ public sealed class LineUpPhase : Phase
         _needsRestoreRebuild = false;
         ctx.Aircraft.IsOnGround = true;
 
-        if (!TryResolveRunway(ctx, out var rwy))
+        if (!TryResolveRunway(ctx, out RunwayInfo? rwy))
         {
             return false;
         }

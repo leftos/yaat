@@ -34,16 +34,16 @@ public sealed class Issue297FollowUpCallsignLeakTests
         };
         aircraft.Ground.ParkingSpot = "K1";
 
-        var line = PilotResponder.BuildReadyToTaxi(aircraft, "ground", "A");
+        PilotSpeechText line = PilotResponder.BuildReadyToTaxi(aircraft, "ground", "A");
         // line.Terminal = "ground, at k1, with information Alpha, VFR to <dest>, ready to taxi." (callsign-free)
         // line.Tts      = "ground, november one two three alpha bravo at k1, ..., ready to taxi." (callsign spelled inline)
 
         // Mirror the six RecordRequest call sites: they store the full PilotSpeechText (both forms).
         PilotRequestTracker.RecordRequest(aircraft, PilotPendingRequestKind.Taxi, 0, line, PilotRequestContext.Facility("ground"));
 
-        var queued = PilotRequestTracker.TryQueueFollowUp(aircraft, PilotRequestTracker.NormalFollowUpDelaySeconds);
+        bool queued = PilotRequestTracker.TryQueueFollowUp(aircraft, PilotRequestTracker.NormalFollowUpDelaySeconds);
         Assert.True(queued);
-        var followUp = Assert.Single(aircraft.PendingPilotTransmissions);
+        PilotTransmission followUp = Assert.Single(aircraft.PendingPilotTransmissions);
 
         // The reported bug: the follow-up terminal SAY text must be the callsign-free terminal form,
         // not the phonetic TTS string.

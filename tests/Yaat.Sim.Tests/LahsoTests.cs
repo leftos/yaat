@@ -19,7 +19,7 @@ public class LahsoTests
     /// </summary>
     private static RunwayInfo MakeLandingRunway()
     {
-        var end = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(280), 1.0);
+        (double Lat, double Lon) end = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(280), 1.0);
         return TestRunwayFactory.Make(
             designator: "28R",
             airportId: "KOAK",
@@ -42,7 +42,7 @@ public class LahsoTests
         var layout = new AirportGroundLayout { AirportId = "KOAK" };
 
         // Landing runway 28R/10L: ~1nm long, heading 280
-        var rwy28End = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(280), 1.0);
+        (double Lat, double Lon) rwy28End = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(280), 1.0);
         layout.Runways.Add(
             new GroundRunway
             {
@@ -54,9 +54,9 @@ public class LahsoTests
 
         // Crossing runway 33/15: crosses the landing runway near midpoint
         // Place it so centerlines actually intersect
-        var midpoint = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(280), 0.5);
-        var cross33Start = GeoMath.ProjectPoint(midpoint.Lat, midpoint.Lon, new TrueHeading(150), 0.5); // south end
-        var cross33End = GeoMath.ProjectPoint(midpoint.Lat, midpoint.Lon, new TrueHeading(330), 0.5); // north end
+        (double Lat, double Lon) midpoint = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(280), 0.5);
+        (double Lat, double Lon) cross33Start = GeoMath.ProjectPoint(midpoint.Lat, midpoint.Lon, new TrueHeading(150), 0.5); // south end
+        (double Lat, double Lon) cross33End = GeoMath.ProjectPoint(midpoint.Lat, midpoint.Lon, new TrueHeading(330), 0.5); // north end
         layout.Runways.Add(
             new GroundRunway
             {
@@ -75,8 +75,8 @@ public class LahsoTests
     /// </summary>
     private static AirportGroundLayout MakeCrossingLayoutWithDisplaced28R(double displacementFt)
     {
-        var layout = MakeCrossingLayout();
-        var pavement = layout.Runways[0];
+        AirportGroundLayout layout = MakeCrossingLayout();
+        GroundRunway pavement = layout.Runways[0];
         layout.Runways[0] = new GroundRunway
         {
             Name = pavement.Name,
@@ -90,8 +90,13 @@ public class LahsoTests
     /// <summary>Issues <c>LAHSO 33</c> against <paramref name="layout"/> and returns the resulting target.</summary>
     private static LahsoTarget ClearLahso(RunwayInfo runway, AirportGroundLayout layout)
     {
-        var ac = MakeAircraft(runway);
-        var result = PatternCommandHandler.TryLandAndHoldShort(new LandAndHoldShortCommand("33"), ac, layout, TestDispatch.Context(Random.Shared));
+        AircraftState ac = MakeAircraft(runway);
+        CommandResult result = PatternCommandHandler.TryLandAndHoldShort(
+            new LandAndHoldShortCommand("33"),
+            ac,
+            layout,
+            TestDispatch.Context(Random.Shared)
+        );
         Assert.True(result.Success, result.Message);
         return ac.Phases!.LahsoHoldShort!;
     }
@@ -122,12 +127,12 @@ public class LahsoTests
     [Fact]
     public void Lahso_SetsLahsoTarget_AndClearsToLand()
     {
-        var runway = MakeLandingRunway();
-        var layout = MakeCrossingLayout();
-        var ac = MakeAircraft(runway);
+        RunwayInfo runway = MakeLandingRunway();
+        AirportGroundLayout layout = MakeCrossingLayout();
+        AircraftState ac = MakeAircraft(runway);
 
         var cmd = new LandAndHoldShortCommand("33");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("hold short runway 33", result.Message!);
@@ -140,11 +145,11 @@ public class LahsoTests
     [Fact]
     public void Lahso_RejectsWhenNoGroundLayout()
     {
-        var runway = MakeLandingRunway();
-        var ac = MakeAircraft(runway);
+        RunwayInfo runway = MakeLandingRunway();
+        AircraftState ac = MakeAircraft(runway);
 
         var cmd = new LandAndHoldShortCommand("33");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, null, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, null, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No ground layout", result.Message!);
@@ -165,9 +170,9 @@ public class LahsoTests
         };
         ac.Phases = new PhaseList();
 
-        var layout = MakeCrossingLayout();
+        AirportGroundLayout layout = MakeCrossingLayout();
         var cmd = new LandAndHoldShortCommand("33");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No assigned runway", result.Message!);
@@ -176,12 +181,12 @@ public class LahsoTests
     [Fact]
     public void Lahso_RejectsWhenCrossingRunwayNotFound()
     {
-        var runway = MakeLandingRunway();
-        var layout = MakeCrossingLayout();
-        var ac = MakeAircraft(runway);
+        RunwayInfo runway = MakeLandingRunway();
+        AirportGroundLayout layout = MakeCrossingLayout();
+        AircraftState ac = MakeAircraft(runway);
 
         var cmd = new LandAndHoldShortCommand("99");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("not found in ground layout", result.Message!);
@@ -190,12 +195,12 @@ public class LahsoTests
     [Fact]
     public void Lahso_RejectsParallelRunways()
     {
-        var runway = MakeLandingRunway();
-        var ac = MakeAircraft(runway);
+        RunwayInfo runway = MakeLandingRunway();
+        AircraftState ac = MakeAircraft(runway);
 
         // Build layout with a parallel runway (same heading, offset laterally)
         var layout = new AirportGroundLayout { AirportId = "KOAK" };
-        var rwy28End = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(280), 1.0);
+        (double Lat, double Lon) rwy28End = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(280), 1.0);
         layout.Runways.Add(
             new GroundRunway
             {
@@ -206,8 +211,8 @@ public class LahsoTests
         );
 
         // Parallel runway offset 0.1nm to the south, same heading
-        var parallelStart = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(190), 0.1);
-        var parallelEnd = GeoMath.ProjectPoint(parallelStart.Lat, parallelStart.Lon, new TrueHeading(280), 1.0);
+        (double Lat, double Lon) parallelStart = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(190), 0.1);
+        (double Lat, double Lon) parallelEnd = GeoMath.ProjectPoint(parallelStart.Lat, parallelStart.Lon, new TrueHeading(280), 1.0);
         layout.Runways.Add(
             new GroundRunway
             {
@@ -218,7 +223,7 @@ public class LahsoTests
         );
 
         var cmd = new LandAndHoldShortCommand("28L");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("does not intersect", result.Message!);
@@ -227,15 +232,15 @@ public class LahsoTests
     [Fact]
     public void Lahso_HoldShortDistanceIsReasonable()
     {
-        var runway = MakeLandingRunway();
-        var layout = MakeCrossingLayout();
-        var ac = MakeAircraft(runway);
+        RunwayInfo runway = MakeLandingRunway();
+        AirportGroundLayout layout = MakeCrossingLayout();
+        AircraftState ac = MakeAircraft(runway);
 
         var cmd = new LandAndHoldShortCommand("33");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        var target = ac.Phases!.LahsoHoldShort!;
+        LahsoTarget target = ac.Phases!.LahsoHoldShort!;
 
         // Intersection is ~0.5nm from threshold. Hold-short should be slightly less
         // due to setback (half crossing width + 200ft RSA).
@@ -255,10 +260,10 @@ public class LahsoTests
     public void Lahso_DisplacedThreshold_ShortensTheDistanceButNotTheHoldShortPoint()
     {
         const double displacementFt = 1000.0;
-        var runway = MakeLandingRunway();
+        RunwayInfo runway = MakeLandingRunway();
 
-        var undisplacedTarget = ClearLahso(runway, MakeCrossingLayout());
-        var displacedTarget = ClearLahso(runway, MakeCrossingLayoutWithDisplaced28R(displacementFt));
+        LahsoTarget undisplacedTarget = ClearLahso(runway, MakeCrossingLayout());
+        LahsoTarget displacedTarget = ClearLahso(runway, MakeCrossingLayoutWithDisplaced28R(displacementFt));
 
         double distanceLostFt = (undisplacedTarget.DistFromThresholdNm - displacedTarget.DistFromThresholdNm) * GeoMath.FeetPerNm;
         Assert.InRange(distanceLostFt, displacementFt - 2, displacementFt + 2);
@@ -271,12 +276,12 @@ public class LahsoTests
     [Fact]
     public void Lahso_ReplacesApproachEndingWithLandingPhase()
     {
-        var runway = MakeLandingRunway();
-        var layout = MakeCrossingLayout();
-        var ac = MakeAircraft(runway);
+        RunwayInfo runway = MakeLandingRunway();
+        AirportGroundLayout layout = MakeCrossingLayout();
+        AircraftState ac = MakeAircraft(runway);
 
         var cmd = new LandAndHoldShortCommand("33");
-        var result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryLandAndHoldShort(cmd, ac, layout, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains(ac.Phases!.Phases, p => p is LandingPhase);
@@ -289,11 +294,11 @@ public class LahsoTests
     [Fact]
     public void FindIntersection_CrossingRunways_ReturnsIntersection()
     {
-        var layout = MakeCrossingLayout();
-        var landingRwy = layout.Runways[0]; // 10L/28R
-        var crossingRwy = layout.Runways[1]; // 15/33
+        AirportGroundLayout layout = MakeCrossingLayout();
+        GroundRunway landingRwy = layout.Runways[0]; // 10L/28R
+        GroundRunway crossingRwy = layout.Runways[1]; // 15/33
 
-        var result = RunwayIntersectionCalculator.FindIntersection(landingRwy, crossingRwy);
+        (double Lat, double Lon, double DistFromStartNm)? result = RunwayIntersectionCalculator.FindIntersection(landingRwy, crossingRwy);
 
         Assert.NotNull(result);
         Assert.True(result.Value.DistFromStartNm > 0);
@@ -303,10 +308,10 @@ public class LahsoTests
     [Fact]
     public void FindIntersection_ParallelRunways_ReturnsNull()
     {
-        var start1 = (Lat: 37.0, Lon: -122.0);
-        var end1 = GeoMath.ProjectPoint(start1.Lat, start1.Lon, new TrueHeading(280), 1.0);
-        var start2 = GeoMath.ProjectPoint(start1.Lat, start1.Lon, new TrueHeading(190), 0.1);
-        var end2 = GeoMath.ProjectPoint(start2.Lat, start2.Lon, new TrueHeading(280), 1.0);
+        (double Lat, double Lon) start1 = (Lat: 37.0, Lon: -122.0);
+        (double Lat, double Lon) end1 = GeoMath.ProjectPoint(start1.Lat, start1.Lon, new TrueHeading(280), 1.0);
+        (double Lat, double Lon) start2 = GeoMath.ProjectPoint(start1.Lat, start1.Lon, new TrueHeading(190), 0.1);
+        (double Lat, double Lon) end2 = GeoMath.ProjectPoint(start2.Lat, start2.Lon, new TrueHeading(280), 1.0);
 
         var rwy1 = new GroundRunway
         {
@@ -321,18 +326,18 @@ public class LahsoTests
             WidthFt = 150,
         };
 
-        var result = RunwayIntersectionCalculator.FindIntersection(rwy1, rwy2);
+        (double Lat, double Lon, double DistFromStartNm)? result = RunwayIntersectionCalculator.FindIntersection(rwy1, rwy2);
         Assert.Null(result);
     }
 
     [Fact]
     public void ComputeHoldShortDistance_AccountsForSetback()
     {
-        var layout = MakeCrossingLayout();
-        var landingRwy = layout.Runways[0];
-        var crossingRwy = layout.Runways[1];
+        AirportGroundLayout layout = MakeCrossingLayout();
+        GroundRunway landingRwy = layout.Runways[0];
+        GroundRunway crossingRwy = layout.Runways[1];
 
-        var intersection = RunwayIntersectionCalculator.FindIntersection(landingRwy, crossingRwy)!;
+        (double Lat, double Lon, double DistFromStartNm)? intersection = RunwayIntersectionCalculator.FindIntersection(landingRwy, crossingRwy)!;
         double holdShort = RunwayIntersectionCalculator.ComputeHoldShortDistanceNm(
             intersection.Value.DistFromStartNm,
             "28R",
@@ -379,9 +384,9 @@ public class LahsoTests
             },
         };
 
-        foreach (var phase in phases)
+        foreach (Phase phase in phases)
         {
-            var acceptance = phase.CanAcceptCommand(CanonicalCommandType.LandAndHoldShort);
+            CommandAcceptance acceptance = phase.CanAcceptCommand(CanonicalCommandType.LandAndHoldShort);
             Assert.Equal(CommandAcceptance.Allowed, acceptance);
         }
     }

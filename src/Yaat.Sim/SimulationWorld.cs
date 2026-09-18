@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
@@ -124,7 +125,7 @@ public sealed class SimulationWorld
                     continue;
                 }
 
-                var ac = _aircraft[i];
+                AircraftState ac = _aircraft[i];
                 // Canonical "is this completed?" check matches the rest of the codebase
                 // (StampHandoffCompletion, TickTouchdown). CompletedAtSeconds is set
                 // alongside CompletionReason today; keying off the reason guards against
@@ -180,9 +181,9 @@ public sealed class SimulationWorld
     {
         lock (_lock)
         {
-            foreach (var ac in _aircraft)
+            foreach (AircraftState ac in _aircraft)
             {
-                var route = ac.Ground.AssignedTaxiRoute;
+                TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
                 if (route is null)
                 {
                     continue;
@@ -211,7 +212,7 @@ public sealed class SimulationWorld
     {
         lock (_lock)
         {
-            foreach (var ac in _aircraft)
+            foreach (AircraftState ac in _aircraft)
             {
                 if (string.Equals(ac.Callsign, callsign, StringComparison.OrdinalIgnoreCase))
                 {
@@ -245,7 +246,7 @@ public sealed class SimulationWorld
         {
             AircraftState? Lookup(string callsign)
             {
-                foreach (var a in _aircraft)
+                foreach (AircraftState a in _aircraft)
                 {
                     if (string.Equals(a.Callsign, callsign, StringComparison.OrdinalIgnoreCase))
                     {
@@ -266,10 +267,10 @@ public sealed class SimulationWorld
                 timingCallback!("World.GroundConflict", sw.Elapsed.TotalMilliseconds);
             }
 
-            var weather = Weather;
-            var studentTcp = StudentTcp;
+            WeatherProfile? weather = Weather;
+            Tcp? studentTcp = StudentTcp;
             var physicsOptions = new PhysicsTickOptions(SoloTrainingMode, RpoShowPilotSpeech, MagneticModelDateUtc);
-            foreach (var ac in _aircraft)
+            foreach (AircraftState ac in _aircraft)
             {
                 // Student TCP accepts don't trigger ONHO conditions
                 if (ac.Track.HandoffAccepted && studentTcp is not null && ac.Track.Owner?.IsTcp(studentTcp) == true)
@@ -321,11 +322,11 @@ public sealed class SimulationWorld
         var result = new List<(string, string)>();
         lock (_lock)
         {
-            foreach (var ac in _aircraft)
+            foreach (AircraftState ac in _aircraft)
             {
                 if (ac.PendingWarnings.Count > 0)
                 {
-                    foreach (var w in ac.PendingWarnings)
+                    foreach (string w in ac.PendingWarnings)
                     {
                         result.Add((ac.Callsign, w));
                     }
@@ -343,11 +344,11 @@ public sealed class SimulationWorld
         var result = new List<(string, string)>();
         lock (_lock)
         {
-            foreach (var ac in _aircraft)
+            foreach (AircraftState ac in _aircraft)
             {
                 if (ac.PendingNotifications.Count > 0)
                 {
-                    foreach (var n in ac.PendingNotifications)
+                    foreach (string n in ac.PendingNotifications)
                     {
                         result.Add((ac.Callsign, n));
                     }
@@ -371,11 +372,11 @@ public sealed class SimulationWorld
         var result = new List<(string, Commands.ParsedCommand)>();
         lock (_lock)
         {
-            foreach (var ac in _aircraft)
+            foreach (AircraftState ac in _aircraft)
             {
                 if (ac.PendingStripDispatches.Count > 0)
                 {
-                    foreach (var cmd in ac.PendingStripDispatches)
+                    foreach (ParsedCommand cmd in ac.PendingStripDispatches)
                     {
                         result.Add((ac.Callsign, cmd));
                     }
@@ -393,11 +394,11 @@ public sealed class SimulationWorld
         var result = new List<(string, string)>();
         lock (_lock)
         {
-            foreach (var ac in _aircraft)
+            foreach (AircraftState ac in _aircraft)
             {
                 if (ac.PendingPilotSpeech.Count > 0)
                 {
-                    foreach (var s in ac.PendingPilotSpeech)
+                    foreach (string s in ac.PendingPilotSpeech)
                     {
                         result.Add((ac.Callsign, s));
                     }
@@ -415,11 +416,11 @@ public sealed class SimulationWorld
         var result = new List<(string, string)>();
         lock (_lock)
         {
-            foreach (var ac in _aircraft)
+            foreach (AircraftState ac in _aircraft)
             {
                 if (ac.PendingPilotReadbacks.Count > 0)
                 {
-                    foreach (var s in ac.PendingPilotReadbacks)
+                    foreach (string s in ac.PendingPilotReadbacks)
                     {
                         result.Add((ac.Callsign, s));
                     }
@@ -454,11 +455,11 @@ public sealed class SimulationWorld
         var result = new List<PilotTransmission>();
         lock (_lock)
         {
-            foreach (var ac in _aircraft)
+            foreach (AircraftState ac in _aircraft)
             {
                 if (ac.PendingPilotTransmissions.Count > 0)
                 {
-                    foreach (var transmission in ac.PendingPilotTransmissions)
+                    foreach (PilotTransmission transmission in ac.PendingPilotTransmissions)
                     {
                         ActiveFrequency.Enqueue(transmission);
                     }
@@ -480,7 +481,7 @@ public sealed class SimulationWorld
     {
         lock (_lock)
         {
-            foreach (var ac in _aircraft)
+            foreach (AircraftState ac in _aircraft)
             {
                 ac.PendingPilotTransmissions.Clear();
             }
@@ -494,7 +495,7 @@ public sealed class SimulationWorld
         var result = new List<ApproachScore>();
         lock (_lock)
         {
-            foreach (var ac in _aircraft)
+            foreach (AircraftState ac in _aircraft)
             {
                 if (ac.PendingApproachScores.Count > 0)
                 {
@@ -548,7 +549,7 @@ public sealed class SimulationWorld
     private string GenerateUniqueCid()
     {
         var usedCids = new HashSet<string>();
-        foreach (var ac in _aircraft)
+        foreach (AircraftState ac in _aircraft)
         {
             if (!string.IsNullOrEmpty(ac.Cid))
             {
@@ -556,10 +557,10 @@ public sealed class SimulationWorld
             }
         }
 
-        var rng = Rng;
+        SerializableRandom rng = Rng;
         for (int attempt = 0; attempt < 1000; attempt++)
         {
-            var cid = rng.Next(100, 1000).ToString();
+            string cid = rng.Next(100, 1000).ToString();
             if (!usedCids.Contains(cid))
             {
                 return cid;
@@ -568,7 +569,7 @@ public sealed class SimulationWorld
 
         for (int i = 100; i < 1000; i++)
         {
-            var cid = i.ToString();
+            string cid = i.ToString();
             if (!usedCids.Contains(cid))
             {
                 return cid;

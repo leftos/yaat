@@ -17,7 +17,7 @@ public class TemporaryAltitudeClearTests
         TrackEngine.HandleTemporaryAltitude(ac, 50);
         Assert.Equal(50, ac.Stars.TemporaryAltitude);
 
-        var result = TrackEngine.HandleTemporaryAltitude(ac, 0);
+        CommandResult result = TrackEngine.HandleTemporaryAltitude(ac, 0);
 
         Assert.True(result.Success);
         Assert.Null(ac.Stars.TemporaryAltitude);
@@ -28,7 +28,7 @@ public class TemporaryAltitudeClearTests
     {
         var ac = new AircraftState { Callsign = "N123AB", AircraftType = "C172" };
 
-        var result = TrackEngine.HandleTemporaryAltitude(ac, 110);
+        CommandResult result = TrackEngine.HandleTemporaryAltitude(ac, 110);
 
         Assert.True(result.Success);
         Assert.Equal(110, ac.Stars.TemporaryAltitude);

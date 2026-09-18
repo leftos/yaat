@@ -127,7 +127,7 @@ public static class SpeciCriteria
             return false;
         }
 
-        foreach (var threshold in thresholds)
+        foreach (double threshold in thresholds)
         {
             // "below" = decreased to less than the threshold; the at-or-above side is its complement,
             // so a sign change of (value < threshold) captures a crossing in either direction.
@@ -147,7 +147,7 @@ public static class SpeciCriteria
         double lastFt = last ?? double.PositiveInfinity;
         double currentFt = current ?? double.PositiveInfinity;
 
-        foreach (var threshold in CeilingThresholdsFt)
+        foreach (int threshold in CeilingThresholdsFt)
         {
             if ((lastFt < threshold) != (currentFt < threshold))
             {

@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.LiveTraffic;
@@ -20,7 +21,7 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
 
     private static SessionRecording? LoadBaseline(ITestOutputHelper output)
     {
-        var baseline = RecordingLoader.Load(BundlePath);
+        SessionRecording? baseline = RecordingLoader.Load(BundlePath);
         if (baseline is null)
         {
             output.WriteLine($"Skipped: {BundlePath} not present");
@@ -62,7 +63,7 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
     [Fact]
     public void RecordedSamplesAndRemoval_ReplayToTheLivePositions()
     {
-        var baseline = LoadBaseline(output);
+        SessionRecording? baseline = LoadBaseline(output);
         if (baseline is null)
         {
             return;
@@ -71,8 +72,8 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
         var live = new SimulationEngine(new TestAirportGroundData());
         live.Replay(WithActions(baseline, [], 0), 0);
 
-        var second = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 0.3);
-        var spawnState = LiveTrafficKinematics
+        LatLon second = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 0.3);
+        AircraftSnapshotDto spawnState = LiveTrafficKinematics
             .CreateShadow("UAL123", "B738", Sample(1, Origin, 90), new AircraftFlightPlan { HasFlightPlan = true, Destination = "KOAK" })
             .ToSnapshot();
 
@@ -82,10 +83,10 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
             LiveSecond(live, t, null);
         }
 
-        var liveAt4 = live.World.FindAircraft("UAL123")!.Position;
+        LatLon liveAt4 = live.World.FindAircraft("UAL123")!.Position;
         LiveSecond(live, 5, () => live.ApplyLiveTrafficSample("UAL123", Sample(5, second, 120), null));
         LiveSecond(live, 6, null);
-        var liveAt6 = live.World.FindAircraft("UAL123")!.Position;
+        LatLon liveAt6 = live.World.FindAircraft("UAL123")!.Position;
         LiveSecond(live, 7, null);
         live.RemoveLiveTraffic("UAL123", LiveTrafficRemovalReason.Stale);
         Assert.Null(live.World.FindAircraft("UAL123"));
@@ -96,17 +97,17 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
         Assert.NotNull(actions.OfType<RecordedLiveTrafficSample>().First().SpawnState);
         Assert.Null(actions.OfType<RecordedLiveTrafficSample>().Last().SpawnState);
 
-        var recording = WithActions(baseline, actions, 10);
+        SessionRecording recording = WithActions(baseline, actions, 10);
         var replay = new SimulationEngine(new TestAirportGroundData());
 
         replay.Replay(recording, 4);
-        var replayAt4 = replay.World.FindAircraft("UAL123");
+        AircraftState? replayAt4 = replay.World.FindAircraft("UAL123");
         Assert.NotNull(replayAt4);
         Assert.True(replayAt4.IsShadow);
         Assert.InRange(GeoMath.DistanceNm(liveAt4, replayAt4.Position), 0, 0.001);
 
         replay.Replay(recording, 6);
-        var replayAt6 = replay.World.FindAircraft("UAL123")!;
+        AircraftState replayAt6 = replay.World.FindAircraft("UAL123")!;
         Assert.InRange(GeoMath.DistanceNm(liveAt6, replayAt6.Position), 0, 0.001);
         Assert.InRange(replayAt6.TrueTrack.Degrees, 119.5, 120.5);
 
@@ -122,7 +123,7 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
     [Fact]
     public void StaleOnArrivalSample_IsAgedToTheCurrentSecond_LiveAndOnReplay()
     {
-        var baseline = LoadBaseline(output);
+        SessionRecording? baseline = LoadBaseline(output);
         if (baseline is null)
         {
             return;
@@ -130,16 +131,16 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
 
         var live = new SimulationEngine(new TestAirportGroundData());
         live.Replay(WithActions(baseline, [], 0), 0);
-        var spawnState = LiveTrafficKinematics
+        AircraftSnapshotDto spawnState = LiveTrafficKinematics
             .CreateShadow("UAL123", "B738", Sample(4, Origin, 90), new AircraftFlightPlan { HasFlightPlan = true })
             .ToSnapshot();
 
         // Observed at t=4, applied in pre-physics of t=10: six seconds of travel at 240 kt ≈ 0.4 nm east.
         LiveSecond(live, 10, () => live.ApplyLiveTrafficSample("UAL123", Sample(4, Origin, 90), spawnState));
 
-        var shadow = live.World.FindAircraft("UAL123")!;
+        AircraftState shadow = live.World.FindAircraft("UAL123")!;
         Assert.InRange(shadow.LiveTraffic!.SecondsSinceSample, 6.99, 7.01);
-        var expected = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 240 * 7 / 3600.0);
+        LatLon expected = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 240 * 7 / 3600.0);
         Assert.InRange(GeoMath.DistanceNm(expected, shadow.Position), 0, 0.001);
 
         var replay = new SimulationEngine(new TestAirportGroundData());
@@ -150,17 +151,17 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
     [Fact]
     public void ReplayOneSecond_AppliesSamplesPreTick()
     {
-        var baseline = LoadBaseline(output);
+        SessionRecording? baseline = LoadBaseline(output);
         if (baseline is null)
         {
             return;
         }
 
-        var spawnState = LiveTrafficKinematics
+        AircraftSnapshotDto spawnState = LiveTrafficKinematics
             .CreateShadow("UAL123", "B738", Sample(1, Origin, 90), new AircraftFlightPlan { HasFlightPlan = true })
             .ToSnapshot();
-        var second = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 0.3);
-        var recording = WithActions(
+        LatLon second = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 0.3);
+        SessionRecording recording = WithActions(
             baseline,
             [
                 new RecordedLiveTrafficSample(1, "UAL123", Sample(1, Origin, 90), spawnState),
@@ -171,13 +172,13 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
 
         var full = new SimulationEngine(new TestAirportGroundData());
         full.Replay(recording, 6);
-        var fullAt6 = full.World.FindAircraft("UAL123")!.Position;
+        LatLon fullAt6 = full.World.FindAircraft("UAL123")!.Position;
 
         var stepped = new SimulationEngine(new TestAirportGroundData());
         stepped.Replay(recording, 4);
         stepped.ReplayOneSecond();
         stepped.ReplayOneSecond();
-        var steppedAt6 = stepped.World.FindAircraft("UAL123")!;
+        AircraftState steppedAt6 = stepped.World.FindAircraft("UAL123")!;
 
         Assert.Equal(6, stepped.Scenario!.ElapsedSeconds);
         Assert.InRange(GeoMath.DistanceNm(fullAt6, steppedAt6.Position), 0, 0.001);

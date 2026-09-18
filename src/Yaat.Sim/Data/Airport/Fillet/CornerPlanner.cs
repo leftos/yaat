@@ -14,12 +14,12 @@ internal static class CornerPlanner
         {
             for (int j = i + 1; j < arms.Count; j++)
             {
-                var armA = arms[i];
-                var armB = arms[j];
-                var edgeA = armA.RootEdge;
-                var edgeB = armB.RootEdge;
-                var otherA = edgeA.OtherNode(junctionNode);
-                var otherB = edgeB.OtherNode(junctionNode);
+                TaxiwayArm armA = arms[i];
+                TaxiwayArm armB = arms[j];
+                GroundEdge edgeA = armA.RootEdge;
+                GroundEdge edgeB = armB.RootEdge;
+                GroundNode otherA = edgeA.OtherNode(junctionNode);
+                GroundNode otherB = edgeB.OtherNode(junctionNode);
 
                 if (otherA.Id == otherB.Id)
                 {

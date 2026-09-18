@@ -30,17 +30,17 @@ internal static class ActionArms
     /// </summary>
     public static CommandResult Aviation(ArmContext ctx)
     {
-        var engine = ctx.Engine;
-        var aircraft = ctx.Aircraft!;
-        var parse = CommandParser.ParseCompound(ctx.Remainder, aircraft.FlightPlan.Route);
+        SimulationEngine engine = ctx.Engine;
+        AircraftState aircraft = ctx.Aircraft!;
+        ParseResult<CompoundCommand> parse = CommandParser.ParseCompound(ctx.Remainder, aircraft.FlightPlan.Route);
         if (!parse.IsSuccess)
         {
             return new CommandResult(false, $"Failed to parse command: {ctx.Remainder} — {parse.Reason}");
         }
 
-        var compound = parse.Value!;
-        var origin = ctx.Origin;
-        var scenario = engine.Scenario;
+        CompoundCommand compound = parse.Value!;
+        DispatchOrigin origin = ctx.Origin;
+        SimScenarioState? scenario = engine.Scenario;
         double? delay = scenario is null
             ? null
             : ReactionDelayPolicy.Decide(scenario, engine.World, aircraft, compound, ctx.Input.Baked?.ReactionDelaySeconds);
@@ -95,7 +95,7 @@ internal static class ActionArms
     /// </summary>
     public static CommandResult ShowQueued(ArmContext ctx)
     {
-        var lines = ConditionalList.ToLines(ctx.Aircraft!, liveCountdown: true);
+        List<string> lines = ConditionalList.ToLines(ctx.Aircraft!, liveCountdown: true);
         if (lines.Count == 0)
         {
             lines.Add("No pending commands");
@@ -122,8 +122,8 @@ internal static class ActionArms
     /// </summary>
     public static CommandResult FlightPlan(ArmContext ctx)
     {
-        var callsign = ctx.Input.Callsign;
-        var engine = ctx.Engine;
+        string callsign = ctx.Input.Callsign;
+        SimulationEngine engine = ctx.Engine;
         if (ctx.IsRecorded)
         {
             TagCreator(engine.FindAircraft(callsign), ctx.Identity);
@@ -135,7 +135,7 @@ internal static class ActionArms
             return new CommandResult(false, "INVALID CALLSIGN");
         }
 
-        var aircraft = engine.FindAircraft(callsign);
+        AircraftState? aircraft = engine.FindAircraft(callsign);
         if (aircraft is null)
         {
             return ActionRefusals.AircraftNotFound(callsign);
@@ -192,7 +192,7 @@ internal static class ActionArms
         else
         {
             TagCreator(aircraft, ctx.Identity);
-            var (line1, line2) = FlightPlanEcho.Build(aircraft, FlightPlanEcho.HasRoute(ctx.Parsed));
+            (string? line1, string? line2) = FlightPlanEcho.Build(aircraft, FlightPlanEcho.HasRoute(ctx.Parsed));
             response = $"{line1} {line2}";
         }
 
@@ -213,9 +213,9 @@ internal static class ActionArms
     /// </summary>
     public static CommandResult Delete(ArmContext ctx)
     {
-        var engine = ctx.Engine;
-        var callsign = ctx.Input.Callsign;
-        var existing = engine.World.FindAircraft(callsign);
+        SimulationEngine engine = ctx.Engine;
+        string callsign = ctx.Input.Callsign;
+        AircraftState? existing = engine.World.FindAircraft(callsign);
         if (existing is { IsShadow: true })
         {
             ctx.Host.OnLiveTrafficHidden(callsign);
@@ -245,9 +245,9 @@ internal static class ActionArms
     /// </summary>
     public static CommandResult Unassume(ArmContext ctx)
     {
-        var engine = ctx.Engine;
-        var callsign = ctx.Input.Callsign;
-        var existing = engine.World.FindAircraft(callsign);
+        SimulationEngine engine = ctx.Engine;
+        string callsign = ctx.Input.Callsign;
+        AircraftState? existing = engine.World.FindAircraft(callsign);
         if (existing is null)
         {
             return ActionRefusals.AircraftNotFound(callsign);
@@ -272,7 +272,7 @@ internal static class ActionArms
     public static CommandResult DeleteQueued(ArmContext ctx)
     {
         int? number = ((DeleteQueuedCommand)ctx.Parsed!).BlockNumber;
-        var outcome = ConditionalList.Delete(ctx.Aircraft!, number);
+        ConditionalList.DeleteResult outcome = ConditionalList.Delete(ctx.Aircraft!, number);
         if (!outcome.Success)
         {
             return number is { } outOfRange && outcome.DeletableCount > 0
@@ -282,7 +282,7 @@ internal static class ActionArms
 
         if (number is { } index)
         {
-            var description = string.IsNullOrEmpty(outcome.Description) ? $"conditional {index}" : outcome.Description;
+            string description = string.IsNullOrEmpty(outcome.Description) ? $"conditional {index}" : outcome.Description;
             return new CommandResult(true, $"Deleted [{index}] {description}");
         }
 
@@ -292,7 +292,7 @@ internal static class ActionArms
     /// <summary>An instructor note on the aircraft — never projected to CRC; the next tick's change tracker carries it.</summary>
     public static CommandResult Note(ArmContext ctx)
     {
-        var aircraft = ctx.Aircraft!;
+        AircraftState aircraft = ctx.Aircraft!;
         aircraft.Note = AircraftState.TruncateNote(((NoteCommand)ctx.Parsed!).Text);
         return new CommandResult(true, string.IsNullOrEmpty(aircraft.Note) ? "Note cleared" : "Note updated");
     }
@@ -300,8 +300,8 @@ internal static class ActionArms
     /// <summary><c>SPAWN</c>: pulls a still-queued delayed spawn into the world now.</summary>
     public static CommandResult SpawnNow(ArmContext ctx)
     {
-        var callsign = ctx.Input.Callsign;
-        var spawned = ctx.Engine.SpawnNow(callsign);
+        string callsign = ctx.Input.Callsign;
+        AircraftState? spawned = ctx.Engine.SpawnNow(callsign);
         if (spawned is null)
         {
             return new CommandResult(false, $"No queued spawn for {callsign}");
@@ -314,7 +314,7 @@ internal static class ActionArms
     /// <summary><c>SPAWNDELAY</c>: re-times a still-queued delayed spawn.</summary>
     public static CommandResult SpawnDelay(ArmContext ctx)
     {
-        var callsign = ctx.Input.Callsign;
+        string callsign = ctx.Input.Callsign;
         int seconds = ((SpawnDelayCommand)ctx.Parsed!).Seconds;
         return ctx.Engine.SpawnDelay(callsign, seconds)
             ? new CommandResult(true, $"{callsign} spawns in {seconds}s")
@@ -324,15 +324,15 @@ internal static class ActionArms
     /// <summary>A bare <c>AS {tcp}</c>: the issuing connection acts as that position from now on.</summary>
     public static CommandResult SetActivePosition(ArmContext ctx)
     {
-        var connectionId = ctx.Input.ConnectionId;
+        string connectionId = ctx.Input.ConnectionId;
         if (connectionId.Length == 0)
         {
             return new CommandResult(false, "AS needs an issuing connection to select a position for");
         }
 
-        var tcpCode = ((SetActivePositionCommand)ctx.Parsed!).TcpCode;
-        var result = ctx.Engine.SelectPosition(connectionId, tcpCode);
-        if (result.Success && ctx.Engine.PositionSelections.TryGet(connectionId, out var owner))
+        string tcpCode = ((SetActivePositionCommand)ctx.Parsed!).TcpCode;
+        CommandResult result = ctx.Engine.SelectPosition(connectionId, tcpCode);
+        if (result.Success && ctx.Engine.PositionSelections.TryGet(connectionId, out TrackOwner? owner))
         {
             // The host keys the position's display config on its real TCP code, which the argument need not be — a
             // position can be named by its callsign (OAK_GND) or callsign@tcp (NCT_APP@1M).
@@ -352,16 +352,16 @@ internal static class ActionArms
     /// </summary>
     public static CommandResult Track(ArmContext ctx)
     {
-        var engine = ctx.Engine;
+        SimulationEngine engine = ctx.Engine;
         if (engine.Scenario is not { } scenario)
         {
             return ActionRefusals.NoScenario();
         }
 
-        var aircraft = ctx.Aircraft!;
+        AircraftState aircraft = ctx.Aircraft!;
         var redirect = new ConsolidationRedirect(scenario, engine.ConsolidationState, engine.Attendance.IsTcpAttended);
         var track = new TrackDispatchContext(ctx.Identity, scenario, redirect, engine.ConflictAlerts);
-        var result = TrackEngine.Dispatch(ctx.Parsed!, aircraft, track) ?? ActionRefusals.HostOnly(ctx.Parsed!);
+        CommandResult result = TrackEngine.Dispatch(ctx.Parsed!, aircraft, track) ?? ActionRefusals.HostOnly(ctx.Parsed!);
         if (!result.Success)
         {
             return result;
@@ -378,7 +378,7 @@ internal static class ActionArms
                     .ConflictAlerts.Conflicts.Values.Where(c => (c.CallsignA == aircraft.Callsign) || (c.CallsignB == aircraft.Callsign))
                     .Select(c => c.Id)
                     .ToList();
-                foreach (var id in inhibited)
+                foreach (string? id in inhibited)
                 {
                     engine.ConflictAlerts.Conflicts.Remove(id);
                 }
@@ -444,7 +444,7 @@ internal static class ActionArms
             return ActionRefusals.NoActivePosition();
         }
 
-        var outcome = TrackEngine.CreateGhostTrack((GhostTrackCommand)ctx.Parsed!, ctx.Engine.World, scenario, identity);
+        GhostTrackOutcome outcome = TrackEngine.CreateGhostTrack((GhostTrackCommand)ctx.Parsed!, ctx.Engine.World, scenario, identity);
         if (outcome.Created is { } created)
         {
             HandOverSpawn(ctx, created);
@@ -480,7 +480,7 @@ internal static class ActionArms
     /// </summary>
     public static CommandResult AddAircraft(ArmContext ctx)
     {
-        var outcome = ctx.Engine.AddAircraft(((AddAircraftCommand)ctx.Parsed!).Args, ctx.Input.Baked?.SpawnedAircraft);
+        AddAircraftOutcome outcome = ctx.Engine.AddAircraft(((AddAircraftCommand)ctx.Parsed!).Args, ctx.Input.Baked?.SpawnedAircraft);
         if (outcome.Aircraft is null)
         {
             return new CommandResult(false, outcome.Error);
@@ -498,7 +498,7 @@ internal static class ActionArms
             return ActionRefusals.NoScenario();
         }
 
-        var armed = HeldReleaseService.Arm(scenario, ctx.Engine.World, ((HoldForReleaseCommand)ctx.Parsed!).Airport);
+        HeldReleaseResult armed = HeldReleaseService.Arm(scenario, ctx.Engine.World, ((HoldForReleaseCommand)ctx.Parsed!).Airport);
         return HeldDeparturesChanged(ctx, armed);
     }
 
@@ -509,7 +509,7 @@ internal static class ActionArms
             return ActionRefusals.NoScenario();
         }
 
-        var disarmed = HeldReleaseService.Disarm(scenario, ctx.Engine.World, ((DisarmHoldForReleaseCommand)ctx.Parsed!).Airport);
+        HeldReleaseResult disarmed = HeldReleaseService.Disarm(scenario, ctx.Engine.World, ((DisarmHoldForReleaseCommand)ctx.Parsed!).Airport);
         return HeldDeparturesChanged(ctx, disarmed);
     }
 
@@ -525,7 +525,7 @@ internal static class ActionArms
         }
 
         var release = (ReleaseDepartureCommand)ctx.Parsed!;
-        var world = ctx.Engine.World;
+        SimulationWorld world = ctx.Engine.World;
         HeldReleaseResult released;
         if (ctx.IsRecorded)
         {
@@ -553,7 +553,7 @@ internal static class ActionArms
     public static CommandResult Cfr(ArmContext ctx)
     {
         var cfr = (CfrDepartureCommand)ctx.Parsed!;
-        var aircraft = ctx.Aircraft!;
+        AircraftState aircraft = ctx.Aircraft!;
         if (cfr.Action == CfrAction.Check)
         {
             return new CommandResult(true, CfrDepartureService.DescribeStatus(aircraft, DateTime.UtcNow));
@@ -564,7 +564,7 @@ internal static class ActionArms
             return new CommandResult(false, $"{aircraft.Callsign} is already airborne — nothing to release");
         }
 
-        var issuedAtUtc = ctx.Input.Baked?.IssuedAtUtc ?? DateTime.UtcNow;
+        DateTime issuedAtUtc = ctx.Input.Baked?.IssuedAtUtc ?? DateTime.UtcNow;
         ctx.IssuedAtUtc = issuedAtUtc;
         return new CommandResult(true, CfrDepartureService.Apply(aircraft, cfr, issuedAtUtc));
     }
@@ -576,7 +576,7 @@ internal static class ActionArms
             return ActionRefusals.NoScenario();
         }
 
-        var result = TimerCommandApplier.Apply((TimerCommand)ctx.Parsed!, scenario, ctx.Engine.World, ctx.Input.Callsign);
+        CommandResult result = TimerCommandApplier.Apply((TimerCommand)ctx.Parsed!, scenario, ctx.Engine.World, ctx.Input.Callsign);
         if (result.Success)
         {
             ctx.Host.OnTimersChanged();

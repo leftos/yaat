@@ -23,8 +23,8 @@ public sealed class AerialRefuelingCommandTests
     /// <summary>A tanker positioned just before the given variant's first point, flying down it.</summary>
     private static AircraftState AircraftOn(MilitaryRouteVariant variant)
     {
-        var entry = variant.Points[0].Position;
-        var next = variant.Points[1].Position;
+        LatLon entry = variant.Points[0].Position;
+        LatLon next = variant.Points[1].Position;
         double bearing = GeoMath.BearingTo(entry, next);
         return new AircraftState
         {
@@ -42,15 +42,15 @@ public sealed class AerialRefuelingCommandTests
 
     private static CommandResult Apply(AircraftState aircraft, string text)
     {
-        var parsed = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         return CommandDispatcher.Dispatch(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
     }
 
     private static void TickPhase(AircraftState aircraft)
     {
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
-        foreach (var phase in aircraft.Phases!.Phases)
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        foreach (Phase phase in aircraft.Phases!.Phases)
         {
             phase.Status = PhaseStatus.Active;
             phase.OnTick(ctx);
@@ -60,9 +60,9 @@ public sealed class AerialRefuelingCommandTests
     [Fact]
     public void Car_ClearsTheTankerOntoTheTrackAtItsPublishedBlock()
     {
-        var aircraft = AircraftOnAr1();
+        AircraftState aircraft = AircraftOnAr1();
 
-        var result = Apply(aircraft, "CAR AR1");
+        CommandResult result = Apply(aircraft, "CAR AR1");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("AR1", aircraft.MilitaryRoute.Designator);
@@ -76,7 +76,7 @@ public sealed class AerialRefuelingCommandTests
     [Fact]
     public void Car_PublishedBlock_IsArmedAsAnAltitudeFloorAndCeiling()
     {
-        var aircraft = AircraftOnAr1();
+        AircraftState aircraft = AircraftOnAr1();
         Apply(aircraft, "CAR AR1");
 
         TickPhase(aircraft);
@@ -91,9 +91,9 @@ public sealed class AerialRefuelingCommandTests
     [Fact]
     public void Car_AssignedBlock_OverridesThePublishedOne()
     {
-        var aircraft = AircraftOnAr1();
+        AircraftState aircraft = AircraftOnAr1();
 
-        var result = Apply(aircraft, "CAR AR1 250 270");
+        CommandResult result = Apply(aircraft, "CAR AR1 250 270");
         TickPhase(aircraft);
 
         Assert.True(result.Success, result.Message);
@@ -106,7 +106,7 @@ public sealed class AerialRefuelingCommandTests
     public void Car_TrackIsNeverMarsaMerelyForBeingATrack()
     {
         // §9-2-13 NOTE 3: MARSA begins only when the tanker advises ATC it is accepting MARSA.
-        var aircraft = AircraftOnAr1();
+        AircraftState aircraft = AircraftOnAr1();
 
         Apply(aircraft, "CAR AR1");
 
@@ -116,14 +116,14 @@ public sealed class AerialRefuelingCommandTests
     [Fact]
     public void Car_SelectsThePublishedDirectionTheAircraftIsPositionedToFly()
     {
-        var route = NavigationDatabase.Instance.GetMilitaryRoute("AR4A")!;
+        MilitaryRoute route = NavigationDatabase.Instance.GetMilitaryRoute("AR4A")!;
         Assert.Equal(2, route.Variants.Count);
 
-        foreach (var variant in route.Variants)
+        foreach (MilitaryRouteVariant variant in route.Variants)
         {
-            var aircraft = AircraftOn(variant);
+            AircraftState aircraft = AircraftOn(variant);
 
-            var result = Apply(aircraft, "CAR AR4A");
+            CommandResult result = Apply(aircraft, "CAR AR4A");
 
             Assert.True(result.Success, result.Message);
             Assert.Equal(variant.Direction, aircraft.MilitaryRoute.Direction);
@@ -134,7 +134,7 @@ public sealed class AerialRefuelingCommandTests
     [Fact]
     public void Car_UnknownTrack_IsRejected()
     {
-        var result = Apply(AircraftOnAr1(), "CAR AR999999");
+        CommandResult result = Apply(AircraftOnAr1(), "CAR AR999999");
 
         Assert.False(result.Success);
         Assert.Contains("Unknown aerial refueling track", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -143,7 +143,7 @@ public sealed class AerialRefuelingCommandTests
     [Fact]
     public void Car_OnATrainingRoute_PointsAtCmtr()
     {
-        var result = Apply(AircraftOnAr1(), "CAR IR149");
+        CommandResult result = Apply(AircraftOnAr1(), "CAR IR149");
 
         Assert.False(result.Success);
         Assert.Contains("use CMTR", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -153,7 +153,7 @@ public sealed class AerialRefuelingCommandTests
     public void Cmtr_OnARefuelingTrack_PointsAtCar()
     {
         // §9-2-6 is titled IFR Military Training Routes; refueling has its own clearance in §9-2-13.
-        var result = Apply(AircraftOnAr1(), "CMTR AR1");
+        CommandResult result = Apply(AircraftOnAr1(), "CMTR AR1");
 
         Assert.False(result.Success);
         Assert.Contains("use CAR", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -162,8 +162,8 @@ public sealed class AerialRefuelingCommandTests
     /// <summary>A tanker just outside AR601's published entry point.</summary>
     private static AircraftState AircraftOnAr601()
     {
-        var variant = NavigationDatabase.Instance.GetMilitaryRoute("AR601")!.Variants[0];
-        var entry = variant.Points[0].Position;
+        MilitaryRouteVariant variant = NavigationDatabase.Instance.GetMilitaryRoute("AR601")!.Variants[0];
+        LatLon entry = variant.Points[0].Position;
         return new AircraftState
         {
             Callsign = "ETHAN41",
@@ -178,9 +178,9 @@ public sealed class AerialRefuelingCommandTests
     [Fact]
     public void Car_OnAnAnchor_InstallsTheOrbitPhase()
     {
-        var aircraft = AircraftOnAr601();
+        AircraftState aircraft = AircraftOnAr601();
 
-        var result = Apply(aircraft, "CAR AR601");
+        CommandResult result = Apply(aircraft, "CAR AR601");
 
         Assert.True(result.Success, result.Message);
         Assert.Contains("anchor", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -193,10 +193,10 @@ public sealed class AerialRefuelingCommandTests
     [Fact]
     public void Anchor_FliesTheRunInThenOrbitsThePublishedPatternIndefinitely()
     {
-        var aircraft = AircraftOnAr601();
+        AircraftState aircraft = AircraftOnAr601();
         Apply(aircraft, "CAR AR601");
-        var phase = aircraft.Phases!.Phases.OfType<AerialRefuelingAnchorPhase>().Single();
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        AerialRefuelingAnchorPhase phase = aircraft.Phases!.Phases.OfType<AerialRefuelingAnchorPhase>().Single();
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnTick(ctx);
 
@@ -220,10 +220,10 @@ public sealed class AerialRefuelingCommandTests
     [Fact]
     public void Anchor_ArmsThePublishedBlockAndClearsItOnExit()
     {
-        var aircraft = AircraftOnAr601();
+        AircraftState aircraft = AircraftOnAr601();
         Apply(aircraft, "CAR AR601");
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
-        var phase = aircraft.Phases!.Phases.OfType<AerialRefuelingAnchorPhase>().Single();
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        AerialRefuelingAnchorPhase phase = aircraft.Phases!.Phases.OfType<AerialRefuelingAnchorPhase>().Single();
         phase.Status = PhaseStatus.Active;
         phase.OnTick(ctx);
 
@@ -240,11 +240,11 @@ public sealed class AerialRefuelingCommandTests
     [Fact]
     public void Anchor_SurvivesASnapshotRoundTrip()
     {
-        var aircraft = AircraftOnAr601();
+        AircraftState aircraft = AircraftOnAr601();
         Apply(aircraft, "CAR AR601");
-        var original = aircraft.Phases!.Phases.OfType<AerialRefuelingAnchorPhase>().Single();
+        AerialRefuelingAnchorPhase original = aircraft.Phases!.Phases.OfType<AerialRefuelingAnchorPhase>().Single();
         original.Status = PhaseStatus.Active;
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         original.OnTick(ctx);
         aircraft.Targets.NavigationRoute.Clear();
         original.OnTick(ctx);
@@ -262,7 +262,7 @@ public sealed class AerialRefuelingCommandTests
     public void Anchor_WithoutAPublishedPattern_IsRejected()
     {
         // AR662V is a VFR helicopter refueling area and publishes no orbit to fly.
-        var result = Apply(AircraftOnAr601(), "CAR AR662V");
+        CommandResult result = Apply(AircraftOnAr601(), "CAR AR662V");
 
         Assert.False(result.Success);
         Assert.Contains("no orbit pattern", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -272,7 +272,7 @@ public sealed class AerialRefuelingCommandTests
     public void Car_ParserRejectsALoneAltitude()
     {
         // A block has two bounds; inventing the second would authorise airspace nobody assigned.
-        var parsed = CommandParser.Parse("CAR AR1 250");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("CAR AR1 250");
 
         Assert.False(parsed.IsSuccess);
     }
@@ -280,7 +280,7 @@ public sealed class AerialRefuelingCommandTests
     [Fact]
     public void Car_ParserRejectsAnInvertedBlock()
     {
-        var parsed = CommandParser.Parse("CAR AR1 310 240");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("CAR AR1 310 240");
 
         Assert.False(parsed.IsSuccess);
         Assert.Contains("below its ceiling", parsed.Reason!, StringComparison.OrdinalIgnoreCase);
@@ -308,7 +308,7 @@ public sealed class AerialRefuelingCommandTests
     [Fact]
     public void Car_CanonicalRoundTripsThroughTheDescriber()
     {
-        var parsed = CommandParser.Parse("CAR AR1 250 270");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("CAR AR1 250 270");
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
         Assert.Equal("CAR AR1 25000 27000", CommandDescriber.DescribeCommand(parsed.Value!));

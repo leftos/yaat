@@ -76,7 +76,7 @@ public class AirportSidecarCatalogTests
     [Fact]
     public void GetAvoidedTaxiways_CombinesEntriesForSameAirportAcrossFiles()
     {
-        var avoided = SampleAvoid().GetAvoidedTaxiways("KOAK");
+        IReadOnlySet<string> avoided = SampleAvoid().GetAvoidedTaxiways("KOAK");
 
         Assert.Contains("S", avoided);
         Assert.Contains("Q3", avoided);
@@ -86,7 +86,7 @@ public class AirportSidecarCatalogTests
     [Fact]
     public void GetAvoidedTaxiways_UnknownAirport_ReturnsEmptyNeverNull()
     {
-        var avoided = SampleAvoid().GetAvoidedTaxiways("KSFO");
+        IReadOnlySet<string> avoided = SampleAvoid().GetAvoidedTaxiways("KSFO");
         Assert.NotNull(avoided);
         Assert.Empty(avoided);
     }
@@ -94,7 +94,7 @@ public class AirportSidecarCatalogTests
     [Fact]
     public void GetTaxiRoutes_AcceptsBothIcaoAndFaa()
     {
-        var catalog = SampleRoutes();
+        AirportSidecarCatalog catalog = SampleRoutes();
 
         Assert.Equal(2, catalog.GetTaxiRoutes("KOAK").Count);
         Assert.Equal(2, catalog.GetTaxiRoutes("OAK").Count);
@@ -106,7 +106,7 @@ public class AirportSidecarCatalogTests
     [Fact]
     public void GetTaxiRoutes_UnknownAirport_ReturnsEmpty()
     {
-        var catalog = SampleRoutes();
+        AirportSidecarCatalog catalog = SampleRoutes();
 
         Assert.Empty(catalog.GetTaxiRoutes("KXXX"));
         Assert.Empty(catalog.GetTaxiRoutes(""));
@@ -141,18 +141,18 @@ public class AirportSidecarCatalogTests
     {
         // Validate the catalog's KOAK W→30 route resolves through TaxiPathfinder against the real OAK
         // ground layout — the same call the UI menu builder makes to filter applicable routes.
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return; // TestData GeoJSON not present
         }
 
-        var startNode = layout.Nodes.Values.FirstOrDefault(n => n.Edges.Any(e => e.MatchesTaxiway("W")));
+        GroundNode? startNode = layout.Nodes.Values.FirstOrDefault(n => n.Edges.Any(e => e.MatchesTaxiway("W")));
         Assert.NotNull(startNode);
 
-        var route = SampleRoutes().GetTaxiRoutes("KOAK").First(r => r.Name == "DEP 30 via W");
+        TaxiRouteDefinition route = SampleRoutes().GetTaxiRoutes("KOAK").First(r => r.Name == "DEP 30 via W");
 
-        var resolved = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode!.Id,
             route.GetPathTokens(),
@@ -169,13 +169,13 @@ public class AirportSidecarCatalogTests
     [Fact]
     public void BogusRoute_FailsToResolveAgainstRealLayout()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
         }
 
-        var startNode = layout.Nodes.Values.FirstOrDefault(n => n.Edges.Any(e => e.MatchesTaxiway("W")));
+        GroundNode? startNode = layout.Nodes.Values.FirstOrDefault(n => n.Edges.Any(e => e.MatchesTaxiway("W")));
         Assert.NotNull(startNode);
 
         var bogus = new TaxiRouteDefinition
@@ -185,7 +185,7 @@ public class AirportSidecarCatalogTests
             Path = "ZZZ",
         };
 
-        var resolved = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode!.Id,
             bogus.GetPathTokens(),

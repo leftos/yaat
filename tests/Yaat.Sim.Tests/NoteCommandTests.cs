@@ -13,16 +13,16 @@ public class NoteCommandTests
     [Fact]
     public void Note_ParsesFreetext_PreservingCaseAndSpaces()
     {
-        var result = CommandParser.Parse("NOTE Watch wake KSFO");
-        var cmd = Assert.IsType<NoteCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("NOTE Watch wake KSFO");
+        NoteCommand cmd = Assert.IsType<NoteCommand>(result.Value);
         Assert.Equal("Watch wake KSFO", cmd.Text);
     }
 
     [Fact]
     public void Note_Bare_ClearsNote()
     {
-        var result = CommandParser.Parse("NOTE");
-        var cmd = Assert.IsType<NoteCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("NOTE");
+        NoteCommand cmd = Assert.IsType<NoteCommand>(result.Value);
         Assert.Equal("", cmd.Text);
     }
 
@@ -49,7 +49,7 @@ public class NoteCommandTests
     [Fact]
     public void TruncateNote_CapsAt40Chars()
     {
-        var longText = new string('x', 50);
+        string longText = new string('x', 50);
         Assert.Equal(40, AircraftState.TruncateNote(longText).Length);
         Assert.Equal("short", AircraftState.TruncateNote("short  "));
     }

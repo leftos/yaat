@@ -63,10 +63,10 @@ public sealed class BrowserStripsTransport : IStripsTransport, IAsyncDisposable
             await DisconnectAsync();
         }
 
-        var baseUrl = string.IsNullOrEmpty(serverUrl) ? "/hubs/training" : serverUrl.TrimEnd('/') + "/hubs/training";
+        string baseUrl = string.IsNullOrEmpty(serverUrl) ? "/hubs/training" : serverUrl.TrimEnd('/') + "/hubs/training";
         // Identify as a vStrips position tool so the server exempts this connection from the
         // mentor/instructor connect gate (students use vStrips/vTDLS like CRC).
-        var hubUrl = $"{baseUrl}?clientKind={ClientKind.VStrips}";
+        string hubUrl = $"{baseUrl}?clientKind={ClientKind.VStrips}";
         Log.LogInformation("Connecting to {Url}", hubUrl);
 
         _connection = new HubConnectionBuilder()

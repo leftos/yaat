@@ -32,7 +32,7 @@ public class N9225LExitTimingTests(ITestOutputHelper output)
     [Fact]
     public void N9225L_ExitsG_WithoutReacquireCrawl()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         if (recording is null)
         {
             return;
@@ -55,7 +55,7 @@ public class N9225LExitTimingTests(ITestOutputHelper output)
         for (int t = TouchdownSecond + 1; t <= TouchdownSecond + 60; t++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
             string? twy = ac.Ground.CurrentTaxiway;

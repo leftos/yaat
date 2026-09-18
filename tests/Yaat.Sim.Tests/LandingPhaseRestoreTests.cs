@@ -89,7 +89,7 @@ public sealed class LandingPhaseRestoreTests
     /// <summary>Starts a landing phase on a fresh piston aircraft in calm air and returns it, Active.</summary>
     private static LandingPhase StartLanding(RunwayInfo runway)
     {
-        var ac = MakePistonOnShortFinal(runway);
+        AircraftState ac = MakePistonOnShortFinal(runway);
         var phase = new LandingPhase();
         ac.Phases = new PhaseList { AssignedRunway = runway };
         ac.Phases.Add(phase);
@@ -106,7 +106,7 @@ public sealed class LandingPhaseRestoreTests
     /// </summary>
     private static PhaseContext MakeRestoredContext(RunwayInfo runway, WeatherProfile? weather)
     {
-        var ac = MakePistonOnShortFinal(runway);
+        AircraftState ac = MakePistonOnShortFinal(runway);
         ac.Phases = new PhaseList();
         return MakeContext(ac, runway, weather);
     }
@@ -134,12 +134,12 @@ public sealed class LandingPhaseRestoreTests
     [Fact]
     public void Snapshot_BeforeTheFirstTick_IsLossless()
     {
-        var runway = Oak28R();
-        var twin = StartLanding(runway);
+        RunwayInfo runway = Oak28R();
+        LandingPhase twin = StartLanding(runway);
 
-        var first = Assert.IsType<LandingPhaseDto>(twin.ToSnapshot());
+        LandingPhaseDto first = Assert.IsType<LandingPhaseDto>(twin.ToSnapshot());
         var restored = LandingPhase.FromSnapshot(first, groundLayout: null);
-        var second = Assert.IsType<LandingPhaseDto>(restored.ToSnapshot());
+        LandingPhaseDto second = Assert.IsType<LandingPhaseDto>(restored.ToSnapshot());
 
         // Geometry: a lost threshold leaves the next restore with a null plan, which the phase runner reads as a
         // finished landing and follows with a runway exit.
@@ -160,21 +160,21 @@ public sealed class LandingPhaseRestoreTests
     [Fact]
     public void RestoredPlan_MatchesTheLivePlanExactly()
     {
-        var runway = Oak28R();
-        var twin = StartLanding(runway);
+        RunwayInfo runway = Oak28R();
+        LandingPhase twin = StartLanding(runway);
         Assert.Equal(LandingPhase.State.StabilizedApproach, twin.CurrentState);
-        var expected = twin.Plan;
+        LandingPlan? expected = twin.Plan;
         Assert.NotNull(expected);
         Assert.Equal("28R", expected.RunwayId);
 
-        var dto = Assert.IsType<LandingPhaseDto>(twin.ToSnapshot());
+        LandingPhaseDto dto = Assert.IsType<LandingPhaseDto>(twin.ToSnapshot());
         var restored = LandingPhase.FromSnapshot(dto, groundLayout: null);
 
         // Gustier air and no assigned runway in the restored context: a plan rebuilt from the live context would
         // read Vref 85 and a null runway id instead of the 75 and "28R" the aircraft has been flying.
         restored.OnTick(MakeRestoredContext(runway, GustyWeather()));
 
-        var plan = restored.Plan;
+        LandingPlan? plan = restored.Plan;
         Assert.NotNull(plan);
         Assert.Equal(expected, plan);
         Assert.Equal("28R", plan.RunwayId);
@@ -185,25 +185,25 @@ public sealed class LandingPhaseRestoreTests
     [Fact]
     public void LegacySnapshot_WithoutConstants_RebuildsFromCategory()
     {
-        var runway = Oak28R();
-        var dto = SnapshotWithoutConstants(runway, PhaseStatus.Active);
+        RunwayInfo runway = Oak28R();
+        LandingPhaseDto dto = SnapshotWithoutConstants(runway, PhaseStatus.Active);
         var restored = LandingPhase.FromSnapshot(dto, groundLayout: null);
         Assert.Null(restored.Plan);
 
         // Re-snapshotting inside the un-ticked window is still lossless: the geometry has nowhere to live but
         // the restored copy, and losing it would leave the next restore with a null plan.
-        var resnapshot = Assert.IsType<LandingPhaseDto>(restored.ToSnapshot());
+        LandingPhaseDto resnapshot = Assert.IsType<LandingPhaseDto>(restored.ToSnapshot());
         Assert.Equal(dto.FieldElevation, resnapshot.FieldElevation, 6);
         Assert.Equal(dto.RunwayHeadingDeg, resnapshot.RunwayHeadingDeg, 6);
         Assert.Equal(dto.ThresholdLat, resnapshot.ThresholdLat, 6);
         Assert.Equal(dto.ThresholdLon, resnapshot.ThresholdLon, 6);
         Assert.Equal(Serialize(dto), Serialize(resnapshot));
 
-        var ac = MakePistonOnShortFinal(runway);
+        AircraftState ac = MakePistonOnShortFinal(runway);
         ac.Phases = new PhaseList { AssignedRunway = runway };
         restored.OnTick(MakeContext(ac, runway, weather: null));
 
-        var plan = restored.Plan;
+        LandingPlan? plan = restored.Plan;
         Assert.NotNull(plan);
         Assert.Equal(CategoryPerformance.FlareAltitude(AircraftCategory.Piston), plan.FlareEntryAgl, 3);
         Assert.Equal(CategoryPerformance.FlareDescentRate(AircraftCategory.Piston), plan.FlareFpm, 3);
@@ -221,22 +221,22 @@ public sealed class LandingPhaseRestoreTests
     [Fact]
     public void RestoredPendingLanding_HasNoPlanUntilOnStart()
     {
-        var runway = Oak28R();
-        var dto = SnapshotWithoutConstants(runway, PhaseStatus.Pending);
+        RunwayInfo runway = Oak28R();
+        LandingPhaseDto dto = SnapshotWithoutConstants(runway, PhaseStatus.Pending);
         var restored = LandingPhase.FromSnapshot(dto, groundLayout: null);
 
         Assert.Null(restored.Plan);
 
-        var ac = MakePistonOnShortFinal(runway);
+        AircraftState ac = MakePistonOnShortFinal(runway);
         ac.Phases = new PhaseList { AssignedRunway = runway };
-        var ctx = MakeContext(ac, runway, weather: null);
+        PhaseContext ctx = MakeContext(ac, runway, weather: null);
 
         // A tick alone must not fill it in: only OnStart plans a phase that had not started.
         restored.OnTick(ctx);
         Assert.Null(restored.Plan);
 
         restored.OnStart(ctx);
-        var plan = restored.Plan;
+        LandingPlan? plan = restored.Plan;
         Assert.NotNull(plan);
         Assert.Equal(CategoryPerformance.FlareAltitude(AircraftCategory.Piston), plan.FlareEntryAgl, 3);
     }

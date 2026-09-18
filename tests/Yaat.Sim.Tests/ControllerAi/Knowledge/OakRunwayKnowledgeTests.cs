@@ -42,7 +42,7 @@ public class OakRunwayKnowledgeTests
     [InlineData(280, 15, "SFOW")]
     public void Selection_CalmBelowTenKnots_ElseMostAlignedConfiguration(double direction, double knots, string expected)
     {
-        var decision = FacilityRunwaySelector.Select(Oak, "OAK", Wind(direction, knots), NoPartner, OakRunways, ModelDate);
+        RunwayUseDecision? decision = FacilityRunwaySelector.Select(Oak, "OAK", Wind(direction, knots), NoPartner, OakRunways, ModelDate);
 
         Assert.NotNull(decision);
         Assert.Equal(expected, decision.ConfigurationName);
@@ -66,7 +66,7 @@ public class OakRunwayKnowledgeTests
     [InlineData(300, 15)]
     public void Selection_SfoInEastFlow_ForcesSfoe_WhateverTheWind(double direction, double knots)
     {
-        var decision = FacilityRunwaySelector.Select(
+        RunwayUseDecision? decision = FacilityRunwaySelector.Select(
             Oak,
             "OAK",
             Wind(direction, knots),
@@ -101,15 +101,15 @@ public class OakRunwayKnowledgeTests
             return;
         }
 
-        var json = AiTestFixture
+        string json = AiTestFixture
             .ParkedAtOak.Replace("\"parking\": \"SIG1\"", $"\"parking\": \"{parking}\"")
             .Replace("\"aircraftType\": \"C172\"", $"\"aircraftType\": \"{type}\"");
-        var engine = AiTestFixture.Load(json, _zoa, 7, []);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
-        var sets = Oak.RunwaysAt(configuration, "OAK")!;
+        SimulationEngine engine = AiTestFixture.Load(json, _zoa, 7, []);
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        ConfigurationRunways sets = Oak.RunwaysAt(configuration, "OAK")!;
         var decision = new RunwayUseDecision("OAK", sets.Departure, sets.Arrival, configuration, RunwayUseSource.Knowledge, "test");
 
-        var runway = FacilityRunwayAssigner.AssignDepartureRunway(Oak, aircraft, decision, OakRunways);
+        string runway = FacilityRunwayAssigner.AssignDepartureRunway(Oak, aircraft, decision, OakRunways);
 
         Assert.StartsWith(expectedPrefix, runway);
         Assert.Contains(runway, sets.Departure);
@@ -118,11 +118,11 @@ public class OakRunwayKnowledgeTests
     [Fact]
     public void Gate_ANineKnotTailwind_IsFineDry_AndOverTheLimitWet_AndTheGustCounts()
     {
-        var sets = Oak.RunwaysAt("OAKE", "OAK")!;
+        ConfigurationRunways sets = Oak.RunwaysAt("OAKE", "OAK")!;
         var oake = new RunwayUseDecision("OAK", sets.Departure, sets.Arrival, "OAKE", RunwayUseSource.Knowledge, "test");
 
         Assert.Same(oake, RunwayUsabilityGate.Apply(oake, Wind(300, 9), wet: false, OakRunways, ModelDate).Usable);
-        var (wetUsable, wetRemoved) = RunwayUsabilityGate.Apply(oake, Wind(300, 9), wet: true, OakRunways, ModelDate);
+        (RunwayUseDecision? wetUsable, string? wetRemoved) = RunwayUsabilityGate.Apply(oake, Wind(300, 9), wet: true, OakRunways, ModelDate);
         Assert.Null(wetUsable);
         Assert.Contains("tailwind", wetRemoved);
         // 300 at 5 gusting 14: the gust is the tailwind the runway sees.
@@ -137,7 +137,7 @@ public class OakRunwayKnowledgeTests
     {
         var spread = new RunwayUseDecision("OAK", ["30", "12"], ["30", "12"], "TEST", RunwayUseSource.Knowledge, "test");
 
-        var (usable, removed) = RunwayUsabilityGate.Apply(spread, Wind(300, 12), wet: false, OakRunways, ModelDate);
+        (RunwayUseDecision? usable, string? removed) = RunwayUsabilityGate.Apply(spread, Wind(300, 12), wet: false, OakRunways, ModelDate);
 
         Assert.NotNull(usable);
         Assert.Equal(["30"], usable.DepartureRunways);
@@ -154,12 +154,16 @@ public class OakRunwayKnowledgeTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         var state = new RunwayInUseState(FacilityOpsDatabase.For);
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 300, Speed = 12 }] };
-        var west = state.For("OAK", AiTestFixture.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink()), ground.PositionId);
+        RunwayUseDecision? west = state.For(
+            "OAK",
+            AiTestFixture.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink()),
+            ground.PositionId
+        );
         Assert.Equal("SFOW", west!.ConfigurationName);
 
         // A weather timeline hands the world a new profile every second; a wobble is not a new decision.
@@ -171,7 +175,11 @@ public class OakRunwayKnowledgeTests
 
         // A veer through the field is.
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 120, Speed = 14 }] };
-        var east = state.For("OAK", AiTestFixture.Context(engine, [aircraft], [ground], 12, [], new RecordingAiCommandSink()), ground.PositionId);
+        RunwayUseDecision? east = state.For(
+            "OAK",
+            AiTestFixture.Context(engine, [aircraft], [ground], 12, [], new RecordingAiCommandSink()),
+            ground.PositionId
+        );
         Assert.Equal("OAKE", east!.ConfigurationName);
         Assert.False(RunwayInUseState.WindMoved(Wind(300, 12), Wind(310, 14)));
         Assert.True(RunwayInUseState.WindMoved(Wind(300, 12), Wind(300, 17)));
@@ -187,16 +195,16 @@ public class OakRunwayKnowledgeTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
-        var scenario = engine.Scenario!;
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        SimScenarioState scenario = engine.Scenario!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 120, Speed = 12 }] };
 
         // Knowledge: 12 kt from 120 ⇒ OAKE, and the brain assigns a C172 the nearest of the 10s.
         var knowledge = new RunwayInUseState(FacilityOpsDatabase.For);
-        var context = AiTestFixture.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink());
-        var decision = knowledge.For("OAK", context, ground.PositionId);
+        AiTickContext context = AiTestFixture.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink());
+        RunwayUseDecision? decision = knowledge.For("OAK", context, ground.PositionId);
         Assert.NotNull(decision);
         Assert.Equal("OAKE", decision.ConfigurationName);
         Assert.Equal(RunwayUseSource.Knowledge, decision.Source);
@@ -205,7 +213,7 @@ public class OakRunwayKnowledgeTests
         // A named configuration for the partner drives the coupling rule (light wind, so the tailwind gate stays out of it).
         scenario.ControllerAi = Config(ground, null, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["KSFO"] = "SFOE" });
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 300, Speed = 3 }] };
-        var coupled = new RunwayInUseState(FacilityOpsDatabase.For).For(
+        RunwayUseDecision? coupled = new RunwayInUseState(FacilityOpsDatabase.For).For(
             "OAK",
             AiTestFixture.Context(engine, [aircraft], [ground], 11, [], new RecordingAiCommandSink()),
             ground.PositionId
@@ -216,7 +224,7 @@ public class OakRunwayKnowledgeTests
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 300, Speed = 12 }] };
         scenario.ControllerAi = Config(ground, null, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["KOAK"] = "OAKE" });
         scenario.AiAnomalies.Clear();
-        var fixedConfiguration = new RunwayInUseState(FacilityOpsDatabase.For).For(
+        RunwayUseDecision? fixedConfiguration = new RunwayInUseState(FacilityOpsDatabase.For).For(
             "OAK",
             AiTestFixture.Context(engine, [aircraft], [ground], 12, [], new RecordingAiCommandSink()),
             ground.PositionId
@@ -228,7 +236,7 @@ public class OakRunwayKnowledgeTests
 
         // The runway designator beats everything.
         scenario.ControllerAi = Config(ground, "30", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["KOAK"] = "OAKE" });
-        var fixedRunway = new RunwayInUseState(FacilityOpsDatabase.For).For(
+        RunwayUseDecision? fixedRunway = new RunwayInUseState(FacilityOpsDatabase.For).For(
             "OAK",
             AiTestFixture.Context(engine, [aircraft], [ground], 13, [], new RecordingAiCommandSink()),
             ground.PositionId
@@ -240,14 +248,14 @@ public class OakRunwayKnowledgeTests
         scenario.ControllerAi = Config(ground, null, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["KSFO"] = "SFOE" });
         engine.World.Weather = new WeatherProfile { Precipitation = "RA", WindLayers = [new WindLayer { Direction = 300, Speed = 9 }] };
         scenario.AiAnomalies.Clear();
-        var conflicted = new RunwayInUseState(FacilityOpsDatabase.For).For(
+        RunwayUseDecision? conflicted = new RunwayInUseState(FacilityOpsDatabase.For).For(
             "OAK",
             AiTestFixture.Context(engine, [aircraft], [ground], 14, [], new RecordingAiCommandSink()),
             ground.PositionId
         );
         Assert.Equal(RunwayUseSource.Generic, conflicted!.Source);
         Assert.Equal("30", conflicted.PrimaryDepartureRunway);
-        var anomaly = Assert.Single(scenario.AiAnomalies.Drain());
+        AiAnomalyEvent anomaly = Assert.Single(scenario.AiAnomalies.Drain());
         Assert.Equal(AiAnomalyKind.KnowledgeConflict, anomaly.Kind);
         Assert.Contains("SFOE", anomaly.Detail);
     }
@@ -307,18 +315,18 @@ public class OakRunwayKnowledgeTests
             },
             RunwayAssignmentPolicy = [],
         };
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 120, Speed = 12 }] };
         var state = new RunwayInUseState(airport =>
             NavigationDatabase.AirportIdsMatch(airport ?? "", "KSFO") ? sfo : FacilityOpsDatabase.For(airport)
         );
-        var context = AiTestFixture.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink());
+        AiTickContext context = AiTestFixture.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink());
 
         // OAK asks SFO, SFO asks OAK back and gets nothing, decides on its wind, and OAK follows it.
-        var oak = state.For("OAK", context, ground.PositionId);
-        var sfoDecision = state.For("SFO", context, ground.PositionId);
+        RunwayUseDecision? oak = state.For("OAK", context, ground.PositionId);
+        RunwayUseDecision? sfoDecision = state.For("SFO", context, ground.PositionId);
 
         Assert.Equal("SFOE", oak!.ConfigurationName);
         Assert.Equal("SFOE", sfoDecision!.ConfigurationName);
@@ -334,7 +342,7 @@ public class OakRunwayKnowledgeTests
             return;
         }
 
-        var config = Config(
+        ControllerAiConfig config = Config(
             TestAiPositions.OakGround(_zoa),
             "30",
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["KSFO"] = "SFOE" }
@@ -354,10 +362,10 @@ public class OakRunwayKnowledgeTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.LoadWith(AiTestFixture.ParkedAtOak, _zoa, 7, [ground], null, p => new GroundBrain(p));
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.LoadWith(AiTestFixture.ParkedAtOak, _zoa, 7, [ground], null, p => new GroundBrain(p));
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 120, Speed = 12 }] };
-        var aiId = AiConnectionId.Format(ground.PositionId);
+        string aiId = AiConnectionId.Format(ground.PositionId);
         RecordedCommand? taxi = null;
         for (int t = 0; t < 120 && taxi is null; t++)
         {

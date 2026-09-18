@@ -18,7 +18,7 @@ public class TpaJRingConeCommandTests
     [Fact]
     public void JRing_WithRadius_ParsesEnableAndSize()
     {
-        var cmd = Assert.IsType<JRingCommand>(CommandParser.Parse("JRING 3").Value);
+        JRingCommand cmd = Assert.IsType<JRingCommand>(CommandParser.Parse("JRING 3").Value);
         Assert.True(cmd.Enable);
         Assert.Equal(3.0, cmd.Size);
     }
@@ -26,7 +26,7 @@ public class TpaJRingConeCommandTests
     [Fact]
     public void JRing_Bare_ParsesClear()
     {
-        var cmd = Assert.IsType<JRingCommand>(CommandParser.Parse("JRING").Value);
+        JRingCommand cmd = Assert.IsType<JRingCommand>(CommandParser.Parse("JRING").Value);
         Assert.False(cmd.Enable);
         Assert.Null(cmd.Size);
     }
@@ -34,7 +34,7 @@ public class TpaJRingConeCommandTests
     [Fact]
     public void Cone_WithLength_ParsesEnableAndFractionalSize()
     {
-        var cmd = Assert.IsType<ConeCommand>(CommandParser.Parse("CONE 5.5").Value);
+        ConeCommand cmd = Assert.IsType<ConeCommand>(CommandParser.Parse("CONE 5.5").Value);
         Assert.True(cmd.Enable);
         Assert.Equal(5.5, cmd.Size);
     }
@@ -42,7 +42,7 @@ public class TpaJRingConeCommandTests
     [Fact]
     public void Cone_Bare_ParsesClear()
     {
-        var cmd = Assert.IsType<ConeCommand>(CommandParser.Parse("CONE").Value);
+        ConeCommand cmd = Assert.IsType<ConeCommand>(CommandParser.Parse("CONE").Value);
         Assert.False(cmd.Enable);
         Assert.Null(cmd.Size);
     }

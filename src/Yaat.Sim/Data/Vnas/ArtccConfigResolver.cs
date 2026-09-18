@@ -29,7 +29,7 @@ public static class ArtccConfigResolver
 
     private static (string?, string?, string?, PositionConfig?) FindPositionInFacility(FacilityConfig facility, string positionId)
     {
-        foreach (var pos in facility.Positions)
+        foreach (PositionConfig pos in facility.Positions)
         {
             if (pos.Id == positionId)
             {
@@ -37,9 +37,9 @@ public static class ArtccConfigResolver
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            var result = FindPositionInFacility(child, positionId);
+            (string?, string?, string?, PositionConfig?) result = FindPositionInFacility(child, positionId);
             if (result.Item4 is not null)
             {
                 return result;
@@ -82,7 +82,7 @@ public static class ArtccConfigResolver
     private static void CollectPositionsByCallsign(FacilityConfig facility, string callsign, List<PositionConfig> found)
     {
         found.AddRange(facility.Positions.Where(pos => pos.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase)));
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
             CollectPositionsByCallsign(child, callsign, found);
         }
@@ -90,16 +90,16 @@ public static class ArtccConfigResolver
 
     private static PositionConfig? FindPositionByCallsignRec(FacilityConfig facility, string callsign)
     {
-        foreach (var pos in facility.Positions)
+        foreach (PositionConfig pos in facility.Positions)
         {
             if (pos.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase))
             {
                 return pos;
             }
         }
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            var found = FindPositionByCallsignRec(child, callsign);
+            PositionConfig? found = FindPositionByCallsignRec(child, callsign);
             if (found is not null)
             {
                 return found;
@@ -117,23 +117,23 @@ public static class ArtccConfigResolver
     /// </summary>
     public static PositionConfig? FindPositionByFrequency(this ArtccConfigRoot config, double frequencyMhz)
     {
-        var frequencyHz = (long)Math.Round(frequencyMhz * 1_000_000.0);
+        long frequencyHz = (long)Math.Round(frequencyMhz * 1_000_000.0);
         return FindPositionByFrequencyRec(config.Facility, frequencyHz);
     }
 
     private static PositionConfig? FindPositionByFrequencyRec(FacilityConfig facility, long frequencyHz)
     {
         const long ToleranceHz = 5_000; // ±5 kHz covers 8.33 kHz spacing rounded to 25 kHz typing.
-        foreach (var pos in facility.Positions)
+        foreach (PositionConfig pos in facility.Positions)
         {
             if (Math.Abs(pos.Frequency - frequencyHz) <= ToleranceHz)
             {
                 return pos;
             }
         }
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            var found = FindPositionByFrequencyRec(child, frequencyHz);
+            PositionConfig? found = FindPositionByFrequencyRec(child, frequencyHz);
             if (found is not null)
             {
                 return found;
@@ -151,11 +151,11 @@ public static class ArtccConfigResolver
     /// </summary>
     public static IReadOnlyList<PositionConfig> FindPositionsByTcpCodeAnyFacility(this ArtccConfigRoot config, string tcpCode)
     {
-        if (tcpCode.Length < 2 || !int.TryParse(tcpCode[..^1], out var subset))
+        if (tcpCode.Length < 2 || !int.TryParse(tcpCode[..^1], out int subset))
         {
             return Array.Empty<PositionConfig>();
         }
-        var sectorId = tcpCode[^1..];
+        string sectorId = tcpCode[^1..];
         var matches = new List<PositionConfig>();
         CollectPositionsByTcpCode(config.Facility, subset, sectorId, matches);
         return matches;
@@ -165,11 +165,11 @@ public static class ArtccConfigResolver
     {
         if (facility.StarsConfiguration is { } stars)
         {
-            foreach (var tcp in stars.Tcps)
+            foreach (TcpConfig tcp in stars.Tcps)
             {
                 if (tcp.Subset == subset && tcp.SectorId.Equals(sectorId, StringComparison.OrdinalIgnoreCase))
                 {
-                    foreach (var pos in facility.Positions)
+                    foreach (PositionConfig pos in facility.Positions)
                     {
                         if (pos.StarsConfiguration?.TcpId == tcp.Id)
                         {
@@ -179,7 +179,7 @@ public static class ArtccConfigResolver
                 }
             }
         }
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
             CollectPositionsByTcpCode(child, subset, sectorId, result);
         }
@@ -195,7 +195,7 @@ public static class ArtccConfigResolver
 
     private static (string?, PositionConfig?) FindEramPositionBySectorIdInFacility(FacilityConfig facility, string sectorId)
     {
-        foreach (var pos in facility.Positions)
+        foreach (PositionConfig pos in facility.Positions)
         {
             if (pos.EramConfiguration is { } eram && eram.SectorId.Equals(sectorId, StringComparison.OrdinalIgnoreCase))
             {
@@ -203,9 +203,9 @@ public static class ArtccConfigResolver
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            var result = FindEramPositionBySectorIdInFacility(child, sectorId);
+            (string?, PositionConfig?) result = FindEramPositionBySectorIdInFacility(child, sectorId);
             if (result.Item2 is not null)
             {
                 return result;
@@ -224,7 +224,7 @@ public static class ArtccConfigResolver
     /// </summary>
     public static TrackOwner? ResolvePosition(this ArtccConfigRoot config, string positionId)
     {
-        var (facilityId, _, _, pos) = config.FindPosition(positionId);
+        (string? facilityId, string? _, string? _, PositionConfig? pos) = config.FindPosition(positionId);
         if (pos is null || facilityId is null)
         {
             return null;
@@ -235,7 +235,7 @@ public static class ArtccConfigResolver
             return TrackOwner.CreateEram(pos.Callsign, facilityId, eram.SectorId);
         }
 
-        var (tcp, starsFacilityId) = config.GetTcpWithFacilityForPosition(positionId);
+        (Tcp? tcp, string? starsFacilityId) = config.GetTcpWithFacilityForPosition(positionId);
         if (tcp is null)
         {
             return TrackOwner.CreateStars(pos.Callsign, facilityId, 0, "");
@@ -260,8 +260,8 @@ public static class ArtccConfigResolver
             return null;
         }
 
-        var sectorId = eramCode[1..];
-        var (facilityId, pos) = config.FindEramPositionBySectorId(sectorId);
+        string sectorId = eramCode[1..];
+        (string? facilityId, PositionConfig? pos) = config.FindEramPositionBySectorId(sectorId);
         if (pos is null || facilityId is null)
         {
             return null;
@@ -277,13 +277,13 @@ public static class ArtccConfigResolver
     /// </summary>
     public static TrackOwner? ResolveTcpCode(this ArtccConfigRoot config, string facilityId, string tcpCode)
     {
-        if (tcpCode.Length < 2 || !int.TryParse(tcpCode[..^1], out var subset))
+        if (tcpCode.Length < 2 || !int.TryParse(tcpCode[..^1], out int subset))
         {
             return null;
         }
 
-        var sectorId = tcpCode[^1..];
-        var tcp = config.FindTcpByCode(facilityId, subset, sectorId);
+        string sectorId = tcpCode[^1..];
+        Tcp? tcp = config.FindTcpByCode(facilityId, subset, sectorId);
         if (tcp is null)
         {
             return null;
@@ -291,7 +291,7 @@ public static class ArtccConfigResolver
 
         // Use the matched TCP's canonical subset/sector, not the caller's input, so the owner doesn't
         // echo lower-case or otherwise non-canonical input (FindTcpByCode matches case-insensitively).
-        var pos = config.FindPositionByTcpId(tcp.Id);
+        PositionConfig? pos = config.FindPositionByTcpId(tcp.Id);
         if (pos is null)
         {
             return TrackOwner.CreateStars("", facilityId, tcp.Subset, tcp.SectorId);
@@ -319,28 +319,28 @@ public static class ArtccConfigResolver
             return null;
         }
 
-        var body = code[1..];
+        string body = code[1..];
         if (body.Length == 0)
         {
             return null;
         }
 
-        var handoffIds = config.FindFacility(senderFacilityId)?.StarsConfiguration?.StarsHandoffIds;
+        List<StarsHandoffIdConfig>? handoffIds = config.FindFacility(senderFacilityId)?.StarsConfiguration?.StarsHandoffIds;
         if (handoffIds is null)
         {
             return null;
         }
 
-        foreach (var handoff in handoffIds)
+        foreach (StarsHandoffIdConfig handoff in handoffIds)
         {
-            var number = handoff.HandoffNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            string number = handoff.HandoffNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
             if (!body.StartsWith(number, StringComparison.Ordinal))
             {
                 continue;
             }
 
-            var receivingTcpCode = body[number.Length..];
-            var owner =
+            string receivingTcpCode = body[number.Length..];
+            TrackOwner? owner =
                 receivingTcpCode.Length == 0
                     ? config.ResolveFacilityDefaultStarsOwner(handoff.FacilityId)
                     : config.ResolveTcpCode(handoff.FacilityId, receivingTcpCode);
@@ -369,10 +369,10 @@ public static class ArtccConfigResolver
             return null;
         }
 
-        var prefix = code[..1];
-        var tcpCode = code[1..];
+        string prefix = code[..1];
+        string tcpCode = code[1..];
 
-        var facilityId = FindNeighboringStarsFacility(config.Facility, prefix);
+        string? facilityId = FindNeighboringStarsFacility(config.Facility, prefix);
         return facilityId is null ? null : config.ResolveTcpCode(facilityId, tcpCode);
     }
 
@@ -383,10 +383,10 @@ public static class ArtccConfigResolver
     /// </summary>
     private static string? FindNeighboringStarsFacility(FacilityConfig facility, string prefix)
     {
-        var neighbors = facility.EramConfiguration?.NeighboringStarsConfigurations;
+        List<NeighboringStarsConfig>? neighbors = facility.EramConfiguration?.NeighboringStarsConfigurations;
         if (neighbors is not null)
         {
-            foreach (var neighbor in neighbors)
+            foreach (NeighboringStarsConfig neighbor in neighbors)
             {
                 if (
                     prefix.Equals(neighbor.SingleCharacterStarsId, StringComparison.OrdinalIgnoreCase)
@@ -398,9 +398,9 @@ public static class ArtccConfigResolver
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            var found = FindNeighboringStarsFacility(child, prefix);
+            string? found = FindNeighboringStarsFacility(child, prefix);
             if (found is not null)
             {
                 return found;
@@ -417,13 +417,13 @@ public static class ArtccConfigResolver
     /// </summary>
     private static TrackOwner? ResolveFacilityDefaultStarsOwner(this ArtccConfigRoot config, string facilityId)
     {
-        var tcps = config.FindFacility(facilityId)?.StarsConfiguration?.Tcps;
+        List<TcpConfig>? tcps = config.FindFacility(facilityId)?.StarsConfiguration?.Tcps;
         if (tcps is null || tcps.Count == 0)
         {
             return null;
         }
 
-        var primary = tcps.FirstOrDefault(t => string.IsNullOrEmpty(t.ParentTcpId)) ?? tcps[0];
+        TcpConfig primary = tcps.FirstOrDefault(t => string.IsNullOrEmpty(t.ParentTcpId)) ?? tcps[0];
         return config.ResolveTcpCode(facilityId, $"{primary.Subset}{primary.SectorId}");
     }
 
@@ -434,7 +434,7 @@ public static class ArtccConfigResolver
     /// </summary>
     public static Tcp? GetTcpForPosition(this ArtccConfigRoot config, string positionId)
     {
-        var (tcp, _) = config.GetTcpWithFacilityForPosition(positionId);
+        (Tcp? tcp, string? _) = config.GetTcpWithFacilityForPosition(positionId);
         return tcp;
     }
 
@@ -444,13 +444,13 @@ public static class ArtccConfigResolver
     /// </summary>
     public static (Tcp?, string?) GetTcpWithFacilityForPosition(this ArtccConfigRoot config, string positionId)
     {
-        var (facilityId, _, _, pos) = config.FindPosition(positionId);
+        (string? facilityId, string? _, string? _, PositionConfig? pos) = config.FindPosition(positionId);
         if (pos?.StarsConfiguration is null || facilityId is null)
         {
             return (null, null);
         }
 
-        var tcpId = pos.StarsConfiguration.TcpId;
+        string tcpId = pos.StarsConfiguration.TcpId;
         if (string.IsNullOrEmpty(tcpId))
         {
             return (null, null);
@@ -464,13 +464,13 @@ public static class ArtccConfigResolver
     /// </summary>
     public static Tcp? FindTcpByCode(this ArtccConfigRoot config, string facilityId, int subset, string sectorId)
     {
-        var facility = config.FindFacility(facilityId);
+        FacilityConfig? facility = config.FindFacility(facilityId);
         if (facility?.StarsConfiguration is null)
         {
             return null;
         }
 
-        foreach (var tcp in facility.StarsConfiguration.Tcps)
+        foreach (TcpConfig tcp in facility.StarsConfiguration.Tcps)
         {
             if (tcp.Subset == subset && tcp.SectorId.Equals(sectorId, StringComparison.OrdinalIgnoreCase))
             {
@@ -486,12 +486,12 @@ public static class ArtccConfigResolver
     /// </summary>
     public static Tcp? FindTcpByCode(this ArtccConfigRoot config, string facilityId, string tcpCode)
     {
-        if (tcpCode.Length < 2 || !int.TryParse(tcpCode[..^1], out var subset))
+        if (tcpCode.Length < 2 || !int.TryParse(tcpCode[..^1], out int subset))
         {
             return null;
         }
 
-        var sectorId = tcpCode[^1..];
+        string sectorId = tcpCode[^1..];
         return config.FindTcpByCode(facilityId, subset, sectorId);
     }
 
@@ -503,8 +503,8 @@ public static class ArtccConfigResolver
     /// </summary>
     public static (Tcp?, string?) FindTcpWithFacility(this ArtccConfigRoot config, string facilityId, string tcpId)
     {
-        var facility = config.FindFacility(facilityId);
-        var (tcp, foundFacility) = SearchTcpInFacility(facility, tcpId);
+        FacilityConfig? facility = config.FindFacility(facilityId);
+        (Tcp? tcp, string? foundFacility) = SearchTcpInFacility(facility, tcpId);
         if (tcp is not null)
         {
             return (tcp, foundFacility);
@@ -522,7 +522,7 @@ public static class ArtccConfigResolver
 
         if (facility.StarsConfiguration is not null)
         {
-            foreach (var tcp in facility.StarsConfiguration.Tcps)
+            foreach (TcpConfig tcp in facility.StarsConfiguration.Tcps)
             {
                 if (tcp.Id == tcpId)
                 {
@@ -531,9 +531,9 @@ public static class ArtccConfigResolver
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            var result = SearchTcpInFacility(child, tcpId);
+            (Tcp?, string?) result = SearchTcpInFacility(child, tcpId);
             if (result.Item1 is not null)
             {
                 return result;
@@ -551,7 +551,7 @@ public static class ArtccConfigResolver
 
     private static PositionConfig? FindPositionByTcpIdInFacility(FacilityConfig facility, string tcpId)
     {
-        foreach (var pos in facility.Positions)
+        foreach (PositionConfig pos in facility.Positions)
         {
             if (pos.StarsConfiguration?.TcpId == tcpId)
             {
@@ -559,9 +559,9 @@ public static class ArtccConfigResolver
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            var result = FindPositionByTcpIdInFacility(child, tcpId);
+            PositionConfig? result = FindPositionByTcpIdInFacility(child, tcpId);
             if (result is not null)
             {
                 return result;
@@ -598,12 +598,12 @@ public static class ArtccConfigResolver
             return $"{senderSubset}{input}";
         }
 
-        if (int.TryParse(input, out var subset))
+        if (int.TryParse(input, out int subset))
         {
-            var tcps = config.GetFacilityTcps(facilityId);
+            List<Tcp> tcps = config.GetFacilityTcps(facilityId);
             Tcp? match = null;
             int count = 0;
-            foreach (var tcp in tcps)
+            foreach (Tcp tcp in tcps)
             {
                 if (tcp.Subset == subset)
                 {
@@ -637,9 +637,9 @@ public static class ArtccConfigResolver
             return root;
         }
 
-        foreach (var child in root.ChildFacilities)
+        foreach (FacilityConfig child in root.ChildFacilities)
         {
-            var found = FindFacilityRec(child, facilityId);
+            FacilityConfig? found = FindFacilityRec(child, facilityId);
             if (found is not null)
             {
                 return found;
@@ -664,7 +664,7 @@ public static class ArtccConfigResolver
             return true;
         }
 
-        var facility = config.FindFacility(airportId);
+        FacilityConfig? facility = config.FindFacility(airportId);
         if (facility is null && airportId.Length == 4 && char.ToUpperInvariant(airportId[0]) == 'K')
         {
             facility = config.FindFacility(airportId[1..]);
@@ -674,7 +674,7 @@ public static class ArtccConfigResolver
             return true;
         }
 
-        foreach (var pos in facility.Positions)
+        foreach (PositionConfig pos in facility.Positions)
         {
             if (pos.Name.Equals("ATIS", StringComparison.OrdinalIgnoreCase) || pos.RadioName.Contains("ATIS", StringComparison.OrdinalIgnoreCase))
             {
@@ -705,7 +705,7 @@ public static class ArtccConfigResolver
             return false;
         }
 
-        var facility = config.FindFacility(airportId);
+        FacilityConfig? facility = config.FindFacility(airportId);
         if (facility is null && airportId.Length == 4 && char.ToUpperInvariant(airportId[0]) == 'K')
         {
             facility = config.FindFacility(airportId[1..]);
@@ -735,7 +735,7 @@ public static class ArtccConfigResolver
 
     private static FacilityConfig? FindFacilityForPositionCallsignRec(FacilityConfig facility, string callsign)
     {
-        foreach (var pos in facility.Positions)
+        foreach (PositionConfig pos in facility.Positions)
         {
             if (pos.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase))
             {
@@ -743,9 +743,9 @@ public static class ArtccConfigResolver
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            var found = FindFacilityForPositionCallsignRec(child, callsign);
+            FacilityConfig? found = FindFacilityForPositionCallsignRec(child, callsign);
             if (found is not null)
             {
                 return found;
@@ -763,7 +763,7 @@ public static class ArtccConfigResolver
     /// </summary>
     public static List<CoordinationChannel> GetCoordinationChannels(this ArtccConfigRoot config, string facilityId)
     {
-        var facility = config.FindFacility(facilityId);
+        FacilityConfig? facility = config.FindFacility(facilityId);
         if (facility is null)
         {
             return [];
@@ -778,18 +778,18 @@ public static class ArtccConfigResolver
     {
         if (facility.StarsConfiguration is not null)
         {
-            foreach (var list in facility.StarsConfiguration.Lists)
+            foreach (StarsListConfig list in facility.StarsConfiguration.Lists)
             {
                 if (list.CoordinationChannel is null)
                 {
                     continue;
                 }
 
-                var cc = list.CoordinationChannel;
+                CoordinationChannelConfig cc = list.CoordinationChannel;
                 var sendingTcps = new List<Tcp>();
-                foreach (var tcpId in cc.SendingTcpIds)
+                foreach (string tcpId in cc.SendingTcpIds)
                 {
-                    var (tcp, _) = SearchTcpInFacility(root, tcpId);
+                    (Tcp? tcp, string? _) = SearchTcpInFacility(root, tcpId);
                     if (tcp is not null)
                     {
                         sendingTcps.Add(tcp);
@@ -797,9 +797,9 @@ public static class ArtccConfigResolver
                 }
 
                 var receivers = new List<CoordinationReceiver>();
-                foreach (var r in cc.Receivers)
+                foreach (CoordinationReceiverConfig r in cc.Receivers)
                 {
-                    var (tcp, _) = SearchTcpInFacility(root, r.ReceivingTcpId);
+                    (Tcp? tcp, string? _) = SearchTcpInFacility(root, r.ReceivingTcpId);
                     if (tcp is not null)
                     {
                         receivers.Add(new CoordinationReceiver(tcp, r.AutoAcknowledge));
@@ -819,7 +819,7 @@ public static class ArtccConfigResolver
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
             CollectCoordinationChannels(root, child, result);
         }
@@ -871,14 +871,14 @@ public static class ArtccConfigResolver
     {
         if (facility.AsdexConfiguration is { } asdex)
         {
-            var (lat, lon) = GetFacilityLocation(facility, fixes);
+            (double lat, double lon) = GetFacilityLocation(facility, fixes);
             if (lat != 0 || lon != 0)
             {
                 result.Add(new AsdexAirportInfo(facility.Id, lat, lon, asdex.TargetVisibilityRange, asdex.TargetVisibilityCeiling));
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
             CollectAsdexAirports(child, fixes, result);
         }
@@ -888,8 +888,8 @@ public static class ArtccConfigResolver
     {
         if (facility.SaidConfiguration is { Vendor: SaidVendor.Saab, SaabConfiguration: { } saab })
         {
-            var tower = saab.TowerLocation;
-            var (lat, lon) =
+            TowerLocationConfig? tower = saab.TowerLocation;
+            (double lat, double lon) =
                 (tower is not null) && ((tower.Lat != 0) || (tower.Lon != 0)) ? (tower.Lat, tower.Lon) : GetFacilityLocation(facility, fixes);
 
             if (lat != 0 || lon != 0)
@@ -898,7 +898,7 @@ public static class ArtccConfigResolver
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
             CollectSaidAirports(child, fixes, result);
         }
@@ -908,14 +908,14 @@ public static class ArtccConfigResolver
     {
         if (facility.TowerCabConfiguration is { } tcab)
         {
-            var (lat, lon) = GetFacilityLocation(facility, fixes);
+            (double lat, double lon) = GetFacilityLocation(facility, fixes);
             if (lat != 0 || lon != 0)
             {
                 result.Add(new TowerCabAirportInfo(facility.Id, lat, lon, tcab.AircraftVisibilityCeiling));
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
             CollectTowerCabAirports(child, fixes, result);
         }
@@ -933,7 +933,7 @@ public static class ArtccConfigResolver
             return (0, 0);
         }
 
-        var pos = fixes.GetFixPosition(facility.Id);
+        (double Lat, double Lon)? pos = fixes.GetFixPosition(facility.Id);
         return pos is not null ? (pos.Value.Lat, pos.Value.Lon) : (0, 0);
     }
 
@@ -948,19 +948,19 @@ public static class ArtccConfigResolver
 
     private static StripBayConfig? MatchBayInFacility(FacilityConfig? facility, string bayName)
     {
-        var stripsConfig = facility?.FlightStripsConfiguration;
+        FlightStripsConfig? stripsConfig = facility?.FlightStripsConfiguration;
         if (stripsConfig is null)
         {
             return null;
         }
 
-        var direct = stripsConfig.StripBays.FirstOrDefault(b => b.Name.Equals(bayName, StringComparison.OrdinalIgnoreCase));
+        StripBayConfig? direct = stripsConfig.StripBays.FirstOrDefault(b => b.Name.Equals(bayName, StringComparison.OrdinalIgnoreCase));
         if (direct is not null)
         {
             return direct;
         }
 
-        var normalized = StripWhitespace(bayName);
+        string normalized = StripWhitespace(bayName);
         return stripsConfig.StripBays.FirstOrDefault(b => StripWhitespace(b.Name).Equals(normalized, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -971,7 +971,7 @@ public static class ArtccConfigResolver
     /// </summary>
     public static IReadOnlyList<AccessibleBay> GetAllAccessibleStripBays(this ArtccConfigRoot config, string positionCallsign)
     {
-        var ownerFacility = config.FindFacilityForPositionCallsign(positionCallsign);
+        FacilityConfig? ownerFacility = config.FindFacilityForPositionCallsign(positionCallsign);
         if (ownerFacility is null)
         {
             return [];
@@ -980,7 +980,7 @@ public static class ArtccConfigResolver
         var result = new List<AccessibleBay>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var bay in ownerFacility.FlightStripsConfiguration?.StripBays ?? [])
+        foreach (StripBayConfig bay in ownerFacility.FlightStripsConfiguration?.StripBays ?? [])
         {
             if (seen.Add(bay.Id))
             {
@@ -988,10 +988,10 @@ public static class ArtccConfigResolver
             }
         }
 
-        foreach (var ext in ownerFacility.FlightStripsConfiguration?.ExternalBays ?? [])
+        foreach (ExternalStripBayConfig ext in ownerFacility.FlightStripsConfiguration?.ExternalBays ?? [])
         {
-            var extFacility = config.FindFacility(ext.FacilityId);
-            var extBay = extFacility?.FlightStripsConfiguration?.StripBays.FirstOrDefault(b => b.Id == ext.BayId);
+            FacilityConfig? extFacility = config.FindFacility(ext.FacilityId);
+            StripBayConfig? extBay = extFacility?.FlightStripsConfiguration?.StripBays.FirstOrDefault(b => b.Id == ext.BayId);
             if (extFacility is not null && extBay is not null && seen.Add(extBay.Id))
             {
                 result.Add(new AccessibleBay(extFacility, extBay, IsExternal: true));
@@ -1015,7 +1015,7 @@ public static class ArtccConfigResolver
     /// </summary>
     public static IReadOnlyList<AccessibleBay> GetAllCommandTargetableStripBays(this ArtccConfigRoot config, string positionCallsign)
     {
-        var ownFacility = config.FindFacilityForPositionCallsign(positionCallsign);
+        FacilityConfig? ownFacility = config.FindFacilityForPositionCallsign(positionCallsign);
         if (ownFacility is null)
         {
             return [];
@@ -1023,14 +1023,14 @@ public static class ArtccConfigResolver
 
         var result = new List<AccessibleBay>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var accessible in config.GetAccessibleStripFacilities(positionCallsign))
+        foreach (AccessibleFacility accessible in config.GetAccessibleStripFacilities(positionCallsign))
         {
-            var facility = config.FindFacility(accessible.FacilityId);
+            FacilityConfig? facility = config.FindFacility(accessible.FacilityId);
             if (facility is null)
             {
                 continue;
             }
-            foreach (var bay in facility.FlightStripsConfiguration?.StripBays ?? [])
+            foreach (StripBayConfig bay in facility.FlightStripsConfiguration?.StripBays ?? [])
             {
                 if (seen.Add(bay.Id))
                 {
@@ -1048,13 +1048,13 @@ public static class ArtccConfigResolver
     /// </summary>
     public static AccessibleBay? GetAccessibleStripBay(this ArtccConfigRoot config, string positionCallsign, string facilityId, string bayName)
     {
-        var bays = config.GetAllCommandTargetableStripBays(positionCallsign);
+        IReadOnlyList<AccessibleBay> bays = config.GetAllCommandTargetableStripBays(positionCallsign);
         if (bays.Count == 0)
         {
             return null;
         }
 
-        foreach (var entry in bays)
+        foreach (AccessibleBay entry in bays)
         {
             if (
                 entry.Owner.Id.Equals(facilityId, StringComparison.OrdinalIgnoreCase)
@@ -1065,8 +1065,8 @@ public static class ArtccConfigResolver
             }
         }
 
-        var normalized = StripWhitespace(bayName);
-        foreach (var entry in bays)
+        string normalized = StripWhitespace(bayName);
+        foreach (AccessibleBay entry in bays)
         {
             if (
                 entry.Owner.Id.Equals(facilityId, StringComparison.OrdinalIgnoreCase)
@@ -1091,14 +1091,14 @@ public static class ArtccConfigResolver
             return null;
         }
 
-        var bays = config.GetAllAccessibleStripBays(positionCallsign);
+        IReadOnlyList<AccessibleBay> bays = config.GetAllAccessibleStripBays(positionCallsign);
         if (bays.Count == 0)
         {
             return null;
         }
 
-        var normalizedPrefix = StripWhitespace(namePrefix);
-        foreach (var entry in bays)
+        string normalizedPrefix = StripWhitespace(namePrefix);
+        foreach (AccessibleBay entry in bays)
         {
             if (entry.IsExternal)
             {
@@ -1121,8 +1121,8 @@ public static class ArtccConfigResolver
     /// </summary>
     public static AccessibleBay? GetAccessibleStripBayById(this ArtccConfigRoot config, string positionCallsign, string bayId)
     {
-        var bays = config.GetAllCommandTargetableStripBays(positionCallsign);
-        foreach (var entry in bays)
+        IReadOnlyList<AccessibleBay> bays = config.GetAllCommandTargetableStripBays(positionCallsign);
+        foreach (AccessibleBay entry in bays)
         {
             if (entry.Bay.Id == bayId)
             {
@@ -1145,7 +1145,7 @@ public static class ArtccConfigResolver
     /// </summary>
     public static IReadOnlyList<AccessibleFacility> GetAccessibleStripFacilities(this ArtccConfigRoot config, string positionCallsign)
     {
-        var ownFacility = config.FindFacilityForPositionCallsign(positionCallsign);
+        FacilityConfig? ownFacility = config.FindFacilityForPositionCallsign(positionCallsign);
         if (ownFacility is null)
         {
             return [];
@@ -1155,13 +1155,13 @@ public static class ArtccConfigResolver
         var seen = new HashSet<string>(StringComparer.Ordinal);
         CollectStripFacilities(ownFacility, studentFacilityId: ownFacility.Id, result, seen);
 
-        foreach (var ext in ownFacility.FlightStripsConfiguration?.ExternalBays ?? [])
+        foreach (ExternalStripBayConfig ext in ownFacility.FlightStripsConfiguration?.ExternalBays ?? [])
         {
             if (seen.Contains(ext.FacilityId))
             {
                 continue;
             }
-            var linked = config.FindFacility(ext.FacilityId);
+            FacilityConfig? linked = config.FindFacility(ext.FacilityId);
             if (linked?.FlightStripsConfiguration is null || linked.FlightStripsConfiguration.StripBays.Count == 0)
             {
                 continue;
@@ -1185,7 +1185,7 @@ public static class ArtccConfigResolver
             result.Add(new AccessibleFacility(facility.Id, facility.Name, IsStudentFacility: facility.Id == studentFacilityId));
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
             CollectStripFacilities(child, studentFacilityId, result, seen);
         }
@@ -1202,7 +1202,7 @@ public static class ArtccConfigResolver
     /// </summary>
     public static IReadOnlyList<AccessibleTdlsFacility> GetAccessibleTdlsFacilities(this ArtccConfigRoot config, string positionCallsign)
     {
-        var ownFacility = config.FindFacilityForPositionCallsign(positionCallsign);
+        FacilityConfig? ownFacility = config.FindFacilityForPositionCallsign(positionCallsign);
         if (ownFacility is null)
         {
             return [];
@@ -1222,7 +1222,7 @@ public static class ArtccConfigResolver
             result.Add(new AccessibleTdlsFacility(facility.Id, facility.Name, IsStudentFacility: facility.Id == studentFacilityId, members));
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
             CollectTdlsFacilities(child, studentFacilityId, result);
         }
@@ -1235,7 +1235,7 @@ public static class ArtccConfigResolver
             members.Add(facility.Id);
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
             CollectTdlsMemberIds(child, members);
         }
@@ -1244,7 +1244,7 @@ public static class ArtccConfigResolver
     private static string StripWhitespace(string s)
     {
         var sb = new System.Text.StringBuilder(s.Length);
-        foreach (var ch in s)
+        foreach (char ch in s)
         {
             if (!char.IsWhiteSpace(ch))
             {
@@ -1270,9 +1270,9 @@ public static class ArtccConfigResolver
             return facility;
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            var found = FindFirstStarsFacilityRec(child);
+            FacilityConfig? found = FindFirstStarsFacilityRec(child);
             if (found is not null)
             {
                 return found;
@@ -1319,7 +1319,7 @@ public static class ArtccConfigResolver
             return true;
         }
 
-        foreach (var child in current.ChildFacilities)
+        foreach (FacilityConfig child in current.ChildFacilities)
         {
             if (FindFacilityPath(child, targetId, path))
             {
@@ -1338,14 +1338,14 @@ public static class ArtccConfigResolver
     public static HashSet<string> ResolveAirportTcpCodes(this ArtccConfigRoot config, FacilityConfig starsFacility, string airportId)
     {
         var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var airport = config.FindFacility(airportId);
+        FacilityConfig? airport = config.FindFacility(airportId);
         if (airport is null || starsFacility.StarsConfiguration is null)
         {
             return codes;
         }
 
         var tcpIds = new HashSet<string>();
-        foreach (var pos in airport.Positions)
+        foreach (PositionConfig pos in airport.Positions)
         {
             if (pos.StarsConfiguration is { TcpId: { Length: > 0 } tcpId })
             {
@@ -1353,7 +1353,7 @@ public static class ArtccConfigResolver
             }
         }
 
-        foreach (var tcp in starsFacility.StarsConfiguration.Tcps)
+        foreach (TcpConfig tcp in starsFacility.StarsConfiguration.Tcps)
         {
             if (tcpIds.Contains(tcp.Id))
             {
@@ -1373,7 +1373,7 @@ public static class ArtccConfigResolver
 
     private static PositionConfig? FindPositionByTcpIdInTreeRec(FacilityConfig facility, string tcpId)
     {
-        foreach (var pos in facility.Positions)
+        foreach (PositionConfig pos in facility.Positions)
         {
             if (pos.StarsConfiguration is not null && pos.StarsConfiguration.TcpId == tcpId)
             {
@@ -1381,9 +1381,9 @@ public static class ArtccConfigResolver
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            var found = FindPositionByTcpIdInTreeRec(child, tcpId);
+            PositionConfig? found = FindPositionByTcpIdInTreeRec(child, tcpId);
             if (found is not null)
             {
                 return found;
@@ -1413,15 +1413,15 @@ public static class ArtccConfigResolver
             return null;
         }
 
-        if (!int.TryParse(tcpCode[..^1], out var subset))
+        if (!int.TryParse(tcpCode[..^1], out int subset))
         {
             return null;
         }
 
-        var sectorId = tcpCode[^1..];
+        string sectorId = tcpCode[^1..];
 
         string? tcpId = null;
-        foreach (var tcp in starsFacility.StarsConfiguration.Tcps)
+        foreach (TcpConfig tcp in starsFacility.StarsConfiguration.Tcps)
         {
             if (tcp.Subset == subset && tcp.SectorId.Equals(sectorId, StringComparison.OrdinalIgnoreCase))
             {
@@ -1435,13 +1435,13 @@ public static class ArtccConfigResolver
             return null;
         }
 
-        var position = config.FindPositionByTcpIdInTree(tcpId);
+        PositionConfig? position = config.FindPositionByTcpIdInTree(tcpId);
         if (position?.StarsConfiguration is null || string.IsNullOrEmpty(position.StarsConfiguration.AreaId))
         {
             return null;
         }
 
-        foreach (var area in starsFacility.StarsConfiguration.Areas)
+        foreach (StarsAreaConfig area in starsFacility.StarsConfiguration.Areas)
         {
             if (area.Id == position.StarsConfiguration.AreaId)
             {
@@ -1459,7 +1459,7 @@ public static class ArtccConfigResolver
     /// </summary>
     public static List<Tcp> GetFacilityTcps(this ArtccConfigRoot config, string facilityId)
     {
-        var facility = config.FindFacility(facilityId);
+        FacilityConfig? facility = config.FindFacility(facilityId);
         if (facility?.StarsConfiguration is null)
         {
             return [];
@@ -1478,13 +1478,13 @@ public static class ArtccConfigResolver
         ConsolidationState? manualOverrides = null
     )
     {
-        var allTcps = config.GetFacilityTcps(facilityId);
+        List<Tcp> allTcps = config.GetFacilityTcps(facilityId);
         if (allTcps.Count == 0)
         {
             return [];
         }
 
-        var autoConsolidate = config.IsAutoConsolidation(facilityId);
+        bool autoConsolidate = config.IsAutoConsolidation(facilityId);
         return ConsolidationEngine.GetConsolidationItems(allTcps, autoConsolidate, isAttended, manualOverrides);
     }
 
@@ -1500,7 +1500,7 @@ public static class ArtccConfigResolver
         ConsolidationState? manualOverrides
     )
     {
-        var allTcps = config.GetFacilityTcps(facilityId);
+        List<Tcp> allTcps = config.GetFacilityTcps(facilityId);
         if (allTcps.Count == 0)
         {
             return [];
@@ -1515,7 +1515,7 @@ public static class ArtccConfigResolver
     /// </summary>
     public static List<Tcp> GetDefaultConsolidation(this ArtccConfigRoot config, string facilityId, Tcp tcp)
     {
-        var allTcps = config.GetFacilityTcps(facilityId);
+        List<Tcp> allTcps = config.GetFacilityTcps(facilityId);
         if (allTcps.Count == 0)
         {
             return [];
@@ -1536,13 +1536,13 @@ public static class ArtccConfigResolver
         ConsolidationState? manualOverrides = null
     )
     {
-        var allTcps = config.GetFacilityTcps(facilityId);
+        List<Tcp> allTcps = config.GetFacilityTcps(facilityId);
         if (allTcps.Count == 0)
         {
             return null;
         }
 
-        var autoConsolidate = config.IsAutoConsolidation(facilityId);
+        bool autoConsolidate = config.IsAutoConsolidation(facilityId);
         return ConsolidationEngine.GetConsolidationOwner(allTcps, autoConsolidate, tcp, isAttended, manualOverrides);
     }
 
@@ -1566,7 +1566,7 @@ public static class ArtccConfigResolver
             return null;
         }
 
-        var tdls = FindTdlsConfigForAirport(config.Facility, NormalizeFaaAirport(departureAirportId));
+        TdlsConfig? tdls = FindTdlsConfigForAirport(config.Facility, NormalizeFaaAirport(departureAirportId));
         if (tdls is null)
         {
             return null;
@@ -1575,10 +1575,10 @@ public static class ArtccConfigResolver
         string? raw = null;
         if (!string.IsNullOrWhiteSpace(sidId))
         {
-            var sid = tdls.Sids.FirstOrDefault(s => s.Name.Equals(sidId, StringComparison.OrdinalIgnoreCase));
+            TdlsSidConfig? sid = tdls.Sids.FirstOrDefault(s => s.Name.Equals(sidId, StringComparison.OrdinalIgnoreCase));
             if (sid is not null)
             {
-                var transition = transitionId is not null
+                TdlsSidTransitionConfig? transition = transitionId is not null
                     ? sid.Transitions.FirstOrDefault(t => t.Name.Equals(transitionId, StringComparison.OrdinalIgnoreCase))
                     : null;
                 raw =
@@ -1598,9 +1598,9 @@ public static class ArtccConfigResolver
             return facility.TdlsConfiguration;
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            var found = FindTdlsConfigForAirport(child, normalizedAirport);
+            TdlsConfig? found = FindTdlsConfigForAirport(child, normalizedAirport);
             if (found is not null)
             {
                 return found;
@@ -1620,7 +1620,7 @@ public static class ArtccConfigResolver
         }
 
         // TDLS initial altitudes are published as full feet: "4000", "5000", sometimes "4000FT".
-        var span = raw.AsSpan().Trim();
+        ReadOnlySpan<char> span = raw.AsSpan().Trim();
         if (span.EndsWith("FT", StringComparison.OrdinalIgnoreCase))
         {
             span = span[..^2].Trim();

@@ -40,7 +40,7 @@ public sealed class LlmCudaFixture : IDisposable
     {
         get
         {
-            var src = ModelSource;
+            string? src = ModelSource;
             if (string.IsNullOrWhiteSpace(src))
             {
                 return false;

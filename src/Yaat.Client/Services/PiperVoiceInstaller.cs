@@ -125,8 +125,8 @@ public sealed partial class PiperVoiceInstaller : ObservableObject
     private async Task RunInstallAsync(CancellationToken ct)
     {
         SafeDeletePartial();
-        var partialRoot = Path.Combine(YaatPaths.Combine("voices"), PartialDirName);
-        var archivePath = Path.Combine(partialRoot, ArchiveFileName);
+        string partialRoot = Path.Combine(YaatPaths.Combine("voices"), PartialDirName);
+        string archivePath = Path.Combine(partialRoot, ArchiveFileName);
         Directory.CreateDirectory(partialRoot);
 
         StatusMessage = "Downloading Piper voice pack...";
@@ -137,7 +137,7 @@ public sealed partial class PiperVoiceInstaller : ObservableObject
         await Task.Run(() => ExtractArchive(archivePath, partialRoot, ct), ct).ConfigureAwait(false);
         SetProgress(0.95);
 
-        var extractedVoiceDir =
+        string extractedVoiceDir =
             Directory.EnumerateDirectories(partialRoot, PilotVoicePack.DirectoryName, SearchOption.AllDirectories).FirstOrDefault()
             ?? throw new DirectoryNotFoundException($"{PilotVoicePack.DirectoryName} missing from downloaded archive.");
         if (!PilotVoicePack.IsComplete(extractedVoiceDir))
@@ -153,18 +153,18 @@ public sealed partial class PiperVoiceInstaller : ObservableObject
     private async Task DownloadArchiveAsync(string archivePath, CancellationToken ct)
     {
         Log.LogInformation("Downloading Piper voice pack from {Url}", DownloadUrl);
-        using var response = await _http.GetAsync(DownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        using HttpResponseMessage response = await _http.GetAsync(DownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var total = response.Content.Headers.ContentLength;
-        using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        using var file = File.Create(archivePath);
+        long? total = response.Content.Headers.ContentLength;
+        using Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        using FileStream file = File.Create(archivePath);
 
         long bytesRead = 0;
-        var buffer = new byte[128 * 1024];
+        byte[] buffer = new byte[128 * 1024];
         while (true)
         {
-            var read = await stream.ReadAsync(buffer, ct).ConfigureAwait(false);
+            int read = await stream.ReadAsync(buffer, ct).ConfigureAwait(false);
             if (read == 0)
             {
                 break;
@@ -174,7 +174,7 @@ public sealed partial class PiperVoiceInstaller : ObservableObject
             bytesRead += read;
             if (total.HasValue && total.Value > 0)
             {
-                var fraction = (double)bytesRead / total.Value;
+                double fraction = (double)bytesRead / total.Value;
                 SetProgress(0.80 * fraction);
                 StatusMessage = $"Downloading {fraction * 100:F0}% ({bytesRead / (1024 * 1024)} / {total.Value / (1024 * 1024)} MB)";
             }
@@ -187,7 +187,7 @@ public sealed partial class PiperVoiceInstaller : ObservableObject
 
     private static void ExtractArchive(string archivePath, string destRoot, CancellationToken ct)
     {
-        using var file = File.OpenRead(archivePath);
+        using FileStream file = File.OpenRead(archivePath);
         using var bzip = BZip2Stream.Create(file, SharpCompressionMode.Decompress, decompressConcatenated: false, leaveOpen: false);
         TarFile.ExtractToDirectory(bzip, destRoot, overwriteFiles: true);
         ct.ThrowIfCancellationRequested();
@@ -206,7 +206,7 @@ public sealed partial class PiperVoiceInstaller : ObservableObject
 
     private static void SafeDeletePartial()
     {
-        var partialRoot = Path.Combine(YaatPaths.Combine("voices"), PartialDirName);
+        string partialRoot = Path.Combine(YaatPaths.Combine("voices"), PartialDirName);
         if (!Directory.Exists(partialRoot))
         {
             return;

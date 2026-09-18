@@ -16,7 +16,7 @@ public class UserPreferencesCommandHistoryTests
     {
         var prefs = new UserPreferences();
 
-        var history = prefs.GetCommandHistory("ZZZ-no-such-scenario");
+        IReadOnlyList<CommandHistoryEntry> history = prefs.GetCommandHistory("ZZZ-no-such-scenario");
 
         Assert.Empty(history);
     }
@@ -25,7 +25,7 @@ public class UserPreferencesCommandHistoryTests
     public void SetCommandHistory_RoundTripsCallsignAndCommandThroughDisk()
     {
         const string scenarioId = "TEST-roundtrip-ABC";
-        var entries = new[]
+        CommandHistoryEntry[] entries = new[]
         {
             new CommandHistoryEntry("UAL1", "fh 270"),
             new CommandHistoryEntry("AAL2", "DH 5000"),
@@ -38,7 +38,7 @@ public class UserPreferencesCommandHistoryTests
         // A fresh instance reads preferences.json from disk, proving persistence — including
         // the per-entry callsign, uppercased to match the in-memory normalization.
         var reader = new UserPreferences();
-        var loaded = reader.GetCommandHistory(scenarioId);
+        IReadOnlyList<CommandHistoryEntry> loaded = reader.GetCommandHistory(scenarioId);
 
         Assert.Equal(
             [new CommandHistoryEntry("UAL1", "FH 270"), new CommandHistoryEntry("AAL2", "DH 5000"), new CommandHistoryEntry("", "PAUSE")],
@@ -58,7 +58,7 @@ public class UserPreferencesCommandHistoryTests
             [new CommandHistoryEntry("UAL1", "cland"), new CommandHistoryEntry("UAL1", "CLAND"), new CommandHistoryEntry("AAL2", "cland")]
         );
 
-        var loaded = new UserPreferences().GetCommandHistory(scenarioId);
+        IReadOnlyList<CommandHistoryEntry> loaded = new UserPreferences().GetCommandHistory(scenarioId);
 
         Assert.Equal([new CommandHistoryEntry("UAL1", "CLAND"), new CommandHistoryEntry("AAL2", "CLAND")], loaded);
     }
@@ -72,7 +72,7 @@ public class UserPreferencesCommandHistoryTests
         prefs.SetCommandHistory(scenarioId, [new CommandHistoryEntry("", "OLD1"), new CommandHistoryEntry("", "OLD2")]);
         prefs.SetCommandHistory(scenarioId, [new CommandHistoryEntry("", "NEW")]);
 
-        var loaded = new UserPreferences().GetCommandHistory(scenarioId);
+        IReadOnlyList<CommandHistoryEntry> loaded = new UserPreferences().GetCommandHistory(scenarioId);
 
         Assert.Equal([new CommandHistoryEntry("", "NEW")], loaded);
     }

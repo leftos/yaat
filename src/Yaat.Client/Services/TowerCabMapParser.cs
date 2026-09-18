@@ -44,14 +44,14 @@ public static class TowerCabMapParser
         var lines = new List<TowerCabLine>();
 
         using var doc = JsonDocument.Parse(geoJson);
-        var root = doc.RootElement;
+        JsonElement root = doc.RootElement;
 
-        if (!root.TryGetProperty("type", out var typeProp) || typeProp.GetString() != "FeatureCollection")
+        if (!root.TryGetProperty("type", out JsonElement typeProp) || typeProp.GetString() != "FeatureCollection")
         {
             return new TowerCabMapData { Polygons = polygons, Lines = lines };
         }
 
-        if (!root.TryGetProperty("features", out var features) || features.ValueKind != JsonValueKind.Array)
+        if (!root.TryGetProperty("features", out JsonElement features) || features.ValueKind != JsonValueKind.Array)
         {
             return new TowerCabMapData { Polygons = polygons, Lines = lines };
         }
@@ -59,14 +59,14 @@ public static class TowerCabMapParser
         // First pass: find defaults feature
         SKColor defaultLineColor = DefaultLineColor;
         int defaultThickness = DefaultThickness;
-        foreach (var feature in features.EnumerateArray())
+        foreach (JsonElement feature in features.EnumerateArray())
         {
             if (!IsDefaultsFeature(feature))
             {
                 continue;
             }
 
-            if (feature.TryGetProperty("properties", out var defProps))
+            if (feature.TryGetProperty("properties", out JsonElement defProps))
             {
                 defaultLineColor = GetColor(defProps, DefaultLineColor);
                 defaultThickness = GetThickness(defProps, DefaultThickness);
@@ -76,30 +76,30 @@ public static class TowerCabMapParser
         }
 
         // Second pass: parse features
-        foreach (var feature in features.EnumerateArray())
+        foreach (JsonElement feature in features.EnumerateArray())
         {
             if (IsDefaultsFeature(feature))
             {
                 continue;
             }
 
-            if (!feature.TryGetProperty("geometry", out var geometry) || geometry.ValueKind == JsonValueKind.Null)
+            if (!feature.TryGetProperty("geometry", out JsonElement geometry) || geometry.ValueKind == JsonValueKind.Null)
             {
                 continue;
             }
 
-            if (!geometry.TryGetProperty("type", out var geoType))
+            if (!geometry.TryGetProperty("type", out JsonElement geoType))
             {
                 continue;
             }
 
-            if (!geometry.TryGetProperty("coordinates", out var coords))
+            if (!geometry.TryGetProperty("coordinates", out JsonElement coords))
             {
                 continue;
             }
 
-            var props = feature.TryGetProperty("properties", out var p) ? p : (JsonElement?)null;
-            var type = geoType.GetString();
+            JsonElement? props = feature.TryGetProperty("properties", out JsonElement p) ? p : (JsonElement?)null;
+            string? type = geoType.GetString();
 
             switch (type)
             {
@@ -107,7 +107,7 @@ public static class TowerCabMapParser
                     ParsePolygon(coords, props, defaultLineColor, polygons);
                     break;
                 case "MultiPolygon":
-                    foreach (var polyCoords in coords.EnumerateArray())
+                    foreach (JsonElement polyCoords in coords.EnumerateArray())
                     {
                         ParsePolygon(polyCoords, props, defaultLineColor, polygons);
                     }
@@ -116,7 +116,7 @@ public static class TowerCabMapParser
                     ParseLineString(coords, props, defaultLineColor, defaultThickness, lines);
                     break;
                 case "MultiLineString":
-                    foreach (var lineCoords in coords.EnumerateArray())
+                    foreach (JsonElement lineCoords in coords.EnumerateArray())
                     {
                         ParseLineString(lineCoords, props, defaultLineColor, defaultThickness, lines);
                     }
@@ -130,12 +130,12 @@ public static class TowerCabMapParser
     private static void ParsePolygon(JsonElement coords, JsonElement? props, SKColor defaultColor, List<TowerCabPolygon> polygons)
     {
         // A polygon has one or more rings; take the outer ring (first)
-        foreach (var ring in coords.EnumerateArray())
+        foreach (JsonElement ring in coords.EnumerateArray())
         {
-            var points = ParseCoordinateArray(ring);
+            List<LatLon> points = ParseCoordinateArray(ring);
             if (points.Count >= 3)
             {
-                var color = props.HasValue ? GetColor(props.Value, defaultColor) : defaultColor;
+                SKColor color = props.HasValue ? GetColor(props.Value, defaultColor) : defaultColor;
                 polygons.Add(new TowerCabPolygon { Points = points, Color = color });
             }
 
@@ -145,11 +145,11 @@ public static class TowerCabMapParser
 
     private static void ParseLineString(JsonElement coords, JsonElement? props, SKColor defaultColor, int defaultThickness, List<TowerCabLine> lines)
     {
-        var points = ParseCoordinateArray(coords);
+        List<LatLon> points = ParseCoordinateArray(coords);
         if (points.Count >= 2)
         {
-            var color = props.HasValue ? GetColor(props.Value, defaultColor) : defaultColor;
-            var thickness = props.HasValue ? GetThickness(props.Value, defaultThickness) : defaultThickness;
+            SKColor color = props.HasValue ? GetColor(props.Value, defaultColor) : defaultColor;
+            int thickness = props.HasValue ? GetThickness(props.Value, defaultThickness) : defaultThickness;
             lines.Add(
                 new TowerCabLine
                 {
@@ -164,9 +164,9 @@ public static class TowerCabMapParser
     private static List<LatLon> ParseCoordinateArray(JsonElement coordArray)
     {
         var points = new List<LatLon>();
-        foreach (var coord in coordArray.EnumerateArray())
+        foreach (JsonElement coord in coordArray.EnumerateArray())
         {
-            var arr = coord.EnumerateArray().ToArray();
+            JsonElement[] arr = coord.EnumerateArray().ToArray();
             if (arr.Length < 2)
             {
                 continue;
@@ -178,8 +178,8 @@ public static class TowerCabMapParser
             }
 
             // GeoJSON: [longitude, latitude]
-            var lon = arr[0].GetDouble();
-            var lat = arr[1].GetDouble();
+            double lon = arr[0].GetDouble();
+            double lat = arr[1].GetDouble();
             points.Add(new LatLon(lat, lon));
         }
 
@@ -188,12 +188,12 @@ public static class TowerCabMapParser
 
     private static bool IsDefaultsFeature(JsonElement feature)
     {
-        if (!feature.TryGetProperty("properties", out var props))
+        if (!feature.TryGetProperty("properties", out JsonElement props))
         {
             return false;
         }
 
-        if (!props.TryGetProperty("isDefaults", out var val))
+        if (!props.TryGetProperty("isDefaults", out JsonElement val))
         {
             return false;
         }
@@ -203,19 +203,19 @@ public static class TowerCabMapParser
 
     private static SKColor GetColor(JsonElement props, SKColor defaultColor)
     {
-        if (!props.TryGetProperty("color", out var colorProp))
+        if (!props.TryGetProperty("color", out JsonElement colorProp))
         {
             return defaultColor;
         }
 
-        var colorStr = colorProp.GetString();
+        string? colorStr = colorProp.GetString();
         if (string.IsNullOrWhiteSpace(colorStr))
         {
             return defaultColor;
         }
 
         // vNAS colors can be hex (#RRGGBB) or named
-        if (SKColor.TryParse(colorStr, out var parsed))
+        if (SKColor.TryParse(colorStr, out SKColor parsed))
         {
             return parsed;
         }
@@ -225,7 +225,7 @@ public static class TowerCabMapParser
 
     private static int GetThickness(JsonElement props, int defaultThickness)
     {
-        if (!props.TryGetProperty("thickness", out var thickProp))
+        if (!props.TryGetProperty("thickness", out JsonElement thickProp))
         {
             return defaultThickness;
         }

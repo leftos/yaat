@@ -26,7 +26,7 @@ public class RunwayLengthTests
 
     private RunwayInfo? Runway(string airport, string designator)
     {
-        var rwy = TestVnasData.NavigationDb?.GetRunway(airport, designator);
+        RunwayInfo? rwy = TestVnasData.NavigationDb?.GetRunway(airport, designator);
         if (rwy is not null)
         {
             _output.WriteLine($"{airport} {designator}: pavement={rwy.PavementLengthFt:F0}ft");
@@ -46,8 +46,8 @@ public class RunwayLengthTests
     [InlineData("KMIA", "09", "27", 12993)]
     public void PavementLengthIsThePhysicalRunwayInBothDirections(string airport, string end1, string end2, double expectedPavementFt)
     {
-        var forward = Runway(airport, end1);
-        var reverse = Runway(airport, end2);
+        RunwayInfo? forward = Runway(airport, end1);
+        RunwayInfo? reverse = Runway(airport, end2);
         if (forward is null || reverse is null)
         {
             return;
@@ -66,7 +66,7 @@ public class RunwayLengthTests
     [Fact]
     public void PavementExceedsWhatEitherEndDeclaresForLanding()
     {
-        var rwy = Runway("KSJC", "12R");
+        RunwayInfo? rwy = Runway("KSJC", "12R");
         if (rwy is null)
         {
             return;

@@ -66,7 +66,7 @@ public class ShownRouteRefreshCoalesceTests
         {
             Dispatcher.UIThread.RunJobs();
             vm.OpenExtraGroundView("KOAK");
-            var extra = vm.ExtraGroundViews.Single();
+            GroundViewInstance extra = vm.ExtraGroundViews.Single();
             Dispatcher.UIThread.RunJobs();
             int baseline = extra.Vm.RefreshShownTaxiRoutesCallCount;
 

@@ -16,7 +16,7 @@ internal static class GroundCommandParser
     /// </summary>
     internal static PR ParsePushback(string? arg)
     {
-        var parsed = ParsePushbackForm(arg);
+        PR parsed = ParsePushbackForm(arg);
         if (
             parsed.Value is PushbackCommand { DestinationParking: { } stand } push
             && ((push.MagneticHeading is not null) || (push.FacingTaxiway is not null))
@@ -41,7 +41,7 @@ internal static class GroundCommandParser
             return PR.Ok(new PushbackCommand(null, null, null, null, null));
         }
 
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return PR.Ok(new PushbackCommand(null, null, null, null, null));
@@ -63,7 +63,7 @@ internal static class GroundCommandParser
         }
 
         // Remaining tokens describe taxiway and/or orientation.
-        var rest = tokens[idx..];
+        string[] rest = tokens[idx..];
         bool hasParkingOrSpot = parking is not null || spot is not null;
 
         // Bare PUSH or just @parking/$spot — no taxiway, no orientation.
@@ -77,7 +77,7 @@ internal static class GroundCommandParser
             new(hdg, taxiway, facingTwy, parking, spot);
 
         // First, try to read an orientation directly (no taxiway): PUSH <E, PUSH FACE E, PUSH $7A TAIL W.
-        var orient = TryOrientation(rest, 0);
+        (MagneticHeading? Hdg, int Consumed, string? Error) orient = TryOrientation(rest, 0);
         if (orient.Error is not null)
         {
             return PR.Fail(orient.Error);
@@ -110,7 +110,7 @@ internal static class GroundCommandParser
         }
 
         // Look for an orientation starting at rest[1].
-        var orient2 = TryOrientation(rest, 1);
+        (MagneticHeading? Hdg, int Consumed, string? Error) orient2 = TryOrientation(rest, 1);
         if (orient2.Error is not null)
         {
             return PR.Fail(orient2.Error);
@@ -148,13 +148,13 @@ internal static class GroundCommandParser
     /// </summary>
     internal static PR ParsePushbackMulti(string? arg)
     {
-        var tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        string[] tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
         var targets = new List<string>();
         MagneticHeading? finalFacing = null;
 
         for (int i = 0; i < tokens.Length; i++)
         {
-            var orient = TryOrientation(tokens, i);
+            (MagneticHeading? Hdg, int Consumed, string? Error) orient = TryOrientation(tokens, i);
             if (orient.Error is not null)
             {
                 return PR.Fail(orient.Error);
@@ -211,13 +211,13 @@ internal static class GroundCommandParser
             return (null, 0, null);
         }
 
-        var t = tokens[start];
+        string t = tokens[start];
 
         // <C / >C — single token, arrow + cardinal (no whitespace).
         if (t.Length >= 2 && ((t[0] == '<') || (t[0] == '>')))
         {
             bool tail = t[0] == '<';
-            var card = ParseCardinal(t[1..]);
+            int? card = ParseCardinal(t[1..]);
             if (card is null)
             {
                 return (null, 0, $"invalid cardinal '{t[1..]}' after '{t[0]}'");
@@ -242,7 +242,7 @@ internal static class GroundCommandParser
                 return (null, 0, $"{t.ToUpperInvariant()} requires a cardinal direction (N/NE/E/SE/S/SW/W/NW)");
             }
 
-            var card = ParseCardinal(tokens[start + 1]);
+            int? card = ParseCardinal(tokens[start + 1]);
             if (card is null)
             {
                 return (null, 0, $"invalid cardinal '{tokens[start + 1]}' after {t.ToUpperInvariant()}");
@@ -320,7 +320,7 @@ internal static class GroundCommandParser
             return PR.Fail("RWY requires a runway ID");
         }
 
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return PR.Fail("RWY requires a runway ID");
@@ -335,14 +335,14 @@ internal static class GroundCommandParser
             startIdx++;
         }
 
-        var remaining = tokens[startIdx..];
+        string[] remaining = tokens[startIdx..];
         if (remaining.Length == 0)
         {
             // Standalone RWY {runway} — assign runway without taxi
             return PR.Ok(new AssignRunwayCommand(destRunway));
         }
 
-        var result = ParseTaxiTokens(remaining, detectTrailingRunway: false);
+        PR result = ParseTaxiTokens(remaining, detectTrailingRunway: false);
         if (!result.IsSuccess || result.Value is not TaxiCommand taxi)
         {
             return result.IsSuccess ? PR.Fail("invalid RWY taxi path") : result;
@@ -395,7 +395,7 @@ internal static class GroundCommandParser
         bool inCross = false;
         bool noDelete = false;
 
-        foreach (var token in tokens)
+        foreach (string token in tokens)
         {
             if (token.Equals("NODEL", StringComparison.OrdinalIgnoreCase))
             {
@@ -443,7 +443,7 @@ internal static class GroundCommandParser
 
             if (inHoldShort)
             {
-                if (!HoldShortTarget.TryParse(token, out var holdShortTarget, out string? holdShortError))
+                if (!HoldShortTarget.TryParse(token, out HoldShortTarget holdShortTarget, out string? holdShortError))
                 {
                     return PR.Fail(holdShortError!);
                 }
@@ -474,7 +474,7 @@ internal static class GroundCommandParser
             }
 
             // A leading > / < prefixes a per-taxiway turn-direction hint ("> A" = right onto A).
-            var (hint, name) = StripTurnHint(token);
+            (TurnDirection? hint, string? name) = StripTurnHint(token);
             path.Add(name.ToUpperInvariant());
             pathTurnHints.Add(hint);
         }
@@ -486,7 +486,7 @@ internal static class GroundCommandParser
         // (TAXI G 28R @B12 taxis along 28R to the ramp — the destination is the ramp).
         if (detectTrailingRunway && destRunway is null && destParking is null && destSpot is null && path.Count >= 1)
         {
-            var last = path[^1];
+            string last = path[^1];
             if (CommandParser.IsRunwayArg(last))
             {
                 destRunway = last;
@@ -549,7 +549,7 @@ internal static class GroundCommandParser
             return PR.Fail("TAXIALL requires a destination");
         }
 
-        var token = arg.Trim();
+        string token = arg.Trim();
         if (token.Length == 0)
         {
             return PR.Fail("TAXIALL requires a destination");
@@ -580,7 +580,7 @@ internal static class GroundCommandParser
             return PR.Fail("TAXIAUTO requires a destination (runway, @parking, or $spot)");
         }
 
-        var token = arg.Trim();
+        string token = arg.Trim();
         if (token.Length == 0)
         {
             return PR.Fail("TAXIAUTO requires a destination (runway, @parking, or $spot)");
@@ -612,7 +612,7 @@ internal static class GroundCommandParser
             return PR.Ok(new ResumeCommand([], []));
         }
 
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return PR.Ok(new ResumeCommand([], []));
@@ -620,9 +620,9 @@ internal static class GroundCommandParser
 
         var crossRunways = new List<string>();
         var holdShorts = new List<HoldShortTarget>();
-        var mode = ParseMode.None;
+        ParseMode mode = ParseMode.None;
 
-        foreach (var raw in tokens)
+        foreach (string raw in tokens)
         {
             if (raw.Equals("CROSS", StringComparison.OrdinalIgnoreCase))
             {
@@ -641,7 +641,7 @@ internal static class GroundCommandParser
                     crossRunways.Add(raw.ToUpperInvariant());
                     break;
                 case ParseMode.HoldShort:
-                    if (!HoldShortTarget.TryParse(raw, out var holdShortTarget, out string? holdShortError))
+                    if (!HoldShortTarget.TryParse(raw, out HoldShortTarget holdShortTarget, out string? holdShortError))
                     {
                         return PR.Fail(holdShortError!);
                     }
@@ -687,7 +687,7 @@ internal static class GroundCommandParser
             return PR.Ok(new CrossRunwayCommand([], []));
         }
 
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return PR.Ok(new CrossRunwayCommand([], []));
@@ -695,9 +695,9 @@ internal static class GroundCommandParser
 
         var crossRunways = new List<string>();
         var holdShorts = new List<HoldShortTarget>();
-        var mode = ParseMode.Cross;
+        ParseMode mode = ParseMode.Cross;
 
-        foreach (var raw in tokens)
+        foreach (string raw in tokens)
         {
             if (raw.Equals("HS", StringComparison.OrdinalIgnoreCase))
             {
@@ -716,7 +716,7 @@ internal static class GroundCommandParser
                     crossRunways.Add(raw.ToUpperInvariant());
                     break;
                 case ParseMode.HoldShort:
-                    if (!HoldShortTarget.TryParse(raw, out var holdShortTarget, out string? holdShortError))
+                    if (!HoldShortTarget.TryParse(raw, out HoldShortTarget holdShortTarget, out string? holdShortError))
                     {
                         return PR.Fail(holdShortError!);
                     }
@@ -752,7 +752,7 @@ internal static class GroundCommandParser
             return PR.Fail("HS requires a target");
         }
 
-        if (!HoldShortTarget.TryParse(arg, out var target, out string? error))
+        if (!HoldShortTarget.TryParse(arg, out HoldShortTarget target, out string? error))
         {
             return PR.Fail(error!);
         }
@@ -770,7 +770,7 @@ internal static class GroundCommandParser
             return PR.Fail("FOLLOWG requires a callsign");
         }
 
-        var callsign = arg.Trim();
+        string callsign = arg.Trim();
         if (callsign.Length == 0)
         {
             return PR.Fail("FOLLOWG requires a callsign");
@@ -792,14 +792,14 @@ internal static class GroundCommandParser
         // GW {callsign} [{runway/taxiway}]
         // The optional location is a single token (runway or taxiway name).
         // If there are more tokens, this is a compound form handled by ParseBlock.
-        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
         {
             return PR.Fail("GIVEWAY requires a callsign");
         }
 
-        var callsign = parts[0];
-        var location = parts.Length == 2 ? parts[1].Trim().ToUpperInvariant() : null;
+        string callsign = parts[0];
+        string? location = parts.Length == 2 ? parts[1].Trim().ToUpperInvariant() : null;
         return PR.Ok(new GiveWayCommand(callsign, location));
     }
 
@@ -820,7 +820,7 @@ internal static class GroundCommandParser
             return (null, false, false, null);
         }
 
-        foreach (var token in arg.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        foreach (string token in arg.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
             if (token.Equals("NODEL", StringComparison.OrdinalIgnoreCase))
             {
@@ -848,7 +848,7 @@ internal static class GroundCommandParser
     /// </summary>
     internal static PR ParseExitLeft(string? arg)
     {
-        var (taxiway, noDelete, expedite, error) = ParseExitModifiers(arg);
+        (string? taxiway, bool noDelete, bool expedite, string? error) = ParseExitModifiers(arg);
         return error is not null ? PR.Fail($"EL: {error}") : PR.Ok(new ExitLeftCommand(noDelete, taxiway, expedite));
     }
 
@@ -857,7 +857,7 @@ internal static class GroundCommandParser
     /// </summary>
     internal static PR ParseExitRight(string? arg)
     {
-        var (taxiway, noDelete, expedite, error) = ParseExitModifiers(arg);
+        (string? taxiway, bool noDelete, bool expedite, string? error) = ParseExitModifiers(arg);
         return error is not null ? PR.Fail($"ER: {error}") : PR.Ok(new ExitRightCommand(noDelete, taxiway, expedite));
     }
 
@@ -866,7 +866,7 @@ internal static class GroundCommandParser
     /// </summary>
     internal static PR ParseExitTaxiway(string arg)
     {
-        var (taxiway, noDelete, expedite, error) = ParseExitModifiers(arg);
+        (string? taxiway, bool noDelete, bool expedite, string? error) = ParseExitModifiers(arg);
         if (error is not null)
         {
             return PR.Fail($"EXIT: {error}");

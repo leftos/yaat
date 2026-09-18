@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Testing;
 
@@ -34,23 +35,23 @@ public class PatternDeconflictionTests
     [Fact]
     public void LeftTraffic28L_Jet_DeconflictionLosesToFlyabilityFloor()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
         Assert.NotNull(rwy28L);
 
-        var allRunways = navDb.GetRunways("KOAK");
+        IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
 
         // Jet default pattern is 1.5nm; rwy 30 is ~1.04nm to the left, so deconfliction
         // alone would shrink to ~0.89nm (1.04 - 0.15 buffer). But a category-speed jet
         // cannot roll out on final from anything narrower than the turn-radius floor
         // (~1.96nm) — overshooting onto the 28R parallel's final is worse than a downwind
         // overlying rwy 30, so the floor wins (issue #412).
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             rwy28L,
             AircraftCategory.Jet,
             "",
@@ -71,20 +72,20 @@ public class PatternDeconflictionTests
     [Fact]
     public void LeftTraffic28L_Piston_AlreadyFits_NoShrinkage()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
         Assert.NotNull(rwy28L);
 
-        var allRunways = navDb.GetRunways("KOAK");
+        IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
 
         // Piston default 0.75nm < rwy 30 distance (1.04nm - 0.15nm buffer = 0.89nm)
         // No shrinkage needed.
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             rwy28L,
             AircraftCategory.Piston,
             "",
@@ -105,19 +106,19 @@ public class PatternDeconflictionTests
     [Fact]
     public void RightTraffic28L_Jet_NoConflictOnRightSide()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
         Assert.NotNull(rwy28L);
 
-        var allRunways = navDb.GetRunways("KOAK");
+        IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
 
         // Right traffic: rwy 30 is on the left, no conflict on right side
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             rwy28L,
             AircraftCategory.Jet,
             "",
@@ -138,20 +139,20 @@ public class PatternDeconflictionTests
     [Fact]
     public void LeftTraffic28R_TooCloseFor28L_SkipsDeconfliction()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28R = navDb.GetRunway("KOAK", "28R");
+        RunwayInfo? rwy28R = navDb.GetRunway("KOAK", "28R");
         Assert.NotNull(rwy28R);
 
-        var allRunways = navDb.GetRunways("KOAK");
+        IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
 
         // 28L is only ~0.16nm to the left of 28R. 0.16 - 0.15 buffer = 0.01nm, below min floor.
         // Deconfliction should skip — use default size.
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             rwy28R,
             AircraftCategory.Piston,
             "",
@@ -176,14 +177,14 @@ public class PatternDeconflictionTests
     [Fact]
     public void RunwaysCross_ConvergingRunways_DoNotCross()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
-        var rwy30 = navDb.GetRunway("KOAK", "30");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy30 = navDb.GetRunway("KOAK", "30");
         Assert.NotNull(rwy28L);
         Assert.NotNull(rwy30);
 
@@ -194,7 +195,7 @@ public class PatternDeconflictionTests
     public void RunwaysCross_SyntheticCrossing_DetectedCorrectly()
     {
         // Two runways forming an X shape
-        var rwyNS = TestRunwayFactory.Make(
+        RunwayInfo rwyNS = TestRunwayFactory.Make(
             designator: "36",
             airportId: "KTEST",
             heading: 360,
@@ -204,7 +205,7 @@ public class PatternDeconflictionTests
             endLon: -122.0
         );
 
-        var rwyEW = TestRunwayFactory.Make(
+        RunwayInfo rwyEW = TestRunwayFactory.Make(
             designator: "27",
             airportId: "KTEST",
             heading: 270,
@@ -220,14 +221,14 @@ public class PatternDeconflictionTests
     [Fact]
     public void RunwaysCross_ParallelRunways_DoNotCross()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
-        var rwy28R = navDb.GetRunway("KOAK", "28R");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28R = navDb.GetRunway("KOAK", "28R");
         Assert.NotNull(rwy28L);
         Assert.NotNull(rwy28R);
 
@@ -241,9 +242,9 @@ public class PatternDeconflictionTests
     [Fact]
     public void NoRunwayData_UsesDefaultSize()
     {
-        var runway = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
 
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
             "",
@@ -264,9 +265,9 @@ public class PatternDeconflictionTests
     [Fact]
     public void SingleRunwayAirport_UsesDefaultSize()
     {
-        var runway = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
 
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
             "",

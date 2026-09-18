@@ -45,7 +45,7 @@ public sealed class SimLogBuilder
     /// </summary>
     public ILoggerFactory Build()
     {
-        var defaultLevel = _defaultLevel;
+        LogLevel defaultLevel = _defaultLevel;
         var categories = new Dictionary<string, LogLevel>(_categories);
 
         return LoggerFactory.Create(builder =>
@@ -57,7 +57,7 @@ public sealed class SimLogBuilder
                 {
                     if (category is not null)
                     {
-                        foreach (var (key, minLevel) in categories)
+                        foreach ((string? key, LogLevel minLevel) in categories)
                         {
                             if (category.Contains(key, StringComparison.OrdinalIgnoreCase))
                             {

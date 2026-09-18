@@ -40,7 +40,7 @@ public class AtAltitudeConditionTests
     [InlineData("AT 1500 CVIA 230", "AT 1500 CVIA 230")]
     public void SchemeParser_AtAltitude_ProducesCanonical(string input, string expected)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme);
 
         Assert.NotNull(result);
         Assert.Equal(expected, result.CanonicalString);
@@ -49,7 +49,7 @@ public class AtAltitudeConditionTests
     [Fact]
     public void SchemeParser_AtAltitude_WithoutCommand_ReturnsNull()
     {
-        var result = CommandSchemeParser.ParseCompound("AT 5000", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("AT 5000", Scheme);
 
         Assert.Null(result);
     }
@@ -57,7 +57,7 @@ public class AtAltitudeConditionTests
     [Fact]
     public void SchemeParser_AtFix_StillWorks()
     {
-        var result = CommandSchemeParser.ParseCompound("AT SUNOL FH 090", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("AT SUNOL FH 090", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("AT SUNOL FH 090", result.CanonicalString);
@@ -70,7 +70,7 @@ public class AtAltitudeConditionTests
     [Fact]
     public void CommandParser_AtAltitude_ProducesLevelCondition()
     {
-        var result = CommandParser.ParseCompound("AT 5000 CM 280");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("AT 5000 CM 280");
 
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
@@ -84,18 +84,18 @@ public class AtAltitudeConditionTests
     [Fact]
     public void CommandParser_At3DigitAltitude_ResolvesCorrectly()
     {
-        var result = CommandParser.ParseCompound("AT 050 DM 100");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("AT 050 DM 100");
 
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
-        var cond = Assert.IsType<LevelCondition>(result.Value!.Blocks[0].Condition);
+        LevelCondition cond = Assert.IsType<LevelCondition>(result.Value!.Blocks[0].Condition);
         Assert.Equal(5000, cond.Altitude);
     }
 
     [Fact]
     public void CommandParser_AtFix_StillProducesAtFixCondition()
     {
-        var result = CommandParser.ParseCompound("AT SUNOL FH 090");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("AT SUNOL FH 090");
 
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
@@ -109,8 +109,8 @@ public class AtAltitudeConditionTests
     [Fact]
     public void E2E_AtAltitude_CM_DoesNotFire_BelowTarget()
     {
-        var aircraft = MakeAircraft(altitude: 3000);
-        var compound = CommandParser.ParseCompound("AT 5000 CM 280");
+        AircraftState aircraft = MakeAircraft(altitude: 3000);
+        ParseResult<CompoundCommand> compound = CommandParser.ParseCompound("AT 5000 CM 280");
         Assert.True(compound.IsSuccess);
 
         CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
@@ -127,8 +127,8 @@ public class AtAltitudeConditionTests
     [Fact]
     public void E2E_AtAltitude_CM_Fires_WhenAtTarget()
     {
-        var aircraft = MakeAircraft(altitude: 3000);
-        var compound = CommandParser.ParseCompound("AT 5000 CM 280");
+        AircraftState aircraft = MakeAircraft(altitude: 3000);
+        ParseResult<CompoundCommand> compound = CommandParser.ParseCompound("AT 5000 CM 280");
         Assert.True(compound.IsSuccess);
 
         CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
@@ -143,8 +143,8 @@ public class AtAltitudeConditionTests
     [Fact]
     public void E2E_AtAltitude_DEL_QueuedWithCorrectTrigger()
     {
-        var aircraft = MakeAircraft(altitude: 20000);
-        var compound = CommandParser.ParseCompound("AT 25000 DEL");
+        AircraftState aircraft = MakeAircraft(altitude: 20000);
+        ParseResult<CompoundCommand> compound = CommandParser.ParseCompound("AT 25000 DEL");
         Assert.True(compound.IsSuccess);
 
         CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
@@ -158,8 +158,8 @@ public class AtAltitudeConditionTests
     [Fact]
     public void E2E_AtAltitude_FH_Fires_SetsHeading()
     {
-        var aircraft = MakeAircraft(altitude: 2990, heading: 180);
-        var compound = CommandParser.ParseCompound("AT 3000 FH 270");
+        AircraftState aircraft = MakeAircraft(altitude: 2990, heading: 180);
+        ParseResult<CompoundCommand> compound = CommandParser.ParseCompound("AT 3000 FH 270");
         Assert.True(compound.IsSuccess);
 
         CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));
@@ -176,8 +176,8 @@ public class AtAltitudeConditionTests
     public void E2E_AtAltitude_ChainedBlocks_FireSequentially()
     {
         // "AT 5000 FH 180; AT 9000 FH 270" — two sequential FH blocks (FH = Heading type, completes when no target heading remains)
-        var aircraft = MakeAircraft(altitude: 3000, heading: 090);
-        var compound = CommandParser.ParseCompound("AT 5000 FH 180; AT 9000 FH 270");
+        AircraftState aircraft = MakeAircraft(altitude: 3000, heading: 090);
+        ParseResult<CompoundCommand> compound = CommandParser.ParseCompound("AT 5000 FH 180; AT 9000 FH 270");
         Assert.True(compound.IsSuccess);
 
         CommandDispatcher.DispatchCompound(compound.Value!, aircraft, TestDispatch.Context(Random.Shared));

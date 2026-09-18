@@ -49,8 +49,8 @@ public class IssueSaltAfterCtoAltitudeTests(ITestOutputHelper output)
     [Fact]
     public void N172SP_AssignedAltitude_PopulatedFromCtoBundledAltitude()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -59,7 +59,7 @@ public class IssueSaltAfterCtoAltitudeTests(ITestOutputHelper output)
 
         engine.Replay(recording, SaltTime);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
         output.WriteLine(
@@ -78,8 +78,8 @@ public class IssueSaltAfterCtoAltitudeTests(ITestOutputHelper output)
     [Fact]
     public void N172SP_BuildAltitude_AnnouncesClimbToBundledAltitude()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -88,10 +88,10 @@ public class IssueSaltAfterCtoAltitudeTests(ITestOutputHelper output)
 
         engine.Replay(recording, SaltTime);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
-        var spoken = PilotSayBuilder.BuildAltitude(aircraft);
+        string spoken = PilotSayBuilder.BuildAltitude(aircraft);
         output.WriteLine($"BuildAltitude → \"{spoken}\"");
 
         Assert.StartsWith("Leaving ", spoken, StringComparison.Ordinal);

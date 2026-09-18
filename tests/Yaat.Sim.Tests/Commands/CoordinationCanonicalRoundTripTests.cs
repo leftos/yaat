@@ -38,9 +38,9 @@ public class CoordinationCanonicalRoundTripTests
     [MemberData(nameof(Shapes))]
     public void Canonical_RoundTripsThroughParser(ParsedCommand command)
     {
-        var canonical = CommandDescriber.DescribeCommand(command);
+        string canonical = CommandDescriber.DescribeCommand(command);
 
-        var reparsed = CommandParser.Parse(canonical);
+        ParseResult<ParsedCommand> reparsed = CommandParser.Parse(canonical);
 
         Assert.True(reparsed.IsSuccess, $"'{canonical}' failed to parse: {reparsed.Reason}");
         Assert.Equal(command, reparsed.Value);
@@ -53,7 +53,7 @@ public class CoordinationCanonicalRoundTripTests
     [InlineData("RDTXT EXPECT 28R", "RDTXT EXPECT 28R")]
     public void Canonical_IsTheNormalizedInput(string input, string expectedCanonical)
     {
-        var parsed = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
 
         Assert.True(parsed.IsSuccess, $"'{input}' failed to parse: {parsed.Reason}");
         Assert.Equal(expectedCanonical, CommandDescriber.DescribeCommand(parsed.Value!));
@@ -62,7 +62,7 @@ public class CoordinationCanonicalRoundTripTests
     [Fact]
     public void Rdtxt_ListWithoutText_IsRefused()
     {
-        var parsed = CommandParser.Parse("RDTXT /DR");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("RDTXT /DR");
 
         Assert.False(parsed.IsSuccess);
     }

@@ -99,7 +99,7 @@ public sealed class PilotContactRoster
     )
     {
         var positions = new List<PilotAnsweringPosition>();
-        foreach (var ai in aiStaffed.OrderBy(p => p.PositionId, StringComparer.Ordinal))
+        foreach (AiPositionConfig? ai in aiStaffed.OrderBy(p => p.PositionId, StringComparer.Ordinal))
         {
             // Compare by callsign, not TrackOwner.MatchesPosition: tower-cab positions at one airport often share a
             // TCP (OAK_GND / OAK_TWR / OAK_DEL are all 3O), and the AI ground must keep answering next to a tower student.
@@ -195,7 +195,7 @@ public sealed class PilotContactRoster
         bool checkEligibility
     )
     {
-        foreach (var position in Positions)
+        foreach (PilotAnsweringPosition position in Positions)
         {
             if (
                 position.Agent == PilotAnsweringAgent.ControllerAi
@@ -223,9 +223,9 @@ public sealed class PilotContactRoster
             return !string.IsNullOrWhiteSpace(atAirportId) && position.AirportIds.Any(id => NavigationDatabase.AirportIdsMatch(id, atAirportId));
         }
 
-        foreach (var candidate in PilotInitialContactEligibility.CandidateAirportIds(aircraft, primaryAirportId))
+        foreach (string candidate in PilotInitialContactEligibility.CandidateAirportIds(aircraft, primaryAirportId))
         {
-            foreach (var airportId in position.AirportIds)
+            foreach (string airportId in position.AirportIds)
             {
                 if (NavigationDatabase.AirportIdsMatch(airportId, candidate))
                 {
@@ -244,7 +244,7 @@ public sealed class PilotContactRoster
             return null;
         }
 
-        var radioName = artccConfig?.FindPositionByCallsign(callsign)?.RadioName;
+        string? radioName = artccConfig?.FindPositionByCallsign(callsign)?.RadioName;
         return string.IsNullOrWhiteSpace(radioName) ? null : radioName.Trim();
     }
 }

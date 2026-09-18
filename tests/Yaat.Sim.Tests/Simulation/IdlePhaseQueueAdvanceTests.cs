@@ -108,15 +108,15 @@ public class IdlePhaseQueueAdvanceTests
     [Fact]
     public void PushThenSqSqnormTaxi_FiresAfterPushback()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddParked(engine);
-        var result = engine.SendCommand(ac.Callsign, "PUSH; SQ; SQNORM; TAXI B3 HS B");
+        AircraftState ac = AddParked(engine);
+        CommandResult result = engine.SendCommand(ac.Callsign, "PUSH; SQ; SQNORM; TAXI B3 HS B");
         Assert.True(result.Success, result.Message);
         Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
 
@@ -142,15 +142,15 @@ public class IdlePhaseQueueAdvanceTests
     [Fact]
     public void RejectedBlock_StaysQueued_NoSpam()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddParked(engine);
-        var result = engine.SendCommand(ac.Callsign, "PUSH; FH 270");
+        AircraftState ac = AddParked(engine);
+        CommandResult result = engine.SendCommand(ac.Callsign, "PUSH; FH 270");
         Assert.True(result.Success, result.Message);
 
         TickUntil(engine, 90, () => ac.Phases?.CurrentPhase is HoldingAfterPushbackPhase);
@@ -179,15 +179,15 @@ public class IdlePhaseQueueAdvanceTests
     [Fact]
     public void UntriggeredBlock_DoesNotFire_WhileTaxiingMidRoute()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddParked(engine);
-        var result = engine.SendCommand(ac.Callsign, "PUSH; TAXI B3 HS B; HOLD");
+        AircraftState ac = AddParked(engine);
+        CommandResult result = engine.SendCommand(ac.Callsign, "PUSH; TAXI B3 HS B; HOLD");
         Assert.True(result.Success, result.Message);
 
         TickUntil(engine, 90, () => ac.Phases?.CurrentPhase is TaxiingPhase);
@@ -210,15 +210,15 @@ public class IdlePhaseQueueAdvanceTests
     [Fact]
     public void IdleWaitBlock_CountsDown()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddParked(engine);
-        var result = engine.SendCommand(ac.Callsign, "PUSH; WAIT 15 TAXI B3 HS B");
+        AircraftState ac = AddParked(engine);
+        CommandResult result = engine.SendCommand(ac.Callsign, "PUSH; WAIT 15 TAXI B3 HS B");
         Assert.True(result.Success, result.Message);
 
         TickUntil(engine, 90, () => ac.Phases?.CurrentPhase is HoldingAfterPushbackPhase);
@@ -249,17 +249,17 @@ public class IdlePhaseQueueAdvanceTests
     [Fact]
     public void UntriggeredBlock_BehindUnmetTrigger_DoesNotLeapfrog()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddParked(engine);
+        AircraftState ac = AddParked(engine);
         // LV 500 can never fire on a parked aircraft (it never leaves ~9 ft), so the trailing
         // TAXI must stay queued behind it indefinitely.
-        var result = engine.SendCommand(ac.Callsign, "PUSH; LV 5 SQ; TAXI B3 HS B");
+        CommandResult result = engine.SendCommand(ac.Callsign, "PUSH; LV 5 SQ; TAXI B3 HS B");
         Assert.True(result.Success, result.Message);
 
         TickUntil(engine, 90, () => ac.Phases?.CurrentPhase is HoldingAfterPushbackPhase);

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -57,8 +58,8 @@ public class Swa4587RfasRejectsInsideGateTests(ITestOutputHelper output)
     [Fact]
     public void RfasInsideGate_RejectsAndPreservesApproach()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -67,7 +68,7 @@ public class Swa4587RfasRejectsInsideGateTests(ITestOutputHelper output)
 
         engine.Replay(recording, 2086);
 
-        var before = engine.FindAircraft(Callsign);
+        AircraftState? before = engine.FindAircraft(Callsign);
         Assert.NotNull(before);
         Assert.IsType<FinalApproachPhase>(before.Phases?.CurrentPhase);
 
@@ -75,14 +76,14 @@ public class Swa4587RfasRejectsInsideGateTests(ITestOutputHelper output)
         output.WriteLine($"Pre-RFAS: phase={before.Phases?.CurrentPhase?.GetType().Name} distToThr={distNm:F2}nm alt={before.Altitude:F0}");
         Assert.True(distNm < 5.0, $"Aircraft should be inside the 5 nm gate, was {distNm:F2}nm");
 
-        var result = engine.SendCommand(Callsign, "RFAS");
+        CommandResult result = engine.SendCommand(Callsign, "RFAS");
         output.WriteLine($"RFAS result: success={result.Success} message={result.Message}");
 
         // Rejected with a pilot "unable", NOT a phase clear.
         Assert.False(result.Success);
         Assert.Contains("5nm final", result.Message);
 
-        var after = engine.FindAircraft(Callsign);
+        AircraftState? after = engine.FindAircraft(Callsign);
         Assert.NotNull(after);
         Assert.NotNull(after.Phases);
         Assert.IsType<FinalApproachPhase>(after.Phases.CurrentPhase);

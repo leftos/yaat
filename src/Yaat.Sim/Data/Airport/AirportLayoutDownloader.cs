@@ -69,9 +69,9 @@ public sealed class AirportLayoutDownloader : IDisposable
     /// </summary>
     public async Task<string?> GetGeoJsonAsync(string airportId, CancellationToken cancellationToken = default)
     {
-        var faaCode = ToFaaCode(airportId);
+        string faaCode = ToFaaCode(airportId);
 
-        if (_notFoundAtUtc.TryGetValue(faaCode, out var notFoundAt))
+        if (_notFoundAtUtc.TryGetValue(faaCode, out DateTime notFoundAt))
         {
             if (DateTime.UtcNow - notFoundAt < NotFoundTtl)
             {
@@ -82,10 +82,10 @@ public sealed class AirportLayoutDownloader : IDisposable
             _notFoundAtUtc.TryRemove(faaCode, out _);
         }
 
-        var cachePath = GetCachePath(faaCode);
-        var url = $"{TrainingApiBase}/{faaCode}/map";
+        string cachePath = GetCachePath(faaCode);
+        string url = $"{TrainingApiBase}/{faaCode}/map";
 
-        var result = await HttpFileCache.GetOrRefreshAsync(
+        HttpCacheResult result = await HttpFileCache.GetOrRefreshAsync(
             _http,
             url,
             cachePath,
@@ -114,8 +114,8 @@ public sealed class AirportLayoutDownloader : IDisposable
     /// </summary>
     public async Task<AirportGroundLayout?> GetLayoutAsync(string airportId, CancellationToken cancellationToken = default)
     {
-        var faaCode = ToFaaCode(airportId);
-        var geoJson = await GetGeoJsonAsync(faaCode, cancellationToken);
+        string faaCode = ToFaaCode(airportId);
+        string? geoJson = await GetGeoJsonAsync(faaCode, cancellationToken);
         if (geoJson is null)
         {
             return null;

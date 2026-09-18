@@ -68,7 +68,7 @@ public class RunwayOccupancyWarningTests
             FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
         };
         ac.Phases = new PhaseList { AssignedRunway = runway };
-        foreach (var phase in phases)
+        foreach (Phase phase in phases)
         {
             ac.Phases.Add(phase);
         }
@@ -106,18 +106,18 @@ public class RunwayOccupancyWarningTests
 
     private static CommandResult Dispatch(string input, AircraftState target, params AircraftState[] world)
     {
-        var parsed = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var ctx = TestDispatch.Context(Random.Shared) with { ListAircraft = () => world };
+        DispatchContext ctx = TestDispatch.Context(Random.Shared) with { ListAircraft = () => world };
         var compound = new CompoundCommand([new ParsedBlock(null, [parsed.Value!])]);
         return CommandDispatcher.DispatchCompound(compound, target, ctx);
     }
 
     private static CommandResult DispatchWithConfig(string input, AircraftState target, ArtccConfigRoot artccConfig, params AircraftState[] world)
     {
-        var parsed = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var ctx = TestDispatch.Context(Random.Shared, artccConfig: artccConfig) with { ListAircraft = () => world };
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, artccConfig: artccConfig) with { ListAircraft = () => world };
         var compound = new CompoundCommand([new ParsedBlock(null, [parsed.Value!])]);
         return CommandDispatcher.DispatchCompound(compound, target, ctx);
     }
@@ -129,11 +129,11 @@ public class RunwayOccupancyWarningTests
     [Fact]
     public void Cland_LuawOnSameRunway_SucceedsAndWarnsInstructor()
     {
-        var runway = Rwy();
-        var occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
-        var arrival = MakeArrival("N200AR", Rwy());
+        RunwayInfo runway = Rwy();
+        AircraftState occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy());
 
-        var result = Dispatch("CLAND", arrival, occupant, arrival);
+        CommandResult result = Dispatch("CLAND", arrival, occupant, arrival);
 
         Assert.True(result.Success, result.Message);
         Assert.Contains(arrival.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -148,11 +148,11 @@ public class RunwayOccupancyWarningTests
     [InlineData("CLANDF")]
     public void OtherLandingFamilyClearances_LuawOnSameRunway_Warn(string command)
     {
-        var runway = Rwy();
-        var occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
-        var arrival = MakeArrival("N200AR", Rwy());
+        RunwayInfo runway = Rwy();
+        AircraftState occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy());
 
-        var result = Dispatch(command, arrival, occupant, arrival);
+        CommandResult result = Dispatch(command, arrival, occupant, arrival);
 
         Assert.True(result.Success, result.Message);
         Assert.Contains(arrival.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -161,9 +161,9 @@ public class RunwayOccupancyWarningTests
     [Fact]
     public void Cland_OccupantHoldingInPosition_Warns()
     {
-        var runway = Rwy();
-        var occupant = MakeOccupant("N100LU", runway, new HoldingInPositionPhase());
-        var arrival = MakeArrival("N200AR", Rwy());
+        RunwayInfo runway = Rwy();
+        AircraftState occupant = MakeOccupant("N100LU", runway, new HoldingInPositionPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy());
 
         Dispatch("CLAND", arrival, occupant, arrival);
 
@@ -176,12 +176,12 @@ public class RunwayOccupancyWarningTests
         // HoldingInPositionPhase doubles as YAAT's generic ground-idle hold (post-WARPG anywhere,
         // far side of a crossing, CLRWY) — an aircraft holding somewhere else on the field, even
         // with this runway assigned, is not a 3-9-4 occupant.
-        var runway = Rwy();
-        var occupant = MakeOccupant("N100LU", runway, new HoldingInPositionPhase());
+        RunwayInfo runway = Rwy();
+        AircraftState occupant = MakeOccupant("N100LU", runway, new HoldingInPositionPhase());
         occupant.Position = new LatLon(runway.ThresholdLatitude + 0.05, runway.ThresholdLongitude); // ~3 nm off the pavement
-        var arrival = MakeArrival("N200AR", Rwy());
+        AircraftState arrival = MakeArrival("N200AR", Rwy());
 
-        var result = Dispatch("CLAND", arrival, occupant, arrival);
+        CommandResult result = Dispatch("CLAND", arrival, occupant, arrival);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(arrival.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -193,9 +193,9 @@ public class RunwayOccupancyWarningTests
         // "…or taxiing to LUAW" — a LineUpPhase aircraft en route to the centerline claims the
         // runway just as much as one already stopped on it. The realistic LUAW phase shape is
         // LineUp → LinedUpAndWaiting (with no takeoff clearance yet).
-        var runway = Rwy();
-        var occupant = MakeOccupant("N100LU", runway, new LineUpPhase(), new LinedUpAndWaitingPhase());
-        var arrival = MakeArrival("N200AR", Rwy());
+        RunwayInfo runway = Rwy();
+        AircraftState occupant = MakeOccupant("N100LU", runway, new LineUpPhase(), new LinedUpAndWaitingPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy());
 
         Dispatch("CLAND", arrival, occupant, arrival);
 
@@ -208,13 +208,13 @@ public class RunwayOccupancyWarningTests
         // 3-9-4's restriction covers an aircraft *holding* in position — one that already has its
         // takeoff clearance is about to roll, and clearing an arrival behind it is ordinary
         // anticipated separation (7110.65 3-9-5 / 3-10-6).
-        var runway = Rwy();
+        RunwayInfo runway = Rwy();
         var luaw = new LinedUpAndWaitingPhase();
-        var occupant = MakeOccupant("N100LU", runway, luaw);
+        AircraftState occupant = MakeOccupant("N100LU", runway, luaw);
         luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
-        var arrival = MakeArrival("N200AR", Rwy());
+        AircraftState arrival = MakeArrival("N200AR", Rwy());
 
-        var result = Dispatch("CLAND", arrival, occupant, arrival);
+        CommandResult result = Dispatch("CLAND", arrival, occupant, arrival);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(arrival.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -225,11 +225,11 @@ public class RunwayOccupancyWarningTests
     {
         // A rolling CTO installs LineUp → Takeoff with no LUAW between: the clearance is in hand
         // while the aircraft taxis into position, so no advisory.
-        var runway = Rwy();
-        var occupant = MakeOccupant("N100LU", runway, new LineUpPhase(), new TakeoffPhase());
-        var arrival = MakeArrival("N200AR", Rwy());
+        RunwayInfo runway = Rwy();
+        AircraftState occupant = MakeOccupant("N100LU", runway, new LineUpPhase(), new TakeoffPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy());
 
-        var result = Dispatch("CLAND", arrival, occupant, arrival);
+        CommandResult result = Dispatch("CLAND", arrival, occupant, arrival);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(arrival.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -239,11 +239,11 @@ public class RunwayOccupancyWarningTests
     public void Cland_OccupantOnTakeoffRoll_NoWarning()
     {
         // The 3-9-4 restriction ends when the aircraft in position "starts takeoff roll".
-        var runway = Rwy();
-        var occupant = MakeOccupant("N100LU", runway, new TakeoffPhase());
-        var arrival = MakeArrival("N200AR", Rwy());
+        RunwayInfo runway = Rwy();
+        AircraftState occupant = MakeOccupant("N100LU", runway, new TakeoffPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy());
 
-        var result = Dispatch("CLAND", arrival, occupant, arrival);
+        CommandResult result = Dispatch("CLAND", arrival, occupant, arrival);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(arrival.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -252,10 +252,10 @@ public class RunwayOccupancyWarningTests
     [Fact]
     public void Cland_OccupantOnDifferentRunway_NoWarning()
     {
-        var occupant = MakeOccupant("N100LU", Rwy(designator: "33"), new LinedUpAndWaitingPhase());
-        var arrival = MakeArrival("N200AR", Rwy());
+        AircraftState occupant = MakeOccupant("N100LU", Rwy(designator: "33"), new LinedUpAndWaitingPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy());
 
-        var result = Dispatch("CLAND", arrival, occupant, arrival);
+        CommandResult result = Dispatch("CLAND", arrival, occupant, arrival);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(arrival.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -266,8 +266,8 @@ public class RunwayOccupancyWarningTests
     {
         // Runway identity, not designator equality: an aircraft lined up on 10L occupies the
         // same pavement an arrival is being cleared onto as 28R.
-        var occupant = MakeOccupant("N100LU", Rwy(designator: "10L"), new LinedUpAndWaitingPhase());
-        var arrival = MakeArrival("N200AR", Rwy(designator: "28R"));
+        AircraftState occupant = MakeOccupant("N100LU", Rwy(designator: "10L"), new LinedUpAndWaitingPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy(designator: "28R"));
 
         Dispatch("CLAND", arrival, occupant, arrival);
 
@@ -277,10 +277,10 @@ public class RunwayOccupancyWarningTests
     [Fact]
     public void Cland_OccupantAtDifferentAirport_NoWarning()
     {
-        var occupant = MakeOccupant("N100LU", Rwy(airportId: "SFO"), new LinedUpAndWaitingPhase());
-        var arrival = MakeArrival("N200AR", Rwy(airportId: "OAK"));
+        AircraftState occupant = MakeOccupant("N100LU", Rwy(airportId: "SFO"), new LinedUpAndWaitingPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy(airportId: "OAK"));
 
-        var result = Dispatch("CLAND", arrival, occupant, arrival);
+        CommandResult result = Dispatch("CLAND", arrival, occupant, arrival);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(arrival.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -293,15 +293,15 @@ public class RunwayOccupancyWarningTests
     [Fact]
     public void Luaw_ArrivalClearedToLandSameRunway_SucceedsAndWarnsInstructor()
     {
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
+        AircraftState arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
         arrival.Phases!.LandingClearance = ClearanceType.ClearedToLand;
         arrival.Phases.ClearedRunwayId = "30";
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
-        var result = Dispatch("LUAW", departure, arrival, departure);
+        CommandResult result = Dispatch("LUAW", departure, arrival, departure);
 
         Assert.True(result.Success, result.Message);
         Assert.Contains(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
@@ -315,13 +315,13 @@ public class RunwayOccupancyWarningTests
     [InlineData(ClearanceType.ClearedLowApproach)]
     public void Luaw_ArrivalHoldsOtherLandingFamilyClearance_Warns(ClearanceType clearance)
     {
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
+        AircraftState arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
         arrival.Phases!.LandingClearance = clearance;
         arrival.Phases.ClearedRunwayId = "30";
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
         Dispatch("LUAW", departure, arrival, departure);
 
@@ -331,13 +331,13 @@ public class RunwayOccupancyWarningTests
     [Fact]
     public void Luaw_ArrivalNotYetCleared_NoWarning()
     {
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
-        var result = Dispatch("LUAW", departure, arrival, departure);
+        CommandResult result = Dispatch("LUAW", departure, arrival, departure);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
@@ -349,19 +349,19 @@ public class RunwayOccupancyWarningTests
         // Nothing nulls PhaseList.LandingClearance at touchdown, so a full-stop arrival keeps it
         // while exiting and taxiing in — that stale clearance must not re-trigger the advisory on
         // every later LUAW for the runway.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
+        AircraftState arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
         arrival.Phases!.LandingClearance = ClearanceType.ClearedToLand;
         arrival.Phases.ClearedRunwayId = "30";
         arrival.IsOnGround = true;
         arrival.Phases.Phases.Clear();
         arrival.Phases.Add(new HoldingAfterExitPhase());
         arrival.Phases.Start(CommandDispatcher.BuildMinimalContext(arrival));
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
-        var result = Dispatch("LUAW", departure, arrival, departure);
+        CommandResult result = Dispatch("LUAW", departure, arrival, departure);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
@@ -374,7 +374,7 @@ public class RunwayOccupancyWarningTests
     /// </summary>
     private static AircraftState MakeTouchedDownArrival(string callsign, ClearanceType clearance, Phase onRunwayPhase)
     {
-        var arrival = MakeArrival(callsign, TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
+        AircraftState arrival = MakeArrival(callsign, TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
         arrival.Phases!.LandingClearance = clearance;
         arrival.Phases.ClearedRunwayId = "30";
         arrival.Phases.Phases.Clear();
@@ -393,14 +393,14 @@ public class RunwayOccupancyWarningTests
         // runway — i.e. still inbound. Once it has touched down it is the 3-9-4.a "aircraft which has
         // landed on ... the runway" that LUAW is explicitly authorized behind. The rollout keeps the
         // aircraft in LandingPhase until it commits to an exit, so the phase alone cannot decide.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeTouchedDownArrival("N200AR", ClearanceType.ClearedToLand, new LandingPhase());
+        AircraftState arrival = MakeTouchedDownArrival("N200AR", ClearanceType.ClearedToLand, new LandingPhase());
         Assert.IsType<LandingPhase>(arrival.Phases!.CurrentPhase);
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
-        var result = Dispatch("LUAW", departure, arrival, departure);
+        CommandResult result = Dispatch("LUAW", departure, arrival, departure);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
@@ -421,11 +421,11 @@ public class RunwayOccupancyWarningTests
         // A rolling touch-and-go or a stopped stop-and-go is 3-9-4.a's "aircraft which has landed on
         // ... the runway" like any other; 3-9-6.b at takeoff-clearance time is what then protects the
         // LUAW aircraft behind it.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeTouchedDownArrival("N200AR", clearance, onRunwayPhase);
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState arrival = MakeTouchedDownArrival("N200AR", clearance, onRunwayPhase);
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
         Dispatch("LUAW", departure, arrival, departure);
 
@@ -437,13 +437,13 @@ public class RunwayOccupancyWarningTests
     {
         // The boundary is touchdown, not the phase: an arrival already in LandingPhase but still
         // airborne over the runway (flare) is still cleared to land, and 3-9-4.c.1(b) still applies.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeTouchedDownArrival("N200AR", ClearanceType.ClearedToLand, new LandingPhase());
+        AircraftState arrival = MakeTouchedDownArrival("N200AR", ClearanceType.ClearedToLand, new LandingPhase());
         arrival.IsOnGround = false;
         arrival.Altitude = 30;
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
         Dispatch("LUAW", departure, arrival, departure);
 
@@ -459,16 +459,16 @@ public class RunwayOccupancyWarningTests
         // re-cleared to land. The stale clearance must not re-trigger the advisory just because
         // the aircraft is still airborne on the climb-out (issue #353); airborne analog of
         // Luaw_ArrivalLandedAndExiting_NoWarning.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
+        AircraftState arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
         arrival.Phases!.LandingClearance = ClearanceType.ClearedToLand;
         arrival.Phases.ClearedRunwayId = "30";
         GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(arrival), new GoAroundPhase(), []);
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
-        var result = Dispatch("LUAW", departure, arrival, departure);
+        CommandResult result = Dispatch("LUAW", departure, arrival, departure);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
@@ -479,10 +479,10 @@ public class RunwayOccupancyWarningTests
     {
         // Every go-around voids the standing landing clearance and any pre-armed pending one,
         // not just visual approaches — the RPO must re-clear each approach.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
+        AircraftState arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
         arrival.Phases!.LandingClearance = ClearanceType.ClearedToLand;
         arrival.Phases.ClearedRunwayId = "30";
         arrival.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedToLand, "30", null, null);
@@ -499,15 +499,15 @@ public class RunwayOccupancyWarningTests
     {
         // Takeoff clearance with an arrival cleared to land is anticipated separation — legal,
         // and outside the 3-9-4 LUAW restriction.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
+        AircraftState arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
         arrival.Phases!.LandingClearance = ClearanceType.ClearedToLand;
         arrival.Phases.ClearedRunwayId = "30";
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
-        var result = Dispatch("CTO", departure, arrival, departure);
+        CommandResult result = Dispatch("CTO", departure, arrival, departure);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
@@ -519,16 +519,16 @@ public class RunwayOccupancyWarningTests
         // 7110.65 3-9-6.b: a departure may not begin its takeoff roll until the preceding landing
         // aircraft is clear of the runway. Touchdown ends the arrival's 3-9-4.c hold on LUAW, so this
         // advisory at takeoff-clearance time is what protects the departure behind a rollout.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeTouchedDownArrival("N200AR", ClearanceType.ClearedToLand, new LandingPhase());
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState arrival = MakeTouchedDownArrival("N200AR", ClearanceType.ClearedToLand, new LandingPhase());
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
-        var result = Dispatch("CTO", departure, arrival, departure);
+        CommandResult result = Dispatch("CTO", departure, arrival, departure);
 
         Assert.True(result.Success, result.Message);
-        var warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+        string warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("3-9-6", warning, StringComparison.Ordinal);
     }
 
@@ -536,22 +536,22 @@ public class RunwayOccupancyWarningTests
     public void Cto_ArrivalAirborneOverTheRunway_Warns396b()
     {
         // Still airborne over the pavement — the arrival is landing on it; 3-9-6.b by geometry, not phase alone.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeArrival("N200AR", runway);
+        AircraftState arrival = MakeArrival("N200AR", runway);
         arrival.Phases!.LandingClearance = ClearanceType.ClearedToLand;
         arrival.Phases.ClearedRunwayId = "30";
         arrival.Position = new LatLon((runway.Lat1 + runway.Lat2) / 2.0, (runway.Lon1 + runway.Lon2) / 2.0);
         arrival.TrueHeading = new TrueHeading(310);
         arrival.Altitude = 30;
         arrival.IndicatedAirspeed = 65;
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
-        var result = Dispatch("CTO", departure, arrival, departure);
+        CommandResult result = Dispatch("CTO", departure, arrival, departure);
 
         Assert.True(result.Success, result.Message);
-        var warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+        string warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("3-9-6.b", warning, StringComparison.Ordinal);
     }
 
@@ -560,17 +560,17 @@ public class RunwayOccupancyWarningTests
     {
         // A stopped stop-and-go is a preceding landing aircraft not yet clear of the runway (3-9-6.b);
         // it carries no hold directive, so only the landed-traffic advisory names it — once.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var arrival = MakeTouchedDownArrival("N200AR", ClearanceType.ClearedStopAndGo, new StopAndGoPhase());
+        AircraftState arrival = MakeTouchedDownArrival("N200AR", ClearanceType.ClearedStopAndGo, new StopAndGoPhase());
         arrival.IndicatedAirspeed = 0;
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
-        var result = Dispatch("CTO", departure, arrival, departure);
+        CommandResult result = Dispatch("CTO", departure, arrival, departure);
 
         Assert.True(result.Success, result.Message);
-        var warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+        string warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("3-9-6", warning, StringComparison.Ordinal);
     }
 
@@ -580,13 +580,13 @@ public class RunwayOccupancyWarningTests
         // Issue #409: clearing a departure for takeoff while another aircraft is holding in
         // position on the same runway violates 3-9-6 same-runway separation. Advisory only —
         // the clearance stands.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
-        var result = Dispatch("CTO", departure, occupant, departure);
+        CommandResult result = Dispatch("CTO", departure, occupant, departure);
 
         Assert.True(result.Success, result.Message);
         Assert.Contains(departure.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -597,11 +597,11 @@ public class RunwayOccupancyWarningTests
     public void Cto_ToLinedUpAircraft_AnotherHoldingInPositionOnSameRunway_Warns()
     {
         // Dual LUAW, then CTO to one of them while the other still has no takeoff clearance.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        var occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
-        var departure = MakeOccupant("N300DP", runway, new LinedUpAndWaitingPhase());
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        AircraftState occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
+        AircraftState departure = MakeOccupant("N300DP", runway, new LinedUpAndWaitingPhase());
 
-        var result = Dispatch("CTO", departure, occupant, departure);
+        CommandResult result = Dispatch("CTO", departure, occupant, departure);
 
         Assert.True(result.Success, result.Message);
         Assert.Contains(departure.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -614,11 +614,11 @@ public class RunwayOccupancyWarningTests
         // clearance for later — the aircraft is still minutes from the runway, so warning about
         // its occupancy now would be noise. The advisory fires only when the aircraft is
         // entering the runway.
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
-        var departure = MakeDepartureHoldingShort("N300DP", runway: "E");
+        AircraftState occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
+        AircraftState departure = MakeDepartureHoldingShort("N300DP", runway: "E");
         ((HoldingShortPhase)departure.Phases!.CurrentPhase!).HoldShort.Reason = HoldShortReason.ExplicitHoldShort;
         departure.Ground.AssignedTaxiRoute = new TaxiRoute
         {
@@ -634,7 +634,7 @@ public class RunwayOccupancyWarningTests
             ],
         };
 
-        var result = Dispatch("CTO", departure, occupant, departure);
+        CommandResult result = Dispatch("CTO", departure, occupant, departure);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -644,14 +644,14 @@ public class RunwayOccupancyWarningTests
     public void Cto_FromHoldShort_OccupantAlreadyClearedForTakeoff_NoWarning()
     {
         // The occupant is a preceding departure about to roll — anticipated separation (3-9-5).
-        var runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
+        AircraftState occupant = MakeOccupant("N100LU", runway, new LinedUpAndWaitingPhase());
         occupant.Phases!.CurrentPhase!.Requirements[0].IsSatisfied = true;
-        var departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
-        var result = Dispatch("CTO", departure, occupant, departure);
+        CommandResult result = Dispatch("CTO", departure, occupant, departure);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -665,16 +665,16 @@ public class RunwayOccupancyWarningTests
     [Fact]
     public void Cland_AtSafetyLogicAirport_NoWarning()
     {
-        var zoa = TestArtccConfig.LoadZoa();
+        ArtccConfigRoot? zoa = TestArtccConfig.LoadZoa();
         if (zoa is null)
         {
             return; // snapshot absent — skip silently, matching the TestVnasData pattern
         }
 
-        var occupant = MakeOccupant("N100LU", Rwy(airportId: "SFO"), new LinedUpAndWaitingPhase());
-        var arrival = MakeArrival("N200AR", Rwy(airportId: "SFO"));
+        AircraftState occupant = MakeOccupant("N100LU", Rwy(airportId: "SFO"), new LinedUpAndWaitingPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy(airportId: "SFO"));
 
-        var result = DispatchWithConfig("CLAND", arrival, zoa, occupant, arrival);
+        CommandResult result = DispatchWithConfig("CLAND", arrival, zoa, occupant, arrival);
 
         Assert.True(result.Success, result.Message);
         Assert.DoesNotContain(arrival.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
@@ -685,14 +685,14 @@ public class RunwayOccupancyWarningTests
     {
         // OAK's facility carries no ASDE-X runway configurations (in the live ZOA config its
         // ASDE-X is display-only) — safety logic cannot run there, so the advisory still applies.
-        var zoa = TestArtccConfig.LoadZoa();
+        ArtccConfigRoot? zoa = TestArtccConfig.LoadZoa();
         if (zoa is null)
         {
             return;
         }
 
-        var occupant = MakeOccupant("N100LU", Rwy(airportId: "OAK"), new LinedUpAndWaitingPhase());
-        var arrival = MakeArrival("N200AR", Rwy(airportId: "OAK"));
+        AircraftState occupant = MakeOccupant("N100LU", Rwy(airportId: "OAK"), new LinedUpAndWaitingPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy(airportId: "OAK"));
 
         DispatchWithConfig("CLAND", arrival, zoa, occupant, arrival);
 
@@ -708,7 +708,7 @@ public class RunwayOccupancyWarningTests
     [InlineData("", false)]
     public void AirportHasFullSafetyLogic_ResolvesFromAsdexRunwayConfigurations(string airportId, bool expected)
     {
-        var zoa = TestArtccConfig.LoadZoa();
+        ArtccConfigRoot? zoa = TestArtccConfig.LoadZoa();
         if (zoa is null)
         {
             return;

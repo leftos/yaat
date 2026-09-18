@@ -1,4 +1,6 @@
 ﻿using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -28,7 +30,7 @@ public class OakGroundE2ETests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -43,8 +45,8 @@ public class OakGroundE2ETests(ITestOutputHelper output)
     [Fact]
     public void OAK_FullGroundSequence_NoOverlapAndSIG1Reached()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -54,11 +56,11 @@ public class OakGroundE2ETests(ITestOutputHelper output)
         engine.Replay(recording, 1);
 
         // Find node 508 (28R hold-short on B) for distance reference
-        var n436 = engine.FindAircraft("N436MS");
+        AircraftState? n436 = engine.FindAircraft("N436MS");
         Assert.NotNull(n436);
         double node508Lat = 0;
         double node508Lon = 0;
-        if (n436.Ground.Layout is not null && n436.Ground.Layout.Nodes.TryGetValue(508, out var node508))
+        if (n436.Ground.Layout is not null && n436.Ground.Layout.Nodes.TryGetValue(508, out GroundNode? node508))
         {
             node508Lat = node508.Position.Lat;
             node508Lon = node508.Position.Lon;
@@ -69,7 +71,7 @@ public class OakGroundE2ETests(ITestOutputHelper output)
         double sig1Lon = 0;
         if (n436.Ground.Layout is not null)
         {
-            var sig1Node = n436.Ground.Layout.FindHelipadByName("SIG1") ?? n436.Ground.Layout.FindParkingByName("SIG1");
+            GroundNode? sig1Node = n436.Ground.Layout.FindHelipadByName("SIG1") ?? n436.Ground.Layout.FindParkingByName("SIG1");
             if (sig1Node is not null)
             {
                 sig1Lat = sig1Node.Position.Lat;
@@ -82,9 +84,9 @@ public class OakGroundE2ETests(ITestOutputHelper output)
         output.WriteLine("");
 
         // --- Phase 1: Send CLAND to N569SX ---
-        var n569 = engine.FindAircraft("N569SX");
+        AircraftState? n569 = engine.FindAircraft("N569SX");
         Assert.NotNull(n569);
-        var clandResult = engine.SendCommand("N569SX", "CLAND");
+        CommandResult clandResult = engine.SendCommand("N569SX", "CLAND");
         Assert.True(clandResult.Success, $"CLAND failed: {clandResult.Message}");
         output.WriteLine($"t=1: N569SX CLAND — {clandResult.Message}");
 
@@ -110,14 +112,14 @@ public class OakGroundE2ETests(ITestOutputHelper output)
                 output.WriteLine($"t={t}: N569SX exited runway at ({n569.Position.Lat:F6}, {n569.Position.Lon:F6}) on {n569.Ground.CurrentTaxiway}");
 
                 // Send TAXI G @SIG1
-                var taxiResult = engine.SendCommand("N569SX", "TAXI G @SIG1");
+                CommandResult taxiResult = engine.SendCommand("N569SX", "TAXI G @SIG1");
                 Assert.True(taxiResult.Success, $"TAXI G @SIG1 failed: {taxiResult.Message}");
                 output.WriteLine($"t={t}: N569SX TAXI G @SIG1 — {taxiResult.Message}");
 
                 // Auto-delete runs on every run kind: an arrival that is not exempt vanishes the second it parks, as
                 // it does live. The final-state assertions below want it on the scope, so keep it the way an
                 // instructor would.
-                var keep = engine.SendCommand("N569SX", "NODEL");
+                CommandResult keep = engine.SendCommand("N569SX", "NODEL");
                 Assert.True(keep.Success, $"NODEL failed: {keep.Message}");
             }
 
@@ -162,8 +164,8 @@ public class OakGroundE2ETests(ITestOutputHelper output)
         Assert.True(n569DistSig1Ft < 30, $"N569SX stopped {n569DistSig1Ft:F0}ft from SIG1 — should be within 30ft");
 
         // Assert 2: N346G and N172SP should not be stacked
-        var n172 = engine.FindAircraft("N172SP");
-        var n346 = engine.FindAircraft("N346G");
+        AircraftState? n172 = engine.FindAircraft("N172SP");
+        AircraftState? n346 = engine.FindAircraft("N346G");
         Assert.NotNull(n172);
         Assert.NotNull(n346);
 

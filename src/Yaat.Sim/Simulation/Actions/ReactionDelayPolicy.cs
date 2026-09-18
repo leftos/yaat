@@ -54,7 +54,7 @@ public static class ReactionDelayPolicy
         // Preserve issue order: clamp so this command fires no sooner than any reaction deferral already pending on
         // the aircraft (ProcessDeferredDispatches applies same-tick expiries FIFO).
         double clampFloor = 0;
-        foreach (var pending in aircraft.DeferredDispatches)
+        foreach (DeferredDispatch pending in aircraft.DeferredDispatches)
         {
             if ((pending.IsReactionDelay) && (pending.RemainingSeconds > clampFloor))
             {
@@ -72,13 +72,13 @@ public static class ReactionDelayPolicy
             return false;
         }
 
-        var first = compound.Blocks[0];
+        ParsedBlock first = compound.Blocks[0];
         if (first.Condition is GiveWayCondition)
         {
             return true;
         }
 
-        foreach (var cmd in first.Commands)
+        foreach (ParsedCommand cmd in first.Commands)
         {
             if (cmd is WaitCommand or WaitDistanceCommand)
             {
@@ -94,9 +94,9 @@ public static class ReactionDelayPolicy
     // caught before ContainsInstructorAction asks CommandDescriber.ToCanonicalType for one, which throws.
     private static bool ContainsUnsupported(CompoundCommand compound)
     {
-        foreach (var block in compound.Blocks)
+        foreach (ParsedBlock block in compound.Blocks)
         {
-            foreach (var cmd in block.Commands)
+            foreach (ParsedCommand cmd in block.Commands)
             {
                 if (cmd is UnsupportedCommand)
                 {
@@ -110,9 +110,9 @@ public static class ReactionDelayPolicy
 
     private static bool ContainsInstructorAction(CompoundCommand compound)
     {
-        foreach (var block in compound.Blocks)
+        foreach (ParsedBlock block in compound.Blocks)
         {
-            foreach (var cmd in block.Commands)
+            foreach (ParsedCommand cmd in block.Commands)
             {
                 // WAIT/WAITD live in the same registry category but are timing modifiers, not instructor actions.
                 if (cmd is WaitCommand or WaitDistanceCommand)
@@ -133,9 +133,9 @@ public static class ReactionDelayPolicy
     private static bool IsPureCommCompound(CompoundCommand compound)
     {
         bool hasAny = false;
-        foreach (var block in compound.Blocks)
+        foreach (ParsedBlock block in compound.Blocks)
         {
-            foreach (var cmd in block.Commands)
+            foreach (ParsedCommand cmd in block.Commands)
             {
                 hasAny = true;
                 if (cmd is not (ContactCommand or FrequencyChangeApprovedCommand or AcknowledgePilotContactCommand))

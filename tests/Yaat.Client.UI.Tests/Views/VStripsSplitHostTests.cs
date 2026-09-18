@@ -19,7 +19,7 @@ public class VStripsSplitHostTests
     private static (MainViewModel Vm, VStripsDockEntryViewModel Entry, VStripsSplitHost Host, Window Window) NewSplitHost()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        var entry = vm.StripsEntries[0];
+        VStripsDockEntryViewModel entry = vm.StripsEntries[0];
         // The student entry's split mode persists in the per-process shared
         // preferences.json and is restored by the MainViewModel constructor, so
         // an earlier test's split would leak in here. Normalize to unsplit so
@@ -36,22 +36,22 @@ public class VStripsSplitHostTests
     [AvaloniaFact]
     public async Task SplitHost_RendersOneThenTwoThenOnePane()
     {
-        var (vm, entry, host, window) = NewSplitHost();
+        (MainViewModel? vm, VStripsDockEntryViewModel? entry, VStripsSplitHost? host, Window? window) = NewSplitHost();
         try
         {
             window.UpdateLayout();
-            var single = StripsViewsOf(host);
+            List<VStripsView> single = StripsViewsOf(host);
             Assert.Single(single);
-            var primaryView = single[0];
+            VStripsView primaryView = single[0];
             Assert.Empty(host.GetVisualDescendants().OfType<GridSplitter>());
 
             await vm.SplitStripsEntryAsync(entry, StripsSplitMode.SideBySide);
             window.UpdateLayout();
 
-            var splitViews = StripsViewsOf(host);
+            List<VStripsView> splitViews = StripsViewsOf(host);
             Assert.Equal(2, splitViews.Count);
             Assert.Contains(primaryView, splitViews);
-            var splitter = Assert.Single(host.GetVisualDescendants().OfType<GridSplitter>());
+            GridSplitter splitter = Assert.Single(host.GetVisualDescendants().OfType<GridSplitter>());
             Assert.Equal(GridResizeDirection.Columns, splitter.ResizeDirection);
             // The splitter must carry the host's own styling — a theme-default
             // GridSplitter is indistinguishable from the bay dividers inside a
@@ -67,7 +67,7 @@ public class VStripsSplitHostTests
             vm.UnsplitStripsEntry(entry);
             window.UpdateLayout();
 
-            var afterUnsplit = Assert.Single(StripsViewsOf(host));
+            VStripsView afterUnsplit = Assert.Single(StripsViewsOf(host));
             Assert.Same(primaryView, afterUnsplit);
             Assert.Empty(host.GetVisualDescendants().OfType<GridSplitter>());
         }
@@ -80,7 +80,7 @@ public class VStripsSplitHostTests
     [AvaloniaFact]
     public async Task SplitHost_PanesBindPrimaryAndSecondaryVms()
     {
-        var (vm, entry, host, window) = NewSplitHost();
+        (MainViewModel? vm, VStripsDockEntryViewModel? entry, VStripsSplitHost? host, Window? window) = NewSplitHost();
         try
         {
             await vm.SplitStripsEntryAsync(entry, StripsSplitMode.SideBySide);
@@ -105,7 +105,7 @@ public class VStripsSplitHostTests
         // Splitting the student entry persists the mode, and a fresh
         // MainViewModel restores it at construction — the flow that carries a
         // user's split layout across app restarts.
-        var (vm, entry, _, window) = NewSplitHost();
+        (MainViewModel? vm, VStripsDockEntryViewModel? entry, VStripsSplitHost _, Window? window) = NewSplitHost();
         MainViewModel? restoredVm = null;
         Window? restoredWindow = null;
         try
@@ -113,7 +113,7 @@ public class VStripsSplitHostTests
             await vm.SplitStripsEntryAsync(entry, StripsSplitMode.Stacked);
 
             restoredVm = new MainViewModel(new FakeFilePickerService());
-            var restoredEntry = restoredVm.StripsEntries[0];
+            VStripsDockEntryViewModel restoredEntry = restoredVm.StripsEntries[0];
             Assert.Equal(StripsSplitMode.Stacked, restoredEntry.SplitMode);
             Assert.NotNull(restoredEntry.SecondaryVm);
 
@@ -122,7 +122,7 @@ public class VStripsSplitHostTests
             restoredWindow.Show();
             restoredWindow.UpdateLayout();
             Assert.Equal(2, StripsViewsOf(restoredHost).Count);
-            var splitter = Assert.Single(restoredHost.GetVisualDescendants().OfType<GridSplitter>());
+            GridSplitter splitter = Assert.Single(restoredHost.GetVisualDescendants().OfType<GridSplitter>());
             Assert.Equal(GridResizeDirection.Rows, splitter.ResizeDirection);
         }
         finally

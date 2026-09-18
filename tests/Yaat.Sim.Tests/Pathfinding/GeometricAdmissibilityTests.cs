@@ -100,20 +100,20 @@ public class GeometricAdmissibilityTests
     )
     {
         // Build two nodes so the departure bearing toward n2 equals arrivalBearing + departureOffsetDeg.
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
 
         // The arrival bearing into n1 is the bearing n0→n1. We'll construct a synthetic route
         // that has the desired arrival bearing directly.
-        var e01 = StraightEdge(n0, n1);
+        GroundEdge e01 = StraightEdge(n0, n1);
 
         // Construct n2 so that bearing n1→n2 = (arrivalBearing + departureOffsetDeg) % 360.
         double departureBearing = (arrivalBearing + departureOffsetDeg) % 360.0;
         // Place n2 in the direction of departureBearing from n1 at 0.01 nm.
         double deltaLat = Math.Cos(departureBearing * Math.PI / 180.0) * 0.01 / 60.0;
         double deltaLon = Math.Sin(departureBearing * Math.PI / 180.0) * 0.01 / (60.0 * Math.Cos(n1.Position.Lat * Math.PI / 180.0));
-        var n2 = Node(2, n1.Position.Lat + deltaLat, n1.Position.Lon + deltaLon);
-        var e12 = StraightEdge(n1, n2);
+        GroundNode n2 = Node(2, n1.Position.Lat + deltaLat, n1.Position.Lon + deltaLon);
+        GroundEdge e12 = StraightEdge(n1, n2);
 
         // Build route arriving at n1 with the specified arrival bearing.
         var routeAtN1 = new PartialRoute(
@@ -138,9 +138,9 @@ public class GeometricAdmissibilityTests
     [Fact]
     public void NoLastEdge_AlwaysAdmitted()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var e = StraightEdge(n0, n1);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundEdge e = StraightEdge(n0, n1);
 
         var routeAtStart = PartialRoute.StartAt(n0.Id);
         bool result = GeometricAdmissibility.IsAdmissible(routeAtStart, e, n1, AircraftCategory.Jet);
@@ -155,12 +155,12 @@ public class GeometricAdmissibilityTests
     public void ForwardArc_WithinCategoryLimit_IsAdmitted()
     {
         // n0→n1→arc(n1→n2): forward arc aligned with heading, small turn angle.
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.701, -122.199);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.701, -122.199);
 
-        var eForward = StraightEdge(n0, n1);
-        var arc = StraightArc(n1, n2);
+        GroundEdge eForward = StraightEdge(n0, n1);
+        GroundArc arc = StraightArc(n1, n2);
 
         double arrivalBearing = GeoMath.BearingTo(n0.Position, n1.Position);
 
@@ -186,13 +186,13 @@ public class GeometricAdmissibilityTests
         // Heading change is ~90° which is within the Jet 135° limit.
         // A fillet is a symmetric curve: traversing it against its stored node order is admitted on the
         // same heading-delta gate as the forward direction, with no cost of its own.
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.701, -122.199);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.701, -122.199);
 
-        var eForward = StraightEdge(n0, n1);
+        GroundEdge eForward = StraightEdge(n0, n1);
         // Arc's natural direction is n2→n1 (Nodes[0]=n2). Traversing from n1→n2 is reverse.
-        var arc = StraightArc(n2, n1);
+        GroundArc arc = StraightArc(n2, n1);
 
         double arrivalBearing = GeoMath.BearingTo(n0.Position, n1.Position);
 
@@ -217,15 +217,15 @@ public class GeometricAdmissibilityTests
     {
         // Arc with Nodes[0]=n2, Nodes[1]=n1. Traversing from n1→n2 where n2 is almost behind n1.
         // The departure bearing of the reverse arc is ~160° from arrival bearing, which exceeds 135°.
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
 
         // n2 is positioned so bearing n1→n2 ≈ 180° (south), giving a ~180° heading change.
-        var n2 = Node(2, 37.699, -122.200);
+        GroundNode n2 = Node(2, 37.699, -122.200);
 
-        var eForward = StraightEdge(n0, n1);
+        GroundEdge eForward = StraightEdge(n0, n1);
         // Arc's natural direction is n2→n1 (forward: south→north). Traversing from n1→n2 is reverse.
-        var arc = StraightArc(n2, n1);
+        GroundArc arc = StraightArc(n2, n1);
 
         double arrivalBearing = GeoMath.BearingTo(n0.Position, n1.Position); // north ≈ 0°
 
@@ -253,18 +253,18 @@ public class GeometricAdmissibilityTests
     public void CategorySensitivity_SameHeadingDelta_DifferentResultForDifferentCategories()
     {
         // 140° delta: exceeds Jet limit (135°) but within Piston limit (155°).
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
 
-        var arrivalBearing = GeoMath.BearingTo(n0.Position, n1.Position);
+        double arrivalBearing = GeoMath.BearingTo(n0.Position, n1.Position);
         double departureBearing = (arrivalBearing + 140.0) % 360.0;
 
         double deltaLat = Math.Cos(departureBearing * Math.PI / 180.0) * 0.01 / 60.0;
         double deltaLon = Math.Sin(departureBearing * Math.PI / 180.0) * 0.01 / (60.0 * Math.Cos(n1.Position.Lat * Math.PI / 180.0));
-        var n2 = Node(2, n1.Position.Lat + deltaLat, n1.Position.Lon + deltaLon);
+        GroundNode n2 = Node(2, n1.Position.Lat + deltaLat, n1.Position.Lon + deltaLon);
 
-        var eIn = StraightEdge(n0, n1);
-        var eOut = StraightEdge(n1, n2);
+        GroundEdge eIn = StraightEdge(n0, n1);
+        GroundEdge eOut = StraightEdge(n1, n2);
 
         var route = new PartialRoute(
             HeadNodeId: n1.Id,

@@ -62,9 +62,9 @@ public sealed class ForcedLandingCommandTests
     [Fact]
     public void Parse_Clandf_ProducesForceLandingCommand()
     {
-        var result = CommandParser.Parse("CLANDF");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("CLANDF");
 
-        var cmd = Assert.IsType<ForceLandingCommand>(result.Value);
+        ForceLandingCommand cmd = Assert.IsType<ForceLandingCommand>(result.Value);
         Assert.Equal("CLANDF", CommandDescriber.DescribeCommand(cmd));
         Assert.Equal("Force landing (override go-around)", CommandDescriber.DescribeNatural(cmd));
     }
@@ -72,9 +72,9 @@ public sealed class ForcedLandingCommandTests
     [Fact]
     public void Handler_RpoMode_GrantsClearanceAndSetsForceLanding()
     {
-        var ac = MakeOnFinal(MakeRunway());
+        AircraftState ac = MakeOnFinal(MakeRunway());
 
-        var result = PatternCommandHandler.TryForceLanding(new ForceLandingCommand(), ac, TestDispatch.Context(new Random(1)));
+        CommandResult result = PatternCommandHandler.TryForceLanding(new ForceLandingCommand(), ac, TestDispatch.Context(new Random(1)));
 
         Assert.True(result.Success, result.Message);
         Assert.True(ac.Phases!.ForceLanding);
@@ -85,10 +85,10 @@ public sealed class ForcedLandingCommandTests
     [Fact]
     public void Handler_DuringGoAround_ReversesToFinalAndForcesLanding()
     {
-        var ac = MakeInGoAround(MakeRunway());
+        AircraftState ac = MakeInGoAround(MakeRunway());
         Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
 
-        var result = PatternCommandHandler.TryForceLanding(new ForceLandingCommand(), ac, TestDispatch.Context(new Random(1)));
+        CommandResult result = PatternCommandHandler.TryForceLanding(new ForceLandingCommand(), ac, TestDispatch.Context(new Random(1)));
 
         Assert.True(result.Success, result.Message);
         Assert.True(ac.Phases.ForceLanding);
@@ -105,9 +105,9 @@ public sealed class ForcedLandingCommandTests
     [Fact]
     public void Handler_SoloTraining_RejectedAsRpoOnly()
     {
-        var ac = MakeOnFinal(MakeRunway());
+        AircraftState ac = MakeOnFinal(MakeRunway());
 
-        var result = PatternCommandHandler.TryForceLanding(
+        CommandResult result = PatternCommandHandler.TryForceLanding(
             new ForceLandingCommand(),
             ac,
             TestDispatch.Context(new Random(1), soloTrainingMode: true)
@@ -121,10 +121,10 @@ public sealed class ForcedLandingCommandTests
     [Fact]
     public void Handler_OnGround_Rejected()
     {
-        var ac = MakeOnFinal(MakeRunway());
+        AircraftState ac = MakeOnFinal(MakeRunway());
         ac.IsOnGround = true;
 
-        var result = PatternCommandHandler.TryForceLanding(new ForceLandingCommand(), ac, TestDispatch.Context(new Random(1)));
+        CommandResult result = PatternCommandHandler.TryForceLanding(new ForceLandingCommand(), ac, TestDispatch.Context(new Random(1)));
 
         Assert.False(result.Success);
         Assert.False(ac.Phases!.ForceLanding);
@@ -133,11 +133,11 @@ public sealed class ForcedLandingCommandTests
     [Fact]
     public void GoAround_ClearsForceLanding()
     {
-        var ac = MakeOnFinal(MakeRunway());
+        AircraftState ac = MakeOnFinal(MakeRunway());
         ac.Phases!.ForceLanding = true;
         ac.Phases.LandingClearance = ClearanceType.ClearedToLand;
 
-        var result = PatternCommandHandler.TryGoAround(new GoAroundCommand(null, null, null), ac, groundLayout: null);
+        CommandResult result = PatternCommandHandler.TryGoAround(new GoAroundCommand(null, null, null), ac, groundLayout: null);
 
         Assert.True(result.Success, result.Message);
         Assert.False(ac.Phases.ForceLanding);
@@ -146,12 +146,12 @@ public sealed class ForcedLandingCommandTests
     [Fact]
     public void CancelLandingClearance_ClearsForceLanding()
     {
-        var ac = MakeOnFinal(MakeRunway());
+        AircraftState ac = MakeOnFinal(MakeRunway());
         ac.Phases!.ForceLanding = true;
         ac.Phases.LandingClearance = ClearanceType.ClearedToLand;
         ac.Phases.ClearedRunwayId = "28";
 
-        var result = PatternCommandHandler.TryCancelLandingClearance(ac);
+        CommandResult result = PatternCommandHandler.TryCancelLandingClearance(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.False(ac.Phases.ForceLanding);

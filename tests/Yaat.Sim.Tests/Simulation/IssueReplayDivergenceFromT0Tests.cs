@@ -34,7 +34,7 @@ public class IssueReplayDivergenceFromT0Tests
     [Fact]
     public void ReplayedTrackCommand_AsPrefixedAccept_TransfersOwnership()
     {
-        var scenario = BuildMinimalScenario();
+        SimScenarioState scenario = BuildMinimalScenario();
         var aircraft = new AircraftState
         {
             Callsign = "KFB7",
@@ -65,7 +65,7 @@ public class IssueReplayDivergenceFromT0Tests
     [Fact]
     public void ReplayedTrackCommand_StandaloneAsThenTrack_AcquiresUnderActivePosition()
     {
-        var scenario = BuildMinimalScenario();
+        SimScenarioState scenario = BuildMinimalScenario();
         var aircraft = new AircraftState
         {
             Callsign = "KFB7",

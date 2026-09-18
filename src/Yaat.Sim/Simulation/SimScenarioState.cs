@@ -87,7 +87,13 @@ public sealed class SimScenarioState
     {
         get
         {
-            var key = (SoloTrainingMode, StudentPosition, StudentPositionType, AiStaffingVersion, ArtccConfig);
+            (
+                bool SoloTrainingMode,
+                TrackOwner? StudentPosition,
+                string? StudentPositionType,
+                int AiStaffingVersion,
+                ArtccConfigRoot? ArtccConfig
+            ) key = (SoloTrainingMode, StudentPosition, StudentPositionType, AiStaffingVersion, ArtccConfig);
             if (_pilotContacts is null || _pilotContactsKey != key)
             {
                 _pilotContacts = Pilot.PilotContactRoster.Build(

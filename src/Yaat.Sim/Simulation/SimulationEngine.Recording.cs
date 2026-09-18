@@ -26,7 +26,7 @@ public sealed partial class SimulationEngine
     /// <summary>Records a generator-spawned aircraft for replay; a no-op on a run kind that records nothing.</summary>
     public void RecordGeneratedAircraftSpawn(AircraftState state)
     {
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null || !RunProfile.RecordsActions)
         {
             return;
@@ -71,7 +71,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void RecordAction(RecordedAction action)
     {
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null || !RunProfile.RecordsActions)
         {
             return;
@@ -82,8 +82,8 @@ public sealed partial class SimulationEngine
 
     private static void NormalizeSyntheticAircraftSpawn(AircraftState state)
     {
-        var baseType = AircraftState.StripTypePrefix(state.AircraftType).Trim().ToUpperInvariant();
-        if (!AircraftSiblingMap.TryResolve(baseType, out var sibling))
+        string baseType = AircraftState.StripTypePrefix(state.AircraftType).Trim().ToUpperInvariant();
+        if (!AircraftSiblingMap.TryResolve(baseType, out string? sibling))
         {
             return;
         }
@@ -97,8 +97,8 @@ public sealed partial class SimulationEngine
             state.FlightPlan.AircraftType = sibling;
         }
 
-        var category = AircraftCategorization.Categorize(sibling);
-        var defaultSpeed = AircraftPerformance.DefaultSpeed(sibling, category, state.Altitude, targetAltitude: null);
+        AircraftCategory category = AircraftCategorization.Categorize(sibling);
+        double defaultSpeed = AircraftPerformance.DefaultSpeed(sibling, category, state.Altitude, targetAltitude: null);
         if (!state.IsOnGround && state.IndicatedAirspeed > defaultSpeed)
         {
             state.IndicatedAirspeed = defaultSpeed;

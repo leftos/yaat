@@ -51,25 +51,25 @@ public static class FavoriteLegacyMigration
             return;
         }
 
-        var legacy = preferences.PeekLegacyFavorites();
+        LegacyFavoritesPayload? legacy = preferences.PeekLegacyFavorites();
         if (legacy is null)
         {
             return;
         }
 
-        var migratedFavorites = 0;
-        foreach (var old in legacy.FavoriteCommands.Where(f => f is not null))
+        int migratedFavorites = 0;
+        foreach (LegacyFavoriteCommand? old in legacy.FavoriteCommands.Where(f => f is not null))
         {
-            var favorite = Convert(old, store.NewFavoriteId());
+            FavoriteCommand favorite = Convert(old, store.NewFavoriteId());
             store.SaveFavorite(favorite);
             store.AddToSet(ResolveScopeSet(store, old).Id, favorite.Id);
             migratedFavorites++;
         }
 
         var nameToId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var oldSet in legacy.FavoriteCommandSets.Where(s => s is not null))
+        foreach (LegacyFavoriteCommandSet? oldSet in legacy.FavoriteCommandSets.Where(s => s is not null))
         {
-            var set = store.CreateNamedSet(oldSet.Name);
+            FavoriteSet? set = store.CreateNamedSet(oldSet.Name);
             if (set is null)
             {
                 Log.LogWarning("Skipping legacy favorite set '{Name}' during migration (blank or duplicate name)", oldSet.Name);
@@ -77,9 +77,9 @@ public static class FavoriteLegacyMigration
             }
 
             nameToId[set.Name] = set.Id;
-            foreach (var old in oldSet.Favorites.Where(f => f is not null))
+            foreach (LegacyFavoriteCommand? old in oldSet.Favorites.Where(f => f is not null))
             {
-                var favorite = Convert(old, store.NewFavoriteId());
+                FavoriteCommand favorite = Convert(old, store.NewFavoriteId());
                 store.SaveFavorite(favorite);
                 store.AddToSet(set.Id, favorite.Id);
                 migratedFavorites++;

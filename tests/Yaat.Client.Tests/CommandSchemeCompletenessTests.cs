@@ -10,7 +10,7 @@ public class CommandSchemeCompletenessTests
     [Fact]
     public void Registry_CoversAllCommandTypes()
     {
-        foreach (var type in AllCommandTypes)
+        foreach (CanonicalCommandType type in AllCommandTypes)
         {
             Assert.True(CommandRegistry.All.ContainsKey(type), $"CommandRegistry is missing CanonicalCommandType.{type}");
         }
@@ -20,7 +20,7 @@ public class CommandSchemeCompletenessTests
     public void Registry_HasNoDuplicateTypes()
     {
         // Dictionary enforces uniqueness, but verify the build data doesn't silently overwrite
-        var count = CommandRegistry.All.Count;
+        int count = CommandRegistry.All.Count;
         Assert.Equal(AllCommandTypes.Length, count);
     }
 
@@ -29,7 +29,7 @@ public class CommandSchemeCompletenessTests
     {
         var scheme = CommandScheme.Default();
 
-        foreach (var type in AllCommandTypes)
+        foreach (CanonicalCommandType type in AllCommandTypes)
         {
             Assert.True(scheme.Patterns.ContainsKey(type), $"Default scheme is missing CanonicalCommandType.{type}");
         }
@@ -40,11 +40,11 @@ public class CommandSchemeCompletenessTests
     {
         var scheme = CommandScheme.Default();
 
-        foreach (var (type, pattern) in scheme.Patterns)
+        foreach ((CanonicalCommandType type, CommandPattern? pattern) in scheme.Patterns)
         {
             Assert.True(pattern.Aliases.Count > 0, $"Default scheme has no aliases for CanonicalCommandType.{type}");
 
-            foreach (var alias in pattern.Aliases)
+            foreach (string alias in pattern.Aliases)
             {
                 Assert.True(!string.IsNullOrWhiteSpace(alias), $"Default scheme has empty/whitespace alias for CanonicalCommandType.{type}");
             }
@@ -56,7 +56,7 @@ public class CommandSchemeCompletenessTests
     {
         var scheme = CommandScheme.Default();
 
-        foreach (var (type, pattern) in scheme.Patterns)
+        foreach ((CanonicalCommandType type, CommandPattern? pattern) in scheme.Patterns)
         {
             var duplicates = pattern.Aliases.GroupBy(a => a, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
 
@@ -80,11 +80,11 @@ public class CommandSchemeCompletenessTests
         var scheme = CommandScheme.Default();
         var aliasToTypes = new Dictionary<string, List<CanonicalCommandType>>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (type, pattern) in scheme.Patterns)
+        foreach ((CanonicalCommandType type, CommandPattern? pattern) in scheme.Patterns)
         {
-            foreach (var alias in pattern.Aliases)
+            foreach (string alias in pattern.Aliases)
             {
-                if (!aliasToTypes.TryGetValue(alias, out var list))
+                if (!aliasToTypes.TryGetValue(alias, out List<CanonicalCommandType>? list))
                 {
                     list = [];
                     aliasToTypes[alias] = list;
@@ -95,7 +95,7 @@ public class CommandSchemeCompletenessTests
         }
 
         var conflicts = new List<string>();
-        foreach (var (alias, types) in aliasToTypes)
+        foreach ((string? alias, List<CanonicalCommandType>? types) in aliasToTypes)
         {
             if (types.Count <= 1)
             {
@@ -108,8 +108,8 @@ public class CommandSchemeCompletenessTests
             {
                 for (int j = i + 1; j < types.Count && allKnown; j++)
                 {
-                    var pair = (types[i], types[j]);
-                    var pairRev = (types[j], types[i]);
+                    (CanonicalCommandType, CanonicalCommandType) pair = (types[i], types[j]);
+                    (CanonicalCommandType, CanonicalCommandType) pairRev = (types[j], types[i]);
                     if (!knownShared.Contains(pair) && !knownShared.Contains(pairRev))
                     {
                         allKnown = false;

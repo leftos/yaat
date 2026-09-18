@@ -29,13 +29,13 @@ public class RunwayTransitionCircuitTeardropTests
     [InlineData(AircraftCategory.Piston, "C172")]
     public void CrossingTransition_CrossesAtPatternAltitude_WithNoTeardrop(AircraftCategory category, string aircraftType)
     {
-        var phases = BuildTransition("33", "28R", category, aircraftType);
+        List<Phase>? phases = BuildTransition("33", "28R", category, aircraftType);
         if (phases is null)
         {
             return;
         }
 
-        var crossing = Assert.IsType<MidfieldCrossingPhase>(phases.Find(p => p is MidfieldCrossingPhase));
+        MidfieldCrossingPhase crossing = Assert.IsType<MidfieldCrossingPhase>(phases.Find(p => p is MidfieldCrossingPhase));
         Assert.True(crossing.CrossAtPatternAltitude, "a departure crossing to another runway's pattern never left the pattern");
         Assert.DoesNotContain(phases, p => p is TeardropReentryPhase);
 
@@ -43,14 +43,14 @@ public class RunwayTransitionCircuitTeardropTests
         int downwindIndex = phases.FindIndex(p => p is DownwindPhase);
         Assert.True(downwindIndex == crossingIndex + 1, "the crossing joins the downwind directly");
 
-        var downwind = phases.OfType<DownwindPhase>().First();
+        DownwindPhase downwind = phases.OfType<DownwindPhase>().First();
         Assert.True(downwind.RejoinTrack, "without a teardrop the downwind has to re-intercept its own track after the crossing");
     }
 
     [Fact]
     public void CrossingTransition_UpwindBelongsToTheDepartureRunway_ThenTheCrossing()
     {
-        var phases = BuildTransition("33", "28R", AircraftCategory.Jet, "CRJ2");
+        List<Phase>? phases = BuildTransition("33", "28R", AircraftCategory.Jet, "CRJ2");
         if (phases is null)
         {
             return;
@@ -65,7 +65,7 @@ public class RunwayTransitionCircuitTeardropTests
     [InlineData(AircraftCategory.Piston, "C172")]
     public void ParallelTransition_NeverCrossesAndNeverTeardrops(AircraftCategory category, string aircraftType)
     {
-        var phases = BuildTransition("28R", "28L", category, aircraftType);
+        List<Phase>? phases = BuildTransition("28R", "28L", category, aircraftType);
         if (phases is null)
         {
             return;
@@ -78,9 +78,9 @@ public class RunwayTransitionCircuitTeardropTests
 
     private static List<Phase>? BuildTransition(string flownDesignator, string patternDesignator, AircraftCategory category, string aircraftType)
     {
-        var navDb = TestVnasData.NavigationDb;
-        var flown = navDb?.GetRunway("KOAK", flownDesignator);
-        var pattern = navDb?.GetRunway("KOAK", patternDesignator);
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", flownDesignator);
+        RunwayInfo? pattern = navDb?.GetRunway("KOAK", patternDesignator);
         if (navDb is null || flown is null || pattern is null)
         {
             return null;

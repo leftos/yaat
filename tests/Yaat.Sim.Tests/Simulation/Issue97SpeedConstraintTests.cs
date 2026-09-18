@@ -31,7 +31,7 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
@@ -57,8 +57,8 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
     [Fact]
     public void SWA11_MeetsSpeedConstraintsAtFixes()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -69,7 +69,7 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
         // which fires when KLOCK is sequenced; no need to issue CAPP manually.
         engine.Replay(recording, 71);
 
-        var aircraft = engine.FindAircraft("SWA11");
+        AircraftState? aircraft = engine.FindAircraft("SWA11");
         Assert.NotNull(aircraft);
 
         // Snapshot speed constraints on the entire planned route, keyed by fix name. We capture
@@ -77,7 +77,7 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
         var constraintsByFix = new Dictionary<string, CifpSpeedRestriction>(StringComparer.OrdinalIgnoreCase);
         CaptureConstraints(aircraft, constraintsByFix);
 
-        using var _ = TickRecorder.Attach(engine, Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "swa11-trajectory.json"), "SWA11");
+        using IDisposable _ = TickRecorder.Attach(engine, Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "swa11-trajectory.json"), "SWA11");
 
         var iasAtFix = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         string? lastNavFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : null;
@@ -112,9 +112,9 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
         // For each fix that has a max-speed restriction and that we actually sequenced,
         // assert IAS at sequencing was within tolerance.
         var failures = new List<string>();
-        foreach (var (fix, ias) in iasAtFix)
+        foreach ((string? fix, double ias) in iasAtFix)
         {
-            if (!constraintsByFix.TryGetValue(fix, out var restr) || restr.Type == CifpSpeedRestrictionType.AtOrAbove)
+            if (!constraintsByFix.TryGetValue(fix, out CifpSpeedRestriction? restr) || restr.Type == CifpSpeedRestrictionType.AtOrAbove)
             {
                 continue;
             }
@@ -137,8 +137,8 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
     [Fact]
     public void SWA11_StarSpeedConstraintDeceleratesBeforeFix()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -147,7 +147,7 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
 
         engine.Replay(recording, 50);
 
-        var aircraft = engine.FindAircraft("SWA11");
+        AircraftState? aircraft = engine.FindAircraft("SWA11");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"At t=50: IAS={aircraft.IndicatedAirspeed:F0} alt={aircraft.Altitude:F0}");
@@ -184,7 +184,7 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
     /// </summary>
     private static void CaptureConstraints(AircraftState aircraft, Dictionary<string, CifpSpeedRestriction> constraintsByFix)
     {
-        foreach (var nav in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget nav in aircraft.Targets.NavigationRoute)
         {
             if (nav.SpeedRestriction is { } spd)
             {

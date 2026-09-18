@@ -22,7 +22,7 @@ public class CommandInputParseTests
     [Fact]
     public void BareVerb_NoTrailingSpace_FindsVerbAtIndex0()
     {
-        var result = Parse("FH");
+        CommandInputParseResult? result = Parse("FH");
 
         Assert.NotNull(result);
         Assert.Equal(0, result.VerbIndex);
@@ -37,7 +37,7 @@ public class CommandInputParseTests
     [Fact]
     public void BareVerb_WithTrailingSpace_ParamIndex0()
     {
-        var result = Parse("FH ");
+        CommandInputParseResult? result = Parse("FH ");
 
         Assert.NotNull(result);
         Assert.Equal(0, result.VerbIndex);
@@ -50,7 +50,7 @@ public class CommandInputParseTests
     [Fact]
     public void VerbWithArg_NoTrailingSpace_ParamIndex0()
     {
-        var result = Parse("FH 270");
+        CommandInputParseResult? result = Parse("FH 270");
 
         Assert.NotNull(result);
         Assert.Equal(0, result.VerbIndex);
@@ -64,7 +64,7 @@ public class CommandInputParseTests
     [Fact]
     public void VerbWithArg_TrailingSpace_ParamIndex1()
     {
-        var result = Parse("FH 270 ");
+        CommandInputParseResult? result = Parse("FH 270 ");
 
         Assert.NotNull(result);
         Assert.Equal(1, result.ParameterIndex);
@@ -75,7 +75,7 @@ public class CommandInputParseTests
     [Fact]
     public void CallsignThenVerb_FindsVerbAtIndex1()
     {
-        var result = Parse("SWA123 CM 5000");
+        CommandInputParseResult? result = Parse("SWA123 CM 5000");
 
         Assert.NotNull(result);
         Assert.Equal(1, result.VerbIndex);
@@ -88,7 +88,7 @@ public class CommandInputParseTests
     [Fact]
     public void Rwy_ResolvesToAssignRunway()
     {
-        var result = Parse("RWY ");
+        CommandInputParseResult? result = Parse("RWY ");
 
         Assert.NotNull(result);
         Assert.Equal(0, result.VerbIndex);
@@ -102,7 +102,7 @@ public class CommandInputParseTests
     [Fact]
     public void Rwy_WithRunwayArg_ParamIndex0()
     {
-        var result = Parse("RWY 28R");
+        CommandInputParseResult? result = Parse("RWY 28R");
 
         Assert.NotNull(result);
         Assert.Equal(CanonicalCommandType.AssignRunway, result.CommandType);
@@ -114,7 +114,7 @@ public class CommandInputParseTests
     [Fact]
     public void CompoundCommand_ParsesLastFragment()
     {
-        var result = Parse("FH 270; CM 5000");
+        CommandInputParseResult? result = Parse("FH 270; CM 5000");
 
         Assert.NotNull(result);
         Assert.Equal("CM", result.Verb);
@@ -126,7 +126,7 @@ public class CommandInputParseTests
     [Fact]
     public void ConditionPrefix_LV_StripsAndParsesVerb()
     {
-        var result = Parse("LV 050 FH 270");
+        CommandInputParseResult? result = Parse("LV 050 FH 270");
 
         Assert.NotNull(result);
         Assert.Equal("LV", result.ConditionVerb);
@@ -139,7 +139,7 @@ public class CommandInputParseTests
     [Fact]
     public void ConditionPrefix_AT_StillTypingArg_ReturnsPartialResult()
     {
-        var result = Parse("AT SUN");
+        CommandInputParseResult? result = Parse("AT SUN");
 
         Assert.NotNull(result);
         Assert.Equal("AT", result.ConditionVerb);
@@ -151,7 +151,7 @@ public class CommandInputParseTests
     [Fact]
     public void UnknownToken_NoVerbFound()
     {
-        var result = Parse("NOTAVERB");
+        CommandInputParseResult? result = Parse("NOTAVERB");
 
         Assert.NotNull(result);
         Assert.Equal(-1, result.VerbIndex);
@@ -163,7 +163,7 @@ public class CommandInputParseTests
     [Fact]
     public void Aliases_MatchSchemeCustomization()
     {
-        var result = Parse("FH ");
+        CommandInputParseResult? result = Parse("FH ");
 
         Assert.NotNull(result);
         Assert.Contains("FH", result.Aliases);
@@ -173,7 +173,7 @@ public class CommandInputParseTests
     public void MultipleArgs_TracksAllTypedArgs()
     {
         // PTAC takes heading, distance, approach
-        var result = Parse("PTAC 180 10 ");
+        CommandInputParseResult? result = Parse("PTAC 180 10 ");
 
         Assert.NotNull(result);
         Assert.Equal("PTAC", result.Verb);
@@ -189,7 +189,7 @@ public class CommandInputParseTests
     public void Caret_AtEndOfVerb_ActiveTokenSpansVerb()
     {
         // "FH" with caret at 2 (end of "FH")
-        var result = ParseAt("FH", 2);
+        CommandInputParseResult? result = ParseAt("FH", 2);
 
         Assert.NotNull(result);
         Assert.Equal(0, result.ActiveTokenIndex);
@@ -202,7 +202,7 @@ public class CommandInputParseTests
     public void Caret_InMiddleOfFirstArg_ParamIndex0()
     {
         // "FH 270" caret at 4 (between '2' and '7')
-        var result = ParseAt("FH 270", 4);
+        CommandInputParseResult? result = ParseAt("FH 270", 4);
 
         Assert.NotNull(result);
         Assert.Equal(0, result.VerbIndex);
@@ -217,7 +217,7 @@ public class CommandInputParseTests
     public void Caret_OnVerb_WhenMultipleTokens_ActiveTokenIsVerb()
     {
         // "FH 270 D5L" caret at 1 (in "FH")
-        var result = ParseAt("FH 270 D5L", 1);
+        CommandInputParseResult? result = ParseAt("FH 270 D5L", 1);
 
         Assert.NotNull(result);
         Assert.Equal(0, result.VerbIndex);
@@ -232,7 +232,7 @@ public class CommandInputParseTests
     public void Caret_InWhitespaceBetweenTokens_HasTrailingSpaceTrue()
     {
         // "FH 270 D" caret at 7 (right after the space, before 'D')
-        var result = ParseAt("FH 270 D", 7);
+        CommandInputParseResult? result = ParseAt("FH 270 D", 7);
 
         Assert.NotNull(result);
         // Cursor at start of "D" — IDE-style: on the next token (D)
@@ -247,7 +247,7 @@ public class CommandInputParseTests
     public void Caret_InTrueWhitespace_GapBetweenTokens_HasTrailingSpaceTrue()
     {
         // "FH  270" with TWO spaces, caret at 3 (in middle of double-space)
-        var result = ParseAt("FH  270", 3);
+        CommandInputParseResult? result = ParseAt("FH  270", 3);
 
         Assert.NotNull(result);
         // The caret sits on whitespace — between verb and first arg.
@@ -259,7 +259,7 @@ public class CommandInputParseTests
     public void Caret_BeforeFragmentSeparator_DoesNotLeakIntoNextFragment()
     {
         // "AAL FH 270; CM 5000" caret at 8 (in "270" of first fragment)
-        var result = ParseAt("AAL FH 270; CM 5000", 8);
+        CommandInputParseResult? result = ParseAt("AAL FH 270; CM 5000", 8);
 
         Assert.NotNull(result);
         Assert.Equal("FH", result.Verb);
@@ -273,7 +273,7 @@ public class CommandInputParseTests
     public void Caret_AfterFragmentSeparator_ParsesNextFragment()
     {
         // "FH 270; CM 5000" caret at 11 (in "CM")
-        var result = ParseAt("FH 270; CM 5000", 11);
+        CommandInputParseResult? result = ParseAt("FH 270; CM 5000", 11);
 
         Assert.NotNull(result);
         Assert.Equal("CM", result.Verb);
@@ -283,7 +283,7 @@ public class CommandInputParseTests
     public void Caret_AtTokenStart_OnSpaceBoundary_TreatsAsEditingNextToken()
     {
         // "FH 270 D5L" caret at 7 (right after space, at start of "D5L")
-        var result = ParseAt("FH 270 D5L", 7);
+        CommandInputParseResult? result = ParseAt("FH 270 D5L", 7);
 
         Assert.NotNull(result);
         Assert.Equal(2, result.ActiveTokenIndex);
@@ -296,7 +296,7 @@ public class CommandInputParseTests
     public void Caret_InConditionArg_FallsBackToPartialResult()
     {
         // "AT SUN" caret at 5 (in middle of "SUN")
-        var result = ParseAt("AT SUN", 5);
+        CommandInputParseResult? result = ParseAt("AT SUN", 5);
 
         Assert.NotNull(result);
         Assert.Equal("AT", result.ConditionVerb);
@@ -309,7 +309,7 @@ public class CommandInputParseTests
     public void TypedArgs_IncludesAllArgsRegardlessOfCursor()
     {
         // "FH 270 D5L" caret in middle of "270" — TypedArgs should still include both
-        var result = ParseAt("FH 270 D5L", 4);
+        CommandInputParseResult? result = ParseAt("FH 270 D5L", 4);
 
         Assert.NotNull(result);
         Assert.Equal(2, result.TypedArgs.Length);
@@ -324,7 +324,7 @@ public class CommandInputParseTests
     [Fact]
     public void CallsignThenLV_FindsVerbAtIndex1_AndConditionVerbSet()
     {
-        var result = Parse("SWA123 LV 050 FH 270");
+        CommandInputParseResult? result = Parse("SWA123 LV 050 FH 270");
 
         Assert.NotNull(result);
         Assert.Equal("LV", result.ConditionVerb);
@@ -341,7 +341,7 @@ public class CommandInputParseTests
     [Fact]
     public void CallsignThenAT_FindsVerb()
     {
-        var result = Parse("SWA123 AT SUNOL FH 180");
+        CommandInputParseResult? result = Parse("SWA123 AT SUNOL FH 180");
 
         Assert.NotNull(result);
         Assert.Equal("AT", result.ConditionVerb);
@@ -356,7 +356,7 @@ public class CommandInputParseTests
     [Fact]
     public void CallsignThenLV_TrailingSpaceAfterArg_ParamIndex0()
     {
-        var result = Parse("SWA123 LV 050 FH ");
+        CommandInputParseResult? result = Parse("SWA123 LV 050 FH ");
 
         Assert.NotNull(result);
         Assert.Equal("LV", result.ConditionVerb);
@@ -368,7 +368,7 @@ public class CommandInputParseTests
     [Fact]
     public void CallsignThenAT_StillTypingFix_ReturnsPartial()
     {
-        var result = Parse("SWA123 AT SUN");
+        CommandInputParseResult? result = Parse("SWA123 AT SUN");
 
         Assert.NotNull(result);
         Assert.Equal("AT", result.ConditionVerb);
@@ -381,7 +381,7 @@ public class CommandInputParseTests
     public void CallsignThenAT_CaretInCallsign_ActiveTokenIsCallsign()
     {
         // "SWA123 AT SUNOL FH 180" caret at 3 (in "SWA123")
-        var result = ParseAt("SWA123 AT SUNOL FH 180", 3);
+        CommandInputParseResult? result = ParseAt("SWA123 AT SUNOL FH 180", 3);
 
         Assert.NotNull(result);
         // Cursor in callsign region — NOT the partial-condition branch.
@@ -395,7 +395,7 @@ public class CommandInputParseTests
     public void CallsignThenAT_CaretInConditionArg_ActiveTokenIsFix()
     {
         // "SWA123 AT SUNOL FH 180" caret at 12 (inside "SUNOL")
-        var result = ParseAt("SWA123 AT SUNOL FH 180", 12);
+        CommandInputParseResult? result = ParseAt("SWA123 AT SUNOL FH 180", 12);
 
         Assert.NotNull(result);
         Assert.Equal("AT", result.ConditionVerb);
@@ -410,7 +410,7 @@ public class CommandInputParseTests
     {
         // Verify the verb's active-token bounds map to the actual "FH" position in the full text.
         // "SWA123 AT SUNOL FH 180" — caret on the "FH" verb (position 17).
-        var result = ParseAt("SWA123 AT SUNOL FH 180", 17);
+        CommandInputParseResult? result = ParseAt("SWA123 AT SUNOL FH 180", 17);
 
         Assert.NotNull(result);
         Assert.Equal("FH", result.Verb);
@@ -425,7 +425,7 @@ public class CommandInputParseTests
     [Fact]
     public void CallsignThenATFN_FindsVerb()
     {
-        var result = Parse("SWA123 ATFN 5 FH 270");
+        CommandInputParseResult? result = Parse("SWA123 ATFN 5 FH 270");
 
         Assert.NotNull(result);
         Assert.Equal("ATFN", result.ConditionVerb);
@@ -438,7 +438,7 @@ public class CommandInputParseTests
     [Fact]
     public void CallsignThenONHO_FindsVerb()
     {
-        var result = Parse("SWA123 ONHO FH 270");
+        CommandInputParseResult? result = Parse("SWA123 ONHO FH 270");
 
         Assert.NotNull(result);
         Assert.Equal("ONHO", result.ConditionVerb);
@@ -451,7 +451,7 @@ public class CommandInputParseTests
     [Fact]
     public void CallsignThenGW_FindsVerb()
     {
-        var result = Parse("SWA123 GW UAL456 FH 270");
+        CommandInputParseResult? result = Parse("SWA123 GW UAL456 FH 270");
 
         Assert.NotNull(result);
         // GW canonicalizes to GIVEWAY for the conditionVerb.
@@ -464,7 +464,7 @@ public class CommandInputParseTests
     public void CallsignThenKnownVerb_NotTreatedAsCondition()
     {
         // Regression: "SWA123 CM 5000" must NOT be misinterpreted as having a condition prefix.
-        var result = Parse("SWA123 CM 5000");
+        CommandInputParseResult? result = Parse("SWA123 CM 5000");
 
         Assert.NotNull(result);
         Assert.Null(result.ConditionVerb);

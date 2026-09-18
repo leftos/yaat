@@ -21,19 +21,19 @@ public class CommandFlyoutTests
     [AvaloniaFact]
     public void Open_FocusesCommandTextBox()
     {
-        var (_, anchor) = ShowAnchorWindow();
+        (Window _, Control? anchor) = ShowAnchorWindow();
 
         CommandFlyout.Open(anchor, "UAL123", _ => Task.CompletedTask);
         HeadlessWindowExtensions.PumpDispatcher();
 
-        var textBox = FindCommandTextBox(anchor);
+        TextBox textBox = FindCommandTextBox(anchor);
         Assert.True(textBox.IsFocused, "Command popup TextBox should receive focus when the popup opens.");
     }
 
     [AvaloniaFact]
     public async Task Enter_SubmitsTrimmedCommand()
     {
-        var (_, anchor) = ShowAnchorWindow();
+        (Window _, Control? anchor) = ShowAnchorWindow();
         var submitted = new TaskCompletionSource<string>();
 
         CommandFlyout.Open(
@@ -47,12 +47,12 @@ public class CommandFlyoutTests
         );
         HeadlessWindowExtensions.PumpDispatcher();
 
-        var popup = FindPopup(anchor);
-        var textBox = FindCommandTextBox(anchor);
+        Popup popup = FindPopup(anchor);
+        TextBox textBox = FindCommandTextBox(anchor);
         textBox.Text = "  C 250  ";
         RaiseEnter(textBox);
 
-        var result = await submitted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        string result = await submitted.Task.WaitAsync(TimeSpan.FromSeconds(2));
         HeadlessWindowExtensions.PumpDispatcher();
 
         Assert.Equal("C 250", result);
@@ -62,7 +62,7 @@ public class CommandFlyoutTests
     [AvaloniaFact]
     public void Enter_WithBlankText_DoesNotSubmit()
     {
-        var (_, anchor) = ShowAnchorWindow();
+        (Window _, Control? anchor) = ShowAnchorWindow();
         bool submitted = false;
 
         CommandFlyout.Open(
@@ -76,8 +76,8 @@ public class CommandFlyoutTests
         );
         HeadlessWindowExtensions.PumpDispatcher();
 
-        var popup = FindPopup(anchor);
-        var textBox = FindCommandTextBox(anchor);
+        Popup popup = FindPopup(anchor);
+        TextBox textBox = FindCommandTextBox(anchor);
         textBox.Text = "   ";
         RaiseEnter(textBox);
         HeadlessWindowExtensions.PumpDispatcher();
@@ -103,16 +103,16 @@ public class CommandFlyoutTests
     {
         var overlay = OverlayLayer.GetOverlayLayer(anchor);
         Assert.NotNull(overlay);
-        var popup = overlay!.Children.OfType<Popup>().LastOrDefault();
+        Popup? popup = overlay!.Children.OfType<Popup>().LastOrDefault();
         Assert.NotNull(popup);
         return popup!;
     }
 
     private static TextBox FindCommandTextBox(Control anchor)
     {
-        var popup = FindPopup(anchor);
+        Popup popup = FindPopup(anchor);
         Assert.NotNull(popup.Child);
-        var textBox = popup.Child!.GetLogicalDescendants().OfType<TextBox>().FirstOrDefault();
+        TextBox? textBox = popup.Child!.GetLogicalDescendants().OfType<TextBox>().FirstOrDefault();
         Assert.NotNull(textBox);
         return textBox!;
     }

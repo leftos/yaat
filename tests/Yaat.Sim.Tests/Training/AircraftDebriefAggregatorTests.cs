@@ -39,7 +39,7 @@ public class AircraftDebriefAggregatorTests
     {
         var evaluator = new SoloTrainingEvaluator();
 
-        var report = evaluator.BuildReport(true, 100, EmptyApproachReport(100), AircraftDebriefContext.Empty);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 100, EmptyApproachReport(100), AircraftDebriefContext.Empty);
 
         Assert.Empty(report.AircraftDebriefs);
     }
@@ -48,13 +48,13 @@ public class AircraftDebriefAggregatorTests
     public void BuildReport_OneActiveAircraftNoFindings_EmitsCleanCoachingNote()
     {
         var evaluator = new SoloTrainingEvaluator();
-        var ac = MakeAircraft("N123AB", departure: "OAK", destination: "RNO");
+        AircraftState ac = MakeAircraft("N123AB", departure: "OAK", destination: "RNO");
         ac.SpawnedAtSeconds = 30;
         var context = new AircraftDebriefContext([ac], [], "OAK");
 
-        var report = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
 
-        var row = Assert.Single(report.AircraftDebriefs);
+        AircraftDebriefData row = Assert.Single(report.AircraftDebriefs);
         Assert.Equal("N123AB", row.Callsign);
         Assert.Equal(OperationKind.Departure, row.Operation);
         Assert.Equal(CompletionReason.Active, row.CompletionReason);
@@ -79,9 +79,9 @@ public class AircraftDebriefAggregatorTests
         );
         var context = new AircraftDebriefContext([], [record], "OAK");
 
-        var report = evaluator.BuildReport(true, 300, EmptyApproachReport(300), context);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 300, EmptyApproachReport(300), context);
 
-        var row = Assert.Single(report.AircraftDebriefs);
+        AircraftDebriefData row = Assert.Single(report.AircraftDebriefs);
         Assert.Equal(OperationKind.Departure, row.Operation);
         Assert.Equal(CompletionReason.HandedOff, row.CompletionReason);
         Assert.Equal(240.0, row.CompletedAtSeconds);
@@ -105,9 +105,9 @@ public class AircraftDebriefAggregatorTests
         );
         var context = new AircraftDebriefContext([], [record], "OAK");
 
-        var report = evaluator.BuildReport(true, 500, EmptyApproachReport(500), context);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 500, EmptyApproachReport(500), context);
 
-        var row = Assert.Single(report.AircraftDebriefs);
+        AircraftDebriefData row = Assert.Single(report.AircraftDebriefs);
         Assert.Equal(OperationKind.Departure, row.Operation); // pattern (dep==dest==primary) reads as Departure
         Assert.Equal("Clean landing 28R.", row.CoachingNote);
     }
@@ -116,8 +116,8 @@ public class AircraftDebriefAggregatorTests
     public void BuildReport_FindingsGroupedByCallsign_PopulateCountsAndNote()
     {
         var evaluator = new SoloTrainingEvaluator();
-        var a = MakeAircraft("AAL1", departure: "OAK", destination: "PHX");
-        var b = MakeAircraft("UAL2", departure: "SFO", destination: "OAK");
+        AircraftState a = MakeAircraft("AAL1", departure: "OAK", destination: "PHX");
+        AircraftState b = MakeAircraft("UAL2", departure: "SFO", destination: "OAK");
 
         // Drive a separation finding involving both aircraft so each row aggregates one.
         a.Position = new LatLon(37.6213, -122.3790);
@@ -137,11 +137,11 @@ public class AircraftDebriefAggregatorTests
 
         var context = new AircraftDebriefContext([a, b], [], "OAK");
 
-        var report = evaluator.BuildReport(true, 60, EmptyApproachReport(60), context);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 60, EmptyApproachReport(60), context);
 
         Assert.Equal(2, report.AircraftDebriefs.Count);
-        var rowA = Assert.Single(report.AircraftDebriefs, r => r.Callsign == "AAL1");
-        var rowB = Assert.Single(report.AircraftDebriefs, r => r.Callsign == "UAL2");
+        AircraftDebriefData rowA = Assert.Single(report.AircraftDebriefs, r => r.Callsign == "AAL1");
+        AircraftDebriefData rowB = Assert.Single(report.AircraftDebriefs, r => r.Callsign == "UAL2");
 
         // Both rows should reference the same finding IDs (proves callsign grouping). The
         // separation pair fires one Separation + zero-or-more co-firing advisories, all of
@@ -157,14 +157,14 @@ public class AircraftDebriefAggregatorTests
     public void BuildReport_ClassifiesOperation_AgainstPrimaryAirportWithIcaoTolerance()
     {
         var evaluator = new SoloTrainingEvaluator();
-        var departing = MakeAircraft("DEP1", departure: "KOAK", destination: "KLAS");
-        var arriving = MakeAircraft("ARR1", departure: "KLAS", destination: "OAK");
-        var transit = MakeAircraft("TRA1", departure: "SFO", destination: "RNO");
-        var unknown = MakeAircraft("UNK1");
+        AircraftState departing = MakeAircraft("DEP1", departure: "KOAK", destination: "KLAS");
+        AircraftState arriving = MakeAircraft("ARR1", departure: "KLAS", destination: "OAK");
+        AircraftState transit = MakeAircraft("TRA1", departure: "SFO", destination: "RNO");
+        AircraftState unknown = MakeAircraft("UNK1");
 
         var context = new AircraftDebriefContext([departing, arriving, transit, unknown], [], "OAK");
 
-        var report = evaluator.BuildReport(true, 10, EmptyApproachReport(10), context);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 10, EmptyApproachReport(10), context);
 
         Assert.Equal(OperationKind.Departure, report.AircraftDebriefs.Single(r => r.Callsign == "DEP1").Operation);
         Assert.Equal(OperationKind.Arrival, report.AircraftDebriefs.Single(r => r.Callsign == "ARR1").Operation);
@@ -176,16 +176,16 @@ public class AircraftDebriefAggregatorTests
     public void BuildReport_SortsByLaunchTime()
     {
         var evaluator = new SoloTrainingEvaluator();
-        var ac1 = MakeAircraft("LATE1");
+        AircraftState ac1 = MakeAircraft("LATE1");
         ac1.SpawnedAtSeconds = 200;
-        var ac2 = MakeAircraft("EARLY1");
+        AircraftState ac2 = MakeAircraft("EARLY1");
         ac2.SpawnedAtSeconds = 50;
-        var ac3 = MakeAircraft("MID1");
+        AircraftState ac3 = MakeAircraft("MID1");
         ac3.SpawnedAtSeconds = 100;
 
         var context = new AircraftDebriefContext([ac1, ac2, ac3], [], "OAK");
 
-        var report = evaluator.BuildReport(true, 300, EmptyApproachReport(300), context);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 300, EmptyApproachReport(300), context);
 
         Assert.Collection(
             report.AircraftDebriefs,
@@ -225,9 +225,9 @@ public class AircraftDebriefAggregatorTests
         );
         var context = new AircraftDebriefContext([], [older, newer], "OAK");
 
-        var report = evaluator.BuildReport(true, 500, EmptyApproachReport(500), context);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 500, EmptyApproachReport(500), context);
 
-        var row = Assert.Single(report.AircraftDebriefs);
+        AircraftDebriefData row = Assert.Single(report.AircraftDebriefs);
         Assert.Equal(450.0, row.CompletedAtSeconds);
         Assert.Equal("10L", row.CompletionDetail);
         Assert.Equal(300.0, row.SpawnedAtSeconds);
@@ -241,11 +241,11 @@ public class AircraftDebriefAggregatorTests
         // only way to confirm the cache short-circuited (record equality would pass even
         // on a rebuild).
         var evaluator = new SoloTrainingEvaluator();
-        var ac = MakeAircraft("N123AB", departure: "OAK", destination: "RNO");
+        AircraftState ac = MakeAircraft("N123AB", departure: "OAK", destination: "RNO");
         var context = new AircraftDebriefContext([ac], [], "OAK");
 
-        var first = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
-        var second = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
+        SoloTrainingReportData first = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
+        SoloTrainingReportData second = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
 
         Assert.Same(first.AircraftDebriefs, second.AircraftDebriefs);
     }
@@ -254,12 +254,12 @@ public class AircraftDebriefAggregatorTests
     public void BuildReport_AfterFlightPlanAmend_RebuildsDebriefs()
     {
         var evaluator = new SoloTrainingEvaluator();
-        var ac = MakeAircraft("N123AB", departure: "SFO", destination: "OAK");
+        AircraftState ac = MakeAircraft("N123AB", departure: "SFO", destination: "OAK");
         var context = new AircraftDebriefContext([ac], [], "OAK");
 
-        var first = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
+        SoloTrainingReportData first = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
         ac.FlightPlan.Departure = "OAK";
-        var second = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
+        SoloTrainingReportData second = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
 
         Assert.NotSame(first.AircraftDebriefs, second.AircraftDebriefs);
         Assert.Equal(OperationKind.Arrival, first.AircraftDebriefs.Single().Operation);
@@ -271,14 +271,14 @@ public class AircraftDebriefAggregatorTests
     {
         // Mutate the aircraft's completion state between calls — cache must invalidate.
         var evaluator = new SoloTrainingEvaluator();
-        var ac = MakeAircraft("N123AB", departure: "OAK", destination: "OAK");
+        AircraftState ac = MakeAircraft("N123AB", departure: "OAK", destination: "OAK");
         var context = new AircraftDebriefContext([ac], [], "OAK");
 
-        var first = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
+        SoloTrainingReportData first = evaluator.BuildReport(true, 100, EmptyApproachReport(100), context);
         ac.CompletedAtSeconds = 200;
         ac.CompletionReason = CompletionReason.Landed;
         ac.CompletionDetail = "28R";
-        var second = evaluator.BuildReport(true, 250, EmptyApproachReport(250), context);
+        SoloTrainingReportData second = evaluator.BuildReport(true, 250, EmptyApproachReport(250), context);
 
         Assert.NotSame(first.AircraftDebriefs, second.AircraftDebriefs);
         Assert.Equal(CompletionReason.Landed, second.AircraftDebriefs.Single().CompletionReason);
@@ -288,7 +288,7 @@ public class AircraftDebriefAggregatorTests
     public void BuildReport_ActiveAndCompletedSameCallsign_PrefersActive()
     {
         var evaluator = new SoloTrainingEvaluator();
-        var ac = MakeAircraft("N123AB", departure: "OAK", destination: "RNO");
+        AircraftState ac = MakeAircraft("N123AB", departure: "OAK", destination: "RNO");
         ac.SpawnedAtSeconds = 500; // respawned with same callsign
 
         var staleRecord = new CompletedAircraftRecord(
@@ -304,9 +304,9 @@ public class AircraftDebriefAggregatorTests
         );
         var context = new AircraftDebriefContext([ac], [staleRecord], "OAK");
 
-        var report = evaluator.BuildReport(true, 600, EmptyApproachReport(600), context);
+        SoloTrainingReportData report = evaluator.BuildReport(true, 600, EmptyApproachReport(600), context);
 
-        var row = Assert.Single(report.AircraftDebriefs);
+        AircraftDebriefData row = Assert.Single(report.AircraftDebriefs);
         Assert.Equal(CompletionReason.Active, row.CompletionReason);
         Assert.Equal(500.0, row.SpawnedAtSeconds);
     }

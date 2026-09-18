@@ -60,7 +60,7 @@ public static class NatoLetterNormalizer
     public static List<string> Collapse(IReadOnlyList<string> tokens, IReadOnlySet<string> taxiwayNames)
     {
         var result = new List<string>(tokens.Count);
-        var i = 0;
+        int i = 0;
         while (i < tokens.Count)
         {
             if (!WordToLetter.ContainsKey(tokens[i]))
@@ -71,22 +71,22 @@ public static class NatoLetterNormalizer
             }
 
             // Found the start of a NATO run. Extend until the next non-NATO token (or end).
-            var runStart = i;
+            int runStart = i;
             while (i < tokens.Count && WordToLetter.ContainsKey(tokens[i]))
             {
                 i++;
             }
-            var runEnd = i; // exclusive
+            int runEnd = i; // exclusive
 
             // Greedy longest-match split of the run against the airport's taxiway names.
-            var j = runStart;
+            int j = runStart;
             while (j < runEnd)
             {
-                var matchLen = FindLongestMatch(tokens, j, runEnd, taxiwayNames);
+                int matchLen = FindLongestMatch(tokens, j, runEnd, taxiwayNames);
                 if (matchLen > 1)
                 {
                     var sb = new StringBuilder(matchLen);
-                    for (var k = 0; k < matchLen; k++)
+                    for (int k = 0; k < matchLen; k++)
                     {
                         sb.Append(WordToLetter[tokens[j + k]]);
                     }
@@ -111,11 +111,11 @@ public static class NatoLetterNormalizer
             return 1;
         }
 
-        var maxLen = Math.Min(MaxMultiLetterName, runEnd - start);
-        for (var len = maxLen; len >= 2; len--)
+        int maxLen = Math.Min(MaxMultiLetterName, runEnd - start);
+        for (int len = maxLen; len >= 2; len--)
         {
             var sb = new StringBuilder(len);
-            for (var k = 0; k < len; k++)
+            for (int k = 0; k < len; k++)
             {
                 sb.Append(WordToLetter[tokens[start + k]]);
             }

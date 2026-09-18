@@ -4,6 +4,9 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
+using Yaat.Client.Views.Ground;
+using Yaat.Client.Views.Radar;
+using Yaat.Client.Views.VStrips;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -28,7 +31,7 @@ public class MainWindowLifecycleTests
     [AvaloniaFact]
     public void DataGridPopOut_CreatesAndClosesSubordinateWindow()
     {
-        var (main, vm) = BootMainWindow();
+        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
         // Start from a known docked state — ignores whatever the user's saved
         // UserPreferences say about the initial pop-out state.
         vm.IsDataGridPoppedOut = false;
@@ -51,7 +54,7 @@ public class MainWindowLifecycleTests
     [AvaloniaFact]
     public void GroundAndRadarPopOut_EachCreatesItsOwnWindow()
     {
-        var (main, vm) = BootMainWindow();
+        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
         vm.IsGroundViewPoppedOut = false;
         vm.IsRadarViewPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
@@ -80,7 +83,7 @@ public class MainWindowLifecycleTests
     [AvaloniaFact]
     public void AllTabsPoppedOut_CollapsesContentGrid()
     {
-        var (_, vm) = BootMainWindow();
+        (MainWindow _, MainViewModel? vm) = BootMainWindow();
         // Normalise initial state (ignore user's prefs).
         vm.IsDataGridPoppedOut = false;
         vm.IsGroundViewPoppedOut = false;
@@ -130,8 +133,8 @@ public class MainWindowLifecycleTests
     [AvaloniaFact]
     public void StripsEntry_PopOut_CreatesFacilityWindow()
     {
-        var (main, vm) = BootMainWindow();
-        var studentEntry = vm.StripsEntries[0];
+        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
+        VStripsDockEntryViewModel studentEntry = vm.StripsEntries[0];
         studentEntry.IsPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
 
@@ -152,13 +155,13 @@ public class MainWindowLifecycleTests
     [AvaloniaFact]
     public void RadarPopOut_ClosedViaWindowChrome_UndocksWithoutReenteringClose()
     {
-        var (main, vm) = BootMainWindow();
+        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
         vm.IsRadarViewPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
 
         vm.IsRadarViewPoppedOut = true;
         Dispatcher.UIThread.RunJobs();
-        var popOut = main.RadarViewWindow;
+        RadarViewWindow? popOut = main.RadarViewWindow;
         Assert.NotNull(popOut);
 
         // Close the pop-out window itself — the native title-bar X path (#347). The Closing
@@ -175,14 +178,14 @@ public class MainWindowLifecycleTests
     [AvaloniaFact]
     public void StripsEntryPopOut_ClosedViaWindowChrome_UndocksWithoutReenteringClose()
     {
-        var (main, vm) = BootMainWindow();
-        var studentEntry = vm.StripsEntries[0];
+        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
+        VStripsDockEntryViewModel studentEntry = vm.StripsEntries[0];
         studentEntry.IsPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
 
         studentEntry.IsPoppedOut = true;
         Dispatcher.UIThread.RunJobs();
-        var window = main.StripsWindows[studentEntry];
+        VStripsViewWindow window = main.StripsWindows[studentEntry];
 
         window.Close();
         Dispatcher.UIThread.RunJobs();
@@ -194,14 +197,14 @@ public class MainWindowLifecycleTests
     [AvaloniaFact]
     public void ExtraRadarWindow_OpensWithInstanceVmAndMainViewModelContext()
     {
-        var (main, vm) = BootMainWindow();
+        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
         try
         {
             vm.OpenExtraRadarView("KOAK");
             Dispatcher.UIThread.RunJobs();
 
-            var instance = Assert.Single(vm.ExtraRadarViews);
-            var entry = Assert.Single(main.ExtraRadarWindows);
+            RadarViewInstance instance = Assert.Single(vm.ExtraRadarViews);
+            KeyValuePair<RadarViewInstance, RadarViewWindow> entry = Assert.Single(main.ExtraRadarWindows);
             Assert.Same(instance, entry.Key);
 
             // The window DataContext stays the MainViewModel (the inner view binds Aircraft through
@@ -220,14 +223,14 @@ public class MainWindowLifecycleTests
     [AvaloniaFact]
     public void ExtraGroundWindow_OpensWithInstanceVmAndMainViewModelContext()
     {
-        var (main, vm) = BootMainWindow();
+        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
         try
         {
             vm.OpenExtraGroundView("KOAK");
             Dispatcher.UIThread.RunJobs();
 
-            var instance = Assert.Single(vm.ExtraGroundViews);
-            var entry = Assert.Single(main.ExtraGroundWindows);
+            GroundViewInstance instance = Assert.Single(vm.ExtraGroundViews);
+            KeyValuePair<GroundViewInstance, GroundViewWindow> entry = Assert.Single(main.ExtraGroundWindows);
             Assert.Same(instance, entry.Key);
 
             Assert.IsType<MainViewModel>(entry.Value.DataContext);
@@ -244,12 +247,12 @@ public class MainWindowLifecycleTests
     [AvaloniaFact]
     public void ExtraRadarWindow_ClosedViaChrome_RemovesInstanceWithoutReenteringClose()
     {
-        var (main, vm) = BootMainWindow();
+        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
         try
         {
             vm.OpenExtraRadarView("KOAK");
             Dispatcher.UIThread.RunJobs();
-            var window = main.ExtraRadarWindows.Values.Single();
+            RadarViewWindow window = main.ExtraRadarWindows.Values.Single();
 
             // Title-bar X: the Closing handler drops the window BEFORE removing the instance, whose
             // CollectionChanged fan-out re-enters the close path on this same call stack.
@@ -268,12 +271,12 @@ public class MainWindowLifecycleTests
     [AvaloniaFact]
     public void ExtraGroundWindow_ClosedViaChrome_RemovesInstanceWithoutReenteringClose()
     {
-        var (main, vm) = BootMainWindow();
+        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
         try
         {
             vm.OpenExtraGroundView("KOAK");
             Dispatcher.UIThread.RunJobs();
-            var window = main.ExtraGroundWindows.Values.Single();
+            GroundViewWindow window = main.ExtraGroundWindows.Values.Single();
 
             window.Close();
             Dispatcher.UIThread.RunJobs();
@@ -297,7 +300,7 @@ public class MainWindowLifecycleTests
         seed.SetExtraGroundViews([new SavedExtraView(3, "KSFO")]);
         try
         {
-            var (main, vm) = BootMainWindow();
+            (MainWindow? main, MainViewModel? vm) = BootMainWindow();
 
             Assert.Equal([2], vm.ExtraRadarViews.Select(i => i.Ordinal).ToList());
             Assert.Equal([3], vm.ExtraGroundViews.Select(i => i.Ordinal).ToList());
@@ -316,7 +319,7 @@ public class MainWindowLifecycleTests
     [AvaloniaFact]
     public void CaptureCurrent_RecordsExtraViews()
     {
-        var (_, vm) = BootMainWindow();
+        (MainWindow _, MainViewModel? vm) = BootMainWindow();
         try
         {
             vm.OpenExtraRadarView("KOAK");
@@ -324,7 +327,7 @@ public class MainWindowLifecycleTests
             vm.OpenExtraGroundView("KOAK");
             Dispatcher.UIThread.RunJobs();
 
-            var profile = new WindowProfileService(vm.Preferences).CaptureCurrent("extra-views", vm);
+            SavedWindowProfile profile = new WindowProfileService(vm.Preferences).CaptureCurrent("extra-views", vm);
 
             // Ordinal and base airport, so applying the profile reopens each window where it was.
             Assert.Equal([new SavedExtraView(2, "KOAK")], profile.ExtraRadarViews);

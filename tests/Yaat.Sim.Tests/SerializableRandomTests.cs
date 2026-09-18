@@ -84,7 +84,7 @@ public class SerializableRandomTests
             rng.Next();
         }
 
-        var state = rng.GetState();
+        RngState state = rng.GetState();
 
         // Create a new RNG from captured state
         var restored = new SerializableRandom(state.S0, state.S1, state.S2, state.S3);
@@ -106,7 +106,7 @@ public class SerializableRandomTests
             rng.NextDouble();
         }
 
-        var state = rng.GetState();
+        RngState state = rng.GetState();
         var restored = new SerializableRandom(state.S0, state.S1, state.S2, state.S3);
 
         for (int i = 0; i < 100; i++)
@@ -125,7 +125,7 @@ public class SerializableRandomTests
             rng.Next(0, 8);
         }
 
-        var state = rng.GetState();
+        RngState state = rng.GetState();
         var restored = new SerializableRandom(state.S0, state.S1, state.S2, state.S3);
 
         for (int i = 0; i < 100; i++)
@@ -159,7 +159,7 @@ public class SerializableRandomTests
             SimulationWorld.GenerateBeaconCode(rng);
         }
 
-        var state = rng.GetState();
+        RngState state = rng.GetState();
         var restored = new SerializableRandom(state.S0, state.S1, state.S2, state.S3);
 
         // Beacon codes from this point should match
@@ -173,7 +173,7 @@ public class SerializableRandomTests
     public void Distribution_CoversFullRange()
     {
         var rng = new SerializableRandom(42);
-        var buckets = new int[10];
+        int[] buckets = new int[10];
 
         for (int i = 0; i < 10000; i++)
         {

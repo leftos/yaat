@@ -26,8 +26,8 @@ public sealed class TrainingDataService
     {
         try
         {
-            var url = $"{BaseUrl}/scenario-summaries/by-artcc/{artccId}";
-            var json = await Http.GetStringAsync(url);
+            string url = $"{BaseUrl}/scenario-summaries/by-artcc/{artccId}";
+            string json = await Http.GetStringAsync(url);
             return JsonSerializer.Deserialize<List<ScenarioSummaryDto>>(json, JsonOptions) ?? [];
         }
         catch (Exception ex)
@@ -41,7 +41,7 @@ public sealed class TrainingDataService
     {
         try
         {
-            var url = $"{BaseUrl}/scenarios/{scenarioId}";
+            string url = $"{BaseUrl}/scenarios/{scenarioId}";
             return await Http.GetStringAsync(url);
         }
         catch (Exception ex)
@@ -55,8 +55,8 @@ public sealed class TrainingDataService
     {
         try
         {
-            var url = $"{BaseUrl}/weather/by-artcc/{artccId}";
-            var json = await Http.GetStringAsync(url);
+            string url = $"{BaseUrl}/weather/by-artcc/{artccId}";
+            string json = await Http.GetStringAsync(url);
             return JsonSerializer.Deserialize<List<WeatherProfileDto>>(json, JsonOptions) ?? [];
         }
         catch (Exception ex)
@@ -70,7 +70,7 @@ public sealed class TrainingDataService
     {
         try
         {
-            var url = $"{BaseUrl}/weather/{weatherId}";
+            string url = $"{BaseUrl}/weather/{weatherId}";
             return await Http.GetStringAsync(url);
         }
         catch (Exception ex)

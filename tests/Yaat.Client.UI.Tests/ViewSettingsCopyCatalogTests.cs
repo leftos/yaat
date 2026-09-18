@@ -22,7 +22,7 @@ public class ViewSettingsCopyCatalogTests
             RangeNm = 40,
             PtlOwn = false,
         };
-        var maps = RadarGroup(ViewSettingsCopyCatalog.RadarMapsKey);
+        RadarCopyGroup maps = RadarGroup(ViewSettingsCopyCatalog.RadarMapsKey);
 
         maps.Copy(source, target);
 
@@ -36,7 +36,7 @@ public class ViewSettingsCopyCatalogTests
     {
         var source = new SavedRadarSettings { EnabledStarsIds = [7, 8] };
         var target = new SavedRadarSettings();
-        var maps = RadarGroup(ViewSettingsCopyCatalog.RadarMapsKey);
+        RadarCopyGroup maps = RadarGroup(ViewSettingsCopyCatalog.RadarMapsKey);
 
         maps.Copy(source, target);
         target.EnabledStarsIds.Add(9);
@@ -47,7 +47,7 @@ public class ViewSettingsCopyCatalogTests
     [Fact]
     public void RadarCenterGroup_AreEqual_DetectsRangeDifference()
     {
-        var center = RadarGroup(ViewSettingsCopyCatalog.RadarCenterKey);
+        RadarCopyGroup center = RadarGroup(ViewSettingsCopyCatalog.RadarCenterKey);
         var a = new SavedRadarSettings
         {
             RangeNm = 40,
@@ -78,7 +78,7 @@ public class ViewSettingsCopyCatalogTests
             ShowRunwayLabels = false,
         };
         var target = new SavedGroundSettings { ShowRunwayLabels = true };
-        var filters = GroundGroup("ground.filters");
+        GroundCopyGroup filters = GroundGroup("ground.filters");
 
         filters.Copy(source, target);
 
@@ -108,12 +108,12 @@ public class ViewSettingsCopyCatalogTests
         };
         var target = new SavedRadarSettings();
 
-        foreach (var group in ViewSettingsCopyCatalog.RadarGroups)
+        foreach (RadarCopyGroup group in ViewSettingsCopyCatalog.RadarGroups)
         {
             group.Copy(source, target);
         }
 
-        foreach (var group in ViewSettingsCopyCatalog.RadarGroups)
+        foreach (RadarCopyGroup group in ViewSettingsCopyCatalog.RadarGroups)
         {
             Assert.True(group.AreEqual(source, target), $"radar group '{group.Key}' not equal after full copy");
         }
@@ -138,12 +138,12 @@ public class ViewSettingsCopyCatalogTests
         };
         var target = new SavedGroundSettings();
 
-        foreach (var group in ViewSettingsCopyCatalog.GroundGroups)
+        foreach (GroundCopyGroup group in ViewSettingsCopyCatalog.GroundGroups)
         {
             group.Copy(source, target);
         }
 
-        foreach (var group in ViewSettingsCopyCatalog.GroundGroups)
+        foreach (GroundCopyGroup group in ViewSettingsCopyCatalog.GroundGroups)
         {
             Assert.True(group.AreEqual(source, target), $"ground group '{group.Key}' not equal after full copy");
         }

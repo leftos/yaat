@@ -1,6 +1,8 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Tests.Helpers;
 
@@ -45,7 +47,7 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
     /// </summary>
     private static (double Lat, double Lon) CcrPosition(NavigationDatabase navDb)
     {
-        var pos = navDb.GetFixPosition("CCR");
+        (double Lat, double Lon)? pos = navDb.GetFixPosition("CCR");
         Assert.NotNull(pos);
         return pos.Value;
     }
@@ -69,14 +71,14 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
     [Fact]
     public void Capp_S19R_FromSouth_InsertsProcedureTurnPhaseAtCcr()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             output.WriteLine("NavData not available, skipping");
             return;
         }
 
-        var procedure = navDb.GetApproach("KCCR", "S19R");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KCCR", "S19R");
         if (procedure is null)
         {
             output.WriteLine("KCCR S19R not found, skipping");
@@ -84,8 +86,8 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
         }
 
         // Aircraft south of CCR, heading NE — needs course reversal at CCR to fly inbound on 191°.
-        var (ccrLat, ccrLon) = CcrPosition(navDb);
-        var aircraft = MakeB738(lat: 37.88, lon: -122.28, trueHeading: 41.0);
+        (double ccrLat, double ccrLon) = CcrPosition(navDb);
+        AircraftState aircraft = MakeB738(lat: 37.88, lon: -122.28, trueHeading: 41.0);
 
         // DCT CCR was issued before CAPP — put CCR in the nav route.
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "CCR", Position = new LatLon(ccrLat, ccrLon) });
@@ -103,18 +105,18 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
             CrossFixAltitude: null,
             CrossFixAltType: null
         );
-        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
 
         output.WriteLine($"CAPP result: {result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases);
 
-        foreach (var phase in aircraft.Phases.Phases)
+        foreach (Phase phase in aircraft.Phases.Phases)
         {
             output.WriteLine($"Phase: {phase.GetType().Name}");
         }
 
-        var pt = aircraft.Phases.Phases.OfType<ProcedureTurnPhase>().FirstOrDefault();
+        ProcedureTurnPhase? pt = aircraft.Phases.Phases.OfType<ProcedureTurnPhase>().FirstOrDefault();
         Assert.NotNull(pt);
         Assert.Equal("CCR", pt.FixName);
         Assert.Equal(2600, pt.MinAltitudeFt);
@@ -128,7 +130,7 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
     [Fact]
     public void Cappsi_S19R_FromSouth_RejectsBecauseInterceptAngleExceeds90()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null || navDb.GetApproach("KCCR", "S19R") is null)
         {
             output.WriteLine("NavData/S19R not available, skipping");
@@ -136,9 +138,9 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
         }
 
         // Heading 041° vs FAC ~178° true → ~137° intercept, well above 90°.
-        var aircraft = MakeB738(lat: 37.88, lon: -122.28, trueHeading: 41.0);
+        AircraftState aircraft = MakeB738(lat: 37.88, lon: -122.28, trueHeading: 41.0);
 
-        var result = ApproachCommandHandler.TryJoinApproach("S19R", "KCCR", force: false, straightIn: true, aircraft);
+        CommandResult result = ApproachCommandHandler.TryJoinApproach("S19R", "KCCR", force: false, straightIn: true, aircraft);
 
         output.WriteLine($"CAPPSI result: {result.Success} — {result.Message}");
         Assert.False(result.Success);
@@ -149,7 +151,7 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
     [Fact]
     public void Capp_S19R_FromNorthAlignedWithFac_DoesNotInsertProcedureTurn()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null || navDb.GetApproach("KCCR", "S19R") is null)
         {
             output.WriteLine("NavData/S19R not available, skipping");
@@ -158,7 +160,7 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
 
         // North of CCR, heading south on the FAC (190° true ≈ 203° magnetic, but in true
         // we just need to be roughly aligned with 178° true inbound).
-        var aircraft = MakeB738(lat: 38.20, lon: -122.05, trueHeading: 178.0);
+        AircraftState aircraft = MakeB738(lat: 38.20, lon: -122.05, trueHeading: 178.0);
 
         var cmd = new ClearedApproachCommand(
             "S19R",
@@ -173,12 +175,12 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
             CrossFixAltitude: null,
             CrossFixAltType: null
         );
-        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases);
 
-        var pt = aircraft.Phases.Phases.OfType<ProcedureTurnPhase>().FirstOrDefault();
+        ProcedureTurnPhase? pt = aircraft.Phases.Phases.OfType<ProcedureTurnPhase>().FirstOrDefault();
         Assert.Null(pt);
     }
 
@@ -190,18 +192,18 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
         // picks COLLI (CCR is the PI fix in COLLI). Even though the geometry would technically
         // permit straight-in, the published transition requires the course reversal — the chart
         // is the source of truth, not the aircraft's instantaneous heading.
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null || navDb.GetApproach("KCCR", "S19R") is null)
         {
             output.WriteLine("NavData/S19R not available, skipping");
             return;
         }
 
-        var (ccrLat, ccrLon) = CcrPosition(navDb);
+        (double ccrLat, double ccrLon) = CcrPosition(navDb);
 
         // North of CCR, heading roughly inbound (178° true). Without DCT in the CAPP itself —
         // a separate prior DCT CCR put CCR in the route.
-        var aircraft = MakeB738(lat: 38.20, lon: -122.05, trueHeading: 178.0);
+        AircraftState aircraft = MakeB738(lat: 38.20, lon: -122.05, trueHeading: 178.0);
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "CCR", Position = new LatLon(ccrLat, ccrLon) });
 
         var cmd = new ClearedApproachCommand(
@@ -217,12 +219,12 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
             CrossFixAltitude: null,
             CrossFixAltType: null
         );
-        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases);
 
-        var pt = aircraft.Phases.Phases.OfType<ProcedureTurnPhase>().FirstOrDefault();
+        ProcedureTurnPhase? pt = aircraft.Phases.Phases.OfType<ProcedureTurnPhase>().FirstOrDefault();
         Assert.NotNull(pt);
         Assert.Equal("CCR", pt.FixName);
     }
@@ -234,14 +236,14 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
         // delivers the aircraft to FAWNE on the inbound side without requiring a course
         // reversal) must NOT trigger the PT, even if the aircraft's instantaneous heading
         // would otherwise look like a steep intercept.
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null || navDb.GetApproach("KCCR", "S19R") is null)
         {
             output.WriteLine("NavData/S19R not available, skipping");
             return;
         }
 
-        var rejoyPos = navDb.GetFixPosition("REJOY");
+        (double Lat, double Lon)? rejoyPos = navDb.GetFixPosition("REJOY");
         if (rejoyPos is null)
         {
             output.WriteLine("REJOY position not available, skipping");
@@ -249,7 +251,7 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
         }
 
         // Aircraft east of REJOY, heading west toward REJOY — REJOY is in the route.
-        var aircraft = MakeB738(lat: 38.17, lon: -121.50, trueHeading: 270.0);
+        AircraftState aircraft = MakeB738(lat: 38.17, lon: -121.50, trueHeading: 270.0);
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "REJOY", Position = new LatLon(rejoyPos.Value.Lat, rejoyPos.Value.Lon) });
 
         var cmd = new ClearedApproachCommand(
@@ -265,14 +267,14 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
             CrossFixAltitude: null,
             CrossFixAltType: null
         );
-        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
 
         // Result might be deferred or immediate depending on transition rules; either way,
         // no ProcedureTurnPhase should be inserted because REJOY is a NoPT transition.
         Assert.True(result.Success, result.Message);
         if (aircraft.Phases is not null)
         {
-            var pt = aircraft.Phases.Phases.OfType<ProcedureTurnPhase>().FirstOrDefault();
+            ProcedureTurnPhase? pt = aircraft.Phases.Phases.OfType<ProcedureTurnPhase>().FirstOrDefault();
             Assert.Null(pt);
         }
     }
@@ -280,19 +282,19 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
     [Fact]
     public void Capp_S19R_DctCcrFromAlignedHeading_StillInsertsPtBecauseDctOverridesGeometry()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null || navDb.GetApproach("KCCR", "S19R") is null)
         {
             output.WriteLine("NavData/S19R not available, skipping");
             return;
         }
 
-        var (ccrLat, ccrLon) = CcrPosition(navDb);
+        (double ccrLat, double ccrLon) = CcrPosition(navDb);
 
         // North of CCR, aligned with FAC (≈178° true). Without DCT CCR, no PT.
         // With DCT CCR (controller intent: enter at CCR, fly the published procedure),
         // the PT should still be engaged.
-        var aircraft = MakeB738(lat: 38.20, lon: -122.05, trueHeading: 178.0);
+        AircraftState aircraft = MakeB738(lat: 38.20, lon: -122.05, trueHeading: 178.0);
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "CCR", Position = new LatLon(ccrLat, ccrLon) });
 
         var cmd = new ClearedApproachCommand(
@@ -308,12 +310,12 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
             CrossFixAltitude: null,
             CrossFixAltType: null
         );
-        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases);
 
-        var pt = aircraft.Phases.Phases.OfType<ProcedureTurnPhase>().FirstOrDefault();
+        ProcedureTurnPhase? pt = aircraft.Phases.Phases.OfType<ProcedureTurnPhase>().FirstOrDefault();
         Assert.NotNull(pt);
         Assert.Equal("CCR", pt.FixName);
     }

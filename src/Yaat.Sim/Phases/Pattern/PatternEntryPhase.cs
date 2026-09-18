@@ -146,8 +146,8 @@ public sealed class PatternEntryPhase : Phase
         {
             var airportPos = new LatLon(ctx.Runway.ThresholdLatitude, ctx.Runway.ThresholdLongitude);
             int altitudeFt = (int)Math.Round(ctx.Aircraft.Altitude);
-            var facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
-            var line = PilotResponder.BuildClosedTrafficRequest(ctx.Aircraft, airportPos, altitudeFt, facilityCallName, ctx.AtisLetter);
+            string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
+            PilotSpeechText line = PilotResponder.BuildClosedTrafficRequest(ctx.Aircraft, airportPos, altitudeFt, facilityCallName, ctx.AtisLetter);
             PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
             PilotRequestTracker.RecordRequest(
                 ctx.Aircraft,
@@ -221,7 +221,7 @@ public sealed class PatternEntryPhase : Phase
         {
             double normalSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-            var adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
+            double? adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
             if (adjusted is not null)
             {
                 // Spacing only ever SLOWS the follower below the entry baseline; never speeds

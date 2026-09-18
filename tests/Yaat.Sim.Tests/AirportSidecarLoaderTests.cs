@@ -13,7 +13,9 @@ public class AirportSidecarLoaderTests
     [Fact]
     public void LoadAll_MissingDirectory_ReturnsWarningNoThrow()
     {
-        var result = AirportSidecarLoader.LoadAll(Path.Combine(Path.GetTempPath(), "definitely-not-a-real-dir-" + Guid.NewGuid()));
+        AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(
+            Path.Combine(Path.GetTempPath(), "definitely-not-a-real-dir-" + Guid.NewGuid())
+        );
 
         Assert.Empty(result.Airports);
         Assert.Single(result.Warnings);
@@ -25,20 +27,20 @@ public class AirportSidecarLoaderTests
     {
         string baseDir = Path.Combine(AppContext.BaseDirectory, "TestData", "ARTCCs");
 
-        var result = AirportSidecarLoader.LoadAll(baseDir);
+        AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(baseDir);
 
-        var oak = Assert.Single(result.Airports, a => a.AirportId == "KOAK");
+        AirportSidecar oak = Assert.Single(result.Airports, a => a.AirportId == "KOAK");
         // Three routes in the bundled oak.json — all load (graph validation happens later, at menu-build time).
         Assert.Equal(3, oak.TaxiRoutes.Count);
         Assert.Empty(result.Warnings);
 
-        var dep30 = oak.TaxiRoutes.FirstOrDefault(r => r.Name == "DEP 30 via W");
+        TaxiRouteDefinition? dep30 = oak.TaxiRoutes.FirstOrDefault(r => r.Name == "DEP 30 via W");
         Assert.NotNull(dep30);
         Assert.Equal("KOAK", dep30!.AirportId);
         Assert.Equal("W", dep30.Path);
         Assert.Equal("30", dep30.DestinationRunway);
 
-        var dep28L = oak.TaxiRoutes.FirstOrDefault(r => r.Name == "DEP 28L via K-W");
+        TaxiRouteDefinition? dep28L = oak.TaxiRoutes.FirstOrDefault(r => r.Name == "DEP 28L via K-W");
         Assert.NotNull(dep28L);
         Assert.Equal(["K", "W"], dep28L!.GetPathTokens());
     }
@@ -62,15 +64,15 @@ public class AirportSidecarLoaderTests
                 """
             );
 
-            var result = AirportSidecarLoader.LoadAll(tempDir);
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
 
             Assert.Empty(result.Warnings);
-            var airport = Assert.Single(result.Airports);
+            AirportSidecar airport = Assert.Single(result.Airports);
             Assert.Equal("KOAK", airport.AirportId);
             // avoidTaxiways names are upper-cased and trimmed at load.
             Assert.Equal(["S", "Z"], airport.AvoidTaxiways.Select(t => t.Name).ToArray());
             Assert.Equal("ramp lead", airport.AvoidTaxiways[0].Notes);
-            var route = Assert.Single(airport.TaxiRoutes);
+            TaxiRouteDefinition route = Assert.Single(airport.TaxiRoutes);
             Assert.Equal("KOAK", route.AirportId);
             Assert.Equal("30", route.DestinationRunway);
         }
@@ -92,9 +94,9 @@ public class AirportSidecarLoaderTests
         {
             File.WriteAllText(Path.Combine(categoryDir, "fll.json"), """{ "airportId": "KFLL", "taxiRoutes": [ { "name": "R", "path": "T B" } ] }""");
 
-            var result = AirportSidecarLoader.LoadAll(tempDir);
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
 
-            var airport = Assert.Single(result.Airports);
+            AirportSidecar airport = Assert.Single(result.Airports);
             Assert.Equal("KFLL", airport.AirportId);
             Assert.Empty(airport.AvoidTaxiways);
             Assert.Single(airport.TaxiRoutes);
@@ -115,7 +117,7 @@ public class AirportSidecarLoaderTests
         {
             File.WriteAllText(Path.Combine(categoryDir, "bad.json"), """{ "avoidTaxiways": [ { "name": "S" } ] }""");
 
-            var result = AirportSidecarLoader.LoadAll(tempDir);
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
 
             Assert.Empty(result.Airports);
             Assert.Contains(result.Warnings, w => w.Contains("missing airportId"));
@@ -139,9 +141,9 @@ public class AirportSidecarLoaderTests
                 """{ "airportId": "KOAK", "avoidTaxiways": [ { "name": "S" }, { "name": "s" } ] }"""
             );
 
-            var result = AirportSidecarLoader.LoadAll(tempDir);
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
 
-            var airport = Assert.Single(result.Airports);
+            AirportSidecar airport = Assert.Single(result.Airports);
             Assert.Equal(["S"], airport.AvoidTaxiways.Select(t => t.Name).ToArray());
         }
         finally
@@ -170,9 +172,9 @@ public class AirportSidecarLoaderTests
                 """
             );
 
-            var result = AirportSidecarLoader.LoadAll(tempDir);
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
 
-            var airport = Assert.Single(result.Airports);
+            AirportSidecar airport = Assert.Single(result.Airports);
             Assert.Empty(airport.TaxiRoutes);
             Assert.Contains(result.Warnings, w => w.Contains("destination", StringComparison.OrdinalIgnoreCase));
         }
@@ -196,9 +198,9 @@ public class AirportSidecarLoaderTests
                 """{ "airportId": "KSFO", "taxiRoutes": [ { "name": "test", "path": "A" } ] }"""
             );
 
-            var result = AirportSidecarLoader.LoadAll(tempDir);
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
 
-            var airport = Assert.Single(result.Airports);
+            AirportSidecar airport = Assert.Single(result.Airports);
             Assert.Equal("KSFO", airport.AirportId);
             Assert.Contains(result.Warnings, w => w.Contains("broken.json", StringComparison.OrdinalIgnoreCase));
         }
@@ -221,7 +223,7 @@ public class AirportSidecarLoaderTests
             File.WriteAllText(Path.Combine(zabDir, "abq.json"), """{ "airportId": "KABQ", "taxiRoutes": [{ "name": "ABQ test", "path": "A" }] }""");
             File.WriteAllText(Path.Combine(zlaDir, "lax.json"), """{ "airportId": "KLAX", "avoidTaxiways": [{ "name": "Z" }] }""");
 
-            var result = AirportSidecarLoader.LoadAll(tempDir);
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
 
             Assert.Equal(2, result.Airports.Count);
             Assert.Contains(result.Airports, a => a.AirportId == "KABQ");
@@ -244,7 +246,7 @@ public class AirportSidecarLoaderTests
         {
             File.WriteAllText(Path.Combine(otherDir, "oak.json"), """{ "airportId": "KOAK", "avoidTaxiways": [ { "name": "S" } ] }""");
 
-            var result = AirportSidecarLoader.LoadAll(tempDir);
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
 
             Assert.Empty(result.Airports);
         }
@@ -276,10 +278,10 @@ public class AirportSidecarLoaderTests
                 """
             );
 
-            var result = AirportSidecarLoader.LoadAll(tempDir);
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
 
-            var airport = Assert.Single(result.Airports);
-            var constraint = Assert.Single(airport.OneWayEdges);
+            AirportSidecar airport = Assert.Single(result.Airports);
+            OneWayConstraint constraint = Assert.Single(airport.OneWayEdges);
             Assert.True(constraint.BlockBoth);
             Assert.Equal(2, constraint.Path.Count);
             // point is [lon, lat] → Lat=37.61, Lon=-122.39; taxiway upper-cased.

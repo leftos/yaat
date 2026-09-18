@@ -1,7 +1,10 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Strips;
 
 namespace Yaat.Sim.Simulation;
@@ -29,19 +32,19 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var positionCallsign = scenario.StudentPosition?.Callsign ?? "";
+        string positionCallsign = scenario.StudentPosition?.Callsign ?? "";
         if (string.IsNullOrEmpty(positionCallsign))
         {
             return;
         }
 
-        var accessible = config.GetAllAccessibleStripBays(positionCallsign);
+        IReadOnlyList<AccessibleBay> accessible = config.GetAllAccessibleStripBays(positionCallsign);
         if (accessible.Count == 0)
         {
             return;
         }
 
-        var airportPos = StripRequests.ResolveAirportPosition(scenario.PrimaryAirportId);
+        (double Lat, double Lon)? airportPos = StripRequests.ResolveAirportPosition(scenario.PrimaryAirportId);
         if (airportPos is null)
         {
             return;
@@ -49,7 +52,7 @@ public sealed partial class SimulationEngine
 
         // Auto-print attribution: use the first *own* bay's facility (never an
         // external link). Arrival strips belong to the student's own facility.
-        var ownBay = accessible.FirstOrDefault(b => !b.IsExternal);
+        AccessibleBay? ownBay = accessible.FirstOrDefault(b => !b.IsExternal);
         if (ownBay is null)
         {
             return;
@@ -61,30 +64,30 @@ public sealed partial class SimulationEngine
         {
             return;
         }
-        var (airportLat, airportLon) = airportPos.Value;
-        var facilityId = ownBay.Owner.Id;
+        (double airportLat, double airportLon) = airportPos.Value;
+        string facilityId = ownBay.Owner.Id;
 
-        foreach (var ac in World.GetSnapshot())
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             if (!StripRequests.IsArrivalCandidate(ac, scenario))
             {
                 continue;
             }
 
-            var distanceNm = GeoMath.DistanceNm(ac.Position, new LatLon(airportLat, airportLon));
-            var groundSpeed = ac.GroundSpeed;
+            double distanceNm = GeoMath.DistanceNm(ac.Position, new LatLon(airportLat, airportLon));
+            double groundSpeed = ac.GroundSpeed;
             if (groundSpeed < 30.0)
             {
                 continue;
             }
 
-            var etaMinutes = (distanceNm / groundSpeed) * 60.0;
+            double etaMinutes = (distanceNm / groundSpeed) * 60.0;
             if (etaMinutes > StripMutations.ArrivalAutoPrintMinutes)
             {
                 continue;
             }
 
-            var stripId = StripMutations.MintStripId(Strips, ac.Callsign, isArrival: true);
+            string stripId = StripMutations.MintStripId(Strips, ac.Callsign, isArrival: true);
             StripMutations.RequestArrivalStripForAircraft(Strips, ac, scenario, etaMinutes, facilityId, stripId);
         }
     }
@@ -111,28 +114,28 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var positionCallsign = scenario.StudentPosition?.Callsign ?? "";
+        string positionCallsign = scenario.StudentPosition?.Callsign ?? "";
         if (string.IsNullOrEmpty(positionCallsign))
         {
             return;
         }
 
-        var posConfig = config.FindPositionByCallsign(positionCallsign);
-        var posName = posConfig?.Name;
+        PositionConfig? posConfig = config.FindPositionByCallsign(positionCallsign);
+        string? posName = posConfig?.Name;
         if (string.IsNullOrEmpty(posName))
         {
             return;
         }
 
-        var bay = config.FindFirstOwnBayWithNamePrefix(positionCallsign, posName);
+        AccessibleBay? bay = config.FindFirstOwnBayWithNamePrefix(positionCallsign, posName);
         if (bay is null)
         {
             return;
         }
 
-        var showDest = bay.Owner.FlightStripsConfiguration?.DisplayDestinationAirportIds ?? false;
+        bool showDest = bay.Owner.FlightStripsConfiguration?.DisplayDestinationAirportIds ?? false;
 
-        foreach (var ac in World.GetSnapshot())
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             if (!IsApproachDepartureCandidate(ac, scenario))
             {
@@ -144,7 +147,7 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            var record = StripMutations.RequestDepartureStripForAircraftIntoBay(
+            StripItemRecord? record = StripMutations.RequestDepartureStripForAircraftIntoBay(
                 Strips,
                 ac,
                 scenario,
@@ -170,7 +173,7 @@ public sealed partial class SimulationEngine
         {
             return false;
         }
-        var phase = ac.Phases?.CurrentPhase;
+        Phase? phase = ac.Phases?.CurrentPhase;
         return phase is TakeoffPhase or HelicopterTakeoffPhase;
     }
 
@@ -182,11 +185,11 @@ public sealed partial class SimulationEngine
     /// </summary>
     internal void TickStripDispatches()
     {
-        foreach (var (callsign, command) in World.DrainAllStripDispatches())
+        foreach ((string? callsign, ParsedCommand? command) in World.DrainAllStripDispatches())
         {
             // A deferred/preset/triggered SEP/HSC/SCAN/BLANK still mints per run kind: the queue carries no record to
             // bake onto. Tracked in docs/plans/MAIN.md.
-            var result = StripCommandHandler.Handle(this, command, callsign, bakedStripId: null).Result;
+            CommandResult result = StripCommandHandler.Handle(this, command, callsign, bakedStripId: null).Result;
             if (!result.Success)
             {
                 EmitTerminal("Warning", callsign, string.IsNullOrEmpty(result.Message) ? "strip command could not be applied" : result.Message);
@@ -230,13 +233,13 @@ public sealed partial class SimulationEngine
 
         // Only auto-print when the position actually has a strip configuration to
         // render them on — otherwise we'd create phantom strips no client can display.
-        var positionCallsign = scenario.StudentPosition?.Callsign ?? "";
+        string positionCallsign = scenario.StudentPosition?.Callsign ?? "";
         if (scenario.ArtccConfig is not { } config || string.IsNullOrEmpty(positionCallsign))
         {
             return;
         }
 
-        var accessible = config.GetAllAccessibleStripBays(positionCallsign);
+        IReadOnlyList<AccessibleBay> accessible = config.GetAllAccessibleStripBays(positionCallsign);
         if (accessible.Count == 0)
         {
             return;
@@ -247,12 +250,12 @@ public sealed partial class SimulationEngine
         // own facility; linked external facilities view them only via their own
         // instance. For tower positions this resolves to the ATCT, matching the
         // HSC path.
-        var ownBay = accessible.FirstOrDefault(b => !b.IsExternal);
+        AccessibleBay? ownBay = accessible.FirstOrDefault(b => !b.IsExternal);
         if (ownBay is null)
         {
             return;
         }
-        var showDest = ownBay.Owner.FlightStripsConfiguration?.DisplayDestinationAirportIds ?? false;
+        bool showDest = ownBay.Owner.FlightStripsConfiguration?.DisplayDestinationAirportIds ?? false;
 
         StripItemRecord? record = null;
         string destinationLabel = "printer queue";
@@ -262,7 +265,7 @@ public sealed partial class SimulationEngine
         // Local; with Local being the trainee, Ground's work is implied off-screen.
         if (scenario.StudentPositionType is "TWR")
         {
-            var groundBay = config.FindFirstOwnBayWithNamePrefix(positionCallsign, "Ground");
+            AccessibleBay? groundBay = config.FindFirstOwnBayWithNamePrefix(positionCallsign, "Ground");
             if (groundBay is not null)
             {
                 record = StripMutations.RequestDepartureStripForAircraftIntoBay(
@@ -295,21 +298,29 @@ public sealed partial class SimulationEngine
     /// </summary>
     private bool TryPlaceConfiguredStrip(AircraftState ac, SimScenarioState scenario)
     {
-        if (!scenario.InitialStripBayByCallsign.TryGetValue(ac.Callsign, out var assignment))
+        if (!scenario.InitialStripBayByCallsign.TryGetValue(ac.Callsign, out ScenarioStripBayAssignment? assignment))
         {
             return false;
         }
 
-        var positionCallsign = scenario.StudentPosition?.Callsign ?? "";
-        var bay = scenario.ArtccConfig?.GetAccessibleStripBayById(positionCallsign, assignment.BayId);
+        string positionCallsign = scenario.StudentPosition?.Callsign ?? "";
+        AccessibleBay? bay = scenario.ArtccConfig?.GetAccessibleStripBayById(positionCallsign, assignment.BayId);
         if (bay is null)
         {
             return false;
         }
 
-        var rack = Math.Clamp(assignment.Rack, 0, Math.Max(0, bay.Bay.NumberOfRacks - 1));
-        var showDest = bay.Owner.FlightStripsConfiguration?.DisplayDestinationAirportIds ?? false;
-        var record = StripMutations.RequestDepartureStripForAircraftIntoBay(Strips, ac, scenario, bay.Owner.Id, bay.Bay.Id, rack, showDest);
+        int rack = Math.Clamp(assignment.Rack, 0, Math.Max(0, bay.Bay.NumberOfRacks - 1));
+        bool showDest = bay.Owner.FlightStripsConfiguration?.DisplayDestinationAirportIds ?? false;
+        StripItemRecord? record = StripMutations.RequestDepartureStripForAircraftIntoBay(
+            Strips,
+            ac,
+            scenario,
+            bay.Owner.Id,
+            bay.Bay.Id,
+            rack,
+            showDest
+        );
         if (record is null)
         {
             return false;
@@ -348,12 +359,12 @@ public sealed partial class SimulationEngine
             return bakedStripId;
         }
 
-        var facilityId = "";
-        var showDest = false;
-        var positionCallsign = scenario.StudentPosition?.Callsign ?? "";
+        string facilityId = "";
+        bool showDest = false;
+        string positionCallsign = scenario.StudentPosition?.Callsign ?? "";
         if (scenario.ArtccConfig is { } config && !string.IsNullOrEmpty(positionCallsign))
         {
-            var ownBay = config.GetAllAccessibleStripBays(positionCallsign).FirstOrDefault(b => !b.IsExternal);
+            AccessibleBay? ownBay = config.GetAllAccessibleStripBays(positionCallsign).FirstOrDefault(b => !b.IsExternal);
             if (ownBay is not null)
             {
                 facilityId = ownBay.Owner.Id;
@@ -362,8 +373,8 @@ public sealed partial class SimulationEngine
         }
 
         StripMutations.RemoveOutdatedDeparturePrinterStrips(Strips, callsign);
-        var stripId = bakedStripId ?? StripMutations.MintStripId(Strips, callsign, isArrival: false);
-        var printed = StripMutations.PrintDepartureStripForAircraft(Strips, ac, scenario, facilityId, showDest, stripId);
+        string stripId = bakedStripId ?? StripMutations.MintStripId(Strips, callsign, isArrival: false);
+        StripItemRecord? printed = StripMutations.PrintDepartureStripForAircraft(Strips, ac, scenario, facilityId, showDest, stripId);
         return printed?.Id;
     }
 }

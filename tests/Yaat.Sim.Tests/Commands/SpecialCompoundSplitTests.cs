@@ -23,7 +23,7 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void ConditionPrefixedScopedSpecial_IsNotASplit()
     {
-        Assert.False(CompoundPolicy.TrySplitSpecialCompound("WAIT 1 AN 1 ✓", out var units));
+        Assert.False(CompoundPolicy.TrySplitSpecialCompound("WAIT 1 AN 1 ✓", out List<CompoundUnit>? units));
         Assert.Empty(units);
     }
 
@@ -31,7 +31,7 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void CommaSeparatedScopedSpecials_SplitIntoOneUnitEach()
     {
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("AN 1 X, AN 2 Y", out var units));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("AN 1 X, AN 2 Y", out List<CompoundUnit>? units));
 
         Assert.Equal(2, units.Count);
         Assert.Equal("AN 1 X", units[0].Text);
@@ -46,14 +46,14 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void ConditionPrefixedScopedSpecial_ChainedWithASecondBlock_SplitsPerBlock()
     {
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("WAIT 1 AN 1 ✓; HO 3G", out var units));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("WAIT 1 AN 1 ✓; HO 3G", out List<CompoundUnit>? units));
 
         Assert.Equal(2, units.Count);
         Assert.Equal("WAIT 1 AN 1 ✓", units[0].Text);
         Assert.Equal("HO 3G", units[1].Text);
 
         // The first unit re-entering the splitter is exactly the no-split case, so the router routes it as one command.
-        Assert.False(CompoundPolicy.TrySplitSpecialCompound(units[0].Text, out var nested));
+        Assert.False(CompoundPolicy.TrySplitSpecialCompound(units[0].Text, out List<CompoundUnit>? nested));
         Assert.Empty(nested);
     }
 
@@ -61,7 +61,7 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void ScopedSpecialsInSeparateBlocks_AreTwoUnits()
     {
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G; ACCEPT", out var units));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G; ACCEPT", out List<CompoundUnit>? units));
 
         Assert.Equal(2, units.Count);
         Assert.Equal("HO 3G", units[0].Text);
@@ -76,7 +76,7 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void ThenAliasedScopedSpecials_AreTwoUnits()
     {
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G THEN ACCEPT", out var units));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G THEN ACCEPT", out List<CompoundUnit>? units));
 
         Assert.Equal(2, units.Count);
         Assert.Equal("HO 3G", units[0].Text);
@@ -89,7 +89,7 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void AndAliasedScopedSpecials_SplitIntoOneUnitEach()
     {
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("SP1 ABC AND HO 3G", out var units));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("SP1 ABC AND HO 3G", out List<CompoundUnit>? units));
 
         Assert.Equal(2, units.Count);
         Assert.Equal("SP1 ABC", units[0].Text);
@@ -97,7 +97,7 @@ public class SpecialCompoundSplitTests
         Assert.Equal(0, units[0].BlockIndex);
         Assert.Equal(0, units[1].BlockIndex);
 
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("AN 1 X AND AN 2 Y", out var annotateUnits));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("AN 1 X AND AN 2 Y", out List<CompoundUnit>? annotateUnits));
 
         Assert.Equal(2, annotateUnits.Count);
         Assert.Equal("AN 1 X", annotateUnits[0].Text);
@@ -116,7 +116,10 @@ public class SpecialCompoundSplitTests
     [InlineData("RDH 1 HOLD, GO")]
     public void FreeTextCoordinationMessage_WithSeparatorInText_IsNotASplit(string line)
     {
-        Assert.False(CompoundPolicy.TrySplitSpecialCompound(line, out var units), $"split into: {string.Join(" | ", units.Select(u => u.Text))}");
+        Assert.False(
+            CompoundPolicy.TrySplitSpecialCompound(line, out List<CompoundUnit>? units),
+            $"split into: {string.Join(" | ", units.Select(u => u.Text))}"
+        );
         Assert.Empty(units);
     }
 
@@ -127,10 +130,10 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void FreeTextCoordinationMessage_KeepsWholeTextOnSingleParse()
     {
-        var parsed = CommandParser.Parse("RDTXT /1 HOLD, GO");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("RDTXT /1 HOLD, GO");
 
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var modify = Assert.IsType<CoordinationModifyCommand>(parsed.Value);
+        CoordinationModifyCommand modify = Assert.IsType<CoordinationModifyCommand>(parsed.Value);
         Assert.Equal("1", modify.ListId);
         Assert.Equal("HOLD, GO", modify.Text);
     }
@@ -142,7 +145,7 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void FreeTextCoordinationMessage_InALaterBlock_SwallowsTheRestOfTheLine()
     {
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G; RDTXT /1 HOLD, GO", out var units));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G; RDTXT /1 HOLD, GO", out List<CompoundUnit>? units));
 
         Assert.Equal(2, units.Count);
         Assert.Equal("HO 3G", units[0].Text);
@@ -150,21 +153,21 @@ public class SpecialCompoundSplitTests
         Assert.Equal("RDTXT /1 HOLD, GO", units[1].Text);
         Assert.Equal(1, units[1].BlockIndex);
 
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G; RDTXT /1 A; GO", out var semicolonUnits));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G; RDTXT /1 A; GO", out List<CompoundUnit>? semicolonUnits));
 
         Assert.Equal(2, semicolonUnits.Count);
         Assert.Equal("HO 3G", semicolonUnits[0].Text);
         Assert.Equal("RDTXT /1 A; GO", semicolonUnits[1].Text);
 
         // The router re-routes each unit, so the message unit has to land on the single-command path on re-entry.
-        Assert.False(CompoundPolicy.TrySplitSpecialCompound(units[1].Text, out var nested));
+        Assert.False(CompoundPolicy.TrySplitSpecialCompound(units[1].Text, out List<CompoundUnit>? nested));
         Assert.Empty(nested);
-        Assert.False(CompoundPolicy.TrySplitSpecialCompound(semicolonUnits[1].Text, out var nestedSemicolon));
+        Assert.False(CompoundPolicy.TrySplitSpecialCompound(semicolonUnits[1].Text, out List<CompoundUnit>? nestedSemicolon));
         Assert.Empty(nestedSemicolon);
 
         // The alias form has to slice the message out of the line the instructor typed, not out of the normalized one:
         // "THEN" is four characters and ";" is one, so a walk over normalized text with raw offsets shifts the tail.
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G THEN RDTXT /1 HOLD, GO", out var aliasUnits));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G THEN RDTXT /1 HOLD, GO", out List<CompoundUnit>? aliasUnits));
 
         Assert.Equal(2, aliasUnits.Count);
         Assert.Equal("HO 3G", aliasUnits[0].Text);
@@ -180,13 +183,13 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void NoteWithAnAliasInItsText_IsNotASplit()
     {
-        Assert.False(CompoundPolicy.TrySplitSpecialCompound("NOTE fly direct THEN descend; SP1 ABC", out var units));
+        Assert.False(CompoundPolicy.TrySplitSpecialCompound("NOTE fly direct THEN descend; SP1 ABC", out List<CompoundUnit>? units));
         Assert.Empty(units);
 
-        var parsed = CommandParser.Parse("NOTE fly direct THEN descend; SP1 ABC");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("NOTE fly direct THEN descend; SP1 ABC");
 
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var note = Assert.IsType<NoteCommand>(parsed.Value);
+        NoteCommand note = Assert.IsType<NoteCommand>(parsed.Value);
         Assert.Equal("fly direct THEN descend; SP1 ABC", note.Text);
     }
 
@@ -197,7 +200,7 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void ScratchpadWithSeparator_StaysAChain()
     {
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("SP1 ABC, HO 3G", out var units));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("SP1 ABC, HO 3G", out List<CompoundUnit>? units));
 
         Assert.Equal(2, units.Count);
         Assert.Equal("SP1 ABC", units[0].Text);
@@ -213,13 +216,13 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void BareCoordinationHold_ChainedWithAviationTail_StillSplits()
     {
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("RDH 1; SQVFR", out var units));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("RDH 1; SQVFR", out List<CompoundUnit>? units));
 
         Assert.Equal(2, units.Count);
         Assert.Equal("RDH 1", units[0].Text);
         Assert.Equal("SQVFR", units[1].Text);
 
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("RDH; SQVFR", out var bareUnits));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("RDH; SQVFR", out List<CompoundUnit>? bareUnits));
 
         Assert.Equal(2, bareUnits.Count);
         Assert.Equal("RDH", bareUnits[0].Text);
@@ -235,7 +238,7 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void BareCoordinationHold_ChainedWithAnAliasSeparator_SplitsTheSameWay()
     {
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("RDH 1 THEN SQVFR", out var units));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("RDH 1 THEN SQVFR", out List<CompoundUnit>? units));
 
         Assert.Equal(2, units.Count);
         Assert.Equal("RDH 1", units[0].Text);
@@ -252,13 +255,13 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void FreeTextCoordinationMessage_AfterACommaPiece_SwallowsTheRestOfTheLine()
     {
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("SP1 ABC, RDTXT /1 HOLD, GO", out var units));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("SP1 ABC, RDTXT /1 HOLD, GO", out List<CompoundUnit>? units));
 
         Assert.Equal(2, units.Count);
         Assert.Equal("SP1 ABC", units[0].Text);
         Assert.Equal("RDTXT /1 HOLD, GO", units[1].Text);
 
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G, RDTXT /1 HOLD, GO", out var handoffUnits));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G, RDTXT /1 HOLD, GO", out List<CompoundUnit>? handoffUnits));
 
         Assert.Equal(2, handoffUnits.Count);
         Assert.Equal("HO 3G", handoffUnits[0].Text);
@@ -273,7 +276,7 @@ public class SpecialCompoundSplitTests
     [Fact]
     public void FreeTextCoordinationMessage_MessageWordsAreNotBailCommands()
     {
-        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G; RDTXT /1 HOLD, DEL", out var units));
+        Assert.True(CompoundPolicy.TrySplitSpecialCompound("HO 3G; RDTXT /1 HOLD, DEL", out List<CompoundUnit>? units));
 
         Assert.Equal(2, units.Count);
         Assert.Equal("HO 3G", units[0].Text);

@@ -19,7 +19,7 @@ public class ArgumentSuggesterCrossTests
         var scheme = CommandScheme.Default();
         // Trailing space → the caret sits on the second CROSS argument slot (parameter index 1).
         const string text = "CROSS 28R ";
-        var parsed = CommandInputController.ParseCommandInput(text, text.Length, scheme);
+        CommandInputParseResult? parsed = CommandInputController.ParseCommandInput(text, text.Length, scheme);
         Assert.NotNull(parsed);
         Assert.Equal(CanonicalCommandType.CrossRunway, parsed.CommandType);
         Assert.Equal(1, parsed.ParameterIndex);

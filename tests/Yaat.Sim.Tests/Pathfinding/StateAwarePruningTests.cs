@@ -47,7 +47,7 @@ public class StateAwarePruningTests
     private static AirportGroundLayout Layout(params GroundNode[] nodes)
     {
         var layout = new AirportGroundLayout { AirportId = "TEST" };
-        foreach (var n in nodes)
+        foreach (GroundNode n in nodes)
         {
             layout.Nodes[n.Id] = n;
         }
@@ -83,14 +83,14 @@ public class StateAwarePruningTests
         // The cheap arm is shorter / fewer-turns, so node-id pruning closes N at the dead-end
         // bearing and prunes the costly arm -> false DestinationUnreachable. State-aware pruning
         // keeps both arrivals (different bearing buckets) and routes via the costly arm.
-        var n = Node(1, 37.7000, -122.2000);
-        var d = Node(2, 37.7000, -122.1980);
-        var a = Node(3, 37.7000, -122.1990);
-        var s = Node(4, 37.7000, -122.1985);
-        var c = Node(5, 37.7020, -122.1985);
-        var e = Node(6, 37.7020, -122.2000);
-        var b = Node(7, 37.7010, -122.2000);
-        var layout = Layout(n, d, a, s, c, e, b);
+        GroundNode n = Node(1, 37.7000, -122.2000);
+        GroundNode d = Node(2, 37.7000, -122.1980);
+        GroundNode a = Node(3, 37.7000, -122.1990);
+        GroundNode s = Node(4, 37.7000, -122.1985);
+        GroundNode c = Node(5, 37.7020, -122.1985);
+        GroundNode e = Node(6, 37.7020, -122.2000);
+        GroundNode b = Node(7, 37.7010, -122.2000);
+        AirportGroundLayout layout = Layout(n, d, a, s, c, e, b);
 
         Edge(s, a); // cheap arm
         Edge(a, n);
@@ -100,8 +100,8 @@ public class StateAwarePruningTests
         Edge(e, b);
         Edge(b, n);
 
-        var ctx = NodeContext(layout, s.Id, d.Id);
-        var (route, failure) = AutoRouter.Run(ctx);
+        SearchContext ctx = NodeContext(layout, s.Id, d.Id);
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(ctx);
 
         output.WriteLine($"route={(route is null ? "NULL" : route.Segments.Count + " segs")}  failure={failure?.Kind.ToString() ?? "none"}");
 
@@ -123,24 +123,24 @@ public class StateAwarePruningTests
     [InlineData("FLL", "10L", "SHE4")]
     public void RunwayToParking_FormerlyUnreachable_ResolvesUnderStateAwarePruning(string airport, string runway, string parking)
     {
-        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
+        AirportGroundLayout? layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
         if (layout is null)
         {
             output.WriteLine($"SKIP {airport}: layout unavailable");
             return;
         }
 
-        var holdShorts = layout.GetRunwayHoldShortNodes(runway);
-        var parkingNode = layout.FindParkingByName(parking);
+        List<GroundNode> holdShorts = layout.GetRunwayHoldShortNodes(runway);
+        GroundNode? parkingNode = layout.FindParkingByName(parking);
         if (holdShorts.Count == 0 || parkingNode is null)
         {
             output.WriteLine($"SKIP {airport} {runway}->{parking}: endpoints unavailable");
             return;
         }
 
-        var lineup = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, holdShorts[0], runway, holdShorts);
+        GroundNode lineup = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, holdShorts[0], runway, holdShorts);
 
-        var route = TaxiPathfinder.FindRoute(layout, lineup.Id, parkingNode.Id, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, lineup.Id, parkingNode.Id, AircraftCategory.Jet);
 
         output.WriteLine(
             $"{airport} {runway}({lineup.Id})->{parking}({parkingNode.Id}): {(route is null ? "NULL" : route.Segments.Count + " segs")}"

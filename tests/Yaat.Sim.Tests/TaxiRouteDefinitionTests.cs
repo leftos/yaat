@@ -61,7 +61,7 @@ public class TaxiRouteDefinitionTests
         string canonical = def.ToCanonicalCommand();
         Assert.Equal("TAXI T T3 B RWY 10R", canonical);
 
-        var result = GroundCommandParser.ParseTaxi(canonical["TAXI ".Length..]);
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi(canonical["TAXI ".Length..]);
 
         Assert.True(result.IsSuccess, $"Parse failed: {result.Reason}");
         var taxi = (TaxiCommand)result.Value!;
@@ -81,7 +81,10 @@ public class TaxiRouteDefinitionTests
         };
 
         string json = JsonSerializer.Serialize(def, new JsonSerializerOptions { WriteIndented = false });
-        var parsed = JsonSerializer.Deserialize<TaxiRouteDefinition>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        TaxiRouteDefinition? parsed = JsonSerializer.Deserialize<TaxiRouteDefinition>(
+            json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
 
         Assert.NotNull(parsed);
         Assert.Equal(def.Name, parsed!.Name);

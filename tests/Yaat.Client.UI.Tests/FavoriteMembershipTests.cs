@@ -17,13 +17,13 @@ public class FavoriteMembershipTests
 
     private static void Cleanup(MainViewModel vm)
     {
-        var store = vm.FavoriteStore;
-        foreach (var favorite in store.AllFavorites.Where(f => f.Label.StartsWith("FMT-")).ToList())
+        FavoriteStore store = vm.FavoriteStore;
+        foreach (FavoriteCommand? favorite in store.AllFavorites.Where(f => f.Label.StartsWith("FMT-")).ToList())
         {
             store.DeleteFavorite(favorite.Id);
         }
 
-        foreach (var set in store.OrderedSets.Where(s => (s.Kind == FavoriteSetKind.Named) && s.Name.StartsWith("FMT-")).ToList())
+        foreach (FavoriteSet? set in store.OrderedSets.Where(s => (s.Kind == FavoriteSetKind.Named) && s.Name.StartsWith("FMT-")).ToList())
         {
             vm.Preferences.SetFavoriteSetLoaded(set.Id, false);
             store.DeleteSet(set.Id);
@@ -33,11 +33,11 @@ public class FavoriteMembershipTests
     [AvaloniaFact]
     public void AddFavorite_ToGlobalAndNamedSet_SharesOneEntity()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         try
         {
-            var set = vm.FavoriteStore.CreateNamedSet("FMT-Both")!;
-            var fav = Fav("FMT-Shared");
+            FavoriteSet set = vm.FavoriteStore.CreateNamedSet("FMT-Both")!;
+            FavoriteCommand fav = Fav("FMT-Shared");
 
             vm.AddFavorite(fav, [vm.FavoriteStore.GlobalSet.Id, set.Id]);
 
@@ -59,15 +59,15 @@ public class FavoriteMembershipTests
     [AvaloniaFact]
     public void UpdateFavorite_EditsEntityEverywhere_AndSyncsMembership()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         try
         {
-            var setA = vm.FavoriteStore.CreateNamedSet("FMT-A")!;
-            var setB = vm.FavoriteStore.CreateNamedSet("FMT-B")!;
-            var fav = Fav("FMT-Orig");
+            FavoriteSet setA = vm.FavoriteStore.CreateNamedSet("FMT-A")!;
+            FavoriteSet setB = vm.FavoriteStore.CreateNamedSet("FMT-B")!;
+            FavoriteCommand fav = Fav("FMT-Orig");
             vm.AddFavorite(fav, [vm.FavoriteStore.GlobalSet.Id, setA.Id]);
 
-            var updated = fav.Clone();
+            FavoriteCommand updated = fav.Clone();
             updated.Label = "FMT-Edited";
             vm.UpdateFavorite(updated, [setA.Id, setB.Id]);
 
@@ -86,10 +86,10 @@ public class FavoriteMembershipTests
     [AvaloniaFact]
     public void UpdateFavorite_RemovedFromEverySet_BecomesOrphanNotDeleted()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         try
         {
-            var fav = Fav("FMT-Orphan");
+            FavoriteCommand fav = Fav("FMT-Orphan");
             vm.AddFavorite(fav, [vm.FavoriteStore.GlobalSet.Id]);
 
             vm.UpdateFavorite(fav.Clone(), []);
@@ -107,11 +107,11 @@ public class FavoriteMembershipTests
     [AvaloniaFact]
     public void DeleteFavorite_RemovesTheEntityFromEverySet()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         try
         {
-            var set = vm.FavoriteStore.CreateNamedSet("FMT-Del")!;
-            var fav = Fav("FMT-Gone");
+            FavoriteSet set = vm.FavoriteStore.CreateNamedSet("FMT-Del")!;
+            FavoriteCommand fav = Fav("FMT-Gone");
             vm.AddFavorite(fav, [vm.FavoriteStore.GlobalSet.Id, set.Id]);
 
             vm.DeleteFavorite(fav.Id);
@@ -129,21 +129,21 @@ public class FavoriteMembershipTests
     [AvaloniaFact]
     public void ContainerOptions_ListGlobalFirst_AndPendingActiveAirport()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         try
         {
             vm.ActiveScenarioPrimaryAirportId = "FMT";
 
-            var options = vm.BuildFavoriteContainerOptions();
+            List<FavoriteContainerOption> options = vm.BuildFavoriteContainerOptions();
 
             Assert.Equal(FavoriteSetKind.Global, options[0].Kind);
             Assert.Equal(vm.FavoriteStore.GlobalSet.Id, options[0].SetId);
 
-            var pendingAirport = Assert.Single(options, o => (o.Kind == FavoriteSetKind.Airport) && (o.Key == "FMT"));
+            FavoriteContainerOption pendingAirport = Assert.Single(options, o => (o.Kind == FavoriteSetKind.Airport) && (o.Key == "FMT"));
             Assert.Null(pendingAirport.SetId);
 
             // Checking the pending option creates the container on demand — exactly once.
-            var setId = vm.EnsureFavoriteContainer(pendingAirport);
+            string setId = vm.EnsureFavoriteContainer(pendingAirport);
             Assert.Equal(setId, vm.EnsureFavoriteContainer(pendingAirport));
             Assert.Equal(setId, vm.FavoriteStore.FindAirportSet("FMT")!.Id);
         }

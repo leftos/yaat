@@ -152,7 +152,7 @@ internal static class PrecedingDepartureBlock
     private static double ProjectedGroundRunFt(AircraftState aircraft, double seconds)
     {
         double speedKts = aircraft.GroundSpeed;
-        var profile = RollProfile(aircraft);
+        GroundRollProfile profile = RollProfile(aircraft);
         double accel = profile.SteadyRateKtPerSec;
         double capKts = Math.Max(speedKts, LiftoffGroundSpeedKts(aircraft));
 

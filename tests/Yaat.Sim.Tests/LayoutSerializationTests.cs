@@ -21,12 +21,12 @@ public class LayoutSerializationTests
             return;
         }
 
-        var original = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
-        var json = JsonSerializer.SerializeToUtf8Bytes(original);
-        var restored = JsonSerializer.Deserialize<AirportGroundLayout>(json)!;
+        AirportGroundLayout original = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(original);
+        AirportGroundLayout restored = JsonSerializer.Deserialize<AirportGroundLayout>(json)!;
 
         // Fix node references (edges reference deserialized copies, not dictionary instances)
-        foreach (var edge in restored.AllEdges)
+        foreach (IGroundEdge edge in restored.AllEdges)
         {
             for (int i = 0; i < edge.Nodes.Length; i++)
             {
@@ -43,10 +43,10 @@ public class LayoutSerializationTests
         Assert.Equal(original.Runways.Count, restored.Runways.Count);
 
         // Node properties
-        foreach (var (id, origNode) in original.Nodes)
+        foreach ((int id, GroundNode? origNode) in original.Nodes)
         {
             Assert.True(restored.Nodes.ContainsKey(id), $"Node {id} missing after round-trip");
-            var restNode = restored.Nodes[id];
+            GroundNode restNode = restored.Nodes[id];
             Assert.Equal(origNode.Position.Lat, restNode.Position.Lat);
             Assert.Equal(origNode.Position.Lon, restNode.Position.Lon);
             Assert.Equal(origNode.Type, restNode.Type);
@@ -57,8 +57,8 @@ public class LayoutSerializationTests
         // Edge properties
         for (int i = 0; i < original.Edges.Count; i++)
         {
-            var origEdge = original.Edges[i];
-            var restEdge = restored.Edges[i];
+            GroundEdge origEdge = original.Edges[i];
+            GroundEdge restEdge = restored.Edges[i];
             Assert.Equal(origEdge.Nodes[0].Id, restEdge.Nodes[0].Id);
             Assert.Equal(origEdge.Nodes[1].Id, restEdge.Nodes[1].Id);
             Assert.Equal(origEdge.TaxiwayName, restEdge.TaxiwayName);
@@ -68,8 +68,8 @@ public class LayoutSerializationTests
         // Arc properties
         for (int i = 0; i < original.Arcs.Count; i++)
         {
-            var origArc = original.Arcs[i];
-            var restArc = restored.Arcs[i];
+            GroundArc origArc = original.Arcs[i];
+            GroundArc restArc = restored.Arcs[i];
             Assert.Equal(origArc.Nodes[0].Id, restArc.Nodes[0].Id);
             Assert.Equal(origArc.Nodes[1].Id, restArc.Nodes[1].Id);
             Assert.Equal(origArc.P1Lat, restArc.P1Lat, 10);
@@ -82,9 +82,9 @@ public class LayoutSerializationTests
         }
 
         // Adjacency: every node should have the same edge count
-        foreach (var (id, origNode) in original.Nodes)
+        foreach ((int id, GroundNode? origNode) in original.Nodes)
         {
-            var restNode = restored.Nodes[id];
+            GroundNode restNode = restored.Nodes[id];
             Assert.True(
                 origNode.Edges.Count == restNode.Edges.Count,
                 $"Node {id} adjacency count mismatch: {origNode.Edges.Count} vs {restNode.Edges.Count}"
@@ -92,7 +92,7 @@ public class LayoutSerializationTests
         }
 
         // Node identity: edge.Nodes[i] must be the same instance as Nodes[id]
-        foreach (var edge in restored.AllEdges)
+        foreach (IGroundEdge edge in restored.AllEdges)
         {
             Assert.Same(restored.Nodes[edge.Nodes[0].Id], edge.Nodes[0]);
             Assert.Same(restored.Nodes[edge.Nodes[1].Id], edge.Nodes[1]);

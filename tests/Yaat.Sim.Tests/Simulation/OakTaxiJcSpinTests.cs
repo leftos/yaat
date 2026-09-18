@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -94,8 +95,8 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOut_N70CS_AdvancesPastNode383_Within90Seconds()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             return;
@@ -103,10 +104,10 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 return;
@@ -116,10 +117,10 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
 
             engine.ReplayRange(startTime, AssertAtSeconds, recording.Actions);
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
-            var route = ac.Ground?.AssignedTaxiRoute;
+            TaxiRoute? route = ac.Ground?.AssignedTaxiRoute;
             Assert.NotNull(route);
 
             int segIdx = route.CurrentSegmentIndex;
@@ -147,8 +148,8 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOut_N70CS_ReachesHoldShortAt28R_Within90Seconds()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             return;
@@ -156,10 +157,10 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 return;
@@ -169,10 +170,10 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
 
             engine.ReplayRange(startTime, AssertAtSeconds, recording.Actions);
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
-            var route = ac.Ground?.AssignedTaxiRoute;
+            TaxiRoute? route = ac.Ground?.AssignedTaxiRoute;
             Assert.NotNull(route);
 
             // Either reached the hold-short segment, or holding short at HS 501
@@ -201,9 +202,9 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOut_N70CS_StopsOnTheApproachSideOfThe28RBar()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (archive is null || engine is null || layout is null)
         {
             return;
@@ -211,10 +212,10 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 return;
@@ -223,11 +224,11 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
 
             engine.ReplayRange((int)snapshot.ElapsedSeconds, AssertAtSeconds, recording.Actions);
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
-            var holding = Assert.IsType<HoldingShortPhase>(ac.Phases?.CurrentPhase);
-            var hsNode = layout.Nodes[holding.HoldShort.NodeId];
+            HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(ac.Phases?.CurrentPhase);
+            GroundNode hsNode = layout.Nodes[holding.HoldShort.NodeId];
 
             // Signed along the aircraft's own heading: positive means the bar is still ahead of it.
             double alongFt = GeoMath.AlongTrackDistanceNm(hsNode.Position, ac.Position, ac.TrueHeading) * GeoMath.FeetPerNm;

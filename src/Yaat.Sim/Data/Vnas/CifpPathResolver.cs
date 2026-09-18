@@ -73,8 +73,8 @@ public static class CifpPathResolver
             return _cachedPath;
         }
 
-        var cycleId = AiracCycle.GetCurrentCycleId();
-        var cachePath = GetCachePathForCycle(cycleId);
+        string cycleId = AiracCycle.GetCurrentCycleId();
+        string cachePath = GetCachePathForCycle(cycleId);
         if (File.Exists(cachePath))
         {
             lock (EnsureLock)
@@ -105,7 +105,7 @@ public static class CifpPathResolver
             return _cachedPath;
         }
 
-        var downloaded = await DownloadCurrentCycleAsync(cachePath, cycleId, cancellationToken).ConfigureAwait(false);
+        string? downloaded = await DownloadCurrentCycleAsync(cachePath, cycleId, cancellationToken).ConfigureAwait(false);
         lock (EnsureLock)
         {
             if (!_ensured)
@@ -132,8 +132,8 @@ public static class CifpPathResolver
             return explicitPath;
         }
 
-        var cycleId = AiracCycle.GetCurrentCycleId();
-        var cachePath = GetCachePathForCycle(cycleId);
+        string cycleId = AiracCycle.GetCurrentCycleId();
+        string cachePath = GetCachePathForCycle(cycleId);
         if (File.Exists(cachePath))
         {
             Log.LogDebug("Using cached CIFP for AIRAC cycle {Cycle}: {Path}", cycleId, cachePath);
@@ -143,7 +143,7 @@ public static class CifpPathResolver
 
         if (options.AllowDownload && !IsDownloadSkipped())
         {
-            var downloaded = DownloadCurrentCycleAsync(cachePath, cycleId, CancellationToken.None).GetAwaiter().GetResult();
+            string? downloaded = DownloadCurrentCycleAsync(cachePath, cycleId, CancellationToken.None).GetAwaiter().GetResult();
             if (downloaded is not null)
             {
                 _resolvedCycleId = cycleId;
@@ -156,24 +156,24 @@ public static class CifpPathResolver
 
     private static string GetCachePathForCycle(string cycleId)
     {
-        var cacheDir = YaatPaths.Combine("cache", "cifp");
+        string cacheDir = YaatPaths.Combine("cache", "cifp");
         return Path.Combine(cacheDir, $"FAACIFP18-{cycleId}");
     }
 
     private static bool IsDownloadSkipped()
     {
-        var v = Environment.GetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD");
+        string? v = Environment.GetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD");
         return string.Equals(v, "1", StringComparison.Ordinal) || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task<string?> DownloadCurrentCycleAsync(string cachePath, string cycleId, CancellationToken cancellationToken)
     {
-        var cacheDir = Path.GetDirectoryName(cachePath)!;
+        string cacheDir = Path.GetDirectoryName(cachePath)!;
         Directory.CreateDirectory(cacheDir);
 
-        var cycleDate = AiracCycle.GetCycleDate(cycleId);
-        var dateStr = cycleDate.ToString("yyMMdd");
-        var url = $"{CifpBaseUrl}CIFP_{dateStr}.zip";
+        DateOnly cycleDate = AiracCycle.GetCycleDate(cycleId);
+        string dateStr = cycleDate.ToString("yyMMdd");
+        string url = $"{CifpBaseUrl}CIFP_{dateStr}.zip";
 
         try
         {
@@ -181,20 +181,20 @@ public static class CifpPathResolver
             Console.Error.WriteLine($"[CifpPathResolver] Downloading CIFP for AIRAC {cycleId}...");
 
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
-            var zipBytes = await http.GetByteArrayAsync(url, cancellationToken).ConfigureAwait(false);
+            byte[] zipBytes = await http.GetByteArrayAsync(url, cancellationToken).ConfigureAwait(false);
 
             using var zipStream = new MemoryStream(zipBytes);
             using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
 
-            var cifpEntry = archive.Entries.FirstOrDefault(e => e.Name.StartsWith("FAACIFP", StringComparison.Ordinal));
+            ZipArchiveEntry? cifpEntry = archive.Entries.FirstOrDefault(e => e.Name.StartsWith("FAACIFP", StringComparison.Ordinal));
             if (cifpEntry is null)
             {
                 Log.LogWarning("FAACIFP file not found in zip archive from {Url}", url);
                 return null;
             }
 
-            await using var entryStream = cifpEntry.Open();
-            await using var fileStream = File.Create(cachePath);
+            await using Stream entryStream = cifpEntry.Open();
+            await using FileStream fileStream = File.Create(cachePath);
             await entryStream.CopyToAsync(fileStream, cancellationToken).ConfigureAwait(false);
 
             Log.LogInformation("CIFP cached for cycle {Cycle} ({Size:N0} bytes)", cycleId, new FileInfo(cachePath).Length);
@@ -212,7 +212,7 @@ public static class CifpPathResolver
     {
         if (options.BundledGzPath is { } bundledGz && File.Exists(bundledGz))
         {
-            var bundledCycle = ReadBundledCycle(options);
+            string? bundledCycle = ReadBundledCycle(options);
             if (bundledCycle is not null && bundledCycle != currentCycleId)
             {
                 Log.LogWarning(
@@ -226,10 +226,10 @@ public static class CifpPathResolver
             return DecompressBundledGzip(bundledGz);
         }
 
-        var cacheDir = YaatPaths.Combine("cache", "cifp");
+        string cacheDir = YaatPaths.Combine("cache", "cifp");
         if (Directory.Exists(cacheDir))
         {
-            var newest = Directory.EnumerateFiles(cacheDir, "FAACIFP18-*").OrderDescending(StringComparer.Ordinal).FirstOrDefault();
+            string? newest = Directory.EnumerateFiles(cacheDir, "FAACIFP18-*").OrderDescending(StringComparer.Ordinal).FirstOrDefault();
             if (newest is not null)
             {
                 Log.LogWarning("Using stale CIFP cache file {Path} (current cycle {Cycle} not cached)", newest, currentCycleId);
@@ -249,8 +249,8 @@ public static class CifpPathResolver
 
         try
         {
-            var json = File.ReadAllText(manifestPath);
-            var doc = JsonSerializer.Deserialize<CifpManifest>(json);
+            string json = File.ReadAllText(manifestPath);
+            CifpManifest? doc = JsonSerializer.Deserialize<CifpManifest>(json);
             return doc?.AiracCycle;
         }
         catch (Exception ex)
@@ -289,9 +289,9 @@ public static class CifpPathResolver
         }
 
         var cycles = new List<string>();
-        foreach (var path in Directory.EnumerateFiles(cacheDir, "FAACIFP18-*"))
+        foreach (string path in Directory.EnumerateFiles(cacheDir, "FAACIFP18-*"))
         {
-            var cycle = Path.GetFileName(path)["FAACIFP18-".Length..];
+            string cycle = Path.GetFileName(path)["FAACIFP18-".Length..];
 
             // AIRAC cycle ids are 4 ASCII digits (YYNN); skip the bundled file and any other artifacts.
             if (cycle.Length != 4 || !cycle.All(char.IsAsciiDigit))
@@ -342,15 +342,15 @@ public static class CifpPathResolver
 
     private static string DecompressBundledGzip(string gzPath)
     {
-        var cacheDir = YaatPaths.Combine("cache", "cifp");
+        string cacheDir = YaatPaths.Combine("cache", "cifp");
         Directory.CreateDirectory(cacheDir);
-        var outPath = Path.Combine(cacheDir, "FAACIFP18-bundled.dat");
+        string outPath = Path.Combine(cacheDir, "FAACIFP18-bundled.dat");
 
         if (!File.Exists(outPath) || new FileInfo(gzPath).LastWriteTimeUtc > new FileInfo(outPath).LastWriteTimeUtc)
         {
-            using var inputStream = File.OpenRead(gzPath);
+            using FileStream inputStream = File.OpenRead(gzPath);
             using var gzipStream = new GZipStream(inputStream, CompressionMode.Decompress);
-            using var outputStream = File.Create(outPath);
+            using FileStream outputStream = File.Create(outPath);
             gzipStream.CopyTo(outputStream);
         }
 

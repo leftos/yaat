@@ -3,6 +3,7 @@ using Yaat.Sim.ControllerAi;
 using Yaat.Sim.ControllerAi.Rules;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
@@ -58,10 +59,10 @@ public class GroundRulesTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
         engine.World.Weather = new WeatherProfile { WindLayers = [new WindLayer { Direction = 300, Speed = 12 }] };
-        var aircraft = AiTestFixture.TickUntil(
+        AircraftState aircraft = AiTestFixture.TickUntil(
             engine,
             AiTestFixture.Callsign,
             ac => ac.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi },
@@ -75,12 +76,12 @@ public class GroundRulesTests
         rule.Evaluate(probe.Scope([aircraft], now));
         Assert.Empty(probe.Sink.Issued);
         rule.Evaluate(probe.Scope([aircraft], now + AiPacing.ThinkMaxSeconds));
-        var request = Assert.Single(probe.Sink.Issued);
+        AiCommandRequest request = Assert.Single(probe.Sink.Issued);
         // OAK's knowledge: 12 kt from 300 is the west configuration and a C172 from the north field gets a 28.
         Assert.Equal("TAXIAUTO 28R", request.Canonical);
         Assert.Equal("answer-taxi-out", request.Intent.Rule);
         Assert.Contains("SFOW", request.Intent.Rationale);
-        var memo = probe.Memos[AiTestFixture.Callsign];
+        AiAircraftMemo memo = probe.Memos[AiTestFixture.Callsign];
         Assert.Equal(GroundIntent.TaxiIssued, memo.Intent);
         Assert.Same(request, memo.InFlight);
 
@@ -102,9 +103,9 @@ public class GroundRulesTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
-        var aircraft = AiTestFixture.TickUntil(
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        AircraftState aircraft = AiTestFixture.TickUntil(
             engine,
             AiTestFixture.Callsign,
             ac => ac.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi },
@@ -119,7 +120,7 @@ public class GroundRulesTests
         {
             rule.Evaluate(probe.Scope([aircraft], now));
             Assert.Equal(attempt, probe.Sink.Issued.Count);
-            var memo = probe.Memos[AiTestFixture.Callsign];
+            AiAircraftMemo memo = probe.Memos[AiTestFixture.Callsign];
             memo.Complete(success: false, now + 1);
             Assert.Equal(attempt, memo.Rejections);
             // Backed off: an evaluation inside the backoff issues nothing.
@@ -141,11 +142,11 @@ public class GroundRulesTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 30").Success);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
-        var route = aircraft.Ground.AssignedTaxiRoute!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
         var crossings = route.HoldShortPoints.Where(h => h.Reason == HoldShortReason.RunwayCrossing).ToList();
         Assert.Equal(2, crossings.Count);
         var probe = new RuleProbe(engine, ground);
@@ -159,11 +160,11 @@ public class GroundRulesTests
         )
         {
             engine.TickOneSecond();
-            var layout = engine.ResolveGroundLayout(aircraft);
+            AirportGroundLayout? layout = engine.ResolveGroundLayout(aircraft);
             rule.Evaluate(probe.Scope([aircraft], engine.Scenario!.ElapsedSeconds));
-            foreach (var request in probe.Sink.Issued.Skip(issuedAt.Count).ToList())
+            foreach (AiCommandRequest? request in probe.Sink.Issued.Skip(issuedAt.Count).ToList())
             {
-                var pending = TaxiRouteProgress.NextUnclearedCrossing(aircraft, layout);
+                PendingHoldShort? pending = TaxiRouteProgress.NextUnclearedCrossing(aircraft, layout);
                 Assert.NotNull(pending);
                 Assert.True(
                     pending.DistanceFt <= RunwayCrossingRule.PreClearDistanceFt,
@@ -194,10 +195,10 @@ public class GroundRulesTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 28R").Success);
-        var aircraft = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 300);
+        AircraftState aircraft = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 300);
         Assert.Equal(HoldShortReason.DestinationRunway, ((HoldingShortPhase)aircraft.Phases!.CurrentPhase!).HoldShort.Reason);
         var probe = new RuleProbe(engine, ground);
 
@@ -216,22 +217,22 @@ public class GroundRulesTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        foreach (var (distanceNm, expectClear) in new[] { (1.5, false), (6.0, true) })
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        foreach ((double distanceNm, bool expectClear) in new[] { (1.5, false), (6.0, true) })
         {
-            var engine = AiTestFixture.Load(
+            SimulationEngine engine = AiTestFixture.Load(
                 TwoAircraftOnFinalTemplate.Replace("DISTANCE", distanceNm.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 _zoa,
                 7,
                 [ground]
             );
-            var crosser = engine.FindAircraft(AiTestFixture.Callsign)!;
-            var arrival = engine.FindAircraft("N2FL")!;
-            var layout = engine.ResolveGroundLayout(crosser);
-            var pavement = RunwayCrossingGate.PavementFor("28R/10L", RunwayOccupancy.AirportRunways("OAK"));
+            AircraftState crosser = engine.FindAircraft(AiTestFixture.Callsign)!;
+            AircraftState arrival = engine.FindAircraft("N2FL")!;
+            AirportGroundLayout? layout = engine.ResolveGroundLayout(crosser);
+            RunwayInfo? pavement = RunwayCrossingGate.PavementFor("28R/10L", RunwayOccupancy.AirportRunways("OAK"));
             Assert.NotNull(pavement);
 
-            bool clear = RunwayCrossingGate.IsClear(crosser, pavement, [crosser, arrival], layout, out var reason);
+            bool clear = RunwayCrossingGate.IsClear(crosser, pavement, [crosser, arrival], layout, out string? reason);
 
             Assert.Equal(expectClear, clear);
             if (!expectClear)
@@ -241,7 +242,12 @@ public class GroundRulesTests
 
             // The same geometry two miles up is an overflight, not an arrival: a departed jet climbing out over the
             // field must not close the runway to crossings.
-            var overflight = AiTestFixture.Airborne("SWA919", arrival.Position.Lat, arrival.Position.Lon, pavement.AirportElevationFt + 10_000);
+            AircraftState overflight = AiTestFixture.Airborne(
+                "SWA919",
+                arrival.Position.Lat,
+                arrival.Position.Lon,
+                pavement.AirportElevationFt + 10_000
+            );
             overflight.TrueHeading = arrival.TrueHeading;
             Assert.True(RunwayCrossingGate.IsClear(crosser, pavement, [crosser, overflight], layout, out _));
         }
@@ -255,15 +261,15 @@ public class GroundRulesTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(TwoAircraftOnFinalTemplate.Replace("DISTANCE", "1.5"), _zoa, 7, [ground]);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(TwoAircraftOnFinalTemplate.Replace("DISTANCE", "1.5"), _zoa, 7, [ground]);
         Assert.True(engine.SendCommand("N2FL", "CLAND").Success);
-        var crosser = engine.FindAircraft(AiTestFixture.Callsign)!;
-        var pavement = RunwayCrossingGate.PavementFor("28R/10L", RunwayOccupancy.AirportRunways("OAK"))!;
-        var layout = engine.ResolveGroundLayout(crosser);
+        AircraftState crosser = engine.FindAircraft(AiTestFixture.Callsign)!;
+        RunwayInfo pavement = RunwayCrossingGate.PavementFor("28R/10L", RunwayOccupancy.AirportRunways("OAK"))!;
+        AirportGroundLayout? layout = engine.ResolveGroundLayout(crosser);
 
-        var arrival = AiTestFixture.TickUntil(engine, "N2FL", ac => ac.IsOnGround, 200);
-        Assert.False(RunwayCrossingGate.IsClear(crosser, pavement, [crosser, arrival], layout, out var rollout));
+        AircraftState arrival = AiTestFixture.TickUntil(engine, "N2FL", ac => ac.IsOnGround, 200);
+        Assert.False(RunwayCrossingGate.IsClear(crosser, pavement, [crosser, arrival], layout, out string? rollout));
         Assert.Contains("N2FL", rollout);
 
         arrival = AiTestFixture.TickUntil(engine, "N2FL", ac => ac.Phases?.CurrentPhase is HoldingAfterExitPhase, 300);
@@ -271,7 +277,7 @@ public class GroundRulesTests
 
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 30").Success);
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "HOLD").Success);
-        Assert.False(RunwayCrossingGate.IsClear(crosser, pavement, [crosser, arrival], layout, out var held));
+        Assert.False(RunwayCrossingGate.IsClear(crosser, pavement, [crosser, arrival], layout, out string? held));
         Assert.Contains("hold", held);
     }
 
@@ -283,11 +289,11 @@ public class GroundRulesTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var tower = TestAiPositions.OakTower(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground, tower]);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        AiPositionConfig tower = TestAiPositions.OakTower(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground, tower]);
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 30").Success);
-        var aircraft = AiTestFixture.TickUntil(
+        AircraftState aircraft = AiTestFixture.TickUntil(
             engine,
             AiTestFixture.Callsign,
             ac => ac.Phases?.CurrentPhase is HoldingShortPhase { HoldShort.Reason: HoldShortReason.RunwayCrossing },
@@ -303,7 +309,7 @@ public class GroundRulesTests
         Assert.Empty(aircraft.PendingWarnings);
         rule.Evaluate(probe.Scope([aircraft], now + AiPacing.ThinkMaxSeconds));
         Assert.Empty(probe.Sink.Issued);
-        var line = Assert.Single(aircraft.PendingWarnings);
+        string line = Assert.Single(aircraft.PendingWarnings);
         Assert.StartsWith("[AI-COORD] OAK_GND requests cross runway ", line);
         Assert.Contains(" at B for ", line);
         Assert.EndsWith($" for {AiTestFixture.Callsign}", line);
@@ -312,7 +318,7 @@ public class GroundRulesTests
 
         // Past the timeout: the anomaly opens and Ground asks again rather than going silent.
         rule.Evaluate(probe.Scope([aircraft], now + AiPacing.ThinkMaxSeconds + RunwayCrossingRule.CoordinationTimeoutSeconds));
-        var opened = Assert.Single(engine.Scenario.AiAnomalies.Drain());
+        AiAnomalyEvent opened = Assert.Single(engine.Scenario.AiAnomalies.Drain());
         Assert.Equal(AiAnomalyKind.CoordinationTimeout, opened.Kind);
         Assert.Equal(AiTestFixture.Callsign, opened.SubjectKey);
         Assert.Equal(2, aircraft.PendingWarnings.Count);
@@ -321,7 +327,7 @@ public class GroundRulesTests
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "CROSS 28R").Success);
         AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is not HoldingShortPhase, 30);
         rule.Evaluate(probe.Scope([aircraft], engine.Scenario.ElapsedSeconds));
-        var closed = engine.Scenario.AiAnomalies.Drain();
+        IReadOnlyList<AiAnomalyEvent> closed = engine.Scenario.AiAnomalies.Drain();
         Assert.Contains(closed, e => e.Kind == AiAnomalyKind.CoordinationTimeout && e.Event == AiAnomalyEventKind.Closed);
     }
 
@@ -333,11 +339,16 @@ public class GroundRulesTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var tower = TestAiPositions.OakTower(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak.Replace("\"parking\": \"SIG1\"", "\"parking\": \"29\""), _zoa, 7, [ground, tower]);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        AiPositionConfig tower = TestAiPositions.OakTower(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(
+            AiTestFixture.ParkedAtOak.Replace("\"parking\": \"SIG1\"", "\"parking\": \"29\""),
+            _zoa,
+            7,
+            [ground, tower]
+        );
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 30").Success);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.DoesNotContain(aircraft.Ground.AssignedTaxiRoute!.HoldShortPoints, h => h.Reason == HoldShortReason.RunwayCrossing);
         var probe = new RuleProbe(engine, ground, tower);
         var rule = new HandToLocalRule();
@@ -347,8 +358,8 @@ public class GroundRulesTests
         for (int t = 0; t < 400 && probe.Sink.Issued.Count == 0; t++)
         {
             engine.TickOneSecond();
-            var layout = engine.ResolveGroundLayout(aircraft);
-            var before = TaxiRouteProgress.DistanceToDestinationBarFt(aircraft, layout);
+            AirportGroundLayout? layout = engine.ResolveGroundLayout(aircraft);
+            double? before = TaxiRouteProgress.DistanceToDestinationBarFt(aircraft, layout);
             rule.Evaluate(probe.Scope([aircraft], engine.Scenario!.ElapsedSeconds));
             if (probe.Sink.Issued.Count > 0)
             {
@@ -357,7 +368,7 @@ public class GroundRulesTests
             }
         }
 
-        var request = Assert.Single(probe.Sink.Issued);
+        AiCommandRequest request = Assert.Single(probe.Sink.Issued);
         Assert.Equal("CT OAK_TWR", request.Canonical);
         Assert.True(wasTaxiing);
         Assert.NotNull(distanceAtIssue);
@@ -378,11 +389,11 @@ public class GroundRulesTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var tower = TestAiPositions.OakTower(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground, tower]);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        AiPositionConfig tower = TestAiPositions.OakTower(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground, tower]);
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 30").Success);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         var probe = new RuleProbe(engine, ground, tower);
         var rule = new HandToLocalRule();
 
@@ -406,10 +417,15 @@ public class GroundRulesTests
         }
 
         // Nobody holds Local: Ground works the runway itself and there is no tower to send the pilot to (7110.65 §2-1-17.a).
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak.Replace("\"parking\": \"SIG1\"", "\"parking\": \"29\""), _zoa, 7, [ground]);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(
+            AiTestFixture.ParkedAtOak.Replace("\"parking\": \"SIG1\"", "\"parking\": \"29\""),
+            _zoa,
+            7,
+            [ground]
+        );
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 30").Success);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         var probe = new RuleProbe(engine, ground);
         var rule = new HandToLocalRule();
 
@@ -431,18 +447,18 @@ public class GroundRulesTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(TwoAircraftOnFinalTemplate.Replace("DISTANCE", "1.5"), _zoa, 7, [ground]);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(TwoAircraftOnFinalTemplate.Replace("DISTANCE", "1.5"), _zoa, 7, [ground]);
         Assert.True(engine.SendCommand("N2FL", "GA").Success);
-        var crosser = engine.FindAircraft(AiTestFixture.Callsign)!;
-        var pavement = RunwayCrossingGate.PavementFor("28R/10L", RunwayOccupancy.AirportRunways("OAK"))!;
-        var layout = engine.ResolveGroundLayout(crosser);
+        AircraftState crosser = engine.FindAircraft(AiTestFixture.Callsign)!;
+        RunwayInfo pavement = RunwayCrossingGate.PavementFor("28R/10L", RunwayOccupancy.AirportRunways("OAK"))!;
+        AirportGroundLayout? layout = engine.ResolveGroundLayout(crosser);
 
         // Climbing down the runway: invisible to the on-final test, a runway user all the same (7110.65 §3-7-2.a.7.1).
-        var goingAround = AiTestFixture.TickUntil(engine, "N2FL", ac => RunwayOccupancy.IsWithinPavement(ac.Position, pavement), 240);
+        AircraftState goingAround = AiTestFixture.TickUntil(engine, "N2FL", ac => RunwayOccupancy.IsWithinPavement(ac.Position, pavement), 240);
         Assert.False(goingAround.IsOnGround);
         Assert.InRange(goingAround.Altitude - pavement.AirportElevationFt, 0, RunwayCrossingGate.OverRunwayMaxAglFt);
-        Assert.False(RunwayCrossingGate.IsClear(crosser, pavement, [crosser, goingAround], layout, out var reason));
+        Assert.False(RunwayCrossingGate.IsClear(crosser, pavement, [crosser, goingAround], layout, out string? reason));
         Assert.Contains("over runway", reason);
     }
 
@@ -454,23 +470,23 @@ public class GroundRulesTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, [ground]);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, [ground]);
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "CLAND").Success);
-        var aircraft = AiTestFixture.TickUntil(
+        AircraftState aircraft = AiTestFixture.TickUntil(
             engine,
             AiTestFixture.Callsign,
             ac => ac.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi, ParkingName: not null },
             500
         );
-        var requested = aircraft.PendingPilotRequest!.ParkingName!;
+        string requested = aircraft.PendingPilotRequest!.ParkingName!;
         var probe = new RuleProbe(engine, ground);
         var rule = new AnswerTaxiInRule();
         double now = engine.Scenario!.ElapsedSeconds;
 
         rule.Evaluate(probe.Scope([aircraft], now));
         rule.Evaluate(probe.Scope([aircraft], now + AiPacing.ThinkMaxSeconds));
-        var request = Assert.Single(probe.Sink.Issued);
+        AiCommandRequest request = Assert.Single(probe.Sink.Issued);
         Assert.Equal($"TAXIAUTO @{requested}", request.Canonical);
         Assert.Equal(GroundIntent.TaxiInIssued, probe.Memos[AiTestFixture.Callsign].Intent);
 
@@ -494,7 +510,7 @@ public class GroundRulesTests
         var fresh = new RuleProbe(engine, ground);
         rule.Evaluate(fresh.Scope([aircraft, claimant], now + 100));
         rule.Evaluate(fresh.Scope([aircraft, claimant], now + 100 + AiPacing.ThinkMaxSeconds));
-        var repicked = Assert.Single(fresh.Sink.Issued);
+        AiCommandRequest repicked = Assert.Single(fresh.Sink.Issued);
         Assert.StartsWith("TAXIAUTO @", repicked.Canonical);
         Assert.NotEqual(request.Canonical, repicked.Canonical);
         Assert.Contains("is taken", repicked.Intent.Rationale);
@@ -513,7 +529,7 @@ public class GroundRulesTests
         public AiRuleScope Scope(IReadOnlyList<AircraftState> aircraft, double now)
         {
             _pacing.BeginTick();
-            var context = AiTestFixture.Context(engine, aircraft, staffed, now, [], Sink);
+            AiTickContext context = AiTestFixture.Context(engine, aircraft, staffed, now, [], Sink);
             return new AiRuleScope
             {
                 Tick = context,

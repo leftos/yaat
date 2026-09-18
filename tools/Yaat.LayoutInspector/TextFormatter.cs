@@ -14,7 +14,7 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
 
         w.WriteLine();
         w.WriteLine($"Nodes: {r.NodeCount} total");
-        foreach (var (type, count) in r.NodeCountsByType.OrderBy(kv => kv.Key))
+        foreach ((string? type, int count) in r.NodeCountsByType.OrderBy(kv => kv.Key))
         {
             w.WriteLine($"  {type}: {count}");
         }
@@ -38,14 +38,14 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
         {
             w.WriteLine();
             w.WriteLine("  Intersections:");
-            foreach (var ix in r.Intersections)
+            foreach (TaxiwayIntersectionInfo ix in r.Intersections)
             {
                 w.WriteLine($"    {r.Name}/{ix.OtherTaxiway} at #{ix.NodeId}");
             }
         }
 
         w.WriteLine();
-        foreach (var node in r.Nodes)
+        foreach (NodeInfo node in r.Nodes)
         {
             WriteNodeCompact(node);
         }
@@ -58,14 +58,14 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
         w.WriteLine($"  Hold-short nodes: {r.HoldShortNodes.Count}");
         w.WriteLine();
         w.WriteLine("  Centerline:");
-        foreach (var node in r.CenterlineNodes)
+        foreach (NodeInfo node in r.CenterlineNodes)
         {
             WriteNodeCompact(node, "    ");
         }
 
         w.WriteLine();
         w.WriteLine("  Hold-shorts:");
-        foreach (var node in r.HoldShortNodes)
+        foreach (NodeInfo node in r.HoldShortNodes)
         {
             WriteNodeCompact(node, "    ");
         }
@@ -89,7 +89,7 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
 
         w.WriteLine();
         w.WriteLine($"  Edges ({n.Edges.Count}):");
-        foreach (var e in n.Edges)
+        foreach (EdgeInfo e in n.Edges)
         {
             string neighbor = $"[{e.NeighborType}";
             if (e.NeighborName is not null)
@@ -123,7 +123,7 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
     public void WriteNodeAngles(NodeAnglesResult r)
     {
         w.WriteLine($"  Edge-pair angles ({r.Pairs.Count}, tightest turn first):");
-        foreach (var p in r.Pairs)
+        foreach (EdgePairAngle p in r.Pairs)
         {
             string bridge;
             if (p.Bridge is null)
@@ -154,7 +154,7 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
     {
         w.WriteLine($"Exits for runway {r.Designator}: {r.Exits.Count} found");
         w.WriteLine();
-        foreach (var e in r.Exits)
+        foreach (ExitCandidate e in r.Exits)
         {
             string angle = (e.AngleDeg is not null) ? $"{e.AngleDeg:F0}°" : "?";
             string hs = e.IsHighSpeed ? "  [high-speed]" : "";
@@ -181,9 +181,9 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
         w.WriteLine();
         for (int i = 0; i < r.Steps.Count; i++)
         {
-            var step = r.Steps[i];
+            BfsStep step = r.Steps[i];
             w.WriteLine($"  Step {i + 1}: Node {step.NodeId} -- {step.NodeType} (depth {step.Depth})");
-            foreach (var e in step.EdgesExplored)
+            foreach (BfsEdgeExplored e in step.EdgesExplored)
             {
                 w.WriteLine($"    Edge -> {e.NeighborId} via {e.TaxiwayName} ({e.DistanceNm:F4}nm) [{e.NeighborType}] -- {e.Action} ({e.Reason})");
             }
@@ -207,7 +207,7 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
     {
         w.WriteLine($"{title}: {nodes.Count}");
         w.WriteLine();
-        foreach (var node in nodes)
+        foreach (NodeInfo node in nodes)
         {
             WriteNodeCompact(node);
         }
@@ -217,7 +217,7 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
     {
         w.WriteLine($"Intersection {r.Taxiway1}/{r.Taxiway2}: {r.Nodes.Count} node(s)");
         w.WriteLine();
-        foreach (var node in r.Nodes)
+        foreach (NodeInfo node in r.Nodes)
         {
             WriteNode(node);
             w.WriteLine();
@@ -237,7 +237,7 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
             $"Path distance [{string.Join(" → ", r.NodeIds.Select(n => $"#{n}"))}]: {r.TotalFt:F1} ft ({r.TotalNm:F4} nm), "
                 + $"heading range {r.HeadingRangeDeg:F1}°, total turn {r.TotalTurnDeg:F1}°"
         );
-        foreach (var leg in r.Legs)
+        foreach (PathDistanceLeg leg in r.Legs)
         {
             string note = leg.Mode == "straight" ? "  (no direct edge — straight-line)" : "";
             w.WriteLine($"  #{leg.FromNodeId, 5} → #{leg.ToNodeId, -5} {leg.Ft, 8:F1} ft  brg {leg.BearingDeg, 5:F1}°  [{leg.Mode}]{note}");
@@ -247,7 +247,7 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
     public void WriteValidation(ValidationResult r)
     {
         w.WriteLine($"Validation: {r.WarningCount} warning(s)");
-        foreach (var warning in r.Warnings)
+        foreach (ValidationWarningDto warning in r.Warnings)
         {
             string origin = (warning.Origin is not null) ? $" (origin: {warning.Origin})" : "";
             w.WriteLine($"  [{warning.Code}] {warning.Message}{origin}");
@@ -271,7 +271,7 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
         else
         {
             w.WriteLine($"RESULT: {r.Segments.Count} segments");
-            foreach (var seg in r.Segments)
+            foreach (PathfinderSegment seg in r.Segments)
             {
                 w.WriteLine($"  {seg.TaxiwayName}: {seg.FromNodeId} -> {seg.ToNodeId}");
             }
@@ -281,7 +281,7 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
         {
             w.WriteLine();
             w.WriteLine($"HOLD-SHORTS: {r.HoldShorts.Count}");
-            foreach (var hs in r.HoldShorts)
+            foreach (PathfinderHoldShort hs in r.HoldShorts)
             {
                 string cleared = hs.IsCleared ? " cleared" : "";
                 w.WriteLine($"  #{hs.NodeId} {hs.TargetName ?? "(none)"} ({hs.Reason}){cleared}");

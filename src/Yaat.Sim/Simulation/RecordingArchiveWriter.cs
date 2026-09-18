@@ -66,7 +66,7 @@ public sealed class RecordingArchiveWriter : IDisposable
     public void WriteActions(List<RecordedAction> actions)
     {
         _actionCount = actions.Count;
-        var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(actions, RecordingJsonOptions.Default);
+        byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(actions, RecordingJsonOptions.Default);
         WriteBrotliEntry("actions.json.br", jsonBytes);
     }
 
@@ -83,7 +83,7 @@ public sealed class RecordingArchiveWriter : IDisposable
         }
 
         _hasTerminalLog = true;
-        var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(terminalLog, RecordingJsonOptions.Default);
+        byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(terminalLog, RecordingJsonOptions.Default);
         WriteBrotliEntry("terminal-log.json.br", jsonBytes);
     }
 
@@ -95,7 +95,7 @@ public sealed class RecordingArchiveWriter : IDisposable
     {
         _snapshotIndex.Add(new SnapshotIndexEntry { ElapsedSeconds = elapsedSeconds, ActionIndex = actionIndex });
 
-        var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(state, RecordingJsonOptions.Default);
+        byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(state, RecordingJsonOptions.Default);
         WriteBrotliEntry($"snapshots/{index:D3}.json.br", jsonBytes);
     }
 
@@ -105,7 +105,7 @@ public sealed class RecordingArchiveWriter : IDisposable
     public void WriteLayout(AirportGroundLayout layout)
     {
         _layoutAirportIds.Add(layout.AirportId);
-        var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(layout, RecordingJsonOptions.Default);
+        byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(layout, RecordingJsonOptions.Default);
         WriteBrotliEntry($"layouts/{layout.AirportId}.json.br", jsonBytes);
     }
 
@@ -135,8 +135,8 @@ public sealed class RecordingArchiveWriter : IDisposable
     /// </summary>
     public void WriteExtraEntry(string entryName, byte[] data)
     {
-        var entry = _zip.CreateEntry(entryName, CompressionLevel.Optimal);
-        using var entryStream = entry.Open();
+        ZipArchiveEntry entry = _zip.CreateEntry(entryName, CompressionLevel.Optimal);
+        using Stream entryStream = entry.Open();
         entryStream.Write(data);
     }
 
@@ -176,7 +176,7 @@ public sealed class RecordingArchiveWriter : IDisposable
             AirportGeoJsonIds = _airportGeoJsonIds.Count > 0 ? _airportGeoJsonIds : null,
         };
 
-        var manifestJson = JsonSerializer.SerializeToUtf8Bytes(manifest, RecordingJsonOptions.Default);
+        byte[] manifestJson = JsonSerializer.SerializeToUtf8Bytes(manifest, RecordingJsonOptions.Default);
         WriteUtf8Entry("manifest.json", manifestJson);
 
         _zip.Dispose();
@@ -201,7 +201,7 @@ public sealed class RecordingArchiveWriter : IDisposable
             {
                 for (int i = 0; i < snapshots.Count; i++)
                 {
-                    var s = snapshots[i];
+                    TimedSnapshot s = snapshots[i];
                     writer.WriteSnapshot(i, s.ElapsedSeconds, s.ActionIndex, s.State);
                 }
             }
@@ -233,29 +233,29 @@ public sealed class RecordingArchiveWriter : IDisposable
 
     private void WriteBrotliEntry(string entryName, string text)
     {
-        var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(text);
         WriteBrotliEntry(entryName, bytes);
     }
 
     private void WriteBrotliEntry(string entryName, byte[] utf8Bytes)
     {
         // ZIP-level compression is Store; we handle compression ourselves with Brotli
-        var entry = _zip.CreateEntry(entryName, CompressionLevel.NoCompression);
-        using var entryStream = entry.Open();
+        ZipArchiveEntry entry = _zip.CreateEntry(entryName, CompressionLevel.NoCompression);
+        using Stream entryStream = entry.Open();
         using var brotli = new BrotliStream(entryStream, CompressionLevel.Optimal);
         brotli.Write(utf8Bytes);
     }
 
     private void WriteUtf8Entry(string entryName, string text)
     {
-        var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(text);
         WriteUtf8Entry(entryName, bytes);
     }
 
     private void WriteUtf8Entry(string entryName, byte[] utf8Bytes)
     {
-        var entry = _zip.CreateEntry(entryName, CompressionLevel.NoCompression);
-        using var entryStream = entry.Open();
+        ZipArchiveEntry entry = _zip.CreateEntry(entryName, CompressionLevel.NoCompression);
+        using Stream entryStream = entry.Open();
         entryStream.Write(utf8Bytes);
     }
 }

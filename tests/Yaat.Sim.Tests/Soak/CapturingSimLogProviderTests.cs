@@ -14,15 +14,15 @@ public class CapturingSimLogProviderTests
     public void CapturesWarningAndAbove_ThroughSimLog_AndDrainClears()
     {
         using var tap = new CapturingSimLogProvider(LogLevel.Warning, 100);
-        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
         SimLog.InitializeForTest(factory);
-        var log = SimLog.CreateLogger("TapTest");
+        ILogger log = SimLog.CreateLogger("TapTest");
 
         log.LogInformation("info is below the floor");
         log.LogWarning("warn {N}", 1);
         log.LogError(new InvalidOperationException("boom"), "err {N}", 2);
 
-        var records = tap.Drain();
+        IReadOnlyList<CapturedLogRecord> records = tap.Drain();
         Assert.Equal(2, records.Count);
         Assert.Equal(LogLevel.Warning, records[0].Level);
         Assert.Equal("TapTest", records[0].Category);
@@ -38,14 +38,14 @@ public class CapturingSimLogProviderTests
     public void RingOverflow_DropsOldest_AndCounts()
     {
         using var tap = new CapturingSimLogProvider(LogLevel.Warning, 3);
-        var log = tap.CreateLogger("Ring");
+        ILogger log = tap.CreateLogger("Ring");
 
         for (int i = 0; i < 5; i++)
         {
             log.LogWarning("w{I}", i);
         }
 
-        var records = tap.Drain();
+        IReadOnlyList<CapturedLogRecord> records = tap.Drain();
         Assert.Equal(["w2", "w3", "w4"], records.Select(r => r.Message).ToArray());
         Assert.Equal(2, tap.DroppedCount);
     }
@@ -54,7 +54,7 @@ public class CapturingSimLogProviderTests
     public void Drain_IsThreadSafe()
     {
         using var tap = new CapturingSimLogProvider(LogLevel.Warning, 1_000);
-        var log = tap.CreateLogger("Parallel");
+        ILogger log = tap.CreateLogger("Parallel");
         const int writers = 8;
         const int perWriter = 500;
 
@@ -70,7 +70,7 @@ public class CapturingSimLogProviderTests
             }
         );
 
-        var captured = tap.Drain().Count;
+        int captured = tap.Drain().Count;
         Assert.Equal(writers * perWriter, captured + tap.DroppedCount);
         Assert.True(captured <= 1_000);
     }

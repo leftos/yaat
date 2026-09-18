@@ -62,8 +62,8 @@ public class OakNorthFieldTaxiSpinTests(ITestOutputHelper output)
     [InlineData("TWY801", 44, 320.0, 200.0)]
     public void TaxiOut_DoesNotSpinNearlyFullCircle(string callsign, int taxiCommandSeconds, double maxCumulativeAbsDeg, double maxAbsSignedDeg)
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -73,7 +73,7 @@ public class OakNorthFieldTaxiSpinTests(ITestOutputHelper output)
         // (actions are the canonical TAXI commands logged in the bundle).
         engine.Replay(recording, taxiCommandSeconds);
 
-        var ac = engine.FindAircraft(callsign);
+        AircraftState? ac = engine.FindAircraft(callsign);
         Assert.NotNull(ac);
 
         double prevHdg = ac.TrueHeading.Degrees;
@@ -121,17 +121,17 @@ public class OakNorthFieldTaxiSpinTests(ITestOutputHelper output)
     [InlineData("TWY801", 44)]
     public void TaxiOut_MakesForwardProgress(string callsign, int taxiCommandSeconds)
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, taxiCommandSeconds);
-        var ac = engine.FindAircraft(callsign);
+        AircraftState? ac = engine.FindAircraft(callsign);
         Assert.NotNull(ac);
-        var startPos = ac.Position;
+        LatLon startPos = ac.Position;
 
         const int observeSeconds = 60;
         for (int t = 1; t <= observeSeconds; t++)

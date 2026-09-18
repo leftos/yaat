@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
@@ -63,8 +64,8 @@ public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
     [Fact]
     public void N929AW_LandingAfterClandThenErb_ExitsRunwayInsteadOfCyclingPattern()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -72,7 +73,7 @@ public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
 
         engine.Replay(recording, PreErbSeconds);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
         output.WriteLine(
@@ -83,7 +84,7 @@ public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
         // this test owns its own precondition instead of inheriting it from the recording. The
         // explicit 2 nm final is used because the aircraft is barely past the abeam point on the
         // downwind, where a no-distance ERB is (correctly) refused "too close for base".
-        var erb = engine.SendCommand(Callsign, "ERB 28R 2");
+        CommandResult erb = engine.SendCommand(Callsign, "ERB 28R 2");
         output.WriteLine($"ERB 28R 2 -> Success={erb.Success} Message='{erb.Message}'");
         Assert.True(erb.Success, $"ERB 28R 2 must set up the CLAND+ERB precondition. Got: '{erb.Message}'");
 
@@ -182,8 +183,8 @@ public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
     [Fact]
     public void N342T_TouchAndGoCompletes_AutoCyclesIntoAnotherTouchAndGoCircuit()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -193,7 +194,7 @@ public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
         // t=820 so the aircraft is still on FinalApproach approaching the TG.
         engine.Replay(recording, 820);
 
-        var ac = engine.FindAircraft("N342T");
+        AircraftState? ac = engine.FindAircraft("N342T");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
 

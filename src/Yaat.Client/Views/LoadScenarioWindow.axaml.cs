@@ -100,7 +100,7 @@ public partial class LoadScenarioWindow : Window
         }
 
         // Pre-populate local folder if previously used
-        var lastFolder = preferences.LastScenarioFolder;
+        string? lastFolder = preferences.LastScenarioFolder;
         if (lastFolder is not null && Directory.Exists(lastFolder))
         {
             ScanFolder(lastFolder);
@@ -127,8 +127,8 @@ public partial class LoadScenarioWindow : Window
             return;
         }
 
-        var visible = response.Visible;
-        var hidden = response.HiddenByGateCount;
+        ScenarioSummaryDto[] visible = response.Visible;
+        int hidden = response.HiddenByGateCount;
 
         if (visible.Length == 0 && hidden == 0)
         {
@@ -139,8 +139,8 @@ public partial class LoadScenarioWindow : Window
         _allArtccItems = visible
             .Select(s =>
             {
-                var facility = "Unknown";
-                var match = NamePrefixRegex.Match(s.Name);
+                string facility = "Unknown";
+                Match match = NamePrefixRegex.Match(s.Name);
                 if (match.Success)
                 {
                     facility = match.Groups[2].Value;
@@ -156,7 +156,7 @@ public partial class LoadScenarioWindow : Window
 
         if (hidden > 0)
         {
-            var noun = hidden == 1 ? "scenario" : "scenarios";
+            string noun = hidden == 1 ? "scenario" : "scenarios";
             _artccGateText.Text = $"{hidden} {noun} hidden — requires a higher VATSIM rating.";
             _artccGateText.IsVisible = true;
         }
@@ -182,7 +182,7 @@ public partial class LoadScenarioWindow : Window
             return;
         }
 
-        var facilitySel = _artccFacilityFilter.SelectedItem as string;
+        string? facilitySel = _artccFacilityFilter.SelectedItem as string;
         var filtered = _allArtccItems.Where(i => facilitySel is null or "All" || i.Facility == facilitySel).ToList();
 
         _artccScenarioList.ItemsSource = filtered;
@@ -203,7 +203,7 @@ public partial class LoadScenarioWindow : Window
 
     private async void OnBrowseClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var path = await _filePicker.OpenFolderAsync(new OpenFolderOptions("Select Scenario Folder"));
+        string? path = await _filePicker.OpenFolderAsync(new OpenFolderOptions("Select Scenario Folder"));
         if (path is not null)
         {
             ScanFolder(path);
@@ -216,22 +216,22 @@ public partial class LoadScenarioWindow : Window
         _preferences.SetLastScenarioFolder(folder);
 
         var items = new List<LocalScenarioItem>();
-        foreach (var filePath in Directory.EnumerateFiles(folder, "*.json", SearchOption.TopDirectoryOnly))
+        foreach (string filePath in Directory.EnumerateFiles(folder, "*.json", SearchOption.TopDirectoryOnly))
         {
             try
             {
-                var json = File.ReadAllText(filePath);
+                string json = File.ReadAllText(filePath);
                 using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
+                JsonElement root = doc.RootElement;
 
-                var name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null;
+                string? name = root.TryGetProperty("name", out JsonElement nameProp) ? nameProp.GetString() : null;
                 name = string.IsNullOrWhiteSpace(name) ? Path.GetFileNameWithoutExtension(filePath) : name;
 
-                var facility = "Unknown";
-                var rating = "Unknown";
+                string facility = "Unknown";
+                string rating = "Unknown";
                 if (name is not null)
                 {
-                    var match = NamePrefixRegex.Match(name);
+                    Match match = NamePrefixRegex.Match(name);
                     if (match.Success)
                     {
                         rating = $"{match.Groups[1].Value}-{match.Groups[2].Value}";
@@ -360,8 +360,8 @@ public partial class LoadScenarioWindow : Window
             return;
         }
 
-        var facilitySel = facilityBox.SelectedItem as string;
-        var ratingSel = ratingBox.SelectedItem as string;
+        string? facilitySel = facilityBox.SelectedItem as string;
+        string? ratingSel = ratingBox.SelectedItem as string;
 
         var filtered = allItems
             .Where(i => facilitySel is null or "All" || getFacility(i) == facilitySel)

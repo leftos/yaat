@@ -29,7 +29,7 @@ public class Issue286WaitDescentTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 
         return new SimulationEngine(groundData);
@@ -38,8 +38,8 @@ public class Issue286WaitDescentTests(ITestOutputHelper output)
     [Fact]
     public void N32BR_HoldsAt14000ForWaitBeforeDescending()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -50,7 +50,7 @@ public class Issue286WaitDescentTests(ITestOutputHelper output)
         // is NOT replayed and cannot mask the preset's automatic descent.
         engine.Replay(recording, 480);
 
-        var initial = engine.FindAircraft("N32BR");
+        AircraftState? initial = engine.FindAircraft("N32BR");
         Assert.NotNull(initial);
         Assert.Equal(14000, initial!.Targets.AssignedAltitude);
         bool tteInRoute = initial.Targets.NavigationRoute.Any(f => f.Name == "TTE");
@@ -63,7 +63,7 @@ public class Issue286WaitDescentTests(ITestOutputHelper output)
         for (int t = 481; t <= 700; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft("N32BR");
+            AircraftState? ac = engine.FindAircraft("N32BR");
             if (ac is null)
             {
                 continue;

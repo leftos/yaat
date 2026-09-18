@@ -330,7 +330,7 @@ public static class TugKinematics
     /// <returns>The new pose: nose on the travel for a pull, on its reciprocal for a push.</returns>
     public static TugPose Advance(TugPose pose, TugMove move, double travelTrueDeg, double stepFt)
     {
-        var position = GeoMath.ProjectPoint(pose.Position, new TrueHeading(travelTrueDeg), stepFt / GeoMath.FeetPerNm);
+        LatLon position = GeoMath.ProjectPoint(pose.Position, new TrueHeading(travelTrueDeg), stepFt / GeoMath.FeetPerNm);
         return new TugPose(position, FlipForKind(travelTrueDeg, move.Kind));
     }
 
@@ -391,11 +391,11 @@ public static class TugKinematics
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stepFt);
         var traces = new List<TugMoveTrace>(moves.Count);
-        var pose = start;
+        TugPose pose = start;
         bool flyable = true;
-        foreach (var move in moves)
+        foreach (TugMove move in moves)
         {
-            var trace = flyable ? SimulateMove(pose, move, aircraftType, stepFt) : SkippedTrace(pose, move);
+            TugMoveTrace trace = flyable ? SimulateMove(pose, move, aircraftType, stepFt) : SkippedTrace(pose, move);
             traces.Add(trace);
             pose = trace.End;
             flyable = trace.Completed;
@@ -413,7 +413,7 @@ public static class TugKinematics
         double radiusFt = TurnRadiusFt(aircraftType, move.Tight);
         double budgetFt = TravelBudgetFt(start, move, radiusFt);
         var progress = TugMoveProgress.Begin(start, move);
-        var pose = start;
+        TugPose pose = start;
         var samples = new List<TugPose> { start };
         double sinceSampleFt = 0.0;
         bool completed = IsComplete(pose, move, progress);

@@ -65,7 +65,7 @@ public static class HttpFileCache
         CancellationToken cancellationToken = default
     )
     {
-        var dir = Path.GetDirectoryName(cachePath);
+        string? dir = Path.GetDirectoryName(cachePath);
         if (!string.IsNullOrEmpty(dir))
         {
             Directory.CreateDirectory(dir);
@@ -76,7 +76,7 @@ public static class HttpFileCache
             return new HttpCacheResult(await File.ReadAllTextAsync(cachePath, cancellationToken), NotFound: false);
         }
 
-        var notFound = false;
+        bool notFound = false;
         try
         {
             if (freshness == HttpCacheFreshness.HeadLastModified)
@@ -97,7 +97,7 @@ public static class HttpFileCache
             log.LogWarning(ex, "Timed out refreshing cached file from {Url}; using cached copy if present", url);
         }
 
-        var content = File.Exists(cachePath) ? await File.ReadAllTextAsync(cachePath, cancellationToken) : null;
+        string? content = File.Exists(cachePath) ? await File.ReadAllTextAsync(cachePath, cancellationToken) : null;
         return new HttpCacheResult(content, notFound);
     }
 
@@ -116,7 +116,7 @@ public static class HttpFileCache
         CancellationToken cancellationToken
     )
     {
-        using var resp = await http.GetAsync(url, cancellationToken);
+        using HttpResponseMessage resp = await http.GetAsync(url, cancellationToken);
         if (resp.StatusCode == HttpStatusCode.NotFound)
         {
             log.LogInformation("No resource available at {Url} (HTTP 404); leaving cache untouched", url);
@@ -124,7 +124,7 @@ public static class HttpFileCache
         }
 
         resp.EnsureSuccessStatusCode();
-        var body = await resp.Content.ReadAsStringAsync(cancellationToken);
+        string body = await resp.Content.ReadAsStringAsync(cancellationToken);
 
         if (File.Exists(cachePath) && string.Equals(await File.ReadAllTextAsync(cachePath, cancellationToken), body, StringComparison.Ordinal))
         {
@@ -152,23 +152,23 @@ public static class HttpFileCache
         if (File.Exists(cachePath))
         {
             using var headReq = new HttpRequestMessage(HttpMethod.Head, url);
-            using var headResp = await http.SendAsync(headReq, cancellationToken);
+            using HttpResponseMessage headResp = await http.SendAsync(headReq, cancellationToken);
             if (!headResp.IsSuccessStatusCode)
             {
                 log.LogWarning("HEAD {Url} returned {Status}; using cached copy", url, headResp.StatusCode);
                 return;
             }
 
-            var serverLastModified = headResp.Content.Headers.LastModified?.UtcDateTime;
+            DateTime? serverLastModified = headResp.Content.Headers.LastModified?.UtcDateTime;
             if ((serverLastModified is { } sm) && (sm <= File.GetLastWriteTimeUtc(cachePath)))
             {
                 return;
             }
         }
 
-        using var getResp = await http.GetAsync(url, cancellationToken);
+        using HttpResponseMessage getResp = await http.GetAsync(url, cancellationToken);
         getResp.EnsureSuccessStatusCode();
-        var body = await getResp.Content.ReadAsStringAsync(cancellationToken);
+        string body = await getResp.Content.ReadAsStringAsync(cancellationToken);
         await File.WriteAllTextAsync(cachePath, body, cancellationToken);
 
         if (getResp.Content.Headers.LastModified?.UtcDateTime is { } stamp)

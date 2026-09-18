@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Tests.Helpers;
@@ -31,8 +32,8 @@ public class Issue172Wja1521CurrentTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        var aircraft = SfoGroundHarness.SpawnParked(ground, "WJA1521", "B737", "B2");
-        var push = ground.Engine.SendCommand(aircraft.Callsign, "PUSH M4");
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "WJA1521", "B737", "B2");
+        CommandResult push = ground.Engine.SendCommand(aircraft.Callsign, "PUSH M4");
         output.WriteLine($"PUSH M4: success={push.Success} msg={push.Message}");
         Assert.True(push.Success, $"PUSH M4 off B2 was refused: {push.Message}");
 
@@ -45,14 +46,14 @@ public class Issue172Wja1521CurrentTaxiwayTests(ITestOutputHelper output)
         );
         Assert.True(doneSecond > 0, $"PUSH M4 never finished within {PushBudgetSeconds}s (phase={aircraft.Phases?.CurrentPhase?.Name ?? "null"})");
 
-        var nearest = ground.Layout.FindNearestNode(aircraft.Position.Lat, aircraft.Position.Lon);
+        GroundNode? nearest = ground.Layout.FindNearestNode(aircraft.Position.Lat, aircraft.Position.Lon);
         Assert.NotNull(nearest);
         output.WriteLine(
             $"push finished t={doneSecond}s; nearest node {nearest.Id}: {string.Join(", ", nearest.Edges.SelectMany(RampLaneReposition.EdgeNames))}"
         );
         Assert.Contains(nearest.Edges, e => e.MatchesTaxiway("M4"));
 
-        var taxi = ground.Engine.SendCommand(aircraft.Callsign, "TAXI M4 M2 $2");
+        CommandResult taxi = ground.Engine.SendCommand(aircraft.Callsign, "TAXI M4 M2 $2");
         output.WriteLine($"TAXI M4 M2 $2: success={taxi.Success} msg={taxi.Message}");
         Assert.True(taxi.Success, $"TAXI M4 M2 $2 should succeed from M4 but failed: {taxi.Message}");
     }

@@ -27,7 +27,7 @@ public class RandomizeWeightDistributionTests(ITestOutputHelper output)
         var rng = new Random(1);
         for (int i = 0; i < 2000; i++)
         {
-            var w = SimulationEngine.RandomWeightForEngine(EngineKind.Piston, baseWeight, rng);
+            WeightClass w = SimulationEngine.RandomWeightForEngine(EngineKind.Piston, baseWeight, rng);
             Assert.True(w is WeightClass.Small or WeightClass.Large, $"piston base {baseWeight} rolled {w}, which has no piston pool");
         }
     }
@@ -55,7 +55,7 @@ public class RandomizeWeightDistributionTests(ITestOutputHelper output)
         var rng = new Random(2);
         for (int i = 0; i < 2000; i++)
         {
-            var w = SimulationEngine.RandomWeightForEngine(EngineKind.Turboprop, baseWeight, rng);
+            WeightClass w = SimulationEngine.RandomWeightForEngine(EngineKind.Turboprop, baseWeight, rng);
             Assert.True(w is WeightClass.Small or WeightClass.SmallPlus, $"turboprop base {baseWeight} rolled {w}, which has no turboprop pool");
         }
     }
@@ -67,7 +67,7 @@ public class RandomizeWeightDistributionTests(ITestOutputHelper output)
         var counts = new Dictionary<WeightClass, int>();
         for (int i = 0; i < 4000; i++)
         {
-            var w = SimulationEngine.RandomWeightForEngine(EngineKind.Turboprop, WeightClass.SmallPlus, rng);
+            WeightClass w = SimulationEngine.RandomWeightForEngine(EngineKind.Turboprop, WeightClass.SmallPlus, rng);
             counts[w] = counts.GetValueOrDefault(w) + 1;
         }
         Assert.True(counts.GetValueOrDefault(WeightClass.Small) > 0, "no light turboprop produced");
@@ -87,7 +87,7 @@ public class RandomizeWeightDistributionTests(ITestOutputHelper output)
         var counts = new Dictionary<WeightClass, int>();
         for (int i = 0; i < 8000; i++)
         {
-            var w = SimulationEngine.RandomWeightForEngine(EngineKind.Jet, baseWeight, rng);
+            WeightClass w = SimulationEngine.RandomWeightForEngine(EngineKind.Jet, baseWeight, rng);
             counts[w] = counts.GetValueOrDefault(w) + 1;
             Assert.True(w is WeightClass.Small or WeightClass.SmallPlus, $"light jet base {baseWeight} rolled {w}");
         }
@@ -107,17 +107,17 @@ public class RandomizeWeightDistributionTests(ITestOutputHelper output)
         var counts = new Dictionary<WeightClass, int>();
         for (int i = 0; i < n; i++)
         {
-            var w = SimulationEngine.RandomWeightForEngine(EngineKind.Jet, WeightClass.Large, rng);
+            WeightClass w = SimulationEngine.RandomWeightForEngine(EngineKind.Jet, WeightClass.Large, rng);
             counts[w] = counts.GetValueOrDefault(w) + 1;
         }
-        foreach (var (w, c) in counts.OrderBy(kv => kv.Key))
+        foreach ((WeightClass w, int c) in counts.OrderBy(kv => kv.Key))
         {
             output.WriteLine($"{w}: {c / (double)n:P1}");
         }
 
         // A mainline generator never drops to the light-GA class and never exceeds the band.
         Assert.Equal(0, counts.GetValueOrDefault(WeightClass.Small));
-        foreach (var w in new[] { WeightClass.SmallPlus, WeightClass.Large, WeightClass.Heavy })
+        foreach (WeightClass w in new[] { WeightClass.SmallPlus, WeightClass.Large, WeightClass.Heavy })
         {
             Assert.True(counts.GetValueOrDefault(w) > 0, $"large-base jet never produced {w}");
         }
@@ -134,7 +134,7 @@ public class RandomizeWeightDistributionTests(ITestOutputHelper output)
         var counts = new Dictionary<WeightClass, int>();
         for (int i = 0; i < n; i++)
         {
-            var w = SimulationEngine.RandomWeightForEngine(EngineKind.Jet, WeightClass.Heavy, rng);
+            WeightClass w = SimulationEngine.RandomWeightForEngine(EngineKind.Jet, WeightClass.Heavy, rng);
             counts[w] = counts.GetValueOrDefault(w) + 1;
             Assert.True(w is WeightClass.Large or WeightClass.Heavy, $"heavy-base jet rolled {w}");
         }

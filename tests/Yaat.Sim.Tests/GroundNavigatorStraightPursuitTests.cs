@@ -76,13 +76,13 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
     {
         // Segment east from (37.0, -122.0) 1000 ft. Aircraft starts on the
         // segment 100 ft from the start, aligned with segment bearing.
-        var from = MakeNode(1, 37.0, -122.0);
+        GroundNode from = MakeNode(1, 37.0, -122.0);
         double segBearing = 90.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 1000.0 / GeoMath.FeetPerNm);
-        var to = MakeNode(2, endLat, endLon);
+        (double endLat, double endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 1000.0 / GeoMath.FeetPerNm);
+        GroundNode to = MakeNode(2, endLat, endLon);
 
-        var (startLat, startLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 100.0 / GeoMath.FeetPerNm);
-        var (aircraft, ctx) = MakeFixture(new LatLon(startLat, startLon), segBearing, startSpeedKts: 10);
+        (double startLat, double startLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 100.0 / GeoMath.FeetPerNm);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(new LatLon(startLat, startLon), segBearing, startSpeedKts: 10);
 
         var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
@@ -91,7 +91,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         for (int i = 0; i < 300; i++)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            var result = nav.Tick(ctx, isLastSegment: true, _ => true);
+            NavigatorResult result = nav.Tick(ctx, isLastSegment: true, _ => true);
             double crossFt =
                 Math.Abs(GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, from.Position, new TrueHeading(segBearing))) * GeoMath.FeetPerNm;
             maxCrossTrackFt = Math.Max(maxCrossTrackFt, crossFt);
@@ -115,14 +115,14 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         // aircraft first steers onto the segment line, then tracks it.
         // (With the old bearing-to-target logic, the aircraft cut diagonally
         // and arrived 35 ft off-line.)
-        var from = MakeNode(1, 37.0, -122.0);
+        GroundNode from = MakeNode(1, 37.0, -122.0);
         double segBearing = 90.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 500.0 / GeoMath.FeetPerNm);
-        var to = MakeNode(2, endLat, endLon);
+        (double endLat, double endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 500.0 / GeoMath.FeetPerNm);
+        GroundNode to = MakeNode(2, endLat, endLon);
 
         // Place aircraft 35 ft south (bearing 180° = due south).
-        var (acLat, acLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
-        var (aircraft, ctx) = MakeFixture(new LatLon(acLat, acLon), segBearing, startSpeedKts: 10);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(new LatLon(acLat, acLon), segBearing, startSpeedKts: 10);
 
         var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
@@ -132,7 +132,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         for (int i = 0; i < 400; i++)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            var result = nav.Tick(ctx, isLastSegment: true, _ => true);
+            NavigatorResult result = nav.Tick(ctx, isLastSegment: true, _ => true);
             if (result == NavigatorResult.ArrivedAtNode)
             {
                 double crossNm = GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, from.Position, new TrueHeading(segBearing));
@@ -156,13 +156,13 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         // speed, closing half the gap by ~5.25 s and fully converging (<5 ft) over the longer run. An
         // orbiting/diverging aircraft would oscillate and never close half. Window is 6 s (24 ticks at
         // 0.25 s) to allow the ponderous jet the ~1 s it needs to establish the crab.
-        var from = MakeNode(1, 37.0, -122.0);
+        GroundNode from = MakeNode(1, 37.0, -122.0);
         double segBearing = 90.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 500.0 / GeoMath.FeetPerNm);
-        var to = MakeNode(2, endLat, endLon);
+        (double endLat, double endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 500.0 / GeoMath.FeetPerNm);
+        GroundNode to = MakeNode(2, endLat, endLon);
 
-        var (acLat, acLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
-        var (aircraft, ctx) = MakeFixture(new LatLon(acLat, acLon), segBearing, startSpeedKts: 10);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(new LatLon(acLat, acLon), segBearing, startSpeedKts: 10);
 
         var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
@@ -194,12 +194,12 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         // Segment of 20 ft (shorter than 50 ft look-ahead cap). Pure pursuit
         // must clamp to the target and behave like the legacy bearing-to-
         // target steering.
-        var from = MakeNode(1, 37.0, -122.0);
+        GroundNode from = MakeNode(1, 37.0, -122.0);
         double segBearing = 90.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 20.0 / GeoMath.FeetPerNm);
-        var to = MakeNode(2, endLat, endLon);
+        (double endLat, double endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 20.0 / GeoMath.FeetPerNm);
+        GroundNode to = MakeNode(2, endLat, endLon);
 
-        var (aircraft, ctx) = MakeFixture(from.Position, segBearing, startSpeedKts: 5);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(from.Position, segBearing, startSpeedKts: 5);
 
         var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
@@ -230,13 +230,13 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         // heading 60° (cocked right of east). As the pure-pursuit re-acquires
         // the line, the aircraft's heading should asymptotically match the
         // segment bearing (90°) by segment end.
-        var from = MakeNode(1, 37.0, -122.0);
+        GroundNode from = MakeNode(1, 37.0, -122.0);
         double segBearing = 90.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 1000.0 / GeoMath.FeetPerNm);
-        var to = MakeNode(2, endLat, endLon);
+        (double endLat, double endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 1000.0 / GeoMath.FeetPerNm);
+        GroundNode to = MakeNode(2, endLat, endLon);
 
-        var (acLat, acLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
-        var (aircraft, ctx) = MakeFixture(new LatLon(acLat, acLon), 60.0, startSpeedKts: 10);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(new LatLon(acLat, acLon), 60.0, startSpeedKts: 10);
 
         var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
@@ -267,15 +267,15 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         // radius, pure pursuit turns a 4 ft offset into a ~20° steer command and the nose hunts across
         // the line (S2-OAK-2: SWA2600 leaving the OAK U/W corner). The re-acquisition must be a gentle,
         // one-sided slide back onto the line.
-        var from = MakeNode(1, 37.0, -122.0);
+        GroundNode from = MakeNode(1, 37.0, -122.0);
         double segBearing = 90.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 500.0 / GeoMath.FeetPerNm);
-        var to = MakeNode(2, endLat, endLon);
+        (double endLat, double endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 500.0 / GeoMath.FeetPerNm);
+        GroundNode to = MakeNode(2, endLat, endLon);
 
         // 40 ft along the segment, 4 ft south of it, aligned with it, at the establish-straight crawl.
-        var (onLineLat, onLineLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 40.0 / GeoMath.FeetPerNm);
-        var (acLat, acLon) = GeoMath.ProjectPoint(new LatLon(onLineLat, onLineLon), new TrueHeading(180.0), 4.0 / GeoMath.FeetPerNm);
-        var (aircraft, ctx) = MakeFixture(new LatLon(acLat, acLon), segBearing, startSpeedKts: 5);
+        (double onLineLat, double onLineLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 40.0 / GeoMath.FeetPerNm);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(new LatLon(onLineLat, onLineLon), new TrueHeading(180.0), 4.0 / GeoMath.FeetPerNm);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(new LatLon(acLat, acLon), segBearing, startSpeedKts: 5);
 
         var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
@@ -288,7 +288,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         for (int i = 0; i < 400; i++)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            var result = nav.Tick(ctx, isLastSegment: true, _ => true);
+            NavigatorResult result = nav.Tick(ctx, isLastSegment: true, _ => true);
 
             double signedCrossFt =
                 GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, from.Position, new TrueHeading(segBearing)) * GeoMath.FeetPerNm;

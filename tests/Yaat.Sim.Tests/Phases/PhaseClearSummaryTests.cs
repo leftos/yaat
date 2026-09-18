@@ -20,11 +20,11 @@ public class PhaseClearSummaryTests
     [Fact]
     public void InstrumentFinal_IsApproachNotPattern()
     {
-        var phases = InstrumentFinal();
+        PhaseList phases = InstrumentFinal();
         phases.Add(new FinalApproachPhase());
         phases.Add(new LandingPhase());
 
-        var summary = PhaseClearSummary.Build(phases);
+        string? summary = PhaseClearSummary.Build(phases);
 
         Assert.Equal("approach to RWY 30", summary);
     }
@@ -32,13 +32,13 @@ public class PhaseClearSummaryTests
     [Fact]
     public void PatternWithCircuitLeg_IsPattern()
     {
-        var phases = InstrumentFinal();
+        PhaseList phases = InstrumentFinal();
         phases.Add(new DownwindPhase());
         phases.Add(new BasePhase());
         phases.Add(new FinalApproachPhase());
         phases.Add(new LandingPhase());
 
-        var summary = PhaseClearSummary.Build(phases);
+        string? summary = PhaseClearSummary.Build(phases);
 
         Assert.Equal("pattern to RWY 30", summary);
     }
@@ -46,12 +46,12 @@ public class PhaseClearSummaryTests
     [Fact]
     public void FinalWithTrafficDirection_IsPattern()
     {
-        var phases = InstrumentFinal();
+        PhaseList phases = InstrumentFinal();
         phases.TrafficDirection = PatternDirection.Left;
         phases.Add(new FinalApproachPhase());
         phases.Add(new LandingPhase());
 
-        var summary = PhaseClearSummary.Build(phases);
+        string? summary = PhaseClearSummary.Build(phases);
 
         Assert.Equal("pattern to RWY 30", summary);
     }

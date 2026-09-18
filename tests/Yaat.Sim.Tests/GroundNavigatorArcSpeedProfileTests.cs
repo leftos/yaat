@@ -52,12 +52,12 @@ public class GroundNavigatorArcSpeedProfileTests(ITestOutputHelper output)
     private static (GroundArc Arc, GroundNode From, GroundNode To) DistortedArc()
     {
         var p0 = new LatLon(37.700, -122.200);
-        var (p1Lat, p1Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(90.0), 120.0 / GeoMath.FeetPerNm);
-        var (p3Lat, p3Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(80.0), 150.0 / GeoMath.FeetPerNm);
+        (double p1Lat, double p1Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(90.0), 120.0 / GeoMath.FeetPerNm);
+        (double p3Lat, double p3Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(80.0), 150.0 / GeoMath.FeetPerNm);
         var p3 = new LatLon(p3Lat, p3Lon);
-        var (p2Lat, p2Lon) = GeoMath.ProjectPoint(p3, new TrueHeading(200.0), 12.0 / GeoMath.FeetPerNm);
-        var from = Node(1, p0);
-        var to = Node(2, p3);
+        (double p2Lat, double p2Lon) = GeoMath.ProjectPoint(p3, new TrueHeading(200.0), 12.0 / GeoMath.FeetPerNm);
+        GroundNode from = Node(1, p0);
+        GroundNode to = Node(2, p3);
         var curve = new CubicBezier(p0.Lat, p0.Lon, p1Lat, p1Lon, p2Lat, p2Lon, p3.Lat, p3.Lon);
         var arc = new GroundArc
         {
@@ -79,7 +79,7 @@ public class GroundNavigatorArcSpeedProfileTests(ITestOutputHelper output)
     [Fact]
     public void DistortedArc_RunsTheGentleSweepAtSpeed_AndSlowsForTheTightEnd()
     {
-        var (arc, from, to) = DistortedArc();
+        (GroundArc? arc, GroundNode? from, GroundNode? to) = DistortedArc();
         var segment = new TaxiRouteSegment
         {
             Edge = new DirectionalEdge
@@ -91,8 +91,8 @@ public class GroundNavigatorArcSpeedProfileTests(ITestOutputHelper output)
             TaxiwayName = "B",
         };
         // A straight continues past the arc so its end is a corner, not a route stop (a stop brakes to zero).
-        var (exitLat, exitLon) = GeoMath.ProjectPoint(to.Position, new TrueHeading(segment.Edge.ArrivalBearing), 200.0 / GeoMath.FeetPerNm);
-        var exit = Node(3, new LatLon(exitLat, exitLon));
+        (double exitLat, double exitLon) = GeoMath.ProjectPoint(to.Position, new TrueHeading(segment.Edge.ArrivalBearing), 200.0 / GeoMath.FeetPerNm);
+        GroundNode exit = Node(3, new LatLon(exitLat, exitLon));
         var exitEdge = new GroundEdge
         {
             Nodes = [to, exit],
@@ -113,7 +113,7 @@ public class GroundNavigatorArcSpeedProfileTests(ITestOutputHelper output)
         };
         var route = new TaxiRoute { Segments = [segment, exitSegment], HoldShortPoints = [] };
         double entryBearing = segment.Edge.DepartureBearing;
-        var (aircraft, ctx) = MakeFixture(from.Position, entryBearing, speedKts: 10.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(from.Position, entryBearing, speedKts: 10.0);
 
         var nav = new GroundNavigator { MaxSpeedKts = 30.0 };
         nav.SetupSegment(route, ctx, _ => true);
@@ -126,7 +126,7 @@ public class GroundNavigatorArcSpeedProfileTests(ITestOutputHelper output)
         for (; ticks < 2000; ticks++)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            var result = nav.Tick(ctx, isLastSegment: false, _ => true);
+            NavigatorResult result = nav.Tick(ctx, isLastSegment: false, _ => true);
             double traveledFt = GeoMath.DistanceNm(from.Position, aircraft.Position) * GeoMath.FeetPerNm;
             if (traveledFt < lengthFt * 0.5)
             {

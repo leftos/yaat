@@ -53,15 +53,15 @@ public class CompressionRoundTripTests
         var options = new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
         // Serialize → compress
-        var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(recording, options);
-        var compressed = RecordingCompression.Compress(jsonBytes);
+        byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(recording, options);
+        byte[] compressed = RecordingCompression.Compress(jsonBytes);
 
         // Verify compressed is smaller
         Assert.True(compressed.Length < jsonBytes.Length);
 
         // Decompress → deserialize
-        var decompressedJson = RecordingCompression.Decompress(compressed);
-        var deserialized = JsonSerializer.Deserialize<SessionRecording>(
+        string decompressedJson = RecordingCompression.Decompress(compressed);
+        SessionRecording? deserialized = JsonSerializer.Deserialize<SessionRecording>(
             decompressedJson,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
         );
@@ -78,18 +78,18 @@ public class CompressionRoundTripTests
     [Fact]
     public void PlainJson_DecompressesTransparently()
     {
-        var json = "{\"Version\": 1, \"ScenarioJson\": \"{}\", \"RngSeed\": 42, \"Actions\": [], \"TotalElapsedSeconds\": 0}";
-        var bytes = Encoding.UTF8.GetBytes(json);
+        string json = "{\"Version\": 1, \"ScenarioJson\": \"{}\", \"RngSeed\": 42, \"Actions\": [], \"TotalElapsedSeconds\": 0}";
+        byte[] bytes = Encoding.UTF8.GetBytes(json);
 
-        var result = RecordingCompression.Decompress(bytes);
+        string result = RecordingCompression.Decompress(bytes);
         Assert.Equal(json, result);
     }
 
     [Fact]
     public void GzipLegacy_DecompressesTransparently()
     {
-        var json = "{\"test\": true}";
-        var jsonBytes = Encoding.UTF8.GetBytes(json);
+        string json = "{\"test\": true}";
+        byte[] jsonBytes = Encoding.UTF8.GetBytes(json);
 
         // Compress with gzip
         byte[] gzipBytes;
@@ -103,7 +103,7 @@ public class CompressionRoundTripTests
         }
 
         // RecordingCompression should detect and decompress gzip
-        var result = RecordingCompression.Decompress(gzipBytes);
+        string result = RecordingCompression.Decompress(gzipBytes);
         Assert.Equal(json, result);
     }
 }

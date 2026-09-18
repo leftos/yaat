@@ -19,7 +19,7 @@ public class CallsignParserTests
     [InlineData("alaska 42 cleared for takeoff", "ASA42", 2)]
     public void TryParseLeading_AirlineCallsign(string transcript, string expectedCallsign, int expectedConsumed)
     {
-        var result = CallsignParser.TryParseLeading(transcript, NoActiveCallsigns);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading(transcript, NoActiveCallsigns);
         Assert.NotNull(result);
         Assert.Equal(expectedCallsign, result!.IcaoCallsign);
         Assert.Equal(expectedConsumed, result.TokensConsumed);
@@ -30,7 +30,7 @@ public class CallsignParserTests
     [InlineData("all nippon 100 contact departure", "ANA100", 3)]
     public void TryParseLeading_MultiWordTelephony(string transcript, string expectedCallsign, int expectedConsumed)
     {
-        var result = CallsignParser.TryParseLeading(transcript, NoActiveCallsigns);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading(transcript, NoActiveCallsigns);
         Assert.NotNull(result);
         Assert.Equal(expectedCallsign, result!.IcaoCallsign);
         Assert.Equal(expectedConsumed, result.TokensConsumed);
@@ -41,7 +41,7 @@ public class CallsignParserTests
     [InlineData("november 42 contact ground", "N42", 2)]
     public void TryParseLeading_GeneralAviation(string transcript, string expectedCallsign, int expectedConsumed)
     {
-        var result = CallsignParser.TryParseLeading(transcript, NoActiveCallsigns);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading(transcript, NoActiveCallsigns);
         Assert.NotNull(result);
         Assert.Equal(expectedCallsign, result!.IcaoCallsign);
         Assert.Equal(expectedConsumed, result.TokensConsumed);
@@ -58,7 +58,10 @@ public class CallsignParserTests
     [Fact]
     public void TryParseLeading_TruncatedGaSuffix_SnapsToUniqueActiveExtension()
     {
-        var result = CallsignParser.TryParseLeading("november 9225 lien reduce speed to 230", ["N9225L", "UAL234", "N346G"]);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading(
+            "november 9225 lien reduce speed to 230",
+            ["N9225L", "UAL234", "N346G"]
+        );
         Assert.NotNull(result);
         Assert.Equal("N9225L", result!.IcaoCallsign);
         Assert.Equal(2, result.TokensConsumed);
@@ -67,7 +70,7 @@ public class CallsignParserTests
     [Fact]
     public void TryParseLeading_TruncatedGaSuffix_TwoLetterExtension()
     {
-        var result = CallsignParser.TryParseLeading("november 514 turn left heading 270", ["N514RM", "UAL234"]);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading("november 514 turn left heading 270", ["N514RM", "UAL234"]);
         Assert.NotNull(result);
         Assert.Equal("N514RM", result!.IcaoCallsign);
         Assert.Equal(2, result.TokensConsumed);
@@ -77,7 +80,7 @@ public class CallsignParserTests
     public void TryParseLeading_AmbiguousActiveExtensions_KeepsParsedBase()
     {
         // Two active callsigns extend N9225 — snapping would be a guess; keep what was heard.
-        var result = CallsignParser.TryParseLeading("november 9225 reduce speed to 230", ["N9225L", "N9225R"]);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading("november 9225 reduce speed to 230", ["N9225L", "N9225R"]);
         Assert.NotNull(result);
         Assert.Equal("N9225", result!.IcaoCallsign);
     }
@@ -86,7 +89,7 @@ public class CallsignParserTests
     public void TryParseLeading_ExactActiveBase_NotSnappedToLongerActive()
     {
         // The parsed base IS an active callsign — never snap away from an exact match.
-        var result = CallsignParser.TryParseLeading("november 9225 reduce speed to 230", ["N9225", "N9225L"]);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading("november 9225 reduce speed to 230", ["N9225", "N9225L"]);
         Assert.NotNull(result);
         Assert.Equal("N9225", result!.IcaoCallsign);
     }
@@ -95,7 +98,7 @@ public class CallsignParserTests
     public void TryParseLeading_DigitExtension_NotSnapped()
     {
         // A digit extension means the STT dropped part of the number itself — too risky to guess.
-        var result = CallsignParser.TryParseLeading("november 9225 reduce speed to 230", ["N92251"]);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading("november 9225 reduce speed to 230", ["N92251"]);
         Assert.NotNull(result);
         Assert.Equal("N9225", result!.IcaoCallsign);
     }
@@ -110,7 +113,7 @@ public class CallsignParserTests
     [InlineData("N42 contact ground", "N42", 1)]
     public void TryParseLeading_UsGa_HybridAndBareIcaoForms(string transcript, string expectedCallsign, int expectedConsumed)
     {
-        var result = CallsignParser.TryParseLeading(transcript, NoActiveCallsigns);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading(transcript, NoActiveCallsigns);
         Assert.NotNull(result);
         Assert.Equal(expectedCallsign, result!.IcaoCallsign);
         Assert.Equal(expectedConsumed, result.TokensConsumed);
@@ -126,7 +129,7 @@ public class CallsignParserTests
     [InlineData("november 9 225 lima climb and maintain 2000", "N9225L", 4)]
     public void TryParseLeading_UsGa_DigitsPlusTrailingNatoLetters(string transcript, string expectedCallsign, int expectedConsumed)
     {
-        var result = CallsignParser.TryParseLeading(transcript, NoActiveCallsigns);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading(transcript, NoActiveCallsigns);
         Assert.NotNull(result);
         Assert.Equal(expectedCallsign, result!.IcaoCallsign);
         Assert.Equal(expectedConsumed, result.TokensConsumed);
@@ -138,7 +141,7 @@ public class CallsignParserTests
         // Bare "SWA123" is only accepted when it's in the active-callsigns list, to avoid false
         // positives from random 3-letter+digits tokens.
         string[] active = ["SWA123"];
-        var result = CallsignParser.TryParseLeading("SWA123 fly heading 270", active);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading("SWA123 fly heading 270", active);
         Assert.NotNull(result);
         Assert.Equal("SWA123", result!.IcaoCallsign);
         Assert.Equal(1, result.TokensConsumed);
@@ -148,7 +151,7 @@ public class CallsignParserTests
     public void TryParseLeading_BareAirlineIcao_NotInActive_ReturnsNull()
     {
         // SWA999 is not active — the parser must decline to avoid matching random 3+digit tokens.
-        var result = CallsignParser.TryParseLeading("SWA999 fly heading 270", NoActiveCallsigns);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading("SWA999 fly heading 270", NoActiveCallsigns);
         Assert.Null(result);
     }
 
@@ -170,7 +173,7 @@ public class CallsignParserTests
         // VIRGIN is shared between VIR and VOZ. If VOZ123 is an active callsign, the parser
         // should pick VOZ over VIR even though VIR is lexically-smaller.
         string[] active = ["VOZ123"];
-        var result = CallsignParser.TryParseLeading("virgin 123 descend", active);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading("virgin 123 descend", active);
         Assert.NotNull(result);
         Assert.Equal("VOZ123", result!.IcaoCallsign);
     }
@@ -178,7 +181,7 @@ public class CallsignParserTests
     [Fact]
     public void TryParseLeading_SharedCallsign_NoActiveMatch_PicksFirst()
     {
-        var result = CallsignParser.TryParseLeading("virgin 999 descend", NoActiveCallsigns);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseLeading("virgin 999 descend", NoActiveCallsigns);
         Assert.NotNull(result);
         // Just confirm *some* VIRGIN ICAO wins; order depends on TSV row order.
         Assert.EndsWith("999", result!.IcaoCallsign);
@@ -190,7 +193,7 @@ public class CallsignParserTests
     [Fact]
     public void TryParseTrailing_CallsignAtEnd()
     {
-        var result = CallsignParser.TryParseTrailing("climb and maintain 5000 southwest 123", NoActiveCallsigns);
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseTrailing("climb and maintain 5000 southwest 123", NoActiveCallsigns);
         Assert.NotNull(result);
         Assert.Equal("SWA123", result!.IcaoCallsign);
     }
@@ -247,7 +250,7 @@ public class CallsignParserTests
     {
         // QZX is confirmed absent from the OpenFlights dataset. Unknown airlines fall back
         // to NATO phonetic for the letters, which is what ATC actually uses on the radio.
-        var result = CallsignParser.IcaoToSpoken("QZX123");
+        string result = CallsignParser.IcaoToSpoken("QZX123");
         Assert.Equal("quebec zulu xray one two three", result);
     }
 
@@ -263,7 +266,7 @@ public class CallsignParserTests
     [Fact]
     public void GetSpokenVariants_Airline_IncludesPairedAndDigitByDigit()
     {
-        var variants = CallsignParser.GetSpokenVariants("SWA123", aircraftType: null, NoActiveCallsigns);
+        IReadOnlyList<string> variants = CallsignParser.GetSpokenVariants("SWA123", aircraftType: null, NoActiveCallsigns);
         Assert.Contains("southwest one twenty three", variants);
         Assert.Contains("southwest one two three", variants);
     }
@@ -272,7 +275,7 @@ public class CallsignParserTests
     public void GetSpokenVariants_Airline_IgnoresAircraftType()
     {
         // Aircraft type is irrelevant for airline flights — pilots always use the telephony.
-        var variants = CallsignParser.GetSpokenVariants("SWA123", "B738", NoActiveCallsigns);
+        IReadOnlyList<string> variants = CallsignParser.GetSpokenVariants("SWA123", "B738", NoActiveCallsigns);
         Assert.DoesNotContain(variants, v => v.Contains("boeing"));
         Assert.Contains("southwest one twenty three", variants);
     }
@@ -282,7 +285,7 @@ public class CallsignParserTests
     [Fact]
     public void GetSpokenVariants_UsGa_IncludesFullAndTypeBasedForms()
     {
-        var variants = CallsignParser.GetSpokenVariants("N12345", "C172", NoActiveCallsigns);
+        IReadOnlyList<string> variants = CallsignParser.GetSpokenVariants("N12345", "C172", NoActiveCallsigns);
         Assert.Contains("november one two three four five", variants);
         // C172 manufacturer is cessna, family is skyhawk — both should appear
         Assert.Contains(variants, v => v.StartsWith("cessna "));
@@ -292,7 +295,7 @@ public class CallsignParserTests
     [Fact]
     public void GetSpokenVariants_UsGa_IncludesShortenedWhenUnambiguous()
     {
-        var variants = CallsignParser.GetSpokenVariants("N12345", "C172", NoActiveCallsigns);
+        IReadOnlyList<string> variants = CallsignParser.GetSpokenVariants("N12345", "C172", NoActiveCallsigns);
         // Shortened last-3 form ("three four five")
         Assert.Contains("november three four five", variants);
         Assert.Contains("skyhawk three four five", variants);
@@ -304,7 +307,7 @@ public class CallsignParserTests
         // Another active GA callsign ends with the same last 3 → shortened form unsafe.
         // Full forms (for both november and every type-based prefix) stay; only shortened is blocked.
         string[] active = ["N67345"];
-        var variants = CallsignParser.GetSpokenVariants("N12345", "C172", active);
+        IReadOnlyList<string> variants = CallsignParser.GetSpokenVariants("N12345", "C172", active);
         Assert.Contains("november one two three four five", variants);
         Assert.Contains("cessna one two three four five", variants);
         Assert.Contains("skyhawk one two three four five", variants);
@@ -316,7 +319,7 @@ public class CallsignParserTests
     [Fact]
     public void GetSpokenVariants_UsGa_NoTypeInfo_OmitsTypeForms()
     {
-        var variants = CallsignParser.GetSpokenVariants("N12345", aircraftType: null, NoActiveCallsigns);
+        IReadOnlyList<string> variants = CallsignParser.GetSpokenVariants("N12345", aircraftType: null, NoActiveCallsigns);
         Assert.Contains("november one two three four five", variants);
         Assert.Contains("november three four five", variants);
         Assert.DoesNotContain(variants, v => v.StartsWith("cessna "));
@@ -326,7 +329,7 @@ public class CallsignParserTests
     public void GetSpokenVariants_UsGa_ShortTailOmitsShortenedForm()
     {
         // N42 has only 2 tail chars, shortened form wouldn't be shorter than full — skip it.
-        var variants = CallsignParser.GetSpokenVariants("N42", aircraftType: null, NoActiveCallsigns);
+        IReadOnlyList<string> variants = CallsignParser.GetSpokenVariants("N42", aircraftType: null, NoActiveCallsigns);
         Assert.Contains("november four two", variants);
         Assert.Single(variants); // no shortened form
     }
@@ -335,7 +338,7 @@ public class CallsignParserTests
     public void GetSpokenVariants_UsGa_WithLetters_UsesNatoPhoneticShortened()
     {
         // N123BS → last 3 is "3BS" → "three bravo sierra"
-        var variants = CallsignParser.GetSpokenVariants("N123BS", aircraftType: null, NoActiveCallsigns);
+        IReadOnlyList<string> variants = CallsignParser.GetSpokenVariants("N123BS", aircraftType: null, NoActiveCallsigns);
         Assert.Contains("november one two three bravo sierra", variants);
         Assert.Contains("november three bravo sierra", variants);
     }
@@ -345,7 +348,7 @@ public class CallsignParserTests
     [Fact]
     public void GetSpokenVariants_ForeignGa_SingleNatoForm()
     {
-        var variants = CallsignParser.GetSpokenVariants("CPZXA", aircraftType: null, NoActiveCallsigns);
+        IReadOnlyList<string> variants = CallsignParser.GetSpokenVariants("CPZXA", aircraftType: null, NoActiveCallsigns);
         Assert.Single(variants);
         Assert.Equal("charlie papa zulu xray alpha", variants[0]);
     }

@@ -44,8 +44,8 @@ public class OakSimplePushThenTaxiApproachReplayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiAfterSimplePush_NeverTeleports()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -53,20 +53,20 @@ public class OakSimplePushThenTaxiApproachReplayTests(ITestOutputHelper output)
 
         engine.Replay(recording, TaxiSecond);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         if (route is not null && route.Segments.Count > 0)
         {
-            var first = route.Segments[0];
+            TaxiRouteSegment first = route.Segments[0];
             output.WriteLine(
                 $"route at t={TaxiSecond}: {route.ToSummary()} ({route.Segments.Count} segments); "
                     + $"seg[0] {first.FromNodeId} -> {first.ToNodeId} on {first.TaxiwayName}"
             );
         }
 
-        var prevPos = aircraft.Position;
+        LatLon prevPos = aircraft.Position;
         double prevIas = aircraft.IndicatedAirspeed;
         double worstExcessFt = double.NegativeInfinity;
         double worstStepFt = 0;

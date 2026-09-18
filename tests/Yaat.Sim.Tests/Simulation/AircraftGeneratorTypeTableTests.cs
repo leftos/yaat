@@ -54,7 +54,7 @@ public class AircraftGeneratorTypeTableTests
     [InlineData(WeightClass.Small, EngineKind.Helicopter)]
     public void EveryBucketHasAtLeastTwoTypes(WeightClass weight, EngineKind engine)
     {
-        var pool = AircraftGenerator.GetTypesForCombo(weight, engine);
+        string[]? pool = AircraftGenerator.GetTypesForCombo(weight, engine);
         Assert.NotNull(pool);
         Assert.True(pool!.Length >= 2, $"{weight}+{engine} has only {pool.Length} types — random pick won't feel varied");
     }
@@ -74,12 +74,12 @@ public class AircraftGeneratorTypeTableTests
         }
 
         var rng = new Random(12345);
-        foreach (var weight in Enum.GetValues<WeightClass>())
+        foreach (WeightClass weight in Enum.GetValues<WeightClass>())
         {
-            foreach (var engine in Enum.GetValues<EngineKind>())
+            foreach (EngineKind engine in Enum.GetValues<EngineKind>())
             {
-                var request = BuildBearingRequest(weight, engine);
-                var (state, error) = AircraftGenerator.Generate(
+                SpawnRequest request = BuildBearingRequest(weight, engine);
+                (AircraftState? state, string? error) = AircraftGenerator.Generate(
                     request,
                     primaryAirportId: "KOAK",
                     existingAircraft: Array.Empty<AircraftState>(),
@@ -104,12 +104,12 @@ public class AircraftGeneratorTypeTableTests
         }
 
         var rng = new Random(42);
-        var request = BuildBearingRequest(WeightClass.Heavy, requestedEngine);
+        SpawnRequest request = BuildBearingRequest(WeightClass.Heavy, requestedEngine);
 
         // Repeat several times so any randomness in bucket-pool pick is exercised.
-        for (var i = 0; i < 20; i++)
+        for (int i = 0; i < 20; i++)
         {
-            var (state, error) = AircraftGenerator.Generate(
+            (AircraftState? state, string? error) = AircraftGenerator.Generate(
                 request,
                 primaryAirportId: "KOAK",
                 existingAircraft: Array.Empty<AircraftState>(),
@@ -118,7 +118,7 @@ public class AircraftGeneratorTypeTableTests
                 beaconPool: new BeaconCodePool()
             );
             Assert.True(state is not null, $"spawn failed: {error}");
-            var category = AircraftCategorization.Categorize(state!.AircraftType);
+            AircraftCategory category = AircraftCategorization.Categorize(state!.AircraftType);
             Assert.Equal(expectedCategory, category);
         }
     }
@@ -128,20 +128,22 @@ public class AircraftGeneratorTypeTableTests
     {
         // Heavy+Piston: today's bucket is empty. The chain must visit other piston
         // buckets (Large+Piston, Small+Piston) before any non-piston bucket.
-        var chain = AircraftGenerator.EnumerateBucketFallbackChain(WeightClass.Heavy, EngineKind.Piston).ToArray();
+        (WeightClass Weight, EngineKind Engine)[] chain = AircraftGenerator
+            .EnumerateBucketFallbackChain(WeightClass.Heavy, EngineKind.Piston)
+            .ToArray();
 
         Assert.Equal((WeightClass.Heavy, EngineKind.Piston), chain[0]);
 
-        var firstNonExact = chain.Skip(1).First();
+        (WeightClass Weight, EngineKind Engine) firstNonExact = chain.Skip(1).First();
         Assert.Equal(EngineKind.Piston, firstNonExact.Engine);
 
         // The first non-piston bucket must appear AFTER every piston bucket.
-        var firstNonPistonIndex = Array.FindIndex(chain, c => c.Engine != EngineKind.Piston);
-        var lastPistonIndex = Array.FindLastIndex(chain, c => c.Engine == EngineKind.Piston);
+        int firstNonPistonIndex = Array.FindIndex(chain, c => c.Engine != EngineKind.Piston);
+        int lastPistonIndex = Array.FindLastIndex(chain, c => c.Engine == EngineKind.Piston);
         Assert.True(lastPistonIndex < firstNonPistonIndex, "engine priority violated: non-piston appears before all piston buckets exhausted");
 
         // The chain must cover every (weight, engine) combination exactly once.
-        var distinct = chain.Distinct().ToArray();
+        (WeightClass Weight, EngineKind Engine)[] distinct = chain.Distinct().ToArray();
         Assert.Equal(chain.Length, distinct.Length);
         Assert.Equal(Enum.GetValues<WeightClass>().Length * Enum.GetValues<EngineKind>().Length, chain.Length);
     }

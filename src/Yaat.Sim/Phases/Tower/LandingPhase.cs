@@ -162,7 +162,7 @@ public sealed class LandingPhase : Phase
         // Geometry survives even in the window where a pre-constants snapshot has been restored but not yet
         // ticked: writing zeros there would make the next restore hand OnTick a null plan, which the phase
         // runner reads as a completed landing and follows with a runway exit the aircraft never flew.
-        var geometry = _plan is { } plan
+        LandingGeometry? geometry = _plan is { } plan
             ? new LandingGeometry(plan.FieldElevation, plan.RunwayHeading, plan.ThresholdLat, plan.ThresholdLon)
             : _restoredGeometry;
         return new LandingPhaseDto
@@ -253,8 +253,8 @@ public sealed class LandingPhase : Phase
             && dto.CandidateExitHoldShortId.HasValue
             && dto.CandidateExitBranchPointId.HasValue
             && dto.CandidateExitTaxiway is not null
-            && groundLayout.Nodes.TryGetValue(dto.CandidateExitHoldShortId.Value, out var holdShortNode)
-            && groundLayout.Nodes.TryGetValue(dto.CandidateExitBranchPointId.Value, out var branchPointNode)
+            && groundLayout.Nodes.TryGetValue(dto.CandidateExitHoldShortId.Value, out GroundNode? holdShortNode)
+            && groundLayout.Nodes.TryGetValue(dto.CandidateExitBranchPointId.Value, out GroundNode? branchPointNode)
         )
         {
             List<GroundNode> path = [];
@@ -262,7 +262,7 @@ public sealed class LandingPhase : Phase
             {
                 foreach (int nodeId in dto.CandidateExitPathNodeIds)
                 {
-                    if (groundLayout.Nodes.TryGetValue(nodeId, out var pathNode))
+                    if (groundLayout.Nodes.TryGetValue(nodeId, out GroundNode? pathNode))
                     {
                         path.Add(pathNode);
                     }
@@ -390,11 +390,11 @@ public sealed class LandingPhase : Phase
 
     private static LandingPlan BuildPlan(PhaseContext ctx)
     {
-        var rwy = ctx.Runway;
+        RunwayInfo? rwy = ctx.Runway;
         // The plan's threshold is the flare/touchdown/LAHSO datum, so it is the *landing* threshold:
         // pavement behind a displaced threshold is not available for landing in this direction
         // (AIM 2-3-3.b.8.2). Falls back to the pavement end when no airport map is loaded.
-        var threshold = rwy is not null ? LandingThreshold.Resolve(rwy, ctx.GroundLayout) : ctx.Aircraft.Position;
+        LatLon threshold = rwy is not null ? LandingThreshold.Resolve(rwy, ctx.GroundLayout) : ctx.Aircraft.Position;
         var geometry = new LandingGeometry(
             FieldElevation: ctx.FieldElevation,
             RunwayHeading: rwy?.TrueHeading ?? ctx.Aircraft.TrueHeading,
@@ -722,7 +722,7 @@ public sealed class LandingPhase : Phase
         ctx.Targets.TurnRateOverride = CategoryPerformance.GroundTurnRate(ctx.Category);
 
         // Re-resolve candidate from scratch if the controller changed the preference mid-rollout
-        var currentPref = ctx.Aircraft.Phases?.RequestedExit;
+        ExitPreference? currentPref = ctx.Aircraft.Phases?.RequestedExit;
         if (currentPref != _originalPreference)
         {
             _originalPreference = currentPref;
@@ -860,7 +860,7 @@ public sealed class LandingPhase : Phase
         ctx.Targets.TargetSpeed = targetSpeed;
         ctx.Targets.DesiredDecelRate = decelRateOverride;
 
-        var cat = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
         _canGoAround = ctx.Aircraft.IndicatedAirspeed >= CategoryPerformance.RejectedLandingMinSpeed(cat);
 
         // Handoff gate — aircraft must be at or below coast speed. For standard
@@ -942,7 +942,7 @@ public sealed class LandingPhase : Phase
         // runs AFTER TickUnable in the state machine, so if we don't check here
         // we risk clobbering the user's command with `Phases.RequestedExit = null`
         // before TickRollout ever sees it.
-        var userPref = ctx.Aircraft.Phases?.RequestedExit;
+        ExitPreference? userPref = ctx.Aircraft.Phases?.RequestedExit;
         if (userPref != _originalPreference)
         {
             _originalPreference = userPref;
@@ -956,7 +956,7 @@ public sealed class LandingPhase : Phase
             // `Phases.RequestedExit` — that's the user's intent and should remain
             // visible for diagnostics; relaxation is a LandingPhase-internal
             // concern tracked in `_activePreference`.
-            var keepSide = _originalPreference?.Side;
+            ExitSide? keepSide = _originalPreference?.Side;
             _activePreference = keepSide is not null ? new ExitPreference { Side = keepSide } : null;
             _originalPreference = _activePreference;
             _exitResolutionEnabled = false;
@@ -1102,7 +1102,7 @@ public sealed class LandingPhase : Phase
         string? rwyDesignator = ctx.Aircraft.Phases?.AssignedRunway?.Designator;
         if (rwyDesignator is not null)
         {
-            var searchPref = _activePreference;
+            ExitPreference? searchPref = _activePreference;
 
             // Try inferred side first for taxiway-only preferences
             if ((_activePreference is { Taxiway: not null, Side: null }) && (_inferredSide is not null))
@@ -1132,7 +1132,7 @@ public sealed class LandingPhase : Phase
             // and brake decisively for it.
             double comfortLimit = BrakingLimit(ctx, plan);
 
-            var found = TryFindCandidate(ctx, plan, rwyDesignator, searchPref, sidePref, excludeHoldShortNodes, comfortLimit);
+            ResolvedExitInfo? found = TryFindCandidate(ctx, plan, rwyDesignator, searchPref, sidePref, excludeHoldShortNodes, comfortLimit);
 
             // Fall back to taxiway-only if inferred-side found nothing
             if ((found is null) && (searchPref != _activePreference))
@@ -1154,7 +1154,7 @@ public sealed class LandingPhase : Phase
         }
 
         // Fallback: straight-line search (airports without hold-short data)
-        var result = ctx.GroundLayout.FindExitAheadOnRunway(
+        (GroundNode Node, string Taxiway)? result = ctx.GroundLayout.FindExitAheadOnRunway(
             ctx.Aircraft.Position.Lat,
             ctx.Aircraft.Position.Lon,
             plan.RunwayHeading,
@@ -1200,7 +1200,7 @@ public sealed class LandingPhase : Phase
             return null;
         }
 
-        var found = ctx.GroundLayout.FindOnSidePreferredExit(
+        AirportGroundLayout.CenterlineExitResult? found = ctx.GroundLayout.FindOnSidePreferredExit(
             ctx.Aircraft.Position.Lat,
             ctx.Aircraft.Position.Lon,
             plan.RunwayHeading,
@@ -1212,7 +1212,7 @@ public sealed class LandingPhase : Phase
             filter: candidate =>
             {
                 double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, candidate.ExitAngle);
-                var branchNode = candidate.Path[0];
+                GroundNode branchNode = candidate.Path[0];
                 double distToBranch = GeoMath.AlongTrackDistanceNm(branchNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
 
                 // Branch is at or behind the aircraft — try the next centerline.
@@ -1251,7 +1251,7 @@ public sealed class LandingPhase : Phase
             return null;
         }
 
-        var branch = found.Value.Path[0];
+        GroundNode branch = found.Value.Path[0];
         double turnOff = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, found.Value.ExitAngle);
         return new ResolvedExitInfo
         {

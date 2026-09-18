@@ -17,6 +17,8 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.LiveTraffic;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Speech;
 
 namespace Yaat.Client.ViewModels;
@@ -299,7 +301,7 @@ public partial class MainViewModel : ObservableObject
             return "LIVE · disconnected";
         }
 
-        var tracks = status.TracksInScope == 1 ? "1 track" : $"{status.TracksInScope} tracks";
+        string tracks = status.TracksInScope == 1 ? "1 track" : $"{status.TracksInScope} tracks";
         return status.LastMessageAgeSeconds is { } age ? $"LIVE · {tracks} · {Math.Round(age)} s" : $"LIVE · {tracks}";
     }
 
@@ -313,7 +315,9 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>Human form of the filter for the session-settings flyout.</summary>
     public string SessionLiveTrafficFilterSummary =>
-        Yaat.Sim.LiveTraffic.LiveTrafficFilter.TryParse(SessionLiveTrafficFilter, out var filter, out _) ? filter.Describe() : "invalid";
+        Yaat.Sim.LiveTraffic.LiveTrafficFilter.TryParse(SessionLiveTrafficFilter, out LiveTrafficFilter? filter, out _)
+            ? filter.Describe()
+            : "invalid";
 
     [ObservableProperty]
     private bool _sessionValidateDctFixes = true;
@@ -670,7 +674,7 @@ public partial class MainViewModel : ObservableObject
         {
             return;
         }
-        var next = FindNextVisibleTabIndex(SelectedTabIndex);
+        int next = FindNextVisibleTabIndex(SelectedTabIndex);
         if (next >= 0)
         {
             SelectedTabIndex = next;
@@ -691,14 +695,14 @@ public partial class MainViewModel : ObservableObject
             {
                 return true;
             }
-            foreach (var entry in StripsEntries)
+            foreach (VStripsDockEntryViewModel entry in StripsEntries)
             {
                 if (!entry.IsPoppedOut)
                 {
                     return true;
                 }
             }
-            foreach (var entry in TdlsEntries)
+            foreach (VTdlsDockEntryViewModel entry in TdlsEntries)
             {
                 if (!entry.IsPoppedOut)
                 {
@@ -733,14 +737,14 @@ public partial class MainViewModel : ObservableObject
         // the next still-docked one. Returns -1 only when every tab is
         // popped out — caller then leaves SelectedTabIndex alone since the
         // TabControl is hidden anyway.
-        var total = 5 + StripsEntries.Count + TdlsEntries.Count;
+        int total = 5 + StripsEntries.Count + TdlsEntries.Count;
         if (total <= 0)
         {
             return -1;
         }
-        for (var offset = 1; offset <= total; offset++)
+        for (int offset = 1; offset <= total; offset++)
         {
-            var candidate = (currentIndex + offset) % total;
+            int candidate = (currentIndex + offset) % total;
             if (IsTabVisible(candidate))
             {
                 return candidate;
@@ -764,12 +768,12 @@ public partial class MainViewModel : ObservableObject
             case 4:
                 return !IsMetarPoppedOut;
         }
-        var stripsBase = 5;
+        int stripsBase = 5;
         if (index >= stripsBase && index - stripsBase < StripsEntries.Count)
         {
             return !StripsEntries[index - stripsBase].IsPoppedOut;
         }
-        var tdlsBase = stripsBase + StripsEntries.Count;
+        int tdlsBase = stripsBase + StripsEntries.Count;
         if (index >= tdlsBase && index - tdlsBase < TdlsEntries.Count)
         {
             return !TdlsEntries[index - tdlsBase].IsPoppedOut;
@@ -833,9 +837,9 @@ public partial class MainViewModel : ObservableObject
     {
         get
         {
-            var appLabel = $"YAAT {BuildInfo.TitleSuffix}";
-            var soloMode = HasScenario ? SessionSoloTrainingMode : _preferences.SoloTrainingMode;
-            var modeLabel = soloMode ? "Solo mode" : "RPO mode";
+            string appLabel = $"YAAT {BuildInfo.TitleSuffix}";
+            bool soloMode = HasScenario ? SessionSoloTrainingMode : _preferences.SoloTrainingMode;
+            string modeLabel = soloMode ? "Solo mode" : "RPO mode";
             appLabel = $"{appLabel} [{modeLabel}]";
             if (ActiveRoomName is null)
             {
@@ -1234,7 +1238,7 @@ public partial class MainViewModel : ObservableObject
         if (_terminalSoloKind == kind)
         {
             // Exit solo: restore the snapshot.
-            var snapshot = _terminalSoloSnapshot;
+            HashSet<TerminalEntryKind> snapshot = _terminalSoloSnapshot;
             _terminalSoloKind = null;
             _terminalSoloSnapshot = [];
             ApplyVisibilityProgrammatic(snapshot);
@@ -1400,7 +1404,7 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
-        var query = TerminalSearchText;
+        string query = TerminalSearchText;
         if (string.IsNullOrEmpty(query))
         {
             return true;
@@ -1423,7 +1427,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public IReadOnlyList<string> GetRecallHistory()
     {
-        var selected = SelectedAircraft?.Callsign;
+        string? selected = SelectedAircraft?.Callsign;
         if (string.IsNullOrEmpty(selected))
         {
             return CommandHistory.Select(e => e.Command).ToList();
@@ -1554,7 +1558,7 @@ public partial class MainViewModel : ObservableObject
         _showTimelineBar = _preferences.ShowTimelineBar;
         _dataGridAlternatingRowColor = _preferences.DataGridAlternatingRowColor;
 
-        var hidden = _preferences.HiddenTerminalKinds;
+        HashSet<TerminalEntryKind> hidden = _preferences.HiddenTerminalKinds;
         _showCommandEntries = !hidden.Contains(TerminalEntryKind.Command);
         _showResponseEntries = !hidden.Contains(TerminalEntryKind.Response);
         _showSystemEntries = !hidden.Contains(TerminalEntryKind.System);
@@ -1628,7 +1632,10 @@ public partial class MainViewModel : ObservableObject
         // facility until the next scenario bootstrap applies the student
         // strips config to it (see ApplyScenarioBootstrap).
         StripsEntries[0].SplitRatio = _preferences.VStripsSplitRatio;
-        if (Enum.TryParse<StripsSplitMode>(_preferences.VStripsSplitMode, out var savedSplitMode) && savedSplitMode != StripsSplitMode.None)
+        if (
+            Enum.TryParse<StripsSplitMode>(_preferences.VStripsSplitMode, out StripsSplitMode savedSplitMode)
+            && savedSplitMode != StripsSplitMode.None
+        )
         {
             AttachSecondaryStripsVm(StripsEntries[0], CreateSecondaryStripsVm());
             StripsEntries[0].SplitMode = savedSplitMode;
@@ -1708,25 +1715,25 @@ public partial class MainViewModel : ObservableObject
                 cifpService.CifpFilePath,
                 supplementaryCifpFilePaths: cifpService.SupplementaryCifpFilePaths
             );
-            var navDb = NavigationDatabase.Instance;
+            NavigationDatabase navDb = NavigationDatabase.Instance;
 
             MarkNavDbReady();
             // Stashed so a Radar/Ground window opened after this point gets the same lookup (SeedExtraRadar).
             _airportElevationLookup = navDb.GetAirportElevation;
-            foreach (var radar in AllRadarViews)
+            foreach (RadarViewModel radar in AllRadarViews)
             {
                 radar.SetElevationLookup(navDb.GetAirportElevation);
                 radar.SetNavDbReady();
             }
 
-            foreach (var ground in AllGroundViews)
+            foreach (GroundViewModel ground in AllGroundViews)
             {
                 ground.SetElevationLookup(navDb.GetAirportElevation);
             }
 
             // An extra Radar View opened before the nav db was ready has no centre yet: its airport could
             // not be resolved then. Each one resolves its own airport, never the scenario's.
-            foreach (var instance in ExtraRadarViews)
+            foreach (RadarViewInstance instance in ExtraRadarViews)
             {
                 if (ResolveAirportPosition(instance.AirportId) is { } position)
                 {
@@ -1771,7 +1778,7 @@ public partial class MainViewModel : ObservableObject
         try
         {
             IsCheckingForUpdate = true;
-            var result = await _updateService.CheckForUpdateAsync();
+            UpdateCheckResult result = await _updateService.CheckForUpdateAsync();
             if (result.Update is not null)
             {
                 _pendingUpdate = result.Update;
@@ -1883,7 +1890,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        foreach (var entry in _preferences.GetCommandHistory(scenarioId))
+        foreach (CommandHistoryEntry entry in _preferences.GetCommandHistory(scenarioId))
         {
             CommandHistory.Add(entry);
         }
@@ -1953,13 +1960,13 @@ public partial class MainViewModel : ObservableObject
         //     AID+slew stay visible because the controller is talking to the underlying jet.
         // Filtering here keeps the rule mapper, LLM fallback, and the speech-debug capture all
         // from advertising callsigns / runways for aircraft that aren't really "active".
-        var snapshot = Aircraft.Where(a => !a.IsDelayed && (!a.IsUnsupported || a.IsGhostOverlay)).ToArray();
+        AircraftModel[] snapshot = Aircraft.Where(a => !a.IsDelayed && (!a.IsUnsupported || a.IsGhostOverlay)).ToArray();
         var callsigns = snapshot.Select(a => a.Callsign).Where(cs => !string.IsNullOrEmpty(cs)).ToList();
-        var selected = contextAircraft ?? SelectedAircraft;
+        AircraftModel? selected = contextAircraft ?? SelectedAircraft;
         IReadOnlyList<string> programmedFixes = [];
         if (selected is not null)
         {
-            var fixSet = ProgrammedFixResolver.Resolve(
+            HashSet<string> fixSet = ProgrammedFixResolver.Resolve(
                 selected.Route,
                 selected.ExpectedApproach,
                 selected.Destination,
@@ -1978,7 +1985,7 @@ public partial class MainViewModel : ObservableObject
         // whisper-large-turbo3 recognizing arbitrary tail numbers cleanly when the NATO alphabet
         // is in the prompt, so we no longer need to inject scenario-specific callsigns or
         // programmed fix names — the static vocabulary covers them.
-        var whisperInitialPrompt = WhisperBiasingPrompt.Default;
+        string whisperInitialPrompt = WhisperBiasingPrompt.Default;
 
         // Pull custom-fix speech patterns from the NavigationDatabase. These let the rule engine
         // collapse multi-word natural-language references (e.g. "the runway 30 numbers") into
@@ -1986,14 +1993,14 @@ public partial class MainViewModel : ObservableObject
         // available after the NavDb has finished loading — returns an empty list until then.
         // InstanceOrNull (not Instance) because a PTT fired before the NavDb finishes loading must
         // degrade gracefully, not throw and abort the speech pipeline; the null-guards below handle it.
-        var navDb = NavigationDatabase.InstanceOrNull;
-        var customFixPatterns = navDb?.CustomFixSpeechPatterns ?? [];
+        NavigationDatabase? navDb = NavigationDatabase.InstanceOrNull;
+        IReadOnlyList<CustomFixSpeechPattern> customFixPatterns = navDb?.CustomFixSpeechPatterns ?? [];
 
         // Build the callsign → destination map from active aircraft flight plans. Used by the LLM
         // fallback to correlate an in-transcript callsign with the right airport's runway list
         // (e.g. "N9225L" → "KOAK" → KOAK runway list → recover misheard "288" as "28R").
         var aircraftDestinations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var ac in snapshot)
+        foreach (AircraftModel? ac in snapshot)
         {
             if (!string.IsNullOrEmpty(ac.Callsign) && !string.IsNullOrEmpty(ac.Destination))
             {
@@ -2012,11 +2019,11 @@ public partial class MainViewModel : ObservableObject
         if (navDb is not null)
         {
             var airports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var dest in aircraftDestinations.Values)
+            foreach (string dest in aircraftDestinations.Values)
             {
                 airports.Add(dest);
             }
-            foreach (var ac in snapshot)
+            foreach (AircraftModel? ac in snapshot)
             {
                 if (!string.IsNullOrEmpty(ac.Departure))
                 {
@@ -2030,7 +2037,7 @@ public partial class MainViewModel : ObservableObject
             // is staring at — is the obvious anchor for {rwy} validation and LLM runway recovery.
             // Primary-only by design: an extra Ground View window mirrors this layout, so there is no
             // second airport to consider.
-            var layoutAirportId = Ground.DomainLayout?.AirportId;
+            string? layoutAirportId = Ground.DomainLayout?.AirportId;
             if (!string.IsNullOrEmpty(layoutAirportId))
             {
                 airports.Add(layoutAirportId);
@@ -2043,14 +2050,14 @@ public partial class MainViewModel : ObservableObject
             // tokens. Reuses PhoneticFixMatcher for variant tolerance.
             procedures.AddRange(navDb.GetProcedurePatterns(airports));
 
-            foreach (var airport in airports)
+            foreach (string airport in airports)
             {
                 // RunwayInfo is bidirectional — each entry represents one physical runway with
                 // two end designators (e.g. End1="28R", End2="10L"). Enumerate both ends so the
                 // validator/LLM see every designator the controller might issue. Distinct in case
                 // an airport's data has duplicate entries from both approach directions.
                 var rwys = new List<string>();
-                foreach (var rwy in navDb.GetRunways(airport))
+                foreach (RunwayInfo rwy in navDb.GetRunways(airport))
                 {
                     if (!string.IsNullOrEmpty(rwy.Id.End1))
                     {
@@ -2072,8 +2079,8 @@ public partial class MainViewModel : ObservableObject
         // Taxiway-name set for the currently-loaded ground layout — used by NatoLetterNormalizer
         // to disambiguate multi-letter taxiway names during NATO collapse. Falls back to empty
         // when no ground layout is loaded — single-letter splits still work in that case.
-        var taxiwayNames = CollectLoadedTaxiwayNames();
-        var destinationNames = CollectLoadedDestinationNames();
+        HashSet<string> taxiwayNames = CollectLoadedTaxiwayNames();
+        HashSet<string> destinationNames = CollectLoadedDestinationNames();
 
         return new SpeechContext(callsigns, programmedFixes, whisperInitialPrompt)
         {
@@ -2094,13 +2101,13 @@ public partial class MainViewModel : ObservableObject
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         // Primary-only by design: the extra Ground View windows mirror this same layout.
-        var layout = Ground.DomainLayout;
+        AirportGroundLayout? layout = Ground.DomainLayout;
         if (layout is null)
         {
             return names;
         }
 
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (node.Type is GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad && !string.IsNullOrEmpty(node.Name))
             {
@@ -2137,13 +2144,13 @@ public partial class MainViewModel : ObservableObject
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         // Primary-only by design: the extra Ground View windows mirror this same layout.
-        var layout = Ground.DomainLayout;
+        AirportGroundLayout? layout = Ground.DomainLayout;
         if (layout is null)
         {
             return names;
         }
 
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (types.Contains(node.Type) && !string.IsNullOrEmpty(node.Name))
             {
@@ -2165,13 +2172,13 @@ public partial class MainViewModel : ObservableObject
     {
         var taxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         // Primary-only by design: the extra Ground View windows mirror this same layout.
-        var layout = Ground.DomainLayout;
+        AirportGroundLayout? layout = Ground.DomainLayout;
         if (layout is null)
         {
             return taxiwayNames;
         }
 
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             if (edge.IsRunwayCenterline || edge.IsRamp || edge is not GroundEdge)
             {
@@ -2195,7 +2202,7 @@ public partial class MainViewModel : ObservableObject
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            var populatedCommandText = false;
+            bool populatedCommandText = false;
             string? source = null;
             if (!string.IsNullOrEmpty(result.CanonicalCommand))
             {
@@ -2276,8 +2283,8 @@ public partial class MainViewModel : ObservableObject
     /// <returns>False when the verb isn't one of these, so the caller can fall through to CRC aliases.</returns>
     private bool TryHandleScopeMarkerCommand(string text)
     {
-        var parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        var verb = parts[0].ToUpperInvariant();
+        string[] parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        string verb = parts[0].ToUpperInvariant();
 
         // Scope markers are deliberately primary-only: they belong to the docked radar the commands are
         // typed against, not to every extra Radar View window.
@@ -2297,7 +2304,7 @@ public partial class MainViewModel : ObservableObject
                 }
 
                 var unresolved = new List<string>();
-                for (var i = 1; i < parts.Length; i++)
+                for (int i = 1; i < parts.Length; i++)
                 {
                     if (!Radar.ToggleMarker(parts[i]))
                     {
@@ -2321,7 +2328,7 @@ public partial class MainViewModel : ObservableObject
     /// <returns>False when the verb isn't one of these, so the caller can fall through to CRC aliases.</returns>
     private bool TryHandleMeasureCommand(string text)
     {
-        var parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 
         switch (parts[0].ToUpperInvariant())
         {
@@ -2336,7 +2343,7 @@ public partial class MainViewModel : ObservableObject
                     return true;
                 }
 
-                if (parts.Length == 2 && int.TryParse(parts[1], out var slot))
+                if (parts.Length == 2 && int.TryParse(parts[1], out int slot))
                 {
                     Measure.Remove(slot);
                     return true;
@@ -2383,7 +2390,7 @@ public partial class MainViewModel : ObservableObject
     private RblEndpoint? ResolveMeasureEndpoint(string token)
     {
         Func<string, LatLon?>? resolveFix = _commandInput.NavDbReady ? t => FrdResolver.Resolve(t, NavigationDatabase.Instance) : null;
-        var (endpoint, error) = MeasureEndpointResolver.Resolve(token, Aircraft, resolveFix);
+        (RblEndpoint? endpoint, string? error) = MeasureEndpointResolver.Resolve(token, Aircraft, resolveFix);
         if (error is not null)
         {
             StatusText = error;
@@ -2395,7 +2402,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
     private async Task SendCommandAsync()
     {
-        var text = CommandText.Trim();
+        string text = CommandText.Trim();
         if (string.IsNullOrEmpty(text))
         {
             return;
@@ -2412,7 +2419,7 @@ public partial class MainViewModel : ObservableObject
         // Chat messages: ' / > prefix → broadcast text, not a command
         if (text.Length > 1 && CommandInputController.StartsWithChatPrefix(text))
         {
-            var chatMessage = text[1..].TrimStart();
+            string chatMessage = text[1..].TrimStart();
             if (!string.IsNullOrEmpty(chatMessage))
             {
                 try
@@ -2453,7 +2460,7 @@ public partial class MainViewModel : ObservableObject
 
             if (!handled)
             {
-                var verb = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? text;
+                string verb = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? text;
                 StatusText = $"Unknown command or alias: {verb}";
             }
 
@@ -2464,13 +2471,13 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var scheme = _preferences.CommandScheme;
+        CommandScheme scheme = _preferences.CommandScheme;
 
         // Check for global commands first (no callsign needed).
         // SetActivePosition ("AS {tcp}") is global only when it's a standalone
         // command. The prefix form "AS {tcp} {track_command}" is per-aircraft
         // (server's ExtractAsPrefix strips the prefix and resolves RPO identity).
-        var globalParsed = CommandSchemeParser.Parse(text, scheme);
+        ParsedInput? globalParsed = CommandSchemeParser.Parse(text, scheme);
         if (globalParsed is not null && IsGlobalCommand(globalParsed.Type))
         {
             bool isAsPrefix = (globalParsed.Type == CanonicalCommandType.SetActivePosition) && (globalParsed.Argument?.Contains(' ') == true);
@@ -2488,7 +2495,7 @@ public partial class MainViewModel : ObservableObject
         // ambiguous substrings already fall through to command dispatch.
         if (!text.Contains(' ') && !text.Contains(',') && !text.Contains(';'))
         {
-            var (callsignMatch, outcome, _) = CallsignMatcher.Match(text, Aircraft);
+            (AircraftModel? callsignMatch, CallsignMatcher.Outcome outcome, IReadOnlyList<AircraftModel> _) = CallsignMatcher.Match(text, Aircraft);
             bool completeCommandOverrides = (globalParsed is not null) && (outcome == CallsignMatcher.Outcome.UniqueSubstring);
             if (callsignMatch is not null && !completeCommandOverrides)
             {
@@ -2501,9 +2508,9 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Expand macros first so callsign prefix resolution sees real commands
-        var commandText = text;
-        var originalInput = text;
-        var expandedCommand = MacroExpander.TryExpand(commandText, _preferences.Macros, out var macroError);
+        string commandText = text;
+        string originalInput = text;
+        string? expandedCommand = MacroExpander.TryExpand(commandText, _preferences.Macros, out string? macroError);
         if (macroError is not null)
         {
             StatusText = macroError;
@@ -2522,7 +2529,7 @@ public partial class MainViewModel : ObservableObject
             target?.Callsign ?? "(none)"
         );
 
-        var prefixResult = CallsignPrefixResolver.Resolve(commandText, scheme, Aircraft);
+        CallsignPrefixResolver.Result prefixResult = CallsignPrefixResolver.Resolve(commandText, scheme, Aircraft);
         if (prefixResult is CallsignPrefixResolver.Ambiguous ambiguousPrefix)
         {
             StatusText = ambiguousPrefix.Message;
@@ -2539,7 +2546,7 @@ public partial class MainViewModel : ObservableObject
 
         // Rewrite partial callsign arguments (FOLLOW, RTIS, CVA FOLLOW, ...) into canonical
         // callsigns before parsing. Matches the first-word partial-match behavior.
-        var rewrite = CallsignArgumentResolver.TryRewrite(commandText, scheme, Aircraft);
+        CallsignArgumentResolver.Result rewrite = CallsignArgumentResolver.TryRewrite(commandText, scheme, Aircraft);
         if (rewrite.Error is not null)
         {
             StatusText = rewrite.Error;
@@ -2552,14 +2559,14 @@ public partial class MainViewModel : ObservableObject
         }
 
         // RPO control commands (client-local, bypass command pipeline)
-        var rpoResult = await TryHandleRpoCommand(commandText, target, text);
+        bool rpoResult = await TryHandleRpoCommand(commandText, target, text);
         if (rpoResult)
         {
             return;
         }
 
         // Parse as compound command (handles single and multi-block)
-        var compound = CommandSchemeParser.ParseCompound(commandText, scheme, out var parseFailure);
+        CompoundParseResult? compound = CommandSchemeParser.ParseCompound(commandText, scheme, out ParseFailure? parseFailure);
         if (compound is null)
         {
             if (
@@ -2572,7 +2579,7 @@ public partial class MainViewModel : ObservableObject
 
             // Never label a known callsign (partial or complete match) as the bad command —
             // focus the error on the verb that follows it.
-            var commandError = CommandErrorFormatter.Format(commandText, parseFailure, scheme, Aircraft);
+            CommandErrorFormatter.Result commandError = CommandErrorFormatter.Format(commandText, parseFailure, scheme, Aircraft);
             _log.LogWarning("Command '{Verb}' {Reason} in input '{Input}'", commandError.Verb, commandError.Reason, commandText);
             StatusText = commandError.StatusText;
 
@@ -2583,13 +2590,13 @@ public partial class MainViewModel : ObservableObject
         {
             // Half-strip commands (HSC/HSA/HSD) are dual-mode: when no aircraft is targeted,
             // they run globally with an empty callsign and the server treats them as freeform.
-            if (TryGetCanonicalVerb(compound.CanonicalString, out var verb) && IsHalfStripVerb(verb))
+            if (TryGetCanonicalVerb(compound.CanonicalString, out string? verb) && IsHalfStripVerb(verb))
             {
                 try
                 {
-                    var canonical = compound.CanonicalString;
+                    string canonical = compound.CanonicalString;
                     _log.LogDebug("SendCommand (global half-strip): '{Canonical}' (input: '{Input}')", canonical, originalInput);
-                    var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                    CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
 
                     // Always drop the typed text: even when the server rejects, the RPO has
                     // seen the result and should not retype the whole command. The error
@@ -2616,7 +2623,7 @@ public partial class MainViewModel : ObservableObject
 
         SelectedAircraft = target;
 
-        var gate = VfrCommandGate.Evaluate(target, compound.CanonicalString, VfrCommandsForIfr);
+        VfrGateResult gate = VfrCommandGate.Evaluate(target, compound.CanonicalString, VfrCommandsForIfr);
         if (!gate.Allowed)
         {
             StatusText = gate.RejectionMessage!;
@@ -2630,7 +2637,7 @@ public partial class MainViewModel : ObservableObject
         // feedback while the typed text is still in the box.
         if (CompoundPolicy.FindNonCompoundableInChain(compound.CanonicalString) is { } nonCompoundable)
         {
-            var rejectMsg = $"{CommandDescriber.DescribeCommand(nonCompoundable)} cannot be part of a chained command";
+            string rejectMsg = $"{CommandDescriber.DescribeCommand(nonCompoundable)} cannot be part of a chained command";
             StatusText = rejectMsg;
             AddWarningEntry(rejectMsg);
             return;
@@ -2638,7 +2645,7 @@ public partial class MainViewModel : ObservableObject
 
         if (CompoundPolicy.FindTakeoffPairedWithImmediateTurn(compound.CanonicalString) is { } pairedTurn)
         {
-            var rejectMsg = CompoundPolicy.TakeoffPairedWithImmediateTurnMessage(pairedTurn);
+            string rejectMsg = CompoundPolicy.TakeoffPairedWithImmediateTurnMessage(pairedTurn);
             StatusText = rejectMsg;
             AddWarningEntry(rejectMsg);
             return;
@@ -2646,9 +2653,9 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var canonical = forceOverride ? $"** {compound.CanonicalString}" : compound.CanonicalString;
+            string canonical = forceOverride ? $"** {compound.CanonicalString}" : compound.CanonicalString;
             _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, canonical, originalInput);
-            var result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
+            CommandResultDto result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
             NoteVfrBypassIfNeeded(gate, target.Callsign, result.Success);
 
             if (result.Success)
@@ -2683,8 +2690,8 @@ public partial class MainViewModel : ObservableObject
         bool forceOverride
     )
     {
-        var allowLlmFallback = _preferences.SpeechEnabled && _llmService.IsConfigured;
-        var normalization = await NaturalCommandNormalizer.TryNormalizeAsync(
+        bool allowLlmFallback = _preferences.SpeechEnabled && _llmService.IsConfigured;
+        NaturalCommandNormalization? normalization = await NaturalCommandNormalizer.TryNormalizeAsync(
             originalInput,
             BuildSpeechContext(currentTarget),
             _ruleMapper,
@@ -2698,8 +2705,12 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
-        var scheme = _preferences.CommandScheme;
-        var mappedCompound = CommandSchemeParser.ParseCompound(normalization.CanonicalCommand, scheme, out var mappedFailure);
+        CommandScheme scheme = _preferences.CommandScheme;
+        CompoundParseResult? mappedCompound = CommandSchemeParser.ParseCompound(
+            normalization.CanonicalCommand,
+            scheme,
+            out ParseFailure? mappedFailure
+        );
         if (mappedCompound is null)
         {
             _log.LogDebug(
@@ -2711,8 +2722,8 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
-        var target = currentTarget;
-        var historyCallsign = resolvedCallsign;
+        AircraftModel? target = currentTarget;
+        string? historyCallsign = resolvedCallsign;
         if (!string.IsNullOrWhiteSpace(normalization.Callsign))
         {
             target = ResolveAircraft(normalization.Callsign);
@@ -2730,7 +2741,7 @@ public partial class MainViewModel : ObservableObject
 
         SelectedAircraft = target;
 
-        var gate = VfrCommandGate.Evaluate(target, mappedCompound.CanonicalString, VfrCommandsForIfr);
+        VfrGateResult gate = VfrCommandGate.Evaluate(target, mappedCompound.CanonicalString, VfrCommandsForIfr);
         if (!gate.Allowed)
         {
             StatusText = gate.RejectionMessage!;
@@ -2740,7 +2751,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var canonical = forceOverride ? $"** {mappedCompound.CanonicalString}" : mappedCompound.CanonicalString;
+            string canonical = forceOverride ? $"** {mappedCompound.CanonicalString}" : mappedCompound.CanonicalString;
             _log.LogInformation(
                 "Solo natural command mapped: {Input} -> {Callsign} {Canonical} (LLM fallback: {UsedLlmFallback})",
                 originalInput,
@@ -2748,7 +2759,7 @@ public partial class MainViewModel : ObservableObject
                 canonical,
                 normalization.UsedLlmFallback
             );
-            var result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
+            CommandResultDto result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
             NoteVfrBypassIfNeeded(gate, target.Callsign, result.Success);
 
             if (result.Success)
@@ -2776,7 +2787,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (parsed.Type == CanonicalCommandType.TdlsOpsConfig)
         {
-            var canonical = $"TDLSOPS {parsed.Argument}".TrimEnd();
+            string canonical = $"TDLSOPS {parsed.Argument}".TrimEnd();
             await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
             AddHistory("", canonical);
             CommandText = "";
@@ -2798,7 +2809,7 @@ public partial class MainViewModel : ObservableObject
         }
         if (parsed.Type == CanonicalCommandType.SimRate)
         {
-            if (int.TryParse(parsed.Argument, out var rate))
+            if (int.TryParse(parsed.Argument, out int rate))
             {
                 await _connection.SendCommandAsync("", $"SIMRATE {rate}", _preferences.UserInitials);
                 AddHistory("", $"SIMRATE {rate}");
@@ -2808,7 +2819,7 @@ public partial class MainViewModel : ObservableObject
         }
         if (parsed.Type is CanonicalCommandType.SquawkAll or CanonicalCommandType.SquawkNormalAll or CanonicalCommandType.SquawkStandbyAll)
         {
-            var verb = parsed.Type switch
+            string verb = parsed.Type switch
             {
                 CanonicalCommandType.SquawkAll => "SQALL",
                 CanonicalCommandType.SquawkNormalAll => "SNALL",
@@ -2837,10 +2848,10 @@ public partial class MainViewModel : ObservableObject
                 StatusText = "ADD requires arguments: ADD {rules} {weight} {engine} {position...}";
                 return;
             }
-            var canonical = $"ADD {parsed.Argument}";
+            string canonical = $"ADD {parsed.Argument}";
             try
             {
-                var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
                 AddHistory("", canonical);
                 StatusText = CommandStatusResolver.Resolve(result, "ADD");
             }
@@ -2855,17 +2866,17 @@ public partial class MainViewModel : ObservableObject
         }
         if (parsed.Type is CanonicalCommandType.Consolidate or CanonicalCommandType.ConsolidateFull or CanonicalCommandType.Deconsolidate)
         {
-            var verb = parsed.Type switch
+            string verb = parsed.Type switch
             {
                 CanonicalCommandType.Consolidate => "CON",
                 CanonicalCommandType.ConsolidateFull => "CON+",
                 CanonicalCommandType.Deconsolidate => "DECON",
                 _ => "",
             };
-            var canonical = string.IsNullOrEmpty(parsed.Argument) ? verb : $"{verb} {parsed.Argument}";
+            string canonical = string.IsNullOrEmpty(parsed.Argument) ? verb : $"{verb} {parsed.Argument}";
             try
             {
-                var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
                 AddHistory("", canonical);
                 StatusText = CommandStatusResolver.Resolve(result, verb);
             }
@@ -2886,7 +2897,7 @@ public partial class MainViewModel : ObservableObject
                 or CanonicalCommandType.CoordinationAutoAck
         )
         {
-            var verb = parsed.Type switch
+            string verb = parsed.Type switch
             {
                 CanonicalCommandType.SetActivePosition => "AS",
                 CanonicalCommandType.AcceptAllHandoffs => "ACCEPTALL",
@@ -2894,10 +2905,10 @@ public partial class MainViewModel : ObservableObject
                 CanonicalCommandType.CoordinationAutoAck => "RDAUTO",
                 _ => "",
             };
-            var canonical = string.IsNullOrEmpty(parsed.Argument) ? verb : $"{verb} {parsed.Argument}";
+            string canonical = string.IsNullOrEmpty(parsed.Argument) ? verb : $"{verb} {parsed.Argument}";
             try
             {
-                var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
                 AddHistory("", canonical);
                 StatusText = CommandStatusResolver.Resolve(result, verb);
             }
@@ -2912,10 +2923,10 @@ public partial class MainViewModel : ObservableObject
         }
         if (parsed.Type == CanonicalCommandType.TaxiAll)
         {
-            var canonical = string.IsNullOrEmpty(parsed.Argument) ? "TAXIALL" : $"TAXIALL {parsed.Argument}";
+            string canonical = string.IsNullOrEmpty(parsed.Argument) ? "TAXIALL" : $"TAXIALL {parsed.Argument}";
             try
             {
-                var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
                 AddHistory("", canonical);
                 StatusText = CommandStatusResolver.Resolve(result, "TAXIALL");
             }
@@ -2935,10 +2946,10 @@ public partial class MainViewModel : ObservableObject
                 StatusText = "TIMER requires a duration (mm:ss or seconds) or CANCEL";
                 return;
             }
-            var canonical = $"TIMER {parsed.Argument}";
+            string canonical = $"TIMER {parsed.Argument}";
             try
             {
-                var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
                 AddHistory("", canonical);
                 StatusText = CommandStatusResolver.Resolve(result, "TIMER");
             }
@@ -2967,8 +2978,8 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task HandleBookmarkGlobalCommand(string? argument)
     {
-        var canonical = string.IsNullOrWhiteSpace(argument) ? "BM" : $"BM {argument}";
-        var parseResult = CommandParser.Parse(canonical);
+        string canonical = string.IsNullOrWhiteSpace(argument) ? "BM" : $"BM {argument}";
+        ParseResult<ParsedCommand> parseResult = CommandParser.Parse(canonical);
         if (!parseResult.IsSuccess || parseResult.Value is not BookmarkCommand bookmark)
         {
             StatusText = parseResult.Reason ?? "Invalid BM command";
@@ -2983,7 +2994,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+            CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
             AddHistory("", canonical);
             StatusText = CommandStatusResolver.Resolve(result, "BM");
         }
@@ -2996,7 +3007,7 @@ public partial class MainViewModel : ObservableObject
 
     private async Task<bool> TryHandleRpoCommand(string commandText, AircraftModel? target, string originalInput)
     {
-        var upper = commandText.Trim().ToUpperInvariant();
+        string upper = commandText.Trim().ToUpperInvariant();
 
         if (upper == "TAKE")
         {
@@ -3020,7 +3031,7 @@ public partial class MainViewModel : ObservableObject
                 StatusText = "Select an aircraft first";
                 return true;
             }
-            var initials = upper[5..].Trim();
+            string initials = upper[5..].Trim();
             if (initials.Length == 0)
             {
                 StatusText = "Usage: GIVE <initials>";
@@ -3054,8 +3065,8 @@ public partial class MainViewModel : ObservableObject
 
     private static bool TryGetCanonicalVerb(string canonical, out string verb)
     {
-        var trimmed = canonical.TrimStart();
-        var spaceIdx = trimmed.IndexOf(' ');
+        string trimmed = canonical.TrimStart();
+        int spaceIdx = trimmed.IndexOf(' ');
         verb = spaceIdx < 0 ? trimmed : trimmed[..spaceIdx];
         return verb.Length > 0;
     }
@@ -3097,20 +3108,20 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public void SelectAircraftFromInput()
     {
-        var text = CommandText.Trim();
+        string text = CommandText.Trim();
         if (string.IsNullOrEmpty(text))
         {
             return;
         }
 
         // Use the first token as a callsign candidate
-        var token = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0].ToUpperInvariant();
+        string token = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0].ToUpperInvariant();
         if (!Callsign.IsValid(token))
         {
             StatusText = $"\"{token}\" is not a valid callsign";
             return;
         }
-        var match = ResolveAircraft(token);
+        AircraftModel? match = ResolveAircraft(token);
         if (match is not null)
         {
             SelectedAircraft = match;
@@ -3128,7 +3139,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private AircraftModel? ResolveAircraft(string token)
     {
-        var (match, outcome, candidates) = CallsignMatcher.Match(token, Aircraft);
+        (AircraftModel? match, CallsignMatcher.Outcome outcome, IReadOnlyList<AircraftModel>? candidates) = CallsignMatcher.Match(token, Aircraft);
         if (outcome == CallsignMatcher.Outcome.Ambiguous)
         {
             StatusText = CallsignMatcher.FormatAmbiguityMessage(token, candidates);
@@ -3142,7 +3153,7 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var cmd = IsPaused ? "UNPAUSE" : "PAUSE";
+            string cmd = IsPaused ? "UNPAUSE" : "PAUSE";
             await _connection.SendCommandAsync("", cmd, _preferences.UserInitials);
         }
         catch (Exception ex)
@@ -3198,7 +3209,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var pos = _commandInput.NavDbReady ? NavigationDatabase.Instance.GetFixPosition(airportId) : null;
+        (double Lat, double Lon)? pos = _commandInput.NavDbReady ? NavigationDatabase.Instance.GetFixPosition(airportId) : null;
         if (pos.HasValue)
         {
             // Primary only: an extra Radar View is centred on the airport it was opened with, not on the
@@ -3223,7 +3234,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var resolved = FrdResolver.Resolve(fixOrFrd, NavigationDatabase.Instance);
+        LatLon? resolved = FrdResolver.Resolve(fixOrFrd, NavigationDatabase.Instance);
         if (resolved is null)
         {
             _log.LogWarning("Distance reference '{Fix}' could not be resolved", fixOrFrd);
@@ -3238,7 +3249,7 @@ public partial class MainViewModel : ObservableObject
 
     private void RecalculateAllDistances()
     {
-        foreach (var ac in Aircraft)
+        foreach (AircraftModel ac in Aircraft)
         {
             ac.DistanceFromFix = ComputeDistance(ac);
         }
@@ -3246,7 +3257,7 @@ public partial class MainViewModel : ObservableObject
 
     private void ClearAllDistances()
     {
-        foreach (var ac in Aircraft)
+        foreach (AircraftModel ac in Aircraft)
         {
             ac.DistanceFromFix = null;
         }
@@ -3320,7 +3331,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task SendGatedCommandForViewAsync(AircraftModel? target, string callsign, string command, string initials)
     {
-        var gate = VfrCommandGate.Evaluate(target, command, VfrCommandsForIfr);
+        VfrGateResult gate = VfrCommandGate.Evaluate(target, command, VfrCommandsForIfr);
         if (!gate.Allowed)
         {
             StatusText = gate.RejectionMessage!;
@@ -3328,7 +3339,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var result = await SendCommandForViewCoreAsync(callsign, command, initials);
+        CommandResultDto? result = await SendCommandForViewCoreAsync(callsign, command, initials);
         NoteVfrBypassIfNeeded(gate, callsign, result?.Success == true);
     }
 
@@ -3338,7 +3349,7 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var seconds = _preferences.AutoAcceptEnabled ? _preferences.AutoAcceptDelaySeconds : -1;
+            int seconds = _preferences.AutoAcceptEnabled ? _preferences.AutoAcceptDelaySeconds : -1;
             await _connection.SetAutoAcceptDelayAsync(seconds);
         }
         catch (Exception ex)
@@ -3363,7 +3374,7 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var override_ = _preferences.AutoDeleteOverride;
+            string override_ = _preferences.AutoDeleteOverride;
             string? mode = string.IsNullOrEmpty(override_) ? null : override_;
             await _connection.SetAutoDeleteModeAsync(mode);
         }
@@ -3650,7 +3661,7 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var result = await _connection.SetLiveTrafficFilterAsync(value);
+            CommandResultDto result = await _connection.SetLiveTrafficFilterAsync(value);
             if (!result.Success)
             {
                 StatusText = result.Message ?? "Live traffic filter rejected";
@@ -3776,7 +3787,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var clamped = Math.Clamp(value, minimum, maximum);
+        int clamped = Math.Clamp(value, minimum, maximum);
         if (clamped != value)
         {
             if (isParkingRate)
@@ -3801,19 +3812,19 @@ public partial class MainViewModel : ObservableObject
 
     private static int ParkingInitialCallupRateToIntervalSeconds(int ratePercent)
     {
-        var rate = Math.Clamp(ratePercent, 0, 200);
+        int rate = Math.Clamp(ratePercent, 0, 200);
         if (rate <= 0)
         {
             return 0;
         }
 
-        var seconds = (int)(Math.Round((2000.0 / rate) / 10.0) * 10);
+        int seconds = (int)(Math.Round((2000.0 / rate) / 10.0) * 10);
         return NormalizeParkingInitialCallupIntervalSeconds(seconds);
     }
 
     private static int ParkingInitialCallupIntervalSecondsToRate(int seconds)
     {
-        var interval = NormalizeParkingInitialCallupIntervalSeconds(seconds);
+        int interval = NormalizeParkingInitialCallupIntervalSeconds(seconds);
         if (interval <= 0)
         {
             return 0;
@@ -3824,7 +3835,7 @@ public partial class MainViewModel : ObservableObject
 
     private static string FormatParkingInitialCallupInterval(int seconds)
     {
-        var interval = NormalizeParkingInitialCallupIntervalSeconds(seconds);
+        int interval = NormalizeParkingInitialCallupIntervalSeconds(seconds);
         return interval <= 0 ? "Paused" : $"Once per {interval} sec";
     }
 
@@ -3894,7 +3905,7 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var value = _preferences.GetAutoClearedToLand(_studentPositionType);
+            bool value = _preferences.GetAutoClearedToLand(_studentPositionType);
             ApplyAutoClearedToLandLocally(value);
             await _connection.SetAutoClearedToLandAsync(value);
         }
@@ -3995,7 +4006,7 @@ public partial class MainViewModel : ObservableObject
 
     private void RefreshAircraftView()
     {
-        var saved = SelectedAircraft;
+        AircraftModel? saved = SelectedAircraft;
         AircraftView.Refresh();
         if ((saved is not null) && (SelectedAircraft is null) && Aircraft.Contains(saved))
         {
@@ -4006,9 +4017,9 @@ public partial class MainViewModel : ObservableObject
     internal void AddHistory(string callsign, string command)
     {
         var entry = new CommandHistoryEntry(callsign.ToUpperInvariant(), command.ToUpperInvariant());
-        for (var i = CommandHistory.Count - 1; i >= 0; i--)
+        for (int i = CommandHistory.Count - 1; i >= 0; i--)
         {
-            var existing = CommandHistory[i];
+            CommandHistoryEntry existing = CommandHistory[i];
             if (
                 string.Equals(existing.Callsign, entry.Callsign, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(existing.Command, entry.Command, StringComparison.OrdinalIgnoreCase)
@@ -4026,7 +4037,7 @@ public partial class MainViewModel : ObservableObject
 
         // Persist per-scenario; commands typed with no active scenario are kept
         // in memory only (lost on next scenario load, per the chosen design).
-        var scenarioId = ActiveScenarioId;
+        string? scenarioId = ActiveScenarioId;
         if (!string.IsNullOrEmpty(scenarioId))
         {
             _preferences.SetCommandHistory(scenarioId, CommandHistory);

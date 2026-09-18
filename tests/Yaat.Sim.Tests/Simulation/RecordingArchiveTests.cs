@@ -75,12 +75,12 @@ public class RecordingArchiveTests
     [Fact]
     public void WriteToBytes_ThenOpen_RoundTripsManifest()
     {
-        var recording = CreateTestRecording(snapshotCount: 4);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 4);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
-        var manifest = archive.Manifest;
+        RecordingManifest manifest = archive.Manifest;
 
         Assert.Equal(4, manifest.Version);
         Assert.Equal(42, manifest.RngSeed);
@@ -101,8 +101,8 @@ public class RecordingArchiveTests
     [Fact]
     public void ManifestOnly_DoesNotLoadSnapshots()
     {
-        var recording = CreateTestRecording(snapshotCount: 10);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 10);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
@@ -115,27 +115,27 @@ public class RecordingArchiveTests
     [Fact]
     public void ReadSnapshot_LoadsSingleEntry()
     {
-        var recording = CreateTestRecording(snapshotCount: 5);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 5);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
 
         // Load only snapshot at index 2 (t=10)
-        var snapshot = archive.ReadSnapshot(2);
+        StateSnapshotDto snapshot = archive.ReadSnapshot(2);
         Assert.Equal(10.0, snapshot.ElapsedSeconds);
     }
 
     [Fact]
     public void ReadTimedSnapshot_CombinesIndexAndState()
     {
-        var recording = CreateTestRecording(snapshotCount: 3);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 3);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
 
-        var timed = archive.ReadTimedSnapshot(1);
+        TimedSnapshot timed = archive.ReadTimedSnapshot(1);
         Assert.Equal(5.0, timed.ElapsedSeconds);
         Assert.Equal(5.0, timed.State.ElapsedSeconds);
         Assert.Equal(1, timed.ActionIndex);
@@ -144,42 +144,42 @@ public class RecordingArchiveTests
     [Fact]
     public void ReadScenarioJson_RoundTrips()
     {
-        var recording = CreateTestRecording(snapshotCount: 1);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 1);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
 
-        var scenarioJson = archive.ReadScenarioJson();
+        string scenarioJson = archive.ReadScenarioJson();
         Assert.Equal(recording.ScenarioJson, scenarioJson);
     }
 
     [Fact]
     public void ReadWeatherJson_RoundTrips()
     {
-        var recording = CreateTestRecording(snapshotCount: 1);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 1);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
 
-        var weather = archive.ReadWeatherJson();
+        string? weather = archive.ReadWeatherJson();
         Assert.Equal(recording.WeatherJson, weather);
     }
 
     [Fact]
     public void ReadActions_RoundTrips()
     {
-        var recording = CreateTestRecording(snapshotCount: 1);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 1);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
 
-        var actions = archive.ReadActions();
+        List<RecordedAction> actions = archive.ReadActions();
         Assert.Equal(3, actions.Count);
 
-        var cmd = Assert.IsType<RecordedCommand>(actions[0]);
+        RecordedCommand cmd = Assert.IsType<RecordedCommand>(actions[0]);
         Assert.Equal("AAL100", cmd.Callsign);
         Assert.Equal("H270", cmd.Command);
     }
@@ -187,8 +187,8 @@ public class RecordingArchiveTests
     [Fact]
     public void ReadArtccConfigJson_RoundTrips()
     {
-        var configJson = """{"id":"ZOA","facility":{"id":"ZOA","name":"Oakland ARTCC","positions":[]}}""";
-        var basis = CreateTestRecording(snapshotCount: 1);
+        string configJson = """{"id":"ZOA","facility":{"id":"ZOA","name":"Oakland ARTCC","positions":[]}}""";
+        SessionRecording basis = CreateTestRecording(snapshotCount: 1);
         var recording = new SessionRecording
         {
             Version = basis.Version,
@@ -206,7 +206,7 @@ public class RecordingArchiveTests
             RecordedBy = basis.RecordedBy,
         };
 
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
@@ -218,9 +218,9 @@ public class RecordingArchiveTests
     [Fact]
     public void NoArtccConfig_ReturnsNullAndManifestFlagFalse()
     {
-        var recording = CreateTestRecording(snapshotCount: 1);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 1);
 
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
@@ -234,7 +234,7 @@ public class RecordingArchiveTests
     {
         // Older bundles predate the HasArtccConfig field; their manifests have no such
         // property. System.Text.Json should default the bool to false on deserialization.
-        var oldStyleManifest = """
+        string oldStyleManifest = """
             {
               "Version": 4,
               "RngSeed": 42,
@@ -244,7 +244,7 @@ public class RecordingArchiveTests
               "Snapshots": []
             }
             """;
-        var manifest = JsonSerializer.Deserialize<RecordingManifest>(oldStyleManifest, RecordingJsonOptions.Default);
+        RecordingManifest? manifest = JsonSerializer.Deserialize<RecordingManifest>(oldStyleManifest, RecordingJsonOptions.Default);
         Assert.NotNull(manifest);
         Assert.False(manifest!.HasArtccConfig);
     }
@@ -252,7 +252,7 @@ public class RecordingArchiveTests
     [Fact]
     public void OldBundleManifest_WithoutAirportGeoJsonIds_DeserializesAsNull()
     {
-        var oldStyleManifest = """
+        string oldStyleManifest = """
             {
               "Version": 4,
               "RngSeed": 42,
@@ -262,7 +262,7 @@ public class RecordingArchiveTests
               "Snapshots": []
             }
             """;
-        var manifest = JsonSerializer.Deserialize<RecordingManifest>(oldStyleManifest, RecordingJsonOptions.Default);
+        RecordingManifest? manifest = JsonSerializer.Deserialize<RecordingManifest>(oldStyleManifest, RecordingJsonOptions.Default);
         Assert.NotNull(manifest);
         Assert.Null(manifest!.AirportGeoJsonIds);
     }
@@ -281,7 +281,7 @@ public class RecordingArchiveTests
             Snapshots = [],
         };
 
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
@@ -293,8 +293,8 @@ public class RecordingArchiveTests
     [Fact]
     public void ToSessionRecording_MaterializesEverything()
     {
-        var original = CreateTestRecording(snapshotCount: 3);
-        var bytes = RecordingArchiveWriter.WriteToBytes(original);
+        SessionRecording original = CreateTestRecording(snapshotCount: 3);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(original);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
@@ -315,8 +315,8 @@ public class RecordingArchiveTests
     [Fact]
     public void IsZipArchive_DetectsV3Format()
     {
-        var recording = CreateTestRecording(snapshotCount: 1);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 1);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         Assert.True(RecordingCompression.IsZipArchive(bytes));
     }
@@ -324,8 +324,8 @@ public class RecordingArchiveTests
     [Fact]
     public void IsZipArchive_RejectsBrotli()
     {
-        var json = """{"Version":1,"ScenarioJson":"{}","RngSeed":1,"Actions":[],"TotalElapsedSeconds":0}"""u8.ToArray();
-        var brotli = RecordingCompression.Compress(json);
+        byte[] json = """{"Version":1,"ScenarioJson":"{}","RngSeed":1,"Actions":[],"TotalElapsedSeconds":0}"""u8.ToArray();
+        byte[] brotli = RecordingCompression.Compress(json);
 
         Assert.False(RecordingCompression.IsZipArchive(brotli));
     }
@@ -333,8 +333,8 @@ public class RecordingArchiveTests
     [Fact]
     public void ZipEntryLayout_MatchesExpectedStructure()
     {
-        var recording = CreateTestRecording(snapshotCount: 3);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 3);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
@@ -384,7 +384,7 @@ public class RecordingArchiveTests
         ms.Position = 0;
         using var archive = RecordingArchive.Open(ms);
 
-        var restored = archive.ReadLayout("KOAK");
+        AirportGroundLayout restored = archive.ReadLayout("KOAK");
         Assert.Equal("KOAK", restored.AirportId);
         Assert.Single(restored.Runways);
         Assert.Equal("10R/28L", restored.Runways[0].Name);
@@ -415,7 +415,7 @@ public class RecordingArchiveTests
         ms.Position = 0;
         using var archive = RecordingArchive.Open(ms);
 
-        var layouts = archive.ReadAllLayouts();
+        Dictionary<string, AirportGroundLayout> layouts = archive.ReadAllLayouts();
         Assert.Equal(2, layouts.Count);
         Assert.True(layouts.ContainsKey("KOAK"));
         Assert.True(layouts.ContainsKey("KSFO"));
@@ -485,13 +485,13 @@ public class RecordingArchiveTests
     [Fact]
     public void SnapshotTimestamps_ReturnsManifestIndex()
     {
-        var recording = CreateTestRecording(snapshotCount: 4);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 4);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
 
-        var timestamps = archive.SnapshotTimestamps;
+        IReadOnlyList<SnapshotIndexEntry> timestamps = archive.SnapshotTimestamps;
         Assert.Equal(4, timestamps.Count);
         Assert.Equal(0.0, timestamps[0].ElapsedSeconds);
         Assert.Equal(5.0, timestamps[1].ElapsedSeconds);
@@ -502,8 +502,8 @@ public class RecordingArchiveTests
     [Fact]
     public void FindNearestSnapshotIndex_ReturnsClosestBefore()
     {
-        var recording = CreateTestRecording(snapshotCount: 4); // t=0, 5, 10, 15
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 4); // t=0, 5, 10, 15
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
@@ -518,13 +518,13 @@ public class RecordingArchiveTests
     [Fact]
     public void ReadSnapshotAt_LoadsNearestSnapshot()
     {
-        var recording = CreateTestRecording(snapshotCount: 4); // t=0, 5, 10, 15
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 4); // t=0, 5, 10, 15
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
 
-        var snapshot = archive.ReadSnapshotAt(7.0);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(7.0);
         Assert.NotNull(snapshot);
         Assert.Equal(5.0, snapshot!.ElapsedSeconds);
     }
@@ -532,13 +532,13 @@ public class RecordingArchiveTests
     [Fact]
     public void ToBaseSessionRecording_ExcludesSnapshots()
     {
-        var recording = CreateTestRecording(snapshotCount: 10);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 10);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
 
-        var base_ = archive.ToBaseSessionRecording();
+        SessionRecording base_ = archive.ToBaseSessionRecording();
         Assert.Equal(recording.ScenarioJson, base_.ScenarioJson);
         Assert.Equal(recording.RngSeed, base_.RngSeed);
         Assert.Equal(recording.WeatherJson, base_.WeatherJson);
@@ -574,13 +574,13 @@ public class RecordingArchiveTests
             ],
         };
 
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
 
-        var baseRecording = archive.ToBaseSessionRecording();
-        var spawn = Assert.Single(baseRecording.Actions.OfType<RecordedAircraftSpawn>());
+        SessionRecording baseRecording = archive.ToBaseSessionRecording();
+        RecordedAircraftSpawn spawn = Assert.Single(baseRecording.Actions.OfType<RecordedAircraftSpawn>());
         Assert.Equal(5, spawn.ElapsedSeconds);
         Assert.Equal("ENY3196", spawn.Aircraft.Callsign);
         Assert.Equal("P28A", spawn.Aircraft.AircraftType);
@@ -674,8 +674,8 @@ public class RecordingArchiveTests
             }
         );
 
-        var json = JsonSerializer.Serialize(layout, RecordingJsonOptions.Default);
-        var restored = JsonSerializer.Deserialize<AirportGroundLayout>(json, RecordingJsonOptions.Default)!;
+        string json = JsonSerializer.Serialize(layout, RecordingJsonOptions.Default);
+        AirportGroundLayout restored = JsonSerializer.Deserialize<AirportGroundLayout>(json, RecordingJsonOptions.Default)!;
         restored.RebuildAdjacencyLists();
 
         Assert.Equal("KOAK", restored.AirportId);
@@ -683,14 +683,14 @@ public class RecordingArchiveTests
         Assert.Single(restored.Edges);
         Assert.Single(restored.Runways);
 
-        var restoredNode1 = restored.Nodes[1];
+        GroundNode restoredNode1 = restored.Nodes[1];
         Assert.Equal("J", restoredNode1.Name);
         Assert.Single(restoredNode1.Edges);
         Assert.Equal("J", restoredNode1.Edges[0].TaxiwayName);
-        var restoredEdge = Assert.IsType<GroundEdge>(restoredNode1.Edges[0]);
+        GroundEdge restoredEdge = Assert.IsType<GroundEdge>(restoredNode1.Edges[0]);
         Assert.Single(restoredEdge.IntermediatePoints);
 
-        var restoredNode2 = restored.Nodes[2];
+        GroundNode restoredNode2 = restored.Nodes[2];
         Assert.Equal(GroundNodeType.RunwayHoldShort, restoredNode2.Type);
         Assert.NotNull(restoredNode2.RunwayId);
         Assert.True(restoredNode2.RunwayId.Value.Contains("28L"));
@@ -712,7 +712,7 @@ public class RecordingArchiveTests
             Ground = new AircraftGroundOps { Layout = layout },
         };
 
-        var json = JsonSerializer.Serialize(ac);
+        string json = JsonSerializer.Serialize(ac);
 
         // Layout object must not appear in JSON
         Assert.DoesNotContain("\"Nodes\"", json);
@@ -733,8 +733,8 @@ public class RecordingArchiveTests
             Ground = new AircraftGroundOps { Layout = layout },
         };
 
-        var json = JsonSerializer.Serialize(ac);
-        var restored = JsonSerializer.Deserialize<AircraftState>(json)!;
+        string json = JsonSerializer.Serialize(ac);
+        AircraftState restored = JsonSerializer.Deserialize<AircraftState>(json)!;
 
         Assert.Null(restored.Ground.Layout);
         Assert.Equal("KOAK", restored.Ground.LayoutAirportId);
@@ -751,16 +751,16 @@ public class RecordingArchiveTests
     [Fact]
     public void WriteBookmarks_ThenReadBookmarks_RoundTrips()
     {
-        var recording = CreateTestRecording(snapshotCount: 2);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 2);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         var bookmarks = new List<TimelineBookmark> { new("bm-12.000-0", 12.0, "Go-around", "JD"), new("bm-305.500-1", 305.5, null, null) };
-        var withBookmarks = RecordingArchive.WriteBookmarks(bytes, bookmarks);
+        byte[] withBookmarks = RecordingArchive.WriteBookmarks(bytes, bookmarks);
 
         using var ms = new MemoryStream(withBookmarks);
         using var archive = RecordingArchive.Open(ms);
 
-        var read = archive.ReadBookmarks();
+        IReadOnlyList<TimelineBookmark> read = archive.ReadBookmarks();
         Assert.Equal(2, read.Count);
         Assert.Equal("bm-12.000-0", read[0].Id);
         Assert.Equal(12.0, read[0].TimeSeconds);
@@ -774,8 +774,8 @@ public class RecordingArchiveTests
     [Fact]
     public void ReadBookmarks_ReturnsEmpty_WhenEntryAbsent()
     {
-        var recording = CreateTestRecording(snapshotCount: 1);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 1);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
@@ -786,10 +786,10 @@ public class RecordingArchiveTests
     [Fact]
     public void WriteBookmarks_PreservesExistingEntries()
     {
-        var recording = CreateTestRecording(snapshotCount: 3);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 3);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
-        var withBookmarks = RecordingArchive.WriteBookmarks(bytes, [new("bm-0.000-0", 0.0, "Start", null)]);
+        byte[] withBookmarks = RecordingArchive.WriteBookmarks(bytes, [new("bm-0.000-0", 0.0, "Start", null)]);
 
         using var ms = new MemoryStream(withBookmarks);
         using var archive = RecordingArchive.Open(ms);
@@ -805,11 +805,11 @@ public class RecordingArchiveTests
     [Fact]
     public void WriteBookmarks_Overwrites_WithoutDuplicateEntry()
     {
-        var recording = CreateTestRecording(snapshotCount: 1);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 1);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
-        var first = RecordingArchive.WriteBookmarks(bytes, [new("bm-1.000-0", 1.0, "First", null)]);
-        var second = RecordingArchive.WriteBookmarks(first, [new("bm-2.000-0", 2.0, "Second", null)]);
+        byte[] first = RecordingArchive.WriteBookmarks(bytes, [new("bm-1.000-0", 1.0, "First", null)]);
+        byte[] second = RecordingArchive.WriteBookmarks(first, [new("bm-2.000-0", 2.0, "Second", null)]);
 
         using var ms = new MemoryStream(second);
         using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
@@ -817,17 +817,17 @@ public class RecordingArchiveTests
 
         ms.Position = 0;
         using var archive = RecordingArchive.Open(ms);
-        var read = archive.ReadBookmarks();
+        IReadOnlyList<TimelineBookmark> read = archive.ReadBookmarks();
         Assert.Equal("Second", Assert.Single(read).Name);
     }
 
     [Fact]
     public void WriteBookmarks_EmptyList_RoundTripsEmpty()
     {
-        var recording = CreateTestRecording(snapshotCount: 1);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 1);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
-        var withBookmarks = RecordingArchive.WriteBookmarks(bytes, []);
+        byte[] withBookmarks = RecordingArchive.WriteBookmarks(bytes, []);
 
         using var ms = new MemoryStream(withBookmarks);
         using var archive = RecordingArchive.Open(ms);
@@ -837,7 +837,7 @@ public class RecordingArchiveTests
     [Fact]
     public void WriteToBytes_TerminalLog_RoundTrips()
     {
-        var basis = CreateTestRecording(snapshotCount: 1);
+        SessionRecording basis = CreateTestRecording(snapshotCount: 1);
         var recording = new SessionRecording
         {
             Version = basis.Version,
@@ -866,13 +866,13 @@ public class RecordingArchiveTests
             RecordedBy = basis.RecordedBy,
         };
 
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
 
         Assert.True(archive.Manifest.HasTerminalLog);
-        var log = archive.ReadTerminalLog();
+        List<RecordedTerminalEntry> log = archive.ReadTerminalLog();
         Assert.Equal(2, log.Count);
         Assert.Equal("Command", log[0].Kind);
         Assert.Equal(0.0, log[0].ElapsedSeconds);
@@ -881,7 +881,7 @@ public class RecordingArchiveTests
         Assert.Equal(5.0, log[1].ElapsedSeconds);
 
         // Chat also survives as a first-class action (bug-bundle tooling / forward-playback echo).
-        var chat = Assert.Single(archive.ReadActions().OfType<RecordedChat>());
+        RecordedChat chat = Assert.Single(archive.ReadActions().OfType<RecordedChat>());
         Assert.Equal("traffic is your three o'clock", chat.Message);
 
         // The materialized session recording carries the terminal log through.
@@ -891,8 +891,8 @@ public class RecordingArchiveTests
     [Fact]
     public void NoTerminalLog_ReadTerminalLog_ReturnsEmptyAndFlagFalse()
     {
-        var recording = CreateTestRecording(snapshotCount: 1);
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        SessionRecording recording = CreateTestRecording(snapshotCount: 1);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
@@ -904,7 +904,7 @@ public class RecordingArchiveTests
     [Fact]
     public void OldBundleManifest_WithoutHasTerminalLog_DeserializesAsFalse()
     {
-        var oldStyleManifest = """
+        string oldStyleManifest = """
             {
               "Version": 4,
               "RngSeed": 42,
@@ -914,14 +914,14 @@ public class RecordingArchiveTests
               "Snapshots": []
             }
             """;
-        var manifest = JsonSerializer.Deserialize<RecordingManifest>(oldStyleManifest, RecordingJsonOptions.Default);
+        RecordingManifest? manifest = JsonSerializer.Deserialize<RecordingManifest>(oldStyleManifest, RecordingJsonOptions.Default);
         Assert.NotNull(manifest);
         Assert.False(manifest!.HasTerminalLog);
     }
 
     private static StateSnapshotDto CreateSnapshotWithAircraft(double elapsed, string callsign, string aircraftType)
     {
-        var snapshot = CreateMinimalSnapshot(elapsed);
+        StateSnapshotDto snapshot = CreateMinimalSnapshot(elapsed);
         snapshot.Aircraft.Add(new AircraftState { Callsign = callsign, AircraftType = aircraftType }.ToSnapshot());
         return snapshot;
     }

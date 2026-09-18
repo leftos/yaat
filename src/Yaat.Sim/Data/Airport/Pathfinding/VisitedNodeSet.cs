@@ -34,7 +34,7 @@ public readonly struct VisitedNodeSet
         }
 
         int insertAt = ~index;
-        var next = new int[_sorted.Length + 1];
+        int[] next = new int[_sorted.Length + 1];
         Array.Copy(_sorted, 0, next, 0, insertAt);
         next[insertAt] = nodeId;
         Array.Copy(_sorted, insertAt, next, insertAt + 1, _sorted.Length - insertAt);

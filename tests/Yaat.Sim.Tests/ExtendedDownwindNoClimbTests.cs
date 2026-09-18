@@ -28,10 +28,20 @@ public class ExtendedDownwindNoClimbTests
     [Fact]
     public void ExtendedDownwind_PastBaseTurn_HoldsAltitude_DoesNotClimb()
     {
-        var rwy = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 9);
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
+        RunwayInfo rwy = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 9);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
 
-        var downwindHdg = wp.DownwindHeading;
+        TrueHeading downwindHdg = wp.DownwindHeading;
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
         // The altitude the past-abeam descent aims at: the 3° glideslope-intercept altitude at
@@ -46,8 +56,8 @@ public class ExtendedDownwindNoClimbTests
 
         // Place the aircraft 0.6 nm PAST the nominal base turn (extended downwind), level at the
         // altitude it descended to at the base turn — it is at, not below, its intended profile.
-        var pos = GeoMath.ProjectPoint(abeam.Lat, abeam.Lon, downwindHdg, baseExtNm + 0.6);
-        var ac = MakeJet(new LatLon(pos.Lat, pos.Lon), downwindHdg, baseTurnInterceptAlt);
+        (double Lat, double Lon) pos = GeoMath.ProjectPoint(abeam.Lat, abeam.Lon, downwindHdg, baseExtNm + 0.6);
+        AircraftState ac = MakeJet(new LatLon(pos.Lat, pos.Lon), downwindHdg, baseTurnInterceptAlt);
 
         var phase = new DownwindPhase { Waypoints = wp, IsExtended = true };
         var ctx = new PhaseContext

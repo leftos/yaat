@@ -43,7 +43,7 @@ public static class WindInterpolator
             return new WindAtAltitude(0, 0);
         }
 
-        var layers = profile.WindLayers;
+        List<WindLayer> layers = profile.WindLayers;
 
         // Height above the ground drives the variability taper. The datum is the profile's
         // resolved field elevation, NOT the lowest layer's altitude — real profiles author
@@ -68,8 +68,8 @@ public static class WindInterpolator
             upper++;
         }
 
-        var low = layers[upper - 1];
-        var high = layers[upper];
+        WindLayer low = layers[upper - 1];
+        WindLayer high = layers[upper];
         double t = (altitudeFt - low.Altitude) / (high.Altitude - low.Altitude);
 
         // Decompose wind FROM direction into unit N/E components, then lerp.
@@ -91,8 +91,18 @@ public static class WindInterpolator
         // scheme as the mean vector, so a layer boundary never produces a turbulence
         // discontinuity; the AGL taper applies last, inside Compute. The discrete VRB
         // flag steps at t=0.5, matching the cloud-cover convention.
-        var (gustLow, spreadLow) = WindVariation.ResolveAmplitudes(low.Speed, low.Gusts, low.DirectionVariabilityDeg, low.Variable ?? false);
-        var (gustHigh, spreadHigh) = WindVariation.ResolveAmplitudes(high.Speed, high.Gusts, high.DirectionVariabilityDeg, high.Variable ?? false);
+        (double gustLow, double spreadLow) = WindVariation.ResolveAmplitudes(
+            low.Speed,
+            low.Gusts,
+            low.DirectionVariabilityDeg,
+            low.Variable ?? false
+        );
+        (double gustHigh, double spreadHigh) = WindVariation.ResolveAmplitudes(
+            high.Speed,
+            high.Gusts,
+            high.DirectionVariabilityDeg,
+            high.Variable ?? false
+        );
         double gustExcess = gustLow + (t * (gustHigh - gustLow));
         double halfSpread = spreadLow + (t * (spreadHigh - spreadLow));
         bool variable = t < 0.5 ? (low.Variable ?? false) : (high.Variable ?? false);
@@ -107,7 +117,7 @@ public static class WindInterpolator
     private static WindAtAltitude PerturbLayer(WindLayer layer, double heightAglFt, double simTimeSeconds, double phaseSeconds)
     {
         bool variable = layer.Variable ?? false;
-        var (gustExcess, halfSpread) = WindVariation.ResolveAmplitudes(layer.Speed, layer.Gusts, layer.DirectionVariabilityDeg, variable);
+        (double gustExcess, double halfSpread) = WindVariation.ResolveAmplitudes(layer.Speed, layer.Gusts, layer.DirectionVariabilityDeg, variable);
         return WindVariation.Compute(
             new WindPerturbationInputs(layer.Direction, layer.Speed, gustExcess, halfSpread, variable, heightAglFt),
             simTimeSeconds,
@@ -128,7 +138,7 @@ public static class WindInterpolator
         double phaseSeconds
     )
     {
-        var wind = GetWindAt(profile, altitudeFt, simTimeSeconds, phaseSeconds);
+        WindAtAltitude wind = GetWindAt(profile, altitudeFt, simTimeSeconds, phaseSeconds);
         if (wind.SpeedKts <= 0)
         {
             return (0, 0);
@@ -147,7 +157,7 @@ public static class WindInterpolator
     /// </summary>
     public static double IasToTas(double ias, double altitudeFt)
     {
-        var (tempK, _) = GetAtmosphere(altitudeFt);
+        (double tempK, double _) = GetAtmosphere(altitudeFt);
         double mach = IasToMach(ias, altitudeFt);
         double aLocal = Math.Sqrt(Gamma * RGas * tempK);
         return mach * aLocal * MsToKt;
@@ -159,7 +169,7 @@ public static class WindInterpolator
     /// </summary>
     public static double TasToIas(double tas, double altitudeFt)
     {
-        var (tempK, _) = GetAtmosphere(altitudeFt);
+        (double tempK, double _) = GetAtmosphere(altitudeFt);
         double aLocal = Math.Sqrt(Gamma * RGas * tempK);
         double mach = tas * KtToMs / aLocal;
         return MachToIas(mach, altitudeFt);
@@ -171,7 +181,7 @@ public static class WindInterpolator
     /// </summary>
     public static double MachToIas(double mach, double altitudeFt)
     {
-        var (_, delta) = GetAtmosphere(altitudeFt);
+        (double _, double delta) = GetAtmosphere(altitudeFt);
         double qcOverP0 = delta * (Math.Pow(1.0 + 0.2 * mach * mach, GammaRatio) - 1.0);
         double vcMs = A0 * Math.Sqrt(5.0 * (Math.Pow(qcOverP0 + 1.0, InvGammaRatio) - 1.0));
         return vcMs * MsToKt;
@@ -184,7 +194,7 @@ public static class WindInterpolator
     /// </summary>
     public static double IasToMach(double ias, double altitudeFt)
     {
-        var (_, delta) = GetAtmosphere(altitudeFt);
+        (double _, double delta) = GetAtmosphere(altitudeFt);
         double vcRatio = ias * KtToMs / A0;
         double qcOverP0 = Math.Pow(1.0 + 0.2 * vcRatio * vcRatio, GammaRatio) - 1.0;
         double qcOverP = qcOverP0 / delta;
@@ -196,7 +206,7 @@ public static class WindInterpolator
     /// </summary>
     internal static double SpeedOfSoundKts(double altitudeFt)
     {
-        var (tempK, _) = GetAtmosphere(altitudeFt);
+        (double tempK, double _) = GetAtmosphere(altitudeFt);
         return Math.Sqrt(Gamma * RGas * tempK) * MsToKt;
     }
 

@@ -80,7 +80,7 @@ public partial class LoadWeatherWindow : Window
             _artccStatusText.Text = "Set ARTCC ID in Settings first.";
         }
 
-        var lastFolder = preferences.LastWeatherFolder;
+        string? lastFolder = preferences.LastWeatherFolder;
         if (lastFolder is not null && Directory.Exists(lastFolder))
         {
             ScanFolder(lastFolder);
@@ -90,7 +90,7 @@ public partial class LoadWeatherWindow : Window
     private async Task LoadArtccWeatherAsync()
     {
         _artccStatusText.Text = "Loading…";
-        var profiles = await _trainingData.GetWeatherProfilesAsync(_artccId);
+        List<WeatherProfileDto> profiles = await _trainingData.GetWeatherProfilesAsync(_artccId);
 
         if (profiles.Count == 0)
         {
@@ -111,7 +111,7 @@ public partial class LoadWeatherWindow : Window
 
     private async void OnBrowseClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var path = await _filePicker.OpenFolderAsync(new OpenFolderOptions("Select Weather Folder"));
+        string? path = await _filePicker.OpenFolderAsync(new OpenFolderOptions("Select Weather Folder"));
         if (path is not null)
         {
             ScanFolder(path);
@@ -124,27 +124,27 @@ public partial class LoadWeatherWindow : Window
         _preferences.SetLastWeatherFolder(folder);
 
         var items = new List<LocalWeatherItem>();
-        foreach (var filePath in Directory.EnumerateFiles(folder, "*.json", SearchOption.TopDirectoryOnly))
+        foreach (string filePath in Directory.EnumerateFiles(folder, "*.json", SearchOption.TopDirectoryOnly))
         {
             try
             {
-                var json = File.ReadAllText(filePath);
+                string json = File.ReadAllText(filePath);
                 using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
+                JsonElement root = doc.RootElement;
 
-                bool isV2 = root.TryGetProperty("periods", out var periodsProp) && periodsProp.ValueKind == JsonValueKind.Array;
-                bool isV1 = root.TryGetProperty("windLayers", out var layersProp) && layersProp.ValueKind == JsonValueKind.Array;
+                bool isV2 = root.TryGetProperty("periods", out JsonElement periodsProp) && periodsProp.ValueKind == JsonValueKind.Array;
+                bool isV1 = root.TryGetProperty("windLayers", out JsonElement layersProp) && layersProp.ValueKind == JsonValueKind.Array;
 
                 if (!isV1 && !isV2)
                 {
                     continue;
                 }
 
-                var name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null;
+                string? name = root.TryGetProperty("name", out JsonElement nameProp) ? nameProp.GetString() : null;
                 name = string.IsNullOrWhiteSpace(name) ? Path.GetFileNameWithoutExtension(filePath) : name;
 
-                var layerCount = isV2 ? periodsProp.GetArrayLength() : layersProp.GetArrayLength();
-                var suffix = isV2 ? "periods" : "layers";
+                int layerCount = isV2 ? periodsProp.GetArrayLength() : layersProp.GetArrayLength();
+                string suffix = isV2 ? "periods" : "layers";
                 items.Add(new LocalWeatherItem(filePath, name, layerCount, suffix));
             }
             catch (Exception ex)

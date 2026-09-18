@@ -40,7 +40,7 @@ internal sealed class RadarViewScene : ScenarioSceneBase
             "LO-W_S video map toggle to populate"
         );
 
-        var loToggle = vm.Radar.MapToggles.First(t => string.Equals(t.ShortName, "LO-W_S", StringComparison.OrdinalIgnoreCase));
+        VideoMapToggleItem loToggle = vm.Radar.MapToggles.First(t => string.Equals(t.ShortName, "LO-W_S", StringComparison.OrdinalIgnoreCase));
         await SceneActions.WaitUntilAsync(
             () => vm.Radar.IsMapDataCached(loToggle.MapId),
             TimeSpan.FromSeconds(120),
@@ -59,7 +59,7 @@ internal sealed class RadarViewScene : ScenarioSceneBase
             await SceneActions.WaitUntilAsync(() => !vm.IsPaused, TimeSpan.FromSeconds(5), "sim to unpause");
         }
 
-        var prevRateIndex = vm.SelectedSimRateIndex;
+        int prevRateIndex = vm.SelectedSimRateIndex;
         vm.SelectedSimRateIndex = Array.IndexOf(MainViewModel.SimRateOptions, 16);
         // 30 real-seconds × 16x = ~8 minutes of sim time — long enough for fix-
         // anchored aircraft to spread out from their start fixes, accept

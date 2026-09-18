@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -34,27 +35,27 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
     [Fact]
     public void CrossRunway_WithRecordedCompletedRouteAtRunwayHold_CrossesWithoutResume()
     {
-        var restored = RestoreAt(180);
+        (SimulationEngine Engine, AirportGroundLayout Layout, RecordingArchive Archive)? restored = RestoreAt(180);
         if (restored is null)
         {
             return;
         }
 
-        using var archive = restored.Value.Archive;
-        var engine = restored.Value.Engine;
-        var layout = restored.Value.Layout;
-        var aircraft = AssertRecordedCompletedRunwayHold(engine);
+        using RecordingArchive archive = restored.Value.Archive;
+        SimulationEngine engine = restored.Value.Engine;
+        AirportGroundLayout layout = restored.Value.Layout;
+        AircraftState aircraft = AssertRecordedCompletedRunwayHold(engine);
 
         EnableRecordedCommandDelay(engine);
-        var result = engine.SendCommand(RecordedCallsign, $"CROSS {CrossRunway}");
+        CommandResult result = engine.SendCommand(RecordedCallsign, $"CROSS {CrossRunway}");
         output.WriteLine($"CROSS {CrossRunway}: success={result.Success} message={result.Message}");
 
         Assert.True(result.Success, $"CROSS {CrossRunway} should be accepted at the current hold-short: {result.Message}");
-        var delay = Assert.Single(aircraft.DeferredDispatches);
+        DeferredDispatch delay = Assert.Single(aircraft.DeferredDispatches);
         Assert.True(delay.IsReactionDelay);
         Assert.InRange(delay.RemainingSeconds, 3, 8);
 
-        var observation = TickAndObserve(engine, layout, RecordedCallsign, aircraft.Position, maxSeconds: 30);
+        (bool LeftInitialHold, bool SawCrossing) observation = TickAndObserve(engine, layout, RecordedCallsign, aircraft.Position, maxSeconds: 30);
 
         Assert.True(observation.LeftInitialHold, $"{RecordedCallsign} should leave HoldingShort after delayed CROSS {CrossRunway}");
         Assert.True(observation.SawCrossing, $"{RecordedCallsign} should enter CrossingRunwayPhase from the completed hold-short route");
@@ -63,27 +64,33 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
     [Fact]
     public void Resume_WithPendingRouteAtRunwayHold_ContinuesRemainingTaxiRoute()
     {
-        var restored = RestoreAt(0);
+        (SimulationEngine Engine, AirportGroundLayout Layout, RecordingArchive Archive)? restored = RestoreAt(0);
         if (restored is null)
         {
             return;
         }
 
-        using var archive = restored.Value.Archive;
-        var engine = restored.Value.Engine;
-        var layout = restored.Value.Layout;
-        var holdPhase = TaxiFocusedAircraftToM1Hold(engine, layout);
+        using RecordingArchive archive = restored.Value.Archive;
+        SimulationEngine engine = restored.Value.Engine;
+        AirportGroundLayout layout = restored.Value.Layout;
+        HoldingShortPhase holdPhase = TaxiFocusedAircraftToM1Hold(engine, layout);
 
         EnableRecordedCommandDelay(engine);
-        var result = engine.SendCommand(FocusedCallsign, "RES");
+        CommandResult result = engine.SendCommand(FocusedCallsign, "RES");
         output.WriteLine($"RES: success={result.Success} message={result.Message}");
 
         Assert.True(result.Success, $"RES should clear the current hold and resume the pending taxi route: {result.Message}");
-        var delay = Assert.Single(engine.FindAircraft(FocusedCallsign)!.DeferredDispatches);
+        DeferredDispatch delay = Assert.Single(engine.FindAircraft(FocusedCallsign)!.DeferredDispatches);
         Assert.True(delay.IsReactionDelay);
         Assert.InRange(delay.RemainingSeconds, 3, 8);
 
-        var observation = TickAndObserve(engine, layout, FocusedCallsign, holdPhase.HoldShort.NodeId, maxSeconds: 30);
+        (bool LeftInitialHold, bool SawCrossing) observation = TickAndObserve(
+            engine,
+            layout,
+            FocusedCallsign,
+            holdPhase.HoldShort.NodeId,
+            maxSeconds: 30
+        );
 
         Assert.True(observation.LeftInitialHold, $"{FocusedCallsign} should leave the current runway hold after delayed RES");
         Assert.True(observation.SawCrossing, $"{FocusedCallsign} should continue the remaining taxi route through CrossingRunwayPhase");
@@ -97,22 +104,22 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
             return null;
         }
 
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return null;
         }
 
-        var snapshot = archive.ReadSnapshotAt(targetSeconds);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(targetSeconds);
         if (snapshot is null)
         {
             archive.Dispose();
             return null;
         }
 
-        var layout = archive.ReadLayout("mia");
-        var engine = BuildEngine(layout);
-        var recording = archive.ToBaseSessionRecording();
+        AirportGroundLayout layout = archive.ReadLayout("mia");
+        SimulationEngine engine = BuildEngine(layout);
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
         engine.RestoreFromSnapshot(snapshot.State);
         return (engine, layout, archive);
@@ -142,14 +149,14 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
 
     private AircraftState AssertRecordedCompletedRunwayHold(SimulationEngine engine)
     {
-        var aircraft = engine.FindAircraft(RecordedCallsign);
+        AircraftState? aircraft = engine.FindAircraft(RecordedCallsign);
         Assert.NotNull(aircraft);
 
-        var holdPhase = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
+        HoldingShortPhase holdPhase = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
         Assert.Equal(HoldShortReason.RunwayCrossing, holdPhase.HoldShort.Reason);
         Assert.True(RunwayIdentifier.Parse(holdPhase.HoldShort.TargetName!).Contains(CrossRunway));
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         Assert.True(route.IsComplete, "Recorded precondition: ENY3516's route completed at the runway hold-short");
         Assert.DoesNotContain(aircraft.Phases!.Phases.Skip(aircraft.Phases.CurrentIndex + 1), p => p is CrossingRunwayPhase);
@@ -160,10 +167,10 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
 
     private HoldingShortPhase TaxiFocusedAircraftToM1Hold(SimulationEngine engine, AirportGroundLayout layout)
     {
-        var aircraft = SpawnFocusedAircraft(layout);
+        AircraftState aircraft = SpawnFocusedAircraft(layout);
         engine.World.AddAircraft(aircraft);
 
-        var result = engine.SendCommand(FocusedCallsign, "TAXI M1 RWY08R/26L L1");
+        CommandResult result = engine.SendCommand(FocusedCallsign, "TAXI M1 RWY08R/26L L1");
         output.WriteLine($"TAXI M1 RWY08R/26L L1: success={result.Success} message={result.Message}");
         Assert.True(result.Success, $"TAXI route to the 08R crossing should resolve: {result.Message}");
 
@@ -179,16 +186,16 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
         );
 
         Assert.True(reachedHold, $"{FocusedCallsign} should reach the first 08R/26L hold-short on M1");
-        var holdPhase = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
+        HoldingShortPhase holdPhase = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
         Assert.False(aircraft.Ground.AssignedTaxiRoute?.IsComplete ?? true, "Focused precondition: route should continue beyond the hold-short");
         return holdPhase;
     }
 
     private static AircraftState SpawnFocusedAircraft(AirportGroundLayout layout)
     {
-        var start = layout.Nodes[M1StartNodeId];
-        var holdShort = layout.Nodes[M1RunwayHoldShortNodeId];
-        var heading = GeoMath.BearingTo(start.Position, holdShort.Position);
+        GroundNode start = layout.Nodes[M1StartNodeId];
+        GroundNode holdShort = layout.Nodes[M1RunwayHoldShortNodeId];
+        double heading = GeoMath.BearingTo(start.Position, holdShort.Position);
         var aircraft = new AircraftState
         {
             Callsign = FocusedCallsign,
@@ -228,10 +235,10 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
         for (int t = 1; t <= maxSeconds; t++)
         {
             engine.TickOneSecond();
-            var aircraft = engine.FindAircraft(callsign);
+            AircraftState? aircraft = engine.FindAircraft(callsign);
             Assert.NotNull(aircraft);
 
-            var phase = aircraft.Phases?.CurrentPhase;
+            Phase? phase = aircraft.Phases?.CurrentPhase;
             sawCrossing |= phase is CrossingRunwayPhase;
             leftInitialHold |= phase is not HoldingShortPhase || GeoMath.DistanceNm(initialPosition, aircraft.Position) > 0.005;
 
@@ -254,10 +261,10 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
         for (int t = 1; t <= maxSeconds; t++)
         {
             engine.TickOneSecond();
-            var aircraft = engine.FindAircraft(callsign);
+            AircraftState? aircraft = engine.FindAircraft(callsign);
             Assert.NotNull(aircraft);
 
-            var phase = aircraft.Phases?.CurrentPhase;
+            Phase? phase = aircraft.Phases?.CurrentPhase;
             sawCrossing |= phase is CrossingRunwayPhase;
             leftInitialHold |= phase is not HoldingShortPhase hs || hs.HoldShort.NodeId != initialHoldNodeId;
 
@@ -272,7 +279,7 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
         for (int t = 1; t <= maxSeconds; t++)
         {
             engine.TickOneSecond();
-            var aircraft = engine.FindAircraft(callsign);
+            AircraftState? aircraft = engine.FindAircraft(callsign);
             if (aircraft is not null && condition(aircraft))
             {
                 return true;

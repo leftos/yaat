@@ -25,14 +25,14 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -51,8 +51,8 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
     [Fact]
     public void FixToFixRoute_ContainsBothFixes()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -60,20 +60,20 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
         }
 
         // Verify SAU VOR is in the nav database (should be loaded from CIFP navaids)
-        var sauPos = NavigationDatabase.Instance.GetFixPosition("SAU");
+        (double Lat, double Lon)? sauPos = NavigationDatabase.Instance.GetFixPosition("SAU");
         output.WriteLine($"SAU fix position: {(sauPos is null ? "NOT FOUND" : $"{sauPos.Value.Lat:F6}, {sauPos.Value.Lon:F6}")}");
 
         // EVA18 spawns at t=360
         engine.Replay(recording, 362);
 
-        var aircraft = engine.FindAircraft("EVA18");
+        AircraftState? aircraft = engine.FindAircraft("EVA18");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"EVA18: hdg={aircraft.TrueHeading.Degrees:F1} alt={aircraft.Altitude:F0}");
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         output.WriteLine($"  Route ({route.Count} fixes):");
-        foreach (var fix in route)
+        foreach (NavigationTarget fix in route)
         {
             output.WriteLine($"    {fix.Name} ({fix.Position.Lat:F4}, {fix.Position.Lon:F4})");
         }
@@ -91,8 +91,8 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
     [Fact]
     public void FixToFixRoute_AircraftTurnsTowardNextFix()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -102,7 +102,7 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
         // EVA18 spawns at t=360, let it fly for a bit
         engine.Replay(recording, 362);
 
-        var aircraft = engine.FindAircraft("EVA18");
+        AircraftState? aircraft = engine.FindAircraft("EVA18");
         Assert.NotNull(aircraft);
 
         double initialHdg = aircraft.TrueHeading.Degrees;
@@ -121,7 +121,7 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
 
             if (t % 30 == 0)
             {
-                var nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
+                string nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
                 output.WriteLine(
                     $"  t={t}: hdg={aircraft.TrueHeading.Degrees:F1} lat={aircraft.Position.Lat:F4} lon={aircraft.Position.Lon:F4} next={nextFix}"
                 );

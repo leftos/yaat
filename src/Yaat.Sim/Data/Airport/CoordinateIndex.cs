@@ -16,8 +16,8 @@ internal sealed class CoordinateIndex
 
     public void Add(double lat, double lon, int nodeId)
     {
-        var key = BucketKey(lat, lon);
-        if (!_grid.TryGetValue(key, out var list))
+        (int LatBucket, int LonBucket) key = BucketKey(lat, lon);
+        if (!_grid.TryGetValue(key, out List<(double Lat, double Lon, int NodeId)>? list))
         {
             list = [];
             _grid[key] = list;
@@ -28,20 +28,20 @@ internal sealed class CoordinateIndex
 
     public int? FindNearest(double lat, double lon)
     {
-        var key = BucketKey(lat, lon);
+        (int LatBucket, int LonBucket) key = BucketKey(lat, lon);
 
         // Check this bucket and neighbors
         for (int dlat = -1; dlat <= 1; dlat++)
         {
             for (int dlon = -1; dlon <= 1; dlon++)
             {
-                var neighborKey = (key.LatBucket + dlat, key.LonBucket + dlon);
-                if (!_grid.TryGetValue(neighborKey, out var list))
+                (int, int) neighborKey = (key.LatBucket + dlat, key.LonBucket + dlon);
+                if (!_grid.TryGetValue(neighborKey, out List<(double Lat, double Lon, int NodeId)>? list))
                 {
                     continue;
                 }
 
-                foreach (var (nLat, nLon, nodeId) in list)
+                foreach ((double nLat, double nLon, int nodeId) in list)
                 {
                     if (Math.Abs(lat - nLat) <= _tolerance && Math.Abs(lon - nLon) <= _tolerance)
                     {

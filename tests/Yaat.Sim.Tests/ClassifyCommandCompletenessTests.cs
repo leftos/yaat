@@ -242,9 +242,9 @@ public class ClassifyCommandCompletenessTests(ITestOutputHelper output)
         var unlisted = new List<string>();
         var unconstructible = new List<string>();
 
-        foreach (var type in ParsedCommandDummyFactory.AllParsedCommandTypes)
+        foreach (Type type in ParsedCommandDummyFactory.AllParsedCommandTypes)
         {
-            var cmd = ParsedCommandDummyFactory.CreateDummy(type);
+            ParsedCommand? cmd = ParsedCommandDummyFactory.CreateDummy(type);
             if (cmd is null)
             {
                 unconstructible.Add(type.Name);
@@ -260,7 +260,7 @@ public class ClassifyCommandCompletenessTests(ITestOutputHelper output)
         if (unlisted.Count > 0)
         {
             output.WriteLine("Classified Immediate but not in the IntentionallyImmediate allowlist:");
-            foreach (var name in unlisted)
+            foreach (string name in unlisted)
             {
                 output.WriteLine($"        \"{name}\",");
             }
@@ -277,18 +277,18 @@ public class ClassifyCommandCompletenessTests(ITestOutputHelper output)
     [Fact]
     public void ClassifyCommand_AllowlistEntriesStillClassifyImmediate()
     {
-        var byName = ParsedCommandDummyFactory.AllParsedCommandTypes.ToDictionary(t => t.Name);
+        Dictionary<string, Type> byName = ParsedCommandDummyFactory.AllParsedCommandTypes.ToDictionary(t => t.Name);
         var stale = new List<string>();
 
-        foreach (var name in IntentionallyImmediate.OrderBy(n => n))
+        foreach (string? name in IntentionallyImmediate.OrderBy(n => n))
         {
-            if (!byName.TryGetValue(name, out var type))
+            if (!byName.TryGetValue(name, out Type? type))
             {
                 stale.Add($"{name} (type no longer exists)");
                 continue;
             }
 
-            var cmd = ParsedCommandDummyFactory.CreateDummy(type);
+            ParsedCommand? cmd = ParsedCommandDummyFactory.CreateDummy(type);
             if (cmd is null)
             {
                 stale.Add($"{name} (dummy unconstructible)");

@@ -57,7 +57,7 @@ public class ProcedureLoadingTests
         if (extraFixes is not null)
         {
             fixes = new Dictionary<string, (double Lat, double Lon)>(DefaultFixes, StringComparer.OrdinalIgnoreCase);
-            foreach (var (k, v) in extraFixes)
+            foreach ((string? k, (double Lat, double Lon) v) in extraFixes)
             {
                 fixes[k] = v;
             }
@@ -252,16 +252,16 @@ public class ProcedureLoadingTests
     [Fact]
     public void Jarr_WithCifp_LoadsConstrainedTargets()
     {
-        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        AircraftState aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
         aircraft.Position = new LatLon(38.5, -123.5);
         aircraft.Altitude = 20000;
         aircraft.TrueHeading = new TrueHeading(150);
         aircraft.TrueTrack = new TrueHeading(150);
 
-        var navDb = CreateNavDb(star: CreateTestStar());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(star: CreateTestStar());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("BDEGA3", aircraft.Procedure.ActiveStarId);
@@ -271,14 +271,14 @@ public class ProcedureLoadingTests
         Assert.True(aircraft.Targets.NavigationRoute.Count >= 3);
 
         // First target should be BDEGA with AtOrAbove 15000
-        var first = aircraft.Targets.NavigationRoute[0];
+        NavigationTarget first = aircraft.Targets.NavigationRoute[0];
         Assert.Equal("BDEGA", first.Name);
         Assert.NotNull(first.AltitudeRestriction);
         Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, first.AltitudeRestriction!.Type);
         Assert.Equal(15000, first.AltitudeRestriction.Altitude1Ft);
 
         // FAITH should have speed restriction
-        var faith = aircraft.Targets.NavigationRoute.First(t => t.Name == "FAITH");
+        NavigationTarget faith = aircraft.Targets.NavigationRoute.First(t => t.Name == "FAITH");
         Assert.NotNull(faith.SpeedRestriction);
         Assert.Equal(250, faith.SpeedRestriction!.SpeedKts);
     }
@@ -286,11 +286,11 @@ public class ProcedureLoadingTests
     [Fact]
     public void Jarr_SetsActiveStarId_StarViaModeOff()
     {
-        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        AircraftState aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
         aircraft.Altitude = 20000;
 
-        var navDb = CreateNavDb(star: CreateTestStar());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(star: CreateTestStar());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA", null);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
@@ -303,15 +303,15 @@ public class ProcedureLoadingTests
     [Fact]
     public void Jarr_VersionlessStarId_ResolvesToCurrentVersion()
     {
-        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        AircraftState aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
         aircraft.Altitude = 20000;
 
-        var navDb = CreateNavDb(star: CreateTestStar());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(star: CreateTestStar());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // `JARR BDEGA` (version digit omitted) must resolve to the current BDEGA3.
         var cmd = new JoinStarCommand("BDEGA", "BDEGA", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("BDEGA3", aircraft.Procedure.ActiveStarId);
@@ -320,16 +320,16 @@ public class ProcedureLoadingTests
     [Fact]
     public void Jarr_RunwayTransitionArg_SetsDestinationRunwayAndAppendsTransition()
     {
-        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        AircraftState aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
         aircraft.Altitude = 20000;
 
-        var navDb = CreateNavDb(star: CreateTestStar());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(star: CreateTestStar());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // `JARR BDEGA3 28R`: the runway-transition argument designates runway 28R, so the RW28R
         // transition (fix BRIXX) is appended and DestinationRunway is set.
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA", "28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("28R", aircraft.Procedure.DestinationRunway);
@@ -340,14 +340,14 @@ public class ProcedureLoadingTests
     public void Jarr_VersionlessStarWithRunwayTransition_BothResolved()
     {
         // The exact shape from the issue bundle: `JARR DRLLR 26R` style.
-        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        AircraftState aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
         aircraft.Altitude = 20000;
 
-        var navDb = CreateNavDb(star: CreateTestStar());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(star: CreateTestStar());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinStarCommand("BDEGA", null, "28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("BDEGA3", aircraft.Procedure.ActiveStarId);
@@ -358,17 +358,17 @@ public class ProcedureLoadingTests
     [Fact]
     public void Jarr_SingleDigitRunwayTransition_StoresPaddedDestinationRunway()
     {
-        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        AircraftState aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
         aircraft.Altitude = 20000;
 
-        var navDb = CreateNavDb(star: CreateTestStar());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(star: CreateTestStar());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // A single-digit runway-transition arg ("1R") must be stored zero-padded ("01R"), matching the
         // RunwayInfo.Designator invariant, so every downstream "RW" + designator lookup finds the
         // CIFP-stored "RW01R" key instead of silently missing (issue #273).
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA", "1R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("01R", aircraft.Procedure.DestinationRunway);
@@ -379,12 +379,12 @@ public class ProcedureLoadingTests
     [Fact]
     public void Dvia_NoActiveStar_SelfResolvesStarFromFiledRouteAndOverlaysRestrictions()
     {
-        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        AircraftState aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
         aircraft.Altitude = 20000;
 
         // Simulate PopulateNavigationRoute: the lateral STAR fixes are present but carry no
         // restrictions, and no STAR is active (the bundle's failure mode).
-        foreach (var name in new[] { "BDEGA", "CEDES", "FAITH" })
+        foreach (string? name in new[] { "BDEGA", "CEDES", "FAITH" })
         {
             aircraft.Targets.NavigationRoute.Add(
                 new NavigationTarget { Name = name, Position = new LatLon(DefaultFixes[name].Lat, DefaultFixes[name].Lon) }
@@ -392,10 +392,10 @@ public class ProcedureLoadingTests
         }
         Assert.Null(aircraft.Procedure.ActiveStarId);
 
-        var navDb = CreateNavDb(star: CreateTestStar());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(star: CreateTestStar());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("BDEGA3", aircraft.Procedure.ActiveStarId);
@@ -404,11 +404,11 @@ public class ProcedureLoadingTests
         // Published crossing restrictions overlaid onto the existing (already-sequenced) fixes,
         // without re-adding any fixes.
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
-        var cedes = aircraft.Targets.NavigationRoute.First(t => t.Name == "CEDES");
+        NavigationTarget cedes = aircraft.Targets.NavigationRoute.First(t => t.Name == "CEDES");
         Assert.NotNull(cedes.AltitudeRestriction);
         Assert.Equal(CifpAltitudeRestrictionType.AtOrBelow, cedes.AltitudeRestriction!.Type);
         Assert.Equal(12000, cedes.AltitudeRestriction.Altitude1Ft);
-        var faith = aircraft.Targets.NavigationRoute.First(t => t.Name == "FAITH");
+        NavigationTarget faith = aircraft.Targets.NavigationRoute.First(t => t.Name == "FAITH");
         Assert.NotNull(faith.SpeedRestriction);
         Assert.Equal(250, faith.SpeedRestriction!.SpeedKts);
     }
@@ -416,13 +416,13 @@ public class ProcedureLoadingTests
     [Fact]
     public void Dvia_NoStarInFiledRoute_StillFails()
     {
-        var aircraft = CreateIfrAircraft("KSFO DIRECT KSFO");
+        AircraftState aircraft = CreateIfrAircraft("KSFO DIRECT KSFO");
         aircraft.Altitude = 20000;
 
-        var navDb = CreateNavDb(star: CreateTestStar());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(star: CreateTestStar());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Null(aircraft.Procedure.ActiveStarId);
@@ -436,7 +436,7 @@ public class ProcedureLoadingTests
     [Fact]
     public void Cvia_NoActiveSid_SelfResolvesSidFromFiledRouteAndOverlaysRestrictions()
     {
-        var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
+        AircraftState aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
         aircraft.Altitude = 3000;
         // The departure runway snapshot persists from the takeoff clearance and drives runway-transition
         // selection (it survives the phase teardown a CVIA triggers mid-InitialClimb).
@@ -444,7 +444,7 @@ public class ProcedureLoadingTests
 
         // Simulate the post-DCT state: the lateral SID fixes are present but carry no restrictions,
         // and no SID is active.
-        foreach (var name in new[] { "PORTE", "OAK" })
+        foreach (string? name in new[] { "PORTE", "OAK" })
         {
             aircraft.Targets.NavigationRoute.Add(
                 new NavigationTarget { Name = name, Position = new LatLon(DefaultFixes[name].Lat, DefaultFixes[name].Lon) }
@@ -452,10 +452,10 @@ public class ProcedureLoadingTests
         }
         Assert.Null(aircraft.Procedure.ActiveSidId);
 
-        var navDb = CreateNavDb(sid: CreateTestSid());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(sid: CreateTestSid());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("PORTE3", aircraft.Procedure.ActiveSidId);
@@ -463,11 +463,11 @@ public class ProcedureLoadingTests
 
         // Published crossing restrictions overlaid onto the existing fixes, without re-adding any.
         Assert.Equal(2, aircraft.Targets.NavigationRoute.Count);
-        var porte = aircraft.Targets.NavigationRoute.First(t => t.Name == "PORTE");
+        NavigationTarget porte = aircraft.Targets.NavigationRoute.First(t => t.Name == "PORTE");
         Assert.NotNull(porte.AltitudeRestriction);
         Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, porte.AltitudeRestriction!.Type);
         Assert.Equal(4000, porte.AltitudeRestriction.Altitude1Ft);
-        var oak = aircraft.Targets.NavigationRoute.First(t => t.Name == "OAK");
+        NavigationTarget oak = aircraft.Targets.NavigationRoute.First(t => t.Name == "OAK");
         Assert.NotNull(oak.AltitudeRestriction);
         Assert.Equal(10000, oak.AltitudeRestriction!.Altitude1Ft);
         Assert.NotNull(oak.SpeedRestriction);
@@ -477,13 +477,13 @@ public class ProcedureLoadingTests
     [Fact]
     public void Cvia_NoSidInFiledRoute_StillFails()
     {
-        var aircraft = CreateIfrAircraft("KSFO DIRECT KSFO");
+        AircraftState aircraft = CreateIfrAircraft("KSFO DIRECT KSFO");
         aircraft.Altitude = 3000;
 
-        var navDb = CreateNavDb(sid: CreateTestSid());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(sid: CreateTestSid());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Null(aircraft.Procedure.ActiveSidId);
@@ -493,15 +493,15 @@ public class ProcedureLoadingTests
     [Fact]
     public void Cvia_VfrAircraft_Rejected()
     {
-        var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
+        AircraftState aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
         aircraft.FlightPlan.FlightRules = "VFR";
         aircraft.Altitude = 3000;
         aircraft.Procedure.DepartureRunway = "28R";
 
-        var navDb = CreateNavDb(sid: CreateTestSid());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(sid: CreateTestSid());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Null(aircraft.Procedure.ActiveSidId);
@@ -510,17 +510,17 @@ public class ProcedureLoadingTests
     [Fact]
     public void Cvia_WithCeiling_SelfResolvesAndSetsCeiling()
     {
-        var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
+        AircraftState aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
         aircraft.Altitude = 3000;
         aircraft.Procedure.DepartureRunway = "28R";
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget { Name = "OAK", Position = new LatLon(DefaultFixes["OAK"].Lat, DefaultFixes["OAK"].Lon) }
         );
 
-        var navDb = CreateNavDb(sid: CreateTestSid());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(sid: CreateTestSid());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(19000), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ClimbViaCommand(19000), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("PORTE3", aircraft.Procedure.ActiveSidId);
@@ -533,12 +533,12 @@ public class ProcedureLoadingTests
     [Fact]
     public void TryResolveSidFromCifp_SelectsCorrectRunwayTransition()
     {
-        var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
+        AircraftState aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
-        var navDb = CreateNavDb(sid: CreateTestSid());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        NavigationDatabase navDb = CreateNavDb(sid: CreateTestSid());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
         Assert.Equal("PORTE3", result.SidId);
@@ -559,29 +559,29 @@ public class ProcedureLoadingTests
     [Fact]
     public void TryResolveSidFromCifp_WithEnrouteTransition_IncludesTransitionLegs()
     {
-        var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
+        AircraftState aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
-        var navDb = CreateNavDb(sid: CreateTestSid());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        NavigationDatabase navDb = CreateNavDb(sid: CreateTestSid());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
 
         // SUNOL (second route token) should match the enroute transition
-        var sunol = result.Targets.FirstOrDefault(t => t.Name == "SUNOL");
+        NavigationTarget? sunol = result.Targets.FirstOrDefault(t => t.Name == "SUNOL");
         Assert.NotNull(sunol);
     }
 
     [Fact]
     public void TryResolveSidFromCifp_NoMatchingRunway_UsesCommonOnly()
     {
-        var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
+        AircraftState aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01L") }; // No match
 
-        var navDb = CreateNavDb(sid: CreateTestSid());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        NavigationDatabase navDb = CreateNavDb(sid: CreateTestSid());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
         // Should have common legs only (PORTE, OAK) + enroute (SUNOL)
@@ -591,11 +591,11 @@ public class ProcedureLoadingTests
     [Fact]
     public void TryResolveSidFromCifp_UnknownSid_ReturnsNull()
     {
-        var aircraft = CreateIfrAircraft("BOGUS7 SUNOL V244 OAK");
+        AircraftState aircraft = CreateIfrAircraft("BOGUS7 SUNOL V244 OAK");
 
-        var navDb = CreateNavDb(sid: CreateTestSid());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        NavigationDatabase navDb = CreateNavDb(sid: CreateTestSid());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.Null(result);
     }
@@ -603,17 +603,17 @@ public class ProcedureLoadingTests
     [Fact]
     public void TryResolveSidFromCifp_TargetsCarryConstraints()
     {
-        var aircraft = CreateIfrAircraft("PORTE3 V244 OAK");
+        AircraftState aircraft = CreateIfrAircraft("PORTE3 V244 OAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
-        var navDb = CreateNavDb(sid: CreateTestSid());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        NavigationDatabase navDb = CreateNavDb(sid: CreateTestSid());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
 
         // OAK (common leg) should have At 10000ft + 250kts speed
-        var oak = result.Targets.First(t => t.Name == "OAK");
+        NavigationTarget oak = result.Targets.First(t => t.Name == "OAK");
         Assert.NotNull(oak.AltitudeRestriction);
         Assert.Equal(CifpAltitudeRestrictionType.At, oak.AltitudeRestriction.Type);
         Assert.Equal(10000, oak.AltitudeRestriction.Altitude1Ft);
@@ -626,7 +626,7 @@ public class ProcedureLoadingTests
     [Fact]
     public void InitialClimbPhase_WithDepartureSidId_ActivatesSidViaMode()
     {
-        var aircraft = CreateIfrAircraft("PORTE3 SUNOL");
+        AircraftState aircraft = CreateIfrAircraft("PORTE3 SUNOL");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
         var targets = new List<NavigationTarget>
@@ -675,7 +675,7 @@ public class ProcedureLoadingTests
     [Fact]
     public void InitialClimbPhase_WithoutDepartureSidId_DoesNotActivateSid()
     {
-        var aircraft = CreateIfrAircraft("SUNOL V244 OAK");
+        AircraftState aircraft = CreateIfrAircraft("SUNOL V244 OAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
         var targets = new List<NavigationTarget>
@@ -709,8 +709,8 @@ public class ProcedureLoadingTests
     [Fact]
     public void ResolveLegsToTargets_ConvertsLegsWithConstraints()
     {
-        var navDb = CreateNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var legs = new List<CifpLeg>
         {
             new(
@@ -739,7 +739,7 @@ public class ProcedureLoadingTests
             ),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         Assert.Equal(2, targets.Count);
         Assert.Equal("MOLEN", targets[0].Name);
@@ -751,8 +751,8 @@ public class ProcedureLoadingTests
     [Fact]
     public void ResolveLegsToTargets_SkipsUnknownFixes()
     {
-        var navDb = CreateNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var legs = new List<CifpLeg>
         {
             new("MOLEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
@@ -760,7 +760,7 @@ public class ProcedureLoadingTests
             new("PORTE", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 30, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         Assert.Equal(2, targets.Count);
         Assert.Equal("MOLEN", targets[0].Name);
@@ -770,8 +770,8 @@ public class ProcedureLoadingTests
     [Fact]
     public void ResolveLegsToTargets_DeduplicatesAdjacentFixes()
     {
-        var navDb = CreateNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var legs = new List<CifpLeg>
         {
             new("MOLEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
@@ -779,7 +779,7 @@ public class ProcedureLoadingTests
             new("PORTE", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 30, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         Assert.Equal(2, targets.Count);
     }
@@ -795,20 +795,28 @@ public class ProcedureLoadingTests
         double startBearing = 0; // North
         double endBearing = 90; // East (90° clockwise sweep)
 
-        var points = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, startBearing, endBearing, turnRight: true, stepDeg: 30);
+        List<(double Lat, double Lon)> points = GeoMath.GenerateArcPoints(
+            centerLat,
+            centerLon,
+            radiusNm,
+            startBearing,
+            endBearing,
+            turnRight: true,
+            stepDeg: 30
+        );
 
         // 90° sweep at 30° steps = 3 intermediate points (30°, 60°) + end point (90°) = 3 points
         Assert.Equal(3, points.Count);
 
         // Each point should be approximately radiusNm from center
-        foreach (var (lat, lon) in points)
+        foreach ((double lat, double lon) in points)
         {
             double dist = GeoMath.DistanceNm(centerLat, centerLon, lat, lon);
             Assert.Equal(radiusNm, dist, precision: 1);
         }
 
         // Last point should match the end bearing (east of center)
-        var last = points[^1];
+        (double Lat, double Lon) last = points[^1];
         double lastBearing = GeoMath.BearingTo(centerLat, centerLon, last.Lat, last.Lon);
         Assert.Equal(endBearing, lastBearing, precision: 0);
     }
@@ -822,12 +830,20 @@ public class ProcedureLoadingTests
         double startBearing = 90; // East
         double endBearing = 0; // North (90° counter-clockwise sweep)
 
-        var points = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, startBearing, endBearing, turnRight: false, stepDeg: 30);
+        List<(double Lat, double Lon)> points = GeoMath.GenerateArcPoints(
+            centerLat,
+            centerLon,
+            radiusNm,
+            startBearing,
+            endBearing,
+            turnRight: false,
+            stepDeg: 30
+        );
 
         // 90° sweep at 30° steps = 3 intermediate points + end point = 3
         Assert.Equal(3, points.Count);
 
-        foreach (var (lat, lon) in points)
+        foreach ((double lat, double lon) in points)
         {
             double dist = GeoMath.DistanceNm(centerLat, centerLon, lat, lon);
             Assert.Equal(radiusNm, dist, precision: 1);
@@ -843,12 +859,20 @@ public class ProcedureLoadingTests
         double startBearing = 350; // NNW
         double endBearing = 10; // NNE (20° clockwise sweep, wrapping through 360)
 
-        var points = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, startBearing, endBearing, turnRight: true, stepDeg: 5);
+        List<(double Lat, double Lon)> points = GeoMath.GenerateArcPoints(
+            centerLat,
+            centerLon,
+            radiusNm,
+            startBearing,
+            endBearing,
+            turnRight: true,
+            stepDeg: 5
+        );
 
         // 20° sweep at 5° steps = 3 intermediate + 1 end = 4
         Assert.Equal(4, points.Count);
 
-        foreach (var (lat, lon) in points)
+        foreach ((double lat, double lon) in points)
         {
             double dist = GeoMath.DistanceNm(centerLat, centerLon, lat, lon);
             Assert.Equal(radiusNm, dist, precision: 1);
@@ -862,14 +886,14 @@ public class ProcedureLoadingTests
     {
         // Center at (37.0, -122.0), radius 3nm
         // Previous fix at bearing 0° from center, terminator at bearing 90°
-        var centerLat = 37.0;
-        var centerLon = -122.0;
+        double centerLat = 37.0;
+        double centerLon = -122.0;
         double radius = 3.0;
-        var startPt = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(0), radius);
-        var endPt = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(90), radius);
+        (double Lat, double Lon) startPt = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(0), radius);
+        (double Lat, double Lon) endPt = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(90), radius);
 
-        var navDb = CreateNavDb(extraFixes: new Dictionary<string, (double Lat, double Lon)> { ["FIX1"] = startPt, ["FIX2"] = endPt });
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(extraFixes: new Dictionary<string, (double Lat, double Lon)> { ["FIX1"] = startPt, ["FIX2"] = endPt });
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var legs = new List<CifpLeg>
         {
@@ -891,7 +915,7 @@ public class ProcedureLoadingTests
             ),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         // Should have: FIX1, intermediate arc points, FIX2
         Assert.True(targets.Count > 2, $"Expected arc expansion, got {targets.Count} targets");
@@ -909,13 +933,13 @@ public class ProcedureLoadingTests
     public void ResolveLegsToTargets_AfLeg_ExpandsToArcWaypoints()
     {
         // Navaid at center, DME arc of 10nm
-        var navaidLat = 37.0;
-        var navaidLon = -122.0;
+        double navaidLat = 37.0;
+        double navaidLon = -122.0;
         double rho = 10.0;
-        var startPt = GeoMath.ProjectPoint(navaidLat, navaidLon, new TrueHeading(180), rho);
-        var endPt = GeoMath.ProjectPoint(navaidLat, navaidLon, new TrueHeading(270), rho);
+        (double Lat, double Lon) startPt = GeoMath.ProjectPoint(navaidLat, navaidLon, new TrueHeading(180), rho);
+        (double Lat, double Lon) endPt = GeoMath.ProjectPoint(navaidLat, navaidLon, new TrueHeading(270), rho);
 
-        var navDb = CreateNavDb(
+        NavigationDatabase navDb = CreateNavDb(
             extraFixes: new Dictionary<string, (double Lat, double Lon)>
             {
                 ["FIX1"] = startPt,
@@ -923,7 +947,7 @@ public class ProcedureLoadingTests
                 ["ABQ"] = (navaidLat, navaidLon),
             }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var legs = new List<CifpLeg>
         {
@@ -945,7 +969,7 @@ public class ProcedureLoadingTests
             ),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         Assert.True(targets.Count > 2, $"Expected arc expansion, got {targets.Count} targets");
         Assert.Equal("FIX1", targets[0].Name);
@@ -955,8 +979,8 @@ public class ProcedureLoadingTests
     [Fact]
     public void ResolveLegsToTargets_SkipsProcedureTurnLegs()
     {
-        var navDb = CreateNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var legs = new List<CifpLeg>
         {
             new("MOLEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
@@ -964,7 +988,7 @@ public class ProcedureLoadingTests
             new("OAK", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 30, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         Assert.Equal(2, targets.Count);
         Assert.Equal("MOLEN", targets[0].Name);
@@ -990,16 +1014,16 @@ public class ProcedureLoadingTests
             EnrouteTransitions: new Dictionary<string, CifpTransition>()
         );
 
-        var navDb = CreateNavDb(
+        NavigationDatabase navDb = CreateNavDb(
             sid: sid,
             extraFixes: new Dictionary<string, (double Lat, double Lon)> { ["SSTIK"] = (37.50, -122.40), ["PORTE"] = (37.65, -122.30) }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var aircraft = CreateIfrAircraft("SSTIK5 PORTE");
+        AircraftState aircraft = CreateIfrAircraft("SSTIK5 PORTE");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01L") };
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
         Assert.Equal("SSTIK", result.Targets[0].Name);
@@ -1024,16 +1048,16 @@ public class ProcedureLoadingTests
             EnrouteTransitions: new Dictionary<string, CifpTransition>()
         );
 
-        var navDb = CreateNavDb(
+        NavigationDatabase navDb = CreateNavDb(
             sid: sid,
             extraFixes: new Dictionary<string, (double Lat, double Lon)> { ["SSTIK"] = (37.50, -122.40), ["PORTE"] = (37.65, -122.30) }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var aircraft = CreateIfrAircraft("SSTIK5 PORTE");
+        AircraftState aircraft = CreateIfrAircraft("SSTIK5 PORTE");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01R") };
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
         Assert.Equal("SSTIK", result.Targets[0].Name);
@@ -1057,7 +1081,7 @@ public class ProcedureLoadingTests
             EnrouteTransitions: new Dictionary<string, CifpTransition>()
         );
 
-        var navDb = CreateNavDb(
+        NavigationDatabase navDb = CreateNavDb(
             sid: sid,
             extraFixes: new Dictionary<string, (double Lat, double Lon)>
             {
@@ -1066,12 +1090,12 @@ public class ProcedureLoadingTests
                 ["PORTE"] = (37.65, -122.30),
             }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var aircraft = CreateIfrAircraft("SSTIK5 PORTE");
+        AircraftState aircraft = CreateIfrAircraft("SSTIK5 PORTE");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01L") };
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
         // Exact match RW01L (MOLEN) should win over RW01B (SSTIK)
@@ -1095,7 +1119,7 @@ public class ProcedureLoadingTests
             }
         );
 
-        var navDb = CreateNavDb(
+        NavigationDatabase navDb = CreateNavDb(
             star: star,
             extraFixes: new Dictionary<string, (double Lat, double Lon)>
             {
@@ -1104,9 +1128,9 @@ public class ProcedureLoadingTests
                 ["BRIXX"] = (37.40, -122.40),
             }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        AircraftState aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
         aircraft.Position = new LatLon(38.5, -123.5);
         aircraft.Altitude = 20000;
         aircraft.TrueHeading = new TrueHeading(150);
@@ -1114,10 +1138,10 @@ public class ProcedureLoadingTests
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28L") };
 
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        var brixx = aircraft.Targets.NavigationRoute.FirstOrDefault(t => t.Name == "BRIXX");
+        NavigationTarget? brixx = aircraft.Targets.NavigationRoute.FirstOrDefault(t => t.Name == "BRIXX");
         Assert.NotNull(brixx);
     }
 
@@ -1178,13 +1202,13 @@ public class ProcedureLoadingTests
             EnrouteTransitions: new Dictionary<string, CifpTransition>()
         );
 
-        var navDb = CreateNavDb(sid: sid);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(sid: sid);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var aircraft = CreateIfrAircraft("NIMI5 OAK V6 SAC", departure: "KOAK");
+        AircraftState aircraft = CreateIfrAircraft("NIMI5 OAK V6 SAC", departure: "KOAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
         // SidId should be null — no via-mode constraints for radar vectors SIDs
@@ -1211,13 +1235,13 @@ public class ProcedureLoadingTests
             EnrouteTransitions: new Dictionary<string, CifpTransition>()
         );
 
-        var navDb = CreateNavDb(sid: sid);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(sid: sid);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var aircraft = CreateIfrAircraft("RVTEST1 OAK", departure: "KOAK");
+        AircraftState aircraft = CreateIfrAircraft("RVTEST1 OAK", departure: "KOAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("10L") };
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
         Assert.Equal(98.0, result.DepartureHeadingMagnetic!.Value, 1);
@@ -1237,14 +1261,14 @@ public class ProcedureLoadingTests
             EnrouteTransitions: new Dictionary<string, CifpTransition>()
         );
 
-        var navDb = CreateNavDb(sid: sid);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = CreateNavDb(sid: sid);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Route is just the SID name — no post-SID enroute fixes
-        var aircraft = CreateIfrAircraft("RVONLY1", departure: "KOAK");
+        AircraftState aircraft = CreateIfrAircraft("RVONLY1", departure: "KOAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         // Should still return a result with heading even if no nav targets
         Assert.NotNull(result);
@@ -1256,12 +1280,12 @@ public class ProcedureLoadingTests
     public void TryResolveSidFromCifp_NonRadarVectorsSid_StillReturnsTargets()
     {
         // Regression guard: PORTE3 (normal SID with TF legs) should still work
-        var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
+        AircraftState aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
-        var navDb = CreateNavDb(sid: CreateTestSid());
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        NavigationDatabase navDb = CreateNavDb(sid: CreateTestSid());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
         Assert.Equal("PORTE3", result.SidId);
@@ -1279,24 +1303,24 @@ public class ProcedureLoadingTests
     {
         // Real NIMI5 (radar vectors SID) from KOAK with route "NIMI5 OAK V6 SAC".
         // V6 should be expanded into intermediate fixes between OAK and SAC.
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return; // NavData not available — silently skip
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var sid = navDb.GetSid("KOAK", "NIMI5");
+        CifpSidProcedure? sid = navDb.GetSid("KOAK", "NIMI5");
         if (sid is null)
         {
             return; // NIMI5 not in CIFP data
         }
 
-        var aircraft = CreateIfrAircraft("NIMI5 OAK V6 SAC", departure: "KOAK");
+        AircraftState aircraft = CreateIfrAircraft("NIMI5 OAK V6 SAC", departure: "KOAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeOakRunway("28R") };
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
         // NIMI5 is a radar vectors SID — should have a departure heading
@@ -1313,24 +1337,24 @@ public class ProcedureLoadingTests
     public void TryResolveSidFromCifp_Cndel5_OakV6Sac_ExpandsAirwayFixes()
     {
         // CNDEL5 (non-RV SID) with OAK enroute transition + V6 airway to SAC.
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var sid = navDb.GetSid("KOAK", "CNDEL5");
+        CifpSidProcedure? sid = navDb.GetSid("KOAK", "CNDEL5");
         if (sid is null || !sid.EnrouteTransitions.ContainsKey("OAK"))
         {
             return; // SID or OAK transition not available
         }
 
-        var aircraft = CreateIfrAircraft("CNDEL5 OAK V6 SAC", departure: "KOAK");
+        AircraftState aircraft = CreateIfrAircraft("CNDEL5 OAK V6 SAC", departure: "KOAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeOakRunway("30") };
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
         Assert.Equal("CNDEL5", result.SidId);
@@ -1346,23 +1370,23 @@ public class ProcedureLoadingTests
     public void TryResolveSidFromCifp_Nimi5_OakSac_NoAirway_Regression()
     {
         // Route "NIMI5 OAK SAC" with no airway — SAC should appear directly after OAK.
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         if (navDb.GetSid("KOAK", "NIMI5") is null)
         {
             return;
         }
 
-        var aircraft = CreateIfrAircraft("NIMI5 OAK SAC", departure: "KOAK");
+        AircraftState aircraft = CreateIfrAircraft("NIMI5 OAK SAC", departure: "KOAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeOakRunway("28R") };
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
         var names = result.Targets.Select(t => t.Name).ToList();

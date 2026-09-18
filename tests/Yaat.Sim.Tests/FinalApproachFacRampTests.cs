@@ -61,7 +61,7 @@ public class FinalApproachFacRampTests
         // Place aircraft 3 nm from threshold, on the FAC, at 1000 ft AGL,
         // heading along the FAC (i.e., already established on FAC).
         var fac = new TrueHeading(facDeg);
-        var (startLat, startLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, fac.ToReciprocal(), 3.0);
+        (double startLat, double startLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, fac.ToReciprocal(), 3.0);
 
         var ac = new AircraftState
         {
@@ -148,7 +148,7 @@ public class FinalApproachFacRampTests
             world.Tick(dt, tick * dt, PreTick);
 
             // Drain warnings each tick (mirrors server post-physics flow).
-            foreach (var (callsign, warning) in world.DrainAllWarnings())
+            foreach ((string? callsign, string? warning) in world.DrainAllWarnings())
             {
                 _output.WriteLine($"# tick {tick} warning: {callsign}: {warning}");
                 if (warning.Contains("going around", StringComparison.OrdinalIgnoreCase))

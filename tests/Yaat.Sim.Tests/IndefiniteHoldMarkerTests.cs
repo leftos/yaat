@@ -32,9 +32,9 @@ public class IndefiniteHoldMarkerTests
     public void Predicate_MatchesCuratedInstallerMap()
     {
         var actual = new HashSet<string>();
-        foreach (var type in ParsedCommandDummyFactory.AllParsedCommandTypes)
+        foreach (Type type in ParsedCommandDummyFactory.AllParsedCommandTypes)
         {
-            var cmd = ParsedCommandDummyFactory.CreateDummy(type);
+            ParsedCommand? cmd = ParsedCommandDummyFactory.CreateDummy(type);
             if (cmd is not null && CommandDescriber.InstallsIndefiniteHoldPhase(cmd))
             {
                 actual.Add(type.Name);
@@ -53,7 +53,7 @@ public class IndefiniteHoldMarkerTests
             .Select(t => t.Name)
             .ToHashSet();
 
-        foreach (var phase in ExpectedInstallers.Values.Distinct())
+        foreach (string? phase in ExpectedInstallers.Values.Distinct())
         {
             Assert.Contains(phase, phaseNames);
         }

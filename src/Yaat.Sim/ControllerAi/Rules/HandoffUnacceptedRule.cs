@@ -20,9 +20,9 @@ public sealed class HandoffUnacceptedRule : IDecisionRule
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         double horizon = scope.Tick.AutoAcceptDelaySeconds + GraceSeconds;
-        foreach (var aircraft in scope.Tick.Snapshot)
+        foreach (AircraftState aircraft in scope.Tick.Snapshot)
         {
-            var track = aircraft.Track;
+            AircraftTrack track = aircraft.Track;
             bool involvesMe =
                 (track.Owner is { } owner && owner.MatchesPosition(scope.Position.Identity))
                 || (track.HandoffPeer is { } peer && peer.MatchesPosition(scope.Position.Identity));

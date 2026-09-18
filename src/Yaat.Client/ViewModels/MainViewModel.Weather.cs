@@ -41,8 +41,8 @@ public record WeatherDisplayInfo(
         if (WindDirectionDeg is not null || WindSpeedKts is not null)
         {
             // A parsed VRB (variable-direction) wind has no numeric direction; render the METAR "VRB" token.
-            var direction = WindDirectionDeg is { } dir ? $"{dir:D3}" : "VRB";
-            var wind = $"{direction}{WindSpeedKts:D2}";
+            string direction = WindDirectionDeg is { } dir ? $"{dir:D3}" : "VRB";
+            string wind = $"{direction}{WindSpeedKts:D2}";
             if (WindGustKts is not null)
             {
                 wind += $"G{WindGustKts:D2}";
@@ -99,13 +99,13 @@ public partial class MainViewModel
         try
         {
             _log.LogInformation("Loading weather from {Path}", filePath);
-            var json = await File.ReadAllTextAsync(filePath);
-            var result = await _connection.LoadWeatherAsync(json, reconstructMetars: true);
+            string json = await File.ReadAllTextAsync(filePath);
+            CommandResultDto result = await _connection.LoadWeatherAsync(json, reconstructMetars: true);
 
             if (result.Success)
             {
                 StatusText = result.Message ?? "Weather loaded";
-                var name = Path.GetFileNameWithoutExtension(filePath);
+                string name = Path.GetFileNameWithoutExtension(filePath);
                 _preferences.AddRecentWeather(filePath, name);
                 SetActiveWeatherJson(json);
             }
@@ -130,7 +130,7 @@ public partial class MainViewModel
         try
         {
             _log.LogInformation("Loading weather from API: {Name}", displayName);
-            var result = await _connection.LoadWeatherAsync(json, reconstructMetars: true);
+            CommandResultDto result = await _connection.LoadWeatherAsync(json, reconstructMetars: true);
 
             if (result.Success)
             {
@@ -160,15 +160,15 @@ public partial class MainViewModel
         try
         {
             StatusText = "Fetching live weather...";
-            var artccId = _preferences.ArtccId;
-            var airportIds = await _airportResolver.GetAirportIdsAsync(artccId);
+            string artccId = _preferences.ArtccId;
+            IReadOnlyList<string> airportIds = await _airportResolver.GetAirportIdsAsync(artccId);
             if (airportIds.Count == 0)
             {
                 StatusText = "No airports found for ARTCC";
                 return;
             }
 
-            var profile = await _liveWeather.BuildLiveWeatherAsync(artccId, airportIds);
+            WeatherProfile? profile = await _liveWeather.BuildLiveWeatherAsync(artccId, airportIds);
             if (profile is null)
             {
                 StatusText = "Failed to fetch live weather data";
@@ -180,9 +180,9 @@ public partial class MainViewModel
                 AddWarningEntry("Live weather: METARs unavailable — winds aloft only. Altimeter and surface wind will use defaults.");
             }
 
-            var json = JsonSerializer.Serialize(profile);
+            string json = JsonSerializer.Serialize(profile);
             // Live-fetched real METARs are left untouched (no dynamic reconstruction).
-            var result = await _connection.LoadWeatherAsync(json, reconstructMetars: false);
+            CommandResultDto result = await _connection.LoadWeatherAsync(json, reconstructMetars: false);
 
             if (result.Success)
             {
@@ -230,8 +230,8 @@ public partial class MainViewModel
             return;
         }
 
-        var sanitized = SanitizeFileName(ActiveWeatherName ?? "weather");
-        var path = await _filePicker.SaveFileAsync(
+        string sanitized = SanitizeFileName(ActiveWeatherName ?? "weather");
+        string? path = await _filePicker.SaveFileAsync(
             new SaveFileOptions(
                 Title: "Save Weather As…",
                 SuggestedFileName: sanitized,
@@ -248,7 +248,7 @@ public partial class MainViewModel
         try
         {
             await File.WriteAllTextAsync(path, _activeWeatherJson);
-            var name = Path.GetFileNameWithoutExtension(path);
+            string name = Path.GetFileNameWithoutExtension(path);
             _preferences.AddRecentWeather(path, name);
             StatusText = $"Weather saved: {name}";
         }
@@ -261,9 +261,9 @@ public partial class MainViewModel
 
     private static string SanitizeFileName(string name)
     {
-        var invalid = Path.GetInvalidFileNameChars();
+        char[] invalid = Path.GetInvalidFileNameChars();
         var sanitized = new System.Text.StringBuilder(name.Length);
-        foreach (var c in name)
+        foreach (char c in name)
         {
             sanitized.Append(invalid.Contains(c) ? '_' : c);
         }
@@ -285,7 +285,7 @@ public partial class MainViewModel
             {
                 SetActiveWeatherJson(dto.SourceJson);
 
-                var allInfo = ExtractAllWeatherDisplay(dto.Metars);
+                IReadOnlyList<WeatherDisplayInfo>? allInfo = ExtractAllWeatherDisplay(dto.Metars);
                 _allWeatherInfo = allInfo;
                 ApplyWeatherToAllViews(allInfo);
                 PopulateMetars(dto.Metars);
@@ -302,9 +302,9 @@ public partial class MainViewModel
             return;
         }
 
-        var scenarioId = ActiveScenarioId;
+        string? scenarioId = ActiveScenarioId;
         var entries = new List<MetarEntry>(metars.Count);
-        foreach (var raw in metars)
+        foreach (string raw in metars)
         {
             if (string.IsNullOrWhiteSpace(raw))
             {
@@ -312,21 +312,21 @@ public partial class MainViewModel
             }
 
             // Strip K prefix for US ICAO stations (KOAK → OAK) for the display label.
-            var stationId = MetarParser.Parse(raw)?.StationId;
+            string? stationId = MetarParser.Parse(raw)?.StationId;
             if (stationId is { Length: 4 } && stationId.StartsWith('K'))
             {
                 stationId = stationId[1..];
             }
 
-            var canFavorite = (stationId is not null) && !string.IsNullOrEmpty(scenarioId);
-            var isFavorite = canFavorite && _preferences.IsFavoriteMetarStation(scenarioId!, stationId!);
+            bool canFavorite = (stationId is not null) && !string.IsNullOrEmpty(scenarioId);
+            bool isFavorite = canFavorite && _preferences.IsFavoriteMetarStation(scenarioId!, stationId!);
             entries.Add(new MetarEntry(stationId, raw.Trim(), isFavorite, canFavorite));
         }
 
         // Favorited stations first, then alphabetical within each group; entries whose
         // METAR failed to parse (no station id) sort last, keeping broadcast order.
         foreach (
-            var entry in entries
+            MetarEntry? entry in entries
                 .OrderByDescending(e => e.IsFavorite)
                 .ThenBy(e => e.StationId is null)
                 .ThenBy(e => e.StationId, StringComparer.OrdinalIgnoreCase)
@@ -351,7 +351,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void ToggleMetarFavorite(MetarEntry entry)
     {
-        var scenarioId = ActiveScenarioId;
+        string? scenarioId = ActiveScenarioId;
         if ((entry.StationId is null) || string.IsNullOrEmpty(scenarioId))
         {
             return;
@@ -369,16 +369,16 @@ public partial class MainViewModel
         }
 
         var list = new List<WeatherDisplayInfo>(metars.Count);
-        foreach (var raw in metars)
+        foreach (string raw in metars)
         {
-            var parsed = MetarParser.Parse(raw);
+            MetarParser.ParsedMetar? parsed = MetarParser.Parse(raw);
             if (parsed is null)
             {
                 continue;
             }
 
             // Strip K prefix for US ICAO stations (KOAK → OAK)
-            var displayId = parsed.StationId;
+            string displayId = parsed.StationId;
             if (displayId.Length == 4 && displayId.StartsWith('K'))
             {
                 displayId = displayId[1..];
@@ -408,7 +408,7 @@ public partial class MainViewModel
             return allInfo?.Count > 0 ? allInfo[0] : null;
         }
 
-        foreach (var info in allInfo)
+        foreach (WeatherDisplayInfo info in allInfo)
         {
             if (string.Equals(info.StationId, airportId, StringComparison.OrdinalIgnoreCase))
             {
@@ -440,7 +440,7 @@ public partial class MainViewModel
         }
 
         var filtered = new List<WeatherDisplayInfo>();
-        foreach (var info in allInfo)
+        foreach (WeatherDisplayInfo info in allInfo)
         {
             if (info.StationId is not null && weatherAirports.Any(a => string.Equals(a, info.StationId, StringComparison.OrdinalIgnoreCase)))
             {
@@ -457,7 +457,7 @@ public partial class MainViewModel
     /// </summary>
     private void UpdateRadarWeatherDisplay()
     {
-        foreach (var radar in AllRadarViews)
+        foreach (RadarViewModel radar in AllRadarViews)
         {
             radar.WeatherInfo = FilterWeatherForPosition(_allWeatherInfo, radar.WeatherAirports);
         }
@@ -470,12 +470,12 @@ public partial class MainViewModel
     /// </summary>
     private void ApplyWeatherToAllViews(IReadOnlyList<WeatherDisplayInfo>? allInfo)
     {
-        foreach (var radar in AllRadarViews)
+        foreach (RadarViewModel radar in AllRadarViews)
         {
             radar.WeatherInfo = FilterWeatherForPosition(allInfo, radar.WeatherAirports);
         }
 
-        foreach (var ground in AllGroundViews)
+        foreach (GroundViewModel ground in AllGroundViews)
         {
             ground.WeatherInfo = PickGroundWeather(allInfo, ground.Layout?.AirportId);
         }
@@ -494,16 +494,16 @@ public partial class MainViewModel
             return;
         }
 
-        var now = DateTime.UtcNow;
+        DateTime now = DateTime.UtcNow;
         var defaults = new List<string>();
-        foreach (var icao in CollectScenarioAirportIcaos())
+        foreach (string icao in CollectScenarioAirportIcaos())
         {
             defaults.Add(DefaultMetar.Build(icao, now));
         }
 
         PopulateMetars(defaults);
 
-        var allInfo = ExtractAllWeatherDisplay(defaults);
+        IReadOnlyList<WeatherDisplayInfo>? allInfo = ExtractAllWeatherDisplay(defaults);
         _allWeatherInfo = allInfo;
         ApplyWeatherToAllViews(allInfo);
     }
@@ -519,15 +519,15 @@ public partial class MainViewModel
                 return;
             }
 
-            var upper = id.Trim().ToUpperInvariant();
-            var icao = upper.Length == 3 ? "K" + upper : upper;
+            string upper = id.Trim().ToUpperInvariant();
+            string icao = upper.Length == 3 ? "K" + upper : upper;
             if (!result.Contains(icao))
             {
                 result.Add(icao);
             }
         }
 
-        foreach (var airport in Radar.WeatherAirports)
+        foreach (string airport in Radar.WeatherAirports)
         {
             Add(airport);
         }

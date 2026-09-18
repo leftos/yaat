@@ -22,16 +22,16 @@ public class AircraftSiblingMapTests(ITestOutputHelper output)
             return;
         }
 
-        var siblingPath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileSiblings.json");
+        string siblingPath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileSiblings.json");
         if (!File.Exists(siblingPath))
         {
             output.WriteLine($"Sibling map not at {siblingPath}; skipping");
             return;
         }
 
-        var raw = AircraftSiblingMap.LoadFromFile(siblingPath);
+        Dictionary<string, string> raw = AircraftSiblingMap.LoadFromFile(siblingPath);
         var problems = new List<string>();
-        foreach (var (missing, sibling) in raw)
+        foreach ((string? missing, string? sibling) in raw)
         {
             if (AircraftProfileDatabase.Get(sibling) is null)
             {
@@ -51,16 +51,16 @@ public class AircraftSiblingMapTests(ITestOutputHelper output)
     public void Pa28AliasResolvesToP28A()
     {
         TestVnasData.EnsureInitialized();
-        Assert.True(AircraftSiblingMap.TryResolve("PA28", out var sibling));
+        Assert.True(AircraftSiblingMap.TryResolve("PA28", out string? sibling));
         Assert.Equal("P28A", sibling);
 
         // Round-trip: the alias must produce a piston-realistic profile, not jet defaults.
-        var profile = AircraftProfileDatabase.Get("PA28");
+        AircraftProfile? profile = AircraftProfileDatabase.Get("PA28");
         Assert.NotNull(profile);
         Assert.True(profile!.IsProp, "PA28 alias should resolve to a propeller profile");
 
         // FAA ACD lookup also falls back via sibling
-        var acd = FaaAircraftDatabase.Get("PA28");
+        FaaAircraftRecord? acd = FaaAircraftDatabase.Get("PA28");
         Assert.NotNull(acd);
     }
 
@@ -70,10 +70,10 @@ public class AircraftSiblingMapTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
 
         // Spot-check the modern-fleet codes we expect the sibling map to cover.
-        foreach (var modern in new[] { "B789", "B77W", "A359", "B748", "A21N", "B38M" })
+        foreach (string? modern in new[] { "B789", "B77W", "A359", "B748", "A21N", "B38M" })
         {
             Assert.True(
-                AircraftSiblingMap.TryResolve(modern, out var sib),
+                AircraftSiblingMap.TryResolve(modern, out string? sib),
                 $"{modern} should have a sibling registered (popular modern type missing from AircraftProfiles.json)"
             );
             Assert.NotNull(AircraftProfileDatabase.Get(sib));

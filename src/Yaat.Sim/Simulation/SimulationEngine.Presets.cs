@@ -25,7 +25,7 @@ public sealed partial class SimulationEngine
 {
     private void ProcessReleaseQueue()
     {
-        var scenario = Scenario!;
+        SimScenarioState scenario = Scenario!;
         if (scenario.ReleaseQueue.Count == 0)
         {
             return;
@@ -39,9 +39,9 @@ public sealed partial class SimulationEngine
 
         scenario.ReleaseQueue.RemoveAll(r => scenario.ElapsedSeconds >= r.FireAtSeconds);
 
-        foreach (var r in due)
+        foreach (ScheduledRelease? r in due)
         {
-            var result = HeldReleaseService.Release(scenario, World, World.Rng, r.Callsign ?? r.Airport, null);
+            HeldReleaseResult result = HeldReleaseService.Release(scenario, World, World.Rng, r.Callsign ?? r.Airport, null);
             if (result.Success)
             {
                 EmitTerminal("System", r.Callsign ?? "", $"[HFR] {result.Message}");
@@ -59,7 +59,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     private void ProcessTimers()
     {
-        var scenario = Scenario!;
+        SimScenarioState scenario = Scenario!;
         if (scenario.ActiveTimers.Count == 0)
         {
             return;
@@ -75,9 +75,9 @@ public sealed partial class SimulationEngine
 
         scenario.ActiveTimers.RemoveAll(t => scenario.ElapsedSeconds >= t.FireAtSeconds);
 
-        foreach (var t in due)
+        foreach (ActiveTimer? t in due)
         {
-            var message = string.IsNullOrWhiteSpace(t.Message) ? "timer expired" : t.Message;
+            string message = string.IsNullOrWhiteSpace(t.Message) ? "timer expired" : t.Message;
             EmitTerminal("Say", t.Callsign ?? "TIMER", message);
         }
     }
@@ -88,8 +88,8 @@ public sealed partial class SimulationEngine
     /// </summary>
     internal void ProcessReleasedGroundDepartures()
     {
-        var scenario = Scenario!;
-        foreach (var ac in World.GetSnapshot())
+        SimScenarioState scenario = Scenario!;
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             if (!ac.Ground.ReleasedForDeparture)
             {
@@ -116,7 +116,7 @@ public sealed partial class SimulationEngine
     private static double ReleaseAutoCtoJitterSeconds(string callsign)
     {
         uint h = 2166136261u;
-        foreach (var c in callsign)
+        foreach (char c in callsign)
         {
             h = (h ^ c) * 16777619u;
         }
@@ -125,14 +125,14 @@ public sealed partial class SimulationEngine
 
     private void AutoIssueTakeoffClearance(AircraftState aircraft)
     {
-        var parsed = CommandParser.ParseCompound("CTO", aircraft.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("CTO", aircraft.FlightPlan.Route);
         if (!parsed.IsSuccess)
         {
             _logger.LogWarning("Auto-CTO parse failed for released departure {Callsign}", aircraft.Callsign);
             return;
         }
 
-        var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+        AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
         var ctx = new DispatchContext(
             groundLayout,
             World.Rng,
@@ -163,7 +163,7 @@ public sealed partial class SimulationEngine
 
     private void ProcessTimedPresets()
     {
-        var scenario = Scenario!;
+        SimScenarioState scenario = Scenario!;
         if (scenario.PresetQueue.Count == 0)
         {
             return;
@@ -173,7 +173,7 @@ public sealed partial class SimulationEngine
 
         for (int i = scenario.PresetQueue.Count - 1; i >= 0; i--)
         {
-            var preset = scenario.PresetQueue[i];
+            ScheduledPreset preset = scenario.PresetQueue[i];
             if (scenario.ElapsedSeconds < preset.FireAtSeconds)
             {
                 continue;
@@ -182,13 +182,13 @@ public sealed partial class SimulationEngine
             scenario.PresetQueue.RemoveAt(i);
             snapshot ??= World.GetSnapshot();
 
-            var aircraft = snapshot.FirstOrDefault(a => a.Callsign.Equals(preset.Callsign, StringComparison.OrdinalIgnoreCase));
+            AircraftState? aircraft = snapshot.FirstOrDefault(a => a.Callsign.Equals(preset.Callsign, StringComparison.OrdinalIgnoreCase));
             if (aircraft is null)
             {
                 continue;
             }
 
-            var timedResult = CommandParser.ParseCompound(preset.Command, aircraft.FlightPlan.Route);
+            ParseResult<CompoundCommand> timedResult = CommandParser.ParseCompound(preset.Command, aircraft.FlightPlan.Route);
             if (!timedResult.IsSuccess)
             {
                 _logger.LogWarning(
@@ -201,7 +201,7 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            var compound = timedResult.Value!;
+            CompoundCommand compound = timedResult.Value!;
 
             if (TryDispatchImmediateTrackPreset(compound, aircraft))
             {
@@ -209,7 +209,7 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+            AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
             var presetCtx = new DispatchContext(
                 groundLayout,
                 World.Rng,
@@ -227,8 +227,8 @@ public sealed partial class SimulationEngine
                 PreserveConditionals: false,
                 IsScenarioScripted: true
             );
-            var routeBeforeTimed = aircraft.Ground.AssignedTaxiRoute;
-            var timedOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
+            TaxiRoute? routeBeforeTimed = aircraft.Ground.AssignedTaxiRoute;
+            CommandResult timedOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
             // A scripted clearance still answers whatever the pilot last asked for, so the pending
             // request closes and stops following up. Scripted commands emit no read-back and are not
             // scored — the student didn't issue them.
@@ -241,10 +241,10 @@ public sealed partial class SimulationEngine
 
     private void ProcessTriggers()
     {
-        var scenario = Scenario!;
+        SimScenarioState scenario = Scenario!;
         for (int i = scenario.TriggerQueue.Count - 1; i >= 0; i--)
         {
-            var trigger = scenario.TriggerQueue[i];
+            ScheduledTrigger trigger = scenario.TriggerQueue[i];
             if (scenario.ElapsedSeconds >= trigger.FireAtSeconds)
             {
                 scenario.TriggerQueue.RemoveAt(i);
@@ -255,17 +255,17 @@ public sealed partial class SimulationEngine
 
     private void ExecuteGlobalCommand(string command)
     {
-        var globalResult = CommandParser.Parse(command);
+        ParseResult<ParsedCommand> globalResult = CommandParser.Parse(command);
         if (!globalResult.IsSuccess)
         {
             _logger.LogWarning("Unknown trigger command: {Cmd} — {Reason}", command, globalResult.Reason);
             return;
         }
 
-        var parsed = globalResult.Value!;
+        ParsedCommand parsed = globalResult.Value!;
         if (parsed is SquawkAllCommand or SquawkNormalAllCommand or SquawkStandbyAllCommand)
         {
-            var result = SquawkAll(parsed);
+            CommandResult result = SquawkAll(parsed);
             EmitTerminal("System", "", $"[Trigger] {result.Message}");
         }
     }
@@ -276,8 +276,8 @@ public sealed partial class SimulationEngine
     /// </summary>
     public CommandResult SquawkAll(ParsedCommand command)
     {
-        var count = 0;
-        foreach (var ac in World.GetSnapshot())
+        int count = 0;
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             switch (command)
             {
@@ -295,7 +295,7 @@ public sealed partial class SimulationEngine
             count++;
         }
 
-        var verb = command switch
+        string verb = command switch
         {
             SquawkAllCommand => "SQALL",
             SquawkNormalAllCommand => "SNALL",
@@ -314,7 +314,7 @@ public sealed partial class SimulationEngine
 
     private void DispatchSinglePreset(string command, AircraftState aircraft)
     {
-        var presetResult = CommandParser.ParseCompound(command, aircraft.FlightPlan.Route);
+        ParseResult<CompoundCommand> presetResult = CommandParser.ParseCompound(command, aircraft.FlightPlan.Route);
         if (!presetResult.IsSuccess)
         {
             _logger.LogWarning("Preset parse failed for {Callsign}: \"{Command}\" — {Reason}", aircraft.Callsign, command, presetResult.Reason);
@@ -322,7 +322,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var compound = presetResult.Value!;
+        CompoundCommand compound = presetResult.Value!;
 
         if (TryDispatchImmediateTrackPreset(compound, aircraft))
         {
@@ -330,7 +330,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+        AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
         var singlePresetCtx = new DispatchContext(
             groundLayout,
             World.Rng,
@@ -348,8 +348,8 @@ public sealed partial class SimulationEngine
             PreserveConditionals: false,
             IsScenarioScripted: true
         );
-        var routeBefore = aircraft.Ground.AssignedTaxiRoute;
-        var presetOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
+        TaxiRoute? routeBefore = aircraft.Ground.AssignedTaxiRoute;
+        CommandResult presetOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
 
         EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");
         ReportPresetOutcome(aircraft, command, presetOutcome, routeBefore);
@@ -387,7 +387,7 @@ public sealed partial class SimulationEngine
 
     public void DispatchPresetCommands(LoadedAircraft loaded)
     {
-        var scenario = Scenario!;
+        SimScenarioState scenario = Scenario!;
 
         PresetOverride?.Invoke(loaded);
 
@@ -406,7 +406,7 @@ public sealed partial class SimulationEngine
 
         // Separate immediate presets from delayed ones.
         var immediatePresets = new List<string>();
-        foreach (var preset in loaded.PresetCommands)
+        foreach (PresetCommand preset in loaded.PresetCommands)
         {
             if (preset.TimeOffset > 0)
             {
@@ -433,12 +433,12 @@ public sealed partial class SimulationEngine
         bool allCfix = immediatePresets.All(p => p.TrimStart().StartsWith("CFIX ", StringComparison.OrdinalIgnoreCase));
         if (!allCfix && immediatePresets.Count >= 2 && immediatePresets[0].TrimStart().StartsWith("CFIX ", StringComparison.OrdinalIgnoreCase))
         {
-            var composed = string.Join("; ", immediatePresets);
+            string composed = string.Join("; ", immediatePresets);
             DispatchSinglePreset(composed, loaded.State);
             return;
         }
 
-        foreach (var cmd in immediatePresets)
+        foreach (string cmd in immediatePresets)
         {
             DispatchSinglePreset(cmd, loaded.State);
         }

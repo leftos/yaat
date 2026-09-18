@@ -29,11 +29,11 @@ public class ApproachScoreTests
         string type = "B738"
     )
     {
-        var runway = MakeRunway();
+        RunwayInfo runway = MakeRunway();
 
         // Position the aircraft on the runway extended centerline at the specified distance
-        var reciprocal = runway.TrueHeading.ToReciprocal();
-        var (lat, lon) = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, distFromThresholdNm);
+        TrueHeading reciprocal = runway.TrueHeading.ToReciprocal();
+        (double lat, double lon) = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, distFromThresholdNm);
 
         return new AircraftState
         {
@@ -72,7 +72,7 @@ public class ApproachScoreTests
     [Fact]
     public void ScoreCreatedAtEstablishment_HasCorrectIdentity()
     {
-        var aircraft = MakeEstablishedAircraft();
+        AircraftState aircraft = MakeEstablishedAircraft();
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -83,13 +83,13 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
         Assert.Single(aircraft.PendingApproachScores);
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
 
         Assert.Equal("UAL123", score.Callsign);
         Assert.Equal("B738", score.AircraftType);
@@ -101,7 +101,7 @@ public class ApproachScoreTests
     [Fact]
     public void ScoreCreatedAtEstablishment_CapturesInterceptMetrics()
     {
-        var aircraft = MakeEstablishedAircraft(altitude: 3000, distFromThresholdNm: 8.0, ias: 160);
+        AircraftState aircraft = MakeEstablishedAircraft(altitude: 3000, distFromThresholdNm: 8.0, ias: 160);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -112,12 +112,12 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft, scenarioElapsedSeconds: 300.0);
+        PhaseContext ctx = MakeContext(aircraft, scenarioElapsedSeconds: 300.0);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
 
         // Intercept distance should be approximately 8nm
         Assert.InRange(score.InterceptDistanceNm, 7.5, 8.5);
@@ -138,7 +138,7 @@ public class ApproachScoreTests
     [Fact]
     public void ScoreCreatedAtEstablishment_SetsActiveApproachScore()
     {
-        var aircraft = MakeEstablishedAircraft();
+        AircraftState aircraft = MakeEstablishedAircraft();
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -149,7 +149,7 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
@@ -161,12 +161,12 @@ public class ApproachScoreTests
     [Fact]
     public void ScoreCreatedAtEstablishment_GsDeviationComputed()
     {
-        var runway = MakeRunway(elevationFt: 9);
+        RunwayInfo runway = MakeRunway(elevationFt: 9);
         double distNm = 8.0;
         double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, 9, AircraftCategory.Jet);
 
         // Aircraft above glideslope by 500 ft
-        var aircraft = MakeEstablishedAircraft(altitude: gsAltitude + 500, distFromThresholdNm: distNm);
+        AircraftState aircraft = MakeEstablishedAircraft(altitude: gsAltitude + 500, distFromThresholdNm: distNm);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -177,12 +177,12 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft, runway);
+        PhaseContext ctx = MakeContext(aircraft, runway);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         // Should be approximately +500ft above glideslope
         Assert.InRange(score.GlideSlopeDeviationFt, 400, 600);
     }
@@ -190,12 +190,12 @@ public class ApproachScoreTests
     [Fact]
     public void ScoreCreatedAtEstablishment_BelowGlideslope_NegativeDeviation()
     {
-        var runway = MakeRunway(elevationFt: 9);
+        RunwayInfo runway = MakeRunway(elevationFt: 9);
         double distNm = 8.0;
         double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, 9, AircraftCategory.Jet);
 
         // Aircraft below glideslope by 300 ft
-        var aircraft = MakeEstablishedAircraft(altitude: gsAltitude - 300, distFromThresholdNm: distNm);
+        AircraftState aircraft = MakeEstablishedAircraft(altitude: gsAltitude - 300, distFromThresholdNm: distNm);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -206,19 +206,19 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft, runway);
+        PhaseContext ctx = MakeContext(aircraft, runway);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.InRange(score.GlideSlopeDeviationFt, -400, -200);
     }
 
     [Fact]
     public void ScoreCreatedAtEstablishment_ForcedFlag()
     {
-        var aircraft = MakeEstablishedAircraft();
+        AircraftState aircraft = MakeEstablishedAircraft();
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -230,19 +230,19 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.True(score.WasForced);
     }
 
     [Fact]
     public void ScoreCreatedAtEstablishment_PatternTrafficFlagged()
     {
-        var aircraft = MakeEstablishedAircraft();
+        AircraftState aircraft = MakeEstablishedAircraft();
         aircraft.Phases = new PhaseList();
         aircraft.Phases.TrafficDirection = PatternDirection.Left;
         aircraft.Phases.ActiveApproach = new ApproachClearance
@@ -254,19 +254,19 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.True(score.IsPatternTraffic);
     }
 
     [Fact]
     public void ScoreCreatedAtEstablishment_NonPatternTraffic_FlagFalse()
     {
-        var aircraft = MakeEstablishedAircraft();
+        AircraftState aircraft = MakeEstablishedAircraft();
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -277,12 +277,12 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.False(score.IsPatternTraffic);
     }
 
@@ -290,7 +290,7 @@ public class ApproachScoreTests
     public void ScoreCreatedAtEstablishment_Tbl591_CloseToGate_MaxAngle20()
     {
         // Aircraft close to gate (< 2nm above minimum intercept distance)
-        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 6.0);
+        AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 6.0);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -301,12 +301,12 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         // At 6nm, default minIntercept=7nm, approachGate=5nm, distToGate=1nm < 2nm → 20°
         Assert.Equal(20, score.MaxAllowedAngleDeg);
     }
@@ -318,7 +318,7 @@ public class ApproachScoreTests
     [Fact]
     public void ScoreCreatedAtEstablishment_Tbl591_Helicopter_FarFromGate_MaxAngle45()
     {
-        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0, type: "EC45");
+        AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0, type: "EC45");
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -331,12 +331,12 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft, category: AircraftCategory.Helicopter);
+        PhaseContext ctx = MakeContext(aircraft, category: AircraftCategory.Helicopter);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.Equal(45, score.MaxAllowedAngleDeg);
         Assert.True(score.IsInterceptAngleLegal);
     }
@@ -347,7 +347,7 @@ public class ApproachScoreTests
     [Fact]
     public void ScoreCreatedAtEstablishment_Tbl591_Jet_FarFromGate_MaxAngle30()
     {
-        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0);
+        AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -360,12 +360,12 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.Equal(30, score.MaxAllowedAngleDeg);
         Assert.False(score.IsInterceptAngleLegal);
     }
@@ -377,7 +377,7 @@ public class ApproachScoreTests
     [Fact]
     public void ScoreCreatedAtEstablishment_Tbl591_Helicopter_CloseToGate_MaxAngle20()
     {
-        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 6.0, type: "EC45");
+        AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 6.0, type: "EC45");
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -388,12 +388,12 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft, category: AircraftCategory.Helicopter);
+        PhaseContext ctx = MakeContext(aircraft, category: AircraftCategory.Helicopter);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.Equal(20, score.MaxAllowedAngleDeg);
     }
 
@@ -401,7 +401,7 @@ public class ApproachScoreTests
     public void ScoreCreatedAtEstablishment_LegalAngle()
     {
         // Aircraft heading matches runway — angle near 0, always legal
-        var aircraft = MakeEstablishedAircraft(heading: 280);
+        AircraftState aircraft = MakeEstablishedAircraft(heading: 280);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -412,12 +412,12 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.True(score.IsInterceptAngleLegal);
     }
 
@@ -425,7 +425,7 @@ public class ApproachScoreTests
     public void ScoreCreatedAtEstablishment_DistanceLegality()
     {
         // 8nm from threshold is well above minimum intercept distance for most airports
-        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0);
+        AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -436,12 +436,12 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.True(score.IsInterceptDistanceLegal);
         Assert.True(score.MinInterceptDistanceNm > 0);
     }
@@ -449,7 +449,7 @@ public class ApproachScoreTests
     [Fact]
     public void SkipInterceptCheck_NoScoreCreated()
     {
-        var aircraft = MakeEstablishedAircraft();
+        AircraftState aircraft = MakeEstablishedAircraft();
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -460,7 +460,7 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase { SkipInterceptCheck = true };
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
@@ -472,7 +472,7 @@ public class ApproachScoreTests
     [Fact]
     public void LandingTimestamp_StampedByPhaseRunner()
     {
-        var aircraft = MakeEstablishedAircraft();
+        AircraftState aircraft = MakeEstablishedAircraft();
         aircraft.Phases = new PhaseList();
 
         // Simulate an active approach score (as if FinalApproachPhase set it)
@@ -491,7 +491,7 @@ public class ApproachScoreTests
         aircraft.Altitude = 9; // At field elevation // Below taxi speed threshold
         aircraft.IndicatedAirspeed = 15;
 
-        var runway = MakeRunway();
+        RunwayInfo runway = MakeRunway();
         // Put aircraft on the runway threshold
         aircraft.Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
         aircraft.TrueHeading = runway.TrueHeading;
@@ -500,7 +500,7 @@ public class ApproachScoreTests
         aircraft.Phases.Phases.Add(landingPhase);
         aircraft.Phases.AssignedRunway = runway;
 
-        var ctx = MakeContext(aircraft, runway, scenarioElapsedSeconds: 250.0);
+        PhaseContext ctx = MakeContext(aircraft, runway, scenarioElapsedSeconds: 250.0);
 
         // Start the phase
         landingPhase.Status = PhaseStatus.Active;
@@ -526,11 +526,11 @@ public class ApproachScoreTests
     [Fact]
     public void LandingTimestamp_NotStamped_WhenNoActiveScore()
     {
-        var aircraft = MakeEstablishedAircraft();
+        AircraftState aircraft = MakeEstablishedAircraft();
         aircraft.Phases = new PhaseList();
         // No ActiveApproachScore set
 
-        var runway = MakeRunway();
+        RunwayInfo runway = MakeRunway();
         aircraft.Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
         aircraft.TrueHeading = runway.TrueHeading;
         aircraft.Altitude = 9;
@@ -540,7 +540,7 @@ public class ApproachScoreTests
         aircraft.Phases.Phases.Add(landingPhase);
         aircraft.Phases.AssignedRunway = runway;
 
-        var ctx = MakeContext(aircraft, runway, scenarioElapsedSeconds: 250.0);
+        PhaseContext ctx = MakeContext(aircraft, runway, scenarioElapsedSeconds: 250.0);
 
         landingPhase.Status = PhaseStatus.Active;
         landingPhase.OnStart(ctx);
@@ -604,7 +604,7 @@ public class ApproachScoreTests
         world.AddAircraft(ac1);
         world.AddAircraft(ac2);
 
-        var drained = world.DrainAllApproachScores();
+        List<ApproachScore> drained = world.DrainAllApproachScores();
 
         Assert.Equal(2, drained.Count);
         Assert.Empty(ac1.PendingApproachScores);
@@ -627,14 +627,14 @@ public class ApproachScoreTests
 
         world.AddAircraft(ac);
 
-        var drained = world.DrainAllApproachScores();
+        List<ApproachScore> drained = world.DrainAllApproachScores();
         Assert.Empty(drained);
     }
 
     [Fact]
     public void ScoreEstablishmentPosition_CapturedCorrectly()
     {
-        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0);
+        AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -645,12 +645,12 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.Equal(aircraft.Position.Lat, score.EstablishedLat);
         Assert.Equal(aircraft.Position.Lon, score.EstablishedLon);
     }
@@ -658,17 +658,17 @@ public class ApproachScoreTests
     [Fact]
     public void NoApproachClearance_ScoreStillCreated_WithEmptyApproachId()
     {
-        var aircraft = MakeEstablishedAircraft();
+        AircraftState aircraft = MakeEstablishedAircraft();
         aircraft.Phases = new PhaseList();
         // No ActiveApproach set
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.Equal("", score.ApproachId);
         Assert.Equal("OAK", score.AirportCode); // Falls back to runway airport
     }
@@ -684,17 +684,17 @@ public class ApproachScoreTests
     [Fact]
     public void NoApproachClearance_NotGradedAgainstInstrumentInterceptRules()
     {
-        var aircraft = MakeEstablishedAircraft(heading: 292, distFromThresholdNm: 2.0);
+        AircraftState aircraft = MakeEstablishedAircraft(heading: 292, distFromThresholdNm: 2.0);
         aircraft.Phases = new PhaseList();
         // No ActiveApproach set — an EF straight-in tears the clearance down.
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.True(score.InterceptDistanceNm < score.MinInterceptDistanceNm, "Fixture invariant: inside the minimum intercept distance.");
         Assert.True(score.IsInterceptDistanceLegal, "A final with no approach clearance is not subject to the §5-9-1 distance rule.");
         Assert.True(score.IsInterceptAngleLegal, "A final with no approach clearance is not subject to the TBL 5-9-1 angle limits.");
@@ -703,7 +703,7 @@ public class ApproachScoreTests
     [Fact]
     public void VfrAircraft_NoScoreCreated()
     {
-        var aircraft = MakeEstablishedAircraft();
+        AircraftState aircraft = MakeEstablishedAircraft();
         aircraft.FlightPlan.FlightRules = "VFR";
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
@@ -715,7 +715,7 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
@@ -728,7 +728,7 @@ public class ApproachScoreTests
     public void VisualApproach_InterceptAlwaysLegal()
     {
         // Place aircraft close to threshold (inside minimum intercept distance)
-        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 2.0);
+        AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 2.0);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -739,14 +739,14 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
         // Score should be created (IFR aircraft on visual approach)
         Assert.Single(aircraft.PendingApproachScores);
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
 
         // Intercept should be marked legal even though distance is below minimum
         Assert.True(score.IsInterceptDistanceLegal);
@@ -759,7 +759,7 @@ public class ApproachScoreTests
     [Fact]
     public void InterceptDistance_UsesCaptureDistance()
     {
-        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 4.2);
+        AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 4.2);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -771,19 +771,19 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         Assert.Equal(5.7, score.InterceptDistanceNm, precision: 1);
     }
 
     [Fact]
     public void InterceptDistance_FallsBackWhenNoCapture()
     {
-        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 4.2);
+        AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 4.2);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -795,12 +795,12 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         // Should use establishment distance (~4.2nm)
         Assert.InRange(score.InterceptDistanceNm, 3.8, 4.6);
     }
@@ -809,7 +809,7 @@ public class ApproachScoreTests
     public void InterceptDistanceLegal_UsesCaptureDistance()
     {
         // Capture at 6nm (legal), establish at 4nm (would be illegal with default 7nm min)
-        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 4.0);
+        AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 4.0);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.ActiveApproach = new ApproachClearance
         {
@@ -821,12 +821,12 @@ public class ApproachScoreTests
         };
 
         var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        var score = aircraft.PendingApproachScores[0];
+        ApproachScore score = aircraft.PendingApproachScores[0];
         // Capture at 8nm is well above 7nm min → legal
         Assert.True(score.IsInterceptDistanceLegal, "Intercept should be legal using capture distance of 8nm");
     }

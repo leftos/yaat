@@ -43,7 +43,7 @@ public class WindowGroupRaiserTests : IDisposable
         Dispatcher.UIThread.RunJobs();
 
         var mru = new List<Window> { other, minimized, pinned, hidden, owned, activated };
-        var order = WindowGroupRaiser.ComputeRaiseOrder(mru, activated);
+        List<Window> order = WindowGroupRaiser.ComputeRaiseOrder(mru, activated);
 
         Assert.Equal([other, activated], order);
     }
@@ -58,7 +58,7 @@ public class WindowGroupRaiserTests : IDisposable
         other.Show();
         Dispatcher.UIThread.RunJobs();
 
-        var order = WindowGroupRaiser.ComputeRaiseOrder([other, activated], activated);
+        List<Window> order = WindowGroupRaiser.ComputeRaiseOrder([other, activated], activated);
 
         Assert.Equal([other], order);
     }
@@ -72,7 +72,7 @@ public class WindowGroupRaiserTests : IDisposable
         var b = new Window();
         WindowGroupRaiser.Attach(a, prefs);
         WindowGroupRaiser.Attach(b, prefs);
-        var raises = 0;
+        int raises = 0;
         WindowGroupRaiser.GroupRaised += _ => raises++;
 
         a.Show();
@@ -103,7 +103,7 @@ public class WindowGroupRaiserTests : IDisposable
         prefs.SetRaiseWindowsTogether(true);
         var window = new Window();
         WindowGroupRaiser.Attach(window, prefs);
-        var raises = 0;
+        int raises = 0;
         WindowGroupRaiser.GroupRaised += _ => raises++;
 
         WindowGroupRaiser.IsSuspended = true;
@@ -129,7 +129,7 @@ public class WindowGroupRaiserTests : IDisposable
             prefs.SetRaiseWindowsTogether(false);
             var window = new Window();
             WindowGroupRaiser.Attach(window, prefs);
-            var raises = 0;
+            int raises = 0;
             WindowGroupRaiser.GroupRaised += _ => raises++;
 
             window.Show();

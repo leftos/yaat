@@ -91,7 +91,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public CommandResult EnableAllAsdexAlerts()
     {
-        foreach (var ac in World.GetSnapshot())
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             ac.Stars.AsdexAlertsInhibited = false;
         }

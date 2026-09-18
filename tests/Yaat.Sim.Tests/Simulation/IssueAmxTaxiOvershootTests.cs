@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -25,7 +26,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -45,8 +46,8 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
     [Fact]
     public void AMX669_HoldsShortOf1L_WithReasonableHeading()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -55,7 +56,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
         // Replay past all commands; AMX669 taxi command at t=146
         engine.Replay(recording, 200);
 
-        var amx = engine.FindAircraft("AMX669");
+        AircraftState? amx = engine.FindAircraft("AMX669");
         Assert.NotNull(amx);
 
         // Tick until holding short or 300s
@@ -81,11 +82,11 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
                 Assert.True(headingReasonable, $"AMX669 heading {hdg:F0}° at 1L hold-short is outside expected M1 bearing range [80-190°]");
 
                 // Verify aircraft is near a 1L hold-short node on M1
-                var layout = new TestAirportGroundData().GetLayout("SFO");
+                AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
                 if (layout is not null)
                 {
                     var rwy1L = RunwayIdentifier.Parse("1L/19R");
-                    var hsNode = layout
+                    GroundNode? hsNode = layout
                         .Nodes.Values.Where(n =>
                             n.Type == GroundNodeType.RunwayHoldShort
                             && n.RunwayId is { } rid
@@ -119,7 +120,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
     [Fact]
     public void PathFromM2Spot_TaxiBM1_DoesNotUseTaxiwayA()
     {
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         if (layout is null)
         {
             return;
@@ -128,7 +129,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
         // Node 14 = Spot 2 on M2 (where AMX669 parks)
         int fromNodeId = 14;
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId,
             ["B", "M1"],
@@ -146,7 +147,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
         Assert.Null(failReason);
 
         output.WriteLine($"Route: {route.Segments.Count} segments");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             output.WriteLine($"  {seg.FromNodeId} → {seg.ToNodeId} on {seg.TaxiwayName}");
         }

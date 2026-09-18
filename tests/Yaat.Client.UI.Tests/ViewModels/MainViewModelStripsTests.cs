@@ -22,8 +22,8 @@ public class MainViewModelStripsTests
     [AvaloniaFact]
     public async Task OpenStripsEntryForFacilityAsync_NullId_DoesNothing()
     {
-        var vm = NewVm();
-        var startCount = vm.StripsEntries.Count;
+        MainViewModel vm = NewVm();
+        int startCount = vm.StripsEntries.Count;
 
         await vm.OpenStripsEntryForFacilityAsync(null!);
 
@@ -33,8 +33,8 @@ public class MainViewModelStripsTests
     [AvaloniaFact]
     public async Task OpenStripsEntryForFacilityAsync_EmptyId_DoesNothing()
     {
-        var vm = NewVm();
-        var startCount = vm.StripsEntries.Count;
+        MainViewModel vm = NewVm();
+        int startCount = vm.StripsEntries.Count;
 
         await vm.OpenStripsEntryForFacilityAsync("");
 
@@ -49,11 +49,11 @@ public class MainViewModelStripsTests
         // bays side by side), mirroring how the browser client can open the
         // same facility in two windows. The existing entry's pop-out state is
         // left alone.
-        var vm = NewVm();
-        var studentEntry = vm.StripsEntries[0];
+        MainViewModel vm = NewVm();
+        VStripsDockEntryViewModel studentEntry = vm.StripsEntries[0];
         studentEntry.Vm.FacilityId = "OAK";
         studentEntry.IsPoppedOut = true;
-        var startCount = vm.StripsEntries.Count;
+        int startCount = vm.StripsEntries.Count;
 
         await vm.OpenStripsEntryForFacilityAsync("OAK");
 
@@ -69,13 +69,13 @@ public class MainViewModelStripsTests
         // second (and later) same-facility tabs get a " #n" title suffix.
         // Closing a duplicate recomputes the ordinals so a now-unique entry
         // returns to the clean title.
-        var vm = NewVm();
-        var studentEntry = vm.StripsEntries[0];
+        MainViewModel vm = NewVm();
+        VStripsDockEntryViewModel studentEntry = vm.StripsEntries[0];
         studentEntry.Vm.FacilityId = "OAK";
         studentEntry.Vm.FacilityName = "Oakland Intl ATCT";
 
         await vm.OpenStripsEntryForFacilityAsync("OAK");
-        var duplicate = vm.StripsEntries[^1];
+        VStripsDockEntryViewModel duplicate = vm.StripsEntries[^1];
         // The headless RPC fails (no server), so assign the facility the way
         // SwitchFacilityAsync would have — this also exercises the
         // FacilityId-change → recompute path.
@@ -98,13 +98,13 @@ public class MainViewModelStripsTests
         // exceptions, so even with no live server the entry persists in
         // StripsEntries — that's what we assert here. Bay/facility wiring
         // is exercised separately by VStripsViewModelTests.
-        var vm = NewVm();
-        var startCount = vm.StripsEntries.Count;
+        MainViewModel vm = NewVm();
+        int startCount = vm.StripsEntries.Count;
 
         await vm.OpenStripsEntryForFacilityAsync("NCT");
 
         Assert.Equal(startCount + 1, vm.StripsEntries.Count);
-        var added = vm.StripsEntries[^1];
+        VStripsDockEntryViewModel added = vm.StripsEntries[^1];
         Assert.False(added.IsStudentEntry);
         Assert.False(added.IsPoppedOut);
     }
@@ -112,8 +112,8 @@ public class MainViewModelStripsTests
     [AvaloniaFact]
     public async Task SplitStripsEntry_CreatesSecondaryVm_AndUnsplitDiscardsIt()
     {
-        var vm = NewVm();
-        var entry = vm.StripsEntries[0];
+        MainViewModel vm = NewVm();
+        VStripsDockEntryViewModel entry = vm.StripsEntries[0];
         // The student entry's split persists in preferences, which the test
         // process shares across tests — establish a clean baseline instead of
         // assuming one.
@@ -127,7 +127,7 @@ public class MainViewModelStripsTests
         Assert.NotNull(entry.SecondaryVm);
 
         // Re-orienting keeps the same secondary pane (and its bay selection).
-        var secondary = entry.SecondaryVm;
+        VStripsViewModel secondary = entry.SecondaryVm;
         await vm.SplitStripsEntryAsync(entry, StripsSplitMode.Stacked);
         Assert.Equal(StripsSplitMode.Stacked, entry.SplitMode);
         Assert.Same(secondary, entry.SecondaryVm);
@@ -189,8 +189,8 @@ public class MainViewModelStripsTests
         view.ApplyBayConfig(OakConfig);
         Dispatcher.UIThread.RunJobs();
 
-        var rack = view.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
-        var strip = Assert.Single(rack.Strips);
+        StripRackViewModel rack = view.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        StripItemViewModel strip = Assert.Single(rack.Strips);
         Assert.Equal("S1", strip.Id);
         Assert.True(view.HasMetars);
         Assert.Contains("KOAK", view.PrimaryMetar!.Raw);
@@ -203,8 +203,8 @@ public class MainViewModelStripsTests
         // session already has — state and METARs are broadcast-only, so
         // without seeding the new pane sits empty (and its header misaligns
         // with the primary's) until the next server change.
-        var vm = NewVm();
-        var entry = vm.StripsEntries[0];
+        MainViewModel vm = NewVm();
+        VStripsDockEntryViewModel entry = vm.StripsEntries[0];
         vm.UnsplitStripsEntry(entry);
         SeedLiveSession(entry.Vm);
 
@@ -217,8 +217,8 @@ public class MainViewModelStripsTests
     public async Task DuplicateFacilityTab_SeedsCurrentStripsAndMetars()
     {
         // Same seeding contract for a duplicate facility tab opened mid-session.
-        var vm = NewVm();
-        var entry = vm.StripsEntries[0];
+        MainViewModel vm = NewVm();
+        VStripsDockEntryViewModel entry = vm.StripsEntries[0];
         vm.UnsplitStripsEntry(entry);
         SeedLiveSession(entry.Vm);
 
@@ -240,10 +240,10 @@ public class MainViewModelStripsTests
         // full payload typically arrives once, when it's printed. A pane
         // created mid-session must be seeded with every strip the peer has
         // accumulated, not just whatever the most recent delta contained.
-        var vm = NewVm();
-        var entry = vm.StripsEntries[0];
+        MainViewModel vm = NewVm();
+        VStripsDockEntryViewModel entry = vm.StripsEntries[0];
         vm.UnsplitStripsEntry(entry);
-        var student = entry.Vm;
+        VStripsViewModel student = entry.Vm;
         student.SetConnected(true);
         student.ApplyBayConfig(OakConfig);
         Dispatcher.UIThread.RunJobs();
@@ -252,11 +252,11 @@ public class MainViewModelStripsTests
         student.ReconcileFullState(GroundBayState("S1", "S2"));
 
         await vm.SplitStripsEntryAsync(entry, StripsSplitMode.SideBySide);
-        var secondary = entry.SecondaryVm!;
+        VStripsViewModel secondary = entry.SecondaryVm!;
         secondary.ApplyBayConfig(OakConfig);
         Dispatcher.UIThread.RunJobs();
 
-        var rack = secondary.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        StripRackViewModel rack = secondary.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
         Assert.Equal(new[] { "S1", "S2" }, rack.Strips.Select(s => s.Id).ToArray());
     }
 
@@ -266,10 +266,10 @@ public class MainViewModelStripsTests
         // A strip deleted before the split (full state no longer references
         // it) must not reappear in the seeded pane just because its DTO was
         // once broadcast.
-        var vm = NewVm();
-        var entry = vm.StripsEntries[0];
+        MainViewModel vm = NewVm();
+        VStripsDockEntryViewModel entry = vm.StripsEntries[0];
         vm.UnsplitStripsEntry(entry);
-        var student = entry.Vm;
+        VStripsViewModel student = entry.Vm;
         student.SetConnected(true);
         student.ApplyBayConfig(OakConfig);
         Dispatcher.UIThread.RunJobs();
@@ -278,11 +278,11 @@ public class MainViewModelStripsTests
         student.ReconcileFullState(GroundBayState("S2"));
 
         await vm.SplitStripsEntryAsync(entry, StripsSplitMode.SideBySide);
-        var secondary = entry.SecondaryVm!;
+        VStripsViewModel secondary = entry.SecondaryVm!;
         secondary.ApplyBayConfig(OakConfig);
         Dispatcher.UIThread.RunJobs();
 
-        var rack = secondary.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        StripRackViewModel rack = secondary.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
         Assert.Equal(new[] { "S2" }, rack.Strips.Select(s => s.Id).ToArray());
     }
 

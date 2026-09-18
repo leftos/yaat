@@ -123,7 +123,7 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
     [Fact]
     public void Test1_SpawnOffM2_TaxisThroughTwoNinetyTurns_AndTakesOff()
     {
-        var engine = BuildEngine(output);
+        SimulationEngine? engine = BuildEngine(output);
         if (engine is null)
         {
             output.WriteLine("SKIP: navdata or SFO layout not available");
@@ -140,22 +140,22 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
         const int spawnHdgMag = 280;
 
         string json = BuildScenarioJson(spawnLat, spawnLon, spawnHdgMag);
-        var warnings = engine.LoadScenario(json, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
-        foreach (var w in warnings)
+        List<string> warnings = engine.LoadScenario(json, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        foreach (string w in warnings)
         {
             output.WriteLine($"[WARN] {w}");
         }
 
-        var ac = engine.FindAircraft("TEST1");
+        AircraftState? ac = engine.FindAircraft("TEST1");
         Assert.NotNull(ac);
 
         // Verify the snap fired — aircraft should be within 1 ft of the M2
         // edge (foot-of-perpendicular on the 92↔1529 edge) rather than 20 ft
         // away. The snap also rotates heading to the nearest edge direction
         // (westbound ~297° true).
-        var layout = ac.Ground.Layout;
+        AirportGroundLayout? layout = ac.Ground.Layout;
         Assert.NotNull(layout);
-        var nearest = layout.FindNearestTaxiEdge(ac.Position.Lat, ac.Position.Lon);
+        AirportGroundLayout.NearestTaxiEdge? nearest = layout.FindNearestTaxiEdge(ac.Position.Lat, ac.Position.Lon);
         Assert.NotNull(nearest);
         double distToEdgeFt = nearest.Value.DistNm * GeoMath.FeetPerNm;
         output.WriteLine(
@@ -303,7 +303,7 @@ public class SfoM2MultiTurnAcceptanceTests(ITestOutputHelper output)
         for (int t = 1; t <= 5 * 60; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft("TEST1");
+            AircraftState? ac = engine.FindAircraft("TEST1");
             if (ac is null)
             {
                 break;

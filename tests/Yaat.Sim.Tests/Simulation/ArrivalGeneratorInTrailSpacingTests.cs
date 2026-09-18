@@ -36,13 +36,13 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void FasterFollower_HoldsSpacing_BehindSlowerLeader()
     {
-        var engine = LoadOakEngine();
+        SimulationEngine? engine = LoadOakEngine();
         if (engine is null)
         {
             return;
         }
 
-        var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
+        RunwayInfo rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
         var threshold = new LatLon(rwy30.ThresholdLatitude, rwy30.ThresholdLongitude);
 
         // Slow turboprop leader at 20 NM; faster jet follower 5 NM behind. Both generator
@@ -57,8 +57,8 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         {
             engine.TickOneSecond();
 
-            var leader = engine.FindAircraft("DAL1");
-            var follower = engine.FindAircraft("SWA2");
+            AircraftState? leader = engine.FindAircraft("DAL1");
+            AircraftState? follower = engine.FindAircraft("SWA2");
             if (leader is null || follower is null)
             {
                 break;
@@ -94,12 +94,12 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void ManualSpeedCommand_ReleasesAutoSpacing()
     {
-        var engine = LoadOakEngine();
+        SimulationEngine? engine = LoadOakEngine();
         if (engine is null)
         {
             return;
         }
-        var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
+        RunwayInfo rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
 
         InjectArrival(engine, rwy30, "DAL1", "DH8D", 10.0, isGeneratorArrival: true);
         InjectArrival(engine, rwy30, "SWA2", "B739", 15.0, isGeneratorArrival: true);
@@ -109,11 +109,11 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
             engine.TickOneSecond();
         }
 
-        var follower = engine.FindAircraft("SWA2");
+        AircraftState? follower = engine.FindAircraft("SWA2");
         Assert.NotNull(follower);
         Assert.NotNull(follower.Targets.SpeedCeiling); // manager engaged
 
-        var result = engine.SendCommand("SWA2", "SPD 200");
+        CommandResult result = engine.SendCommand("SWA2", "SPD 200");
         Assert.True(result.Success, result.Message);
 
         engine.TickOneSecond();
@@ -137,18 +137,18 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void StudentTrackOwnership_LeavesTheSpacingCeilingStanding()
     {
-        var engine = LoadOakEngine();
+        SimulationEngine? engine = LoadOakEngine();
         if (engine is null)
         {
             return;
         }
-        var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
+        RunwayInfo rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
 
         InjectArrival(engine, rwy30, "DAL1", "DH8D", 10.0, isGeneratorArrival: true);
         InjectArrival(engine, rwy30, "SWA2", "B739", 15.0, isGeneratorArrival: true);
 
         engine.TickOneSecond();
-        var follower = engine.FindAircraft("SWA2");
+        AircraftState? follower = engine.FindAircraft("SWA2");
         Assert.NotNull(follower);
         Assert.NotNull(follower.Targets.SpeedCeiling); // manager engaged
         double standing = follower.Targets.SpeedCeiling!.Value;
@@ -175,7 +175,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         Assert.Equal(standing, follower.Targets.SpeedCeiling!.Value);
 
         // The student's own speed command is what lapses it.
-        var result = engine.SendCommand("SWA2", "SPD 200");
+        CommandResult result = engine.SendCommand("SWA2", "SPD 200");
         Assert.True(result.Success, result.Message);
 
         engine.TickOneSecond();
@@ -198,12 +198,12 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void GeneratorManager_ManagesOnlyGeneratorArrivals_BehindANonGeneratorLeader()
     {
-        var engine = LoadOakEngine();
+        SimulationEngine? engine = LoadOakEngine();
         if (engine is null)
         {
             return;
         }
-        var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
+        RunwayInfo rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
         engine.Scenario.AutoArrivalSpacingOnOccupiedRunway = true;
 
         InjectArrival(engine, rwy30, "MANUAL1", "DH8D", 6.0, isGeneratorArrival: false);
@@ -215,14 +215,14 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
             engine.TickOneSecond();
         }
 
-        var manualLeader = engine.FindAircraft("MANUAL1");
-        var genFollower = engine.FindAircraft("GEN2");
-        var manualFollower = engine.FindAircraft("MANUAL3");
+        AircraftState? manualLeader = engine.FindAircraft("MANUAL1");
+        AircraftState? genFollower = engine.FindAircraft("GEN2");
+        AircraftState? manualFollower = engine.FindAircraft("MANUAL3");
         Assert.NotNull(manualLeader);
         Assert.NotNull(genFollower);
         Assert.NotNull(manualFollower);
 
-        foreach (var ac in new[] { manualLeader, genFollower, manualFollower })
+        foreach (AircraftState? ac in new[] { manualLeader, genFollower, manualFollower })
         {
             output.WriteLine(
                 $"{ac.Callsign}: {RunwayOccupancy.DistanceToAssignedThresholdNm(ac, rwy30, engine.World.GroundLayout):F1} nm, "
@@ -252,12 +252,12 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void SameRunwayProtection_ManagesANonGeneratorFollower_WhenTheArrivalAheadWillNotClearInTime()
     {
-        var engine = LoadOakEngine();
+        SimulationEngine? engine = LoadOakEngine();
         if (engine is null)
         {
             return;
         }
-        var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
+        RunwayInfo rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
         engine.Scenario.AutoArrivalSpacingOnOccupiedRunway = true;
 
         InjectArrival(engine, rwy30, "MANUAL1", "DH8D", 8.0, isGeneratorArrival: false);
@@ -268,8 +268,8 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
             engine.TickOneSecond();
         }
 
-        var manualLeader = engine.FindAircraft("MANUAL1");
-        var manualFollower = engine.FindAircraft("MANUAL3");
+        AircraftState? manualLeader = engine.FindAircraft("MANUAL1");
+        AircraftState? manualFollower = engine.FindAircraft("MANUAL3");
         Assert.NotNull(manualLeader);
         Assert.NotNull(manualFollower);
 
@@ -312,12 +312,12 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void LeaderLeavesTheStream_TheSlowedFollowerIsRestored_AndStillFliesTheStagedSlowdown()
     {
-        var setup = SlowFollowerBehindLeader(leaderNm: 20.0, followerNm: 23.5);
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = SlowFollowerBehindLeader(leaderNm: 20.0, followerNm: 23.5);
         if (setup is null)
         {
             return;
         }
-        var (engine, rwy30) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo? rwy30) = setup.Value;
 
         engine.World.RemoveAircraft(LeaderCallsign);
 
@@ -325,21 +325,21 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         for (int t = 1; (t <= 60) && (restoredAt < 0); t++)
         {
             engine.TickOneSecond();
-            var follower = engine.FindAircraft(FollowerCallsign)!;
+            AircraftState follower = engine.FindAircraft(FollowerCallsign)!;
             if (Math.Abs(follower.IndicatedAirspeed - ScheduledKts(follower, rwy30)) <= SimulationEngine.SpeedRestoreDeadbandKts)
             {
                 restoredAt = t;
             }
         }
 
-        var restoredFollower = engine.FindAircraft(FollowerCallsign)!;
+        AircraftState restoredFollower = engine.FindAircraft(FollowerCallsign)!;
         output.WriteLine(
             $"restored at t={restoredAt}s: IAS {restoredFollower.IndicatedAirspeed:F0} kt, scheduled {ScheduledKts(restoredFollower, rwy30):F0} kt, "
                 + $"{AlongFinalNm(restoredFollower, rwy30):F1} nm"
         );
         Assert.True(restoredAt > 0, "the follower was not given its scheduled speed back within 60 s of becoming the lead");
 
-        var category = AircraftCategorization.Categorize(restoredFollower.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(restoredFollower.AircraftType);
         double fas =
             AircraftPerformance.ApproachSpeed(restoredFollower.AircraftType, category)
             + AircraftPerformance.WindApproachAdditive(engine.World.Weather, rwy30.TrueHeading.Degrees);
@@ -352,7 +352,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         for (int t = 1; t <= 900; t++)
         {
             engine.TickOneSecond();
-            var follower = engine.FindAircraft(FollowerCallsign);
+            AircraftState? follower = engine.FindAircraft(FollowerCallsign);
             if (follower?.Phases?.CurrentPhase is not FinalApproachPhase phase)
             {
                 break;
@@ -396,12 +396,12 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void LeaderPullsAway_TheSlowedFollowerIsRestoredToItsRaisedCeiling()
     {
-        var setup = SlowFollowerBehindLeader(leaderNm: 20.0, followerNm: 23.5);
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = SlowFollowerBehindLeader(leaderNm: 20.0, followerNm: 23.5);
         if (setup is null)
         {
             return;
         }
-        var (engine, rwy30) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo? rwy30) = setup.Value;
 
         // Let the ceiling finish slowing the follower behind the close leader, so the raised ceiling below sits well
         // outside the restore deadband.
@@ -445,17 +445,17 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void HandoffToStudentInProgress_OnAFollower_DoesNotRestore()
     {
-        var setup = SlowFollowerBehindLeader(leaderNm: 20.0, followerNm: 23.5);
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = SlowFollowerBehindLeader(leaderNm: 20.0, followerNm: 23.5);
         if (setup is null)
         {
             return;
         }
-        var (engine, rwy30) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo? rwy30) = setup.Value;
 
-        var follower = engine.FindAircraft(FollowerCallsign)!;
+        AircraftState follower = engine.FindAircraft(FollowerCallsign)!;
         engine.Scenario!.StudentPosition = TrackOwner.CreateNonNas("OAK_TWR");
         follower.Track.Owner = TrackOwner.CreateNonNas("NCT_APP");
-        var handoff = TrackEngine.ApplyHandoff(follower, engine.Scenario, identity: null, tcpCode: null, redirect: null);
+        CommandResult handoff = TrackEngine.ApplyHandoff(follower, engine.Scenario, identity: null, tcpCode: null, redirect: null);
         Assert.True(handoff.Success, handoff.Message);
 
         PullLeaderAhead(engine, rwy30, nm: 8.0);
@@ -489,13 +489,13 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void LeaderOnADownwindInsideTheCorridor_FollowerGetsTheProportionalCeiling()
     {
-        var engine = LoadOakEngine();
+        SimulationEngine? engine = LoadOakEngine();
         if (engine is null)
         {
             return;
         }
-        var gen30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30");
-        var rwy30 = gen30.Runway;
+        GeneratorState gen30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30");
+        RunwayInfo rwy30 = gen30.Runway;
 
         var threshold = new LatLon(rwy30.ThresholdLatitude, rwy30.ThresholdLongitude);
         var downwind = new TrueHeading((rwy30.TrueHeading.Degrees + 180.0) % 360.0);
@@ -513,10 +513,10 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
             Phases = new PhaseList { AssignedRunway = rwy30, LandingClearance = ClearanceType.ClearedToLand },
         };
         engine.World.AddAircraft(leader);
-        var follower = InjectArrival(engine, rwy30, FollowerCallsign, "B739", 12.0, isGeneratorArrival: true);
+        AircraftState follower = InjectArrival(engine, rwy30, FollowerCallsign, "B739", 12.0, isGeneratorArrival: true);
 
-        var leaderCategory = AircraftCategorization.Categorize(leader.AircraftType);
-        var followerCategory = AircraftCategorization.Categorize(follower.AircraftType);
+        AircraftCategory leaderCategory = AircraftCategorization.Categorize(leader.AircraftType);
+        AircraftCategory followerCategory = AircraftCategorization.Categorize(follower.AircraftType);
         double wake = WakeTurbulenceData.OnApproachWakeSeparationNm(leader.AircraftType, leaderCategory, follower.AircraftType, followerCategory);
         double target = Math.Max(gen30.Config.IntervalDistance, Math.Max(RadarFloorNm, wake));
         double expected = ArrivalSpacingManager.SpacingCeilingKts(
@@ -545,16 +545,16 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void LeaderInterceptingTheFinal_TheAllowanceUsesItsAlongCourseClosure()
     {
-        var engine = LoadOakEngine();
+        SimulationEngine? engine = LoadOakEngine();
         if (engine is null)
         {
             return;
         }
-        var gen30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30");
-        var rwy30 = gen30.Runway;
+        GeneratorState gen30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30");
+        RunwayInfo rwy30 = gen30.Runway;
 
-        var leaderCategory = AircraftCategorization.Categorize("B739");
-        var (onCourse, leaderAltitudeFt) = AircraftInitializer.FinalApproachPoint(rwy30, leaderCategory, 6.0);
+        AircraftCategory leaderCategory = AircraftCategorization.Categorize("B739");
+        (LatLon onCourse, double leaderAltitudeFt) = AircraftInitializer.FinalApproachPoint(rwy30, leaderCategory, 6.0);
         var rightOfCourse = new TrueHeading((rwy30.TrueHeading.Degrees + 90.0) % 360.0);
         var intercept = new TrueHeading((rwy30.TrueHeading.Degrees + 320.0) % 360.0);
         engine.World.AddAircraft(
@@ -576,12 +576,12 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
 
         // The manager stamps the ceiling before physics, so the second tick's ceiling reads the state the first tick left.
         engine.TickOneSecond();
-        var leader = engine.FindAircraft(LeaderCallsign)!;
-        var follower = engine.FindAircraft(FollowerCallsign)!;
+        AircraftState leader = engine.FindAircraft(LeaderCallsign)!;
+        AircraftState follower = engine.FindAircraft(FollowerCallsign)!;
         double offsetDeg = leader.TrueTrack.AbsAngleTo(rwy30.TrueHeading);
         Assert.InRange(offsetDeg, 30.0, 45.0); // premise: on final through the track branch, well off the course
 
-        var followerCategory = AircraftCategorization.Categorize(follower.AircraftType);
+        AircraftCategory followerCategory = AircraftCategorization.Categorize(follower.AircraftType);
         double wake = WakeTurbulenceData.OnApproachWakeSeparationNm(leader.AircraftType, leaderCategory, follower.AircraftType, followerCategory);
         var alongCourse = new InTrailPair
         {
@@ -618,17 +618,17 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void HandoffToStudentInProgress_HoldsTheStandingCeiling_AndDoesNotRestore()
     {
-        var setup = SlowFollowerBehindLeader(leaderNm: 20.0, followerNm: 23.5);
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = SlowFollowerBehindLeader(leaderNm: 20.0, followerNm: 23.5);
         if (setup is null)
         {
             return;
         }
-        var (engine, _) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo _) = setup.Value;
 
-        var follower = engine.FindAircraft(FollowerCallsign)!;
+        AircraftState follower = engine.FindAircraft(FollowerCallsign)!;
         engine.Scenario!.StudentPosition = TrackOwner.CreateNonNas("OAK_TWR");
         follower.Track.Owner = TrackOwner.CreateNonNas("NCT_APP");
-        var handoff = TrackEngine.ApplyHandoff(follower, engine.Scenario, identity: null, tcpCode: null, redirect: null);
+        CommandResult handoff = TrackEngine.ApplyHandoff(follower, engine.Scenario, identity: null, tcpCode: null, redirect: null);
         Assert.True(handoff.Success, handoff.Message);
 
         engine.TickOneSecond();
@@ -659,14 +659,14 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void LeaderLeavesTheStream_InsideTheRestoreGate_NoRestore()
     {
-        var setup = SlowFollowerBehindLeader(leaderNm: 10.0, followerNm: 13.5);
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = SlowFollowerBehindLeader(leaderNm: 10.0, followerNm: 13.5);
         if (setup is null)
         {
             return;
         }
-        var (engine, rwy30) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo? rwy30) = setup.Value;
 
-        var follower = engine.FindAircraft(FollowerCallsign)!;
+        AircraftState follower = engine.FindAircraft(FollowerCallsign)!;
         double gate = SimulationEngine.SpeedRestoreGateNm(AircraftCategorization.Categorize(follower.AircraftType), follower.Callsign);
         double distance = AlongFinalNm(follower, rwy30);
         double shortfall = ScheduledKts(follower, rwy30) - follower.IndicatedAirspeed;
@@ -697,14 +697,14 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void LeaderLeavesTheStream_WhileSameRunwayProtectionOwnsTheCeiling_NoRestore()
     {
-        var setup = SlowFollowerBehindLeader(leaderNm: 20.0, followerNm: 23.5);
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = SlowFollowerBehindLeader(leaderNm: 20.0, followerNm: 23.5);
         if (setup is null)
         {
             return;
         }
-        var (engine, _) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo _) = setup.Value;
 
-        var follower = engine.FindAircraft(FollowerCallsign)!;
+        AircraftState follower = engine.FindAircraft(FollowerCallsign)!;
         double protectionCeiling = follower.Targets.SpeedCeiling ?? follower.IndicatedAirspeed;
         double iasAtRemoval = follower.IndicatedAirspeed;
         engine.World.RemoveAircraft(LeaderCallsign);
@@ -733,16 +733,16 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void FarBehindALeaderOnShortFinal_TheCeilingIsTheFollowersScheduledSpeed()
     {
-        var engine = LoadOakEngine();
+        SimulationEngine? engine = LoadOakEngine();
         if (engine is null)
         {
             return;
         }
-        var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
+        RunwayInfo rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
 
-        var leader = InjectArrival(engine, rwy30, LeaderCallsign, "B739", 2.3, isGeneratorArrival: true);
+        AircraftState leader = InjectArrival(engine, rwy30, LeaderCallsign, "B739", 2.3, isGeneratorArrival: true);
         leader.IndicatedAirspeed = 144.0;
-        var follower = InjectArrival(engine, rwy30, FollowerCallsign, "B763", 2.3 + 26.0, isGeneratorArrival: true);
+        AircraftState follower = InjectArrival(engine, rwy30, FollowerCallsign, "B763", 2.3 + 26.0, isGeneratorArrival: true);
         double followerDistance = AlongFinalNm(follower, rwy30);
         double scheduled = ScheduledKts(follower, rwy30);
 
@@ -766,12 +766,12 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void StudentOnApproach_CloseFollowerGetsNoCeiling()
     {
-        var engine = LoadOakEngine();
+        SimulationEngine? engine = LoadOakEngine();
         if (engine is null)
         {
             return;
         }
-        var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
+        RunwayInfo rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
         engine.Scenario.StudentPositionType = "APP";
 
         InjectArrival(engine, rwy30, "DAL1", "DH8D", 10.0, isGeneratorArrival: true);
@@ -782,7 +782,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
             engine.TickOneSecond();
         }
 
-        var follower = engine.FindAircraft("SWA2");
+        AircraftState? follower = engine.FindAircraft("SWA2");
         Assert.NotNull(follower);
         Assert.Null(follower.Targets.SpeedCeiling);
         Assert.False(follower.Approach.AutoSpacingReleased, "a closed gate is not a release: nothing latches");
@@ -796,19 +796,19 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     [Fact]
     public void StudentBecomesApproach_TheManagedCeilingIsReleasedOnThatTick()
     {
-        var engine = LoadOakEngine();
+        SimulationEngine? engine = LoadOakEngine();
         if (engine is null)
         {
             return;
         }
-        var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
+        RunwayInfo rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
         engine.Scenario.StudentPositionType = "TWR";
 
         InjectArrival(engine, rwy30, "DAL1", "DH8D", 10.0, isGeneratorArrival: true);
         InjectArrival(engine, rwy30, "SWA2", "B739", 13.0, isGeneratorArrival: true);
 
         engine.TickOneSecond();
-        var follower = engine.FindAircraft("SWA2")!;
+        AircraftState follower = engine.FindAircraft("SWA2")!;
         Assert.NotNull(follower.Targets.SpeedCeiling); // premise: the manager engaged while the student was on TWR
 
         engine.Scenario.StudentPositionType = "APP";
@@ -831,12 +831,12 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     /// </summary>
     private (SimulationEngine Engine, RunwayInfo Runway)? SlowFollowerBehindLeader(double leaderNm, double followerNm)
     {
-        var engine = LoadOakEngine();
+        SimulationEngine? engine = LoadOakEngine();
         if (engine is null)
         {
             return null;
         }
-        var rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
+        RunwayInfo rwy30 = engine.Scenario!.Generators.Single(g => g.Config.Runway == "30").Runway;
 
         InjectArrival(engine, rwy30, LeaderCallsign, "DH8D", leaderNm, isGeneratorArrival: true);
         InjectArrival(engine, rwy30, FollowerCallsign, "B763", followerNm, isGeneratorArrival: true);
@@ -845,7 +845,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         for (int t = 1; (t <= 60) && !slowed; t++)
         {
             engine.TickOneSecond();
-            var follower = engine.FindAircraft(FollowerCallsign)!;
+            AircraftState follower = engine.FindAircraft(FollowerCallsign)!;
             double shortfall = ScheduledKts(follower, rwy30) - follower.IndicatedAirspeed;
             if (shortfall >= 15.0)
             {
@@ -867,16 +867,16 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     /// </summary>
     private static void PullLeaderAhead(SimulationEngine engine, RunwayInfo runway, double nm)
     {
-        var leader = engine.FindAircraft(LeaderCallsign)!;
-        var category = AircraftCategorization.Categorize(leader.AircraftType);
-        var (position, altitudeFt) = AircraftInitializer.FinalApproachPoint(runway, category, AlongFinalNm(leader, runway) - nm);
+        AircraftState leader = engine.FindAircraft(LeaderCallsign)!;
+        AircraftCategory category = AircraftCategorization.Categorize(leader.AircraftType);
+        (LatLon position, double altitudeFt) = AircraftInitializer.FinalApproachPoint(runway, category, AlongFinalNm(leader, runway) - nm);
         leader.Position = position;
         leader.Altitude = altitudeFt;
     }
 
     private static double ScheduledKts(AircraftState aircraft, RunwayInfo runway)
     {
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         double vref = AircraftPerformance.ApproachSpeed(aircraft.AircraftType, category);
         return ArrivalSpacingManager.ScheduledFinalSpeedKts(aircraft.AircraftType, category, vref, aircraft.Callsign, AlongFinalNm(aircraft, runway));
     }
@@ -919,8 +919,8 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         bool isGeneratorArrival
     )
     {
-        var category = AircraftCategorization.Categorize(type);
-        var init = AircraftInitializer.InitializeOnFinal(runway, category, callsign, requestedDistanceNm: distanceNm, aircraftType: type);
+        AircraftCategory category = AircraftCategorization.Categorize(type);
+        PhaseInitResult init = AircraftInitializer.InitializeOnFinal(runway, category, callsign, requestedDistanceNm: distanceNm, aircraftType: type);
 
         var aircraft = new AircraftState
         {

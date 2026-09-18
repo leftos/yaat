@@ -14,7 +14,7 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
 
     public FilletStatistics Apply(AirportGroundLayout layout)
     {
-        var manualArcNodes = ManualArcDetector.Detect(layout);
+        HashSet<int> manualArcNodes = ManualArcDetector.Detect(layout);
         int maxNodeId = layout.Nodes.Keys.DefaultIfEmpty(0).Max();
         var idCounter = new FilletPlanExecutor.NextNodeIdCounter { Next = maxNodeId + 1 };
 
@@ -31,7 +31,7 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
         // enforces this namespace separation at compile time.
         var nextCutId = new CutId(maxNodeId + 1_000_000);
 
-        foreach (var node in layout.Nodes.Values.OrderBy(n => n.Id))
+        foreach (GroundNode? node in layout.Nodes.Values.OrderBy(n => n.Id))
         {
             if (manualArcNodes.Contains(node.Id))
             {
@@ -43,18 +43,18 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
                 continue;
             }
 
-            if (!layout.Nodes.TryGetValue(node.Id, out var current) || (current.Edges.Count < 2))
+            if (!layout.Nodes.TryGetValue(node.Id, out GroundNode? current) || (current.Edges.Count < 2))
             {
                 continue;
             }
 
-            var junction = JunctionClassifier.Classify(current, preserve, manualArcNodes);
+            JunctionPlan junction = JunctionClassifier.Classify(current, preserve, manualArcNodes);
             if (junction.Kind == JunctionKind.Skip)
             {
                 continue;
             }
 
-            var cutResult = ArmCutResolver.Resolve(junction, ref nextCutId);
+            ArmCutResolver.JunctionCutResult cutResult = ArmCutResolver.Resolve(junction, ref nextCutId);
             if ((cutResult.CornerArcs.Count == 0) && (junction.CollinearPairs.Count == 0))
             {
                 continue;
@@ -64,8 +64,8 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
             cutResults.Add(cutResult);
         }
 
-        var plan = FilletPlanBuilder.Build(layout, junctionPlans, cutResults);
-        var exec = FilletPlanExecutor.Execute(layout, plan, junctionPlans, idCounter);
+        FilletPlan plan = FilletPlanBuilder.Build(layout, junctionPlans, cutResults);
+        FilletPlanExecutor.ExecuteResult exec = FilletPlanExecutor.Execute(layout, plan, junctionPlans, idCounter);
         int structuralCleanups = FilletGraphNormalizer.Normalize(layout);
 
         var stats = new FilletStatistics(

@@ -27,7 +27,7 @@ public class MainViewModelTakeControlTests
         vm.PlaybackTapeEnd = 120;
         vm.StatusText = "sentinel";
 
-        var prompted = false;
+        bool prompted = false;
         vm.TakeControlConfirmation = () =>
         {
             prompted = true;
@@ -49,7 +49,7 @@ public class MainViewModelTakeControlTests
         vm.IsPlaybackMode = true;
         vm.StatusText = "sentinel";
 
-        var prompted = false;
+        bool prompted = false;
         vm.TakeControlConfirmation = () =>
         {
             prompted = true;
@@ -68,7 +68,7 @@ public class MainViewModelTakeControlTests
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.IsPlaybackMode = false;
 
-        var prompted = false;
+        bool prompted = false;
         vm.TakeControlConfirmation = () =>
         {
             prompted = true;

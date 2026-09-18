@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -34,7 +35,7 @@ public class LateExitChangeE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
@@ -43,11 +44,11 @@ public class LateExitChangeE2ETests(ITestOutputHelper output)
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
         var engine = new SimulationEngine(new TestAirportGroundData());
 
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "30");
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "30");
         Assert.NotNull(runway);
 
         double reciprocal = (runway.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 1.0);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 1.0);
 
         var aircraft = new AircraftState
         {
@@ -74,7 +75,7 @@ public class LateExitChangeE2ETests(ITestOutputHelper output)
         aircraft.Phases.Add(new HoldingAfterExitPhase());
         aircraft.Ground.Layout = layout;
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
@@ -117,7 +118,7 @@ public class LateExitChangeE2ETests(ITestOutputHelper output)
                 output.WriteLine($"t={t}: committed to {committedTo}, turnStarted={exitPhase.TurnStarted}, gs={aircraft.GroundSpeed:F1}");
                 Assert.False(exitPhase.TurnStarted, "the phase latched the turn on the same tick it committed the route");
 
-                var change = engine.SendCommand("TSTAC", $"EXIT {NewExit}");
+                CommandResult change = engine.SendCommand("TSTAC", $"EXIT {NewExit}");
                 output.WriteLine($"t={t}: EXIT {NewExit} -> success={change.Success} msg={change.Message}");
                 Assert.True(change.Success, $"late exit change was refused while still tracking the centerline: {change.Message}");
                 retargeted = true;
@@ -128,7 +129,7 @@ public class LateExitChangeE2ETests(ITestOutputHelper output)
             // on the exit it is turning into.
             if (retargeted && !refusedAfterTurnStart && exitPhase.TurnStarted)
             {
-                var tooLate = engine.SendCommand("TSTAC", "EXIT W5");
+                CommandResult tooLate = engine.SendCommand("TSTAC", "EXIT W5");
                 output.WriteLine($"t={t}: EXIT W5 (turning) -> success={tooLate.Success} msg={tooLate.Message}");
                 Assert.False(tooLate.Success, "an exit change was accepted after the turn-off had started");
                 Assert.Contains("turning off", tooLate.Message!, StringComparison.OrdinalIgnoreCase);

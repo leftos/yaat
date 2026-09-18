@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -44,7 +45,7 @@ public class Issue195AseLindzTurnAltitudeTests(ITestOutputHelper output)
     [Fact]
     public void Skw4757_BeginsLindzTurnAt400Agl_NotPastDer()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             output.WriteLine("Skipped: recording not available");
@@ -53,8 +54,8 @@ public class Issue195AseLindzTurnAltitudeTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 output.WriteLine("Skipped: NavData not available");
@@ -62,7 +63,7 @@ public class Issue195AseLindzTurnAltitudeTests(ITestOutputHelper output)
             }
 
             engine.Replay(recording, 0); // load scenario + weather + nav setup
-            var snapshot = archive.ReadSnapshotAt(SnapshotSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(SnapshotSeconds);
             if (snapshot is null)
             {
                 output.WriteLine("Skipped: snapshot not available");
@@ -73,7 +74,7 @@ public class Issue195AseLindzTurnAltitudeTests(ITestOutputHelper output)
 
             // Sanity: at restore the aircraft is airborne in InitialClimb above the 400 ft floor,
             // with the deferred turn still armed (it has not yet crossed the DER).
-            var start = engine.FindAircraft(Callsign);
+            AircraftState? start = engine.FindAircraft(Callsign);
             Assert.NotNull(start);
             double startAgl = start.Altitude - FieldElevationFt;
             output.WriteLine(
@@ -88,7 +89,7 @@ public class Issue195AseLindzTurnAltitudeTests(ITestOutputHelper output)
             for (int t = 1; t <= 120; t++)
             {
                 engine.TickOneSecond();
-                var aircraft = engine.FindAircraft(Callsign);
+                AircraftState? aircraft = engine.FindAircraft(Callsign);
                 if (aircraft is null)
                 {
                     break;

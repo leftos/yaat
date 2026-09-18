@@ -27,7 +27,8 @@ public class TickOracleBaselineTests
     [Fact]
     public void MatchingSweep_IsClean()
     {
-        var comparison = BaselineOf("Aircraft[*].Track.Owner.SectorId").CompareTo(SweepOf("Aircraft[SWA1].Track.Owner.SectorId"), _ => false);
+        TickOracleComparison comparison = BaselineOf("Aircraft[*].Track.Owner.SectorId")
+            .CompareTo(SweepOf("Aircraft[SWA1].Track.Owner.SectorId"), _ => false);
 
         Assert.True(comparison.IsClean);
         Assert.Empty(comparison.Added);
@@ -37,7 +38,7 @@ public class TickOracleBaselineTests
     [Fact]
     public void NewDivergence_IsReportedAndOffersTheRebaselineCommand()
     {
-        var comparison = BaselineOf().CompareTo(SweepOf("Aircraft[SWA1].Track.HandoffPeer"), _ => false);
+        TickOracleComparison comparison = BaselineOf().CompareTo(SweepOf("Aircraft[SWA1].Track.HandoffPeer"), _ => false);
 
         Assert.False(comparison.IsClean);
         string message = comparison.Describe("live vs replay", RebaselineVariable);
@@ -56,7 +57,7 @@ public class TickOracleBaselineTests
     [Fact]
     public void VanishedDivergence_ReadsAsARegressionAndWithholdsTheRebaselineCommand()
     {
-        var comparison = BaselineOf("Aircraft[*].Track.HandoffPeer").CompareTo(SweepOf(), _ => false);
+        TickOracleComparison comparison = BaselineOf("Aircraft[*].Track.HandoffPeer").CompareTo(SweepOf(), _ => false);
 
         Assert.False(comparison.IsClean);
         string message = comparison.Describe("live vs replay", RebaselineVariable);
@@ -71,7 +72,8 @@ public class TickOracleBaselineTests
     [Fact]
     public void GainedAndLostTogether_ReportsBothAndKeepsTheCommand()
     {
-        var comparison = BaselineOf("Scenario.DelayedHandoffQueue[*]").CompareTo(SweepOf("Aircraft[SWA1].Track.HandoffPeer"), _ => false);
+        TickOracleComparison comparison = BaselineOf("Scenario.DelayedHandoffQueue[*]")
+            .CompareTo(SweepOf("Aircraft[SWA1].Track.HandoffPeer"), _ => false);
 
         string message = comparison.Describe("live vs reconstruct", RebaselineVariable);
 
@@ -83,7 +85,7 @@ public class TickOracleBaselineTests
     [Fact]
     public void ExemptPath_IsDroppedFromBothSides()
     {
-        var comparison = BaselineOf().CompareTo(SweepOf("Aircraft[SWA1].Wallclock"), path => path == "Aircraft[*].Wallclock");
+        TickOracleComparison comparison = BaselineOf().CompareTo(SweepOf("Aircraft[SWA1].Wallclock"), path => path == "Aircraft[*].Wallclock");
 
         Assert.True(comparison.IsClean);
     }

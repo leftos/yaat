@@ -27,7 +27,7 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void AirborneIfrOnFinal_TowerHasLanding_NotTakeoff()
     {
-        var (view, vm) = Harness();
+        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "AAL123",
@@ -37,10 +37,10 @@ public class RadarContextMenuStateTests
             AssignedRunway = "28R",
         };
 
-        var tower = view.BuildTowerSubmenu(vm, "AAL123", "AB", ac);
+        MenuItem? tower = view.BuildTowerSubmenu(vm, "AAL123", "AB", ac);
 
         Assert.NotNull(tower);
-        var headers = Headers(tower!);
+        List<string> headers = Headers(tower!);
         Assert.Contains("Cleared to land 28R", headers);
         Assert.Contains("Go around 28R", headers);
         Assert.DoesNotContain(headers, h => h.StartsWith("Line up and wait", StringComparison.Ordinal));
@@ -52,7 +52,7 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void GroundDeparture_TowerHasTakeoff_NotLanding()
     {
-        var (view, vm) = Harness();
+        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "SWA1",
@@ -62,10 +62,10 @@ public class RadarContextMenuStateTests
             AssignedRunway = "30",
         };
 
-        var tower = view.BuildTowerSubmenu(vm, "SWA1", "AB", ac);
+        MenuItem? tower = view.BuildTowerSubmenu(vm, "SWA1", "AB", ac);
 
         Assert.NotNull(tower);
-        var headers = Headers(tower!);
+        List<string> headers = Headers(tower!);
         Assert.Contains("Cancel takeoff clearance", headers);
         Assert.Contains(headers, h => h.StartsWith("Cleared for takeoff", StringComparison.Ordinal));
         Assert.DoesNotContain(headers, h => h.StartsWith("Cleared to land", StringComparison.Ordinal));
@@ -74,7 +74,7 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void AirborneDeparture_TowerOmitted()
     {
-        var (view, vm) = Harness();
+        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "UAL9",
@@ -84,7 +84,7 @@ public class RadarContextMenuStateTests
             AssignedRunway = "1L",
         };
 
-        var tower = view.BuildTowerSubmenu(vm, "UAL9", "AB", ac);
+        MenuItem? tower = view.BuildTowerSubmenu(vm, "UAL9", "AB", ac);
 
         // Nothing tower-related applies to a climbing departure — the submenu is dropped.
         Assert.Null(tower);
@@ -93,7 +93,7 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void Landing_TowerHasExits()
     {
-        var (view, vm) = Harness();
+        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "DAL5",
@@ -103,10 +103,10 @@ public class RadarContextMenuStateTests
             AssignedRunway = "28R",
         };
 
-        var tower = view.BuildTowerSubmenu(vm, "DAL5", "AB", ac);
+        MenuItem? tower = view.BuildTowerSubmenu(vm, "DAL5", "AB", ac);
 
         Assert.NotNull(tower);
-        var headers = Headers(tower!);
+        List<string> headers = Headers(tower!);
         Assert.Contains("Exit left", headers);
         Assert.Contains("Exit right", headers);
         Assert.DoesNotContain(headers, h => h.StartsWith("Cleared for takeoff", StringComparison.Ordinal));
@@ -115,7 +115,7 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void IfrTakeoffClearance_HidesVfrModifiers()
     {
-        var (view, vm) = Harness();
+        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "AAL2",
@@ -125,12 +125,12 @@ public class RadarContextMenuStateTests
             AssignedRunway = "30",
         };
 
-        var tower = view.BuildTowerSubmenu(vm, "AAL2", "AB", ac);
+        MenuItem? tower = view.BuildTowerSubmenu(vm, "AAL2", "AB", ac);
         Assert.NotNull(tower);
 
-        var cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff");
+        MenuItem? cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff");
         Assert.NotNull(cto);
-        var ctoHeaders = Headers(cto!);
+        List<string> ctoHeaders = Headers(cto!);
         // IFR gets the default (follow-SID) clearance and an explicit runway-heading clearance (issue #221).
         Assert.Contains("Default (SID/on course)", ctoHeaders);
         Assert.Contains("Fly runway heading", ctoHeaders);
@@ -143,7 +143,7 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void VfrTakeoffClearance_ShowsRunwayHeadingAndOnCourseAndModifiers()
     {
-        var (view, vm) = Harness();
+        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "N123",
@@ -153,12 +153,12 @@ public class RadarContextMenuStateTests
             AssignedRunway = "30",
         };
 
-        var tower = view.BuildTowerSubmenu(vm, "N123", "AB", ac);
+        MenuItem? tower = view.BuildTowerSubmenu(vm, "N123", "AB", ac);
         Assert.NotNull(tower);
 
-        var cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff");
+        MenuItem? cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff");
         Assert.NotNull(cto);
-        var ctoHeaders = Headers(cto!);
+        List<string> ctoHeaders = Headers(cto!);
         Assert.Contains("Default (SID/on course)", ctoHeaders);
         Assert.Contains("Fly runway heading", ctoHeaders);
         Assert.Contains("Fly on course", ctoHeaders);
@@ -169,7 +169,7 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void VfrPatternAircraft_PatternSubmenuLegGated()
     {
-        var (view, vm) = Harness();
+        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "N77",
@@ -179,10 +179,10 @@ public class RadarContextMenuStateTests
             AssignedRunway = "28L",
         };
 
-        var pattern = view.BuildPatternSubmenu(vm, "N77", "AB", ac);
+        MenuItem? pattern = view.BuildPatternSubmenu(vm, "N77", "AB", ac);
 
         Assert.NotNull(pattern);
-        var headers = Headers(pattern!);
+        List<string> headers = Headers(pattern!);
         // From upwind only the crosswind turn is valid.
         Assert.Contains("Turn crosswind", headers);
         Assert.DoesNotContain("Turn downwind", headers);
@@ -192,7 +192,7 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void IfrAircraft_PatternSubmenuOmitted()
     {
-        var (view, vm) = Harness();
+        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "AAL3",
@@ -202,7 +202,7 @@ public class RadarContextMenuStateTests
             AssignedRunway = "28R",
         };
 
-        var pattern = view.BuildPatternSubmenu(vm, "AAL3", "AB", ac);
+        MenuItem? pattern = view.BuildPatternSubmenu(vm, "AAL3", "AB", ac);
 
         // Pattern ops are VFR-only.
         Assert.Null(pattern);

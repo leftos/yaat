@@ -12,7 +12,7 @@ public class BookmarkCommandTests
 {
     private static BookmarkCommand Parse(string input)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.True(result.IsSuccess, $"'{input}' failed to parse: {result.Reason}");
         return Assert.IsType<BookmarkCommand>(result.Value);
     }
@@ -20,7 +20,7 @@ public class BookmarkCommandTests
     [Fact]
     public void BareBm_AddsUnnamedBookmark()
     {
-        var cmd = Parse("BM");
+        BookmarkCommand cmd = Parse("BM");
         Assert.Equal(BookmarkAction.Add, cmd.Action);
         Assert.Null(cmd.Name);
         Assert.Null(cmd.Id);
@@ -29,7 +29,7 @@ public class BookmarkCommandTests
     [Fact]
     public void FreeText_BecomesTheName()
     {
-        var cmd = Parse("BM Go-around 28R");
+        BookmarkCommand cmd = Parse("BM Go-around 28R");
         Assert.Equal(BookmarkAction.Add, cmd.Action);
         Assert.Equal("Go-around 28R", cmd.Name);
     }
@@ -38,7 +38,7 @@ public class BookmarkCommandTests
     public void NameKeepsCommas()
     {
         // BM is registered as a free-text verb, so ParseCommandList must not split on ','.
-        var cmd = Parse("BM Go-around, then vectors");
+        BookmarkCommand cmd = Parse("BM Go-around, then vectors");
         Assert.Equal(BookmarkAction.Add, cmd.Action);
         Assert.Equal("Go-around, then vectors", cmd.Name);
     }
@@ -46,17 +46,17 @@ public class BookmarkCommandTests
     [Fact]
     public void CompoundParse_KeepsCommasInTheName()
     {
-        var result = CommandParser.ParseCompound("BM Go-around, then vectors");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("BM Go-around, then vectors");
         Assert.True(result.IsSuccess, result.Reason);
-        var block = Assert.Single(result.Value!.Blocks);
-        var cmd = Assert.IsType<BookmarkCommand>(Assert.Single(block.Commands));
+        ParsedBlock block = Assert.Single(result.Value!.Blocks);
+        BookmarkCommand cmd = Assert.IsType<BookmarkCommand>(Assert.Single(block.Commands));
         Assert.Equal("Go-around, then vectors", cmd.Name);
     }
 
     [Fact]
     public void AddEscapeHatch_ForcesAReservedWordToBeAName()
     {
-        var cmd = Parse("BM ADD LIST");
+        BookmarkCommand cmd = Parse("BM ADD LIST");
         Assert.Equal(BookmarkAction.Add, cmd.Action);
         Assert.Equal("LIST", cmd.Name);
     }
@@ -64,7 +64,7 @@ public class BookmarkCommandTests
     [Fact]
     public void BareAdd_IsStillUnnamed()
     {
-        var cmd = Parse("BM ADD");
+        BookmarkCommand cmd = Parse("BM ADD");
         Assert.Equal(BookmarkAction.Add, cmd.Action);
         Assert.Null(cmd.Name);
     }
@@ -87,7 +87,7 @@ public class BookmarkCommandTests
     [InlineData("BM DELETE BM-3")]
     public void DeleteAcceptsBareOrPrefixedId(string input)
     {
-        var cmd = Parse(input);
+        BookmarkCommand cmd = Parse(input);
         Assert.Equal(BookmarkAction.Delete, cmd.Action);
         Assert.Equal("bm-3", cmd.Id);
     }
@@ -95,7 +95,7 @@ public class BookmarkCommandTests
     [Fact]
     public void RenameSplitsIdFromName()
     {
-        var cmd = Parse("BM REN 3 Better name here");
+        BookmarkCommand cmd = Parse("BM REN 3 Better name here");
         Assert.Equal(BookmarkAction.Rename, cmd.Action);
         Assert.Equal("bm-3", cmd.Id);
         Assert.Equal("Better name here", cmd.Name);
@@ -104,7 +104,7 @@ public class BookmarkCommandTests
     [Fact]
     public void RenameWithoutAName_ClearsIt()
     {
-        var cmd = Parse("BM RENAME bm-7");
+        BookmarkCommand cmd = Parse("BM RENAME bm-7");
         Assert.Equal(BookmarkAction.Rename, cmd.Action);
         Assert.Equal("bm-7", cmd.Id);
         Assert.Null(cmd.Name);
@@ -115,7 +115,7 @@ public class BookmarkCommandTests
     [InlineData("BM GOTO bm-2")]
     public void GotoNormalizesTheId(string input)
     {
-        var cmd = Parse(input);
+        BookmarkCommand cmd = Parse(input);
         Assert.Equal(BookmarkAction.Goto, cmd.Action);
         Assert.Equal("bm-2", cmd.Id);
     }
@@ -128,7 +128,7 @@ public class BookmarkCommandTests
     [InlineData("BM GOTO nope", "BM GO requires a bookmark id")]
     public void MalformedSubVerbsFailWithAUsableMessage(string input, string expectedReason)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.False(result.IsSuccess);
         Assert.Contains(expectedReason, result.Reason);
     }
@@ -136,7 +136,7 @@ public class BookmarkCommandTests
     [Fact]
     public void BookmarkAliasParsesToo()
     {
-        var cmd = Parse("BOOKMARK Conflict here");
+        BookmarkCommand cmd = Parse("BOOKMARK Conflict here");
         Assert.Equal(BookmarkAction.Add, cmd.Action);
         Assert.Equal("Conflict here", cmd.Name);
     }
@@ -148,7 +148,7 @@ public class BookmarkCommandTests
     [InlineData(" 0 ", "bm-0")]
     public void TryNormalizeId_AcceptsBothShapes(string token, string expected)
     {
-        Assert.True(TimelineBookmark.TryNormalizeId(token, out var id));
+        Assert.True(TimelineBookmark.TryNormalizeId(token, out string? id));
         Assert.Equal(expected, id);
     }
 
@@ -180,10 +180,10 @@ public class BookmarkCommandTests
             "BM NEXT",
             "BM PREV",
         ];
-        foreach (var input in inputs)
+        foreach (string input in inputs)
         {
-            var parsed = Parse(input);
-            var canonical = CommandDescriber.DescribeCommand(parsed);
+            BookmarkCommand parsed = Parse(input);
+            string canonical = CommandDescriber.DescribeCommand(parsed);
             Assert.Equal(parsed, Parse(canonical));
         }
     }

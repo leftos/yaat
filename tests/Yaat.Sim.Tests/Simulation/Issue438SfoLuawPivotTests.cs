@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Tests.Helpers;
@@ -46,14 +47,14 @@ public class Issue438SfoLuawPivotTests(ITestOutputHelper output)
             return;
         }
 
-        var runway = TestVnasData.NavigationDb.GetRunway("KSFO", runwayDesignator);
+        RunwayInfo? runway = TestVnasData.NavigationDb.GetRunway("KSFO", runwayDesignator);
         if (runway is null)
         {
             output.WriteLine($"SKIP: KSFO {runwayDesignator} not in navdata");
             return;
         }
 
-        var sfoLayout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? sfoLayout = new TestAirportGroundData().GetLayout("SFO");
         if (sfoLayout is null)
         {
             output.WriteLine("SKIP: SFO ground layout not available");

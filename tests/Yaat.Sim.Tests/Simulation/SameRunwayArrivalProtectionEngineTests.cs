@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
@@ -100,7 +101,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ProtectionReleases_WhenTheConflictClears()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -130,7 +131,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ProtectionRelease_PutsBackTheDisplacedPublishedCeiling()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -167,7 +168,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void EngagedProtection_HoldsThroughASmallIntervalImprovement()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -191,7 +192,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void FreshPair_DoesNotEngage_InsideTheReleaseDeadband()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -212,7 +213,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ControllerIssuedSpeed_HandsSpeedAuthorityBack()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -221,7 +222,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         pair.Pass();
         Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
 
-        var result = pair.Engine.SendCommand(pair.Follower.Callsign, "SPD 200");
+        CommandResult result = pair.Engine.SendCommand(pair.Follower.Callsign, "SPD 200");
         Assert.True(result.Success, result.Message);
         Assert.True(pair.Follower.Targets.SpeedCommandIsControllerIssued);
 
@@ -241,13 +242,17 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ScenarioPresetSpeed_LeavesTheProtectionInCharge()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
         }
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(200), pair.Follower, TestDispatch.Context(Random.Shared, isScenarioScripted: true));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new SpeedCommand(200),
+            pair.Follower,
+            TestDispatch.Context(Random.Shared, isScenarioScripted: true)
+        );
         Assert.True(result.Success, result.Message);
         Assert.True(pair.Follower.Targets.HasExplicitSpeedCommand);
         Assert.False(pair.Follower.Targets.SpeedCommandIsControllerIssued);
@@ -274,7 +279,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void NoCeilingIsStamped_OnceTheFollowerIsInsideFiveMilesOnFinal()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -301,7 +306,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ShadowFollower_IsNotManaged_AndIsNeverAnnounced()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -328,7 +333,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ShadowAhead_StillSpacesTheSimulatedFollowerBehindIt()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -351,7 +356,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ProtectionAnnouncesOncePerEngagement_NotPerTick()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -362,7 +367,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
             pair.Pass();
         }
 
-        var lines = SpacingLines(pair.Follower);
+        List<string> lines = SpacingLines(pair.Follower);
         output.WriteLine($"after five passes: {string.Join(" | ", lines)}");
         Assert.Single(lines);
         Assert.Contains("reduce speed to", lines[0], StringComparison.Ordinal);
@@ -392,7 +397,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ExpectedApproachFollower_IsSpacedBeforeItsApproachClearance()
     {
-        var pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
@@ -406,7 +411,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
         Assert.Equal(pair.Follower.Approach.SameRunwayProtectionCeilingKts, pair.Follower.Targets.SpeedCeiling);
 
-        var lines = SpacingLines(pair.Follower);
+        List<string> lines = SpacingLines(pair.Follower);
         Assert.Single(lines);
         Assert.Contains("reduce speed to 170", lines[0], StringComparison.Ordinal);
     }
@@ -420,7 +425,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ExpectedApproachFollower_OffTheFinalCourse_IsNotSpaced()
     {
-        var pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
@@ -448,7 +453,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ExpectedApproachFollower_BeyondTwentyMiles_IsNotSpaced()
     {
-        var pair = ExpectedApproachPair(BeyondPreClearanceLeaderDistanceNm, BeyondPreClearanceFollowerDistanceNm);
+        ArrivalPair? pair = ExpectedApproachPair(BeyondPreClearanceLeaderDistanceNm, BeyondPreClearanceFollowerDistanceNm);
         if (pair is null)
         {
             output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
@@ -474,7 +479,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void GroundStudent_InsideTenMiles_TheTowerReducesToFinalApproachSpeed()
     {
-        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -485,7 +490,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         pair.Pass();
         Report(pair, "inside the tower's speed authority");
 
-        var lines = SpacingLines(pair.Follower);
+        List<string> lines = SpacingLines(pair.Follower);
         output.WriteLine($"lines: {string.Join(" | ", lines)}");
         Assert.Single(lines);
         Assert.Contains("reduce to final approach speed", lines[0], StringComparison.Ordinal);
@@ -510,7 +515,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void OutsideTenMiles_TheFloorStaysAtTheRegulatoryFigure()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -519,7 +524,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         pair.Pass();
         Report(pair, "outside the tower's speed authority");
 
-        var lines = SpacingLines(pair.Follower);
+        List<string> lines = SpacingLines(pair.Follower);
         Assert.Single(lines);
         Assert.Contains("reduce speed to 170", lines[0], StringComparison.Ordinal);
         Assert.False(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
@@ -534,7 +539,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void FasInstruction_IsNotCancelledAtFiveMiles()
     {
-        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -563,7 +568,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void FasInstruction_HoldsAfterTheConflictClears()
     {
-        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -592,7 +597,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void FasInstruction_IsAnnouncedOnce_AcrossACeilingWipe()
     {
-        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -621,7 +626,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void TowerStudent_InsideTenMiles_GetsNoNewAdjustment()
     {
-        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -645,7 +650,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ControllerIssuedSpeed_ClearsTheFasInstruction()
     {
-        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -656,7 +661,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         pair.Pass();
         Assert.True(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
 
-        var result = pair.Engine.SendCommand(pair.Follower.Callsign, "SPD 200");
+        CommandResult result = pair.Engine.SendCommand(pair.Follower.Callsign, "SPD 200");
         Assert.True(result.Success, result.Message);
 
         pair.Pass();
@@ -678,7 +683,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void GeneratorArrival_WithALowerGeneratorCeiling_IsLeftAlone()
     {
-        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -686,7 +691,11 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
 
         pair.Engine.Scenario!.StudentPositionType = "GND";
         pair.Follower.IsGeneratorArrival = true;
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(200), pair.Follower, TestDispatch.Context(Random.Shared, isScenarioScripted: true));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new SpeedCommand(200),
+            pair.Follower,
+            TestDispatch.Context(Random.Shared, isScenarioScripted: true)
+        );
         Assert.True(result.Success, result.Message);
 
         double generatorCeiling = pair.FinalApproachSpeedKts() - LowerCeilingMarginKts;
@@ -708,7 +717,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void SettingOff_TheStreamIsNotManaged()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -732,7 +741,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void SettingSwitchedOff_ReleasesAnEngagedCeiling()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -760,7 +769,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void TowerStudent_ApproachReductionIssuedOutsideTenMiles_HoldsAcrossTheBoundary()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -770,7 +779,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
 
         pair.Pass();
         Report(pair, "engaged outside the tower boundary");
-        var stamped = pair.Follower.Approach.SameRunwayProtectionCeilingKts;
+        double? stamped = pair.Follower.Approach.SameRunwayProtectionCeilingKts;
         Assert.NotNull(stamped);
         Assert.Single(SpacingLines(pair.Follower));
 
@@ -800,7 +809,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void TowerStudent_AcceptingTheHandoff_LeavesTheAssignedSpeedStanding()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -823,7 +832,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         Report(pair, "held inside the tower boundary, handoff not yet taken");
         Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
 
-        var stamped = pair.Follower.Targets.SpeedCeiling;
+        double? stamped = pair.Follower.Targets.SpeedCeiling;
         Assert.NotNull(stamped);
         int linesBefore = SpacingLines(pair.Follower).Count;
 
@@ -854,7 +863,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void TowerStudent_ScriptedResumeNormalSpeedInsideTenMiles_EndsTheHeldReduction()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -872,7 +881,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         Report(pair, "held inside the tower boundary");
         Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
 
-        var result = CommandDispatcher.Dispatch(
+        CommandResult result = CommandDispatcher.Dispatch(
             new ResumeNormalSpeedCommand(),
             pair.Follower,
             TestDispatch.Context(Random.Shared, isScenarioScripted: true)
@@ -898,7 +907,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void FrontOfStream_InsideTenMiles_KeepsAHeldReduction_AndReleasesOutside()
     {
-        var held = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? held = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (held is null)
         {
             return;
@@ -908,7 +917,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
 
         held.Pass();
         Report(held, "engaged outside the tower boundary");
-        var stamped = held.Follower.Approach.SameRunwayProtectionCeilingKts;
+        double? stamped = held.Follower.Approach.SameRunwayProtectionCeilingKts;
         Assert.NotNull(stamped);
 
         held.PlaceFollowerAt(InsideTowerBoundaryDistanceNm);
@@ -919,7 +928,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         Assert.Equal(stamped, held.Follower.Approach.SameRunwayProtectionCeilingKts);
         Assert.Equal(stamped, held.Follower.Targets.SpeedCeiling);
 
-        var released = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? released = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (released is null)
         {
             return;
@@ -946,7 +955,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ApproachStudent_InsideTenMiles_GetsNoTowerLevelAdjustment()
     {
-        var pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -971,7 +980,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ApproachStudent_TheStreamIsNotManaged()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -991,7 +1000,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void CenterStudent_TheStreamIsNotManaged()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -1015,7 +1024,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     [Fact]
     public void ApproachStudentTakingOver_ReleasesAnEngagedCeiling()
     {
-        var pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
         {
             return;
@@ -1041,7 +1050,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
 
     private void Report(ArrivalPair pair, string label)
     {
-        var layout = pair.Engine.World.GroundLayout;
+        AirportGroundLayout? layout = pair.Engine.World.GroundLayout;
         output.WriteLine(
             $"{label}: leader {pair.Leader.Callsign} "
                 + $"{RunwayOccupancy.DistanceToAssignedThresholdNm(pair.Leader, pair.Runway, layout):F2} nm / "
@@ -1103,9 +1112,9 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         // it has to switch it on the way a live session's client preference does.
         engine.Scenario.AutoArrivalSpacingOnOccupiedRunway = true;
 
-        var runway = engine.Scenario.Generators.Single(g => g.Config.Runway == "30").Runway;
-        var leader = InjectArrival(engine, runway, "MANUAL1", "DH8D", leaderDistanceNm);
-        var follower = expectedApproachFollower
+        RunwayInfo runway = engine.Scenario.Generators.Single(g => g.Config.Runway == "30").Runway;
+        AircraftState leader = InjectArrival(engine, runway, "MANUAL1", "DH8D", leaderDistanceNm);
+        AircraftState? follower = expectedApproachFollower
             ? InjectExpectedArrival(engine, runway, "MANUAL3", "B739", followerDistanceNm)
             : InjectArrival(engine, runway, "MANUAL3", "B739", followerDistanceNm);
         return follower is null ? null : new ArrivalPair(engine, runway, leader, follower);
@@ -1113,8 +1122,8 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
 
     private static AircraftState InjectArrival(SimulationEngine engine, RunwayInfo runway, string callsign, string type, double distanceNm)
     {
-        var category = AircraftCategorization.Categorize(type);
-        var init = AircraftInitializer.InitializeOnFinal(runway, category, callsign, requestedDistanceNm: distanceNm, aircraftType: type);
+        AircraftCategory category = AircraftCategorization.Categorize(type);
+        PhaseInitResult init = AircraftInitializer.InitializeOnFinal(runway, category, callsign, requestedDistanceNm: distanceNm, aircraftType: type);
 
         var aircraft = new AircraftState
         {
@@ -1147,8 +1156,8 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
             return null;
         }
 
-        var category = AircraftCategorization.Categorize(type);
-        var init = AircraftInitializer.InitializeOnFinal(runway, category, callsign, requestedDistanceNm: distanceNm, aircraftType: type);
+        AircraftCategory category = AircraftCategorization.Categorize(type);
+        PhaseInitResult init = AircraftInitializer.InitializeOnFinal(runway, category, callsign, requestedDistanceNm: distanceNm, aircraftType: type);
 
         var aircraft = new AircraftState
         {
@@ -1188,7 +1197,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         /// </summary>
         public void PlaceFollowerAt(double distanceNm)
         {
-            var layout = Engine.World.GroundLayout;
+            AirportGroundLayout? layout = Engine.World.GroundLayout;
             for (int i = 0; i < 6; i++)
             {
                 double error = distanceNm - RunwayOccupancy.DistanceToAssignedThresholdNm(Follower, Runway, layout);
@@ -1197,7 +1206,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
                     return;
                 }
 
-                var heading = error >= 0 ? Runway.TrueHeading.ToReciprocal() : Runway.TrueHeading;
+                TrueHeading heading = error >= 0 ? Runway.TrueHeading.ToReciprocal() : Runway.TrueHeading;
                 Follower.Position = GeoMath.ProjectPoint(Follower.Position, heading, Math.Abs(error));
             }
         }
@@ -1221,7 +1230,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         /// </summary>
         public double FinalApproachSpeedKts()
         {
-            var category = AircraftCategorization.Categorize(Follower.AircraftType);
+            AircraftCategory category = AircraftCategorization.Categorize(Follower.AircraftType);
             double vref = AircraftPerformance.ApproachSpeed(Follower.AircraftType, category);
             return SameRunwayArrivalProtection.FinalApproachSpeedKts(
                 vref,
@@ -1235,8 +1244,8 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         /// </summary>
         public double RequiredIntervalSeconds()
         {
-            var leaderCategory = AircraftCategorization.Categorize(Leader.AircraftType);
-            var followerCategory = AircraftCategorization.Categorize(Follower.AircraftType);
+            AircraftCategory leaderCategory = AircraftCategorization.Categorize(Leader.AircraftType);
+            AircraftCategory followerCategory = AircraftCategorization.Categorize(Follower.AircraftType);
             double vref = AircraftPerformance.ApproachSpeed(Follower.AircraftType, followerCategory);
             double wakeNm = WakeTurbulenceData.OnApproachWakeSeparationNm(
                 Leader.AircraftType,

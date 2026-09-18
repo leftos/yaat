@@ -13,8 +13,8 @@ public class WhisperBiasingPromptTests
         // the per-word bias. We keep them in but in scrambled order — see the
         // Default_NatoAlphabetIsScrambled_NoLetterAdjacentPairs test for the sequence-bias
         // break. The word list is sourced from NatoPhoneticAlphabet (single source).
-        var prompt = WhisperBiasingPrompt.Default;
-        foreach (var word in NatoPhoneticAlphabet.Words)
+        string prompt = WhisperBiasingPrompt.Default;
+        foreach (string word in NatoPhoneticAlphabet.Words)
         {
             Assert.Contains(word, prompt, StringComparison.OrdinalIgnoreCase);
         }
@@ -31,13 +31,13 @@ public class WhisperBiasingPromptTests
         //
         // Split the prompt into tokens, find the NATO words in sequence, and verify the
         // invariant. The letter map comes from NatoPhoneticAlphabet (single source).
-        var prompt = WhisperBiasingPrompt.Default;
-        var tokens = prompt.Split(' ');
+        string prompt = WhisperBiasingPrompt.Default;
+        string[] tokens = prompt.Split(' ');
 
         var natoSequence = new List<(string Word, int Letter)>();
-        foreach (var token in tokens)
+        foreach (string token in tokens)
         {
-            if (NatoPhoneticAlphabet.TryGetLetter(token, out var letter))
+            if (NatoPhoneticAlphabet.TryGetLetter(token, out char letter))
             {
                 natoSequence.Add((token, letter - 'A'));
             }
@@ -49,11 +49,11 @@ public class WhisperBiasingPromptTests
 
         // Invariant: no two adjacent NATO entries in the prompt are alphabet-adjacent.
         // Alphabet-adjacent = |letter_a - letter_b| == 1 (e.g., T (19) and U (20)).
-        for (var i = 0; i < natoSequence.Count - 1; i++)
+        for (int i = 0; i < natoSequence.Count - 1; i++)
         {
-            var a = natoSequence[i];
-            var b = natoSequence[i + 1];
-            var gap = Math.Abs(a.Letter - b.Letter);
+            (string Word, int Letter) a = natoSequence[i];
+            (string Word, int Letter) b = natoSequence[i + 1];
+            int gap = Math.Abs(a.Letter - b.Letter);
             Assert.True(gap > 1, $"NATO words '{a.Word}' and '{b.Word}' are alphabet-adjacent (gap={gap}) at position {i}");
         }
     }
@@ -70,18 +70,18 @@ public class WhisperBiasingPromptTests
         // words Whisper recognizes without biasing. This test pins the ordering property with
         // representative pairs: every number-vocab word must appear after every sampled rule
         // literal.
-        var prompt = WhisperBiasingPrompt.Default;
+        string prompt = WhisperBiasingPrompt.Default;
 
         string[] numberVocab = ["niner", "tree", "fife", "fower", "090", "270", "1000", "FL350"];
         string[] ruleLiterals = ["approach", "cleared", "climb", "runway", "taxi", "turn"];
 
-        foreach (var number in numberVocab)
+        foreach (string number in numberVocab)
         {
-            var numberIdx = prompt.IndexOf(number, StringComparison.OrdinalIgnoreCase);
+            int numberIdx = prompt.IndexOf(number, StringComparison.OrdinalIgnoreCase);
             Assert.True(numberIdx >= 0, $"number-vocab word '{number}' missing from prompt");
-            foreach (var literal in ruleLiterals)
+            foreach (string literal in ruleLiterals)
             {
-                var literalIdx = prompt.IndexOf(literal, StringComparison.OrdinalIgnoreCase);
+                int literalIdx = prompt.IndexOf(literal, StringComparison.OrdinalIgnoreCase);
                 Assert.True(literalIdx >= 0, $"rule literal '{literal}' missing from prompt");
                 Assert.True(
                     numberIdx > literalIdx,
@@ -96,10 +96,10 @@ public class WhisperBiasingPromptTests
     {
         // Regression guard: make sure adding NATO back didn't wipe the command-verb literals
         // that the rule engine relies on for recognition biasing.
-        var prompt = WhisperBiasingPrompt.Default;
+        string prompt = WhisperBiasingPrompt.Default;
 
         string[] mustContain = ["climb", "descend", "runway", "heading", "cleared", "takeoff", "approach", "maintain", "turn"];
-        foreach (var word in mustContain)
+        foreach (string word in mustContain)
         {
             Assert.Contains(word, prompt, StringComparison.OrdinalIgnoreCase);
         }

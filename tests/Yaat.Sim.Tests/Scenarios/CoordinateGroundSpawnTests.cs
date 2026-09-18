@@ -103,17 +103,17 @@ public class CoordinateGroundSpawnTests
     public void ColdCallCoordinatesAtHighFieldElevation_IdentifiedByAirportId_SpawnsOnGround()
     {
         // Precondition: the high-elevation field resolves in the test navdata.
-        var denElevation = NavigationDatabase.Instance.GetAirportElevation("KDEN");
+        double? denElevation = NavigationDatabase.Instance.GetAirportElevation("KDEN");
         Assert.True(denElevation is > 5000, $"KDEN elevation must resolve in test navdata (got {denElevation})");
 
-        var result = ScenarioLoader.Load(
+        ScenarioLoadResult result = ScenarioLoader.Load(
             ColdCallCoordinatesAtHighFieldElevation,
             new TestAirportGroundData(),
             new Random(0),
             MagneticDeclination.EvaluationDateUtc
         );
 
-        var state = Assert.Single(result.ImmediateAircraft).State;
+        AircraftState state = Assert.Single(result.ImmediateAircraft).State;
         // Field elevation must be resolved from `airportId` (like LoadOnRunway/LoadOnFinal and
         // FieldElevationResolver), not solely from the absent FlightPlan.Departure. Otherwise
         // fieldElevation falls back to 0, agl = 5434 fails the <200 ft ground gate, and the intended
@@ -144,17 +144,17 @@ public class CoordinateGroundSpawnTests
     [Fact]
     public void ColdCallCoordinatesAtHighFieldElevation_NoAirportIdNoFlightPlan_FallsBackToPrimaryAirport()
     {
-        var denElevation = NavigationDatabase.Instance.GetAirportElevation("KDEN");
+        double? denElevation = NavigationDatabase.Instance.GetAirportElevation("KDEN");
         Assert.True(denElevation is > 5000, $"KDEN elevation must resolve in test navdata (got {denElevation})");
 
-        var result = ScenarioLoader.Load(
+        ScenarioLoadResult result = ScenarioLoader.Load(
             ColdCallCoordinatesAtHighFieldElevationNoAirportId,
             new TestAirportGroundData(),
             new Random(0),
             MagneticDeclination.EvaluationDateUtc
         );
 
-        var state = Assert.Single(result.ImmediateAircraft).State;
+        AircraftState state = Assert.Single(result.ImmediateAircraft).State;
         Assert.True(
             state.IsOnGround,
             "Coordinates ground spawn at a high-elevation primary airport (no airportId, no flight plan) must be on the ground"
@@ -168,9 +168,14 @@ public class CoordinateGroundSpawnTests
     {
         var groundData = new TestAirportGroundData();
 
-        var result = ScenarioLoader.Load(CoordinatesAtFieldElevation, groundData, new Random(0), MagneticDeclination.EvaluationDateUtc);
+        ScenarioLoadResult result = ScenarioLoader.Load(
+            CoordinatesAtFieldElevation,
+            groundData,
+            new Random(0),
+            MagneticDeclination.EvaluationDateUtc
+        );
 
-        var state = Assert.Single(result.ImmediateAircraft).State;
+        AircraftState state = Assert.Single(result.ImmediateAircraft).State;
         Assert.True(state.IsOnGround, "Coordinates spawn at field elevation must be on the ground");
         Assert.Equal(0, state.IndicatedAirspeed);
         Assert.IsType<AtParkingPhase>(state.Phases?.CurrentPhase);
@@ -182,9 +187,14 @@ public class CoordinateGroundSpawnTests
     [Fact]
     public void CoordinatesAtCruiseAltitude_OmittedSpeed_StaysAirborne()
     {
-        var result = ScenarioLoader.Load(CoordinatesAtCruise, new TestAirportGroundData(), new Random(0), MagneticDeclination.EvaluationDateUtc);
+        ScenarioLoadResult result = ScenarioLoader.Load(
+            CoordinatesAtCruise,
+            new TestAirportGroundData(),
+            new Random(0),
+            MagneticDeclination.EvaluationDateUtc
+        );
 
-        var state = Assert.Single(result.ImmediateAircraft).State;
+        AircraftState state = Assert.Single(result.ImmediateAircraft).State;
         Assert.False(state.IsOnGround);
         Assert.True(state.IndicatedAirspeed > 0, "Airborne spawn resolves to a cruise speed");
     }
@@ -192,14 +202,14 @@ public class CoordinateGroundSpawnTests
     [Fact]
     public void CoordinatesAtFieldElevation_ExplicitSpeed_StaysAirborne()
     {
-        var result = ScenarioLoader.Load(
+        ScenarioLoadResult result = ScenarioLoader.Load(
             CoordinatesAtFieldElevationExplicitSpeed,
             new TestAirportGroundData(),
             new Random(0),
             MagneticDeclination.EvaluationDateUtc
         );
 
-        var state = Assert.Single(result.ImmediateAircraft).State;
+        AircraftState state = Assert.Single(result.ImmediateAircraft).State;
         Assert.False(state.IsOnGround);
         Assert.Equal(250, state.IndicatedAirspeed);
     }

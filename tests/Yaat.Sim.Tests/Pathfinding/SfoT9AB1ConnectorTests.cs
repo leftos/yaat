@@ -63,14 +63,14 @@ public class SfoT9AB1ConnectorTests
         }
 
         // The SFO A↔B1↔Q connector must ship in production data — fail loud if missing.
-        var connectors = NavigationDatabase.Instance.AirportSidecars.GetImplicitConnectors("SFO");
+        IReadOnlyList<ImplicitConnectorEntry> connectors = NavigationDatabase.Instance.AirportSidecars.GetImplicitConnectors("SFO");
         Assert.Contains(connectors, c => (c.Connector == "Q") && (c.Between.Count == 2) && c.Between.Contains("A") && c.Between.Contains("B1"));
     }
 
     [Fact]
     public void TaxiAB1BKAF_FromT9_RoutesViaQ_NotT9Bypass()
     {
-        var layout = LoadLayout();
+        AirportGroundLayout? layout = LoadLayout();
         if (layout is null)
         {
             _output.WriteLine("sfo-b1short.geojson or navdata not found — skipping");
@@ -78,15 +78,15 @@ public class SfoT9AB1ConnectorTests
         }
 
         // Precondition: this fixture is the disconnected variant (A/B1 share no junction).
-        var ab1 = layout.Nodes.Values.Count(n => n.Edges.Any(e => e.MatchesTaxiway("A")) && n.Edges.Any(e => e.MatchesTaxiway("B1")));
+        int ab1 = layout.Nodes.Values.Count(n => n.Edges.Any(e => e.MatchesTaxiway("A")) && n.Edges.Any(e => e.MatchesTaxiway("B1")));
         Assert.Equal(0, ab1);
 
-        var startNode =
+        GroundNode? startNode =
             layout.FindNearestNodeForTaxi(new LatLon(StartLat, StartLon), new TrueHeading(StartHeading))
             ?? layout.FindNearestNode(StartLat, StartLon);
         Assert.NotNull(startNode);
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode!.Id,
             ["A", "B1", "B", "K", "A", "F"],
@@ -153,8 +153,8 @@ public class SfoT9AB1ConnectorTests
     [Fact]
     public void IsBetterRoute_PrefersFewerInsertions_EvenWhenLonger()
     {
-        var honoring = RouteWith(mandatoryConnectors: 0, distanceNm: 10.0);
-        var bypass = RouteWith(mandatoryConnectors: 1, distanceNm: 5.0);
+        TaxiRoute honoring = RouteWith(mandatoryConnectors: 0, distanceNm: 10.0);
+        TaxiRoute bypass = RouteWith(mandatoryConnectors: 1, distanceNm: 5.0);
 
         Assert.True(SegmentExpander.IsBetterRoute(honoring, bypass));
         Assert.False(SegmentExpander.IsBetterRoute(bypass, honoring));
@@ -163,8 +163,8 @@ public class SfoT9AB1ConnectorTests
     [Fact]
     public void IsBetterRoute_TieOnInsertions_PrefersShorter()
     {
-        var shorter = RouteWith(mandatoryConnectors: 0, distanceNm: 5.0);
-        var longer = RouteWith(mandatoryConnectors: 0, distanceNm: 10.0);
+        TaxiRoute shorter = RouteWith(mandatoryConnectors: 0, distanceNm: 5.0);
+        TaxiRoute longer = RouteWith(mandatoryConnectors: 0, distanceNm: 10.0);
 
         Assert.True(SegmentExpander.IsBetterRoute(shorter, longer));
         Assert.False(SegmentExpander.IsBetterRoute(longer, shorter));

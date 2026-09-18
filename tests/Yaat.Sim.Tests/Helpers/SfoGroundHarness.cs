@@ -49,7 +49,7 @@ internal static class SfoGroundHarness
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {
             return null;
@@ -125,7 +125,7 @@ internal static class SfoGroundHarness
     /// <exception cref="InvalidOperationException">The layout has no parking by that name.</exception>
     internal static AircraftState SpawnParked(SfoGround ground, string callsign, string type, string parkingName)
     {
-        var parking =
+        GroundNode parking =
             ground.Layout.FindParkingByName(parkingName) ?? throw new InvalidOperationException($"SFO layout has no parking named '{parkingName}'");
         return SpawnAt(ground, callsign, type, (parking, parking.TrueHeading ?? new TrueHeading(0)), new AtParkingPhase());
     }
@@ -141,8 +141,9 @@ internal static class SfoGroundHarness
     /// <exception cref="InvalidOperationException">The layout has no spot by that name, or no taxiway A.</exception>
     internal static AircraftState SpawnAtSpot(SfoGround ground, string callsign, string type, string spotName)
     {
-        var spot = ground.Layout.FindSpotNodeByName(spotName) ?? throw new InvalidOperationException($"SFO layout has no spot named '{spotName}'");
-        var nearestOnA = NearestOnTaxiway(ground.Layout, "A", spot.Position);
+        GroundNode spot =
+            ground.Layout.FindSpotNodeByName(spotName) ?? throw new InvalidOperationException($"SFO layout has no spot named '{spotName}'");
+        (GroundNode Node, double DistanceNm) nearestOnA = NearestOnTaxiway(ground.Layout, "A", spot.Position);
         var heading = new TrueHeading(GeoMath.BearingTo(spot.Position, nearestOnA.Node.Position));
         return SpawnAt(ground, callsign, type, (spot, heading), new HoldingInPositionPhase());
     }
@@ -167,7 +168,7 @@ internal static class SfoGroundHarness
     /// <exception cref="InvalidOperationException">The layout has no such hold-short node, or no nodes on <c>bar.Toward</c>.</exception>
     internal static AircraftState SpawnAtHoldShort(SfoGround ground, string callsign, string type, (string Runway, string Taxiway, string Toward) bar)
     {
-        var node = NearestHoldShortBar(ground.Layout, bar);
+        GroundNode node = NearestHoldShortBar(ground.Layout, bar);
         return SpawnAt(ground, callsign, type, (node, TaxiCoverageRunner.TaxiwayDepartureHeading(node)), new HoldingInPositionPhase());
     }
 
@@ -184,7 +185,7 @@ internal static class SfoGroundHarness
     /// <exception cref="InvalidOperationException">The layout has no such junction, or it carries no A-taxiway edge.</exception>
     internal static AircraftState SpawnAtJunction(SfoGround ground, string callsign, string type, string taxiwayA, string taxiwayB)
     {
-        var junction =
+        GroundNode junction =
             ground.Layout.FindIntersectionNode(taxiwayA, taxiwayB)
             ?? throw new InvalidOperationException($"SFO layout has no junction of taxiways '{taxiwayA}' and '{taxiwayB}'");
         return SpawnAt(ground, callsign, type, (junction, HeadingAlongTaxiway(junction, taxiwayA)), new HoldingInPositionPhase());
@@ -226,7 +227,7 @@ internal static class SfoGroundHarness
     internal static double DistanceToTaxiwayFt(AirportGroundLayout layout, string taxiway, LatLon position)
     {
         double best = double.PositiveInfinity;
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             if (!edge.MatchesTaxiway(taxiway))
             {
@@ -303,10 +304,10 @@ internal static class SfoGroundHarness
     /// <param name="route">Route to dump.</param>
     internal static void DumpRoute(ITestOutputHelper output, TaxiRoute route)
     {
-        var taxiways = route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase);
+        IEnumerable<string> taxiways = route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase);
         output.WriteLine($"route taxiways=[{string.Join(", ", taxiways)}] segments={route.Segments.Count}");
         output.WriteLine($"route warnings=[{string.Join(" | ", route.Warnings)}]");
-        foreach (var hold in route.HoldShortPoints)
+        foreach (HoldShortPoint hold in route.HoldShortPoints)
         {
             output.WriteLine($"  HS node={hold.NodeId} target={hold.TargetName} reason={hold.Reason} cleared={hold.IsCleared}");
         }
@@ -335,7 +336,7 @@ internal static class SfoGroundHarness
     /// <exception cref="InvalidOperationException">SFO has no runway with that end.</exception>
     internal static RunwayInfo Runway(string designator)
     {
-        foreach (var runway in RunwayOccupancy.AirportRunways("SFO"))
+        foreach (RunwayInfo runway in RunwayOccupancy.AirportRunways("SFO"))
         {
             if (runway.Id.Contains(designator))
             {
@@ -424,7 +425,7 @@ internal static class SfoGroundHarness
         int end
     )
     {
-        var used = new bool[end - start];
+        bool[] used = new bool[end - start];
         for (int e = start; e < end; e++)
         {
             int match = -1;
@@ -450,7 +451,7 @@ internal static class SfoGroundHarness
 
     private static GroundNode NearestHoldShortBar(AirportGroundLayout layout, (string Runway, string Taxiway, string Toward) bar)
     {
-        var candidates = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, bar.Runway, bar.Taxiway);
+        List<GroundNode> candidates = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, bar.Runway, bar.Taxiway);
         if (candidates.Count == 0)
         {
             throw new InvalidOperationException($"SFO layout has no hold-short for runway '{bar.Runway}' on taxiway '{bar.Taxiway}'");
@@ -458,7 +459,7 @@ internal static class SfoGroundHarness
 
         GroundNode best = candidates[0];
         double bestNm = double.MaxValue;
-        foreach (var candidate in candidates)
+        foreach (GroundNode candidate in candidates)
         {
             double distNm = NearestOnTaxiway(layout, bar.Toward, candidate.Position).DistanceNm;
             if (distNm < bestNm)
@@ -475,7 +476,7 @@ internal static class SfoGroundHarness
     {
         GroundNode? best = null;
         double bestNm = double.MaxValue;
-        foreach (var node in layout.GetNodesOnTaxiway(taxiway))
+        foreach (GroundNode node in layout.GetNodesOnTaxiway(taxiway))
         {
             double distNm = GeoMath.DistanceNm(from, node.Position);
             if (distNm < bestNm)
@@ -495,14 +496,14 @@ internal static class SfoGroundHarness
 
     private static TrueHeading HeadingAlongTaxiway(GroundNode node, string taxiway)
     {
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (!edge.MatchesTaxiway(taxiway))
             {
                 continue;
             }
 
-            var other = edge.OtherNode(node);
+            GroundNode other = edge.OtherNode(node);
             return new TrueHeading(GeoMath.BearingTo(node.Position, other.Position));
         }
 

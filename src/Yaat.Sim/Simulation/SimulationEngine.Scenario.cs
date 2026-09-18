@@ -38,7 +38,7 @@ public sealed partial class SimulationEngine
         SoloTrainingEvaluator.Reset();
         BeaconCodePool.Clear();
 
-        var result = ScenarioLoader.Load(json, _groundData, World.Rng, sessionStartUtc.Date);
+        ScenarioLoadResult result = ScenarioLoader.Load(json, _groundData, World.Rng, sessionStartUtc.Date);
 
         // No ARTCC config reaches Yaat.Sim, so the pool has no banks here and falls back to sequential
         // codes. The server configures banks from the facility before running its own assignment pass.
@@ -62,7 +62,7 @@ public sealed partial class SimulationEngine
         };
 
         // Add immediate aircraft and dispatch their presets
-        foreach (var loaded in result.ImmediateAircraft)
+        foreach (LoadedAircraft loaded in result.ImmediateAircraft)
         {
             loaded.State.ScenarioId = Scenario.ScenarioId;
             loaded.State.SpawnedAtSeconds = Scenario.ElapsedSeconds;
@@ -71,7 +71,7 @@ public sealed partial class SimulationEngine
         }
 
         // Queue delayed aircraft
-        foreach (var loaded in result.DelayedAircraft)
+        foreach (LoadedAircraft loaded in result.DelayedAircraft)
         {
             loaded.State.ScenarioId = Scenario.ScenarioId;
             Scenario.DelayedQueue.Add(
@@ -85,17 +85,17 @@ public sealed partial class SimulationEngine
         }
 
         // Queue triggers
-        foreach (var trigger in result.Triggers)
+        foreach (InitializationTrigger trigger in result.Triggers)
         {
             Scenario.TriggerQueue.Add(new ScheduledTrigger { Command = trigger.Command, FireAtSeconds = trigger.TimeOffset });
         }
 
         // Initialize generators
         _generatorSpawnLog.Clear();
-        foreach (var genConfig in result.Generators)
+        foreach (ScenarioGeneratorConfig genConfig in result.Generators)
         {
-            var runwayId = genConfig.Runway ?? "";
-            var runway = NavigationDatabase.Instance.GetRunway(result.PrimaryAirportId ?? "", runwayId);
+            string runwayId = genConfig.Runway ?? "";
+            RunwayInfo? runway = NavigationDatabase.Instance.GetRunway(result.PrimaryAirportId ?? "", runwayId);
             if (runway is null)
             {
                 result.Warnings.Add($"Generator '{genConfig.Id}': runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} not found");
@@ -107,7 +107,7 @@ public sealed partial class SimulationEngine
             // generators that share a startTimeOffset don't all spawn on the same first tick. Keyed off
             // the count of already-added generators, so a generator skipped for a missing runway above
             // doesn't consume the "first" slot.
-            var firstSpawnSeconds = (double)genConfig.StartTimeOffset;
+            double firstSpawnSeconds = (double)genConfig.StartTimeOffset;
             if (Scenario.Generators.Count > 0 && genConfig.RandomizeInterval)
             {
                 firstSpawnSeconds += World.Rng.NextDouble() * genConfig.IntervalTime;
@@ -123,12 +123,12 @@ public sealed partial class SimulationEngine
             );
         }
 
-        foreach (var cfg in result.VfrArrivalGenerators)
+        foreach (VfrArrivalGeneratorConfig cfg in result.VfrArrivalGenerators)
         {
             Scenario.VfrArrivalGenerators.Add(new VfrArrivalGeneratorState { Config = cfg, NextSpawnSeconds = StaggeredFirstSpawn(cfg) });
         }
 
-        foreach (var cfg in result.OverflightGenerators)
+        foreach (OverflightGeneratorConfig cfg in result.OverflightGenerators)
         {
             Scenario.OverflightGenerators.Add(new OverflightGeneratorState { Config = cfg, NextSpawnSeconds = StaggeredFirstSpawn(cfg) });
         }
@@ -155,21 +155,25 @@ public sealed partial class SimulationEngine
         // otherwise load the destination's layout and reject every taxiway/parking lookup.
         if (aircraft.IsOnGround)
         {
-            var physicalAirport = aircraft.Phases?.AssignedRunway?.AirportId;
+            string? physicalAirport = aircraft.Phases?.AssignedRunway?.AirportId;
             if (string.IsNullOrEmpty(physicalAirport))
             {
                 physicalAirport = aircraft.AirportId;
             }
 
-            var physicalLayout = string.IsNullOrEmpty(physicalAirport) ? null : _groundData.GetLayout(physicalAirport);
+            AirportGroundLayout? physicalLayout = string.IsNullOrEmpty(physicalAirport) ? null : _groundData.GetLayout(physicalAirport);
             if (physicalLayout is not null)
             {
                 return physicalLayout;
             }
         }
 
-        var depLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Departure) ? null : _groundData.GetLayout(aircraft.FlightPlan.Departure);
-        var destLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Destination) ? null : _groundData.GetLayout(aircraft.FlightPlan.Destination);
+        AirportGroundLayout? depLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Departure)
+            ? null
+            : _groundData.GetLayout(aircraft.FlightPlan.Departure);
+        AirportGroundLayout? destLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Destination)
+            ? null
+            : _groundData.GetLayout(aircraft.FlightPlan.Destination);
 
         // Cold-call VFR aircraft (pattern work, full-stop requests) frequently file
         // neither departure nor destination. Treat the assigned arrival runway's
@@ -178,7 +182,7 @@ public sealed partial class SimulationEngine
         // after landing, without writing into the flight plan.
         if (depLayout is null && destLayout is null)
         {
-            var implicitAirport = aircraft.Phases?.AssignedRunway?.AirportId;
+            string? implicitAirport = aircraft.Phases?.AssignedRunway?.AirportId;
             if (string.IsNullOrEmpty(implicitAirport))
             {
                 implicitAirport = aircraft.AirportId;
@@ -197,8 +201,8 @@ public sealed partial class SimulationEngine
             return depLayout;
         }
 
-        var depNode = depLayout.FindNearestNode(aircraft.Position);
-        var destNode = destLayout.FindNearestNode(aircraft.Position);
+        GroundNode? depNode = depLayout.FindNearestNode(aircraft.Position);
+        GroundNode? destNode = destLayout.FindNearestNode(aircraft.Position);
 
         double depDist = depNode is not null ? GeoMath.DistanceNm(aircraft.Position, depNode.Position) : double.MaxValue;
         double destDist = destNode is not null ? GeoMath.DistanceNm(aircraft.Position, destNode.Position) : double.MaxValue;

@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
@@ -118,13 +119,13 @@ public class PushbackMoveBoundaryTests
     [Fact]
     public void SpeedContinuesAcrossSameDirectionMoves()
     {
-        var run = RunPush();
+        PushRun? run = RunPush();
         if (run is null)
         {
             return;
         }
 
-        var samples = run.Value.Samples;
+        List<SpeedSample> samples = run.Value.Samples;
         int rolling = samples.FindIndex(s => s.GroundSpeedKts > ContinuousSpeedFloorKts);
         Assert.True(rolling >= 0, $"the push never exceeded {ContinuousSpeedFloorKts:F1} kt: {Trace(samples)}");
         int atRest = samples.FindIndex(rolling, s => s.GroundSpeedKts <= AtRestKts);
@@ -138,7 +139,7 @@ public class PushbackMoveBoundaryTests
 
         for (int i = rolling; i < slowingForReversal; i++)
         {
-            var sample = samples[i];
+            SpeedSample sample = samples[i];
             Assert.True(
                 sample.GroundSpeedKts >= ContinuousSpeedFloorKts,
                 $"the tow dropped to {sample.GroundSpeedKts:F1} kt at t={sample.Second}s, between rolling at t={samples[rolling].Second}s "
@@ -152,13 +153,13 @@ public class PushbackMoveBoundaryTests
     [Fact]
     public void ReachesPushSpeedPromptly()
     {
-        var run = RunPush();
+        PushRun? run = RunPush();
         if (run is null)
         {
             return;
         }
 
-        var samples = run.Value.Samples;
+        List<SpeedSample> samples = run.Value.Samples;
         double bestKts = samples.Where(s => s.Second <= PromptSpeedBySecond).Max(s => s.GroundSpeedKts);
         Assert.True(
             bestKts >= PromptSpeedKts,
@@ -173,13 +174,13 @@ public class PushbackMoveBoundaryTests
     [Fact]
     public void ReversalStillDwells()
     {
-        var run = RunPush();
+        PushRun? run = RunPush();
         if (run is null)
         {
             return;
         }
 
-        var samples = run.Value.Samples;
+        List<SpeedSample> samples = run.Value.Samples;
         int pulling = samples.FindIndex(s => !s.Pushing && (s.GroundSpeedKts > AtRestKts));
         Assert.True(pulling > 0, $"the tug never pulled the aircraft forward: {Trace(samples)}");
 
@@ -200,13 +201,13 @@ public class PushbackMoveBoundaryTests
     [Fact]
     public void CompletesOnTheSpot()
     {
-        var run = RunPush();
+        PushRun? run = RunPush();
         if (run is null)
         {
             return;
         }
 
-        var push = run.Value;
+        PushRun push = run.Value;
         Assert.True(
             push.DoneSecond > 0,
             $"the push never completed within {BudgetSeconds}s (phase={push.Aircraft.Phases?.CurrentPhase?.Name ?? "null"}): {Trace(push.Samples)}"
@@ -223,25 +224,25 @@ public class PushbackMoveBoundaryTests
     [Fact]
     public void ClearedMidMoveStopsDead()
     {
-        var built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
         if (built is null)
         {
             return;
         }
 
-        var ground = built.Value;
-        var aircraft = SfoGroundHarness.SpawnParked(ground, Pusher, PusherType, PusherGate);
+        SfoGround ground = built.Value;
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, Pusher, PusherType, PusherGate);
         string command = $"PUSH ${AlleySpot}";
-        var issued = ground.Engine.SendCommand(Pusher, command);
+        CommandResult issued = ground.Engine.SendCommand(Pusher, command);
         Assert.True(issued.Success, $"'{command}' from {PusherGate} failed: {issued.Message}");
 
         int rolling = SfoGroundHarness.TickUntil(ground.Engine, () => aircraft.GroundSpeed >= PromptSpeedKts, PromptSpeedBySecond, null);
         Assert.True(rolling > 0, $"the push never reached {PromptSpeedKts:F1} kt within {PromptSpeedBySecond}s to be cleared off");
-        var running = Assert.IsType<PushbackPhase>(aircraft.Phases?.CurrentPhase);
+        PushbackPhase running = Assert.IsType<PushbackPhase>(aircraft.Phases?.CurrentPhase);
         Assert.True(running.ContinuesIntoNextMove, "the push-off should be a move that continues into the next one");
         Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
 
-        var taxi = ground.Engine.SendCommand(Pusher, TaxiClearance);
+        CommandResult taxi = ground.Engine.SendCommand(Pusher, TaxiClearance);
         Assert.True(taxi.Success, $"'{TaxiClearance}' mid-push failed: {taxi.Message}");
         ground.Engine.TickOneSecond();
 
@@ -269,13 +270,13 @@ public class PushbackMoveBoundaryTests
     [Fact]
     public void SpeedChangesAtTowbarRates()
     {
-        var run = RunPush();
+        PushRun? run = RunPush();
         if (run is null)
         {
             return;
         }
 
-        var samples = run.Value.Samples;
+        List<SpeedSample> samples = run.Value.Samples;
         double accelRate = CategoryPerformance.TugAccelRate(AircraftCategory.Jet);
         double decelRate = CategoryPerformance.TugDecelRate(AircraftCategory.Jet);
         for (int i = 1; i < samples.Count; i++)
@@ -320,13 +321,13 @@ public class PushbackMoveBoundaryTests
     [Fact]
     public void EasesOffBeforeTheTurn()
     {
-        var run = RunPush();
+        PushRun? run = RunPush();
         if (run is null)
         {
             return;
         }
 
-        var samples = run.Value.Samples;
+        List<SpeedSample> samples = run.Value.Samples;
         int turning = -1;
         for (int i = 2; i < samples.Count; i++)
         {
@@ -345,8 +346,8 @@ public class PushbackMoveBoundaryTests
         double halfSpanFt = TugMovePlanner.WingspanFt(PusherType) / 2.0;
         double pushKts = CategoryPerformance.PushbackSpeed(AircraftCategory.Jet);
         double capKts = pushKts * radiusFt / (radiusFt + halfSpanFt);
-        var entry = samples[turning];
-        var before = samples[turning - 1];
+        SpeedSample entry = samples[turning];
+        SpeedSample before = samples[turning - 1];
         _output.WriteLine(
             $"first in-move turn over the second to t={entry.Second}s: {before.GroundSpeedKts:F2} kt → {entry.GroundSpeedKts:F2} kt "
                 + $"(cap {capKts:F2} kt, push speed {pushKts:F1} kt)"
@@ -375,13 +376,13 @@ public class PushbackMoveBoundaryTests
     [Fact]
     public void ReachesTheCrawlBeforeTheStop()
     {
-        var run = RunPush();
+        PushRun? run = RunPush();
         if (run is null)
         {
             return;
         }
 
-        var samples = run.Value.Samples;
+        List<SpeedSample> samples = run.Value.Samples;
         int stops = 0;
         for (int i = 1; i < samples.Count; i++)
         {
@@ -420,19 +421,19 @@ public class PushbackMoveBoundaryTests
     /// <returns>The run, or null to skip.</returns>
     private PushRun? RunPush()
     {
-        var built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
         if (built is null)
         {
             return null;
         }
 
-        var ground = built.Value;
-        var spot = ground.Layout.FindSpotNodeByName(AlleySpot);
+        SfoGround ground = built.Value;
+        GroundNode? spot = ground.Layout.FindSpotNodeByName(AlleySpot);
         Assert.True(spot is not null, $"the SFO layout has no spot named '{AlleySpot}'");
 
-        var aircraft = SfoGroundHarness.SpawnParked(ground, Pusher, PusherType, PusherGate);
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, Pusher, PusherType, PusherGate);
         string command = $"PUSH ${AlleySpot}";
-        var issued = ground.Engine.SendCommand(Pusher, command);
+        CommandResult issued = ground.Engine.SendCommand(Pusher, command);
         Assert.True(issued.Success, $"'{command}' from {PusherGate} failed: {issued.Message}");
 
         var samples = new List<SpeedSample>(BudgetSeconds);

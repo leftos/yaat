@@ -164,8 +164,8 @@ public class StripStepTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(scenarioJson, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(scenarioJson, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = TrackOwner.CreateStars(positionCallsign, positionCallsign[..3], 3, "O");
         scenario.StudentPositionType = positionType;
         engine.InitializeFromArtcc();
@@ -180,7 +180,7 @@ public class StripStepTests
     /// <summary>A recording of everything <paramref name="engine"/> has run so far, carrying the ARTCC the replay re-initialises from.</summary>
     private SessionRecording Recording(SimulationEngine engine, string scenarioJson)
     {
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         return new SessionRecording
         {
             ScenarioJson = scenarioJson,
@@ -208,7 +208,7 @@ public class StripStepTests
 
         engine.AfterAircraftSpawned(Departure(engine, Callsign));
 
-        var strip = Assert.Single(engine.Strips.Items.Values);
+        StripItemRecord strip = Assert.Single(engine.Strips.Items.Values);
         Assert.Equal($"STRIP_{Callsign}", strip.Id);
         Assert.Equal(Callsign, strip.AircraftId);
         Assert.Equal((int)StripItemType.DepartureStrip, strip.Type);
@@ -229,7 +229,7 @@ public class StripStepTests
 
         engine.AfterAircraftSpawned(Departure(engine, Callsign));
 
-        var strip = Assert.Single(engine.Strips.Items.Values);
+        StripItemRecord strip = Assert.Single(engine.Strips.Items.Values);
         Assert.Equal($"STRIP_{Callsign}", strip.Id);
         Assert.Equal("", strip.BayId);
         Assert.Equal([strip.Id], engine.Strips.DeparturePrinterQueue);
@@ -243,12 +243,12 @@ public class StripStepTests
             return;
         }
 
-        var local = Bay("OAK_TWR", "Local 1");
+        AccessibleBay local = Bay("OAK_TWR", "Local 1");
         engine.Scenario!.InitialStripBayByCallsign[Callsign] = new ScenarioStripBayAssignment("OAK", local.Bay.Id, 99);
 
         engine.AfterAircraftSpawned(Departure(engine, Callsign));
 
-        var strip = Assert.Single(engine.Strips.Items.Values);
+        StripItemRecord strip = Assert.Single(engine.Strips.Items.Values);
         Assert.Equal(local.Bay.Id, strip.BayId);
         Assert.Equal(local.Bay.NumberOfRacks - 1, strip.Rack);
         Assert.Empty(engine.Strips.DeparturePrinterQueue);
@@ -262,7 +262,7 @@ public class StripStepTests
             return;
         }
 
-        var aircraft = Departure(engine, FatCallsign);
+        AircraftState aircraft = Departure(engine, FatCallsign);
         engine.AfterAircraftSpawned(aircraft);
 
         Assert.Empty(engine.Strips.Items);
@@ -274,10 +274,10 @@ public class StripStepTests
         var spine = new SpineCapturingHost(engine);
         engine.RunSecond(spine);
 
-        var strip = Assert.Single(engine.Strips.Items.Values);
+        StripItemRecord strip = Assert.Single(engine.Strips.Items.Values);
         Assert.Equal($"STRIP_{FatCallsign}", strip.Id);
         Assert.Equal(Bay("FAT_F_APP", "FRIANT").Bay.Id, strip.BayId);
-        var changes = Assert.Single(spine.StripChanges);
+        StripChangeSet changes = Assert.Single(spine.StripChanges);
         Assert.Contains(strip.Id, changes.ChangedItemIds);
     }
 
@@ -290,21 +290,21 @@ public class StripStepTests
         }
 
         var host = new AttendanceActionHost();
-        var ground = Bay("OAK_TWR", "Ground 1").Bay;
+        StripBayConfig ground = Bay("OAK_TWR", "Ground 1").Bay;
 
-        var separator = Issue(engine, host, "", "SEP W OAK/Ground 1/1/1 Foo");
+        ActionOutcome separator = Issue(engine, host, "", "SEP W OAK/Ground 1/1/1 Foo");
 
         Assert.True(separator.Result.Success, separator.Result.Message);
-        var sepRecord = Assert.Single(engine.Strips.Items.Values, i => i.Id.StartsWith("SEP_", StringComparison.Ordinal));
+        StripItemRecord sepRecord = Assert.Single(engine.Strips.Items.Values, i => i.Id.StartsWith("SEP_", StringComparison.Ordinal));
         Assert.Equal((int)StripItemType.WhiteSeparator, sepRecord.Type);
         Assert.Equal(ground.Id, sepRecord.BayId);
         Assert.Equal(["Foo"], sepRecord.FieldValues);
         Assert.Equal(sepRecord.Id, separator.ToRecord!.StripId);
 
-        var half = Issue(engine, host, "", @"HSC OAK/Ground 1/1 a\b");
+        ActionOutcome half = Issue(engine, host, "", @"HSC OAK/Ground 1/1 a\b");
 
         Assert.True(half.Result.Success, half.Result.Message);
-        var halfRecord = Assert.Single(engine.Strips.Items.Values, i => i.Id.StartsWith("HSTRIP_", StringComparison.Ordinal));
+        StripItemRecord halfRecord = Assert.Single(engine.Strips.Items.Values, i => i.Id.StartsWith("HSTRIP_", StringComparison.Ordinal));
         Assert.Equal((int)StripItemType.HalfStripLeft, halfRecord.Type);
         Assert.Equal(ground.Id, halfRecord.BayId);
         Assert.Equal(halfRecord.Id, half.ToRecord!.StripId);
@@ -325,9 +325,9 @@ public class StripStepTests
             return;
         }
 
-        var aircraft = Departure(engine, Callsign);
+        AircraftState aircraft = Departure(engine, Callsign);
         engine.AfterAircraftSpawned(aircraft);
-        var stripId = Assert.Single(engine.Strips.Items.Values).Id;
+        string stripId = Assert.Single(engine.Strips.Items.Values).Id;
 
         engine.DispatchPresetCommands(
             new LoadedAircraft { State = aircraft, PresetCommands = [new PresetCommand { Command = "WAIT 1 AN 1 ✓", TimeOffset = 0 }] }
@@ -361,9 +361,9 @@ public class StripStepTests
 
         var host = new AttendanceActionHost();
         engine.AfterAircraftSpawned(Departure(engine, Callsign));
-        var stripId = Assert.Single(engine.Strips.Items.Values).Id;
+        string stripId = Assert.Single(engine.Strips.Items.Values).Id;
 
-        var outcome = Issue(engine, host, Callsign, "WAIT 1 AN 1 ✓");
+        ActionOutcome outcome = Issue(engine, host, Callsign, "WAIT 1 AN 1 ✓");
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("", engine.Strips.Items[stripId].FieldValues[10]);
@@ -375,7 +375,7 @@ public class StripStepTests
         Assert.Equal("✓", engine.Strips.Items[stripId].FieldValues[10]);
 
         // One recorded command, the text as typed: the router did not split it into units.
-        var recorded = Assert.Single(engine.Scenario!.ActionLog.OfType<RecordedCommand>());
+        RecordedCommand recorded = Assert.Single(engine.Scenario!.ActionLog.OfType<RecordedCommand>());
         Assert.Equal("WAIT 1 AN 1 ✓", recorded.Command);
     }
 
@@ -388,12 +388,12 @@ public class StripStepTests
         }
 
         engine.AfterAircraftSpawned(Departure(engine, Callsign));
-        var stripId = Assert.Single(engine.Strips.Items.Values).Id;
+        string stripId = Assert.Single(engine.Strips.Items.Values).Id;
 
         var spine = new SpineCapturingHost(engine);
         engine.RunSecond(spine);
 
-        var changes = Assert.Single(spine.StripChanges);
+        StripChangeSet changes = Assert.Single(spine.StripChanges);
         Assert.Equal(stripId, Assert.Single(changes.ChangedItemIds));
         Assert.True(changes.FullState);
     }
@@ -413,20 +413,20 @@ public class StripStepTests
         }
 
         engine.AfterAircraftSpawned(Departure(engine, Callsign));
-        var stripId = Assert.Single(engine.Strips.Items.Values).Id;
+        string stripId = Assert.Single(engine.Strips.Items.Values).Id;
 
         var spine = new SpineCapturingHost(engine);
         engine.RunSecond(spine);
         Assert.Single(spine.StripChanges);
 
-        var moved = Issue(engine, spine, Callsign, "STRIP OAK/Local 1/1/1");
+        ActionOutcome moved = Issue(engine, spine, Callsign, "STRIP OAK/Local 1/1/1");
 
         Assert.True(moved.Result.Success, moved.Result.Message);
         Assert.Equal(Bay("OAK_TWR", "Local 1").Bay.Id, engine.Strips.Items[stripId].BayId);
 
         engine.RunSecond(spine);
 
-        var changes = spine.StripChanges[^1];
+        StripChangeSet changes = spine.StripChanges[^1];
         Assert.Contains(stripId, changes.ChangedItemIds);
         Assert.True(changes.FullState);
     }
@@ -447,19 +447,19 @@ public class StripStepTests
         // OAK_TWR's STARS TCP lives in NCT's configuration, which is what makes NCT's bay an external destination.
         engine.Scenario!.StudentPosition = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
         engine.AfterAircraftSpawned(Departure(engine, Callsign));
-        var sourceId = Assert.Single(engine.Strips.Items.Values).Id;
+        string sourceId = Assert.Single(engine.Strips.Items.Values).Id;
 
         var spine = new SpineCapturingHost(engine);
         engine.RunSecond(spine);
         Assert.Single(spine.StripChanges);
 
-        var scanned = Issue(engine, spine, Callsign, "SCAN NCT/NCT");
+        ActionOutcome scanned = Issue(engine, spine, Callsign, "SCAN NCT/NCT");
 
         Assert.True(scanned.Result.Success, scanned.Result.Message);
         engine.RunSecond(spine);
 
-        var copyId = Assert.Single(engine.Strips.Items.Keys, id => !string.Equals(id, sourceId, StringComparison.Ordinal));
-        var changes = spine.StripChanges[^1];
+        string copyId = Assert.Single(engine.Strips.Items.Keys, id => !string.Equals(id, sourceId, StringComparison.Ordinal));
+        StripChangeSet changes = spine.StripChanges[^1];
         Assert.Contains(copyId, changes.ChangedItemIds);
         Assert.True(changes.FullState);
     }
@@ -478,20 +478,20 @@ public class StripStepTests
         }
 
         var spine = new SpineCapturingHost(engine);
-        var created = Issue(engine, spine, "", @"HSC OAK/Ground 1/1 a\b");
+        ActionOutcome created = Issue(engine, spine, "", @"HSC OAK/Ground 1/1 a\b");
 
         Assert.True(created.Result.Success, created.Result.Message);
-        var halfStripId = Assert.Single(engine.Strips.Items.Values, i => i.Id.StartsWith("HSTRIP_", StringComparison.Ordinal)).Id;
+        string halfStripId = Assert.Single(engine.Strips.Items.Values, i => i.Id.StartsWith("HSTRIP_", StringComparison.Ordinal)).Id;
         engine.RunSecond(spine);
         int beforeMove = spine.StripChanges.Count;
 
-        var moved = Issue(engine, spine, "", $"HSM {halfStripId} OAK/Local 1/1/1");
+        ActionOutcome moved = Issue(engine, spine, "", $"HSM {halfStripId} OAK/Local 1/1/1");
 
         Assert.True(moved.Result.Success, moved.Result.Message);
         Assert.Equal(Bay("OAK_TWR", "Local 1").Bay.Id, engine.Strips.Items[halfStripId].BayId);
         Assert.True(spine.StripChanges.Count > beforeMove, "the half-strip move should have reached the host");
 
-        var changes = spine.StripChanges[^1];
+        StripChangeSet changes = spine.StripChanges[^1];
         Assert.Contains(halfStripId, changes.ChangedItemIds);
         Assert.True(changes.FullState);
     }
@@ -506,20 +506,20 @@ public class StripStepTests
         }
 
         var spine = new SpineCapturingHost(engine);
-        var created = Issue(engine, spine, "", "SEP W OAK/Ground 1/1/1 Foo");
+        ActionOutcome created = Issue(engine, spine, "", "SEP W OAK/Ground 1/1/1 Foo");
 
         Assert.True(created.Result.Success, created.Result.Message);
-        var separatorId = Assert.Single(engine.Strips.Items.Values, i => i.Id.StartsWith("SEP_", StringComparison.Ordinal)).Id;
+        string separatorId = Assert.Single(engine.Strips.Items.Values, i => i.Id.StartsWith("SEP_", StringComparison.Ordinal)).Id;
         engine.RunSecond(spine);
         int beforeMove = spine.StripChanges.Count;
 
-        var moved = Issue(engine, spine, "", $"SEPM {separatorId} OAK/Local 1/1/1");
+        ActionOutcome moved = Issue(engine, spine, "", $"SEPM {separatorId} OAK/Local 1/1/1");
 
         Assert.True(moved.Result.Success, moved.Result.Message);
         Assert.Equal(Bay("OAK_TWR", "Local 1").Bay.Id, engine.Strips.Items[separatorId].BayId);
         Assert.True(spine.StripChanges.Count > beforeMove, "the separator move should have reached the host");
 
-        var changes = spine.StripChanges[^1];
+        StripChangeSet changes = spine.StripChanges[^1];
         Assert.Contains(separatorId, changes.ChangedItemIds);
         Assert.True(changes.FullState);
     }
@@ -543,25 +543,25 @@ public class StripStepTests
 
         var host = new AttendanceActionHost();
         engine.AfterAircraftSpawned(Departure(engine, Callsign));
-        var spawned = Assert.Single(engine.Strips.Items.Values);
+        StripItemRecord spawned = Assert.Single(engine.Strips.Items.Values);
         Assert.Empty(engine.Strips.DeparturePrinterQueue);
 
-        var outcome = Issue(engine, host, Callsign, "FP B738/L 350 OAK LAX");
+        ActionOutcome outcome = Issue(engine, host, Callsign, "FP B738/L 350 OAK LAX");
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        var reprinted = Assert.Single(engine.Strips.DeparturePrinterQueue);
+        string reprinted = Assert.Single(engine.Strips.DeparturePrinterQueue);
         Assert.NotEqual(spawned.Id, reprinted);
         Assert.Equal(2, engine.Strips.Items.Count);
 
         // Both records the amendment wrote carry the id the reprint drew. The derived one is what a replay reprints
         // from — a recorded FP returns at the arm's IsRecorded guard — so the command record's copy is written but
         // never read back.
-        var amendment = Assert.Single(engine.Scenario!.ActionLog.OfType<RecordedAmendFlightPlan>());
+        RecordedAmendFlightPlan amendment = Assert.Single(engine.Scenario!.ActionLog.OfType<RecordedAmendFlightPlan>());
         Assert.Equal(reprinted, amendment.StripId);
         Assert.Equal(reprinted, outcome.ToRecord!.StripId);
 
-        var recording = Recording(engine, DepartureAtOak);
-        var liveIds = StripIds(engine);
+        SessionRecording recording = Recording(engine, DepartureAtOak);
+        List<string> liveIds = StripIds(engine);
 
         // Re-applied over the engine that already holds the id — a snapshot-based restore's shape — neither record
         // prints: the derived one because the reprint finds its baked id, the command one because the arm refuses a
@@ -599,12 +599,12 @@ public class StripStepTests
         Assert.Empty(off.Strips.Items);
 
         // OAK_APP is an NCT position, and NCT does enable arrival strips.
-        var on = Engine(ArrivalToOak, "OAK_APP", "APP")!;
+        SimulationEngine on = Engine(ArrivalToOak, "OAK_APP", "APP")!;
         Assert.True(Bay("OAK_APP", "NCT").Owner.FlightStripsConfiguration!.EnableArrivalStrips);
 
         on.TickAutoArrivalStrips();
 
-        var strip = Assert.Single(on.Strips.Items.Values);
+        StripItemRecord strip = Assert.Single(on.Strips.Items.Values);
         Assert.Equal($"ARRIVAL_{ArrivalCallsign}", strip.Id);
         Assert.Equal((int)StripItemType.ArrivalStrip, strip.Type);
         Assert.Equal("NCT", strip.FacilityId);
@@ -626,9 +626,9 @@ public class StripStepTests
         Assert.Equal(StripMutations.BlankStripType, (int)StripItemType.BlankStrip);
 
         // IsSeparator is the fifth reader of the numbering: exactly the four separator styles, nothing else.
-        foreach (var type in Enum.GetValues<StripItemType>())
+        foreach (StripItemType type in Enum.GetValues<StripItemType>())
         {
-            var isSeparator =
+            bool isSeparator =
                 type
                 is StripItemType.HandwrittenSeparator
                     or StripItemType.WhiteSeparator
@@ -656,7 +656,7 @@ public class StripStepTests
         var host = new AttendanceActionHost();
         engine.AfterAircraftSpawned(Departure(engine, Callsign));
 
-        var unattended = Issue(engine, host, Callsign, "SCAN NCT/NCT");
+        ActionOutcome unattended = Issue(engine, host, Callsign, "SCAN NCT/NCT");
 
         Assert.True(unattended.Result.Success, unattended.Result.Message);
         Assert.Contains("no controller connected at NCT", unattended.Result.Message);
@@ -665,7 +665,7 @@ public class StripStepTests
         AttendanceTestSupport.Attend(engine, "2B");
         Assert.NotEmpty(engine.Attendance.PositionIds);
 
-        var attended = Issue(engine, host, Callsign, "SCAN NCT/NCT");
+        ActionOutcome attended = Issue(engine, host, Callsign, "SCAN NCT/NCT");
 
         Assert.True(attended.Result.Success, attended.Result.Message);
         Assert.DoesNotContain("no controller connected", attended.Result.Message);

@@ -39,7 +39,7 @@ public sealed class LocalLlmPipelineIntegrationTests
             return;
         }
 
-        var result = await _mapper.MapAsync("climb and maintain five thousand", MapContext.Empty, CancellationToken.None);
+        MapResult? result = await _mapper.MapAsync("climb and maintain five thousand", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal("CM 5000", result.CanonicalCommand);
@@ -53,7 +53,7 @@ public sealed class LocalLlmPipelineIntegrationTests
             return;
         }
 
-        var result = await _mapper.MapAsync("descend and maintain three thousand", MapContext.Empty, CancellationToken.None);
+        MapResult? result = await _mapper.MapAsync("descend and maintain three thousand", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal("DM 3000", result.CanonicalCommand);
@@ -67,7 +67,7 @@ public sealed class LocalLlmPipelineIntegrationTests
             return;
         }
 
-        var result = await _mapper.MapAsync("fly heading two seven zero", MapContext.Empty, CancellationToken.None);
+        MapResult? result = await _mapper.MapAsync("fly heading two seven zero", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal("FH 270", result.CanonicalCommand);
@@ -81,7 +81,7 @@ public sealed class LocalLlmPipelineIntegrationTests
             return;
         }
 
-        var result = await _mapper.MapAsync("turn right heading zero nine zero", MapContext.Empty, CancellationToken.None);
+        MapResult? result = await _mapper.MapAsync("turn right heading zero nine zero", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal("TR 090", result.CanonicalCommand);
@@ -95,7 +95,7 @@ public sealed class LocalLlmPipelineIntegrationTests
             return;
         }
 
-        var result = await _mapper.MapAsync("squawk seven five zero zero", MapContext.Empty, CancellationToken.None);
+        MapResult? result = await _mapper.MapAsync("squawk seven five zero zero", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal("SQ 7500", result.CanonicalCommand);
@@ -110,7 +110,7 @@ public sealed class LocalLlmPipelineIntegrationTests
         }
 
         var context = new MapContext([], ["CEPIN", "SUNOL"]);
-        var result = await _mapper.MapAsync("direct to CEPIN", context, CancellationToken.None);
+        MapResult? result = await _mapper.MapAsync("direct to CEPIN", context, CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal("DCT CEPIN", result.CanonicalCommand);
@@ -124,7 +124,7 @@ public sealed class LocalLlmPipelineIntegrationTests
             return;
         }
 
-        var result = await _mapper.MapAsync("cleared for takeoff", MapContext.Empty, CancellationToken.None);
+        MapResult? result = await _mapper.MapAsync("cleared for takeoff", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal("CTO", result.CanonicalCommand);
@@ -138,7 +138,7 @@ public sealed class LocalLlmPipelineIntegrationTests
             return;
         }
 
-        var result = await _mapper.MapAsync("reduce speed to two three zero", MapContext.Empty, CancellationToken.None);
+        MapResult? result = await _mapper.MapAsync("reduce speed to two three zero", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal("SPD 230", result.CanonicalCommand);
@@ -152,7 +152,7 @@ public sealed class LocalLlmPipelineIntegrationTests
             return;
         }
 
-        var result = await _mapper.MapAsync("good morning how are you doing today", MapContext.Empty, CancellationToken.None);
+        MapResult? result = await _mapper.MapAsync("good morning how are you doing today", MapContext.Empty, CancellationToken.None);
 
         // Either the model returns nothing, or NormalizeOutput rejects the response as non-canonical.
         // Both outcomes mean MapAsync returns null — we don't want this to pass through as a command.
@@ -170,7 +170,7 @@ public sealed class LocalLlmPipelineIntegrationTests
         // Random word salad with no recognizable phraseology. Pre-grammar this could occasionally
         // sneak through if the model latched onto a word like "speed" and emitted SPD with garbage
         // args; with the GBNF + NormalizeOutput defence it must fail cleanly to null.
-        var result = await _mapper.MapAsync("zoo turnip blender forty seventeen quack", MapContext.Empty, CancellationToken.None);
+        MapResult? result = await _mapper.MapAsync("zoo turnip blender forty seventeen quack", MapContext.Empty, CancellationToken.None);
 
         Assert.Null(result);
     }
@@ -188,8 +188,8 @@ public sealed class LocalLlmPipelineIntegrationTests
         // implementation builds a fresh Grammar per GenerateAsync, so two back-to-back MapAsync
         // calls on the same mapper instance should both produce valid output. If this test fails
         // (the second call returns null with empty output) the per-call allocation has regressed.
-        var first = await _mapper.MapAsync("climb and maintain six thousand", MapContext.Empty, CancellationToken.None);
-        var second = await _mapper.MapAsync("descend and maintain four thousand", MapContext.Empty, CancellationToken.None);
+        MapResult? first = await _mapper.MapAsync("climb and maintain six thousand", MapContext.Empty, CancellationToken.None);
+        MapResult? second = await _mapper.MapAsync("descend and maintain four thousand", MapContext.Empty, CancellationToken.None);
 
         Assert.NotNull(first);
         Assert.Equal("CM 6000", first.CanonicalCommand);
@@ -209,7 +209,7 @@ public sealed class LocalLlmPipelineIntegrationTests
         // "EMERG" or "MAYDAY" — verbs YAAT doesn't have. The grammar can't even let the model
         // reach an invalid verb token, so the model must either pick a real verb or run out of
         // tokens with garbled output that NormalizeOutput rejects. Either way: null result.
-        var result = await _mapper.MapAsync("declaring an emergency mayday mayday", MapContext.Empty, CancellationToken.None);
+        MapResult? result = await _mapper.MapAsync("declaring an emergency mayday mayday", MapContext.Empty, CancellationToken.None);
 
         Assert.Null(result);
     }

@@ -129,7 +129,7 @@ public sealed record SearchContext(
         }
 
         double runNm = edge.DistanceNm;
-        for (var p = current; p is { LastEdge: { } prevEdge }; p = p.Previous)
+        for (PartialRoute? p = current; p is { LastEdge: { } prevEdge }; p = p.Previous)
         {
             if (!prevEdge.IsRunwayCenterline || !prevEdge.SharesTaxiway(edge))
             {
@@ -178,7 +178,7 @@ public sealed record SearchContext(
                 continue;
             }
 
-            var runEdge = edges[i].Edge;
+            IGroundEdge runEdge = edges[i].Edge;
 
             // Extend over everything sharing the runway name — including the flanking junction
             // arcs ("G - RWY28R/10L"), whose outer endpoints are the off-runway entry/exit nodes.
@@ -194,8 +194,8 @@ public sealed record SearchContext(
                 b++;
             }
 
-            var axisA = runEdge.Nodes[0].Position;
-            var axisB = runEdge.Nodes[1].Position;
+            LatLon axisA = runEdge.Nodes[0].Position;
+            LatLon axisB = runEdge.Nodes[1].Position;
             double entrySide = SideOfLine(axisA, axisB, edges[a].FromNode.Position);
             double exitSide = SideOfLine(axisA, axisB, edges[b].ToNode.Position);
             if ((entrySide * exitSide) > 0)
@@ -231,7 +231,7 @@ public sealed record SearchContext(
     /// <summary>The connector taxiway bridging <paramref name="fromTaxiway"/> and <paramref name="toTaxiway"/> (unordered), or null when none.</summary>
     public string? GetImplicitConnectorName(string fromTaxiway, string toTaxiway)
     {
-        foreach (var connector in ImplicitConnectors)
+        foreach (ImplicitConnectorEntry connector in ImplicitConnectors)
         {
             if (connector.Between.Count == 2 && PairMatches(connector.Between[0], connector.Between[1], fromTaxiway, toTaxiway))
             {
@@ -286,33 +286,34 @@ public sealed record SearchContext(
         double? startHeadingTrue
     )
     {
-        var holdShorts = explicitHoldShorts is { Count: > 0 }
+        IReadOnlySet<HoldShortTarget> holdShorts = explicitHoldShorts is { Count: > 0 }
             ? (IReadOnlySet<HoldShortTarget>)new HashSet<HoldShortTarget>(explicitHoldShorts)
             : (IReadOnlySet<HoldShortTarget>)new HashSet<HoldShortTarget>();
 
-        var implicitConnectors = ResolveImplicitConnectors(layout);
-        var authorized = BuildAuthorizedTaxiwaySet(waypointSequence, implicitConnectors);
+        IReadOnlyList<ImplicitConnectorEntry> implicitConnectors = ResolveImplicitConnectors(layout);
+        IReadOnlySet<string>? authorized = BuildAuthorizedTaxiwaySet(waypointSequence, implicitConnectors);
 
-        var destination = ResolveDestination(layout, destinationRunway, destinationParking, destinationSpot, destinationNodeId);
+        DestinationDescriptor destination = ResolveDestination(layout, destinationRunway, destinationParking, destinationSpot, destinationNodeId);
 
         // Per-airport avoided taxiways apply to AUTO routes only (empty waypoint sequence). An explicit
         // named-taxiway path (waypointSequence non-empty) is a controller instruction and is never
         // re-routed around an avoided taxiway, so AvoidMode stays Off for it.
-        var avoidedTaxiways = ResolveAvoidedTaxiways(layout);
-        var avoidMode = (avoidedTaxiways.Count > 0) && (waypointSequence.Count == 0) ? AvoidTaxiwayMode.HardExclude : AvoidTaxiwayMode.Off;
+        IReadOnlySet<string> avoidedTaxiways = ResolveAvoidedTaxiways(layout);
+        AvoidTaxiwayMode avoidMode =
+            (avoidedTaxiways.Count > 0) && (waypointSequence.Count == 0) ? AvoidTaxiwayMode.HardExclude : AvoidTaxiwayMode.Off;
 
         // One-way constraints hard-exclude the wrong direction on auto routes; an explicit named-taxiway
         // path (waypointSequence non-empty) is allowed to traverse the wrong way but is flagged with a
         // warning by RouteMaterialiser.
-        var forbiddenOneWay = ResolveOneWayMoves(layout);
-        var oneWayMode =
+        IReadOnlySet<(int, int)> forbiddenOneWay = ResolveOneWayMoves(layout);
+        OneWayMode oneWayMode =
             forbiddenOneWay.Count == 0 ? OneWayMode.Off
             : waypointSequence.Count == 0 ? OneWayMode.HardExclude
             : OneWayMode.Warn;
 
         // Blocked turns are hard for AUTO and explicit alike (no painted line at the apex), so they are
         // resolved unconditionally — there is no warn mode and no waypoint-sequence gate.
-        var blocked = ResolveBlockedTurns(layout);
+        BlockedTurnResult blocked = ResolveBlockedTurns(layout);
 
         // Along-runway travel is admissible only for runways the controller named in the path, plus
         // the runway the aircraft is already standing on (post-landing / lined-up starts).
@@ -329,9 +330,9 @@ public sealed record SearchContext(
             }
         }
 
-        if (layout.Nodes.TryGetValue(startNodeId, out var startNode))
+        if (layout.Nodes.TryGetValue(startNodeId, out GroundNode? startNode))
         {
-            foreach (var edge in startNode.Edges)
+            foreach (IGroundEdge edge in startNode.Edges)
             {
                 if (edge.IsRunwayCenterline)
                 {
@@ -382,7 +383,7 @@ public sealed record SearchContext(
     /// </summary>
     private static IReadOnlySet<string> ResolveAvoidedTaxiways(AirportGroundLayout layout)
     {
-        var db = NavigationDatabase.InstanceOrNull;
+        NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
         return db is null ? EmptyAvoidedTaxiways : db.AirportSidecars.GetAvoidedTaxiways(layout.AirportId);
     }
 
@@ -393,7 +394,7 @@ public sealed record SearchContext(
     /// </summary>
     private static IReadOnlyList<ImplicitConnectorEntry> ResolveImplicitConnectors(AirportGroundLayout layout)
     {
-        var db = NavigationDatabase.InstanceOrNull;
+        NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
         return db is null ? [] : db.AirportSidecars.GetImplicitConnectors(layout.AirportId);
     }
 
@@ -444,7 +445,7 @@ public sealed record SearchContext(
         {
             string a = waypointSequence[i];
             string b = waypointSequence[i + 1];
-            foreach (var connector in implicitConnectors)
+            foreach (ImplicitConnectorEntry connector in implicitConnectors)
             {
                 if (connector.Between.Count == 2 && PairMatches(connector.Between[0], connector.Between[1], a, b))
                 {
@@ -511,13 +512,13 @@ public sealed record SearchContext(
         {
             // Try helipad first, then parking — matches AirportGroundLayout.FindParkingByName conventions
             // and lets the node's actual GroundNodeType drive DestinationKind classification.
-            var helipadNode = layout.FindHelipadByName(parkingName);
+            GroundNode? helipadNode = layout.FindHelipadByName(parkingName);
             if (helipadNode is not null)
             {
                 return new DestinationDescriptor(helipadNode.Id, null, parkingName, null, DestinationKind.Helipad);
             }
 
-            var parkingNode = layout.FindParkingByName(parkingName);
+            GroundNode? parkingNode = layout.FindParkingByName(parkingName);
             return new DestinationDescriptor(parkingNode?.Id, null, parkingName, null, DestinationKind.Parking);
         }
 

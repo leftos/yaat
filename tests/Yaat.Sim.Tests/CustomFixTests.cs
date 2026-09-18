@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Proto;
 
 namespace Yaat.Sim.Tests;
 
@@ -23,14 +24,14 @@ public class CustomFixTests
     public void DirectTo_CustomFix_ParsesWhenFixInNavDb()
     {
         var navDb = NavigationDatabase.ForTesting(fixes: new Dictionary<string, (double Lat, double Lon)> { ["OAK30NUM"] = (37.702, -122.215) });
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = CommandParser.ParseCompound("DCT OAK30NUM", null);
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("DCT OAK30NUM", null);
 
         Assert.True(result.IsSuccess, $"ParseCompound failed: {result.Reason}");
-        var compound = result.Value!;
+        CompoundCommand compound = result.Value!;
         Assert.Single(compound.Blocks);
-        var cmd = compound.Blocks[0].Commands[0];
+        ParsedCommand cmd = compound.Blocks[0].Commands[0];
         Assert.IsType<DirectToCommand>(cmd);
 
         var dct = (DirectToCommand)cmd;
@@ -46,13 +47,13 @@ public class CustomFixTests
     {
         string baseDir = Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");
 
-        var loadResult = CustomFixLoader.LoadAll(baseDir);
+        CustomFixLoadResult loadResult = CustomFixLoader.LoadAll(baseDir);
 
         // Should find at least OAK30NUM
         Assert.Empty(loadResult.Warnings);
         Assert.NotEmpty(loadResult.Fixes);
 
-        var oak30Def = loadResult.Fixes.FirstOrDefault(f => f.Aliases.Contains("OAK30NUM", StringComparer.OrdinalIgnoreCase));
+        CustomFixDefinition? oak30Def = loadResult.Fixes.FirstOrDefault(f => f.Aliases.Contains("OAK30NUM", StringComparer.OrdinalIgnoreCase));
         Assert.NotNull(oak30Def);
         Assert.NotNull(oak30Def!.Lat);
         Assert.NotNull(oak30Def.Lon);
@@ -63,16 +64,16 @@ public class CustomFixTests
     [Fact]
     public void NavigationDatabase_DefaultPath_LoadsCustomFixes()
     {
-        var navDbPath = Path.Combine("TestData", "NavData.dat");
+        string navDbPath = Path.Combine("TestData", "NavData.dat");
         if (!File.Exists(navDbPath))
         {
             return; // Skip if no test data
         }
 
-        var bytes = File.ReadAllBytes(navDbPath);
-        var navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
+        byte[] bytes = File.ReadAllBytes(navDbPath);
+        NavDataSet navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
 
-        var cifpPath = TestVnasData.GetCifpPath();
+        string? cifpPath = TestVnasData.GetCifpPath();
         if (cifpPath is null)
         {
             return; // Skip if no CIFP
@@ -81,7 +82,7 @@ public class CustomFixTests
         // Use default customFixesBaseDir (null) — forces AppContext.BaseDirectory path
         var db = new NavigationDatabase(navData, cifpPath);
 
-        var pos = db.GetFixPosition("OAK30NUM");
+        (double Lat, double Lon)? pos = db.GetFixPosition("OAK30NUM");
         Assert.NotNull(pos);
         Assert.InRange(pos!.Value.Lat, 37.70, 37.71);
         Assert.InRange(pos.Value.Lon, -122.22, -122.21);
@@ -95,16 +96,16 @@ public class CustomFixTests
     [Fact]
     public void ParseCompound_DirectToCustomFix_WithRealNavDb()
     {
-        var navDbPath = Path.Combine("TestData", "NavData.dat");
+        string navDbPath = Path.Combine("TestData", "NavData.dat");
         if (!File.Exists(navDbPath))
         {
             return;
         }
 
-        var bytes = File.ReadAllBytes(navDbPath);
-        var navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
+        byte[] bytes = File.ReadAllBytes(navDbPath);
+        NavDataSet navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
 
-        var cifpPath = TestVnasData.GetCifpPath();
+        string? cifpPath = TestVnasData.GetCifpPath();
         if (cifpPath is null)
         {
             return;
@@ -112,10 +113,10 @@ public class CustomFixTests
 
         // Initialize with default custom fix path (same as server does)
         var db = new NavigationDatabase(navData, cifpPath);
-        using var _ = NavigationDatabase.ScopedOverride(db);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(db);
 
         // This is exactly what the server does in RoomEngine.SendCommand
-        var result = CommandParser.ParseCompound("DCT OAK30NUM", null);
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("DCT OAK30NUM", null);
 
         Assert.True(result.IsSuccess, $"ParseCompound failed: {result.Reason}");
         var dct = (DirectToCommand)result.Value!.Blocks[0].Commands[0];

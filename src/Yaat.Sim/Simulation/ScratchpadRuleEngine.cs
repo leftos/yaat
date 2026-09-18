@@ -30,7 +30,7 @@ public static class ScratchpadRuleEngine
 
         if (string.IsNullOrEmpty(ac.Stars.Scratchpad1) && !ac.Stars.WasScratchpad1Cleared)
         {
-            foreach (var rule in starsConfig.PrimaryScratchpadRules)
+            foreach (ScratchpadRuleConfig rule in starsConfig.PrimaryScratchpadRules)
             {
                 if (Matches(rule, ac))
                 {
@@ -42,7 +42,7 @@ public static class ScratchpadRuleEngine
 
         if (string.IsNullOrEmpty(ac.Stars.Scratchpad2))
         {
-            foreach (var rule in starsConfig.SecondaryScratchpadRules)
+            foreach (ScratchpadRuleConfig rule in starsConfig.SecondaryScratchpadRules)
             {
                 if (Matches(rule, ac))
                 {
@@ -58,7 +58,7 @@ public static class ScratchpadRuleEngine
         if (rule.AirportIds.Count > 0)
         {
             bool airportMatch = false;
-            foreach (var apt in rule.AirportIds)
+            foreach (string apt in rule.AirportIds)
             {
                 if (
                     NavigationDatabase.AirportIdsMatch(ac.FlightPlan.Departure, apt)
@@ -79,7 +79,7 @@ public static class ScratchpadRuleEngine
         // Altitude filter — rule altitudes are in hundreds of feet, CruiseAltitude is in feet
         if (rule.MinAltitude is not null)
         {
-            var altHundreds = (ac.FlightPlan.Altitude.CruiseFeet ?? 0) / 100;
+            int altHundreds = (ac.FlightPlan.Altitude.CruiseFeet ?? 0) / 100;
             if (altHundreds < rule.MinAltitude)
             {
                 return false;
@@ -88,7 +88,7 @@ public static class ScratchpadRuleEngine
 
         if (rule.MaxAltitude is not null)
         {
-            var altHundreds = (ac.FlightPlan.Altitude.CruiseFeet ?? 0) / 100;
+            int altHundreds = (ac.FlightPlan.Altitude.CruiseFeet ?? 0) / 100;
             if (altHundreds > rule.MaxAltitude)
             {
                 return false;
@@ -109,7 +109,7 @@ public static class ScratchpadRuleEngine
     {
         if (pattern.EndsWith('#'))
         {
-            var prefix = pattern[..^1];
+            string prefix = pattern[..^1];
             return route.Contains(prefix, StringComparison.OrdinalIgnoreCase);
         }
 

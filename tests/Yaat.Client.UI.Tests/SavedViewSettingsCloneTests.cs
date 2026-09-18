@@ -20,7 +20,7 @@ public class SavedViewSettingsCloneTests
             PtlOwn = true,
         };
 
-        var clone = original.Clone();
+        SavedRadarSettings clone = original.Clone();
         clone.EnabledStarsIds.Add(99);
         clone.PinnedMarkers.Add("LAX");
         clone.BrightnessValues!["MapA"] = 10;
@@ -39,7 +39,7 @@ public class SavedViewSettingsCloneTests
     {
         var original = new SavedRadarSettings { BrightnessValues = null };
 
-        var clone = original.Clone();
+        SavedRadarSettings clone = original.Clone();
 
         Assert.Null(clone.BrightnessValues);
     }
@@ -55,7 +55,7 @@ public class SavedViewSettingsCloneTests
             ShowRunwayLabels = true,
         };
 
-        var clone = original.Clone();
+        SavedGroundSettings clone = original.Clone();
         clone.Zoom = 9;
         clone.ShowParking = GroundFilterMode.Off;
         clone.ShowRunwayLabels = false;

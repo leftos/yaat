@@ -71,13 +71,13 @@ internal static class AiTestFixture
     )
     {
         var engine = new SimulationEngine(new TestAirportGroundData());
-        var warnings = engine.LoadScenario(scenarioJson, seed, MagneticDeclination.EvaluationDateUtc);
+        List<string> warnings = engine.LoadScenario(scenarioJson, seed, MagneticDeclination.EvaluationDateUtc);
         if (warnings.Any(w => w.Contains("error", StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException("Scenario load reported errors: " + string.Join("; ", warnings));
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = zoa;
         if (positions.Count > 0)
         {
@@ -115,7 +115,7 @@ internal static class AiTestFixture
     {
         for (int i = 0; i < budgetSeconds; i++)
         {
-            var aircraft = engine.FindAircraft(callsign) ?? throw new InvalidOperationException($"{callsign} left the world");
+            AircraftState aircraft = engine.FindAircraft(callsign) ?? throw new InvalidOperationException($"{callsign} left the world");
             if (until(aircraft))
             {
                 return aircraft;
@@ -124,7 +124,7 @@ internal static class AiTestFixture
             Tick(engine, 1);
         }
 
-        var last = engine.FindAircraft(callsign);
+        AircraftState? last = engine.FindAircraft(callsign);
         throw new InvalidOperationException(
             $"{callsign} never reached the expected state within {budgetSeconds}s (phase {last?.Phases?.CurrentPhase?.Name ?? "none"})"
         );
@@ -140,7 +140,7 @@ internal static class AiTestFixture
         IAiCommandSink sink
     )
     {
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         var staffing = new HeadlessAiStaffing(staffed, scenario);
         var view = AiWorldView.Build(
             aircraft,

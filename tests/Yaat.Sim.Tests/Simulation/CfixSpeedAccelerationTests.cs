@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -30,14 +31,14 @@ public class CfixSpeedAccelerationTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 
         return new SimulationEngine(groundData);
@@ -51,8 +52,8 @@ public class CfixSpeedAccelerationTests(ITestOutputHelper output)
     [Fact]
     public void SKW3398_AcceleratesTo210ForCfix()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -60,7 +61,7 @@ public class CfixSpeedAccelerationTests(ITestOutputHelper output)
 
         engine.Replay(recording, 0);
 
-        var aircraft = engine.FindAircraft("SKW3398");
+        AircraftState? aircraft = engine.FindAircraft("SKW3398");
         Assert.NotNull(aircraft);
 
         double initialIas = aircraft.IndicatedAirspeed;

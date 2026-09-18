@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -52,7 +54,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
     [Fact]
     public void RelativeVector_CancelsQueuedPatternEntry()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -62,11 +64,11 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
 
         Assert.True(engine.SendCommand("TST101", "DCT VPCOL; ERD 28R").Success);
 
-        var ac = engine.FindAircraft("TST101");
+        AircraftState? ac = engine.FindAircraft("TST101");
         Assert.NotNull(ac);
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // queued ERD before the vector
 
-        var vector = engine.SendCommand("TST101", "RELR 20");
+        CommandResult vector = engine.SendCommand("TST101", "RELR 20");
         Assert.True(vector.Success, vector.Message);
 
         ac = engine.FindAircraft("TST101");
@@ -97,7 +99,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
     [Fact]
     public void AbsoluteHeading_CancelsQueuedPatternEntry()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -113,7 +115,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
             engine.TickOneSecond();
         }
 
-        var ac = engine.FindAircraft("TST102");
+        AircraftState? ac = engine.FindAircraft("TST102");
         Assert.NotNull(ac);
         Assert.Null(ac.Phases?.CurrentPhase);
         Assert.DoesNotContain(ac.Queue.Blocks, b => !b.IsApplied);
@@ -126,7 +128,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
     [Fact]
     public void FreshDirect_CancelsQueuedPatternEntry()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -137,7 +139,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
         Assert.True(engine.SendCommand("TST103", "DCT VPCOL; ERD 28R").Success);
         Assert.True(engine.SendCommand("TST103", "DCT SUNOL").Success);
 
-        var ac = engine.FindAircraft("TST103");
+        AircraftState? ac = engine.FindAircraft("TST103");
         Assert.NotNull(ac);
         Assert.DoesNotContain(ac.Queue.Blocks, b => !b.IsApplied);
         Assert.Null(ac.Phases?.CurrentPhase);
@@ -150,7 +152,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
     [Fact]
     public void AltitudeAssignment_PreservesQueuedPatternEntry()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -161,7 +163,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
         Assert.True(engine.SendCommand("TST104", "DCT VPCOL; ERD 28R").Success);
         Assert.True(engine.SendCommand("TST104", "DM 1500").Success);
 
-        var ac = engine.FindAircraft("TST104");
+        AircraftState? ac = engine.FindAircraft("TST104");
         Assert.NotNull(ac);
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // queued ERD survives DM
         Assert.Contains(ac.Targets.NavigationRoute, f => f.Name == "VPCOL");
@@ -173,7 +175,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
     [Fact]
     public void SpeedAssignment_PreservesQueuedPatternEntry()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -184,7 +186,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
         Assert.True(engine.SendCommand("TST105", "DCT VPCOL; ERD 28R").Success);
         Assert.True(engine.SendCommand("TST105", "SPD 100").Success);
 
-        var ac = engine.FindAircraft("TST105");
+        AircraftState? ac = engine.FindAircraft("TST105");
         Assert.NotNull(ac);
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // queued ERD survives SPD
         Assert.Contains(ac.Targets.NavigationRoute, f => f.Name == "VPCOL");
@@ -200,7 +202,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
     [InlineData("JFAC 28R")]
     public void Vector_CancelsQueuedApproachClearance(string clearance)
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -210,7 +212,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
 
         Assert.True(engine.SendCommand("TST106", $"DCT VPCOL; {clearance}").Success);
 
-        var ac = engine.FindAircraft("TST106");
+        AircraftState? ac = engine.FindAircraft("TST106");
         Assert.NotNull(ac);
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // queued clearance before the vector
 
@@ -241,7 +243,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
     [Fact]
     public void AltitudeAssignment_PreservesQueuedApproachClearance()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -252,7 +254,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
         Assert.True(engine.SendCommand("TST107", "DCT VPCOL; CAPP I28R").Success);
         Assert.True(engine.SendCommand("TST107", "DM 1500").Success);
 
-        var ac = engine.FindAircraft("TST107");
+        AircraftState? ac = engine.FindAircraft("TST107");
         Assert.NotNull(ac);
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied);
         Assert.Contains(ac.Targets.NavigationRoute, f => f.Name == "VPCOL");
@@ -267,7 +269,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
     [Fact]
     public void CrossingRestrictions_PreserveQueuedApproachClearanceAndRoute()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -278,12 +280,12 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
         Assert.True(engine.SendCommand("TST108", "DCT VPCOL; CAPP I28R").Success);
         Assert.True(engine.SendCommand("TST108", "CFIX VPCOL 15 180").Success);
 
-        var ac = engine.FindAircraft("TST108");
+        AircraftState? ac = engine.FindAircraft("TST108");
         Assert.NotNull(ac);
         Assert.Empty(ac.PendingWarnings);
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // queued CAPP survives the crossing restriction
 
-        var vpcol = ac.Targets.NavigationRoute.Find(f => f.Name == "VPCOL");
+        NavigationTarget? vpcol = ac.Targets.NavigationRoute.Find(f => f.Name == "VPCOL");
         Assert.NotNull(vpcol);
         Assert.NotNull(vpcol.AltitudeRestriction);
     }
@@ -302,22 +304,22 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
     [Fact]
     public void Recording_RelrAfterQueuedErd_DoesNotEnterTheDownwind()
     {
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
         }
 
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
 
-        var snapshot = archive.ReadSnapshotAt(SetupSnapshotSeconds);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(SetupSnapshotSeconds);
         if (snapshot is null)
         {
             return;
@@ -334,10 +336,10 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
         for (int t = start + 1; t <= 2760; t++)
         {
             engine.ReplayRange(t - 1, t, recording.Actions);
-            var ac = engine.FindAircraft("N805FM");
+            AircraftState? ac = engine.FindAircraft("N805FM");
             Assert.NotNull(ac);
 
-            var route = string.Join(",", ac.Targets.NavigationRoute.Select(f => f.Name));
+            string route = string.Join(",", ac.Targets.NavigationRoute.Select(f => f.Name));
             output.WriteLine(
                 $"t={t} phase={ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)"} hdg={ac.MagneticHeading.Degrees:F0} route=[{route}]"
             );

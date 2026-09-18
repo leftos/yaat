@@ -31,7 +31,7 @@ public class ExitDirectionSidecarTests
     [Fact]
     public void LoadAll_ReadsExitDirectionsSection()
     {
-        var result = LoadSidecar(
+        AirportSidecarLoadResult result = LoadSidecar(
             """
             {
               "airportId": "KMIA",
@@ -43,8 +43,8 @@ public class ExitDirectionSidecarTests
         );
 
         Assert.Empty(result.Warnings);
-        var airport = Assert.Single(result.Airports);
-        var entry = Assert.Single(airport.ExitDirections);
+        AirportSidecar airport = Assert.Single(result.Airports);
+        ExitDirectionOverride entry = Assert.Single(airport.ExitDirections);
         Assert.Equal("26R", entry.Runway);
         Assert.Equal(ExitSide.Left, entry.Side);
         Assert.Equal("facility request", entry.Notes);
@@ -53,7 +53,7 @@ public class ExitDirectionSidecarTests
     [Fact]
     public void LoadAll_NormalizesDesignatorAndSideCase()
     {
-        var result = LoadSidecar(
+        AirportSidecarLoadResult result = LoadSidecar(
             """
             {
               "airportId": "KTST",
@@ -63,7 +63,7 @@ public class ExitDirectionSidecarTests
         );
 
         Assert.Empty(result.Warnings);
-        var entry = Assert.Single(Assert.Single(result.Airports).ExitDirections);
+        ExitDirectionOverride entry = Assert.Single(Assert.Single(result.Airports).ExitDirections);
         Assert.Equal("08L", entry.Runway);
         Assert.Equal(ExitSide.Right, entry.Side);
     }
@@ -74,7 +74,7 @@ public class ExitDirectionSidecarTests
     [InlineData("""{ "runway": "26R" }""", "must be 'left' or 'right'")]
     public void LoadAll_InvalidEntry_WarnsAndSkips(string entry, string expectedWarningFragment)
     {
-        var result = LoadSidecar(
+        AirportSidecarLoadResult result = LoadSidecar(
             $$"""
             { "airportId": "KTST", "exitDirections": [ {{entry}} ] }
             """
@@ -87,7 +87,7 @@ public class ExitDirectionSidecarTests
     [Fact]
     public void LoadAll_DuplicateRunwayInOneFile_WarnsAndLastWins()
     {
-        var result = LoadSidecar(
+        AirportSidecarLoadResult result = LoadSidecar(
             """
             {
               "airportId": "KTST",
@@ -100,7 +100,7 @@ public class ExitDirectionSidecarTests
         );
 
         Assert.Contains(result.Warnings, w => w.Contains("duplicate runway", StringComparison.OrdinalIgnoreCase));
-        var entry = Assert.Single(Assert.Single(result.Airports).ExitDirections);
+        ExitDirectionOverride entry = Assert.Single(Assert.Single(result.Airports).ExitDirections);
         Assert.Equal(ExitSide.Right, entry.Side);
     }
 

@@ -34,7 +34,7 @@ internal static class FilletEdgeSplitPlanner
 
         FilletEndpoint ResolveCut(CutId cutId)
         {
-            var ep = FilletPlanCutRedirect.Resolve(cutId, redirect);
+            FilletEndpoint ep = FilletPlanCutRedirect.Resolve(cutId, redirect);
             return ep switch
             {
                 FilletEndpoint.Cut cut => prunedCuts.ContainsKey(cut.Id) ? new FilletEndpoint.Cut(cut.Id) : new FilletEndpoint.Node(cut.Id.Value),
@@ -46,23 +46,23 @@ internal static class FilletEdgeSplitPlanner
         // Map every surviving cut to the original edge it lands on, with the fraction normalized
         // to the edge's own (Nodes[0]->Nodes[1]) orientation so cuts arriving from opposite arm
         // walks on a shared edge sort consistently.
-        foreach (var (cutId, cut) in prunedCuts)
+        foreach ((CutId cutId, ResolvedArmCut? cut) in prunedCuts)
         {
-            if (!junctionById.TryGetValue(cut.JunctionNodeId, out var jp))
+            if (!junctionById.TryGetValue(cut.JunctionNodeId, out JunctionPlan? jp))
             {
                 continue;
             }
 
-            var arm = jp.Arms.FirstOrDefault(a => a.Id == cut.ArmId);
+            TaxiwayArm? arm = jp.Arms.FirstOrDefault(a => a.Id == cut.ArmId);
             if (arm is null)
             {
                 continue;
             }
 
             armHasCut.Add((cut.JunctionNodeId, cut.ArmId));
-            var loc = TaxiwayWalk.LocateDistanceFt(arm.Walk, jp.JunctionNode, cut.DistanceAlongArmFt);
+            TaxiwayWalk.EdgeLocation loc = TaxiwayWalk.LocateDistanceFt(arm.Walk, jp.JunctionNode, cut.DistanceAlongArmFt);
             double frac = loc.Edge.Nodes[0].Id == loc.StepFromNode.Id ? loc.FractionFromStepStart : 1.0 - loc.FractionFromStepStart;
-            if (!edgeCuts.TryGetValue(loc.Edge, out var list))
+            if (!edgeCuts.TryGetValue(loc.Edge, out List<CutOnEdge>? list))
             {
                 list = [];
                 edgeCuts[loc.Edge] = list;
@@ -73,10 +73,10 @@ internal static class FilletEdgeSplitPlanner
 
         // Determine consumed (split or dropped) edges: every walk-step edge from the root up to and
         // including the farthest cut's step. A removed junction's cutless arm consumes its root stub.
-        foreach (var jp in junctions)
+        foreach (JunctionPlan jp in junctions)
         {
             bool removed = removedJunctionIds.Contains(jp.JunctionNodeId);
-            foreach (var arm in jp.Arms)
+            foreach (TaxiwayArm arm in jp.Arms)
             {
                 var armCuts = prunedCuts.Values.Where(c => (c.JunctionNodeId == jp.JunctionNodeId) && (c.ArmId == arm.Id)).ToList();
                 if (armCuts.Count == 0)
@@ -90,7 +90,7 @@ internal static class FilletEdgeSplitPlanner
                 }
 
                 double farthest = armCuts.Max(c => c.DistanceAlongArmFt);
-                var farLoc = TaxiwayWalk.LocateDistanceFt(arm.Walk, jp.JunctionNode, farthest);
+                TaxiwayWalk.EdgeLocation farLoc = TaxiwayWalk.LocateDistanceFt(arm.Walk, jp.JunctionNode, farthest);
                 for (int i = 0; (i <= farLoc.StepIndex) && (i < arm.Walk.Steps.Count); i++)
                 {
                     consumed.Add(arm.Walk.Steps[i].Edge);
@@ -101,9 +101,9 @@ internal static class FilletEdgeSplitPlanner
         // Split each consumed edge once, using both endpoints' removed status. Drop only the
         // stub incident to a removed junction; keep every other sub-segment.
         var surviving = new List<SurvivingEdgeOp>();
-        foreach (var edge in consumed)
+        foreach (GroundEdge edge in consumed)
         {
-            var sorted = edgeCuts.TryGetValue(edge, out var cutsOnE) ? cutsOnE.OrderBy(c => c.Frac).ToList() : [];
+            List<CutOnEdge> sorted = edgeCuts.TryGetValue(edge, out List<CutOnEdge>? cutsOnE) ? cutsOnE.OrderBy(c => c.Frac).ToList() : [];
             bool aRemoved = removedJunctionIds.Contains(edge.Nodes[0].Id);
             bool bRemoved = removedJunctionIds.Contains(edge.Nodes[1].Id);
 
@@ -113,7 +113,7 @@ internal static class FilletEdgeSplitPlanner
                 seq.Add(new FilletEndpoint.Node(edge.Nodes[0].Id));
             }
 
-            foreach (var c in sorted)
+            foreach (CutOnEdge c in sorted)
             {
                 seq.Add(c.Endpoint);
             }
@@ -131,7 +131,7 @@ internal static class FilletEdgeSplitPlanner
 
         // Cutless arms at removed junctions (distorted/demoted): redirect the root edge's far node
         // to the junction's nearest cut so the arm never severs and never names the removed junction.
-        foreach (var jp in junctions)
+        foreach (JunctionPlan jp in junctions)
         {
             if (!removedJunctionIds.Contains(jp.JunctionNodeId))
             {
@@ -144,14 +144,14 @@ internal static class FilletEdgeSplitPlanner
                 continue;
             }
 
-            foreach (var arm in jp.Arms)
+            foreach (TaxiwayArm arm in jp.Arms)
             {
                 if (armHasCut.Contains((jp.JunctionNodeId, arm.Id)))
                 {
                     continue;
                 }
 
-                var farNode = arm.RootEdge.OtherNode(jp.JunctionNode);
+                GroundNode farNode = arm.RootEdge.OtherNode(jp.JunctionNode);
                 if (removedJunctionIds.Contains(farNode.Id))
                 {
                     warnings.Add(
@@ -165,7 +165,7 @@ internal static class FilletEdgeSplitPlanner
                     continue;
                 }
 
-                var nearest = junctionCuts.OrderBy(c => GeoMath.DistanceNm(c.Position, farNode.Position)).First();
+                ResolvedArmCut nearest = junctionCuts.OrderBy(c => GeoMath.DistanceNm(c.Position, farNode.Position)).First();
                 surviving.Add(MakeEdge(new FilletEndpoint.Node(farNode.Id), ResolveCut(nearest.CutId), arm.RootEdge, "edge-split-redirect"));
             }
         }

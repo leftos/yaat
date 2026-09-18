@@ -47,12 +47,12 @@ public class TaxiRouteFormatTests
     [Fact]
     public void SkipsMembershipArcs_AndCollapsesRepeats()
     {
-        var ramp = Node(0, 37.700, -122.200);
-        var jD = Node(1, 37.701, -122.200);
-        var d1 = Node(2, 37.702, -122.200);
-        var d2 = Node(3, 37.703, -122.200);
-        var c = Node(4, 37.704, -122.200);
-        var b = Node(5, 37.705, -122.200);
+        GroundNode ramp = Node(0, 37.700, -122.200);
+        GroundNode jD = Node(1, 37.701, -122.200);
+        GroundNode d1 = Node(2, 37.702, -122.200);
+        GroundNode d2 = Node(3, 37.703, -122.200);
+        GroundNode c = Node(4, 37.704, -122.200);
+        GroundNode b = Node(5, 37.705, -122.200);
 
         var route = new TaxiRoute
         {
@@ -79,10 +79,10 @@ public class TaxiRouteFormatTests
     [Fact]
     public void CompositeArc_KeepsTheTaxiwayBeingFollowed()
     {
-        var e1 = Node(0, 37.700, -122.200);
-        var e2 = Node(1, 37.701, -122.200);
-        var e3 = Node(2, 37.702, -122.200);
-        var e4 = Node(3, 37.703, -122.200);
+        GroundNode e1 = Node(0, 37.700, -122.200);
+        GroundNode e2 = Node(1, 37.701, -122.200);
+        GroundNode e3 = Node(2, 37.702, -122.200);
+        GroundNode e4 = Node(3, 37.703, -122.200);
 
         var route = new TaxiRoute
         {
@@ -104,11 +104,11 @@ public class TaxiRouteFormatTests
     public void RunwayTaxiedAlong_NamesTheEndTravelledToward()
     {
         // Westbound down the 28R/10L centerline.
-        var east = Node(0, 37.720, -122.200);
-        var west = Node(1, 37.720, -122.220);
+        GroundNode east = Node(0, 37.720, -122.200);
+        GroundNode west = Node(1, 37.720, -122.220);
 
         // The "RWY" prefix is what makes GroundEdge.IsRunwayCenterline true.
-        var centerline = Straight(east, west, "RWY28R/10L");
+        GroundEdge centerline = Straight(east, west, "RWY28R/10L");
 
         var westbound = new TaxiRoute { Segments = [Seg(centerline, east, west)], HoldShortPoints = [] };
         Assert.Equal("on 28R", westbound.ToSummary());
@@ -120,9 +120,9 @@ public class TaxiRouteFormatTests
     [Fact]
     public void KeepsSingleNameArcs()
     {
-        var a = Node(0, 37.700, -122.200);
-        var b = Node(1, 37.701, -122.200);
-        var c = Node(2, 37.702, -122.200);
+        GroundNode a = Node(0, 37.700, -122.200);
+        GroundNode b = Node(1, 37.701, -122.200);
+        GroundNode c = Node(2, 37.702, -122.200);
 
         var route = new TaxiRoute
         {
@@ -147,10 +147,10 @@ public class TaxiRouteFormatTests
     [Fact]
     public void ToSummary_SkipsMembershipArcs()
     {
-        var c1 = Node(0, 37.700, -122.200);
-        var cj = Node(1, 37.701, -122.200);
-        var e1 = Node(2, 37.702, -122.200);
-        var e2 = Node(3, 37.703, -122.200);
+        GroundNode c1 = Node(0, 37.700, -122.200);
+        GroundNode cj = Node(1, 37.701, -122.200);
+        GroundNode e1 = Node(2, 37.702, -122.200);
+        GroundNode e2 = Node(3, 37.703, -122.200);
 
         var route = new TaxiRoute
         {

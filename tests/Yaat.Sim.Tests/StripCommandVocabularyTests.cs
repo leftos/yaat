@@ -20,40 +20,40 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Hsm_DestBayOnly_AircraftScoped()
     {
-        var result = CommandParser.Parse("HSM Local");
-        var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSM Local");
+        HalfStripMoveCommand cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
         Assert.Equal(["Local"], cmd.Tokens);
     }
 
     [Fact]
     public void Hsm_DestBayWithRack()
     {
-        var result = CommandParser.Parse("HSM Local/2");
-        var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSM Local/2");
+        HalfStripMoveCommand cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
         Assert.Equal(["Local/2"], cmd.Tokens);
     }
 
     [Fact]
     public void Hsm_DestBayWithRackAndIndex()
     {
-        var result = CommandParser.Parse("HSM Local/2/3");
-        var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSM Local/2/3");
+        HalfStripMoveCommand cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
         Assert.Equal(["Local/2/3"], cmd.Tokens);
     }
 
     [Fact]
     public void Hsm_GlobalKey_Dest()
     {
-        var result = CommandParser.Parse("HSM KEY1 Local");
-        var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSM KEY1 Local");
+        HalfStripMoveCommand cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
         Assert.Equal(["KEY1", "Local"], cmd.Tokens);
     }
 
     [Fact]
     public void Hsm_ExplicitSourceBay_Key_Dest()
     {
-        var result = CommandParser.Parse("HSM Ground/2 KEY1 Local/3/1");
-        var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSM Ground/2 KEY1 Local/3/1");
+        HalfStripMoveCommand cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
         Assert.Equal(["Ground/2", "KEY1", "Local/3/1"], cmd.Tokens);
     }
 
@@ -62,8 +62,8 @@ public class StripCommandVocabularyTests
     {
         // Drag-and-drop emits this exact wire when the dest is "Local 1".
         // The handler resolves the multi-word bay against the registry.
-        var result = CommandParser.Parse("HSM N569SX Local 1/1/2");
-        var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSM N569SX Local 1/1/2");
+        HalfStripMoveCommand cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
         Assert.Equal(["N569SX", "Local", "1/1/2"], cmd.Tokens);
     }
 
@@ -72,15 +72,15 @@ public class StripCommandVocabularyTests
     {
         // Empty half-strips have no first-line text, so the UI emits the
         // strip's id as the lookup key.
-        var result = CommandParser.Parse("HSM HSTRIP_abc123 Local 1/1/2");
-        var cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSM HSTRIP_abc123 Local 1/1/2");
+        HalfStripMoveCommand cmd = Assert.IsType<HalfStripMoveCommand>(result.Value);
         Assert.Equal(["HSTRIP_abc123", "Local", "1/1/2"], cmd.Tokens);
     }
 
     [Fact]
     public void Hsm_NoArg_Fails()
     {
-        var result = CommandParser.Parse("HSM");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSM");
         Assert.Null(result.Value);
     }
 
@@ -89,8 +89,8 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Hso_NoArg_AircraftScoped()
     {
-        var result = CommandParser.Parse("HSO");
-        var cmd = Assert.IsType<HalfStripOffsetCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSO");
+        HalfStripOffsetCommand cmd = Assert.IsType<HalfStripOffsetCommand>(result.Value);
         Assert.Null(cmd.BayName);
         Assert.Null(cmd.Rack);
         Assert.Null(cmd.LookupKey);
@@ -99,8 +99,8 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Hso_Key_GlobalLookup()
     {
-        var result = CommandParser.Parse("HSO KEY1");
-        var cmd = Assert.IsType<HalfStripOffsetCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSO KEY1");
+        HalfStripOffsetCommand cmd = Assert.IsType<HalfStripOffsetCommand>(result.Value);
         Assert.Null(cmd.BayName);
         Assert.Equal("KEY1", cmd.LookupKey);
     }
@@ -109,8 +109,8 @@ public class StripCommandVocabularyTests
     public void Hso_BayAndKey()
     {
         // Wire rack 2 → 0-based internal rack 1.
-        var result = CommandParser.Parse("HSO OAK/Ground/2 KEY1");
-        var cmd = Assert.IsType<HalfStripOffsetCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSO OAK/Ground/2 KEY1");
+        HalfStripOffsetCommand cmd = Assert.IsType<HalfStripOffsetCommand>(result.Value);
         Assert.Equal("OAK", cmd.FacilityId);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Equal(1, cmd.Rack);
@@ -120,7 +120,7 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Hso_TooManyTokens_Fails()
     {
-        var result = CommandParser.Parse("HSO Ground KEY1 EXTRA");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSO Ground KEY1 EXTRA");
         Assert.Null(result.Value);
         Assert.Contains("at most", result.Reason);
     }
@@ -130,8 +130,8 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Hss_NoArg_AircraftScoped()
     {
-        var result = CommandParser.Parse("HSS");
-        var cmd = Assert.IsType<HalfStripSlideCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSS");
+        HalfStripSlideCommand cmd = Assert.IsType<HalfStripSlideCommand>(result.Value);
         Assert.Null(cmd.BayName);
         Assert.Null(cmd.LookupKey);
     }
@@ -139,16 +139,16 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Hss_Key_GlobalLookup()
     {
-        var result = CommandParser.Parse("HSS KEY1");
-        var cmd = Assert.IsType<HalfStripSlideCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSS KEY1");
+        HalfStripSlideCommand cmd = Assert.IsType<HalfStripSlideCommand>(result.Value);
         Assert.Equal("KEY1", cmd.LookupKey);
     }
 
     [Fact]
     public void Hss_BayAndKey()
     {
-        var result = CommandParser.Parse("HSS OAK/Ground KEY1");
-        var cmd = Assert.IsType<HalfStripSlideCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HSS OAK/Ground KEY1");
+        HalfStripSlideCommand cmd = Assert.IsType<HalfStripSlideCommand>(result.Value);
         Assert.Equal("OAK", cmd.FacilityId);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Equal("KEY1", cmd.LookupKey);
@@ -159,8 +159,8 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Sep_Handwritten_BayOnly()
     {
-        var result = CommandParser.Parse("SEP H Ground");
-        var cmd = Assert.IsType<SeparatorCreateCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SEP H Ground");
+        SeparatorCreateCommand cmd = Assert.IsType<SeparatorCreateCommand>(result.Value);
         Assert.Equal(SeparatorStyle.Handwritten, cmd.Style);
         Assert.Equal(["Ground"], cmd.Tokens);
     }
@@ -168,8 +168,8 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Sep_White_BayRackIndexLabel()
     {
-        var result = CommandParser.Parse("SEP W Ground 1 2 ARRIVALS");
-        var cmd = Assert.IsType<SeparatorCreateCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SEP W Ground 1 2 ARRIVALS");
+        SeparatorCreateCommand cmd = Assert.IsType<SeparatorCreateCommand>(result.Value);
         Assert.Equal(SeparatorStyle.White, cmd.Style);
         Assert.Equal(["Ground", "1", "2", "ARRIVALS"], cmd.Tokens);
     }
@@ -177,23 +177,23 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Sep_Red_ViaAlias()
     {
-        var result = CommandParser.Parse("SEP RED Local");
-        var cmd = Assert.IsType<SeparatorCreateCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SEP RED Local");
+        SeparatorCreateCommand cmd = Assert.IsType<SeparatorCreateCommand>(result.Value);
         Assert.Equal(SeparatorStyle.Red, cmd.Style);
     }
 
     [Fact]
     public void Sep_Green_ViaAlias()
     {
-        var result = CommandParser.Parse("SEP GREEN Local");
-        var cmd = Assert.IsType<SeparatorCreateCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SEP GREEN Local");
+        SeparatorCreateCommand cmd = Assert.IsType<SeparatorCreateCommand>(result.Value);
         Assert.Equal(SeparatorStyle.Green, cmd.Style);
     }
 
     [Fact]
     public void Sep_InvalidStyle_Fails()
     {
-        var result = CommandParser.Parse("SEP X Ground");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SEP X Ground");
         Assert.Null(result.Value);
         Assert.Contains("invalid separator style", result.Reason);
     }
@@ -201,7 +201,7 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Sep_StyleOnly_NoBay_Fails()
     {
-        var result = CommandParser.Parse("SEP H");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SEP H");
         Assert.Null(result.Value);
         Assert.Contains("bay name", result.Reason);
     }
@@ -209,7 +209,7 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Sep_NoArg_Fails()
     {
-        var result = CommandParser.Parse("SEP");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SEP");
         Assert.Null(result.Value);
     }
 
@@ -218,8 +218,8 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Sepd_BayAndLabel()
     {
-        var result = CommandParser.Parse("SEPD Ground ARRIVALS");
-        var cmd = Assert.IsType<SeparatorDeleteCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SEPD Ground ARRIVALS");
+        SeparatorDeleteCommand cmd = Assert.IsType<SeparatorDeleteCommand>(result.Value);
         Assert.Equal(["Ground", "ARRIVALS"], cmd.Tokens);
     }
 
@@ -227,15 +227,15 @@ public class StripCommandVocabularyTests
     public void Sepd_BayOnly_DoesNotFailAtParseLevel()
     {
         // Server handler may require a label-or-position; parser just forwards tokens.
-        var result = CommandParser.Parse("SEPD Ground");
-        var cmd = Assert.IsType<SeparatorDeleteCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SEPD Ground");
+        SeparatorDeleteCommand cmd = Assert.IsType<SeparatorDeleteCommand>(result.Value);
         Assert.Equal(["Ground"], cmd.Tokens);
     }
 
     [Fact]
     public void Sepd_NoArg_Fails()
     {
-        var result = CommandParser.Parse("SEPD");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("SEPD");
         Assert.Null(result.Value);
     }
 
@@ -246,24 +246,24 @@ public class StripCommandVocabularyTests
     {
         // BLANK with no args creates a blank in the printer queue (matches vStrips
         // "Request Blank Strip").
-        var result = CommandParser.Parse("BLANK");
-        var cmd = Assert.IsType<BlankCreateCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("BLANK");
+        BlankCreateCommand cmd = Assert.IsType<BlankCreateCommand>(result.Value);
         Assert.Empty(cmd.Tokens);
     }
 
     [Fact]
     public void Blank_Bay()
     {
-        var result = CommandParser.Parse("BLANK Ground");
-        var cmd = Assert.IsType<BlankCreateCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("BLANK Ground");
+        BlankCreateCommand cmd = Assert.IsType<BlankCreateCommand>(result.Value);
         Assert.Equal(["Ground"], cmd.Tokens);
     }
 
     [Fact]
     public void Blank_BayRackIndex()
     {
-        var result = CommandParser.Parse("BLANK Ground 1 2");
-        var cmd = Assert.IsType<BlankCreateCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("BLANK Ground 1 2");
+        BlankCreateCommand cmd = Assert.IsType<BlankCreateCommand>(result.Value);
         Assert.Equal(["Ground", "1", "2"], cmd.Tokens);
     }
 
@@ -272,23 +272,23 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Blankd_Bay()
     {
-        var result = CommandParser.Parse("BLANKD Ground");
-        var cmd = Assert.IsType<BlankDeleteCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("BLANKD Ground");
+        BlankDeleteCommand cmd = Assert.IsType<BlankDeleteCommand>(result.Value);
         Assert.Equal(["Ground"], cmd.Tokens);
     }
 
     [Fact]
     public void Blankd_BayAndRack()
     {
-        var result = CommandParser.Parse("BLANKD Ground 1");
-        var cmd = Assert.IsType<BlankDeleteCommand>(result.Value);
+        ParseResult<ParsedCommand> result = CommandParser.Parse("BLANKD Ground 1");
+        BlankDeleteCommand cmd = Assert.IsType<BlankDeleteCommand>(result.Value);
         Assert.Equal(["Ground", "1"], cmd.Tokens);
     }
 
     [Fact]
     public void Blankd_NoArg_Fails()
     {
-        var result = CommandParser.Parse("BLANKD");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("BLANKD");
         Assert.Null(result.Value);
     }
 
@@ -300,7 +300,7 @@ public class StripCommandVocabularyTests
         // Every CanonicalCommandType must exist in the registry; this test fails
         // loudly if anything was missed. The project-wide completeness test enforces
         // this for the whole enum but we verify the new verbs specifically here.
-        var types = new[]
+        CanonicalCommandType[] types = new[]
         {
             CanonicalCommandType.StripMove,
             CanonicalCommandType.StripDelete,
@@ -314,7 +314,7 @@ public class StripCommandVocabularyTests
             CanonicalCommandType.BlankDelete,
         };
 
-        foreach (var type in types)
+        foreach (CanonicalCommandType type in types)
         {
             Assert.True(CommandRegistry.All.ContainsKey(type), $"Missing registry entry for {type}");
         }

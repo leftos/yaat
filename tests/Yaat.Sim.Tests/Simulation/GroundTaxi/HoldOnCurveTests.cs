@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -46,8 +48,8 @@ public class HoldOnCurveTests(ITestOutputHelper output)
     [Fact]
     public void HoldOnFillet_ThenRes_KeepsTheAircraftOnTheCurve()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("SKIP: recording or navdata not available");
@@ -72,7 +74,7 @@ public class HoldOnCurveTests(ITestOutputHelper output)
         Assert.True(taxi is not null, $"{Callsign} never taxied a curve at >= {OnCurveSpeedKts:F0} kt within {SearchSubTicks} sub-ticks");
         Assert.NotNull(ac);
 
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         int segmentAtHold = route.CurrentSegmentIndex;
         output.WriteLine(
@@ -80,7 +82,7 @@ public class HoldOnCurveTests(ITestOutputHelper output)
                 + $"ias={ac.IndicatedAirspeed:F1}kt pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6})"
         );
 
-        var hold = engine.SendCommand(Callsign, "HOLD");
+        CommandResult hold = engine.SendCommand(Callsign, "HOLD");
         Assert.True(hold.Success, $"HOLD rejected: {hold.Message}");
 
         for (int t = 1; t <= 4; t++)
@@ -88,22 +90,22 @@ public class HoldOnCurveTests(ITestOutputHelper output)
             engine.TickOneSecond();
         }
 
-        var held = engine.FindAircraft(Callsign);
+        AircraftState? held = engine.FindAircraft(Callsign);
         Assert.NotNull(held);
         Assert.IsType<TaxiingPhase>(held.Phases?.CurrentPhase);
         Assert.True(held.IndicatedAirspeed < 1.0, $"{Callsign} should be stopped by HOLD but IAS={held.IndicatedAirspeed:F1}kt");
 
-        var releasePos = held.Position;
-        var releaseHdg = held.TrueHeading;
+        LatLon releasePos = held.Position;
+        TrueHeading releaseHdg = held.TrueHeading;
         output.WriteLine($"held: pos=({releasePos.Lat:F6},{releasePos.Lon:F6}) hdg={releaseHdg.Degrees:F1}");
 
-        var res = engine.SendCommand(Callsign, "RES");
+        CommandResult res = engine.SendCommand(Callsign, "RES");
         Assert.True(res.Success, $"RES rejected: {res.Message}");
 
         // The tick that used to write the frozen playback pose: the aircraft must move forward along the
         // curve it was on, never back to where the playback still thought it was.
         engine.TickOneSecond();
-        var resumed = engine.FindAircraft(Callsign);
+        AircraftState? resumed = engine.FindAircraft(Callsign);
         Assert.NotNull(resumed);
         double forwardFt = GeoMath.AlongTrackDistanceNm(resumed.Position, releasePos, releaseHdg) * GeoMath.FeetPerNm;
         output.WriteLine($"first tick after RES: forward={forwardFt:F1}ft ias={resumed.IndicatedAirspeed:F1}kt");
@@ -114,7 +116,7 @@ public class HoldOnCurveTests(ITestOutputHelper output)
         for (int t = 1; t <= 30 && !advanced; t++)
         {
             engine.TickOneSecond();
-            var moving = engine.FindAircraft(Callsign);
+            AircraftState? moving = engine.FindAircraft(Callsign);
             advanced = (moving?.Ground.AssignedTaxiRoute?.CurrentSegmentIndex ?? segmentAtHold) > segmentAtHold;
         }
         Assert.True(advanced, $"{Callsign} never reached the node past the curve after RES (still on segment {segmentAtHold})");

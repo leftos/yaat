@@ -19,15 +19,15 @@ public class AutoRouterPruningTests
     public void Oak_Sig1_ToRunway30_KeepsTheStraightBArrivalTheFilletArrivalWouldPrune()
     {
         TestVnasData.EnsureInitialized();
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
         }
 
-        var parking = layout.FindParkingByName("SIG1");
+        GroundNode? parking = layout.FindParkingByName("SIG1");
         Assert.NotNull(parking);
-        var holdShort = layout
+        GroundNode holdShort = layout
             .Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } r && r.Contains("30"))
             .OrderBy(n => GeoMath.DistanceNm(parking.Position, n.Position))
             .First();
@@ -44,7 +44,7 @@ public class AutoRouterPruningTests
             null
         );
 
-        var (route, failure) = AutoRouter.Run(ctx);
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(ctx);
 
         Assert.Null(failure);
         Assert.NotNull(route);

@@ -60,7 +60,7 @@ internal static class WindowHotkeys
         // Both hotkeys read their keybind from the single application preferences, resolved via the
         // one MainViewModel. Strips/TDLS windows carry their own VM, so resolution falls back to the
         // app MainWindow.
-        var vm = ResolveMainViewModel(window);
+        MainViewModel? vm = ResolveMainViewModel(window);
         if (vm is null)
         {
             return;
@@ -85,7 +85,7 @@ internal static class WindowHotkeys
         if (IsFocusInputScope(window) && (e.Key == Key.F8) && (e.KeyModifiers == KeyModifiers.Control))
         {
             // An extra Radar window toggles its own DCB; everywhere else the hotkey means the docked view.
-            var radar = window is RadarViewWindow { RadarVm: { } instanceVm } ? instanceVm : vm.Radar;
+            RadarViewModel radar = window is RadarViewWindow { RadarVm: { } instanceVm } ? instanceVm : vm.Radar;
             radar.ToggleDcbVisibleCommand.Execute(null);
             e.Handled = true;
             return;
@@ -101,7 +101,7 @@ internal static class WindowHotkeys
     }
 
     private static bool Matches(string keybind, KeyEventArgs e) =>
-        KeybindHelper.ParseKeybind(keybind, out var key, out var mods) && e.Key == key && e.KeyModifiers == mods;
+        KeybindHelper.ParseKeybind(keybind, out Key key, out KeyModifiers mods) && e.Key == key && e.KeyModifiers == mods;
 
     /// <summary>
     /// True for the windows the focus-input hotkey should reach. MainWindow and the main pop-outs

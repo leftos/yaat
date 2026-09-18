@@ -19,10 +19,10 @@ internal static class FilletPlanBuilder
 
         for (int i = 0; i < junctions.Count; i++)
         {
-            var jp = junctions[i];
-            var r = results[i];
+            JunctionPlan jp = junctions[i];
+            ArmCutResolver.JunctionCutResult r = results[i];
 
-            foreach (var (id, cut) in r.Cuts)
+            foreach ((CutId id, ResolvedArmCut? cut) in r.Cuts)
             {
                 cuts[id] = cut;
             }
@@ -46,17 +46,17 @@ internal static class FilletPlanBuilder
         // coincident tangent nodes and the post-execute normalizer has none to merge.
         merges.AddRange(SharedArmTangentPass.ApplyGlobalCoincidentCutCoalesce(cuts, warnings));
 
-        var redirect = FilletPlanCutRedirect.BuildSurvivorMap(merges);
+        Dictionary<CutId, FilletEndpoint> redirect = FilletPlanCutRedirect.BuildSurvivorMap(merges);
         var preFilletStableNodes = layout
             .Nodes.Where(kv => FilletPlanCutRedirect.IsStableAnchorTarget(kv.Value))
             .ToDictionary(kv => kv.Key, kv => kv.Value);
-        var stableAnchorNodeIds = FilletPlanCutRedirect.ExtendWithStableAnchors(
+        HashSet<int> stableAnchorNodeIds = FilletPlanCutRedirect.ExtendWithStableAnchors(
             redirect,
             cuts,
             preFilletStableNodes,
             FilletConstants.CoincidentNodeThresholdFt
         );
-        var prunedCuts = FilletPlanCutRedirect.PruneCuts(cuts, redirect);
+        Dictionary<CutId, ResolvedArmCut> prunedCuts = FilletPlanCutRedirect.PruneCuts(cuts, redirect);
         var redirectedCornerArcs = FilletPlanCutRedirect.RedirectCornerArcs(cornerArcs, redirect).ToList();
         var redirectedStraightConnectors = FilletPlanCutRedirect.RedirectStraightConnectors(straightConnectors, redirect).ToList();
 
@@ -73,7 +73,7 @@ internal static class FilletPlanBuilder
         redirectedStraightConnectors = DedupByEndpointPair(redirectedStraightConnectors, op => (op.EndpointAtArmA, op.EndpointAtArmB), _ => true);
 
         var nodesToRemoveSet = nodesToRemove.ToHashSet();
-        var split = FilletEdgeSplitPlanner.Plan(layout, junctions, prunedCuts, redirect, nodesToRemoveSet);
+        FilletEdgeSplitPlanner.Result split = FilletEdgeSplitPlanner.Plan(layout, junctions, prunedCuts, redirect, nodesToRemoveSet);
         warnings.AddRange(split.Warnings);
 
         // Use the anchor node IDs returned directly by ExtendWithStableAnchors rather than
@@ -81,7 +81,7 @@ internal static class FilletPlanBuilder
         // anchor node ID coincides with a surviving cut ID, the inference incorrectly removed
         // the anchor from the set, causing the executor to resolve via cutNode instead of
         // layout.Nodes and pick up the wrong tangent-cut from a different junction.
-        var stableAnchoredEndpoints = stableAnchorNodeIds;
+        HashSet<int> stableAnchoredEndpoints = stableAnchorNodeIds;
 
         var built = new FilletPlan(
             prunedCuts,
@@ -109,7 +109,7 @@ internal static class FilletPlanBuilder
         var chosenIndex = new Dictionary<((int, int) A, (int, int) B), int>();
         for (int i = 0; i < ops.Count; i++)
         {
-            var key = PairKey(endpoints(ops[i]));
+            ((int, int) A, (int, int) B) key = PairKey(endpoints(ops[i]));
             if (!chosenIndex.TryGetValue(key, out int existing))
             {
                 chosenIndex[key] = i;
@@ -135,8 +135,8 @@ internal static class FilletPlanBuilder
 
     private static ((int, int) A, (int, int) B) PairKey((FilletEndpoint A, FilletEndpoint B) ep)
     {
-        var a = Token(ep.A);
-        var b = Token(ep.B);
+        (int Kind, int Id) a = Token(ep.A);
+        (int Kind, int Id) b = Token(ep.B);
         return a.CompareTo(b) <= 0 ? (a, b) : (b, a);
     }
 
@@ -150,14 +150,14 @@ internal static class FilletPlanBuilder
 
     private static bool IsSingleNameCorner(CornerArcOp op, IReadOnlyList<JunctionPlan> junctions)
     {
-        foreach (var jp in junctions)
+        foreach (JunctionPlan jp in junctions)
         {
             if (jp.JunctionNodeId != op.JunctionNodeId)
             {
                 continue;
             }
 
-            foreach (var corner in jp.Corners)
+            foreach (CornerSpec corner in jp.Corners)
             {
                 if (corner.CornerId == op.CornerId)
                 {

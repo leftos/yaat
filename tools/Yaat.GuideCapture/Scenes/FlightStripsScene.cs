@@ -24,9 +24,9 @@ internal sealed class FlightStripsScene : ScenarioSceneBase
     {
         await SceneActions.WaitUntilAsync(() => vm.StripsEntries.Count >= 1, TimeSpan.FromSeconds(5), "StripsEntries to populate");
 
-        var tabControl =
+        TabControl tabControl =
             window.FindControl<TabControl>("MainTabControl") ?? throw new InvalidOperationException("MainTabControl not found on MainWindow");
-        var stripsIndex = tabControl.Items.Cast<object?>().ToList().FindIndex(item => (item as TabItem)?.Content is VStripsView);
+        int stripsIndex = tabControl.Items.Cast<object?>().ToList().FindIndex(item => (item as TabItem)?.Content is VStripsView);
         if (stripsIndex < 0)
         {
             throw new InvalidOperationException("No Strips TabItem materialized on MainTabControl");

@@ -18,7 +18,7 @@ public class RadarViewModelDcbToggleTests
     {
         var prefs = new UserPreferences();
         prefs.SetRadarDcbVisible(true);
-        var vm = NewVm();
+        RadarViewModel vm = NewVm();
         vm.SetPreferences(prefs);
         Assert.True(vm.IsDcbVisible);
 
@@ -36,7 +36,7 @@ public class RadarViewModelDcbToggleTests
     {
         var prefs = new UserPreferences();
         prefs.SetRadarDcbVisible(true);
-        var vm = NewVm();
+        RadarViewModel vm = NewVm();
         vm.SetPreferences(prefs);
         vm.DcbMode = DcbMenuMode.Aux;
 
@@ -52,7 +52,7 @@ public class RadarViewModelDcbToggleTests
         new UserPreferences().SetRadarDcbVisible(false);
 
         var prefs = new UserPreferences();
-        var vm = NewVm();
+        RadarViewModel vm = NewVm();
         vm.SetPreferences(prefs);
 
         Assert.False(vm.IsDcbVisible);

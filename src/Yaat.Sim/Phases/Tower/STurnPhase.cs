@@ -132,7 +132,7 @@ public sealed class STurnPhase : Phase
             _turningToFinal = true;
             ctx.Targets.TargetTrueHeading = _finalHeading;
             // Turn direction to return to final: opposite of current deviation
-            var currentDir = GetCurrentTurnDirection();
+            TurnDirection currentDir = GetCurrentTurnDirection();
             ctx.Targets.PreferredTurnDirection = currentDir == TurnDirection.Left ? TurnDirection.Right : TurnDirection.Left;
         }
 
@@ -141,7 +141,7 @@ public sealed class STurnPhase : Phase
 
     private void SetNextTurnTarget(PhaseContext ctx)
     {
-        var dir = GetCurrentTurnDirection();
+        TurnDirection dir = GetCurrentTurnDirection();
         double offset = dir == TurnDirection.Left ? -TurnDeviationDeg : TurnDeviationDeg;
         ctx.Targets.TargetTrueHeading = new TrueHeading(_finalHeading.Degrees + offset);
         ctx.Targets.PreferredTurnDirection = dir;

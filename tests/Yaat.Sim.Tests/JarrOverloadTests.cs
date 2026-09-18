@@ -14,8 +14,8 @@ public class JarrOverloadTests
 {
     private static JoinStarCommand ParseJarr(string input)
     {
-        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
-        var result = CommandParser.Parse(input);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.True(result.IsSuccess, $"parse failed: {input}");
         return Assert.IsType<JoinStarCommand>(result.Value);
     }
@@ -23,7 +23,7 @@ public class JarrOverloadTests
     [Fact]
     public void Jarr_StarOnly()
     {
-        var cmd = ParseJarr("JARR TEJAS5");
+        JoinStarCommand cmd = ParseJarr("JARR TEJAS5");
         Assert.Equal("TEJAS5", cmd.StarId);
         Assert.Null(cmd.Transition);
         Assert.Null(cmd.RunwayTransition);
@@ -32,7 +32,7 @@ public class JarrOverloadTests
     [Fact]
     public void Jarr_StarEntryFix_SecondTokenIsEntryFix()
     {
-        var cmd = ParseJarr("JARR TEJAS5 RIDLR");
+        JoinStarCommand cmd = ParseJarr("JARR TEJAS5 RIDLR");
         Assert.Equal("TEJAS5", cmd.StarId);
         Assert.Equal("RIDLR", cmd.Transition);
         Assert.Null(cmd.RunwayTransition);
@@ -44,7 +44,7 @@ public class JarrOverloadTests
     [InlineData("JARR TEJAS5 13L", "13L")]
     public void Jarr_StarRunway_RunwayShapedSecondTokenIsRunwayTransition(string input, string expectedRunway)
     {
-        var cmd = ParseJarr(input);
+        JoinStarCommand cmd = ParseJarr(input);
         Assert.Null(cmd.Transition);
         Assert.Equal(expectedRunway, cmd.RunwayTransition);
     }
@@ -52,7 +52,7 @@ public class JarrOverloadTests
     [Fact]
     public void Jarr_StarEntryFixRunway_ThreeTokens()
     {
-        var cmd = ParseJarr("JARR TEJAS5 RIDLR 27");
+        JoinStarCommand cmd = ParseJarr("JARR TEJAS5 RIDLR 27");
         Assert.Equal("TEJAS5", cmd.StarId);
         Assert.Equal("RIDLR", cmd.Transition);
         Assert.Equal("27", cmd.RunwayTransition);
@@ -61,7 +61,7 @@ public class JarrOverloadTests
     [Fact]
     public void Jarr_VersionlessStar_KeepsStarTokenForHandlerResolution()
     {
-        var cmd = ParseJarr("JARR TEJAS 27");
+        JoinStarCommand cmd = ParseJarr("JARR TEJAS 27");
         Assert.Equal("TEJAS", cmd.StarId);
         Assert.Null(cmd.Transition);
         Assert.Equal("27", cmd.RunwayTransition);
@@ -74,7 +74,7 @@ public class JarrOverloadTests
     [InlineData("JARR TEJAS5 RIDLR 27")]
     public void Jarr_CanonicalRoundTrips(string canonical)
     {
-        var cmd = ParseJarr(canonical);
+        JoinStarCommand cmd = ParseJarr(canonical);
         Assert.Equal(canonical, CommandDescriber.DescribeCommand(cmd));
     }
 }

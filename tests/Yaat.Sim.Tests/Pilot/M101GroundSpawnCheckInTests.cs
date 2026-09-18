@@ -85,7 +85,7 @@ public class M101GroundSpawnCheckInTests
     )
     {
         scenario.ElapsedSeconds = scenarioElapsed;
-        var ctx = Ctx(ac, soloParkingInitialCallupRatePercent: scenario.SoloParkingInitialCallupRatePercent, scenario: scenario);
+        PhaseContext ctx = Ctx(ac, soloParkingInitialCallupRatePercent: scenario.SoloParkingInitialCallupRatePercent, scenario: scenario);
 
         TickElapsed(phase, ctx, phaseElapsed);
         return ac.Ground.InitialCallupDecisionProcessed;
@@ -108,9 +108,9 @@ public class M101GroundSpawnCheckInTests
     public void AtParking_VfrNoFlightPlan_FiresCheckInAfter5s()
     {
         // Regression for M10.1.1's dropped HasFlightPlan gate: VFR aircraft also call ground.
-        var ac = MakeAircraft("N123AB", isVfr: true, hasFlightPlan: false, parkingSpot: "KILO RAMP");
+        AircraftState ac = MakeAircraft("N123AB", isVfr: true, hasFlightPlan: false, parkingSpot: "KILO RAMP");
         var phase = new AtParkingPhase();
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 5.0);
@@ -126,9 +126,9 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void AtParking_BeforeDelay_DoesNotFire()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var phase = new AtParkingPhase();
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 4.9);
@@ -141,9 +141,9 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void AtParking_FiresOnceOnly()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var phase = new AtParkingPhase();
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 5.0);
@@ -157,9 +157,9 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void AtParking_SoloModeOff_DoesNotFire()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var phase = new AtParkingPhase();
-        var ctx = Ctx(ac, soloMode: false);
+        PhaseContext ctx = Ctx(ac, soloMode: false);
 
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 10.0);
@@ -172,9 +172,9 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void AtParking_ZeroRate_PausesWithoutMarkingDecisionProcessed()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var phase = new AtParkingPhase();
-        var ctx = Ctx(ac, soloParkingInitialCallupRatePercent: 0);
+        PhaseContext ctx = Ctx(ac, soloParkingInitialCallupRatePercent: 0);
 
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 10.0);
@@ -190,12 +190,12 @@ public class M101GroundSpawnCheckInTests
     {
         var student = TrackOwner.CreateStars("SFO_TWR", "SFO", 3, "T");
         var approach = TrackOwner.CreateStars("NCT_APP", "NCT", 4, "A");
-        var scenario = NewScenario(parkingRatePercent: 100, elapsedSeconds: 5);
+        SimScenarioState scenario = NewScenario(parkingRatePercent: 100, elapsedSeconds: 5);
         scenario.StudentPosition = student;
         scenario.StudentPositionType = "TWR";
         scenario.ArtccId = "ZOA";
         scenario.PrimaryAirportId = "KSFO";
-        var ac = MakeAircraft("N123AB", isVfr: true, parkingSpot: "FBO");
+        AircraftState ac = MakeAircraft("N123AB", isVfr: true, parkingSpot: "FBO");
         ac.Track.Owner = approach;
         var phase = new AtParkingPhase();
 
@@ -220,10 +220,10 @@ public class M101GroundSpawnCheckInTests
         // Scenario author preset a TAXI command on this parking aircraft. The
         // autonomous ready-to-taxi call-up must stay silent so the scripted ground
         // sequence isn't stepped on.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Ground.IsScriptedDeparture = true;
         var phase = new AtParkingPhase();
-        var ctx = Ctx(ac, soloParkingInitialCallupRatePercent: 100);
+        PhaseContext ctx = Ctx(ac, soloParkingInitialCallupRatePercent: 100);
 
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 10.0);
@@ -237,10 +237,10 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void AtParking_OneHundredRate_PacesInitialCallupsEveryTwentySeconds()
     {
-        var scenario = NewScenario(parkingRatePercent: 100);
-        var aircraft = Enumerable.Range(1, 3).Select(i => MakeAircraft($"N{i}", parkingSpot: "KILO RAMP")).ToArray();
-        var phases = aircraft.Select(_ => new AtParkingPhase()).ToArray();
-        for (var i = 0; i < aircraft.Length; i++)
+        SimScenarioState scenario = NewScenario(parkingRatePercent: 100);
+        AircraftState[] aircraft = Enumerable.Range(1, 3).Select(i => MakeAircraft($"N{i}", parkingSpot: "KILO RAMP")).ToArray();
+        AtParkingPhase[] phases = aircraft.Select(_ => new AtParkingPhase()).ToArray();
+        for (int i = 0; i < aircraft.Length; i++)
         {
             phases[i].OnStart(Ctx(aircraft[i], soloParkingInitialCallupRatePercent: 100, scenario: scenario));
         }
@@ -261,9 +261,9 @@ public class M101GroundSpawnCheckInTests
     [InlineData(50, 45)]
     public void AtParking_PacingRateControlsSpacing(int ratePercent, double secondCallElapsedSeconds)
     {
-        var scenario = NewScenario(ratePercent);
-        var first = MakeAircraft("N1", parkingSpot: "KILO RAMP");
-        var second = MakeAircraft("N2", parkingSpot: "KILO RAMP");
+        SimScenarioState scenario = NewScenario(ratePercent);
+        AircraftState first = MakeAircraft("N1", parkingSpot: "KILO RAMP");
+        AircraftState second = MakeAircraft("N2", parkingSpot: "KILO RAMP");
         var phase1 = new AtParkingPhase();
         var phase2 = new AtParkingPhase();
         phase1.OnStart(Ctx(first, soloParkingInitialCallupRatePercent: ratePercent, scenario: scenario));
@@ -277,8 +277,8 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void AtParking_RaisingFromZeroResumesWaitingAircraft()
     {
-        var scenario = NewScenario(parkingRatePercent: 0, elapsedSeconds: 10);
-        var ac = MakeAircraft("N1", parkingSpot: "KILO RAMP");
+        SimScenarioState scenario = NewScenario(parkingRatePercent: 0, elapsedSeconds: 10);
+        AircraftState ac = MakeAircraft("N1", parkingSpot: "KILO RAMP");
         var phase = new AtParkingPhase();
         phase.OnStart(Ctx(ac, soloParkingInitialCallupRatePercent: 0, scenario: scenario));
 
@@ -294,7 +294,7 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void HoldingShort_DestinationRunway_FiresReadyForDeparture()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var holdShort = new HoldShortPoint
         {
             NodeId = 1,
@@ -302,11 +302,11 @@ public class M101GroundSpawnCheckInTests
             TargetName = "28R",
         };
         var phase = new HoldingShortPhase(holdShort);
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
-        var pilotLine = SinglePilotLine(ac);
+        string? pilotLine = SinglePilotLine(ac);
         Assert.NotNull(pilotLine);
         Assert.Contains("holding short runway two eight right", pilotLine, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("ready for departure", pilotLine);
@@ -319,7 +319,7 @@ public class M101GroundSpawnCheckInTests
     {
         // Issue #194: holding short of a runway the route merely crosses is not a departure —
         // the aircraft awaits a controller-issued crossing clearance and makes no "ready" call.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var holdShort = new HoldShortPoint
         {
             NodeId = 1,
@@ -327,7 +327,7 @@ public class M101GroundSpawnCheckInTests
             TargetName = "15/33",
         };
         var phase = new HoldingShortPhase(holdShort);
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -339,7 +339,7 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void HoldingShort_ExplicitHoldShort_DoesNotFirePilotCheckIn()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var holdShort = new HoldShortPoint
         {
             NodeId = 1,
@@ -347,7 +347,7 @@ public class M101GroundSpawnCheckInTests
             TargetName = "28R",
         };
         var phase = new HoldingShortPhase(holdShort);
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -360,7 +360,7 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void HoldingShort_PerInstanceFlag_ReFiresOnNewPhaseEntry()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         var phase1 = new HoldingShortPhase(
             new HoldShortPoint
@@ -392,7 +392,7 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void HoldingShort_SoloModeOff_DoesNotFirePilotCheckIn()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         var holdShort = new HoldShortPoint
         {
             NodeId = 1,
@@ -400,7 +400,7 @@ public class M101GroundSpawnCheckInTests
             TargetName = "28R",
         };
         var phase = new HoldingShortPhase(holdShort);
-        var ctx = Ctx(ac, soloMode: false);
+        PhaseContext ctx = Ctx(ac, soloMode: false);
 
         phase.OnStart(ctx);
 
@@ -412,10 +412,10 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void LinedUp_BeforeReminderDelay_DoesNotFire()
     {
-        var ac = MakeAircraft();
-        var rwy = TestRunwayFactory.Make(designator: "28R");
+        AircraftState ac = MakeAircraft();
+        RunwayInfo rwy = TestRunwayFactory.Make(designator: "28R");
         var phase = new LinedUpAndWaitingPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 89.9);
@@ -426,10 +426,10 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void LinedUp_PastDelayNoClearance_FiresReminderOnce()
     {
-        var ac = MakeAircraft();
-        var rwy = TestRunwayFactory.Make(designator: "28R");
+        AircraftState ac = MakeAircraft();
+        RunwayInfo rwy = TestRunwayFactory.Make(designator: "28R");
         var phase = new LinedUpAndWaitingPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 90.0);
@@ -448,11 +448,11 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void LinedUp_WithDepartureClearance_NeverFires()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Phases!.DepartureClearance = new DepartureClearanceInfo { Type = ClearanceType.ClearedForTakeoff, Departure = new DefaultDeparture() };
-        var rwy = TestRunwayFactory.Make(designator: "28R");
+        RunwayInfo rwy = TestRunwayFactory.Make(designator: "28R");
         var phase = new LinedUpAndWaitingPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
         TickElapsed(phase, ctx, 120.0);
@@ -466,7 +466,7 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void FinalApproach_SpawnOnFinalIfrWithApproach_FiresIfrBranch()
     {
-        var ac = MakeAircraft("AAL123");
+        AircraftState ac = MakeAircraft("AAL123");
         ac.IsOnGround = false;
         ac.Position = new LatLon(37.04, -122.0); // ~3 nm short of runway threshold
         ac.Altitude = 1000;
@@ -479,13 +479,13 @@ public class M101GroundSpawnCheckInTests
             FinalApproachCourse = new TrueHeading(280),
         };
 
-        var rwy = TestRunwayFactory.Make(designator: "28R");
+        RunwayInfo rwy = TestRunwayFactory.Make(designator: "28R");
         var phase = new FinalApproachPhase { SkipInterceptCheck = true };
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
 
-        var line = SinglePilotLine(ac);
+        string? line = SinglePilotLine(ac);
         Assert.NotNull(line);
         Assert.Contains("ILS two eight right", line);
         Assert.True(ac.HasMadeInitialContact);
@@ -494,20 +494,20 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void FinalApproach_SpawnOnFinalVfr_FiresVfrBranchWithDistance()
     {
-        var ac = MakeAircraft("N123AB", isVfr: true, hasFlightPlan: false);
+        AircraftState ac = MakeAircraft("N123AB", isVfr: true, hasFlightPlan: false);
         ac.IsOnGround = false;
         // ~3 nm short on a 280° final.
         ac.Position = new LatLon(37.0, -122.05);
         ac.Altitude = 1000;
         ac.IndicatedAirspeed = 80;
 
-        var rwy = TestRunwayFactory.Make(designator: "28R");
+        RunwayInfo rwy = TestRunwayFactory.Make(designator: "28R");
         var phase = new FinalApproachPhase { SkipInterceptCheck = true };
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
 
-        var line = SinglePilotLine(ac);
+        string? line = SinglePilotLine(ac);
         Assert.NotNull(line);
         Assert.Contains("final runway two eight right", line, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("with information alpha", line, StringComparison.OrdinalIgnoreCase);
@@ -518,16 +518,16 @@ public class M101GroundSpawnCheckInTests
     public void FinalApproach_HasMadeInitialContact_DoesNotFire()
     {
         // Aircraft that flew the approach (was already talking) doesn't re-announce on final.
-        var ac = MakeAircraft("AAL123");
+        AircraftState ac = MakeAircraft("AAL123");
         ac.IsOnGround = false;
         ac.HasMadeInitialContact = true;
         ac.Position = new LatLon(37.04, -122.0);
         ac.Altitude = 1000;
         ac.IndicatedAirspeed = 140;
 
-        var rwy = TestRunwayFactory.Make(designator: "28R");
+        RunwayInfo rwy = TestRunwayFactory.Make(designator: "28R");
         var phase = new FinalApproachPhase();
-        var ctx = Ctx(ac, rwy);
+        PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
 

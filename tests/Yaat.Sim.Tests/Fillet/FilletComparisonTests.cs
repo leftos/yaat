@@ -11,13 +11,13 @@ public class FilletComparisonTests
     [Fact]
     public void LayoutCloner_DeepClone_PreservesPreFilletStructure()
     {
-        var source = LoadPreFilletLayout("oak");
+        AirportGroundLayout? source = LoadPreFilletLayout("oak");
         if (source is null)
         {
             return;
         }
 
-        var clone = LayoutCloner.DeepClone(source);
+        AirportGroundLayout clone = LayoutCloner.DeepClone(source);
         Assert.Equal(source.Nodes.Count, clone.Nodes.Count);
         Assert.Equal(source.Edges.Count, clone.Edges.Count);
         Assert.Empty(clone.Arcs);

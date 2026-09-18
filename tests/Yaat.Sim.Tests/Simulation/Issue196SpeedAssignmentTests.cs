@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -58,8 +59,8 @@ public class Issue196SpeedAssignmentTests(ITestOutputHelper output)
     [Fact]
     public void N50CD_Departure_AcceptsSpeedWithin5nm()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -70,7 +71,7 @@ public class Issue196SpeedAssignmentTests(ITestOutputHelper output)
         // (it crosses the 5 nm gate boundary around t=195).
         engine.Replay(recording, 180);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
         // Confirm the bug's preconditions: airborne departure, within 5 nm of 35R.
@@ -80,7 +81,7 @@ public class Issue196SpeedAssignmentTests(ITestOutputHelper output)
         Assert.NotNull(dist);
         Assert.True(dist <= 5.0, $"Expected N50CD within 5 nm of 35R; was {dist:F2}");
 
-        var result = engine.SendCommand(Callsign, "SPD 180");
+        CommandResult result = engine.SendCommand(Callsign, "SPD 180");
         output.WriteLine($"SPD 180 -> Success={result.Success} Message={result.Message}");
         Assert.True(result.Success, $"SPD 180 to a departure should be accepted; got: {result.Message}");
 

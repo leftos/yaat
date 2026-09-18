@@ -75,7 +75,7 @@ public class LiveSessionAirportDefaultsTests
     [Fact]
     public void Tower_OffersItself_First()
     {
-        var choice = LiveSessionAirportDefaults.Resolve(Tree(), "oak-twr");
+        LiveSessionAirportDefaults.Choice choice = LiveSessionAirportDefaults.Resolve(Tree(), "oak-twr");
         Assert.Equal(["OAK"], choice.Airports);
         Assert.Equal("OAK", choice.Default);
     }
@@ -83,7 +83,7 @@ public class LiveSessionAirportDefaultsTests
     [Fact]
     public void Tracon_DefaultsToItsStarsPrimary_AndOffersItsAirportsPlusTowers()
     {
-        var choice = LiveSessionAirportDefaults.Resolve(Tree(), "nct-app");
+        LiveSessionAirportDefaults.Choice choice = LiveSessionAirportDefaults.Resolve(Tree(), "nct-app");
         Assert.Equal("SFO", choice.Default);
         Assert.Equal(["SFO", "OAK", "SJC", "SMF", "MHR", "SAC"], choice.Airports);
     }
@@ -91,7 +91,7 @@ public class LiveSessionAirportDefaultsTests
     [Fact]
     public void TraconWithoutChildFacilities_UsesItsStarsAirports_NotTheWholeArtcc()
     {
-        var choice = LiveSessionAirportDefaults.Resolve(Tree(), "o90-app");
+        LiveSessionAirportDefaults.Choice choice = LiveSessionAirportDefaults.Resolve(Tree(), "o90-app");
         Assert.Equal("SFO", choice.Default);
         Assert.Equal(["HWD", "NUQ", "OAK", "SFO", "SJC"], choice.Airports);
     }
@@ -99,7 +99,7 @@ public class LiveSessionAirportDefaultsTests
     [Fact]
     public void AtctTracon_WhoseIdIsNotAnAirport_NeverOffersItsId()
     {
-        var choice = LiveSessionAirportDefaults.Resolve(Tree(), "mc1-app");
+        LiveSessionAirportDefaults.Choice choice = LiveSessionAirportDefaults.Resolve(Tree(), "mc1-app");
         Assert.Equal("SMF", choice.Default);
         Assert.DoesNotContain("MC1", choice.Airports);
         Assert.Equal(["SMF", "MHR", "SAC"], choice.Airports);
@@ -108,7 +108,7 @@ public class LiveSessionAirportDefaultsTests
     [Fact]
     public void Center_DefaultsToTheBusiestTraconsPrimary_NotTheFirstTowerInTreeOrder()
     {
-        var choice = LiveSessionAirportDefaults.Resolve(Tree(), "ctr");
+        LiveSessionAirportDefaults.Choice choice = LiveSessionAirportDefaults.Resolve(Tree(), "ctr");
         Assert.Equal("SFO", choice.Default);
         Assert.Equal("FAT", choice.Airports[0]);
         Assert.Contains("SMF", choice.Airports);
@@ -118,7 +118,7 @@ public class LiveSessionAirportDefaultsTests
     [Fact]
     public void FacilityWithoutAirports_FallsBackToTheArtcc()
     {
-        var choice = LiveSessionAirportDefaults.Resolve(Tree(), "fss");
+        LiveSessionAirportDefaults.Choice choice = LiveSessionAirportDefaults.Resolve(Tree(), "fss");
         Assert.Equal("SFO", choice.Default);
         Assert.Contains("FAT", choice.Airports);
     }
@@ -127,14 +127,14 @@ public class LiveSessionAirportDefaultsTests
     public void UnknownPosition_ResolvesAsTheArtcc()
     {
         Assert.Null(LiveSessionAirportDefaults.FindFacilityOfPosition(Tree(), "nope"));
-        var choice = LiveSessionAirportDefaults.Resolve(Tree(), "nope");
+        LiveSessionAirportDefaults.Choice choice = LiveSessionAirportDefaults.Resolve(Tree(), "nope");
         Assert.Equal("SFO", choice.Default);
     }
 
     [Fact]
     public void PositionCallsignPrefix_PicksThatAirport_OverTheFacilityPrimary()
     {
-        var tree = PrefixTree();
+        FacilityTreeDto tree = PrefixTree();
         Assert.Equal("OAK", LiveSessionAirportDefaults.Resolve(tree, "oak-app").Default);
         Assert.Equal("SFO", LiveSessionAirportDefaults.Resolve(tree, "sfo-app").Default);
         Assert.Equal("SJC", LiveSessionAirportDefaults.Resolve(tree, "nct-app").Default);

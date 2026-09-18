@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -38,7 +39,7 @@ public class OakPreferLaterOnsideExitTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -64,8 +65,8 @@ public class OakPreferLaterOnsideExitTests(ITestOutputHelper output)
     public void N805FM_PrefersLaterOnSideExitOverEarlierOffSide()
     {
         var swTotal = Stopwatch.StartNew();
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -75,7 +76,7 @@ public class OakPreferLaterOnsideExitTests(ITestOutputHelper output)
         // the candidate selection unfold tick-by-tick.
         engine.Replay(recording, 800);
 
-        var ac = engine.FindAircraft("N805FM");
+        AircraftState? ac = engine.FindAircraft("N805FM");
         Assert.NotNull(ac);
 
         int? plannerCandidateHs = null;
@@ -96,7 +97,7 @@ public class OakPreferLaterOnsideExitTests(ITestOutputHelper output)
                 break;
             }
 
-            var current = ac.Phases?.CurrentPhase;
+            Phase? current = ac.Phases?.CurrentPhase;
             string? phaseName = current?.GetType().Name;
 
             // Track the LATEST LandingPhase candidate every tick. The planner

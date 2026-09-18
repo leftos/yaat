@@ -1,4 +1,5 @@
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
 
@@ -18,9 +19,9 @@ public static class RunwayCrossingEnd
             return RunwayIdentifier.ToDisplayDesignator(runway.End1);
         }
 
-        var db = NavigationDatabase.InstanceOrNull;
-        var end1 = db?.GetRunway(layout.AirportId, runway.End1);
-        var end2 = db?.GetRunway(layout.AirportId, runway.End2);
+        NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
+        RunwayInfo? end1 = db?.GetRunway(layout.AirportId, runway.End1);
+        RunwayInfo? end2 = db?.GetRunway(layout.AirportId, runway.End2);
         if (end1 is null || end2 is null)
         {
             return RunwayIdentifier.ToDisplayDesignator(runway.End1);

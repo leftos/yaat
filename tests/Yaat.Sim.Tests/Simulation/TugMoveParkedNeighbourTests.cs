@@ -121,7 +121,8 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
 
     private static AircraftState SpawnOnStand(SimulationEngine engine, AirportGroundLayout layout, string callsign, string standName)
     {
-        var stand = layout.FindParkingByName(standName) ?? throw new InvalidOperationException($"{layout.AirportId} has no stand '{standName}'");
+        GroundNode stand =
+            layout.FindParkingByName(standName) ?? throw new InvalidOperationException($"{layout.AirportId} has no stand '{standName}'");
         return Spawn(engine, layout, callsign, (stand.Position, Assert.NotNull(stand.TrueHeading).Degrees), new AtParkingPhase());
     }
 
@@ -129,7 +130,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     private static PushbackPhase StraightPull((LatLon Position, double NoseTrueDeg) start, double distanceFt)
     {
         var move = TugMove.Straight(PushbackLegKind.Pull, distanceFt);
-        var end = TugKinematics.Simulate(new TugPose(start.Position, start.NoseTrueDeg), [move], Narrowbody, 1.0).End.Position;
+        LatLon end = TugKinematics.Simulate(new TugPose(start.Position, start.NoseTrueDeg), [move], Narrowbody, 1.0).End.Position;
         return new PushbackPhase
         {
             Move = move,
@@ -207,7 +208,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     private static double PlannedPathClosestFt(AircraftState mover, AircraftState parked)
     {
         var moves = mover.Phases!.Phases.OfType<PushbackPhase>().Where(p => p.Status != PhaseStatus.Completed).Select(p => p.Move).ToList();
-        var simulation = TugKinematics.Simulate(new TugPose(mover.Position, mover.TrueHeading.Degrees), moves, mover.AircraftType, 1.0);
+        TugSimulation simulation = TugKinematics.Simulate(new TugPose(mover.Position, mover.TrueHeading.Degrees), moves, mover.AircraftType, 1.0);
         var frame = new GroundOutlineFrame(mover.Position);
         var parkedOutline = GroundOutline.At(
             frame.ToLocal(parked.Position),
@@ -243,20 +244,20 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, layout) = built;
+        (SimulationEngine? engine, AirportGroundLayout? layout) = built;
 
-        var pusher = SpawnOnStand(engine, layout, Mover, "25");
+        AircraftState pusher = SpawnOnStand(engine, layout, Mover, "25");
         double pushDeg = new TrueHeading(pusher.TrueHeading.Degrees + 180.0).Degrees;
-        var blockPosition = GeoMath.ProjectPoint(pusher.Position, new TrueHeading(pushDeg), 230.0 / GeoMath.FeetPerNm);
-        var parked = Spawn(engine, layout, Parked, (blockPosition, pushDeg + 90.0), new AtParkingPhase());
+        LatLon blockPosition = GeoMath.ProjectPoint(pusher.Position, new TrueHeading(pushDeg), 230.0 / GeoMath.FeetPerNm);
+        AircraftState parked = Spawn(engine, layout, Parked, (blockPosition, pushDeg + 90.0), new AtParkingPhase());
 
-        var push = engine.SendCommand(Mover, "PUSH TE");
+        CommandResult push = engine.SendCommand(Mover, "PUSH TE");
         Assert.True(push.Success, $"PUSH TE off gate 25 was refused: {push.Message}");
         double wouldReachFt = PlannedPathClosestFt(pusher, parked);
         output.WriteLine($"left alone, the push would bring the outlines to {wouldReachFt:F1} ft");
         Assert.True(wouldReachFt <= 0.0, $"test setup: the planned push passes {wouldReachFt:F1} ft clear of the parked aircraft");
 
-        var run = TickPast(engine, pusher, parked, pulled: false);
+        Run run = TickPast(engine, pusher, parked, pulled: false);
         Report("push into a parked aircraft", pusher, parked, run);
 
         Assert.True(run.CompletedSecond < 0, $"the push completed at t={run.CompletedSecond}s through the parked aircraft");
@@ -289,16 +290,16 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, layout) = built;
+        (SimulationEngine? engine, AirportGroundLayout? layout) = built;
 
-        var (start, stop, noseDeg) = SixAPull(layout);
+        (LatLon start, LatLon stop, double noseDeg) = SixAPull(layout);
         double pullFt = GeoMath.DistanceNm(start, stop) * GeoMath.FeetPerNm;
-        var clearSpot = Offset(stop, noseDeg, aheadFt: 60.0, rightFt: -120.0);
-        var parked = Spawn(engine, layout, Parked, (clearSpot, noseDeg), new AtParkingPhase());
-        var puller = Spawn(engine, layout, Mover, (start, noseDeg), StraightPull((start, noseDeg), pullFt));
+        LatLon clearSpot = Offset(stop, noseDeg, aheadFt: 60.0, rightFt: -120.0);
+        AircraftState parked = Spawn(engine, layout, Parked, (clearSpot, noseDeg), new AtParkingPhase());
+        AircraftState puller = Spawn(engine, layout, Mover, (start, noseDeg), StraightPull((start, noseDeg), pullFt));
         output.WriteLine($"pull {pullFt:F1} ft on {noseDeg:F1}°; left alone the pull stays {PlannedPathClosestFt(puller, parked):F1} ft clear");
 
-        var run = TickPast(engine, puller, parked, pulled: true);
+        Run run = TickPast(engine, puller, parked, pulled: true);
         Report("pull past a parked aircraft", puller, parked, run);
 
         Assert.True(run.CompletedSecond > 0, $"the pull never finished within {BudgetSeconds}s");
@@ -319,17 +320,17 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, layout) = built;
+        (SimulationEngine? engine, AirportGroundLayout? layout) = built;
 
-        var (start, _, noseDeg) = SixAPull(layout);
-        var blockPosition = Offset(start, noseDeg, aheadFt: 200.0, rightFt: 0.0);
-        var parked = Spawn(engine, layout, Parked, (blockPosition, noseDeg + 90.0), new AtParkingPhase());
-        var puller = Spawn(engine, layout, Mover, (start, noseDeg), StraightPull((start, noseDeg), 150.0));
+        (LatLon start, LatLon _, double noseDeg) = SixAPull(layout);
+        LatLon blockPosition = Offset(start, noseDeg, aheadFt: 200.0, rightFt: 0.0);
+        AircraftState parked = Spawn(engine, layout, Parked, (blockPosition, noseDeg + 90.0), new AtParkingPhase());
+        AircraftState puller = Spawn(engine, layout, Mover, (start, noseDeg), StraightPull((start, noseDeg), 150.0));
         double wouldReachFt = PlannedPathClosestFt(puller, parked);
         output.WriteLine($"left alone, the pull would bring the outlines (tug included) to {wouldReachFt:F1} ft");
         Assert.True(wouldReachFt <= 0.0, $"test setup: the pull passes {wouldReachFt:F1} ft clear of the parked aircraft");
 
-        var run = TickPast(engine, puller, parked, pulled: true);
+        Run run = TickPast(engine, puller, parked, pulled: true);
         Report("pull into a parked aircraft", puller, parked, run);
 
         Assert.True(run.CompletedSecond < 0, $"the pull completed at t={run.CompletedSecond}s through the parked aircraft");
@@ -365,20 +366,20 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, layout) = built;
+        (SimulationEngine? engine, AirportGroundLayout? layout) = built;
 
-        var pusher = SpawnOnStand(engine, layout, Mover, "D15");
+        AircraftState pusher = SpawnOnStand(engine, layout, Mover, "D15");
         double abeamFt = GroundOutlineSize.Of(Narrowbody, towedNoseFirst: false).WingspanFt + StartingGapFt;
-        var abeam = Offset(pusher.Position, pusher.TrueHeading.Degrees, aheadFt: 0.0, rightFt: abeamFt);
-        var parked = Spawn(engine, layout, Parked, (abeam, pusher.TrueHeading.Degrees), new AtParkingPhase());
+        LatLon abeam = Offset(pusher.Position, pusher.TrueHeading.Degrees, aheadFt: 0.0, rightFt: abeamFt);
+        AircraftState parked = Spawn(engine, layout, Parked, (abeam, pusher.TrueHeading.Degrees), new AtParkingPhase());
         double startClearanceFt = GroundOutline.ClearanceBetween(pusher, aTowedNoseFirst: false, parked);
         output.WriteLine($"a B738 parked {abeamFt:F1} ft abeam starts {startClearanceFt:F1} ft off the pusher's outline");
         Assert.InRange(startClearanceFt, 5.0, 25.0);
 
-        var push = engine.SendCommand(Mover, "PUSH");
+        CommandResult push = engine.SendCommand(Mover, "PUSH");
         Assert.True(push.Success, $"PUSH off gate D15 was refused: {push.Message}");
 
-        var run = TickPast(engine, pusher, parked, pulled: false);
+        Run run = TickPast(engine, pusher, parked, pulled: false);
         Report("push away from a neighbour inside the buffer", pusher, parked, run);
 
         Assert.True(run.CompletedSecond > 0, $"the push never finished within {BudgetSeconds}s");
@@ -413,9 +414,9 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     /// </summary>
     private (AircraftState Pusher, AircraftState Neighbour) OverlappingPairOnD15(SimulationEngine engine, AirportGroundLayout layout, double abeamFt)
     {
-        var pusher = SpawnOnStand(engine, layout, Mover, "D15");
-        var abeam = Offset(pusher.Position, pusher.TrueHeading.Degrees, aheadFt: 0.0, rightFt: abeamFt);
-        var parked = Spawn(engine, layout, Parked, (abeam, pusher.TrueHeading.Degrees), new AtParkingPhase());
+        AircraftState pusher = SpawnOnStand(engine, layout, Mover, "D15");
+        LatLon abeam = Offset(pusher.Position, pusher.TrueHeading.Degrees, aheadFt: 0.0, rightFt: abeamFt);
+        AircraftState parked = Spawn(engine, layout, Parked, (abeam, pusher.TrueHeading.Degrees), new AtParkingPhase());
         double startClearanceFt = GroundOutline.ClearanceBetween(pusher, aTowedNoseFirst: false, parked);
         output.WriteLine($"a B738 parked {abeamFt:F1} ft abeam leaves {startClearanceFt:E3} ft of the pusher's outline");
         Assert.True(
@@ -438,10 +439,10 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, layout) = built;
-        var (pusher, _) = OverlappingPairOnD15(engine, layout, CrossedWingsAbeamFt);
+        (SimulationEngine? engine, AirportGroundLayout? layout) = built;
+        (AircraftState? pusher, AircraftState _) = OverlappingPairOnD15(engine, layout, CrossedWingsAbeamFt);
 
-        var push = engine.SendCommand(Mover, "PUSH");
+        CommandResult push = engine.SendCommand(Mover, "PUSH");
         output.WriteLine($"PUSH: success={push.Success}, message={push.Message}");
 
         Assert.False(push.Success, "the push was accepted although the pusher's outline already overlaps the parked aircraft's");
@@ -464,10 +465,10 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, layout) = built;
-        var (pusher, _) = OverlappingPairOnD15(engine, layout, CrossedWingsAbeamFt);
+        (SimulationEngine? engine, AirportGroundLayout? layout) = built;
+        (AircraftState? pusher, AircraftState _) = OverlappingPairOnD15(engine, layout, CrossedWingsAbeamFt);
 
-        var move = engine.SendCommand(Mover, "PUSHM $6A $6B");
+        CommandResult move = engine.SendCommand(Mover, "PUSHM $6A $6B");
         output.WriteLine($"PUSHM $6A $6B: success={move.Success}, message={move.Message}");
 
         Assert.False(move.Success, "the tug move was accepted although the aircraft's outline already overlaps the parked aircraft's");
@@ -492,10 +493,10 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, layout) = built;
-        var (pusher, _) = OverlappingPairOnD15(engine, layout, CollinearWingtipsAbeamFt);
+        (SimulationEngine? engine, AirportGroundLayout? layout) = built;
+        (AircraftState? pusher, AircraftState _) = OverlappingPairOnD15(engine, layout, CollinearWingtipsAbeamFt);
 
-        var push = engine.SendCommand(Mover, "PUSH");
+        CommandResult push = engine.SendCommand(Mover, "PUSH");
         output.WriteLine($"PUSH: success={push.Success}, message={push.Message}");
 
         Assert.False(push.Success, "the push was accepted although the pusher's wingtip is inside the parked aircraft's");
@@ -509,15 +510,15 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     /// <summary>SFO spot 6A's staging point, stop point and nose-out heading for a B738.</summary>
     private static (LatLon Start, LatLon Stop, double NoseTrueDeg) SixAPull(AirportGroundLayout layout)
     {
-        var spot = layout.FindSpotNodeByName("6A") ?? throw new InvalidOperationException("SFO has no spot 6A");
+        GroundNode spot = layout.FindSpotNodeByName("6A") ?? throw new InvalidOperationException("SFO has no spot 6A");
         Assert.True(layout.TryGetSpotOutboundHeading(spot, out double noseDeg), "spot 6A has no nose-out heading");
-        var (stop, staging) = TugMovePlanner.SpotStopGeometry(spot, noseDeg, Narrowbody);
+        (LatLon stop, LatLon staging) = TugMovePlanner.SpotStopGeometry(spot, noseDeg, Narrowbody);
         return (staging, stop, noseDeg);
     }
 
     private static LatLon Offset(LatLon from, double noseTrueDeg, double aheadFt, double rightFt)
     {
-        var ahead = GeoMath.ProjectPoint(from, new TrueHeading(noseTrueDeg), aheadFt / GeoMath.FeetPerNm);
+        LatLon ahead = GeoMath.ProjectPoint(from, new TrueHeading(noseTrueDeg), aheadFt / GeoMath.FeetPerNm);
         return GeoMath.ProjectPoint(ahead, new TrueHeading(noseTrueDeg + 90.0), rightFt / GeoMath.FeetPerNm);
     }
 }

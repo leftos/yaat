@@ -1,3 +1,5 @@
+using Yaat.Sim.Phases;
+
 namespace Yaat.Sim.Data.Airport.Pathfinding;
 
 /// <summary>
@@ -27,13 +29,13 @@ public static class RouteMaterialiser
         }
 
         // Step 1: Build segment list — one per directed edge.
-        var segments = BuildSegments(edges);
+        List<TaxiRouteSegment> segments = BuildSegments(edges);
 
         // Step 2: Annotate hold-short points.
-        var holdShorts = AnnotateHoldShorts(segments, ctx);
+        List<HoldShortPoint> holdShorts = AnnotateHoldShorts(segments, ctx);
 
         // Step 3: Truncate to one segment past the last required stop.
-        var runwaySurfaceEntry = FindDestinationRunwaySurfaceEntry(segments, holdShorts, ctx);
+        (int TruncateAt, int HoldShortNodeId)? runwaySurfaceEntry = FindDestinationRunwaySurfaceEntry(segments, holdShorts, ctx);
         int truncateAt = runwaySurfaceEntry?.TruncateAt ?? FindTruncationIndex(segments, holdShorts, ctx);
         if (runwaySurfaceEntry is { TruncateAt: < 0 } entry)
         {
@@ -56,7 +58,7 @@ public static class RouteMaterialiser
 
         // Step 4: Warnings for unauthorized letter taxiways traversed, plus informative
         // notifications for mandatory connector insertions.
-        var warnings = BuildWarnings(segments, ctx, insertions);
+        List<string> warnings = BuildWarnings(segments, ctx, insertions);
 
         // An HS target that bound nothing — no runway bar, no adjacent-taxiway point — was silently
         // dropped; tell the controller instead of letting them believe the aircraft will hold. A
@@ -65,7 +67,7 @@ public static class RouteMaterialiser
         // on J) leaves the crossing un-promoted, and AutoCross may then clear it — the one case
         // where a name match must still warn. DestinationRunway points still satisfy it (the
         // explicit-HS-of-own-destination no-op).
-        foreach (var target in ctx.ExplicitHoldShorts)
+        foreach (HoldShortTarget target in ctx.ExplicitHoldShorts)
         {
             if (FindBoundHoldShort(holdShorts, target) is null)
             {
@@ -92,7 +94,7 @@ public static class RouteMaterialiser
         // pick a later one.
         if (segments.Count > 0)
         {
-            foreach (var target in ctx.ExplicitHoldShorts)
+            foreach (HoldShortTarget target in ctx.ExplicitHoldShorts)
             {
                 if (
                     target.IsSpot
@@ -142,7 +144,7 @@ public static class RouteMaterialiser
     /// </summary>
     public static HoldShortPoint? FindBoundHoldShort(IReadOnlyList<HoldShortPoint> holdShorts, HoldShortTarget target)
     {
-        foreach (var point in holdShorts)
+        foreach (HoldShortPoint point in holdShorts)
         {
             if (
                 point.TargetName is { } name
@@ -163,7 +165,7 @@ public static class RouteMaterialiser
     private static List<TaxiRouteSegment> BuildSegments(IReadOnlyList<DirectionalEdge> edges)
     {
         var segments = new List<TaxiRouteSegment>(edges.Count);
-        foreach (var edge in edges)
+        foreach (DirectionalEdge edge in edges)
         {
             string taxiwayName = edge.TaxiwayName;
             segments.Add(new TaxiRouteSegment { Edge = edge, TaxiwayName = taxiwayName });
@@ -199,7 +201,7 @@ public static class RouteMaterialiser
         var enteredRunways = new Dictionary<RunwayIdentifier, int>();
         AnnotateStartCrossing(segments, ctx, clearedRunways, holdShorts, seen, enteredRunways);
 
-        foreach (var seg in segments)
+        foreach (TaxiRouteSegment seg in segments)
         {
             int nodeId = seg.ToNodeId;
             if (!seen.Add(nodeId))
@@ -207,7 +209,7 @@ public static class RouteMaterialiser
                 continue;
             }
 
-            if (!ctx.Layout.Nodes.TryGetValue(nodeId, out var node))
+            if (!ctx.Layout.Nodes.TryGetValue(nodeId, out GroundNode? node))
             {
                 continue;
             }
@@ -273,7 +275,7 @@ public static class RouteMaterialiser
             // taxiway, so only the J-side crossing of C binds — not an earlier crossing the route
             // happens to pass first (issue #358). A spot target ("HS $17") binds the named Spot node
             // itself — the route passes through it — and never matches by taxiway (issue #394).
-            foreach (var holdShortTarget in ctx.ExplicitHoldShorts)
+            foreach (HoldShortTarget holdShortTarget in ctx.ExplicitHoldShorts)
             {
                 if (taxiwayHoldShortTargets.Contains(holdShortTarget.ToCanonical()))
                 {
@@ -303,7 +305,7 @@ public static class RouteMaterialiser
                     continue;
                 }
 
-                foreach (var edge in node.Edges)
+                foreach (IGroundEdge edge in node.Edges)
                 {
                     if (edge.MatchesTaxiway(holdShortTarget.Target))
                     {
@@ -373,7 +375,7 @@ public static class RouteMaterialiser
 
     private static bool SegmentEndsAtDestinationHoldShort(TaxiRouteSegment segment, string runwayId, SearchContext ctx)
     {
-        return (ctx.Layout.Nodes.TryGetValue(segment.ToNodeId, out var node))
+        return (ctx.Layout.Nodes.TryGetValue(segment.ToNodeId, out GroundNode? node))
             && (node.Type == GroundNodeType.RunwayHoldShort)
             && (node.RunwayId is { } nodeRunwayId)
             && (nodeRunwayId.Contains(runwayId));
@@ -408,7 +410,7 @@ public static class RouteMaterialiser
 
         int startNodeId = segments[0].FromNodeId;
         if (
-            !ctx.Layout.Nodes.TryGetValue(startNodeId, out var startNode)
+            !ctx.Layout.Nodes.TryGetValue(startNodeId, out GroundNode? startNode)
             || startNode.Type != GroundNodeType.RunwayHoldShort
             || startNode.RunwayId is not { } startRwyId
             || !HoldShortAnnotator.RouteCrossesRunwayAfterStart(ctx.Layout, segments, startNodeId, startRwyId)
@@ -455,7 +457,7 @@ public static class RouteMaterialiser
     /// </summary>
     private static bool MatchesExplicitHoldShort(GroundNode node, RunwayIdentifier runwayId, IReadOnlySet<HoldShortTarget> explicitHoldShorts)
     {
-        foreach (var target in explicitHoldShorts)
+        foreach (HoldShortTarget target in explicitHoldShorts)
         {
             // A spot target ($9) is never a runway hold-short. Without this guard its bare number
             // (the $ sigil is stripped at parse) collides with a runway whose end is that number
@@ -510,7 +512,7 @@ public static class RouteMaterialiser
         {
             for (int i = 0; i < segments.Count; i++)
             {
-                if (!ctx.Layout.Nodes.TryGetValue(segments[i].ToNodeId, out var node))
+                if (!ctx.Layout.Nodes.TryGetValue(segments[i].ToNodeId, out GroundNode? node))
                 {
                     continue;
                 }
@@ -534,7 +536,7 @@ public static class RouteMaterialiser
         // terminus — stop one segment past it like any other required stop.
         int lastClearedEntryIdx = FindLastClearedTaxiwayEntry(segments, ctx);
         int crossHoldTruncateAt = -1;
-        foreach (var hs in holdShorts)
+        foreach (HoldShortPoint hs in holdShorts)
         {
             if (hs.Reason != HoldShortReason.ExplicitHoldShort)
             {
@@ -657,7 +659,7 @@ public static class RouteMaterialiser
     /// <summary>True if any edge incident to <paramref name="node"/> belongs to <paramref name="taxiwayName"/>.</summary>
     private static bool NodeIncidentToTaxiway(GroundNode node, string taxiwayName)
     {
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge.MatchesTaxiway(taxiwayName))
             {
@@ -681,7 +683,7 @@ public static class RouteMaterialiser
     private static int FindPairedFarSideRunwayHoldShortIndex(List<TaxiRouteSegment> segments, SearchContext ctx, int nearNodeId, int nearIdx)
     {
         if (
-            !ctx.Layout.Nodes.TryGetValue(nearNodeId, out var nearNode)
+            !ctx.Layout.Nodes.TryGetValue(nearNodeId, out GroundNode? nearNode)
             || nearNode.Type != GroundNodeType.RunwayHoldShort
             || nearNode.RunwayId is not { } nearRwy
         )
@@ -698,7 +700,7 @@ public static class RouteMaterialiser
             }
 
             if (
-                ctx.Layout.Nodes.TryGetValue(toId, out var node)
+                ctx.Layout.Nodes.TryGetValue(toId, out GroundNode? node)
                 && node.Type == GroundNodeType.RunwayHoldShort
                 && node.RunwayId is { } rwy
                 && rwy.Equals(nearRwy)
@@ -726,7 +728,7 @@ public static class RouteMaterialiser
         // junction. Notify the controller of each insertion, and suppress the generic
         // "unauthorized" warning for those connector taxiways — they were not a deviation.
         var mandatoryConnectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var insertion in insertions)
+        foreach (ConnectorInsertion insertion in insertions)
         {
             warnings.Add(
                 $"{insertion.FromTaxiway} and {insertion.ToTaxiway} do not connect directly — taxi via {string.Join(", ", insertion.Connectors)}"
@@ -745,7 +747,7 @@ public static class RouteMaterialiser
         }
 
         var warned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var seg in segments)
+        foreach (TaxiRouteSegment seg in segments)
         {
             // Junction arcs ("X - Y") are transitions between taxiways, not a traversal of one —
             // never an "unauthorized taxiway" deviation.
@@ -786,7 +788,7 @@ public static class RouteMaterialiser
         }
 
         var warned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var seg in segments)
+        foreach (TaxiRouteSegment seg in segments)
         {
             if (ctx.ForbiddenOneWayMoves.Contains((seg.FromNodeId, seg.ToNodeId)) && warned.Add(seg.TaxiwayName))
             {
@@ -844,7 +846,7 @@ public static class RouteMaterialiser
     /// </summary>
     internal static LatLon? ResolveRunwayThreshold(string airportId, string runwayId)
     {
-        var runway = NavigationDatabase.InstanceOrNull?.GetRunway(airportId, runwayId);
+        RunwayInfo? runway = NavigationDatabase.InstanceOrNull?.GetRunway(airportId, runwayId);
         return runway is null ? null : new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
     }
 }

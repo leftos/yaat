@@ -25,7 +25,7 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
     [Fact]
     public void ParseExitRight_Expedite()
     {
-        var cmd = Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER EXP").Value);
+        ExitRightCommand cmd = Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER EXP").Value);
         Assert.True(cmd.Expedite);
         Assert.False(cmd.NoDelete);
         Assert.Null(cmd.Taxiway);
@@ -34,7 +34,7 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
     [Fact]
     public void ParseExitRight_TaxiwayThenExpedite()
     {
-        var cmd = Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER W5 EXP").Value);
+        ExitRightCommand cmd = Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER W5 EXP").Value);
         Assert.Equal("W5", cmd.Taxiway);
         Assert.True(cmd.Expedite);
         Assert.False(cmd.NoDelete);
@@ -43,7 +43,7 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
     [Fact]
     public void ParseExitLeft_Expedite()
     {
-        var cmd = Assert.IsType<ExitLeftCommand>(CommandParser.Parse("EL EXP").Value);
+        ExitLeftCommand cmd = Assert.IsType<ExitLeftCommand>(CommandParser.Parse("EL EXP").Value);
         Assert.True(cmd.Expedite);
         Assert.Null(cmd.Taxiway);
     }
@@ -51,7 +51,7 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
     [Fact]
     public void ParseExitTaxiway_Expedite()
     {
-        var cmd = Assert.IsType<ExitTaxiwayCommand>(CommandParser.Parse("EXIT A3 EXP").Value);
+        ExitTaxiwayCommand cmd = Assert.IsType<ExitTaxiwayCommand>(CommandParser.Parse("EXIT A3 EXP").Value);
         Assert.Equal("A3", cmd.Taxiway);
         Assert.True(cmd.Expedite);
     }
@@ -60,12 +60,12 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
     public void ParseExitRight_TaxiwayNoDelExp_AnyOrder()
     {
         // NODEL + EXP combine in any order.
-        var a = Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER W5 NODEL EXP").Value);
+        ExitRightCommand a = Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER W5 NODEL EXP").Value);
         Assert.Equal("W5", a.Taxiway);
         Assert.True(a.NoDelete);
         Assert.True(a.Expedite);
 
-        var b = Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER EXP W5 NODEL").Value);
+        ExitRightCommand b = Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER EXP W5 NODEL").Value);
         Assert.Equal("W5", b.Taxiway);
         Assert.True(b.NoDelete);
         Assert.True(b.Expedite);
@@ -75,7 +75,7 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
     public void ParseExitRight_TaxiwayNoDel_FixesLatentBug()
     {
         // Before the parser refactor, "ER W5 NODEL" parsed the taxiway as "W5 NODEL".
-        var cmd = Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER W5 NODEL").Value);
+        ExitRightCommand cmd = Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER W5 NODEL").Value);
         Assert.Equal("W5", cmd.Taxiway);
         Assert.True(cmd.NoDelete);
         Assert.False(cmd.Expedite);
@@ -84,7 +84,7 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
     [Fact]
     public void ParseExitRight_PlainTaxiway_StillWorks()
     {
-        var cmd = Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER W5").Value);
+        ExitRightCommand cmd = Assert.IsType<ExitRightCommand>(CommandParser.Parse("ER W5").Value);
         Assert.Equal("W5", cmd.Taxiway);
         Assert.False(cmd.NoDelete);
         Assert.False(cmd.Expedite);
@@ -121,7 +121,7 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
         const int Start = 800;
         engine.Replay(recording, Start);
 
-        var ac = engine.FindAircraft("QXE6184");
+        AircraftState? ac = engine.FindAircraft("QXE6184");
         if (ac is null)
         {
             return null;
@@ -140,12 +140,12 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
 
         if (command is not null)
         {
-            var result = engine.SendCommand("QXE6184", command);
+            CommandResult result = engine.SendCommand("QXE6184", command);
             Assert.True(result.Success, $"SendCommand('{command}') failed: {result.Message}");
         }
 
-        var startPos = ac.Position;
-        var runwayHeading = ac.TrueHeading;
+        LatLon startPos = ac.Position;
+        TrueHeading runwayHeading = ac.TrueHeading;
         double prevGs = ac.GroundSpeed;
         double maxDecel = 0;
 
@@ -183,15 +183,15 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
     [Fact]
     public void StandaloneExp_ClearsRunwaySoonerThanDefault()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
-        var baseline = RunRollout(engine, recording, command: null);
-        var expedited = RunRollout(BuildEngine()!, recording, command: "EXP");
+        RolloutResult? baseline = RunRollout(engine, recording, command: null);
+        RolloutResult? expedited = RunRollout(BuildEngine()!, recording, command: "EXP");
         Assert.NotNull(baseline);
         Assert.NotNull(expedited);
 
@@ -223,15 +223,15 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
     [Fact]
     public void ErExp_TakesEarlierExitThanPlainEr()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
-        var plain = RunRollout(engine, recording, command: "ER");
-        var expedited = RunRollout(BuildEngine()!, recording, command: "ER EXP");
+        RolloutResult? plain = RunRollout(engine, recording, command: "ER");
+        RolloutResult? expedited = RunRollout(BuildEngine()!, recording, command: "ER EXP");
         Assert.NotNull(plain);
         Assert.NotNull(expedited);
 

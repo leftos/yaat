@@ -3,6 +3,7 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Ground;
+using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -19,11 +20,11 @@ public class GroundCanvasThresholdHitTests
     [AvaloniaFact]
     public void FindRunwayThresholdAtPoint_ClickOnEnd1Marker_ReturnsEnd1()
     {
-        var canvas = MakeCanvas(800, 600);
+        GroundCanvas canvas = MakeCanvas(800, 600);
         canvas.Layout = LayoutWith28L10R();
 
-        var (sx, sy) = canvas.Viewport.LatLonToScreen(ThresholdALat, ThresholdALon);
-        var hit = canvas.FindRunwayThresholdAtPoint(new Point(sx, sy));
+        (float sx, float sy) = canvas.Viewport.LatLonToScreen(ThresholdALat, ThresholdALon);
+        (string RunwayEnd, LatLon Position)? hit = canvas.FindRunwayThresholdAtPoint(new Point(sx, sy));
 
         Assert.NotNull(hit);
         Assert.Equal("28L", hit!.Value.RunwayEnd);
@@ -32,11 +33,11 @@ public class GroundCanvasThresholdHitTests
     [AvaloniaFact]
     public void FindRunwayThresholdAtPoint_ClickOnEnd2Marker_ReturnsEnd2()
     {
-        var canvas = MakeCanvas(800, 600);
+        GroundCanvas canvas = MakeCanvas(800, 600);
         canvas.Layout = LayoutWith28L10R();
 
-        var (sx, sy) = canvas.Viewport.LatLonToScreen(ThresholdBLat, ThresholdBLon);
-        var hit = canvas.FindRunwayThresholdAtPoint(new Point(sx, sy));
+        (float sx, float sy) = canvas.Viewport.LatLonToScreen(ThresholdBLat, ThresholdBLon);
+        (string RunwayEnd, LatLon Position)? hit = canvas.FindRunwayThresholdAtPoint(new Point(sx, sy));
 
         Assert.NotNull(hit);
         Assert.Equal("10R", hit!.Value.RunwayEnd);
@@ -45,13 +46,13 @@ public class GroundCanvasThresholdHitTests
     [AvaloniaFact]
     public void FindRunwayThresholdAtPoint_ClickFarFromAnyThreshold_ReturnsNull()
     {
-        var canvas = MakeCanvas(800, 600);
+        GroundCanvas canvas = MakeCanvas(800, 600);
         canvas.Layout = LayoutWith28L10R();
 
         // Click at canvas center — the runway midpoint in our layout sits at
         // viewport CenterLat/CenterLon, so 100 px below that lands well outside
         // the 18 px threshold hit radius.
-        var hit = canvas.FindRunwayThresholdAtPoint(new Point(400, 400));
+        (string RunwayEnd, LatLon Position)? hit = canvas.FindRunwayThresholdAtPoint(new Point(400, 400));
 
         Assert.Null(hit);
     }
@@ -59,11 +60,11 @@ public class GroundCanvasThresholdHitTests
     [AvaloniaFact]
     public void FindRunwayThresholdAtPoint_NoRunways_ReturnsNull()
     {
-        var canvas = MakeCanvas(800, 600);
+        GroundCanvas canvas = MakeCanvas(800, 600);
         canvas.Layout = new GroundLayoutDto("SFO", [], [], null, null, null);
 
-        var (sx, sy) = canvas.Viewport.LatLonToScreen(ThresholdALat, ThresholdALon);
-        var hit = canvas.FindRunwayThresholdAtPoint(new Point(sx, sy));
+        (float sx, float sy) = canvas.Viewport.LatLonToScreen(ThresholdALat, ThresholdALon);
+        (string RunwayEnd, LatLon Position)? hit = canvas.FindRunwayThresholdAtPoint(new Point(sx, sy));
 
         Assert.Null(hit);
     }
@@ -73,12 +74,12 @@ public class GroundCanvasThresholdHitTests
     {
         // Hit-radius is in screen pixels, so the same lat/lon click should hit
         // regardless of zoom — just project the threshold to screen first.
-        var canvas = MakeCanvas(800, 600);
+        GroundCanvas canvas = MakeCanvas(800, 600);
         canvas.ViewZoom = 0.25;
         canvas.Layout = LayoutWith28L10R();
 
-        var (sx, sy) = canvas.Viewport.LatLonToScreen(ThresholdALat, ThresholdALon);
-        var hit = canvas.FindRunwayThresholdAtPoint(new Point(sx, sy));
+        (float sx, float sy) = canvas.Viewport.LatLonToScreen(ThresholdALat, ThresholdALon);
+        (string RunwayEnd, LatLon Position)? hit = canvas.FindRunwayThresholdAtPoint(new Point(sx, sy));
 
         Assert.NotNull(hit);
         Assert.Equal("28L", hit!.Value.RunwayEnd);

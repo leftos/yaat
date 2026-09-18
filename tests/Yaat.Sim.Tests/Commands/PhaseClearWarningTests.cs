@@ -54,16 +54,16 @@ public class PhaseClearWarningTests : IDisposable
 
     private static void DispatchOk(AircraftState ac, string text)
     {
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx());
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx());
         Assert.True(result.Success, result.Message);
     }
 
     [Fact]
     public void PatternEntryCleared_EmitsWarning_NamingPatternAndRunwayAndCommand()
     {
-        var ac = MakeVfrAircraft();
+        AircraftState ac = MakeVfrAircraft();
         DispatchOk(ac, "ERD 28R");
 
         // Aircraft from north-of-OAK heading south → should install Pattern Entry → Downwind → Base → Final → Landing
@@ -75,7 +75,7 @@ public class PhaseClearWarningTests : IDisposable
         DispatchOk(ac, "CM 025");
 
         Assert.Null(ac.Phases?.CurrentPhase);
-        var warning = Assert.Single(ac.PendingWarnings);
+        string warning = Assert.Single(ac.PendingWarnings);
         _output.WriteLine($"Warning: {warning}");
         Assert.Contains("N435C", warning);
         Assert.Contains("cancelled", warning);
@@ -88,7 +88,7 @@ public class PhaseClearWarningTests : IDisposable
     [Fact]
     public void DownwindAllowsClimbMaintain_NoWarning()
     {
-        var ac = MakeVfrAircraft();
+        AircraftState ac = MakeVfrAircraft();
         DispatchOk(ac, "ERD 28R");
 
         // Advance the phase list past pattern entry to the actual Downwind phase
@@ -111,7 +111,7 @@ public class PhaseClearWarningTests : IDisposable
     [Fact]
     public void NoActivePhase_NoWarning()
     {
-        var ac = MakeVfrAircraft();
+        AircraftState ac = MakeVfrAircraft();
         Assert.Null(ac.Phases);
 
         DispatchOk(ac, "FH 270");
@@ -123,14 +123,14 @@ public class PhaseClearWarningTests : IDisposable
     [Fact]
     public void CompoundSourceText_IncludedVerbatim()
     {
-        var ac = MakeVfrAircraft();
+        AircraftState ac = MakeVfrAircraft();
         DispatchOk(ac, "ERD 28R");
         Assert.NotNull(ac.Phases?.CurrentPhase);
         ac.PendingWarnings.Clear();
 
         DispatchOk(ac, "FH 270; CM 050");
 
-        var warning = Assert.Single(ac.PendingWarnings);
+        string warning = Assert.Single(ac.PendingWarnings);
         _output.WriteLine($"Warning: {warning}");
         Assert.Contains("FH 270; CM 050", warning);
     }

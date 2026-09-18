@@ -12,21 +12,21 @@ public static class FlightPlanEcho
     {
         // The echo represents the *filed* plan — the flight-plan type, so a blanked type shows "????" here the way
         // STARS/ASDE-X read the same source.
-        var typeEquip = !string.IsNullOrEmpty(ac.FlightPlan.AircraftType) ? ac.FlightPlan.AircraftType : "????";
+        string typeEquip = !string.IsNullOrEmpty(ac.FlightPlan.AircraftType) ? ac.FlightPlan.AircraftType : "????";
         if (!string.IsNullOrEmpty(ac.FlightPlan.EquipmentSuffix) && !typeEquip.Contains('/'))
         {
             typeEquip += $"/{ac.FlightPlan.EquipmentSuffix}";
         }
 
-        var line1 = $"{ac.Callsign} {typeEquip} {ac.Transponder.AssignedCode:D4}";
+        string line1 = $"{ac.Callsign} {typeEquip} {ac.Transponder.AssignedCode:D4}";
 
         string line2;
         if (hasRoute)
         {
-            var dep = ac.FlightPlan.Departure ?? "";
-            var dest = ac.FlightPlan.Destination ?? "";
-            var cruiseFeet = ac.FlightPlan.Altitude.CruiseFeet ?? 0;
-            var altStr = cruiseFeet > 0 ? $" {cruiseFeet / 100:D3}" : "";
+            string dep = ac.FlightPlan.Departure ?? "";
+            string dest = ac.FlightPlan.Destination ?? "";
+            int cruiseFeet = ac.FlightPlan.Altitude.CruiseFeet ?? 0;
+            string altStr = cruiseFeet > 0 ? $" {cruiseFeet / 100:D3}" : "";
             line2 = $"{dep} {dest}{altStr}".Trim();
             if (string.IsNullOrWhiteSpace(line2))
             {

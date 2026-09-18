@@ -95,13 +95,13 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     public void StraightSegment_DrivesAircraftToTargetNode()
     {
         // 200 ft straight east; aircraft starts at From heading east with 0 speed.
-        var fromNode = MakeNode(1, 37.0, -122.0);
-        var (toLat, toLon) = GeoMath.ProjectPoint(fromNode.Position, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
-        var toNode = MakeNode(2, toLat, toLon);
+        GroundNode fromNode = MakeNode(1, 37.0, -122.0);
+        (double toLat, double toLon) = GeoMath.ProjectPoint(fromNode.Position, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
+        GroundNode toNode = MakeNode(2, toLat, toLon);
 
         var route = new TaxiRoute { Segments = [MakeStraightSegment(fromNode, toNode)], HoldShortPoints = [] };
 
-        var (aircraft, ctx) = MakeFixture(fromNode.Position, 90.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(fromNode.Position, 90.0);
         var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
@@ -111,7 +111,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         for (int tick = 0; tick < 200; tick++)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            var result = nav.Tick(ctx, isLastSegment: true, _ => true);
+            NavigatorResult result = nav.Tick(ctx, isLastSegment: true, _ => true);
             if (result == NavigatorResult.ArrivedAtNode)
             {
                 arrived = true;
@@ -138,15 +138,15 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         const double radiusFt = 70.0;
         double rNm = radiusFt / GeoMath.FeetPerNm;
 
-        var (centerLat, centerLon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(90.0), rNm);
-        var (p3Lat, p3Lon) = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(0.0), rNm);
+        (double centerLat, double centerLon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(90.0), rNm);
+        (double p3Lat, double p3Lon) = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(0.0), rNm);
 
         double kappa = (4.0 / 3.0) * Math.Tan(Math.PI / 8.0);
-        var (p1Lat, p1Lon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(0.0), kappa * rNm);
-        var (p2Lat, p2Lon) = GeoMath.ProjectPoint(p3Lat, p3Lon, new TrueHeading(270.0), kappa * rNm);
+        (double p1Lat, double p1Lon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(0.0), kappa * rNm);
+        (double p2Lat, double p2Lon) = GeoMath.ProjectPoint(p3Lat, p3Lon, new TrueHeading(270.0), kappa * rNm);
 
-        var node0 = MakeNode(10, p0Lat, p0Lon);
-        var node1 = MakeNode(11, p3Lat, p3Lon);
+        GroundNode node0 = MakeNode(10, p0Lat, p0Lon);
+        GroundNode node1 = MakeNode(11, p3Lat, p3Lon);
         double arcLenFt = (Math.PI / 2.0) * radiusFt;
         var arc = new GroundArc
         {
@@ -169,7 +169,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         var route = new TaxiRoute { Segments = [segment], HoldShortPoints = [] };
 
         // Start with some forward speed so the arc integrator advances from tick 0.
-        var (aircraft, ctx) = MakeFixture(new LatLon(p0Lat, p0Lon), 0.0, startSpeedKts: 10.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(new LatLon(p0Lat, p0Lon), 0.0, startSpeedKts: 10.0);
         var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
@@ -177,7 +177,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         for (int tick = 0; tick < 200; tick++)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            var result = nav.Tick(ctx, isLastSegment: true, _ => true);
+            NavigatorResult result = nav.Tick(ctx, isLastSegment: true, _ => true);
             if (result == NavigatorResult.ArrivedAtNode)
             {
                 arrived = true;
@@ -213,14 +213,14 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     public void StraightSegment_MisalignedAircraft_RotatesSmoothlyWithoutSnap()
     {
         // 200 ft straight east; aircraft starts at From heading west (180° off).
-        var fromNode = MakeNode(1, 37.0, -122.0);
-        var (toLat, toLon) = GeoMath.ProjectPoint(fromNode.Position, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
-        var toNode = MakeNode(2, toLat, toLon);
+        GroundNode fromNode = MakeNode(1, 37.0, -122.0);
+        (double toLat, double toLon) = GeoMath.ProjectPoint(fromNode.Position, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
+        GroundNode toNode = MakeNode(2, toLat, toLon);
 
         var route = new TaxiRoute { Segments = [MakeStraightSegment(fromNode, toNode)], HoldShortPoints = [] };
 
         // Aircraft heading 270° (west) vs segment heading 90° (east) = 180° delta.
-        var (aircraft, ctx) = MakeFixture(fromNode.Position, acHeadingDeg: 270.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(fromNode.Position, acHeadingDeg: 270.0);
         var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
@@ -266,13 +266,13 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     [Fact]
     public void ShortConnector_HoldsSteadyLowSpeed_NoSurge()
     {
-        var n0 = MakeNode(1, 37.0, -122.0);
-        var (l1, o1) = GeoMath.ProjectPoint(n0.Position, new TrueHeading(180.0), 120.0 / GeoMath.FeetPerNm);
-        var n1 = MakeNode(2, l1, o1);
-        var (l2, o2) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
-        var n2 = MakeNode(3, l2, o2);
-        var (l3, o3) = GeoMath.ProjectPoint(n2.Position, new TrueHeading(180.0), 200.0 / GeoMath.FeetPerNm);
-        var n3 = MakeNode(4, l3, o3);
+        GroundNode n0 = MakeNode(1, 37.0, -122.0);
+        (double l1, double o1) = GeoMath.ProjectPoint(n0.Position, new TrueHeading(180.0), 120.0 / GeoMath.FeetPerNm);
+        GroundNode n1 = MakeNode(2, l1, o1);
+        (double l2, double o2) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
+        GroundNode n2 = MakeNode(3, l2, o2);
+        (double l3, double o3) = GeoMath.ProjectPoint(n2.Position, new TrueHeading(180.0), 200.0 / GeoMath.FeetPerNm);
+        GroundNode n3 = MakeNode(4, l3, o3);
 
         var route = new TaxiRoute
         {
@@ -280,7 +280,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
             HoldShortPoints = [],
         };
 
-        var (aircraft, ctx) = MakeFixture(n0.Position, acHeadingDeg: 180.0, startSpeedKts: 10.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(n0.Position, acHeadingDeg: 180.0, startSpeedKts: 10.0);
         var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
@@ -290,7 +290,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
             bool last = route.CurrentSegmentIndex == route.Segments.Count - 1;
-            var result = nav.Tick(ctx, last, _ => true);
+            NavigatorResult result = nav.Tick(ctx, last, _ => true);
 
             bool alignedToConnector = new TrueHeading(aircraft.TrueHeading.Degrees).AbsAngleTo(new TrueHeading(90.0)) < 20.0;
             if (route.CurrentSegmentIndex == 1 && alignedToConnector)
@@ -331,13 +331,13 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     {
         const double LongStraightFt = 1500.0;
 
-        var n0 = MakeNode(1, 37.0, -122.0);
-        var (l1, o1) = GeoMath.ProjectPoint(n0.Position, new TrueHeading(180.0), 120.0 / GeoMath.FeetPerNm);
-        var n1 = MakeNode(2, l1, o1);
-        var (l2, o2) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), LongStraightFt / GeoMath.FeetPerNm);
-        var n2 = MakeNode(3, l2, o2);
-        var (l3, o3) = GeoMath.ProjectPoint(n2.Position, new TrueHeading(180.0), 200.0 / GeoMath.FeetPerNm);
-        var n3 = MakeNode(4, l3, o3);
+        GroundNode n0 = MakeNode(1, 37.0, -122.0);
+        (double l1, double o1) = GeoMath.ProjectPoint(n0.Position, new TrueHeading(180.0), 120.0 / GeoMath.FeetPerNm);
+        GroundNode n1 = MakeNode(2, l1, o1);
+        (double l2, double o2) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), LongStraightFt / GeoMath.FeetPerNm);
+        GroundNode n2 = MakeNode(3, l2, o2);
+        (double l3, double o3) = GeoMath.ProjectPoint(n2.Position, new TrueHeading(180.0), 200.0 / GeoMath.FeetPerNm);
+        GroundNode n3 = MakeNode(4, l3, o3);
 
         var route = new TaxiRoute
         {
@@ -345,7 +345,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
             HoldShortPoints = [],
         };
 
-        var (aircraft, ctx) = MakeFixture(n0.Position, acHeadingDeg: 180.0, startSpeedKts: 10.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(n0.Position, acHeadingDeg: 180.0, startSpeedKts: 10.0);
         var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
@@ -355,7 +355,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
             bool last = route.CurrentSegmentIndex == route.Segments.Count - 1;
-            var result = nav.Tick(ctx, last, _ => true);
+            NavigatorResult result = nav.Tick(ctx, last, _ => true);
 
             bool alignedToStraight = new TrueHeading(aircraft.TrueHeading.Degrees).AbsAngleTo(new TrueHeading(90.0)) < 20.0;
             if (route.CurrentSegmentIndex == 1 && alignedToStraight)
@@ -410,7 +410,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         var nodes = new List<GroundNode> { MakeNode(1, 37.0, -122.0) };
         for (int i = 1; i <= Chords; i++)
         {
-            var (lat, lon) = GeoMath.ProjectPoint(nodes[^1].Position, new TrueHeading(90.0), ChordFt / GeoMath.FeetPerNm);
+            (double lat, double lon) = GeoMath.ProjectPoint(nodes[^1].Position, new TrueHeading(90.0), ChordFt / GeoMath.FeetPerNm);
             nodes.Add(MakeNode(i + 1, lat, lon));
         }
 
@@ -421,7 +421,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         };
 
         double taxiSpeed = CategoryPerformance.TaxiSpeed(AircraftCategory.Jet);
-        var (aircraft, ctx) = MakeFixture(nodes[0].Position, acHeadingDeg: 90.0, startSpeedKts: taxiSpeed);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(nodes[0].Position, acHeadingDeg: 90.0, startSpeedKts: taxiSpeed);
         var nav = new GroundNavigator { MaxSpeedKts = taxiSpeed };
         nav.SetupSegment(route, ctx, _ => true);
 
@@ -432,7 +432,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
             bool last = route.CurrentSegmentIndex == route.Segments.Count - 1;
-            var result = nav.Tick(ctx, last, _ => true);
+            NavigatorResult result = nav.Tick(ctx, last, _ => true);
 
             if ((route.CurrentSegmentIndex >= FirstMeasuredSegment) && (route.CurrentSegmentIndex <= LastMeasuredSegment))
             {
@@ -474,15 +474,15 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     [Fact]
     public void StraightSegment_AlignedAircraft_NoEntryAlignmentInjected()
     {
-        var fromNode = MakeNode(1, 37.0, -122.0);
-        var (toLat, toLon) = GeoMath.ProjectPoint(fromNode.Position, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
-        var toNode = MakeNode(2, toLat, toLon);
+        GroundNode fromNode = MakeNode(1, 37.0, -122.0);
+        (double toLat, double toLon) = GeoMath.ProjectPoint(fromNode.Position, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
+        GroundNode toNode = MakeNode(2, toLat, toLon);
 
         var route = new TaxiRoute { Segments = [MakeStraightSegment(fromNode, toNode)], HoldShortPoints = [] };
 
         // Aircraft heading 95° vs segment 90° = only 5° off, well under the
         // 30° entry alignment threshold.
-        var (aircraft, ctx) = MakeFixture(fromNode.Position, acHeadingDeg: 95.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(fromNode.Position, acHeadingDeg: 95.0);
         var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
@@ -536,20 +536,20 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     [Fact]
     public void SetupSegment_FreeSpaceFirstLeg_AlignmentArcExitsOnTheLineThroughTheNode()
     {
-        var startNode = MakeNode(StartNodeId, StartNodeLat, StartNodeLon);
+        GroundNode startNode = MakeNode(StartNodeId, StartNodeLat, StartNodeLon);
         var route = new TaxiRoute
         {
             Segments = [VirtualNode.CreateSegment(VirtualNode.Create(PushedLat, PushedLon), startNode, "RAMP")],
             HoldShortPoints = [],
         };
 
-        var (_, ctx) = MakeFixture(new LatLon(PushedLat, PushedLon), PushedHeadingDeg);
+        (AircraftState _, PhaseContext? ctx) = MakeFixture(new LatLon(PushedLat, PushedLon), PushedHeadingDeg);
         var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
-        var turn = Assert.IsType<PathPrimitiveSlowTurn>(nav.CurrentPrimitive);
+        PathPrimitiveSlowTurn turn = Assert.IsType<PathPrimitiveSlowTurn>(nav.CurrentPrimitive);
 
-        var exit = ExitPoint(turn);
+        LatLon exit = ExitPoint(turn);
         var target = new LatLon(StartNodeLat, StartNodeLon);
         double distFt = GeoMath.DistanceNm(exit, target) * GeoMath.FeetPerNm;
         double deltaRad = GeoMath.SignedBearingDifference(turn.ExitTangentBearingDeg, GeoMath.BearingTo(exit, target)) * Math.PI / 180.0;
@@ -652,18 +652,18 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     /// </summary>
     private (GroundArc Arc, GroundNode From, GroundNode To, TaxiRoute Route)? OakFilletArcRoute()
     {
-        var layout = new Helpers.TestAirportGroundData().GetLayout("OAK");
-        if ((layout is null) || !layout.Nodes.TryGetValue(FilletFromNodeId, out var from))
+        AirportGroundLayout? layout = new Helpers.TestAirportGroundData().GetLayout("OAK");
+        if ((layout is null) || !layout.Nodes.TryGetValue(FilletFromNodeId, out GroundNode? from))
         {
             return null;
         }
 
-        var arc =
+        GroundArc? arc =
             layout.Arcs.FirstOrDefault(a => a.HasNode(FilletFromNodeId) && a.HasNode(FilletToNodeId))
             ?? layout.Arcs.Where(a => a.HasNode(FilletFromNodeId)).OrderBy(a => a.OtherNodeId(FilletFromNodeId)).FirstOrDefault();
         Assert.True(arc is not null, $"OAK node {FilletFromNodeId} carries no fillet arc to play back");
 
-        var to = arc!.OtherNode(from);
+        GroundNode to = arc!.OtherNode(from);
         var directed = new DirectionalEdge
         {
             Edge = arc,
@@ -691,17 +691,17 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     [Fact]
     public void BezierEntry_OffStartPoint_DoesNotTeleport()
     {
-        var fixture = OakFilletArcRoute();
+        (GroundArc Arc, GroundNode From, GroundNode To, TaxiRoute Route)? fixture = OakFilletArcRoute();
         if (fixture is null)
         {
             return;
         }
 
-        var (_, from, to, route) = fixture.Value;
+        (GroundArc _, GroundNode? from, GroundNode? to, TaxiRoute? route) = fixture.Value;
         double departureBrg = route.Segments[0].Edge.DepartureBearing;
-        var start = GeoMath.ProjectPoint(from.Position, new TrueHeading(departureBrg + 90.0), EntryOffsetFt / GeoMath.FeetPerNm);
+        LatLon start = GeoMath.ProjectPoint(from.Position, new TrueHeading(departureBrg + 90.0), EntryOffsetFt / GeoMath.FeetPerNm);
 
-        var (aircraft, ctx) = MakeFixture(start, departureBrg, startSpeedKts: EntrySpeedKts);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(start, departureBrg, startSpeedKts: EntrySpeedKts);
         var nav = new GroundNavigator { MaxSpeedKts = EntrySpeedKts };
         nav.SetupSegment(route, ctx, _ => true);
         Assert.IsType<PathPrimitiveBezier>(nav.CurrentPrimitive);
@@ -716,7 +716,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
             // Physics integrates position as well, so the displacement under test is the navigator's own
             // write: measure from the position it starts the tick at — what the no-teleport guard checks.
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            var before = aircraft.Position;
+            LatLon before = aircraft.Position;
             double iasKts = aircraft.IndicatedAirspeed;
             arrived = nav.Tick(ctx, isLastSegment: true, _ => true) == NavigatorResult.ArrivedAtNode;
 
@@ -756,20 +756,20 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     [Fact]
     public void BezierStart_OffP0_InitialisesProgressFromPosition()
     {
-        var fixture = OakFilletArcRoute();
+        (GroundArc Arc, GroundNode From, GroundNode To, TaxiRoute Route)? fixture = OakFilletArcRoute();
         if (fixture is null)
         {
             return;
         }
 
-        var (_, _, to, route) = fixture.Value;
-        var prim = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegment(route.Segments[0]));
-        var (startLat, startLon) = prim.Curve.Evaluate(PartWayAlongT);
+        (GroundArc _, GroundNode _, GroundNode? to, TaxiRoute? route) = fixture.Value;
+        PathPrimitiveBezier prim = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegment(route.Segments[0]));
+        (double startLat, double startLon) = prim.Curve.Evaluate(PartWayAlongT);
         double startTangent = prim.Curve.TangentBearing(PartWayAlongT);
         var curveStart = new LatLon(prim.Curve.P0Lat, prim.Curve.P0Lon);
         double fromP0Ft = GeoMath.DistanceNm(new LatLon(startLat, startLon), curveStart) * GeoMath.FeetPerNm;
 
-        var (aircraft, ctx) = MakeFixture(new LatLon(startLat, startLon), startTangent, startSpeedKts: EntrySpeedKts);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(new LatLon(startLat, startLon), startTangent, startSpeedKts: EntrySpeedKts);
         var nav = new GroundNavigator { MaxSpeedKts = EntrySpeedKts };
         nav.SetupSegment(route, ctx, _ => true);
         Assert.IsType<PathPrimitiveBezier>(nav.CurrentPrimitive);
@@ -817,21 +817,21 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     [Fact]
     public void BezierEntry_ShortOfStartPoint_DrivesTheLeadInBeforeTheCurve()
     {
-        var fixture = OakFilletArcRoute();
+        (GroundArc Arc, GroundNode From, GroundNode To, TaxiRoute Route)? fixture = OakFilletArcRoute();
         if (fixture is null)
         {
             return;
         }
 
-        var (_, _, to, route) = fixture.Value;
-        var prim = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegment(route.Segments[0]));
+        (GroundArc _, GroundNode _, GroundNode? to, TaxiRoute? route) = fixture.Value;
+        PathPrimitiveBezier prim = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegment(route.Segments[0]));
         var curveStart = new LatLon(prim.Curve.P0Lat, prim.Curve.P0Lon);
         double entryTangent = prim.Curve.TangentBearing(0.0);
 
-        var behind = GeoMath.ProjectPoint(curveStart, new TrueHeading((entryTangent + 180.0) % 360.0), LeadInShortfallFt / GeoMath.FeetPerNm);
-        var start = GeoMath.ProjectPoint(behind, new TrueHeading((entryTangent + 90.0) % 360.0), LeadInCrossTrackFt / GeoMath.FeetPerNm);
+        LatLon behind = GeoMath.ProjectPoint(curveStart, new TrueHeading((entryTangent + 180.0) % 360.0), LeadInShortfallFt / GeoMath.FeetPerNm);
+        LatLon start = GeoMath.ProjectPoint(behind, new TrueHeading((entryTangent + 90.0) % 360.0), LeadInCrossTrackFt / GeoMath.FeetPerNm);
 
-        var (aircraft, ctx) = MakeFixture(start, entryTangent, startSpeedKts: LeadInEntrySpeedKts);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(start, entryTangent, startSpeedKts: LeadInEntrySpeedKts);
         var nav = new GroundNavigator { MaxSpeedKts = LeadInEntrySpeedKts };
         nav.SetupSegment(route, ctx, _ => true);
         Assert.IsType<PathPrimitiveBezier>(nav.CurrentPrimitive);
@@ -845,7 +845,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         for (int tick = 0; (tick < 400) && !arrived; tick++)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            var before = aircraft.Position;
+            LatLon before = aircraft.Position;
             double iasKts = aircraft.IndicatedAirspeed;
             arrived = nav.Tick(ctx, isLastSegment: true, _ => true) == NavigatorResult.ArrivedAtNode;
 
@@ -895,22 +895,22 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     [Fact]
     public void ArcEntry_BeyondMaxOffset_Refused()
     {
-        var fixture = OakFilletArcRoute();
+        (GroundArc Arc, GroundNode From, GroundNode To, TaxiRoute Route)? fixture = OakFilletArcRoute();
         if (fixture is null)
         {
             return;
         }
 
-        var (_, from, _, route) = fixture.Value;
+        (GroundArc _, GroundNode? from, GroundNode _, TaxiRoute? route) = fixture.Value;
         double departureBrg = route.Segments[0].Edge.DepartureBearing;
-        var start = GeoMath.ProjectPoint(from.Position, new TrueHeading(departureBrg + 90.0), FarOffsetFt / GeoMath.FeetPerNm);
+        LatLon start = GeoMath.ProjectPoint(from.Position, new TrueHeading(departureBrg + 90.0), FarOffsetFt / GeoMath.FeetPerNm);
 
-        var (aircraft, ctx) = MakeFixture(start, departureBrg, startSpeedKts: EntrySpeedKts);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(start, departureBrg, startSpeedKts: EntrySpeedKts);
         var nav = new GroundNavigator { MaxSpeedKts = EntrySpeedKts };
         nav.SetupSegment(route, ctx, _ => true);
         FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
 
-        var ex = Assert.Throws<InvalidOperationException>(() => nav.Tick(ctx, isLastSegment: true, _ => true));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => nav.Tick(ctx, isLastSegment: true, _ => true));
 
         _out.WriteLine(ex.Message);
         Assert.Contains("arc entry", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -928,17 +928,17 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     [Fact]
     public void BezierEntry_20ftOffAt15kt_BlendsWithoutTrippingTheGuard()
     {
-        var fixture = OakFilletArcRoute();
+        (GroundArc Arc, GroundNode From, GroundNode To, TaxiRoute Route)? fixture = OakFilletArcRoute();
         if (fixture is null)
         {
             return;
         }
 
-        var (_, from, to, route) = fixture.Value;
+        (GroundArc _, GroundNode? from, GroundNode? to, TaxiRoute? route) = fixture.Value;
         double departureBrg = route.Segments[0].Edge.DepartureBearing;
-        var start = GeoMath.ProjectPoint(from.Position, new TrueHeading(departureBrg + 90.0), RateCapOffsetFt / GeoMath.FeetPerNm);
+        LatLon start = GeoMath.ProjectPoint(from.Position, new TrueHeading(departureBrg + 90.0), RateCapOffsetFt / GeoMath.FeetPerNm);
 
-        var (aircraft, ctx) = MakeFixture(start, departureBrg, startSpeedKts: RateCapEntrySpeedKts);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(start, departureBrg, startSpeedKts: RateCapEntrySpeedKts);
         var nav = new GroundNavigator { MaxSpeedKts = RateCapEntrySpeedKts };
         nav.SetupSegment(route, ctx, _ => true);
         Assert.IsType<PathPrimitiveBezier>(nav.CurrentPrimitive);
@@ -953,7 +953,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
             // The displacement under test is the navigator's own write, so measure from the position it
             // starts the sub-tick at — exactly what the no-teleport guard compares against v·dt.
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            var before = aircraft.Position;
+            LatLon before = aircraft.Position;
             double iasKts = aircraft.IndicatedAirspeed;
             arrived = nav.Tick(ctx, isLastSegment: true, _ => true) == NavigatorResult.ArrivedAtNode;
 
@@ -993,9 +993,9 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     public void CheckNoTeleport_WriteBeyondTheTravel_Throws()
     {
         var before = new LatLon(StartNodeLat, StartNodeLon);
-        var after = GeoMath.ProjectPoint(before, new TrueHeading(90.0), GuardJumpFt / GeoMath.FeetPerNm);
+        LatLon after = GeoMath.ProjectPoint(before, new TrueHeading(90.0), GuardJumpFt / GeoMath.FeetPerNm);
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
             GroundNavigator.CheckNoTeleport("NAV", before, after, GuardJumpTravelFt, PathPrimitiveKind.Bezier)
         );
 
@@ -1030,15 +1030,15 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     [Fact]
     public void CrossingFloor_OnAFillet_NeverExceedsTheArcsSafeSpeed()
     {
-        var fixture = OakFilletArcRoute();
+        (GroundArc Arc, GroundNode From, GroundNode To, TaxiRoute Route)? fixture = OakFilletArcRoute();
         if (fixture is null)
         {
             return;
         }
 
-        var (arc, from, _, route) = fixture.Value;
+        (GroundArc? arc, GroundNode? from, GroundNode _, TaxiRoute? route) = fixture.Value;
         double departureBrg = route.Segments[0].Edge.DepartureBearing;
-        var (aircraft, ctx) = MakeFixture(from.Position, departureBrg, startSpeedKts: CrossingFloorKts);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(from.Position, departureBrg, startSpeedKts: CrossingFloorKts);
         var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(AircraftCategory.Jet), MinSpeedKts = CrossingFloorKts };
         nav.SetupSegment(route, ctx, _ => true);
         Assert.IsType<PathPrimitiveBezier>(nav.CurrentPrimitive);
@@ -1090,12 +1090,12 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     [Fact]
     public void CrossingFloor_OnAStraight_StillLiftsTheTarget()
     {
-        var n0 = MakeNode(1, 37.0, -122.0);
-        var (l1, o1) = GeoMath.ProjectPoint(n0.Position, new TrueHeading(180.0), FloorStraightFt / GeoMath.FeetPerNm);
-        var n1 = MakeNode(2, l1, o1);
+        GroundNode n0 = MakeNode(1, 37.0, -122.0);
+        (double l1, double o1) = GeoMath.ProjectPoint(n0.Position, new TrueHeading(180.0), FloorStraightFt / GeoMath.FeetPerNm);
+        GroundNode n1 = MakeNode(2, l1, o1);
 
         var route = new TaxiRoute { Segments = [MakeStraightSegment(n0, n1, "A")], HoldShortPoints = [] };
-        var (aircraft, ctx) = MakeFixture(n0.Position, acHeadingDeg: 180.0, startSpeedKts: CrossingFloorKts);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(n0.Position, acHeadingDeg: 180.0, startSpeedKts: CrossingFloorKts);
         var nav = new GroundNavigator { MaxSpeedKts = BelowFloorCeilingKts, MinSpeedKts = CrossingFloorKts };
         nav.SetupSegment(route, ctx, _ => true);
 

@@ -1,4 +1,5 @@
 ﻿using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -23,7 +24,7 @@ public class IssueSfo28rExitTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -43,8 +44,8 @@ public class IssueSfo28rExitTests(ITestOutputHelper output)
     [Fact]
     public void Aircraft_ExitSmoothly_NoCrossRunway()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -61,7 +62,7 @@ public class IssueSfo28rExitTests(ITestOutputHelper output)
 
             foreach (string callsign in new[] { "SKW3398" })
             {
-                var ac = engine.FindAircraft(callsign);
+                AircraftState? ac = engine.FindAircraft(callsign);
                 if (ac is null)
                 {
                     continue;
@@ -88,7 +89,7 @@ public class IssueSfo28rExitTests(ITestOutputHelper output)
         // Both aircraft should have completed exit
         foreach (string callsign in new[] { "SKW3398" })
         {
-            var ac = engine.FindAircraft(callsign);
+            AircraftState? ac = engine.FindAircraft(callsign);
             Assert.NotNull(ac);
 
             string phase = ac.Phases?.CurrentPhase?.Name ?? "none";
@@ -103,7 +104,7 @@ public class IssueSfo28rExitTests(ITestOutputHelper output)
         // Exit should complete in under 60 seconds. This includes rolling time
         // from where LandingPhase ended to the exit branch node. The bug caused
         // 90+ second wandering with wild heading reversals.
-        foreach (var (cs, duration) in exitDuration)
+        foreach ((string? cs, int duration) in exitDuration)
         {
             output.WriteLine($"{cs}: spent {duration}s in Runway Exit phase");
 

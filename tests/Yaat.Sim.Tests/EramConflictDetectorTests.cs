@@ -71,8 +71,8 @@ public class EramConflictDetectorTests
     {
         // Head-on, 25 nm apart at FL350. They pass each other well within four minutes but are nowhere near
         // separation loss in the next 5 s — the terminal detector misses this; ERAM must catch it.
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, heading: 90, cruiseAltitude: Fl350);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(25.0), Fl350, heading: 270, cruiseAltitude: Fl350);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, heading: 90, cruiseAltitude: Fl350);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(25.0), Fl350, heading: 270, cruiseAltitude: Fl350);
 
         Assert.True(Detected(a, b));
         // Contrast: the terminal 5-second detector does NOT fire on this pair.
@@ -84,11 +84,11 @@ public class EramConflictDetectorTests
     {
         // A flies east; B flies north and is placed so both reach the same point at t≈120 s. Separation is
         // large at both t=0 and t=240 s — only a swept closest-approach (not an endpoint sample) catches it.
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, heading: 90, cruiseAltitude: Fl350);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, heading: 90, cruiseAltitude: Fl350);
         double distHalfWindowNm = a.GroundSpeed * 120.0 / 3600.0;
-        var crossing = GeoMath.ProjectPoint(a.Position, new TrueHeading(90), distHalfWindowNm);
-        var bStart = GeoMath.ProjectPoint(crossing, new TrueHeading(180), distHalfWindowNm);
-        var b = MakeAircraft("UAL200", bStart.Lat, bStart.Lon, Fl350, heading: 360, cruiseAltitude: Fl350);
+        LatLon crossing = GeoMath.ProjectPoint(a.Position, new TrueHeading(90), distHalfWindowNm);
+        LatLon bStart = GeoMath.ProjectPoint(crossing, new TrueHeading(180), distHalfWindowNm);
+        AircraftState b = MakeAircraft("UAL200", bStart.Lat, bStart.Lon, Fl350, heading: 360, cruiseAltitude: Fl350);
 
         Assert.True(Detected(a, b));
         Assert.Empty(ConflictAlertDetector.Detect([a, b], new ConflictAlertContext([], [])));
@@ -99,16 +99,16 @@ public class EramConflictDetectorTests
     [Fact]
     public void Parallel_4nmApart_AboveFl230_Detected()
     {
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, cruiseAltitude: Fl350);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), Fl350, cruiseAltitude: Fl350);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, cruiseAltitude: Fl350);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), Fl350, cruiseAltitude: Fl350);
         Assert.True(Detected(a, b)); // 4 nm < 5 nm en-route minimum
     }
 
     [Fact]
     public void Parallel_6nmApart_AboveFl230_NotDetected()
     {
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, cruiseAltitude: Fl350);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(6.0), Fl350, cruiseAltitude: Fl350);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, cruiseAltitude: Fl350);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(6.0), Fl350, cruiseAltitude: Fl350);
         Assert.False(Detected(a, b)); // 6 nm > 5 nm
     }
 
@@ -116,16 +116,16 @@ public class EramConflictDetectorTests
     public void Parallel_4nmApart_AtOrBelowFl230_NotDetected()
     {
         // Same 4 nm geometry as the FL350 case, but both at FL200 → reduced-separation 3 nm applies.
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl200, cruiseAltitude: Fl200);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), Fl200, cruiseAltitude: Fl200);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl200, cruiseAltitude: Fl200);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), Fl200, cruiseAltitude: Fl200);
         Assert.False(Detected(a, b)); // 4 nm > 3 nm reduced minimum
     }
 
     [Fact]
     public void Parallel_2nmApart_AtOrBelowFl230_Detected()
     {
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl200, cruiseAltitude: Fl200);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), Fl200, cruiseAltitude: Fl200);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl200, cruiseAltitude: Fl200);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), Fl200, cruiseAltitude: Fl200);
         Assert.True(Detected(a, b)); // 2 nm < 3 nm
     }
 
@@ -133,8 +133,8 @@ public class EramConflictDetectorTests
     public void Parallel_4nmApart_OneAboveFl230_UsesFiveNm_Detected()
     {
         // Only "both ≤ FL230" gets the reduced 3 nm; a mixed pair keeps 5 nm.
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl200, cruiseAltitude: Fl200);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), Fl350, cruiseAltitude: Fl350);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl200, cruiseAltitude: Fl200);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), Fl350, cruiseAltitude: Fl350);
         // Vertical envelopes (FL200 vs FL350) are far apart, so this must NOT alert on vertical grounds; use
         // a co-altitude mixed-with-FL230-boundary check instead.
         Assert.False(Detected(a, b));
@@ -148,8 +148,8 @@ public class EramConflictDetectorTests
         // §381: A at FL370 descending with a data-block (interim) altitude of FL350; B level at FL330.
         // A's envelope is [FL350,FL370]; the 2000 ft gap to B means no alert despite the descent rate.
         // Interim altitude is in hundreds of feet (350 = FL350).
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, 37000, verticalSpeed: -2000, interimAltitude: 350, cruiseAltitude: 37000);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), 33000, cruiseAltitude: 33000);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, 37000, verticalSpeed: -2000, interimAltitude: 350, cruiseAltitude: 37000);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), 33000, cruiseAltitude: 33000);
         Assert.False(Detected(a, b));
     }
 
@@ -160,8 +160,8 @@ public class EramConflictDetectorTests
         // 330 ft. A at FL350 with interim FL330; B level far below at FL200. Correct envelope [33000,35000]
         // clears B's 20000 ft by 13000 ft. If the ×100 were missing, A's envelope would be [330,35000] and
         // swallow B → spurious alert.
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, 35000, interimAltitude: 330, cruiseAltitude: 35000);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), 20000, cruiseAltitude: 20000);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, 35000, interimAltitude: 330, cruiseAltitude: 35000);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), 20000, cruiseAltitude: 20000);
         Assert.False(Detected(a, b));
     }
 
@@ -170,8 +170,8 @@ public class EramConflictDetectorTests
     {
         // Same descent, but no data-block altitude at all → the envelope falls back to the VS projection
         // (FL370 down to ~FL290 over four minutes), which sweeps through B's FL330 → alert.
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, 37000, verticalSpeed: -2000);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), 33000, cruiseAltitude: 33000);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, 37000, verticalSpeed: -2000);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), 33000, cruiseAltitude: 33000);
         Assert.True(Detected(a, b));
     }
 
@@ -179,8 +179,8 @@ public class EramConflictDetectorTests
     public void Vertical_LevelTrafficMovingTowardLowerAssignment_Alert()
     {
         // §383: A level at FL350 but with an interim of FL330 → envelope [FL330,FL350] contains B's FL340.
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, 35000, interimAltitude: 330, cruiseAltitude: 35000);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), 34000, cruiseAltitude: 34000);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, 35000, interimAltitude: 330, cruiseAltitude: 35000);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), 34000, cruiseAltitude: 34000);
         Assert.True(Detected(a, b));
     }
 
@@ -190,9 +190,9 @@ public class EramConflictDetectorTests
         // CRC field-B precedence is LocalInterim > Procedure > Interim. A is level at FL350 with an interim
         // of FL350 (no pending change) but a local interim of FL330 → the local interim drives the envelope
         // [FL330,FL350], which contains B's FL340. Reversed precedence would use FL350 and miss it.
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, 35000, interimAltitude: 350, cruiseAltitude: 35000);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, 35000, interimAltitude: 350, cruiseAltitude: 35000);
         a.Eram.LocalInterimAltitude = 330;
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), 34000, cruiseAltitude: 34000);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), 34000, cruiseAltitude: 34000);
         Assert.True(Detected(a, b));
     }
 
@@ -201,8 +201,8 @@ public class EramConflictDetectorTests
     {
         // Same positions, but both level at their data-block altitude → envelopes are points 1000 ft apart,
         // which is separation, not a loss.
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, 35000, cruiseAltitude: 35000);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), 34000, cruiseAltitude: 34000);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, 35000, cruiseAltitude: 35000);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), 34000, cruiseAltitude: 34000);
         Assert.False(Detected(a, b));
     }
 
@@ -211,8 +211,8 @@ public class EramConflictDetectorTests
     [Fact]
     public void Diverging_FarApart_NoAlert()
     {
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, heading: 270, cruiseAltitude: Fl350);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(10.0), Fl350, heading: 90, cruiseAltitude: Fl350);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, heading: 270, cruiseAltitude: Fl350);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(10.0), Fl350, heading: 90, cruiseAltitude: Fl350);
         Assert.False(Detected(a, b));
     }
 
@@ -224,8 +224,8 @@ public class EramConflictDetectorTests
     public void Ineligible_Excluded(string kind)
     {
         // Two aircraft co-located and co-altitude — an obvious conflict — but one is ineligible.
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, cruiseAltitude: Fl350);
-        var b = MakeAircraft(
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, cruiseAltitude: Fl350);
+        AircraftState b = MakeAircraft(
             "UAL200",
             BaseLat,
             BaseLon,
@@ -244,17 +244,17 @@ public class EramConflictDetectorTests
     [Fact]
     public void Hysteresis_StaysLatchedJustPastThreshold_ClearsWithMargin()
     {
-        var id = EramConflictDetector.MakeConflictId("AAL100", "UAL200");
+        string id = EramConflictDetector.MakeConflictId("AAL100", "UAL200");
         var latched = new HashSet<string> { id };
 
         // 5.2 nm abeam at FL350: past the 5 nm fresh minimum but inside the 5.3 nm clear threshold.
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, cruiseAltitude: Fl350);
-        var b52 = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(5.2), Fl350, cruiseAltitude: Fl350);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, cruiseAltitude: Fl350);
+        AircraftState b52 = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(5.2), Fl350, cruiseAltitude: Fl350);
         Assert.Empty(EramConflictDetector.Detect([a, b52], new HashSet<string>())); // fresh: no alert
         Assert.NotEmpty(EramConflictDetector.Detect([a, b52], latched)); // latched: stays
 
         // 5.4 nm abeam: beyond the clear threshold → the latch releases.
-        var b54 = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(5.4), Fl350, cruiseAltitude: Fl350);
+        AircraftState b54 = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(5.4), Fl350, cruiseAltitude: Fl350);
         Assert.Empty(EramConflictDetector.Detect([a, b54], latched));
     }
 

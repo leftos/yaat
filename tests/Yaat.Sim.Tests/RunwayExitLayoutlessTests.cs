@@ -27,8 +27,8 @@ public class RunwayExitLayoutlessTests
     [Fact]
     public void NoLayout_RollsToAStopAndCompletes()
     {
-        var aircraft = MakeRolloutAircraft();
-        var ctx = MakeLayoutlessContext(aircraft);
+        AircraftState aircraft = MakeRolloutAircraft();
+        PhaseContext ctx = MakeLayoutlessContext(aircraft);
 
         int holdingStartedAt = RunSeconds(aircraft, ctx, WatchSeconds);
 
@@ -44,8 +44,8 @@ public class RunwayExitLayoutlessTests
     [Fact]
     public void NoLayout_HoldingAfterExit_DoesNotReportClearOfRunway()
     {
-        var aircraft = MakeRolloutAircraft();
-        var ctx = MakeLayoutlessContext(aircraft);
+        AircraftState aircraft = MakeRolloutAircraft();
+        PhaseContext ctx = MakeLayoutlessContext(aircraft);
 
         int holdingStartedAt = RunSeconds(aircraft, ctx, WatchSeconds);
 

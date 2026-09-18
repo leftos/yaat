@@ -53,7 +53,7 @@ public class HoldShortQueueTests
             layout.Edges.Add(edge);
         }
 
-        foreach (var n in nodes)
+        foreach (GroundNode n in nodes)
         {
             layout.Nodes[n.Id] = n;
         }
@@ -67,7 +67,7 @@ public class HoldShortQueueTests
         var segments = new List<TaxiRouteSegment>();
         for (int i = startNodeId; i < holdShortNodeId; i++)
         {
-            var edge = layout.Edges.First(e => e.HasNode(i) && e.HasNode(i + 1));
+            GroundEdge edge = layout.Edges.First(e => e.HasNode(i) && e.HasNode(i + 1));
             segments.Add(new TaxiRouteSegment { TaxiwayName = "B", Edge = edge.Directed(layout.Nodes[i], layout.Nodes[i + 1]) });
         }
 
@@ -119,11 +119,11 @@ public class HoldShortQueueTests
     [Fact]
     public void StalledAtThreshold_DoesNotTrigger_WhenConflictDetectorStopsAircraft()
     {
-        var (layout, hsNodeId) = BuildHoldShortLayout();
-        var hsNode = layout.Nodes[hsNodeId];
+        (AirportGroundLayout? layout, int hsNodeId) = BuildHoldShortLayout();
+        GroundNode hsNode = layout.Nodes[hsNodeId];
 
         // Aircraft A: holding short at node 4
-        var acA = MakeAircraft("HOLD01", "C172", hsNode.Position);
+        AircraftState acA = MakeAircraft("HOLD01", "C172", hsNode.Position);
         acA.Phases = new PhaseList();
         var holdPhase = new HoldingShortPhase(
             new HoldShortPoint
@@ -137,16 +137,16 @@ public class HoldShortQueueTests
         acA.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
         // Aircraft B: taxiing toward hold-short, starting at node 2 (2 segments away)
-        var startNode = layout.Nodes[2];
-        var acB = MakeAircraft("TAXI01", "C172", startNode.Position);
-        var route = MakeRouteToHoldShort(layout, 2, hsNodeId);
+        GroundNode startNode = layout.Nodes[2];
+        AircraftState acB = MakeAircraft("TAXI01", "C172", startNode.Position);
+        TaxiRoute route = MakeRouteToHoldShort(layout, 2, hsNodeId);
         acB.Ground.AssignedTaxiRoute = route;
         acB.Phases = new PhaseList();
         var taxiPhase = new TaxiingPhase();
         acB.Phases.Add(taxiPhase);
 
         Func<int, bool> occupancyCheck = nodeId => nodeId == hsNodeId;
-        var ctx = MakeContext(acB, layout, occupancyCheck);
+        PhaseContext ctx = MakeContext(acB, layout, occupancyCheck);
         acB.Phases.Start(ctx);
 
         var allAircraft = new List<AircraftState> { acA, acB };
@@ -183,11 +183,11 @@ public class HoldShortQueueTests
     [Fact]
     public void ArriveAtNode_DoesNotSnap_WhenHoldShortNodeOccupied()
     {
-        var (layout, hsNodeId) = BuildHoldShortLayout();
-        var hsNode = layout.Nodes[hsNodeId];
+        (AirportGroundLayout? layout, int hsNodeId) = BuildHoldShortLayout();
+        GroundNode hsNode = layout.Nodes[hsNodeId];
 
         // Aircraft A: at the hold-short node
-        var acA = MakeAircraft("HOLD01", "C172", hsNode.Position);
+        AircraftState acA = MakeAircraft("HOLD01", "C172", hsNode.Position);
         acA.Phases = new PhaseList();
         acA.Phases.Add(
             new HoldingShortPhase(
@@ -204,10 +204,10 @@ public class HoldShortQueueTests
         // Aircraft B: just barely before the hold-short node (within arrival threshold)
         // Place it ~80ft from the hold-short node (within NodeArrivalThresholdNm = 0.015nm ≈ 91ft)
         double offsetNm = 80.0 / FtPerNm;
-        var acB = MakeAircraft("TAXI01", "C172", new LatLon(hsNode.Position.Lat + offsetNm / 60.0, hsNode.Position.Lon));
+        AircraftState acB = MakeAircraft("TAXI01", "C172", new LatLon(hsNode.Position.Lat + offsetNm / 60.0, hsNode.Position.Lon));
 
         // Route: single segment to the hold-short node, starting from "just before"
-        var lastEdge = layout.Edges.Last(); // node 3 → node 4
+        GroundEdge lastEdge = layout.Edges.Last(); // node 3 → node 4
         var route = new TaxiRoute
         {
             Segments = [new TaxiRouteSegment { TaxiwayName = "B", Edge = lastEdge.Directed(layout.Nodes[3], layout.Nodes[hsNodeId]) }],
@@ -229,7 +229,7 @@ public class HoldShortQueueTests
         acB.IndicatedAirspeed = 5; // creeping forward
 
         Func<int, bool> occupancyCheck = nodeId => nodeId == hsNodeId;
-        var ctx = MakeContext(acB, layout, occupancyCheck);
+        PhaseContext ctx = MakeContext(acB, layout, occupancyCheck);
         acB.Phases.Start(ctx);
 
         // Tick — the aircraft is within arrival threshold of the hold-short node

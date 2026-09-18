@@ -68,7 +68,7 @@ public sealed class HoldingShortPhase : Phase
         string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
         string label = _holdShort.Reason == HoldShortReason.ExplicitHoldShort ? $"holding short of {target}" : $"holding short runway {target}";
         string warningText = $"{ctx.Aircraft.Callsign} {label} at {taxiway}";
-        var speechText =
+        PilotSpeechText speechText =
             _holdShort.Reason == HoldShortReason.ExplicitHoldShort
                 ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway)
                 : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, ResolveSpokenCrossingRunway(ctx, target));
@@ -81,7 +81,7 @@ public sealed class HoldingShortPhase : Phase
         if (
             _holdShort.TailOverRunwayNodeId is { } tailNode
             && ctx.GroundLayout is { } groundLayout
-            && groundLayout.Nodes.TryGetValue(tailNode, out var tailRwyNode)
+            && groundLayout.Nodes.TryGetValue(tailNode, out GroundNode? tailRwyNode)
             && tailRwyNode.RunwayId is { } tailRwy
         )
         {
@@ -102,8 +102,8 @@ public sealed class HoldingShortPhase : Phase
                 is { } answering
         )
         {
-            var facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
-            var line = PilotResponder.BuildHoldingShortReady(ctx.Aircraft, runwayId, facilityCallName);
+            string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
+            PilotSpeechText line = PilotResponder.BuildHoldingShortReady(ctx.Aircraft, runwayId, facilityCallName);
             PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
             PilotRequestTracker.RecordRequest(
                 ctx.Aircraft,
@@ -140,7 +140,7 @@ public sealed class HoldingShortPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
 
         // Check if clearance has been satisfied
-        foreach (var req in Requirements)
+        foreach (ClearanceRequirement req in Requirements)
         {
             if (req.IsSatisfied)
             {
@@ -187,7 +187,7 @@ public sealed class HoldingShortPhase : Phase
             return false;
         }
 
-        var ends = targetName.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string[] ends = targetName.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return (ends.Length > 0) && ends.All(IsRunwayEnd);
     }
 

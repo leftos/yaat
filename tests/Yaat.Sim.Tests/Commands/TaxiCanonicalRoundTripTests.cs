@@ -13,7 +13,7 @@ public class TaxiCanonicalRoundTripTests
 {
     private static TaxiCommand Parse(string input)
     {
-        var parsed = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
         Assert.True(parsed.IsSuccess, $"'{input}' failed to parse: {parsed.Reason}");
         return Assert.IsType<TaxiCommand>(parsed.Value);
     }
@@ -52,10 +52,10 @@ public class TaxiCanonicalRoundTripTests
     public void Canonical_RoundTripsThroughParser(string input)
     {
         string canonical = CommandDescriber.DescribeCommand(Parse(input));
-        var reparsed = Parse(canonical);
+        TaxiCommand reparsed = Parse(canonical);
         Assert.Equal(canonical, CommandDescriber.DescribeCommand(reparsed));
 
-        var original = Parse(input);
+        TaxiCommand original = Parse(input);
         Assert.Equal(original.Path, reparsed.Path);
         Assert.Equal(original.HoldShorts, reparsed.HoldShorts);
         Assert.Equal(original.DestinationRunway, reparsed.DestinationRunway);

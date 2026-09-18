@@ -26,8 +26,8 @@ public sealed partial class SimulationEngine
 {
     public StateSnapshotDto CaptureSnapshot(int actionIndex)
     {
-        var scenario = Scenario ?? throw new InvalidOperationException("No scenario loaded.");
-        var aircraft = World.GetSnapshot();
+        SimScenarioState scenario = Scenario ?? throw new InvalidOperationException("No scenario loaded.");
+        List<AircraftState> aircraft = World.GetSnapshot();
 
         return new StateSnapshotDto
         {
@@ -48,7 +48,7 @@ public sealed partial class SimulationEngine
         World.Rng = new SerializableRandom(snapshot.Rng.S0, snapshot.Rng.S1, snapshot.Rng.S2, snapshot.Rng.S3);
         World.Weather = snapshot.WeatherJson is not null ? JsonSerializer.Deserialize<WeatherProfile>(snapshot.WeatherJson) : null;
 
-        var scenarioDto = snapshot.Scenario;
+        ScenarioSnapshotDto scenarioDto = snapshot.Scenario;
 
         // Resolve ground layout for the primary airport
         AirportGroundLayout? groundLayout = null;
@@ -58,7 +58,7 @@ public sealed partial class SimulationEngine
             World.GroundLayout = groundLayout;
         }
 
-        foreach (var acDto in snapshot.Aircraft)
+        foreach (AircraftSnapshotDto acDto in snapshot.Aircraft)
         {
             var ac = AircraftState.FromSnapshot(acDto, groundLayout);
             World.AddAircraft(ac);
@@ -108,7 +108,7 @@ public sealed partial class SimulationEngine
             Scenario.WeatherTimeline = null;
             if (scenarioDto.WeatherSourceJson is { } weatherSourceJson)
             {
-                var weatherParse = WeatherTimelineParser.Parse(weatherSourceJson);
+                WeatherParseResult weatherParse = WeatherTimelineParser.Parse(weatherSourceJson);
                 if (weatherParse.IsTimeline)
                 {
                     Scenario.WeatherTimeline = weatherParse.Timeline;
@@ -148,9 +148,9 @@ public sealed partial class SimulationEngine
 
             if (scenarioDto.DelayedQueue is not null)
             {
-                foreach (var d in scenarioDto.DelayedQueue)
+                foreach (DelayedSpawnDto d in scenarioDto.DelayedQueue)
                 {
-                    var aircraft = JsonSerializer.Deserialize<LoadedAircraft>(d.AircraftJson)!;
+                    LoadedAircraft aircraft = JsonSerializer.Deserialize<LoadedAircraft>(d.AircraftJson)!;
                     // Reattach ground layout — excluded from JSON by [JsonIgnore], resolve by airport ID
                     if (aircraft.State.Ground.LayoutAirportId is { } layoutAirportId)
                     {
@@ -170,7 +170,7 @@ public sealed partial class SimulationEngine
 
             if (scenarioDto.HeldDepartureAirports is not null)
             {
-                foreach (var airport in scenarioDto.HeldDepartureAirports)
+                foreach (string airport in scenarioDto.HeldDepartureAirports)
                 {
                     Scenario.HeldDepartureAirports.Add(airport);
                 }
@@ -178,7 +178,7 @@ public sealed partial class SimulationEngine
 
             if (scenarioDto.ReleaseQueue is not null)
             {
-                foreach (var r in scenarioDto.ReleaseQueue)
+                foreach (ScheduledReleaseDto r in scenarioDto.ReleaseQueue)
                 {
                     Scenario.ReleaseQueue.Add(
                         new ScheduledRelease
@@ -194,7 +194,7 @@ public sealed partial class SimulationEngine
             Scenario.NextTimerId = scenarioDto.NextTimerId;
             if (scenarioDto.ActiveTimers is not null)
             {
-                foreach (var t in scenarioDto.ActiveTimers)
+                foreach (ActiveTimerDto t in scenarioDto.ActiveTimers)
                 {
                     Scenario.ActiveTimers.Add(
                         new ActiveTimer
@@ -211,7 +211,7 @@ public sealed partial class SimulationEngine
 
             if (scenarioDto.TriggerQueue is not null)
             {
-                foreach (var t in scenarioDto.TriggerQueue)
+                foreach (ScheduledTriggerDto t in scenarioDto.TriggerQueue)
                 {
                     Scenario.TriggerQueue.Add(new ScheduledTrigger { Command = t.Command, FireAtSeconds = t.FireAtSeconds });
                 }
@@ -219,7 +219,7 @@ public sealed partial class SimulationEngine
 
             if (scenarioDto.PresetQueue is not null)
             {
-                foreach (var p in scenarioDto.PresetQueue)
+                foreach (ScheduledPresetDto p in scenarioDto.PresetQueue)
                 {
                     Scenario.PresetQueue.Add(
                         new ScheduledPreset
@@ -234,7 +234,7 @@ public sealed partial class SimulationEngine
 
             if (scenarioDto.DelayedHandoffQueue is not null)
             {
-                foreach (var h in scenarioDto.DelayedHandoffQueue)
+                foreach (DelayedHandoffDto h in scenarioDto.DelayedHandoffQueue)
                 {
                     Scenario.DelayedHandoffQueue.Add(
                         new DelayedHandoff
@@ -249,9 +249,9 @@ public sealed partial class SimulationEngine
 
             if (scenarioDto.Generators is not null)
             {
-                foreach (var g in scenarioDto.Generators)
+                foreach (GeneratorStateDto g in scenarioDto.Generators)
                 {
-                    var config = JsonSerializer.Deserialize<ScenarioGeneratorConfig>(g.ConfigJson)!;
+                    ScenarioGeneratorConfig config = JsonSerializer.Deserialize<ScenarioGeneratorConfig>(g.ConfigJson)!;
                     Scenario.Generators.Add(
                         new GeneratorState
                         {
@@ -266,7 +266,7 @@ public sealed partial class SimulationEngine
 
             if (scenarioDto.VfrArrivalGenerators is not null)
             {
-                foreach (var g in scenarioDto.VfrArrivalGenerators)
+                foreach (VfrArrivalGeneratorStateDto g in scenarioDto.VfrArrivalGenerators)
                 {
                     Scenario.VfrArrivalGenerators.Add(
                         new VfrArrivalGeneratorState
@@ -281,7 +281,7 @@ public sealed partial class SimulationEngine
 
             if (scenarioDto.OverflightGenerators is not null)
             {
-                foreach (var g in scenarioDto.OverflightGenerators)
+                foreach (OverflightGeneratorStateDto g in scenarioDto.OverflightGenerators)
                 {
                     Scenario.OverflightGenerators.Add(
                         new OverflightGeneratorState
@@ -337,7 +337,7 @@ public sealed partial class SimulationEngine
         // The CRR groups are wholly the snapshot's — nothing in the ARTCC or the load builds one — so a missing
         // section restores none, which is what the engine held before they were snapshotted.
         CrrGroups.Clear();
-        foreach (var group in snapshot.Server?.CrrGroups ?? [])
+        foreach (EramCrrGroupSnapshotDto group in snapshot.Server?.CrrGroups ?? [])
         {
             CrrGroups[group.Label] = new EramCrrGroup(group.Label, group.Color, group.Latitude, group.Longitude);
         }
@@ -376,7 +376,7 @@ public sealed partial class SimulationEngine
             .ToList();
 
         var beaconCodes = new Dictionary<uint, string>();
-        foreach (var ac in aircraft)
+        foreach (AircraftState ac in aircraft)
         {
             if (ac.Transponder.AssignedCode > 0)
             {
@@ -397,7 +397,7 @@ public sealed partial class SimulationEngine
 
         // Ordered by label, never by the dictionary's own order, so two passes of the same run capture the same bytes;
         // null when there are none, so a session that never made a group snapshots exactly as it did before.
-        var crrGroups =
+        List<EramCrrGroupSnapshotDto>? crrGroups =
             CrrGroups.Count == 0
                 ? null
                 : CrrGroups
@@ -444,7 +444,7 @@ public sealed partial class SimulationEngine
 
         if (server.ActiveConflicts is not null)
         {
-            foreach (var c in server.ActiveConflicts)
+            foreach (ActiveConflictDto c in server.ActiveConflicts)
             {
                 ConflictAlerts.Conflicts[c.Id] = new ActiveConflict
                 {
@@ -458,7 +458,7 @@ public sealed partial class SimulationEngine
 
         if (server.EramConflicts is not null)
         {
-            foreach (var c in server.EramConflicts)
+            foreach (EramActiveConflictDto c in server.EramConflicts)
             {
                 EramConflicts.Conflicts[c.Id] = new EramActiveConflict
                 {
@@ -475,7 +475,7 @@ public sealed partial class SimulationEngine
         {
             if (beaconPool.AssignedCodes is not null)
             {
-                foreach (var code in beaconPool.AssignedCodes.Keys)
+                foreach (uint code in beaconPool.AssignedCodes.Keys)
                 {
                     BeaconCodePool.MarkUsed(code);
                 }

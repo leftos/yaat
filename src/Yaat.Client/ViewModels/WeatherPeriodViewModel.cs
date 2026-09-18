@@ -114,7 +114,7 @@ public partial class WeatherPeriodViewModel : ObservableObject
             Precipitation = period.Precipitation,
         };
 
-        foreach (var layer in period.WindLayers)
+        foreach (WindLayer layer in period.WindLayers)
         {
             vm.WindLayers.Add(
                 new WindLayerRow
@@ -129,7 +129,7 @@ public partial class WeatherPeriodViewModel : ObservableObject
             );
         }
 
-        foreach (var metar in period.Metars)
+        foreach (string metar in period.Metars)
         {
             vm.Metars.Add(new MetarRow { Text = metar });
         }
@@ -146,7 +146,7 @@ public partial class WeatherPeriodViewModel : ObservableObject
             Precipitation = profile.Precipitation,
         };
 
-        foreach (var layer in profile.WindLayers)
+        foreach (WindLayer layer in profile.WindLayers)
         {
             vm.WindLayers.Add(
                 new WindLayerRow
@@ -161,7 +161,7 @@ public partial class WeatherPeriodViewModel : ObservableObject
             );
         }
 
-        foreach (var metar in profile.Metars)
+        foreach (string metar in profile.Metars)
         {
             vm.Metars.Add(new MetarRow { Text = metar });
         }

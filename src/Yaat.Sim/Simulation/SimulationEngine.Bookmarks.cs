@@ -28,7 +28,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     internal bool DrainBookmarksChanged()
     {
-        var changed = BookmarksChanged;
+        bool changed = BookmarksChanged;
         BookmarksChanged = false;
         return changed;
     }
@@ -49,7 +49,7 @@ public sealed partial class SimulationEngine
             return new CommandResult(false, $"Bookmark limit reached ({MaxBookmarks})");
         }
 
-        var id = $"bm-{scenario.NextBookmarkId++}";
+        string id = $"bm-{scenario.NextBookmarkId++}";
         scenario.Bookmarks.Add(new TimelineBookmark(id, timeSeconds, NormalizeBookmarkText(name), NormalizeBookmarkText(initials)));
         MarkBookmarksChanged();
         return new CommandResult(true, id);
@@ -63,7 +63,7 @@ public sealed partial class SimulationEngine
             return new CommandResult(false, "No active scenario");
         }
 
-        var index = scenario.Bookmarks.FindIndex(b => b.Id == id);
+        int index = scenario.Bookmarks.FindIndex(b => b.Id == id);
         if (index < 0)
         {
             return new CommandResult(false, $"No bookmark {id}");
@@ -99,7 +99,7 @@ public sealed partial class SimulationEngine
             return 0;
         }
 
-        var removed = scenario.Bookmarks.Count;
+        int removed = scenario.Bookmarks.Count;
         scenario.Bookmarks.Clear();
         MarkBookmarksChanged();
         return removed;

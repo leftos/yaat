@@ -1,3 +1,4 @@
+using System.Reflection;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Tests.Helpers;
@@ -22,13 +23,13 @@ public static class ParsedCommandDummies
     /// <summary>A dummy instance, or null when no constructor could be satisfied with placeholder arguments.</summary>
     public static ParsedCommand? Create(Type type)
     {
-        var ctor = type.GetConstructors().OrderBy(c => c.GetParameters().Length).FirstOrDefault();
+        ConstructorInfo? ctor = type.GetConstructors().OrderBy(c => c.GetParameters().Length).FirstOrDefault();
         if (ctor is null)
         {
             return null;
         }
 
-        var args = ctor.GetParameters().Select(p => MakeDummyArg(p.ParameterType)).ToArray();
+        object?[] args = ctor.GetParameters().Select(p => MakeDummyArg(p.ParameterType)).ToArray();
         try
         {
             return (ParsedCommand)ctor.Invoke(args);

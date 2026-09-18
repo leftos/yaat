@@ -107,7 +107,7 @@ internal static class TaxiBudgetDeriver
 
     public static TaxiBudget Derive(AirportGroundLayout layout, int fromNodeId, int toNodeId, AircraftCategory category)
     {
-        var route =
+        TaxiRoute route =
             TaxiPathfinder.FindRoute(layout, fromNodeId, toNodeId, AircraftCategory.Jet)
             ?? throw new InvalidOperationException($"TaxiBudgetDeriver: no A* route from node {fromNodeId} to {toNodeId} in {layout.AirportId}");
 
@@ -119,7 +119,7 @@ internal static class TaxiBudgetDeriver
         int cornerCount = 0;
         double? prevArrivalBrg = null;
 
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             double distFt = seg.Edge.DistanceNm * GeoMath.FeetPerNm;
             optimalDistFt += distFt;

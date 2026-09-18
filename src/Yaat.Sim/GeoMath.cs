@@ -149,12 +149,12 @@ public static class GeoMath
             current = turnRight ? startBearingDeg + swept : startBearingDeg - swept;
             current = ((current % 360.0) + 360.0) % 360.0;
 
-            var pt = ProjectPointRaw(centerLat, centerLon, current, radiusNm);
+            (double Lat, double Lon) pt = ProjectPointRaw(centerLat, centerLon, current, radiusNm);
             points.Add(pt);
         }
 
         // Always include the end point at exact end bearing
-        var endPt = ProjectPointRaw(centerLat, centerLon, endBearingDeg, radiusNm);
+        (double Lat, double Lon) endPt = ProjectPointRaw(centerLat, centerLon, endBearingDeg, radiusNm);
         points.Add(endPt);
 
         return points;
@@ -234,7 +234,7 @@ public static class GeoMath
     /// </summary>
     public static double DistanceToSegmentFt(double pointLat, double pointLon, double segALat, double segALon, double segBLat, double segBLon)
     {
-        var (footLat, footLon, _, _) = FootOfPerpendicular(pointLat, pointLon, segALat, segALon, segBLat, segBLon);
+        (double footLat, double footLon, double _, bool _) = FootOfPerpendicular(pointLat, pointLon, segALat, segALon, segBLat, segBLon);
         return DistanceNm(pointLat, pointLon, footLat, footLon) * FeetPerNm;
     }
 
@@ -286,7 +286,7 @@ public static class GeoMath
             return (segBLat, segBLon, segLengthNm, true);
         }
 
-        var (footLat, footLon) = ProjectPointRaw(segALat, segALon, segBearing, alongNm);
+        (double footLat, double footLon) = ProjectPointRaw(segALat, segALon, segBearing, alongNm);
         return (footLat, footLon, alongNm, false);
     }
 
@@ -382,14 +382,14 @@ public static class GeoMath
     /// <summary>Project a point along a heading for a given distance.</summary>
     public static LatLon ProjectPoint(LatLon from, TrueHeading heading, double distanceNm)
     {
-        var (lat, lon) = ProjectPoint(from.Lat, from.Lon, heading, distanceNm);
+        (double lat, double lon) = ProjectPoint(from.Lat, from.Lon, heading, distanceNm);
         return new LatLon(lat, lon);
     }
 
     /// <summary>Project a point along a raw bearing angle. Internal use only.</summary>
     internal static LatLon ProjectPointRaw(LatLon from, double bearingDeg, double distanceNm)
     {
-        var (lat, lon) = ProjectPointRaw(from.Lat, from.Lon, bearingDeg, distanceNm);
+        (double lat, double lon) = ProjectPointRaw(from.Lat, from.Lon, bearingDeg, distanceNm);
         return new LatLon(lat, lon);
     }
 
@@ -403,9 +403,9 @@ public static class GeoMath
         double stepDeg = 5.0
     )
     {
-        var raw = GenerateArcPoints(center.Lat, center.Lon, radiusNm, startBearingDeg, endBearingDeg, turnRight, stepDeg);
+        List<(double Lat, double Lon)> raw = GenerateArcPoints(center.Lat, center.Lon, radiusNm, startBearingDeg, endBearingDeg, turnRight, stepDeg);
         var result = new List<LatLon>(raw.Count);
-        foreach (var (lat, lon) in raw)
+        foreach ((double lat, double lon) in raw)
         {
             result.Add(new LatLon(lat, lon));
         }
@@ -435,19 +435,36 @@ public static class GeoMath
     /// <summary>Foot of perpendicular from <paramref name="point"/> onto the segment, clamped to endpoints.</summary>
     public static (LatLon Foot, double AlongNm, bool Clamped) FootOfPerpendicular(LatLon point, LatLon segA, LatLon segB)
     {
-        var (footLat, footLon, alongNm, clamped) = FootOfPerpendicular(point.Lat, point.Lon, segA.Lat, segA.Lon, segB.Lat, segB.Lon);
+        (double footLat, double footLon, double alongNm, bool clamped) = FootOfPerpendicular(
+            point.Lat,
+            point.Lon,
+            segA.Lat,
+            segA.Lon,
+            segB.Lat,
+            segB.Lon
+        );
         return (new LatLon(footLat, footLon), alongNm, clamped);
     }
 
     /// <summary>Parametric line-segment intersection. See the scalar form for contract details.</summary>
     public static (LatLon Point, double T, double U)? SegmentsIntersect(LatLon a1, LatLon a2, LatLon b1, LatLon b2, bool excludeEndpoints = false)
     {
-        var result = SegmentsIntersect(a1.Lat, a1.Lon, a2.Lat, a2.Lon, b1.Lat, b1.Lon, b2.Lat, b2.Lon, excludeEndpoints);
+        (double Lat, double Lon, double T, double U)? result = SegmentsIntersect(
+            a1.Lat,
+            a1.Lon,
+            a2.Lat,
+            a2.Lon,
+            b1.Lat,
+            b1.Lon,
+            b2.Lat,
+            b2.Lon,
+            excludeEndpoints
+        );
         if (result is null)
         {
             return null;
         }
-        var (lat, lon, t, u) = result.Value;
+        (double lat, double lon, double t, double u) = result.Value;
         return (new LatLon(lat, lon), t, u);
     }
 

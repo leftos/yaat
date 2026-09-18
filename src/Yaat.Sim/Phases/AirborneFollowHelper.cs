@@ -162,14 +162,14 @@ public static class AirborneFollowHelper
     /// <returns>True if the follow was cancelled this tick (caller should skip its spacing logic).</returns>
     public static bool CheckLeadLifecycle(PhaseContext ctx)
     {
-        var follower = ctx.Aircraft;
+        AircraftState follower = ctx.Aircraft;
         string? targetCallsign = follower.Approach.FollowingCallsign;
         if (targetCallsign is null)
         {
             return false;
         }
 
-        var lead = ctx.AircraftLookup?.Invoke(targetCallsign);
+        AircraftState? lead = ctx.AircraftLookup?.Invoke(targetCallsign);
 
         if (lead is null)
         {
@@ -202,7 +202,7 @@ public static class AirborneFollowHelper
         // below the gap) and skips the type-detection-range / forward-hemisphere /
         // bank-occlusion geometry, which models finding unknown traffic rather than
         // tracking traffic already called in sight.
-        var contact = VisualAcquisition.TryMaintainTrafficContact(follower, lead, ctx.Weather);
+        VisualAcquisitionResult contact = VisualAcquisition.TryMaintainTrafficContact(follower, lead, ctx.Weather);
         if (!contact.Acquired)
         {
             Log.LogDebug("[Follow] {Callsign}: lost visual on {Target} ({Reason}), ending follow", follower.Callsign, targetCallsign, contact.Reason);
@@ -449,7 +449,7 @@ public static class AirborneFollowHelper
             return null;
         }
 
-        var target = ctx.AircraftLookup?.Invoke(targetCallsign);
+        AircraftState? target = ctx.AircraftLookup?.Invoke(targetCallsign);
         if (target is null)
         {
             // Leader disappeared — clear follow state, continue with normal speed
@@ -495,7 +495,7 @@ public static class AirborneFollowHelper
             return null;
         }
 
-        var target = ctx.AircraftLookup?.Invoke(targetCallsign);
+        AircraftState? target = ctx.AircraftLookup?.Invoke(targetCallsign);
         if (target is null)
         {
             Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
@@ -513,7 +513,7 @@ public static class AirborneFollowHelper
             return null;
         }
 
-        var leaderCategory = AircraftCategorization.Categorize(target.AircraftType);
+        AircraftCategory leaderCategory = AircraftCategorization.Categorize(target.AircraftType);
         double desired = FreeFlightDistanceForLeader(leaderCategory);
         return ComputeAdjustedSpeedWithDesired(
             ctx.Aircraft,
@@ -554,7 +554,7 @@ public static class AirborneFollowHelper
     )
     {
         double normalSpeed = Math.Max(lead.IndicatedAirspeed, minSpeed);
-        var leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
+        AircraftCategory leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
         double desired = FreeFlightDistanceForLeader(leaderCategory);
         return ComputeAdjustedSpeedWithDesired(
             follower,
@@ -586,7 +586,7 @@ public static class AirborneFollowHelper
         ILogger logger
     )
     {
-        var leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
+        AircraftCategory leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
         double desired = DesiredDistanceForLeader(leaderCategory);
         return ComputeAdjustedSpeedWithDesired(
             follower,
@@ -670,7 +670,7 @@ public static class AirborneFollowHelper
             return false;
         }
 
-        var target = ctx.AircraftLookup?.Invoke(targetCallsign);
+        AircraftState? target = ctx.AircraftLookup?.Invoke(targetCallsign);
         if (target is null)
         {
             return false;
@@ -694,7 +694,7 @@ public static class AirborneFollowHelper
 
         double distance = GeoMath.DistanceNm(ctx.Aircraft.Position, target.Position);
 
-        var leaderCategory = AircraftCategorization.Categorize(target.AircraftType);
+        AircraftCategory leaderCategory = AircraftCategorization.Categorize(target.AircraftType);
         double desired = DesiredDistanceForLeader(leaderCategory);
 
         bool shouldExtend = distance < (desired * ExtendDownwindThreshold);
@@ -762,8 +762,8 @@ public static class AirborneFollowHelper
     /// </summary>
     public static bool ShouldHoldForLeadSequencing(PhaseContext ctx, PatternWaypoints wp)
     {
-        var follower = ctx.Aircraft;
-        var lead = FlowAheadLead(ctx);
+        AircraftState follower = ctx.Aircraft;
+        AircraftState? lead = FlowAheadLead(ctx);
         if (lead is null)
         {
             return false;
@@ -780,7 +780,7 @@ public static class AirborneFollowHelper
         // present and approach speeds along a path shortened by the two corners it will cut turning
         // base and final (so its ETA is never later than reality), and the lead at the slower of its
         // present and approach speeds (a decelerating lead's touchdown is never earlier than projected).
-        var leadCategory = AircraftCategorization.Categorize(lead.AircraftType);
+        AircraftCategory leadCategory = AircraftCategorization.Categorize(lead.AircraftType);
         double followerNmPerSec = Math.Max(follower.GroundSpeed, AircraftPerformance.ApproachSpeed(follower.AircraftType, ctx.Category)) / 3600.0;
         double remainingFollowerNm = RemainingPatternPathNm(follower, wp) - PatternCornerCutNm(followerNmPerSec, ctx.Category, corners: 2);
         double remainingLeadNm = RemainingPatternPathNm(lead, wp);
@@ -844,7 +844,7 @@ public static class AirborneFollowHelper
             return null;
         }
 
-        var lead = ctx.AircraftLookup?.Invoke(targetCallsign);
+        AircraftState? lead = ctx.AircraftLookup?.Invoke(targetCallsign);
         if (lead is null)
         {
             return null;
@@ -863,8 +863,8 @@ public static class AirborneFollowHelper
     /// </summary>
     public static bool IsFlowAheadLeadForwardOfWingline(PhaseContext ctx)
     {
-        var follower = ctx.Aircraft;
-        var lead = FlowAheadLead(ctx);
+        AircraftState follower = ctx.Aircraft;
+        AircraftState? lead = FlowAheadLead(ctx);
         if (lead is null)
         {
             return false;
@@ -924,7 +924,7 @@ public static class AirborneFollowHelper
         }
 
         var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
-        var dwHeading = wp.DownwindHeading;
+        TrueHeading dwHeading = wp.DownwindHeading;
 
         double AlongTrack(LatLon p) => GeoMath.AlongTrackDistanceNm(p, threshold, dwHeading);
         double PerpOffset(LatLon p) => Math.Abs(GeoMath.SignedCrossTrackDistanceNm(p, threshold, dwHeading));
@@ -988,7 +988,7 @@ public static class AirborneFollowHelper
             return false;
         }
 
-        var lead = ctx.AircraftLookup?.Invoke(targetCallsign);
+        AircraftState? lead = ctx.AircraftLookup?.Invoke(targetCallsign);
         if (lead is null)
         {
             return false;
@@ -1065,7 +1065,7 @@ public static class AirborneFollowHelper
             return false;
         }
 
-        var lead = ctx.AircraftLookup?.Invoke(targetCallsign);
+        AircraftState? lead = ctx.AircraftLookup?.Invoke(targetCallsign);
         if (lead is null || lead.IsOnGround)
         {
             return false;

@@ -25,8 +25,8 @@ public class GroundOutlineTests
     [Fact]
     public void ParallelCrossesSideBySide_ClearanceIsTheGapBetweenTheWingtips()
     {
-        var left = At(0.0, 0.0, 0.0, Square);
-        var right = At(130.0, 0.0, 0.0, Square);
+        GroundOutline left = At(0.0, 0.0, 0.0, Square);
+        GroundOutline right = At(130.0, 0.0, 0.0, Square);
 
         Assert.Equal(30.0, GroundOutline.Clearance(left, right), Tolerance);
         Assert.Equal(30.0, GroundOutline.Clearance(right, left), Tolerance);
@@ -35,8 +35,8 @@ public class GroundOutlineTests
     [Fact]
     public void ParallelCrossesInTrail_ClearanceIsTheGapFromNoseToTail()
     {
-        var lead = At(0.0, 125.0, 0.0, Square);
-        var trailer = At(0.0, 0.0, 0.0, Square);
+        GroundOutline lead = At(0.0, 125.0, 0.0, Square);
+        GroundOutline trailer = At(0.0, 0.0, 0.0, Square);
 
         Assert.Equal(25.0, GroundOutline.Clearance(lead, trailer), Tolerance);
     }
@@ -44,8 +44,8 @@ public class GroundOutlineTests
     [Fact]
     public void CrossingFuselages_ClearanceIsZero()
     {
-        var northbound = At(0.0, 0.0, 0.0, Square);
-        var eastbound = At(0.0, 10.0, 90.0, Square);
+        GroundOutline northbound = At(0.0, 0.0, 0.0, Square);
+        GroundOutline eastbound = At(0.0, 10.0, 90.0, Square);
 
         Assert.Equal(0.0, GroundOutline.Clearance(northbound, eastbound));
     }
@@ -58,9 +58,9 @@ public class GroundOutlineTests
     [Fact]
     public void TailplaneOnlyContact_IsMeasuredFromTheTailplaneTip()
     {
-        var northbound = At(0.0, 0.0, 0.0, Square);
-        var justClear = At(71.0, -50.0, 90.0, Square);
-        var touching = At(70.0, -50.0, 90.0, Square);
+        GroundOutline northbound = At(0.0, 0.0, 0.0, Square);
+        GroundOutline justClear = At(71.0, -50.0, 90.0, Square);
+        GroundOutline touching = At(70.0, -50.0, 90.0, Square);
 
         Assert.Equal(1.0, GroundOutline.Clearance(northbound, justClear), Tolerance);
         Assert.Equal(0.0, GroundOutline.Clearance(northbound, touching), Tolerance);
@@ -73,9 +73,9 @@ public class GroundOutlineTests
     [Fact]
     public void PullExtendsTheFuselageForTheTug()
     {
-        var ahead = At(0.0, 120.0, 0.0, Square);
-        var pushed = At(0.0, 0.0, 0.0, Square);
-        var pulled = At(0.0, 0.0, 0.0, Square with { NoseLeadFt = GroundOutline.TugLeadFt });
+        GroundOutline ahead = At(0.0, 120.0, 0.0, Square);
+        GroundOutline pushed = At(0.0, 0.0, 0.0, Square);
+        GroundOutline pulled = At(0.0, 0.0, 0.0, Square with { NoseLeadFt = GroundOutline.TugLeadFt });
 
         Assert.Equal(20.0, GroundOutline.Clearance(pushed, ahead), Tolerance);
         Assert.Equal(0.0, GroundOutline.Clearance(pulled, ahead), Tolerance);
@@ -99,8 +99,8 @@ public class GroundOutlineTests
     {
         var origin = new LatLon(37.6189, -122.3810);
         var frame = new GroundOutlineFrame(origin);
-        var east = frame.ToLocal(GeoMath.ProjectPoint(origin, new TrueHeading(90.0), 100.0 / GeoMath.FeetPerNm));
-        var north = frame.ToLocal(GeoMath.ProjectPoint(origin, new TrueHeading(0.0), 100.0 / GeoMath.FeetPerNm));
+        OutlinePoint east = frame.ToLocal(GeoMath.ProjectPoint(origin, new TrueHeading(90.0), 100.0 / GeoMath.FeetPerNm));
+        OutlinePoint north = frame.ToLocal(GeoMath.ProjectPoint(origin, new TrueHeading(0.0), 100.0 / GeoMath.FeetPerNm));
 
         Assert.Equal(100.0, east.EastFt, 0.1);
         Assert.Equal(0.0, east.NorthFt, 0.1);

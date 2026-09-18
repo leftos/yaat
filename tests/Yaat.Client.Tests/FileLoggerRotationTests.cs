@@ -49,7 +49,7 @@ public class FileLoggerRotationTests : IDisposable
     public void OlderSessionsShiftDownAndTheOldestIsDropped()
     {
         // Four launches past the first fill .1 / .2 / .3; the original must fall off the end.
-        foreach (var marker in new[] { "oldest", "third", "second", "newest-previous", "current" })
+        foreach (string? marker in new[] { "oldest", "third", "second", "newest-previous", "current" })
         {
             WriteSession(marker);
         }

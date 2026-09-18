@@ -121,8 +121,8 @@ public class CoordinationStepTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(TwoAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(TwoAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = _zoa.ResolvePosition(OakTwrPositionId);
         scenario.StudentTcp = _zoa.GetTcpForPosition(OakTwrPositionId);
         engine.InitializeFromArtcc();
@@ -142,9 +142,9 @@ public class CoordinationStepTests
     /// <summary>The identity every verb below acts under: 3O on one connection, 4U on the other.</summary>
     private static void SelectPositions(SimulationEngine engine, IActionHost host)
     {
-        var sender = Issue(engine, host, SenderConnection, "", "AS 3O");
+        CommandResult sender = Issue(engine, host, SenderConnection, "", "AS 3O");
         Assert.True(sender.Success, sender.Message);
-        var receiver = Issue(engine, host, ReceiverConnection, "", "AS 4U");
+        CommandResult receiver = Issue(engine, host, ReceiverConnection, "", "AS 4U");
         Assert.True(receiver.Success, receiver.Message);
     }
 
@@ -157,7 +157,7 @@ public class CoordinationStepTests
     /// <summary>A recording of everything <paramref name="engine"/> has run so far, carrying the ARTCC the replay re-initialises from.</summary>
     private SessionRecording Recording(SimulationEngine engine)
     {
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         return new SessionRecording
         {
             ScenarioJson = TwoAtOak,
@@ -181,16 +181,16 @@ public class CoordinationStepTests
         var host = new AttendanceActionHost();
         SelectPositions(engine, host);
 
-        var first = Send(engine, host, CallsignA, "RD");
+        CommandResult first = Send(engine, host, CallsignA, "RD");
 
         Assert.True(first.Success, first.Message);
-        var item = Assert.Single(Channel(engine).Items);
+        CoordinationItem item = Assert.Single(Channel(engine).Items);
         Assert.Equal(CallsignA, item.AircraftId);
         Assert.Equal(StarsCoordinationStatus.Unacknowledged, item.Status);
         Assert.Equal("POAK-1", item.Id);
         Assert.Equal(1, item.SequenceNumber);
 
-        var second = Send(engine, host, CallsignB, "RD");
+        CommandResult second = Send(engine, host, CallsignB, "RD");
 
         Assert.True(second.Success, second.Message);
         Assert.Equal(["POAK-1", "POAK-2"], Channel(engine).Items.Select(i => i.Id));
@@ -208,10 +208,10 @@ public class CoordinationStepTests
         SelectPositions(engine, host);
         Assert.True(Send(engine, host, CallsignA, "RD").Success);
 
-        var ack = Receive(engine, host, CallsignA, "RDACK");
+        CommandResult ack = Receive(engine, host, CallsignA, "RDACK");
 
         Assert.True(ack.Success, ack.Message);
-        var item = Assert.Single(Channel(engine).Items);
+        CoordinationItem item = Assert.Single(Channel(engine).Items);
         Assert.Equal(StarsCoordinationStatus.Acknowledged, item.Status);
         Assert.Equal(engine.Scenario!.ElapsedSeconds + SimScenarioState.CoordinationAckExpirySeconds, item.ExpireTime);
     }
@@ -253,14 +253,14 @@ public class CoordinationStepTests
         engine.Scenario!.ElapsedSeconds = SimScenarioState.CoordinationAckExpirySeconds - 30 - 1;
         engine.RunSecond(spine);
 
-        var item = Assert.Single(Channel(engine).Items);
+        CoordinationItem item = Assert.Single(Channel(engine).Items);
         Assert.Equal(StarsCoordinationStatus.DepartureExpirationWarning, item.Status);
         Assert.True(spine.CoordinationChangeCount > beforeWarning, "the spine's drain step should have handed the timer transition over");
 
         engine.Scenario!.ElapsedSeconds = SimScenarioState.CoordinationAckExpirySeconds - 1;
         engine.RunSecond(spine);
 
-        var voided = Assert.Single(Channel(engine).Items);
+        CoordinationItem voided = Assert.Single(Channel(engine).Items);
         Assert.Equal(StarsCoordinationStatus.VoidUnacknowledged, voided.Status);
         Assert.Null(voided.ExpireTime);
     }
@@ -276,27 +276,27 @@ public class CoordinationStepTests
         var spine = new SpineCapturingHost(engine);
         SelectPositions(engine, spine);
 
-        var held = Send(engine, spine, CallsignA, "RDH POAK EXPECT 28R");
+        CommandResult held = Send(engine, spine, CallsignA, "RDH POAK EXPECT 28R");
 
         Assert.True(held.Success, held.Message);
-        var item = Assert.Single(Channel(engine).Items);
+        CoordinationItem item = Assert.Single(Channel(engine).Items);
         Assert.Equal(StarsCoordinationStatus.Unsent, item.Status);
         Assert.Equal("EXPECT 28R", item.Message);
         int afterCreate = spine.CoordinationChangeCount;
         Assert.True(afterCreate > 0, "creating a held message should have reached the host");
 
-        var sent = Send(engine, spine, CallsignA, "RDH POAK");
+        CommandResult sent = Send(engine, spine, CallsignA, "RDH POAK");
 
         Assert.True(sent.Success, sent.Message);
         Assert.Equal(StarsCoordinationStatus.Unacknowledged, Assert.Single(Channel(engine).Items).Status);
         int afterSend = spine.CoordinationChangeCount;
         Assert.True(afterSend > afterCreate, "sending the held message should have reached the host");
 
-        var recalled = Send(engine, spine, CallsignA, "RDR");
+        CommandResult recalled = Send(engine, spine, CallsignA, "RDR");
 
         Assert.True(recalled.Success, recalled.Message);
         Assert.True(spine.CoordinationChangeCount > afterSend, "the recall should have reached the host");
-        var lingering = Assert.Single(Channel(engine).Items);
+        CoordinationItem lingering = Assert.Single(Channel(engine).Items);
         Assert.Equal(StarsCoordinationStatus.Recalled, lingering.Status);
         Assert.Equal(engine.Scenario!.ElapsedSeconds + SimScenarioState.CoordinationRecallLingerSeconds, lingering.ExpireTime);
 
@@ -313,7 +313,7 @@ public class CoordinationStepTests
 
         // The linger expiring takes the receiver's copy away and hands the sender its text back as an Unsent item:
         // one shared item, drawn only at its origin TCP while Unsent, so reverting it is the whole of the split.
-        var reverted = Assert.Single(Channel(engine).Items);
+        CoordinationItem reverted = Assert.Single(Channel(engine).Items);
         Assert.Equal(StarsCoordinationStatus.Unsent, reverted.Status);
         Assert.Null(reverted.ExpireTime);
         Assert.Equal("EXPECT 28R", reverted.Message);
@@ -348,7 +348,7 @@ public class CoordinationStepTests
         Assert.Equal(StarsCoordinationStatus.Unsent, Assert.Single(Channel(engine).Items).Status);
         int beforeDelete = spine.CoordinationChangeCount;
 
-        var deleted = Send(engine, spine, CallsignA, "RDR");
+        CommandResult deleted = Send(engine, spine, CallsignA, "RDR");
 
         Assert.True(deleted.Success, deleted.Message);
         Assert.Empty(Channel(engine).Items);
@@ -382,7 +382,7 @@ public class CoordinationStepTests
 
         Assert.Equal(StarsCoordinationStatus.Unsent, Assert.Single(Channel(engine).Items).Status);
 
-        var released = Send(engine, spine, CallsignA, "RD POAK");
+        CommandResult released = Send(engine, spine, CallsignA, "RD POAK");
 
         Assert.False(released.Success);
         Assert.Equal($"{CallsignA} already has a coordination item on list {ListId}", released.Message);
@@ -404,7 +404,7 @@ public class CoordinationStepTests
 
         int before = host.CoordinationChanges;
 
-        var recalled = Send(engine, host, CallsignA, "RDR");
+        CommandResult recalled = Send(engine, host, CallsignA, "RDR");
 
         Assert.True(recalled.Success, recalled.Message);
         Assert.Empty(Channel(engine).Items);
@@ -424,7 +424,7 @@ public class CoordinationStepTests
         Assert.True(Send(engine, host, CallsignA, "RD").Success);
         int before = host.CoordinationChanges;
 
-        var deleted = Send(engine, host, CallsignA, "RDDEL");
+        CommandResult deleted = Send(engine, host, CallsignA, "RDDEL");
 
         Assert.True(deleted.Success, deleted.Message);
         Assert.Empty(Channel(engine).Items);
@@ -445,7 +445,7 @@ public class CoordinationStepTests
         Assert.True(Send(engine, host, CallsignB, "RD").Success);
         int before = host.CoordinationChanges;
 
-        var moved = Send(engine, host, CallsignB, "RDPOS 1");
+        CommandResult moved = Send(engine, host, CallsignB, "RDPOS 1");
 
         Assert.True(moved.Success, moved.Message);
         Assert.Equal(["POAK-2", "POAK-1"], Channel(engine).Items.Select(i => i.Id));
@@ -465,7 +465,7 @@ public class CoordinationStepTests
         Assert.True(Send(engine, host, CallsignA, "RDH POAK EXPECT 28R").Success);
         int beforeEdit = host.CoordinationChanges;
 
-        var changed = Send(engine, host, CallsignA, "RDTXT NEW TEXT");
+        CommandResult changed = Send(engine, host, CallsignA, "RDTXT NEW TEXT");
 
         Assert.True(changed.Success, changed.Message);
         Assert.Equal("NEW TEXT", Assert.Single(Channel(engine).Items).Message);
@@ -474,7 +474,7 @@ public class CoordinationStepTests
         Assert.True(Send(engine, host, CallsignA, "RDH POAK").Success);
         int beforeRefusal = host.CoordinationChanges;
 
-        var refused = Send(engine, host, CallsignA, "RDTXT LATER TEXT");
+        CommandResult refused = Send(engine, host, CallsignA, "RDTXT LATER TEXT");
 
         Assert.False(refused.Success);
         Assert.Equal(beforeRefusal, host.CoordinationChanges);
@@ -495,7 +495,7 @@ public class CoordinationStepTests
 
         int beforeToggle = host.CoordinationChanges;
 
-        var toggled = Receive(engine, host, "", "RDAUTO POAK");
+        CommandResult toggled = Receive(engine, host, "", "RDAUTO POAK");
 
         Assert.True(toggled.Success, toggled.Message);
         Assert.True(Channel(engine).Receivers.Single(r => r.Tcp.ToString() == "4U").AutoAcknowledge);
@@ -503,7 +503,7 @@ public class CoordinationStepTests
 
         Assert.True(Send(engine, host, CallsignA, "RD").Success);
 
-        var item = Assert.Single(Channel(engine).Items);
+        CoordinationItem item = Assert.Single(Channel(engine).Items);
         Assert.Equal(StarsCoordinationStatus.Acknowledged, item.Status);
         Assert.True(item.WasAutomaticRelease);
         Assert.Equal(engine.Scenario!.ElapsedSeconds + SimScenarioState.CoordinationAckExpirySeconds, item.ExpireTime);
@@ -524,10 +524,10 @@ public class CoordinationStepTests
         Assert.True(Send(engine, host, CallsignB, "RD").Success);
         int before = host.CoordinationChanges;
 
-        var tracked = Receive(engine, host, CallsignA, "TRACK");
+        CommandResult tracked = Receive(engine, host, CallsignA, "TRACK");
 
         Assert.True(tracked.Success, tracked.Message);
-        var remaining = Assert.Single(Channel(engine).Items);
+        CoordinationItem remaining = Assert.Single(Channel(engine).Items);
         Assert.Equal(CallsignB, remaining.AircraftId);
         Assert.True(host.CoordinationChanges > before, "the track removal should have reached the host");
     }
@@ -548,12 +548,12 @@ public class CoordinationStepTests
         var host = new AttendanceActionHost();
         SelectPositions(engine, host);
 
-        var inferred = Receive(engine, host, CallsignA, "RD");
+        CommandResult inferred = Receive(engine, host, CallsignA, "RD");
 
         Assert.False(inferred.Success);
         Assert.Contains("not a sender", inferred.Message);
 
-        var named = Receive(engine, host, CallsignA, "RD POAK");
+        CommandResult named = Receive(engine, host, CallsignA, "RD POAK");
 
         Assert.False(named.Success);
         Assert.Contains("not a sender on list POAK", named.Message);
@@ -581,14 +581,14 @@ public class CoordinationStepTests
         }
 
         Assert.True(Send(engine, host, CallsignA, "RD").Success);
-        var live = Assert.Single(Channel(engine).Items);
+        CoordinationItem live = Assert.Single(Channel(engine).Items);
 
-        var recording = Recording(engine);
+        SessionRecording recording = Recording(engine);
 
         var replayed = new SimulationEngine(new TestAirportGroundData());
         replayed.Replay(recording, engine.Scenario!.ElapsedSeconds + 5);
 
-        var item = Assert.Single(replayed.Scenario!.CoordinationChannels[ListId].Items);
+        CoordinationItem item = Assert.Single(replayed.Scenario!.CoordinationChannels[ListId].Items);
         Assert.Equal(live.Id, item.Id);
         Assert.Equal(live.AircraftId, item.AircraftId);
         Assert.Equal(StarsCoordinationStatus.Unacknowledged, item.Status);

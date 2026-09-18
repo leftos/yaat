@@ -69,10 +69,10 @@ public class FollowImpliedCallsignTests : IDisposable
     [Fact]
     public void Parser_AcceptsBareFollow_ReturnsFollowCommandWithNullCallsign()
     {
-        var result = CommandParser.Parse("FOLLOW");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("FOLLOW");
 
         Assert.True(result.IsSuccess, $"Expected parse success but got: {result.Reason}");
-        var cmd = Assert.IsType<FollowCommand>(result.Value);
+        FollowCommand cmd = Assert.IsType<FollowCommand>(result.Value);
         Assert.Null(cmd.TargetCallsign);
     }
 
@@ -83,16 +83,16 @@ public class FollowImpliedCallsignTests : IDisposable
     [Fact]
     public void BareFollow_AfterRtisSuccess_TargetsReportedCallsign()
     {
-        var ownship = MakeVfrOwnship();
-        var lead = MakeLeader("LEAD");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeVfrOwnship();
+        AircraftState lead = MakeLeader("LEAD");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var rtis = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult rtis = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
         Assert.True(rtis.Success, $"RTIS setup failed: {rtis.Message}");
         Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
 
         // Bare FOLLOW — no explicit callsign.
-        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
+        CommandResult follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
 
         Assert.True(follow.Success, $"Expected bare FOLLOW to succeed but got: {follow.Message}");
         Assert.Equal("LEAD", ownship.Approach.FollowingCallsign);
@@ -101,15 +101,15 @@ public class FollowImpliedCallsignTests : IDisposable
     [Fact]
     public void BareFollow_AfterRtisfSuccess_TargetsForcedCallsign()
     {
-        var ownship = MakeVfrOwnship();
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ownship = MakeVfrOwnship();
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
         // RTISF bypasses live visual acquisition and force-sets the flag.
-        var rtisf = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ownship, ctx);
+        CommandResult rtisf = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ownship, ctx);
         Assert.True(rtisf.Success);
         Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
 
-        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
+        CommandResult follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
 
         Assert.True(follow.Success, $"Expected bare FOLLOW to succeed after RTISF but got: {follow.Message}");
         Assert.Equal("LEAD", ownship.Approach.FollowingCallsign);
@@ -121,18 +121,18 @@ public class FollowImpliedCallsignTests : IDisposable
         // RTIS soft-fails (target behind the south-bound ownship → not visually acquirable),
         // leaving a pending TrafficAcquisitionObservation but no stored callsign. A bare
         // FOLLOWF (force) must fold in that pending traffic instead of rejecting.
-        var ownship = MakeVfrOwnship(); // heading 180 (south)
-        var lead = MakeLeader("LEAD", lat: 37.80); // north of ownship → behind
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeVfrOwnship(); // heading 180 (south)
+        AircraftState lead = MakeLeader("LEAD", lat: 37.80); // north of ownship → behind
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var rtis = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult rtis = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
         Assert.True(rtis.Success, $"RTIS soft-fail setup failed: {rtis.Message}");
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
         Assert.Null(ownship.Approach.LastReportedTrafficCallsign);
         Assert.Single(ownship.PendingObservations);
 
         // Bare FOLLOWF — no explicit callsign, force = true.
-        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, true), ownship, ctx);
+        CommandResult follow = CommandDispatcher.Dispatch(new FollowCommand(null, true), ownship, ctx);
 
         Assert.True(follow.Success, $"Expected bare FOLLOWF to fold in the pending RTIS but got: {follow.Message}");
         Assert.Equal("LEAD", ownship.Approach.FollowingCallsign);
@@ -146,11 +146,11 @@ public class FollowImpliedCallsignTests : IDisposable
     [Fact]
     public void BareFollowF_WhileRtisPending_KeepsQueuedSpeedBlock()
     {
-        var ownship = MakeVfrOwnship(); // heading 180 (south)
-        var lead = MakeLeader("LEAD", lat: 37.80); // north of ownship → behind
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeVfrOwnship(); // heading 180 (south)
+        AircraftState lead = MakeLeader("LEAD", lat: 37.80); // north of ownship → behind
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var queued = CommandDispatcher.DispatchCompound(
+        CommandResult queued = CommandDispatcher.DispatchCompound(
             new CompoundCommand([new ParsedBlock(new LevelCondition(5000), [new SpeedCommand(180)])]),
             ownship,
             ctx
@@ -158,11 +158,11 @@ public class FollowImpliedCallsignTests : IDisposable
         Assert.True(queued.Success, $"AT 5000 SPD 180 setup failed: {queued.Message}");
         Assert.Single(ownship.Queue.Blocks);
 
-        var rtis = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult rtis = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
         Assert.True(rtis.Success, $"RTIS soft-fail setup failed: {rtis.Message}");
         Assert.Single(ownship.PendingObservations);
 
-        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, true), ownship, ctx);
+        CommandResult follow = CommandDispatcher.Dispatch(new FollowCommand(null, true), ownship, ctx);
 
         Assert.True(follow.Success, $"Expected bare FOLLOWF to fold in the pending RTIS but got: {follow.Message}");
         Assert.Equal("LEAD", ownship.Approach.FollowingCallsign);
@@ -170,9 +170,9 @@ public class FollowImpliedCallsignTests : IDisposable
 
         // The surviving block is the AT 5000 SPD 180 itself, still unfired at its trigger — not merely
         // "something with a trigger".
-        var survivor = Assert.Single(ownship.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachAltitude });
+        CommandBlock survivor = Assert.Single(ownship.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachAltitude });
         Assert.False(survivor.IsApplied);
-        var queuedSpeed = Assert.IsType<SpeedCommand>(Assert.Single(survivor.ParsedCommands!));
+        SpeedCommand queuedSpeed = Assert.IsType<SpeedCommand>(Assert.Single(survivor.ParsedCommands!));
         Assert.Equal(180, queuedSpeed.Speed);
     }
 
@@ -183,14 +183,14 @@ public class FollowImpliedCallsignTests : IDisposable
     [Fact]
     public void ExplicitFollow_OverridesStoredCallsign()
     {
-        var ownship = MakeVfrOwnship();
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ownship = MakeVfrOwnship();
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
         CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ownship, ctx);
         Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
 
         // Explicit callsign wins even when a different one is stored.
-        var follow = CommandDispatcher.Dispatch(new FollowCommand("OTHER", false), ownship, ctx);
+        CommandResult follow = CommandDispatcher.Dispatch(new FollowCommand("OTHER", false), ownship, ctx);
 
         Assert.True(follow.Success);
         Assert.Equal("OTHER", ownship.Approach.FollowingCallsign);
@@ -203,8 +203,8 @@ public class FollowImpliedCallsignTests : IDisposable
     [Fact]
     public void NewerRtisf_OverridesStoredCallsign_ForImpliedFollow()
     {
-        var ownship = MakeVfrOwnship();
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ownship = MakeVfrOwnship();
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
         CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD1"), ownship, ctx);
         Assert.Equal("LEAD1", ownship.Approach.LastReportedTrafficCallsign);
@@ -213,7 +213,7 @@ public class FollowImpliedCallsignTests : IDisposable
         CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD2"), ownship, ctx);
         Assert.Equal("LEAD2", ownship.Approach.LastReportedTrafficCallsign);
 
-        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
+        CommandResult follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
 
         Assert.True(follow.Success);
         Assert.Equal("LEAD2", ownship.Approach.FollowingCallsign);
@@ -228,12 +228,12 @@ public class FollowImpliedCallsignTests : IDisposable
     {
         // No RTIS at all — the existing RTIS gate rejects before callsign resolution.
         // This preserves the older behavior and covers the common no-RTIS case.
-        var ownship = MakeVfrOwnship();
+        AircraftState ownship = MakeVfrOwnship();
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
         Assert.Null(ownship.Approach.LastReportedTrafficCallsign);
 
-        var ctx = TestDispatch.Context(Random.Shared);
-        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
+        CommandResult follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
 
         Assert.False(follow.Success);
         Assert.Contains("not in sight", follow.Message, StringComparison.OrdinalIgnoreCase);
@@ -246,12 +246,12 @@ public class FollowImpliedCallsignTests : IDisposable
         // Edge case: HasReportedTrafficInSight is true but no callsign is stored.
         // Reachable via legacy snapshots (field added after release) or any code
         // path that sets the flag without populating the callsign.
-        var ownship = MakeVfrOwnship();
+        AircraftState ownship = MakeVfrOwnship();
         ownship.Approach.HasReportedTrafficInSight = true;
         ownship.Approach.LastReportedTrafficCallsign = null;
 
-        var ctx = TestDispatch.Context(Random.Shared);
-        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
+        CommandResult follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
 
         Assert.False(follow.Success);
         Assert.Contains("say traffic callsign", follow.Message, StringComparison.OrdinalIgnoreCase);

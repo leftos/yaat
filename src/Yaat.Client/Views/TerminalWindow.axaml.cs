@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -25,8 +26,8 @@ public partial class TerminalWindow : Window, IAlwaysOnTopToggle
 
         if (DataContext is MainViewModel vm)
         {
-            var cmdView = this.FindControl<CommandInputView>("CommandInputView");
-            if (cmdView is not null && SettingsViewModel.ParseKeybind(vm.Preferences.AircraftSelectKey, out var key, out var mods))
+            CommandInputView? cmdView = this.FindControl<CommandInputView>("CommandInputView");
+            if (cmdView is not null && SettingsViewModel.ParseKeybind(vm.Preferences.AircraftSelectKey, out Key key, out KeyModifiers mods))
             {
                 cmdView.SetAircraftSelectKeybind(key, mods);
             }

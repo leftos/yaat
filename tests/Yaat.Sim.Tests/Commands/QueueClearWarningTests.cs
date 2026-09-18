@@ -51,16 +51,16 @@ public class QueueClearWarningTests : IDisposable
 
     private static void DispatchOk(AircraftState ac, string text)
     {
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx());
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx());
         Assert.True(result.Success, result.Message);
     }
 
     [Fact]
     public void ConflictingLateral_DropsPendingNavigation_EmitsWarning()
     {
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
 
         // Queue two lateral blocks: DCT OAK (applied/current) and DCT VPCOL (pending).
         // Then FH 270 — Lateral, conflicts with the pending DCT VPCOL block → dropped.
@@ -72,7 +72,7 @@ public class QueueClearWarningTests : IDisposable
         DispatchOk(ac, "FH 270");
 
         Assert.NotEmpty(ac.PendingWarnings);
-        var warning = ac.PendingWarnings.First();
+        string warning = ac.PendingWarnings.First();
         _output.WriteLine($"Warning: {warning}");
         Assert.Contains("N435C", warning);
         Assert.Contains("queue cleared", warning, StringComparison.OrdinalIgnoreCase);
@@ -83,7 +83,7 @@ public class QueueClearWarningTests : IDisposable
     [Fact]
     public void NonConflictingAltitude_PreservesNavigationBlock_NoWarning()
     {
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
 
         // DCT OAK queues a lateral block. CM 050 is altitude-only — no dimensional
         // overlap, so the lateral block is preserved and no warning fires.
@@ -100,7 +100,7 @@ public class QueueClearWarningTests : IDisposable
     [Fact]
     public void EmptyQueue_NoWarning()
     {
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
         Assert.Empty(ac.Queue.Blocks);
 
         DispatchOk(ac, "FH 270");
@@ -115,7 +115,7 @@ public class QueueClearWarningTests : IDisposable
         // "lost: DCT VPCOL, ERD 28R" warning even though the resend was about to
         // re-enqueue those same blocks. The warning should suppress drops whose
         // canonical form is present in the incoming compound.
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
         DispatchOk(ac, "DCT OAK; DCT VPCOL; ERD 28R");
         Assert.Equal(3, ac.Queue.Blocks.Count);
         ac.PendingWarnings.Clear();
@@ -131,18 +131,18 @@ public class QueueClearWarningTests : IDisposable
         // Re-sending a compound that overlaps the previous queue but loses one
         // block (because the new compound doesn't include it) should warn only
         // for the truly-lost block, not for the blocks being re-enqueued.
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
         DispatchOk(ac, "DCT OAK; DCT VPCOL; FH 270");
         ac.PendingWarnings.Clear();
 
         // New compound drops FH 270 but keeps DCT OAK + DCT VPCOL.
         DispatchOk(ac, "DCT OAK; DCT VPCOL");
 
-        var warning = Assert.Single(ac.PendingWarnings);
+        string warning = Assert.Single(ac.PendingWarnings);
         // Warning format: "<callsign> queue cleared by <src> (lost: <items>)".
         // Only the "(lost: …)" tail should be checked for VPCOL — the <src> echo
         // of the new compound naturally repeats it.
-        var lostSegment = warning[warning.IndexOf("(lost:", StringComparison.Ordinal)..];
+        string lostSegment = warning[warning.IndexOf("(lost:", StringComparison.Ordinal)..];
         Assert.Contains("FH 270", lostSegment);
         Assert.DoesNotContain("VPCOL", lostSegment);
     }
@@ -150,7 +150,7 @@ public class QueueClearWarningTests : IDisposable
     [Fact]
     public void TransparentCommand_PreservesQueue_NoQueueWarning()
     {
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
         DispatchOk(ac, "DCT OAK; ERD 28R");
         Assert.Equal(2, ac.Queue.Blocks.Count);
         ac.PendingWarnings.Clear();
@@ -171,7 +171,7 @@ public class QueueClearWarningTests : IDisposable
         // queue (each took effect when dispatched). Superseding an already-applied block is not a
         // loss, so no "queue cleared" warning should fire. This is the general form of the
         // CFIX-chain false alarm — it must hold for any immediate command, not just CFIX.
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
         DispatchOk(ac, "CM 050"); // applied at index 0 (current)
         DispatchOk(ac, "CM 070"); // applied at index 1 (non-current — already took effect)
         Assert.True(ac.Queue.Blocks.Count >= 2);

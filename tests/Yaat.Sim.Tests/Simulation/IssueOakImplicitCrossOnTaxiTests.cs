@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -53,8 +54,8 @@ public class IssueOakImplicitCrossOnTaxiTests(ITestOutputHelper output)
     [Fact]
     public void TaxiAcrossSameRunway_ImplicitlyClearsFirstCrossing()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -63,7 +64,7 @@ public class IssueOakImplicitCrossOnTaxiTests(ITestOutputHelper output)
         // Replay to t=673 — one second before the recorded `TAXI B RWY 28L`.
         engine.Replay(recording, 673);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
         // Precondition: aircraft is holding short of 28R on taxiway B.
@@ -76,16 +77,16 @@ public class IssueOakImplicitCrossOnTaxiTests(ITestOutputHelper output)
         );
 
         // Issue the TAXI command live (not via replay), exactly as the controller did.
-        var result = engine.SendCommand(Callsign, "TAXI B RWY 28L");
+        CommandResult result = engine.SendCommand(Callsign, "TAXI B RWY 28L");
         Assert.True(result.Success, $"TAXI command failed: {result.Message}");
         output.WriteLine($"TAXI response: {result.Message}");
 
         // The new route should have at least one RunwayCrossing hold-short, and the
         // first one (which sits at the same node the aircraft is parked at) must be
         // marked cleared.
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
-        var firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
+        HoldShortPoint? firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
         Assert.NotNull(firstCrossing);
         Assert.False(string.IsNullOrEmpty(firstCrossing.TargetName));
         Assert.True(
@@ -137,25 +138,25 @@ public class IssueOakImplicitCrossOnTaxiTests(ITestOutputHelper output)
     [Fact]
     public void TaxiAcrossSameRunway_StillHoldsAtDestination()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 673);
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
-        var result = engine.SendCommand(Callsign, "TAXI B RWY 28L");
+        CommandResult result = engine.SendCommand(Callsign, "TAXI B RWY 28L");
         Assert.True(result.Success, $"TAXI command failed: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         // The destination 28L hold-short must NOT be cleared.
-        var destHold = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
+        HoldShortPoint? destHold = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
         Assert.NotNull(destHold);
         Assert.False(destHold.IsCleared, "Destination runway hold-short should remain uncleared after TAXI");
 

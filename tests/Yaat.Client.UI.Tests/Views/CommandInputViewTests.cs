@@ -18,10 +18,10 @@ public class CommandInputViewTests
     [AvaloniaFact]
     public void Escape_WithNoPopup_ClearsCommandTextAndSelection()
     {
-        var (window, view, vm) = SetupInputView();
+        (Window? window, CommandInputView? view, MainViewModel? vm) = SetupInputView();
         vm.CommandText = "abc";
 
-        var textBox = FindCommandInput(view);
+        TextBox textBox = FindCommandInput(view);
         textBox.Focus();
         Helpers.HeadlessWindowExtensions.PumpDispatcher();
 
@@ -34,13 +34,13 @@ public class CommandInputViewTests
     [AvaloniaFact]
     public void Up_WithNoPopup_WalksHistoryBackwards()
     {
-        var (window, view, vm) = SetupInputView();
+        (Window? window, CommandInputView? view, MainViewModel? vm) = SetupInputView();
         // Populate history (CommandHistory is ObservableCollection<CommandHistoryEntry>, newest at
         // index 0). No aircraft is selected, so untargeted (empty-callsign) entries recall for all.
         vm.CommandHistory.Insert(0, new CommandHistoryEntry("", "OLDER"));
         vm.CommandHistory.Insert(0, new CommandHistoryEntry("", "NEWER"));
 
-        var textBox = FindCommandInput(view);
+        TextBox textBox = FindCommandInput(view);
         textBox.Focus();
         Helpers.HeadlessWindowExtensions.PumpDispatcher();
 
@@ -54,12 +54,12 @@ public class CommandInputViewTests
     [AvaloniaFact]
     public void AircraftSelectKey_ResolvesCallsignAndClearsInput()
     {
-        var (window, view, vm) = SetupInputView();
+        (Window? window, CommandInputView? view, MainViewModel? vm) = SetupInputView();
         vm.Aircraft.Add(new AircraftModel { Callsign = "UAL123" });
         // Default aircraft-select keybind is Key.Add (NumPad +) with no modifiers.
         vm.CommandText = "UAL";
 
-        var textBox = FindCommandInput(view);
+        TextBox textBox = FindCommandInput(view);
         textBox.Focus();
         Helpers.HeadlessWindowExtensions.PumpDispatcher();
 
@@ -73,7 +73,7 @@ public class CommandInputViewTests
     [AvaloniaFact]
     public void Escape_WithSignatureHelpVisible_OnlyDismissesSignatureHelp()
     {
-        var (window, view, vm) = SetupInputView();
+        (Window? window, CommandInputView? view, MainViewModel? vm) = SetupInputView();
         vm.CommandText = "typed";
         // SignatureHelpState exposes IsVisible as an ObservableProperty, so we can
         // flip it directly without building a full CommandSignatureSet just to test
@@ -81,7 +81,7 @@ public class CommandInputViewTests
         // SignatureHelp is open.
         vm.CommandInput.SignatureHelp.IsVisible = true;
 
-        var textBox = FindCommandInput(view);
+        TextBox textBox = FindCommandInput(view);
         textBox.Focus();
         Helpers.HeadlessWindowExtensions.PumpDispatcher();
 
@@ -107,7 +107,7 @@ public class CommandInputViewTests
 
     private static TextBox FindCommandInput(CommandInputView view)
     {
-        var textBox = view.FindControl<TextBox>("CommandInput");
+        TextBox? textBox = view.FindControl<TextBox>("CommandInput");
         Assert.NotNull(textBox);
         return textBox!;
     }

@@ -22,9 +22,9 @@ public class CommandScheme
     /// <summary>Whether <paramref name="token"/> is a command verb alias in this scheme (case-insensitive).</summary>
     public bool IsKnownVerb(string token)
     {
-        foreach (var pattern in Patterns.Values)
+        foreach (CommandPattern pattern in Patterns.Values)
         {
-            foreach (var alias in pattern.Aliases)
+            foreach (string alias in pattern.Aliases)
             {
                 if (string.Equals(alias, token, StringComparison.OrdinalIgnoreCase))
                 {

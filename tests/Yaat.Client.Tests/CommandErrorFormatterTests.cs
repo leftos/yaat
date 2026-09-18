@@ -16,7 +16,7 @@ public class CommandErrorFormatterTests
 
     private static ParseFailure? FailureFor(string input)
     {
-        CommandSchemeParser.ParseCompound(input, Scheme, out var failure);
+        CommandSchemeParser.ParseCompound(input, Scheme, out ParseFailure? failure);
         return failure;
     }
 
@@ -25,7 +25,7 @@ public class CommandErrorFormatterTests
     {
         // Reproduces N929AW SPEEDN 80: the raw parse blames the callsign "N929AW".
         const string input = "N929AW SPEEDN 80";
-        var result = CommandErrorFormatter.Format(input, FailureFor(input), Scheme, Aircraft("N929AW"));
+        CommandErrorFormatter.Result result = CommandErrorFormatter.Format(input, FailureFor(input), Scheme, Aircraft("N929AW"));
 
         Assert.Equal("SPEEDN", result.Verb);
         Assert.DoesNotContain("N929AW", result.StatusText);
@@ -36,7 +36,7 @@ public class CommandErrorFormatterTests
     public void PartialCallsignMatch_BadVerb_BlamesVerbNotCallsign()
     {
         const string input = "929AW BOGUS 1";
-        var result = CommandErrorFormatter.Format(input, FailureFor(input), Scheme, Aircraft("N929AW"));
+        CommandErrorFormatter.Result result = CommandErrorFormatter.Format(input, FailureFor(input), Scheme, Aircraft("N929AW"));
 
         Assert.Equal("BOGUS", result.Verb);
         Assert.DoesNotContain("929AW", result.StatusText);
@@ -48,7 +48,7 @@ public class CommandErrorFormatterTests
     {
         // Aircraft already selected: input is just the (bad) command, no callsign token.
         const string input = "BOGUS 80";
-        var result = CommandErrorFormatter.Format(input, FailureFor(input), Scheme, Aircraft("N929AW"));
+        CommandErrorFormatter.Result result = CommandErrorFormatter.Format(input, FailureFor(input), Scheme, Aircraft("N929AW"));
 
         Assert.Equal("BOGUS", result.Verb);
         Assert.Contains("BOGUS", result.StatusText);
@@ -59,7 +59,7 @@ public class CommandErrorFormatterTests
     {
         // First token is not a known aircraft — it stays the blamed verb.
         const string input = "BOGUS 80";
-        var result = CommandErrorFormatter.Format(input, FailureFor(input), Scheme, Aircraft("N1234"));
+        CommandErrorFormatter.Result result = CommandErrorFormatter.Format(input, FailureFor(input), Scheme, Aircraft("N1234"));
 
         Assert.Equal("BOGUS", result.Verb);
     }
@@ -70,7 +70,7 @@ public class CommandErrorFormatterTests
         // Issue #279: a malformed trailing condition block (LV with no following command) must not
         // blame the valid leading verb — the client used to report "Unrecognized command CM".
         const string input = "CM 100; LV 5000";
-        var result = CommandErrorFormatter.Format(input, FailureFor(input), Scheme, Aircraft());
+        CommandErrorFormatter.Result result = CommandErrorFormatter.Format(input, FailureFor(input), Scheme, Aircraft());
 
         Assert.Equal("LV", result.Verb);
         Assert.Contains("LV", result.StatusText);

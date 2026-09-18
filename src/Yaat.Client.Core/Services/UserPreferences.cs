@@ -174,7 +174,7 @@ public sealed class UserPreferences
     /// </summary>
     public IEnumerable<string> GetWindowGeometryKeysStartingWith(string prefix)
     {
-        foreach (var key in _data.WindowGeometries.Keys)
+        foreach (string key in _data.WindowGeometries.Keys)
         {
             if (key.StartsWith(prefix, StringComparison.Ordinal))
             {
@@ -365,14 +365,14 @@ public sealed class UserPreferences
     /// </summary>
     public void SaveWindowProfile(SavedWindowProfile profile)
     {
-        var name = profile.Name.Trim();
+        string name = profile.Name.Trim();
         if (string.IsNullOrEmpty(name))
         {
             return;
         }
 
         profile.Name = name;
-        var existingIndex = _data.WindowProfiles.FindIndex(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        int existingIndex = _data.WindowProfiles.FindIndex(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
         if (existingIndex >= 0)
         {
             // Preserve CreatedUtc across overwrites; only bump ModifiedUtc.
@@ -397,7 +397,7 @@ public sealed class UserPreferences
 
     public void DeleteWindowProfile(string name)
     {
-        var removed = _data.WindowProfiles.RemoveAll(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        int removed = _data.WindowProfiles.RemoveAll(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
         if (removed > 0)
         {
             Save();
@@ -408,13 +408,13 @@ public sealed class UserPreferences
     /// <summary>Returns true on rename, false when oldName not found or newName collides with another profile.</summary>
     public bool RenameWindowProfile(string oldName, string newName)
     {
-        var trimmed = newName.Trim();
+        string trimmed = newName.Trim();
         if (string.IsNullOrEmpty(trimmed))
         {
             return false;
         }
 
-        var existing = _data.WindowProfiles.FirstOrDefault(p => string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase));
+        SavedWindowProfile? existing = _data.WindowProfiles.FirstOrDefault(p => string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase));
         if (existing is null)
         {
             return false;
@@ -423,7 +423,7 @@ public sealed class UserPreferences
         if (!string.Equals(oldName, trimmed, StringComparison.OrdinalIgnoreCase))
         {
             // Collision: a different profile already uses the target name.
-            var collision = _data.WindowProfiles.Any(p => p != existing && string.Equals(p.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+            bool collision = _data.WindowProfiles.Any(p => p != existing && string.Equals(p.Name, trimmed, StringComparison.OrdinalIgnoreCase));
             if (collision)
             {
                 return false;
@@ -542,14 +542,14 @@ public sealed class UserPreferences
 
     /// <summary>Which timestamp the terminal shows per line. Defaults to wall-clock for legacy data.</summary>
     public TerminalTimestampMode TerminalTimestampMode =>
-        Enum.TryParse<TerminalTimestampMode>(_data.TerminalTimestampMode, out var mode) ? mode : TerminalTimestampMode.WallClock;
+        Enum.TryParse<TerminalTimestampMode>(_data.TerminalTimestampMode, out TerminalTimestampMode mode) ? mode : TerminalTimestampMode.WallClock;
 
     /// <summary>How the Aircraft List treats live-traffic shadows. Defaults to listing them.</summary>
     public LiveTrafficListFilter LiveTrafficListFilter =>
-        Enum.TryParse<LiveTrafficListFilter>(_data.LiveTrafficListFilter, out var filter) ? filter : LiveTrafficListFilter.All;
+        Enum.TryParse<LiveTrafficListFilter>(_data.LiveTrafficListFilter, out LiveTrafficListFilter filter) ? filter : LiveTrafficListFilter.All;
 
     /// <summary>GPU rendering backend override (macOS only). Defaults to <see cref="RendererMode.Auto"/>.</summary>
-    public RendererMode RendererMode => Enum.TryParse<RendererMode>(_data.RendererMode, out var renderer) ? renderer : RendererMode.Auto;
+    public RendererMode RendererMode => Enum.TryParse<RendererMode>(_data.RendererMode, out RendererMode renderer) ? renderer : RendererMode.Auto;
 
     /// <summary>
     /// How far the VFR-only command set opens up for IFR aircraft. Defaults to
@@ -557,7 +557,7 @@ public sealed class UserPreferences
     /// arrival flying a visual without cancelling IFR first.
     /// </summary>
     public VfrCommandsForIfr VfrCommandsForIfr =>
-        Enum.TryParse<VfrCommandsForIfr>(_data.VfrCommandsForIfr, out var mode) ? mode : VfrCommandsForIfr.EnterFinalOnly;
+        Enum.TryParse<VfrCommandsForIfr>(_data.VfrCommandsForIfr, out VfrCommandsForIfr mode) ? mode : VfrCommandsForIfr.EnterFinalOnly;
 
     public int InterfaceFontSize => _data.InterfaceFontSize;
     public int StripsZoomPercent => _data.StripsZoomPercent;
@@ -780,7 +780,7 @@ public sealed class UserPreferences
     /// </summary>
     public int GetSoloGoAroundProbability(string? scenarioId)
     {
-        if (!string.IsNullOrEmpty(scenarioId) && _data.SoloGoAroundProbabilityByScenario.TryGetValue(scenarioId, out var perScenario))
+        if (!string.IsNullOrEmpty(scenarioId) && _data.SoloGoAroundProbabilityByScenario.TryGetValue(scenarioId, out int perScenario))
         {
             return Math.Clamp(perScenario, 0, 100);
         }
@@ -1096,7 +1096,7 @@ public sealed class UserPreferences
 
     public void SetWindowTopmost(string windowName, bool isTopmost)
     {
-        var geo = GetWindowGeometry(windowName) ?? new SavedWindowGeometry();
+        SavedWindowGeometry geo = GetWindowGeometry(windowName) ?? new SavedWindowGeometry();
         geo.IsTopmost = isTopmost;
         SetWindowGeometry(windowName, geo);
         WindowTopmostChanged?.Invoke(windowName, isTopmost);
@@ -1364,8 +1364,8 @@ public sealed class UserPreferences
     /// <summary>Rewrites every window profile's legacy loaded-set-names list into set ids (unknown names dropped).</summary>
     internal void MigrateProfileLoadedSetNames(Func<string, string?> nameToId)
     {
-        var migrated = false;
-        foreach (var profile in _data.WindowProfiles)
+        bool migrated = false;
+        foreach (SavedWindowProfile profile in _data.WindowProfiles)
         {
             if (profile.LoadedFavoriteSetNames is not { } names)
             {
@@ -1419,7 +1419,7 @@ public sealed class UserPreferences
 
     public void AddRecentScenario(string filePath, string name, string? apiId = null)
     {
-        var key = apiId ?? filePath;
+        string key = apiId ?? filePath;
         _data.RecentScenarios.RemoveAll(r => r.Key == key);
         _data.RecentScenarios.Insert(
             0,
@@ -1439,7 +1439,7 @@ public sealed class UserPreferences
 
     public void AddRecentWeather(string filePath, string name, string? apiId = null)
     {
-        var key = apiId ?? filePath;
+        string key = apiId ?? filePath;
         _data.RecentWeatherFiles.RemoveAll(r => r.Key == key);
         _data.RecentWeatherFiles.Insert(
             0,
@@ -1465,7 +1465,7 @@ public sealed class UserPreferences
 
     public SavedRadarSettings? GetRadarSettings(string scenarioId)
     {
-        _data.RadarSettings.TryGetValue(scenarioId, out var settings);
+        _data.RadarSettings.TryGetValue(scenarioId, out SavedRadarSettings? settings);
         return settings;
     }
 
@@ -1490,7 +1490,7 @@ public sealed class UserPreferences
     /// </summary>
     public IReadOnlyList<string> GetFavoriteVideoMaps(FavoriteMapScope scope, string key)
     {
-        return FavoriteVideoMapStore(scope).TryGetValue(key, out var maps) ? maps : [];
+        return FavoriteVideoMapStore(scope).TryGetValue(key, out List<string>? maps) ? maps : [];
     }
 
     /// <summary>
@@ -1498,7 +1498,7 @@ public sealed class UserPreferences
     /// </summary>
     public bool IsFavoriteVideoMap(FavoriteMapScope scope, string key, string mapId)
     {
-        return FavoriteVideoMapStore(scope).TryGetValue(key, out var maps) && maps.Contains(mapId);
+        return FavoriteVideoMapStore(scope).TryGetValue(key, out List<string>? maps) && maps.Contains(mapId);
     }
 
     /// <summary>
@@ -1507,10 +1507,10 @@ public sealed class UserPreferences
     /// </summary>
     public void SetFavoriteVideoMap(FavoriteMapScope scope, string key, string mapId, bool isFavorite)
     {
-        var store = FavoriteVideoMapStore(scope);
+        Dictionary<string, List<string>> store = FavoriteVideoMapStore(scope);
         if (isFavorite)
         {
-            if (!store.TryGetValue(key, out var maps))
+            if (!store.TryGetValue(key, out List<string>? maps))
             {
                 maps = [];
                 store[key] = maps;
@@ -1521,7 +1521,7 @@ public sealed class UserPreferences
                 maps.Add(mapId);
             }
         }
-        else if (store.TryGetValue(key, out var maps))
+        else if (store.TryGetValue(key, out List<string>? maps))
         {
             maps.Remove(mapId);
             if (maps.Count == 0)
@@ -1538,7 +1538,7 @@ public sealed class UserPreferences
     /// </summary>
     public bool IsFavoriteMetarStation(string scenarioId, string stationId)
     {
-        return _data.FavoriteMetarStationsByScenario.TryGetValue(scenarioId, out var stations) && stations.Contains(stationId);
+        return _data.FavoriteMetarStationsByScenario.TryGetValue(scenarioId, out List<string>? stations) && stations.Contains(stationId);
     }
 
     /// <summary>
@@ -1547,10 +1547,10 @@ public sealed class UserPreferences
     /// </summary>
     public void SetFavoriteMetarStation(string scenarioId, string stationId, bool isFavorite)
     {
-        var store = _data.FavoriteMetarStationsByScenario;
+        Dictionary<string, List<string>> store = _data.FavoriteMetarStationsByScenario;
         if (isFavorite)
         {
-            if (!store.TryGetValue(scenarioId, out var stations))
+            if (!store.TryGetValue(scenarioId, out List<string>? stations))
             {
                 stations = [];
                 store[scenarioId] = stations;
@@ -1561,7 +1561,7 @@ public sealed class UserPreferences
                 stations.Add(stationId);
             }
         }
-        else if (store.TryGetValue(scenarioId, out var stations))
+        else if (store.TryGetValue(scenarioId, out List<string>? stations))
         {
             stations.Remove(stationId);
             if (stations.Count == 0)
@@ -1575,7 +1575,7 @@ public sealed class UserPreferences
 
     public SavedGroundSettings? GetGroundSettings(string scenarioId)
     {
-        _data.GroundSettings.TryGetValue(scenarioId, out var settings);
+        _data.GroundSettings.TryGetValue(scenarioId, out SavedGroundSettings? settings);
         return settings;
     }
 
@@ -1587,7 +1587,7 @@ public sealed class UserPreferences
 
     public double? GetGroundRotation(string airportId)
     {
-        return _data.GroundRotationByAirport.TryGetValue(airportId, out var r) ? r : null;
+        return _data.GroundRotationByAirport.TryGetValue(airportId, out double r) ? r : null;
     }
 
     public void SetGroundRotation(string airportId, double rotation)
@@ -1602,7 +1602,9 @@ public sealed class UserPreferences
     /// </summary>
     public IReadOnlyList<CommandHistoryEntry> GetCommandHistory(string scenarioId)
     {
-        return _data.ScenarioCommandHistory.TryGetValue(scenarioId, out var history) ? NormalizeCommandHistoryEntries(history) : [];
+        return _data.ScenarioCommandHistory.TryGetValue(scenarioId, out List<CommandHistoryEntry>? history)
+            ? NormalizeCommandHistoryEntries(history)
+            : [];
     }
 
     /// <summary>
@@ -1619,7 +1621,7 @@ public sealed class UserPreferences
     private static List<CommandHistoryEntry> NormalizeCommandHistoryEntries(IEnumerable<CommandHistoryEntry> entries)
     {
         var normalized = new List<CommandHistoryEntry>();
-        foreach (var entry in entries)
+        foreach (CommandHistoryEntry entry in entries)
         {
             var value = new CommandHistoryEntry(entry.Callsign.ToUpperInvariant(), entry.Command.ToUpperInvariant());
             if (
@@ -1641,26 +1643,26 @@ public sealed class UserPreferences
     public List<(string ScenarioId, string DisplayName)> GetSavedViewScenarioIds()
     {
         var ids = new HashSet<string>();
-        foreach (var key in _data.RadarSettings.Keys)
+        foreach (string key in _data.RadarSettings.Keys)
         {
             ids.Add(key);
         }
 
-        foreach (var key in _data.GroundSettings.Keys)
+        foreach (string key in _data.GroundSettings.Keys)
         {
             ids.Add(key);
         }
 
         var nameMap = new Dictionary<string, string>(_data.ScenarioNames);
-        foreach (var recent in _data.RecentScenarios)
+        foreach (RecentScenario recent in _data.RecentScenarios)
         {
             nameMap[recent.Key] = recent.Name;
         }
 
         var result = new List<(string, string)>();
-        foreach (var id in ids)
+        foreach (string id in ids)
         {
-            var display = nameMap.TryGetValue(id, out var name) ? name : id;
+            string display = nameMap.TryGetValue(id, out string? name) ? name : id;
             result.Add((id, display));
         }
 
@@ -1676,7 +1678,7 @@ public sealed class UserPreferences
 
     public string? GetScenarioAirport(string scenarioId)
     {
-        return _data.ScenarioAirports.TryGetValue(scenarioId, out var airport) ? airport : null;
+        return _data.ScenarioAirports.TryGetValue(scenarioId, out string? airport) ? airport : null;
     }
 
     public void SetScenarioAirport(string scenarioId, string airportId)
@@ -1686,7 +1688,7 @@ public sealed class UserPreferences
             return;
         }
 
-        if (_data.ScenarioAirports.TryGetValue(scenarioId, out var existing) && existing == airportId)
+        if (_data.ScenarioAirports.TryGetValue(scenarioId, out string? existing) && existing == airportId)
         {
             return;
         }
@@ -1719,14 +1721,16 @@ public sealed class UserPreferences
         // Fast path: full deserialization
         try
         {
-            var saved = JsonSerializer.Deserialize<SavedPrefs>(json, JsonOptions);
+            SavedPrefs? saved = JsonSerializer.Deserialize<SavedPrefs>(json, JsonOptions);
             if (saved is not null)
             {
                 // Full deserialization leaves a missing property at its initializer (the current version), so the
                 // version is read from the raw file: one written before the field existed has to read as 0.
                 using var doc = JsonDocument.Parse(json);
                 saved.PreferencesVersion =
-                    (doc.RootElement.TryGetProperty("preferencesVersion", out var version) && version.TryGetInt32(out var number)) ? number : 0;
+                    (doc.RootElement.TryGetProperty("preferencesVersion", out JsonElement version) && version.TryGetInt32(out int number))
+                        ? number
+                        : 0;
                 return ApplyDefaultServers(saved);
             }
         }
@@ -1943,7 +1947,7 @@ public sealed class UserPreferences
 
     private static T GetFieldOr<T>(JsonObject obj, string name, T fallback)
     {
-        if (!obj.TryGetPropertyValue(name, out var node) || node is null)
+        if (!obj.TryGetPropertyValue(name, out JsonNode? node) || node is null)
         {
             return fallback;
         }
@@ -1979,14 +1983,14 @@ public sealed class UserPreferences
         _data.CommandScheme = ToSaved(_commandScheme);
         _data.Macros = _macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }).ToList();
 
-        var json = JsonSerializer.Serialize(_data, JsonOptions);
+        string json = JsonSerializer.Serialize(_data, JsonOptions);
 
         lock (FileLock)
         {
             // Atomic write: write to .tmp then move, so a crash mid-write
             // can't corrupt the real file. The lock serializes against
             // concurrent Save and Load calls from other instances.
-            var tmpPath = ConfigPath + ".tmp";
+            string tmpPath = ConfigPath + ".tmp";
             File.WriteAllText(tmpPath, json);
             File.Move(tmpPath, ConfigPath, overwrite: true);
         }
@@ -1997,27 +2001,27 @@ public sealed class UserPreferences
         var patterns = new Dictionary<CanonicalCommandType, CommandPattern>();
 
         var defaults = CommandScheme.Default();
-        foreach (var (type, pattern) in defaults.Patterns)
+        foreach ((CanonicalCommandType type, CommandPattern? pattern) in defaults.Patterns)
         {
             patterns[type] = new CommandPattern { Aliases = [.. pattern.Aliases] };
         }
 
-        foreach (var (key, sp) in s.Patterns)
+        foreach ((string? key, SavedPattern? sp) in s.Patterns)
         {
-            if (!Enum.TryParse<CanonicalCommandType>(key, out var type))
+            if (!Enum.TryParse<CanonicalCommandType>(key, out CanonicalCommandType type))
             {
                 continue;
             }
 
             // Read aliases: prefer Aliases list, fall back to legacy Verb field
-            var aliases = sp.Aliases is { Count: > 0 } ? sp.Aliases : (!string.IsNullOrWhiteSpace(sp.Verb) ? [sp.Verb] : null);
+            List<string>? aliases = sp.Aliases is { Count: > 0 } ? sp.Aliases : (!string.IsNullOrWhiteSpace(sp.Verb) ? [sp.Verb] : null);
 
             if (aliases is null)
             {
                 continue;
             }
 
-            if (patterns.TryGetValue(type, out var existing))
+            if (patterns.TryGetValue(type, out CommandPattern? existing))
             {
                 existing.Aliases = aliases;
             }
@@ -2030,11 +2034,11 @@ public sealed class UserPreferences
     {
         var defaults = CommandScheme.Default();
         var patterns = new Dictionary<string, SavedPattern>();
-        foreach (var (type, pattern) in scheme.Patterns)
+        foreach ((CanonicalCommandType type, CommandPattern? pattern) in scheme.Patterns)
         {
             // Only persist aliases that differ from defaults — unmodified commands
             // always pick up the latest default aliases on next load.
-            if (defaults.Patterns.TryGetValue(type, out var defaultPattern) && pattern.Aliases.SequenceEqual(defaultPattern.Aliases))
+            if (defaults.Patterns.TryGetValue(type, out CommandPattern? defaultPattern) && pattern.Aliases.SequenceEqual(defaultPattern.Aliases))
             {
                 continue;
             }

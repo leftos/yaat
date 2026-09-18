@@ -25,7 +25,7 @@ public class OakArrivalGeneratorsE2ETests(ITestOutputHelper output)
         {
             return;
         }
-        var scenarioJson = File.ReadAllText(ScenarioPath);
+        string scenarioJson = File.ReadAllText(ScenarioPath);
 
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
@@ -40,8 +40,8 @@ public class OakArrivalGeneratorsE2ETests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(scenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
-        foreach (var w in warnings)
+        List<string> warnings = engine.LoadScenario(scenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        foreach (string w in warnings)
         {
             output.WriteLine($"[load-warn] {w}");
         }
@@ -49,8 +49,8 @@ public class OakArrivalGeneratorsE2ETests(ITestOutputHelper output)
         Assert.NotNull(engine.Scenario);
         Assert.Equal(2, engine.Scenario.Generators.Count);
 
-        var gen30 = engine.Scenario.Generators.Single(g => g.Config.Runway == "30");
-        var gen28R = engine.Scenario.Generators.Single(g => g.Config.Runway == "28R");
+        GeneratorState gen30 = engine.Scenario.Generators.Single(g => g.Config.Runway == "30");
+        GeneratorState gen28R = engine.Scenario.Generators.Single(g => g.Config.Runway == "28R");
         Assert.Equal(240, gen30.Config.IntervalTime);
         Assert.Equal("Jet", gen30.Config.EngineType);
         Assert.Equal("Large", gen30.Config.WeightCategory);
@@ -68,7 +68,7 @@ public class OakArrivalGeneratorsE2ETests(ITestOutputHelper output)
         {
             var pre = engine.World.GetSnapshot().Select(a => a.Callsign).ToHashSet();
             engine.TickOneSecond();
-            foreach (var ac in engine.World.GetSnapshot())
+            foreach (AircraftState ac in engine.World.GetSnapshot())
             {
                 if (!pre.Contains(ac.Callsign) && !initialCallsigns.Contains(ac.Callsign))
                 {
@@ -90,7 +90,7 @@ public class OakArrivalGeneratorsE2ETests(ITestOutputHelper output)
         // 28R — generators always use SpawnPositionType.OnFinal. Assert against the spawn-time
         // snapshot, not the post-run state, since early arrivals can land before the 30-minute
         // window finishes.
-        foreach (var ac in spawnedAircraft)
+        foreach ((string Callsign, bool IsOnGround, double Altitude) ac in spawnedAircraft)
         {
             Assert.False(ac.IsOnGround, $"{ac.Callsign} should be airborne (OnFinal spawn), but IsOnGround=true");
             Assert.True(ac.Altitude > 1000, $"{ac.Callsign} should be at approach altitude, got {ac.Altitude}");

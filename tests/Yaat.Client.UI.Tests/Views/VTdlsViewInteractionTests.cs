@@ -19,10 +19,10 @@ public class VTdlsViewInteractionTests
     [AvaloniaFact]
     public void Find_CtrlFOpens_TypingHighlightsMatches_EscClosesAndClears()
     {
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         transport.PushState(new TdlsStateDto([Item("id1", "UAL111"), Item("id2", "AAL222"), Item("id3", "UAL333")], []));
         Dispatcher.UIThread.RunJobs();
-        var view = BootView(vm);
+        VTdlsView view = BootView(vm);
 
         Assert.Equal(3, vm.DclItems.Count);
 
@@ -56,7 +56,7 @@ public class VTdlsViewInteractionTests
     public void Find_MatchesFlightPlanText_NotJustCallsign()
     {
         // "All visible text": a query hitting the filed route/destination finds the item.
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         var fp = new TdlsFlightPlanInfoDto(
             AssignedBeaconCode: 1234,
             Departure: "KSFO",
@@ -70,7 +70,7 @@ public class VTdlsViewInteractionTests
         );
         transport.PushState(new TdlsStateDto([Item("id1", "UAL111", fp)], []));
         Dispatcher.UIThread.RunJobs();
-        var view = BootView(vm);
+        VTdlsView view = BootView(vm);
 
         view.FindController.Open();
         view.FindController.Query = "klax";
@@ -86,7 +86,7 @@ public class VTdlsViewInteractionTests
         // Upstream vTDLS is a web page, so a controller can drag-select the route or the
         // remarks and copy them out. Plain TextBlocks cannot be selected at all; the
         // read-only value text therefore has to render as SelectableTextBlock.
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedFacility(vm, ConfigWithMandatoryDepFreq());
         var fp = new TdlsFlightPlanInfoDto(
             AssignedBeaconCode: 1234,
@@ -101,7 +101,7 @@ public class VTdlsViewInteractionTests
         );
         transport.PushState(new TdlsStateDto([Item("id1", "UAL111", fp, facilityId: "IAD")], []));
         Dispatcher.UIThread.RunJobs();
-        var view = BootView(vm);
+        VTdlsView view = BootView(vm);
 
         // Selecting the DCL item opens the flight-plan editor, so the header fields render.
         vm.SelectedItem = vm.DclItems.Single();
@@ -112,7 +112,7 @@ public class VTdlsViewInteractionTests
         var selectable = view.GetVisualDescendants().OfType<SelectableTextBlock>().ToList();
         Assert.Contains(selectable, t => t.Text == "UAL111");
         Assert.Contains(selectable, t => t.Text == "RMK: CTC NORCAL");
-        var route = Assert.Single(selectable, t => t.Text == "KSFO.SSTIK2.KLAX");
+        SelectableTextBlock route = Assert.Single(selectable, t => t.Text == "KSFO.SSTIK2.KLAX");
 
         // "KSFO.SSTIK2.KLAX" — chars 5..10 are the filed route itself.
         route.SelectionStart = 5;
@@ -126,11 +126,11 @@ public class VTdlsViewInteractionTests
         // The footer used to be repainted only by the 1 Hz Zulu-clock timer, so it lagged
         // the dropdowns by up to a second. No timer fires inside this test's lifetime —
         // every assertion below therefore proves the footer is binding-driven.
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedFacility(vm, ConfigWithMandatoryDepFreq());
         transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
         Dispatcher.UIThread.RunJobs();
-        var view = BootView(vm);
+        VTdlsView view = BootView(vm);
 
         // Nothing selected — the editor is closed, so the footer shows the idle status.
         Assert.Equal("CLEARANCE TYPE: PDC", view.FooterStatusText);
@@ -155,11 +155,11 @@ public class VTdlsViewInteractionTests
         // Two mandatory fields blank: filling one leaves CanSend false, so the guard the
         // footer binding hangs off cannot be CanSend alone — the list of names has to be
         // re-raised on every recompute or the footer keeps naming a field already filled.
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedFacility(vm, ConfigWithMandatoryDepFreq() with { MandatoryInitialAlt = true });
         transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
         Dispatcher.UIThread.RunJobs();
-        var view = BootView(vm);
+        VTdlsView view = BootView(vm);
 
         vm.SelectedItem = vm.DclItems.Single();
         Dispatcher.UIThread.RunJobs();
@@ -179,18 +179,18 @@ public class VTdlsViewInteractionTests
     [AvaloniaFact]
     public void ClimbViaSelection_GreysOutTheMaintainDropdown()
     {
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedFacility(vm, ConfigWithClimbVias());
         transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
         Dispatcher.UIThread.RunJobs();
-        var view = BootView(vm);
+        VTdlsView view = BootView(vm);
 
         vm.SelectedItem = vm.DclItems.Single();
         Dispatcher.UIThread.RunJobs();
         view.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
 
-        var maintain = DropdownRowCombos(view)["Maintain"];
+        ComboBox maintain = DropdownRowCombos(view)["Maintain"];
         Assert.True(maintain.IsEffectivelyEnabled);
 
         vm.Editor!.SelectedClimbvia = vm.Editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
@@ -209,7 +209,7 @@ public class VTdlsViewInteractionTests
     [AvaloniaFact]
     public void AmendedFlightPlan_RefreshesTheOpenEditorInPlace()
     {
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedFacility(vm, ConfigWithMandatoryDepFreq());
         transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", FlightPlanWithRoute("SSTIK2"), facilityId: "IAD")], []));
         Dispatcher.UIThread.RunJobs();
@@ -217,8 +217,8 @@ public class VTdlsViewInteractionTests
 
         vm.SelectedItem = vm.DclItems.Single();
         Dispatcher.UIThread.RunJobs();
-        var editor = vm.Editor!;
-        var composed = editor.DepFreqs[0];
+        TdlsFlightPlanEditorViewModel editor = vm.Editor!;
+        TdlsClearanceValueDto composed = editor.DepFreqs[0];
         editor.SelectedDepFreq = composed;
         Dispatcher.UIThread.RunJobs();
 
@@ -243,7 +243,7 @@ public class VTdlsViewInteractionTests
     [AvaloniaFact]
     public void AmendedRoute_ReseedsTheSidAndTransition()
     {
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedFacility(vm, ConfigWithTwoSids());
         transport.PushState(new TdlsStateDto([Item("id1", "UAL300", FlightPlanWithRoute("GAPP7 BOOKE J80 BOS"), facilityId: "IAD")], []));
         Dispatcher.UIThread.RunJobs();
@@ -251,7 +251,7 @@ public class VTdlsViewInteractionTests
 
         vm.SelectedItem = vm.DclItems.Single();
         Dispatcher.UIThread.RunJobs();
-        var editor = vm.Editor!;
+        TdlsFlightPlanEditorViewModel editor = vm.Editor!;
         Assert.Equal("GAPP7", editor.SelectedSid?.Name);
         Assert.Equal("GAPP7-BOOKE", editor.SelectedTransition?.Id);
 
@@ -276,16 +276,16 @@ public class VTdlsViewInteractionTests
     [AvaloniaFact]
     public void AmendedRemarksWithoutRouteChange_LeaveTheSelectionsAlone()
     {
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedFacility(vm, ConfigWithTwoSids());
-        var filed = FlightPlanWithRoute("GAPP7 BOOKE J80 BOS");
+        TdlsFlightPlanInfoDto filed = FlightPlanWithRoute("GAPP7 BOOKE J80 BOS");
         transport.PushState(new TdlsStateDto([Item("id1", "UAL300", filed, facilityId: "IAD")], []));
         Dispatcher.UIThread.RunJobs();
         BootView(vm);
 
         vm.SelectedItem = vm.DclItems.Single();
         Dispatcher.UIThread.RunJobs();
-        var editor = vm.Editor!;
+        TdlsFlightPlanEditorViewModel editor = vm.Editor!;
 
         // The controller overrides the route-derived SID and the transition's defaulted Expect.
         editor.SelectedSid = editor.Sids.Single(s => s.Name == "GUNNR7");
@@ -310,18 +310,18 @@ public class VTdlsViewInteractionTests
     [AvaloniaFact]
     public void NarrowWindow_DropdownRowFieldsKeepTheirWidthWithoutOverlapping()
     {
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedFacility(vm, ConfigWithTwoSids());
         transport.PushState(new TdlsStateDto([Item("id1", "UAL300", FlightPlanWithRoute("GAPP7 BOOKE J80 BOS"), facilityId: "IAD")], []));
         Dispatcher.UIThread.RunJobs();
-        var view = BootViewAtWidth(vm, windowWidth: 700);
+        VTdlsView view = BootViewAtWidth(vm, windowWidth: 700);
 
         vm.SelectedItem = vm.DclItems.Single();
         Dispatcher.UIThread.RunJobs();
         view.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
 
-        var row = DropdownRowCombos(view);
+        Dictionary<string, ComboBox> row = DropdownRowCombos(view);
         AssertAtLeastWide(row, "SID", 96);
         AssertAtLeastWide(row, "Transition", 96);
         AssertAtLeastWide(row, "Maintain", 100);
@@ -329,10 +329,10 @@ public class VTdlsViewInteractionTests
         // Same coordinate space (one Grid, five children), so a field running into the next one shows up as an
         // arranged rect that reaches past its neighbour's left edge.
         var ordered = row.OrderBy(f => f.Value.Bounds.Left).ToList();
-        for (var i = 0; (i + 1) < ordered.Count; i++)
+        for (int i = 0; (i + 1) < ordered.Count; i++)
         {
-            var (name, box) = (ordered[i].Key, ordered[i].Value);
-            var (nextName, nextBox) = (ordered[i + 1].Key, ordered[i + 1].Value);
+            (string? name, ComboBox? box) = (ordered[i].Key, ordered[i].Value);
+            (string? nextName, ComboBox? nextBox) = (ordered[i + 1].Key, ordered[i + 1].Value);
             Assert.True(
                 box.Bounds.Right <= nextBox.Bounds.Left,
                 $"{name} ends at {box.Bounds.Right} and overlaps {nextName}, which starts at {nextBox.Bounds.Left}"
@@ -365,7 +365,7 @@ public class VTdlsViewInteractionTests
     [AvaloniaFact]
     public void FacilitySwitchAfterLoadTimeState_RelistsTheItems()
     {
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         var state = new TdlsStateDto(
             [
                 Item("id1", "UAL1742", facilityId: "SFO"),
@@ -379,9 +379,9 @@ public class VTdlsViewInteractionTests
         Dispatcher.UIThread.RunJobs();
         Assert.Equal(2, vm.DclItems.Count);
         Assert.Single(vm.PdcItems);
-        var pendingFirst = vm.DclItems[0];
-        var pendingSecond = vm.DclItems[1];
-        var sent = vm.PdcItems[0];
+        TdlsItemViewModel pendingFirst = vm.DclItems[0];
+        TdlsItemViewModel pendingSecond = vm.DclItems[1];
+        TdlsItemViewModel sent = vm.PdcItems[0];
 
         // Applying the facility page empties both lists — that is the clearing contract.
         SeedFacility(vm, ConfigWithMandatoryDepFreq() with { FacilityId = "SFO", FacilityName = "San Francisco Intl ATCT" });
@@ -405,7 +405,7 @@ public class VTdlsViewInteractionTests
         // OAK's shape: the facility-level SID list is empty and each config carries its own
         // SIDs, with a different id for the same SID name — so an open editor's SelectedSid
         // would point at an id that no longer exists after a switch.
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedFacility(vm, OpsConfigFacility() with { ActiveOpConfigId = "cfg-west" });
         transport.PushState(
             new TdlsStateDto([Item("id1", "UAL1742", facilityId: "OAK")], []) { ActiveOpConfigs = [new TdlsActiveOpConfigDto("OAK", "cfg-west")] }
@@ -440,7 +440,7 @@ public class VTdlsViewInteractionTests
     [AvaloniaFact]
     public async Task OpsConfig_SaveGoesToTheServer_AndIsHiddenWhereConfigsAreDisabled()
     {
-        var (vm, _) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport _) = MakeVm();
         SeedFacility(vm, OpsConfigFacility());
         BootView(vm);
 
@@ -460,7 +460,7 @@ public class VTdlsViewInteractionTests
     [AvaloniaFact]
     public void Consolidated_ShowsEveryMemberFacilitysItems_AndNoOthers()
     {
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedConsolidated(vm);
 
         transport.PushState(
@@ -484,7 +484,7 @@ public class VTdlsViewInteractionTests
     [AvaloniaFact]
     public void Consolidated_EditorAndOpsConfig_FollowTheSelectedItemsOwnFacility()
     {
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedConsolidated(vm);
         transport.PushState(
             new TdlsStateDto([Item("id1", "UAL1742", facilityId: "OAK"), Item("id2", "SWA200", facilityId: "SFO")], [])
@@ -517,7 +517,7 @@ public class VTdlsViewInteractionTests
     [AvaloniaFact]
     public async Task Consolidated_OpsConfigSave_TargetsTheMemberFacility_NotTheParent()
     {
-        var (vm, transport) = MakeVm();
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
         SeedConsolidated(vm);
         transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "OAK")], []));
         Dispatcher.UIThread.RunJobs();

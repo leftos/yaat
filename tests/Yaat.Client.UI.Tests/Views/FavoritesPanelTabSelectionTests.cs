@@ -34,7 +34,7 @@ public class FavoritesPanelTabSelectionTests
         };
         window.ShowAndRunLayout();
 
-        var tabs = view.GetVisualDescendants().OfType<TabControl>().Single();
+        TabControl tabs = view.GetVisualDescendants().OfType<TabControl>().Single();
         return (window, vm, tabs);
     }
 
@@ -49,14 +49,14 @@ public class FavoritesPanelTabSelectionTests
     [AvaloniaFact]
     public void AddAndDeleteFavorite_KeepsSelectedCategoryTab()
     {
-        var (window, vm, tabs) = ShowPalette();
+        (Window? window, MainViewModel? vm, TabControl? tabs) = ShowPalette();
         var fav = new FavoriteCommand
         {
             Label = "TabSelTestFav364",
             CommandText = "TAXI A",
             Category = FavoriteCommandCategory.Ground,
         };
-        var added = false;
+        bool added = false;
         try
         {
             SelectTab(tabs, "Ground");
@@ -85,13 +85,13 @@ public class FavoritesPanelTabSelectionTests
     [AvaloniaFact]
     public void ColumnCountChange_KeepsSelectedCategoryTab()
     {
-        var (window, vm, tabs) = ShowPalette();
-        var originalColumns = vm.Preferences.FavoritePanelColumns;
+        (Window? window, MainViewModel? vm, TabControl? tabs) = ShowPalette();
+        int originalColumns = vm.Preferences.FavoritePanelColumns;
         try
         {
             SelectTab(tabs, "Airport");
 
-            var columnsBox = window.GetVisualDescendants().OfType<NumericUpDown>().Single();
+            NumericUpDown columnsBox = window.GetVisualDescendants().OfType<NumericUpDown>().Single();
             columnsBox.Value = originalColumns + 1;
             Dispatcher.UIThread.RunJobs();
 
@@ -112,7 +112,7 @@ public class FavoritesPanelTabSelectionTests
     [AvaloniaFact]
     public void SelectingGroundAircraft_SwitchesToGroundTab()
     {
-        var (window, vm, tabs) = ShowPalette();
+        (Window? window, MainViewModel? vm, TabControl? tabs) = ShowPalette();
         try
         {
             Assert.Equal("Air", SelectedHeader(tabs));
@@ -139,14 +139,14 @@ public class FavoritesPanelTabSelectionTests
     [AvaloniaFact]
     public void HandPickedTab_SurvivesRebuild_ThenYieldsToTheNextSelectionChange()
     {
-        var (window, vm, tabs) = ShowPalette();
+        (Window? window, MainViewModel? vm, TabControl? tabs) = ShowPalette();
         var fav = new FavoriteCommand
         {
             Label = "TabSelTestFav425",
             CommandText = "TAXI A",
             Category = FavoriteCommandCategory.Ground,
         };
-        var added = false;
+        bool added = false;
         try
         {
             SelectTab(tabs, "Vehicle");

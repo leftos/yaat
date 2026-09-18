@@ -56,7 +56,7 @@ public static class CanonicalCommandGrammar
             return "root ::= \"\"\n";
         }
 
-        var verbAlternation = string.Join(" | ", aliases.Select(a => $"\"{a}\""));
+        string verbAlternation = string.Join(" | ", aliases.Select(a => $"\"{a}\""));
 
         // Notes on the GBNF charset for `arg`:
         // - `-` MUST go last inside the character class to be a literal hyphen (otherwise it forms

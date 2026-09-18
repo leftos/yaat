@@ -56,7 +56,7 @@ public class GlobalKeyHookServiceDisposeTests
         var service = new GlobalKeyHookService(new HangingHook());
 
         var dispose = Task.Run(service.Dispose, TestContext.Current.CancellationToken);
-        var completed = await Task.WhenAny(dispose, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+        Task completed = await Task.WhenAny(dispose, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
 
         Assert.True(
             completed == dispose,

@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -38,9 +39,16 @@ public class RampLaneRepositionTests
         ExplicitPathOptions options
     )
     {
-        var start = layout.FindNearestNodeForTaxi(position, heading) ?? layout.FindNearestNode(position);
+        GroundNode? start = layout.FindNearestNodeForTaxi(position, heading) ?? layout.FindNearestNode(position);
         Assert.NotNull(start);
-        var route = TaxiPathfinder.ResolveExplicitPathDetailed(layout, start.Id, path, out var failure, options, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPathDetailed(
+            layout,
+            start.Id,
+            path,
+            out PathfindingFailure? failure,
+            options,
+            AircraftCategory.Jet
+        );
         Assert.Null(route);
         Assert.NotNull(failure);
         return failure;
@@ -80,7 +88,7 @@ public class RampLaneRepositionTests
     [InlineData("#12", false)]
     public void IsRampTaxilane_Sfo(string name, bool expected)
     {
-        var layout = Layout();
+        AirportGroundLayout? layout = Layout();
         if (layout is null)
         {
             return;
@@ -108,7 +116,7 @@ public class RampLaneRepositionTests
     [InlineData("B1", true)]
     public void IsRampTaxilane_Oak(string name, bool expected)
     {
-        var layout = OakLayout();
+        AirportGroundLayout? layout = OakLayout();
         if (layout is null)
         {
             return;
@@ -131,19 +139,28 @@ public class RampLaneRepositionTests
     [Fact]
     public void GateB20S_TaxiM4_CutsAcrossOntoM4ThenFollowsTheGraph()
     {
-        var layout = Layout();
+        AirportGroundLayout? layout = Layout();
         if (layout is null)
         {
             return;
         }
 
-        var gate = layout.FindParkingByName("B20S")!;
+        GroundNode gate = layout.FindParkingByName("B20S")!;
         var path = new List<string> { "M4", "M1", "A", "H", "GL", "L", "LF", "F" };
-        var options = Options("28L");
-        var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
+        ExplicitPathOptions options = Options("28L");
+        PathfindingFailure failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
         Assert.Equal(FailureKind.TaxiwayNotConnected, failure.Kind);
 
-        var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Jet);
+        RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
+            layout,
+            gate.Position,
+            gate.TrueHeading!.Value,
+            null,
+            path,
+            failure,
+            options,
+            AircraftCategory.Jet
+        );
         Assert.NotNull(plan);
         _output.WriteLine($"plan: lane {plan.Lane} target #{plan.TargetNode.Id} crossing {plan.CrossingFt:F0} ft; {plan.Route.ToSummary()}");
 
@@ -151,7 +168,7 @@ public class RampLaneRepositionTests
         Assert.True(plan.CrossingFt <= RampLaneReposition.MaxCrossingFt, $"crossing {plan.CrossingFt:F0} ft exceeds the cap");
         Assert.True(plan.TargetNode.Edges.Any(e => e is GroundEdge && e.MatchesTaxiway("M4")), "target must sit on a straight M4 edge");
 
-        var first = plan.Route.Segments[0];
+        TaxiRouteSegment first = plan.Route.Segments[0];
         Assert.True(first.FromNodeId < 0, "the crossing is a free-space (virtual) leg from the aircraft's position");
         Assert.Equal(plan.TargetNode.Id, first.ToNodeId);
         Assert.Equal("M4", first.TaxiwayName);
@@ -163,18 +180,27 @@ public class RampLaneRepositionTests
     [Fact]
     public void GateB20S_TaxiM5_CutsStraightAcrossM4OntoM5()
     {
-        var layout = Layout();
+        AirportGroundLayout? layout = Layout();
         if (layout is null)
         {
             return;
         }
 
-        var gate = layout.FindParkingByName("B20S")!;
+        GroundNode gate = layout.FindParkingByName("B20S")!;
         var path = new List<string> { "M5", "M1", "A", "A1" };
-        var options = Options("1R");
-        var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
+        ExplicitPathOptions options = Options("1R");
+        PathfindingFailure failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
 
-        var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Jet);
+        RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
+            layout,
+            gate.Position,
+            gate.TrueHeading!.Value,
+            null,
+            path,
+            failure,
+            options,
+            AircraftCategory.Jet
+        );
         Assert.NotNull(plan);
         _output.WriteLine($"plan: lane {plan.Lane} target #{plan.TargetNode.Id} crossing {plan.CrossingFt:F0} ft; {plan.Route.ToSummary()}");
         Assert.Equal("M5", plan.Lane);
@@ -186,22 +212,22 @@ public class RampLaneRepositionTests
     [Fact]
     public void MidLaneOnM3_TaxiM4_CutsAcrossAndHeadsTowardM1()
     {
-        var layout = Layout();
+        AirportGroundLayout? layout = Layout();
         if (layout is null)
         {
             return;
         }
 
         // Node 469 is mid-M3 on the Terminal 1 ramp; M3 runs ~027°/207° here and M1 lies to the south-west.
-        var onM3 = layout.Nodes[469];
+        GroundNode onM3 = layout.Nodes[469];
         var heading = new TrueHeading(207);
         var path = new List<string> { "M4", "M1", "A", "A1" };
-        var options = Options("1R");
+        ExplicitPathOptions options = Options("1R");
         // Mid-lane the resolver first tries a connector detour around the missing M4 leg, so it reports the
         // dead end as an unreachable destination rather than blaming M4 outright.
-        var failure = FailureFor(layout, onM3.Position, heading, path, options)!;
+        PathfindingFailure failure = FailureFor(layout, onM3.Position, heading, path, options)!;
 
-        var plan = RampLaneReposition.TryPlan(layout, onM3.Position, heading, "M3", path, failure, options, AircraftCategory.Jet);
+        RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(layout, onM3.Position, heading, "M3", path, failure, options, AircraftCategory.Jet);
         Assert.NotNull(plan);
         _output.WriteLine($"plan: lane {plan.Lane} target #{plan.TargetNode.Id} crossing {plan.CrossingFt:F0} ft; {plan.Route.ToSummary()}");
 
@@ -209,7 +235,7 @@ public class RampLaneRepositionTests
         Assert.True(Traverses(plan.Route, "M1"), "route must continue onto M1");
 
         // The first on-lane segment must head south-west toward M1, not double back north-east.
-        var onLane = plan.Route.Segments[1];
+        TaxiRouteSegment onLane = plan.Route.Segments[1];
         double bearing = GeoMath.BearingTo(onLane.Edge.FromNode.Position, onLane.Edge.ToNode.Position);
         Assert.True(GeoMath.AbsBearingDifference(bearing, 207) < 60, $"first M4 segment bears {bearing:F0}°, expected ~207° toward M1");
     }
@@ -217,20 +243,29 @@ public class RampLaneRepositionTests
     [Fact]
     public void Plan_RoundTripsThroughASnapshot()
     {
-        var layout = Layout();
+        AirportGroundLayout? layout = Layout();
         if (layout is null)
         {
             return;
         }
 
-        var gate = layout.FindParkingByName("B20S")!;
+        GroundNode gate = layout.FindParkingByName("B20S")!;
         var path = new List<string> { "M4", "M1", "A", "A1" };
-        var options = Options("1R");
-        var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
-        var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Jet)!;
+        ExplicitPathOptions options = Options("1R");
+        PathfindingFailure failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
+        RampLaneRepositionPlan plan = RampLaneReposition.TryPlan(
+            layout,
+            gate.Position,
+            gate.TrueHeading!.Value,
+            null,
+            path,
+            failure,
+            options,
+            AircraftCategory.Jet
+        )!;
 
         // The free-space leg's virtual start is not a layout node; restore rebuilds it from the recorded position.
-        var dto = plan.Route.ToSnapshot();
+        TaxiRouteDto dto = plan.Route.ToSnapshot();
         Assert.True(dto.Segments[0].FromNodeId < 0);
         Assert.Equal(gate.Position.Lat, dto.Segments[0].FromLatitude);
         Assert.Equal(gate.Position.Lon, dto.Segments[0].FromLongitude);
@@ -250,7 +285,7 @@ public class RampLaneRepositionTests
     [Fact]
     public void LaterTaxiwayDoesNotReachTheRunway_NoPlan()
     {
-        var layout = Layout();
+        AirportGroundLayout? layout = Layout();
         if (layout is null)
         {
             return;
@@ -258,52 +293,70 @@ public class RampLaneRepositionTests
 
         // M4 itself would be reachable by a cut, but the clearance dies further along: A never reaches 28L. The
         // resolver blames A, not the lane, so no cut is attempted and the controller gets the real error.
-        var onM3 = layout.Nodes[469];
+        GroundNode onM3 = layout.Nodes[469];
         var heading = new TrueHeading(207);
         var path = new List<string> { "M4", "M1", "A" };
-        var options = Options("28L");
-        var failure = FailureFor(layout, onM3.Position, heading, path, options)!;
+        ExplicitPathOptions options = Options("28L");
+        PathfindingFailure failure = FailureFor(layout, onM3.Position, heading, path, options)!;
         Assert.Equal(FailureKind.DestinationUnreachable, failure.Kind);
         Assert.Equal("A", failure.InfeasibleTaxiway);
 
-        var plan = RampLaneReposition.TryPlan(layout, onM3.Position, heading, "M3", path, failure, options, AircraftCategory.Jet);
+        RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(layout, onM3.Position, heading, "M3", path, failure, options, AircraftCategory.Jet);
         Assert.Null(plan);
     }
 
     [Fact]
     public void Gate4115_TaxiA_IsNotASiblingLane_NoPlan()
     {
-        var layout = Layout();
+        AirportGroundLayout? layout = Layout();
         if (layout is null)
         {
             return;
         }
 
-        var gate = layout.FindParkingByName("41-15")!;
+        GroundNode gate = layout.FindParkingByName("41-15")!;
         var path = new List<string> { "A", "E" };
-        var options = Options("28R");
-        var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
+        ExplicitPathOptions options = Options("28R");
+        PathfindingFailure failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
 
-        var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Piston);
+        RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
+            layout,
+            gate.Position,
+            gate.TrueHeading!.Value,
+            null,
+            path,
+            failure,
+            options,
+            AircraftCategory.Piston
+        );
         Assert.Null(plan);
     }
 
     [Fact]
     public void GateB20S_TaxiM2_BeyondCrossingRange_NoPlan()
     {
-        var layout = Layout();
+        AirportGroundLayout? layout = Layout();
         if (layout is null)
         {
             return;
         }
 
         // M2 is a sibling lane but ~840 ft away across M4/M5 — far beyond a lane switch.
-        var gate = layout.FindParkingByName("B20S")!;
+        GroundNode gate = layout.FindParkingByName("B20S")!;
         var path = new List<string> { "M2", "A" };
-        var options = Options("28L");
-        var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
+        ExplicitPathOptions options = Options("28L");
+        PathfindingFailure failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
 
-        var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Jet);
+        RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
+            layout,
+            gate.Position,
+            gate.TrueHeading!.Value,
+            null,
+            path,
+            failure,
+            options,
+            AircraftCategory.Jet
+        );
         Assert.Null(plan);
     }
 
@@ -312,26 +365,44 @@ public class RampLaneRepositionTests
     {
         // Synthetic mini-airport: gate G leads onto lane M3; lane M9 runs parallel 200 ft away, but a lettered
         // taxiway K lies between them. The cut would cross K — a movement-area taxiway, not open apron.
-        var layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(withTaxiwayBetween: true), "TST");
-        var gate = layout.FindParkingByName("G")!;
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(withTaxiwayBetween: true), "TST");
+        GroundNode gate = layout.FindParkingByName("G")!;
         var path = new List<string> { "M9" };
-        var options = Options(null);
-        var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
+        ExplicitPathOptions options = Options(null);
+        PathfindingFailure failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
 
-        var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Jet);
+        RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
+            layout,
+            gate.Position,
+            gate.TrueHeading!.Value,
+            null,
+            path,
+            failure,
+            options,
+            AircraftCategory.Jet
+        );
         Assert.Null(plan);
     }
 
     [Fact]
     public void OpenApronBetweenTheLanes_Plans()
     {
-        var layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(withTaxiwayBetween: false), "TST");
-        var gate = layout.FindParkingByName("G")!;
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(withTaxiwayBetween: false), "TST");
+        GroundNode gate = layout.FindParkingByName("G")!;
         var path = new List<string> { "M9" };
-        var options = Options(null);
-        var failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
+        ExplicitPathOptions options = Options(null);
+        PathfindingFailure failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
 
-        var plan = RampLaneReposition.TryPlan(layout, gate.Position, gate.TrueHeading!.Value, null, path, failure, options, AircraftCategory.Jet);
+        RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
+            layout,
+            gate.Position,
+            gate.TrueHeading!.Value,
+            null,
+            path,
+            failure,
+            options,
+            AircraftCategory.Jet
+        );
         Assert.NotNull(plan);
         Assert.Equal("M9", plan.Lane);
     }
@@ -350,10 +421,10 @@ public class RampLaneRepositionTests
     [InlineData(300.0, true)]
     public void ResolvedRouteCut_TurnsOnTheDetourRatio(double laneLengthFt, bool expectCut)
     {
-        var layout = GeoJsonParser.Parse("TST", MiniLoopRampGeoJson(laneLengthFt), "TST");
-        var stand = layout.FindParkingByName("H")!;
-        var start = layout.GetNodesOnTaxiway("M3").OrderByDescending(n => n.Position.Lat).First();
-        var route = TaxiPathfinder.FindRoute(layout, start.Id, stand.Id, AircraftCategory.Jet);
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniLoopRampGeoJson(laneLengthFt), "TST");
+        GroundNode stand = layout.FindParkingByName("H")!;
+        GroundNode start = layout.GetNodesOnTaxiway("M3").OrderByDescending(n => n.Position.Lat).First();
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, start.Id, stand.Id, AircraftCategory.Jet);
         Assert.NotNull(route);
 
         double straightFt = GeoMath.DistanceNm(start.Position, stand.Position) * GeoMath.FeetPerNm;
@@ -362,7 +433,7 @@ public class RampLaneRepositionTests
         );
         _output.WriteLine("route: " + string.Join(" ", route.Segments.Select(s => $"{s.FromNodeId}-{s.ToNodeId}({s.TaxiwayName})")));
 
-        var cut = RampLaneReposition.TryPlanResolvedRouteCut(layout, route, stand);
+        RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanResolvedRouteCut(layout, route, stand);
         if (!expectCut)
         {
             Assert.Null(cut);

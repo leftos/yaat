@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MsBox.Avalonia;
+using MsBox.Avalonia.Base;
 using MsBox.Avalonia.Enums;
 using Yaat.Client.Services;
 
@@ -39,12 +40,12 @@ public partial class ManageWindowProfilesDialog : Window
         _geometryHelper = new WindowGeometryHelper(this, preferences, "ManageWindowProfiles", 500, 380);
         _geometryHelper.Restore();
 
-        var apply = this.FindControl<Button>("ApplyButton");
-        var update = this.FindControl<Button>("UpdateButton");
-        var rename = this.FindControl<Button>("RenameButton");
-        var delete = this.FindControl<Button>("DeleteButton");
-        var close = this.FindControl<Button>("CloseButton");
-        var list = this.FindControl<ListBox>("ProfilesList");
+        Button? apply = this.FindControl<Button>("ApplyButton");
+        Button? update = this.FindControl<Button>("UpdateButton");
+        Button? rename = this.FindControl<Button>("RenameButton");
+        Button? delete = this.FindControl<Button>("DeleteButton");
+        Button? close = this.FindControl<Button>("CloseButton");
+        ListBox? list = this.FindControl<ListBox>("ProfilesList");
 
         if (apply is not null)
         {
@@ -76,7 +77,7 @@ public partial class ManageWindowProfilesDialog : Window
 
     private void Populate()
     {
-        var list = this.FindControl<ListBox>("ProfilesList");
+        ListBox? list = this.FindControl<ListBox>("ProfilesList");
         if (list is null)
         {
             return;
@@ -86,13 +87,13 @@ public partial class ManageWindowProfilesDialog : Window
 
     private string? GetSelectedName()
     {
-        var list = this.FindControl<ListBox>("ProfilesList");
+        ListBox? list = this.FindControl<ListBox>("ProfilesList");
         return list?.SelectedItem as string;
     }
 
     private void SetStatus(string? message)
     {
-        var status = this.FindControl<TextBlock>("StatusText");
+        TextBlock? status = this.FindControl<TextBlock>("StatusText");
         if (status is null)
         {
             return;
@@ -108,7 +109,7 @@ public partial class ManageWindowProfilesDialog : Window
 
     private void OnApplyClick(object? sender, RoutedEventArgs e)
     {
-        var name = GetSelectedName();
+        string? name = GetSelectedName();
         if (name is null)
         {
             SetStatus("Select a profile first.");
@@ -121,7 +122,7 @@ public partial class ManageWindowProfilesDialog : Window
 
     private void OnUpdateClick(object? sender, RoutedEventArgs e)
     {
-        var name = GetSelectedName();
+        string? name = GetSelectedName();
         if (name is null)
         {
             SetStatus("Select a profile first.");
@@ -134,14 +135,16 @@ public partial class ManageWindowProfilesDialog : Window
 
     private async void OnRenameClick(object? sender, RoutedEventArgs e)
     {
-        var oldName = GetSelectedName();
+        string? oldName = GetSelectedName();
         if (oldName is null)
         {
             SetStatus("Select a profile first.");
             return;
         }
 
-        var others = _preferences.WindowProfiles.Where(p => !string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase)).Select(p => p.Name);
+        IEnumerable<string> others = _preferences
+            .WindowProfiles.Where(p => !string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase))
+            .Select(p => p.Name);
         var dlg = new SaveWindowProfileDialog(others, oldName) { Title = "Rename Window Profile" };
         await dlg.ShowDialog(this);
 
@@ -162,15 +165,15 @@ public partial class ManageWindowProfilesDialog : Window
 
     private async void OnDeleteClick(object? sender, RoutedEventArgs e)
     {
-        var name = GetSelectedName();
+        string? name = GetSelectedName();
         if (name is null)
         {
             SetStatus("Select a profile first.");
             return;
         }
 
-        var box = MessageBoxManager.GetMessageBoxStandard("Delete profile?", $"Delete window profile \"{name}\"?", ButtonEnum.YesNo);
-        var result = await box.ShowWindowDialogAsync(this);
+        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard("Delete profile?", $"Delete window profile \"{name}\"?", ButtonEnum.YesNo);
+        ButtonResult result = await box.ShowWindowDialogAsync(this);
         if (result != ButtonResult.Yes)
         {
             return;

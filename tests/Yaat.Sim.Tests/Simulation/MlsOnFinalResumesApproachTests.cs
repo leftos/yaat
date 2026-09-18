@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -38,13 +39,13 @@ public class MlsOnFinalResumesApproachTests(ITestOutputHelper output)
             return;
         }
 
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "28L");
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("OAK", "28L");
         if (rwy is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
@@ -55,7 +56,7 @@ public class MlsOnFinalResumesApproachTests(ITestOutputHelper output)
 
         // Place the aircraft ~2 nm out, aligned and on a ~3° glidepath to 28L.
         double reciprocal = (rwy.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 2.0);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 2.0);
 
         var aircraft = new AircraftState
         {
@@ -82,7 +83,7 @@ public class MlsOnFinalResumesApproachTests(ITestOutputHelper output)
         aircraft.Phases.Add(new HoldingAfterExitPhase());
         aircraft.Ground.Layout = layout;
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
         Assert.IsType<FinalApproachPhase>(aircraft.Phases.CurrentPhase);
 
@@ -96,7 +97,7 @@ public class MlsOnFinalResumesApproachTests(ITestOutputHelper output)
             PrimaryAirportId = "OAK",
         };
 
-        var result = engine.SendCommand(Callsign, "MLS");
+        CommandResult result = engine.SendCommand(Callsign, "MLS");
         Assert.True(result.Success, $"MLS failed: {result.Message}");
 
         var phases = aircraft.Phases.Phases.ToList();

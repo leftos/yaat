@@ -9,7 +9,7 @@ public class NatoPhoneticAlphabetTests
     public void LetterToWord_Contains_All_26_Letters()
     {
         Assert.Equal(26, NatoPhoneticAlphabet.LetterToWord.Count);
-        for (var c = 'A'; c <= 'Z'; c++)
+        for (char c = 'A'; c <= 'Z'; c++)
         {
             Assert.True(NatoPhoneticAlphabet.LetterToWord.ContainsKey(c), $"missing letter {c}");
         }
@@ -18,9 +18,9 @@ public class NatoPhoneticAlphabetTests
     [Fact]
     public void WordToLetter_Is_Inverse_Of_LetterToWord()
     {
-        foreach (var (letter, word) in NatoPhoneticAlphabet.LetterToWord)
+        foreach ((char letter, string? word) in NatoPhoneticAlphabet.LetterToWord)
         {
-            Assert.True(NatoPhoneticAlphabet.WordToLetter.TryGetValue(word, out var reversed), $"word {word} not in reverse map");
+            Assert.True(NatoPhoneticAlphabet.WordToLetter.TryGetValue(word, out char reversed), $"word {word} not in reverse map");
             Assert.Equal(letter, reversed);
         }
     }
@@ -28,9 +28,9 @@ public class NatoPhoneticAlphabetTests
     [Fact]
     public void WordToLetter_Is_Case_Insensitive()
     {
-        Assert.True(NatoPhoneticAlphabet.WordToLetter.TryGetValue("TANGO", out var t));
+        Assert.True(NatoPhoneticAlphabet.WordToLetter.TryGetValue("TANGO", out char t));
         Assert.Equal('T', t);
-        Assert.True(NatoPhoneticAlphabet.WordToLetter.TryGetValue("Tango", out var t2));
+        Assert.True(NatoPhoneticAlphabet.WordToLetter.TryGetValue("Tango", out char t2));
         Assert.Equal('T', t2);
     }
 
@@ -47,7 +47,7 @@ public class NatoPhoneticAlphabetTests
     public void WordSet_Contains_All_Words()
     {
         Assert.Equal(26, NatoPhoneticAlphabet.WordSet.Count);
-        foreach (var word in NatoPhoneticAlphabet.Words)
+        foreach (string word in NatoPhoneticAlphabet.Words)
         {
             Assert.Contains(word, NatoPhoneticAlphabet.WordSet);
         }
@@ -68,7 +68,7 @@ public class NatoPhoneticAlphabetTests
     [InlineData('a', "alpha")] // lowercase accepted via TryGetWord
     public void TryGetWord_Returns_Canonical_Form(char letter, string expected)
     {
-        Assert.True(NatoPhoneticAlphabet.TryGetWord(letter, out var word));
+        Assert.True(NatoPhoneticAlphabet.TryGetWord(letter, out string? word));
         Assert.Equal(expected, word);
     }
 
@@ -79,7 +79,7 @@ public class NatoPhoneticAlphabetTests
     [InlineData("zulu", 'Z')]
     public void TryGetLetter_Returns_Canonical_Letter(string word, char expected)
     {
-        Assert.True(NatoPhoneticAlphabet.TryGetLetter(word, out var letter));
+        Assert.True(NatoPhoneticAlphabet.TryGetLetter(word, out char letter));
         Assert.Equal(expected, letter);
     }
 

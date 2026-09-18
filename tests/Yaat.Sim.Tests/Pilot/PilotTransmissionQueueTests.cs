@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -13,7 +14,7 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void QueueSoloPilotReadback_SeparatesTerminalTextFromSpeechText()
     {
-        var aircraft = NewAircraft("N123AB");
+        AircraftState aircraft = NewAircraft("N123AB");
 
         PilotResponder.QueueSoloPilotReadback(
             aircraft,
@@ -22,7 +23,7 @@ public sealed class PilotTransmissionQueueTests
         );
 
         Assert.Empty(aircraft.PendingNotifications);
-        var tx = Assert.Single(aircraft.PendingPilotTransmissions);
+        PilotTransmission tx = Assert.Single(aircraft.PendingPilotTransmissions);
         Assert.Equal("N123AB", tx.Callsign);
         // Terminal form: bracketed callsign prefix stripped (SAY column carries it), hyphen kept for display.
         Assert.Equal("tower, november one two three alpha bravo ten-mile final runway two eight right, with information Alpha.", tx.Text);
@@ -35,7 +36,7 @@ public sealed class PilotTransmissionQueueTests
     [Fact]
     public void QueueSoloPilotReadback_NormalizesHyphenatedTtsTokens()
     {
-        var aircraft = NewAircraft("N9SX");
+        AircraftState aircraft = NewAircraft("N9SX");
 
         PilotResponder.QueueSoloPilotReadback(
             aircraft,
@@ -43,7 +44,7 @@ public sealed class PilotTransmissionQueueTests
             PilotResponder.SourceResponse
         );
 
-        var tx = Assert.Single(aircraft.PendingPilotTransmissions);
+        PilotTransmission tx = Assert.Single(aircraft.PendingPilotTransmissions);
         Assert.Equal("tower, november nine sierra xray ten mile final, cleared touch and go runway two eight right.", tx.SpeechText);
         Assert.DoesNotContain("-ray", tx.SpeechText);
         Assert.DoesNotContain("-mile", tx.SpeechText);
@@ -54,13 +55,13 @@ public sealed class PilotTransmissionQueueTests
     public void DrainReadyPilotTransmissions_DrainsTypedQueueToFrequencyQueue()
     {
         var world = new SimulationWorld();
-        var aircraft = NewAircraft("SWA123");
+        AircraftState aircraft = NewAircraft("SWA123");
         world.AddAircraft(aircraft);
         PilotResponder.QueueSoloPilotReadback(aircraft, "Traffic in sight", PilotResponder.SourceSayReadback);
 
-        var drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10);
+        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10);
 
-        var tx = Assert.Single(drained);
+        PilotTransmission tx = Assert.Single(drained);
         Assert.Equal("SWA123", tx.Callsign);
         Assert.Equal("Traffic in sight", tx.Text);
         Assert.Equal("Traffic in sight", tx.SpeechText);
@@ -73,8 +74,8 @@ public sealed class PilotTransmissionQueueTests
     public void DrainReadyPilotTransmissions_PrioritizesAwaitedReadback()
     {
         var world = new SimulationWorld();
-        var proactive = NewAircraft("N200BB");
-        var readback = NewAircraft("N100AA");
+        AircraftState proactive = NewAircraft("N200BB");
+        AircraftState readback = NewAircraft("N100AA");
         world.AddAircraft(proactive);
         world.AddAircraft(readback);
         QueueSetupTransmission(proactive, "tower, november two zero zero bravo bravo ready to taxi.", PilotTransmissionKind.Proactive);
@@ -85,9 +86,9 @@ public sealed class PilotTransmissionQueueTests
         );
         world.ExpectPilotReadback("N100AA", elapsedSeconds: 10);
 
-        var drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10);
+        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10);
 
-        var tx = Assert.Single(drained);
+        PilotTransmission tx = Assert.Single(drained);
         Assert.Equal("N100AA", tx.Callsign);
         Assert.Equal(PilotTransmissionKind.Readback, tx.Kind);
     }
@@ -96,7 +97,7 @@ public sealed class PilotTransmissionQueueTests
     public void DrainReadyPilotTransmissions_AwaitedReadbackTimesOut_OtherTransmissionsResume()
     {
         var world = new SimulationWorld();
-        var quiet = NewAircraft("N200BB");
+        AircraftState quiet = NewAircraft("N200BB");
         world.AddAircraft(quiet);
         QueueSetupTransmission(quiet, "tower, november two zero zero bravo bravo ready to taxi.", PilotTransmissionKind.Proactive);
 
@@ -105,11 +106,11 @@ public sealed class PilotTransmissionQueueTests
         // every other pilot forever.
         world.ExpectPilotReadback("N100AA", elapsedSeconds: 10);
 
-        var blocked = world.DrainReadyPilotTransmissions(elapsedSeconds: 12);
+        List<PilotTransmission> blocked = world.DrainReadyPilotTransmissions(elapsedSeconds: 12);
         Assert.Empty(blocked);
 
-        var released = world.DrainReadyPilotTransmissions(elapsedSeconds: 19);
-        var tx = Assert.Single(released);
+        List<PilotTransmission> released = world.DrainReadyPilotTransmissions(elapsedSeconds: 19);
+        PilotTransmission tx = Assert.Single(released);
         Assert.Equal("N200BB", tx.Callsign);
     }
 
@@ -117,8 +118,8 @@ public sealed class PilotTransmissionQueueTests
     public void DrainReadyPilotTransmissions_ProactiveSetsControllerResponseGate_HoldsOtherPilotProactive()
     {
         var world = new SimulationWorld();
-        var first = NewAircraft("N100AA");
-        var second = NewAircraft("N200BB");
+        AircraftState first = NewAircraft("N100AA");
+        AircraftState second = NewAircraft("N200BB");
         world.AddAircraft(first);
         world.AddAircraft(second);
         QueueSetupTransmission(
@@ -128,7 +129,7 @@ public sealed class PilotTransmissionQueueTests
         );
 
         // First pilot transmits at t=2.
-        var firstDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
+        List<PilotTransmission> firstDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
         Assert.Single(firstDrain);
         Assert.Equal("N100AA", firstDrain[0].Callsign);
 
@@ -143,12 +144,12 @@ public sealed class PilotTransmissionQueueTests
         // First pilot's airtime is ~3.5s, so drain at t=10 is past airtime but
         // the controller-response gate (set at end-of-airtime ~5.5, 8s timeout)
         // is still active until ~13.5s.
-        var heldDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 10);
+        List<PilotTransmission> heldDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 10);
         Assert.Empty(heldDrain);
 
         // After airtime + 8s of silence, the gate falls through to FIFO.
-        var releasedDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 14);
-        var tx = Assert.Single(releasedDrain);
+        List<PilotTransmission> releasedDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 14);
+        PilotTransmission tx = Assert.Single(releasedDrain);
         Assert.Equal("N200BB", tx.Callsign);
     }
 
@@ -156,8 +157,8 @@ public sealed class PilotTransmissionQueueTests
     public void DrainReadyPilotTransmissions_ControllerResponseGate_ClearedByAcknowledgeControllerResponse()
     {
         var world = new SimulationWorld();
-        var first = NewAircraft("N100AA");
-        var second = NewAircraft("N200BB");
+        AircraftState first = NewAircraft("N100AA");
+        AircraftState second = NewAircraft("N200BB");
         world.AddAircraft(first);
         world.AddAircraft(second);
         QueueSetupTransmission(
@@ -179,8 +180,8 @@ public sealed class PilotTransmissionQueueTests
         // Controller acknowledges/responds to the first pilot — gate clears.
         world.AcknowledgeControllerResponse("N100AA");
 
-        var released = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
-        var tx = Assert.Single(released);
+        List<PilotTransmission> released = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
+        PilotTransmission tx = Assert.Single(released);
         Assert.Equal("N200BB", tx.Callsign);
     }
 
@@ -188,7 +189,7 @@ public sealed class PilotTransmissionQueueTests
     public void DrainReadyPilotTransmissions_ControllerResponseGate_DoesNotBlockSamePilotFollowUp()
     {
         var world = new SimulationWorld();
-        var pilot = NewAircraft("N100AA");
+        AircraftState pilot = NewAircraft("N100AA");
         world.AddAircraft(pilot);
         QueueSetupTransmission(
             pilot,
@@ -201,8 +202,8 @@ public sealed class PilotTransmissionQueueTests
         // Same pilot follow-up — should not be held back by the gate (it's the awaiting pilot).
         QueueSetupTransmission(pilot, "tower, november one zero zero alpha alpha, did you hear that.", PilotTransmissionKind.Proactive);
 
-        var drain = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
-        var tx = Assert.Single(drain);
+        List<PilotTransmission> drain = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
+        PilotTransmission tx = Assert.Single(drain);
         Assert.Equal("N100AA", tx.Callsign);
     }
 
@@ -210,8 +211,8 @@ public sealed class PilotTransmissionQueueTests
     public void DrainReadyPilotTransmissions_ControllerResponseGate_DoesNotBlockReadbacks()
     {
         var world = new SimulationWorld();
-        var first = NewAircraft("N100AA");
-        var second = NewAircraft("N200BB");
+        AircraftState first = NewAircraft("N100AA");
+        AircraftState second = NewAircraft("N200BB");
         world.AddAircraft(first);
         world.AddAircraft(second);
         QueueSetupTransmission(
@@ -230,8 +231,8 @@ public sealed class PilotTransmissionQueueTests
             PilotTransmissionKind.Readback
         );
 
-        var drain = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
-        var tx = Assert.Single(drain);
+        List<PilotTransmission> drain = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
+        PilotTransmission tx = Assert.Single(drain);
         Assert.Equal("N200BB", tx.Callsign);
         Assert.Equal(PilotTransmissionKind.Readback, tx.Kind);
     }
@@ -240,8 +241,8 @@ public sealed class PilotTransmissionQueueTests
     public void SendCommand_SoloTraining_SuccessfulDispatchClearsControllerResponseGate()
     {
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 2) };
-        var first = NewAircraft("N100AA");
-        var second = NewAircraft("N200BB");
+        AircraftState first = NewAircraft("N100AA");
+        AircraftState second = NewAircraft("N200BB");
         engine.World.AddAircraft(first);
         engine.World.AddAircraft(second);
 
@@ -263,18 +264,18 @@ public sealed class PilotTransmissionQueueTests
 
         // Controller dispatches a command to the first pilot — gate clears.
         engine.Scenario!.ElapsedSeconds = 6;
-        var result = engine.SendCommand("N100AA", "DM 5000");
+        CommandResult result = engine.SendCommand("N100AA", "DM 5000");
         Assert.True(result.Success, result.Message);
 
         // The readback fires first (it's higher-priority via the readback gate). After
         // its airtime elapses the second pilot's proactive can finally drain.
-        var firstResults = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 7);
+        List<PilotTransmission> firstResults = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 7);
         Assert.Single(firstResults);
         Assert.Equal("N100AA", firstResults[0].Callsign);
         Assert.Equal(PilotTransmissionKind.Readback, firstResults[0].Kind);
 
-        var released = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 20);
-        var tx = Assert.Single(released);
+        List<PilotTransmission> released = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 20);
+        PilotTransmission tx = Assert.Single(released);
         Assert.Equal("N200BB", tx.Callsign);
     }
 
@@ -311,17 +312,17 @@ public sealed class PilotTransmissionQueueTests
     public void SendCommand_SoloTraining_UsesVariedReadbackWithCurrentActivityLevel()
     {
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30) };
-        var aircraft = NewAircraft("N123AB");
+        AircraftState aircraft = NewAircraft("N123AB");
         engine.World.AddAircraft(aircraft);
         for (int i = 0; i < 21; i++)
         {
             engine.World.ActiveFrequency.ActivityMeter.Record(i);
         }
 
-        var result = engine.SendCommand("N123AB", "DM 5000");
+        CommandResult result = engine.SendCommand("N123AB", "DM 5000");
 
         Assert.True(result.Success, result.Message);
-        var transmission = Assert.Single(aircraft.PendingPilotTransmissions);
+        PilotTransmission transmission = Assert.Single(aircraft.PendingPilotTransmissions);
         // Saturated activity level uses the terse "down to" shortcut. Spoken form spells the
         // altitude and appends the callsign; the terminal SAY message is compact and callsign-less.
         Assert.Equal("down to five thousand, november one two three alpha bravo.", transmission.SpeechText);
@@ -332,10 +333,10 @@ public sealed class PilotTransmissionQueueTests
     public void SendCommand_NonSolo_DoesNotQueueVariedReadback()
     {
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: false, elapsedSeconds: 30) };
-        var aircraft = NewAircraft("N123AB");
+        AircraftState aircraft = NewAircraft("N123AB");
         engine.World.AddAircraft(aircraft);
 
-        var result = engine.SendCommand("N123AB", "DM 5000");
+        CommandResult result = engine.SendCommand("N123AB", "DM 5000");
 
         Assert.True(result.Success, result.Message);
         Assert.Empty(aircraft.PendingPilotTransmissions);
@@ -345,17 +346,17 @@ public sealed class PilotTransmissionQueueTests
     public void SendCommand_SoloTraining_FailedPilotCommandQueuesUnable()
     {
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30) };
-        var aircraft = NewAircraft("N123AB");
+        AircraftState aircraft = NewAircraft("N123AB");
         aircraft.FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" };
         engine.World.AddAircraft(aircraft);
 
         // CVA on a VFR aircraft is a dispatch failure (not a parse failure) in an "Approach"-category
         // verb, which is what routes the rejection reason into the pilot's "unable" readback.
-        var result = engine.SendCommand("N123AB", "CVA 28R");
+        CommandResult result = engine.SendCommand("N123AB", "CVA 28R");
 
         Assert.False(result.Success);
         Assert.Contains("IFR flight plan", result.Message, StringComparison.OrdinalIgnoreCase);
-        var transmission = Assert.Single(aircraft.PendingPilotTransmissions);
+        PilotTransmission transmission = Assert.Single(aircraft.PendingPilotTransmissions);
         Assert.Equal(PilotTransmissionKind.Readback, transmission.Kind);
         Assert.Contains("unable", transmission.Text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("IFR flight plan", transmission.Text, StringComparison.OrdinalIgnoreCase);
@@ -365,10 +366,10 @@ public sealed class PilotTransmissionQueueTests
     public void SendCommand_SoloTraining_ParseFailureDoesNotQueueUnable()
     {
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30) };
-        var aircraft = NewAircraft("N123AB");
+        AircraftState aircraft = NewAircraft("N123AB");
         engine.World.AddAircraft(aircraft);
 
-        var result = engine.SendCommand("N123AB", "NOTACMD");
+        CommandResult result = engine.SendCommand("N123AB", "NOTACMD");
 
         Assert.False(result.Success);
         Assert.Empty(aircraft.PendingPilotTransmissions);

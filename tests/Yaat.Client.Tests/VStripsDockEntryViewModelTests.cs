@@ -19,11 +19,11 @@ public class VStripsDockEntryViewModelTests
     [Fact]
     public void TabTitle_PrefixesPendingPrinterCount_AndTracksIt()
     {
-        var vm = NewVm();
+        VStripsViewModel vm = NewVm();
         vm.FacilityId = "OAK";
         var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: true);
 
-        var titleChanges = 0;
+        int titleChanges = 0;
         entry.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(VStripsDockEntryViewModel.TabTitle))
@@ -46,7 +46,7 @@ public class VStripsDockEntryViewModelTests
     [Fact]
     public void TabTitle_PrefersFacilityId_OverName()
     {
-        var vm = NewVm();
+        VStripsViewModel vm = NewVm();
         vm.FacilityId = "OAK";
         vm.FacilityName = "Oakland Intl ATCT";
 
@@ -58,7 +58,7 @@ public class VStripsDockEntryViewModelTests
     [Fact]
     public void TabTitle_FallsBackToFacilityName_WhenIdIsNull()
     {
-        var vm = NewVm();
+        VStripsViewModel vm = NewVm();
         vm.FacilityId = null;
         vm.FacilityName = "Oakland Intl ATCT";
 
@@ -70,7 +70,7 @@ public class VStripsDockEntryViewModelTests
     [Fact]
     public void TabTitle_FallsBackToGenericLabel_WhenIdAndNameNull()
     {
-        var vm = NewVm();
+        VStripsViewModel vm = NewVm();
 
         var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: true);
 
@@ -80,10 +80,10 @@ public class VStripsDockEntryViewModelTests
     [Fact]
     public void TabTitle_FiresPropertyChanged_WhenFacilityNameChanges()
     {
-        var vm = NewVm();
+        VStripsViewModel vm = NewVm();
         var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: true);
 
-        var titleChanges = 0;
+        int titleChanges = 0;
         entry.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(VStripsDockEntryViewModel.TabTitle))
@@ -101,12 +101,12 @@ public class VStripsDockEntryViewModelTests
     [Fact]
     public void IsPoppedOut_DefaultsFalse_AndIsObservable()
     {
-        var vm = NewVm();
+        VStripsViewModel vm = NewVm();
         var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: false);
 
         Assert.False(entry.IsPoppedOut);
 
-        var changes = 0;
+        int changes = 0;
         entry.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(VStripsDockEntryViewModel.IsPoppedOut))

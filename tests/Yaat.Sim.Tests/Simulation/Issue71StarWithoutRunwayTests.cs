@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -27,14 +28,14 @@ public class Issue71StarWithoutRunwayTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -54,8 +55,8 @@ public class Issue71StarWithoutRunwayTests(ITestOutputHelper output)
     [Fact]
     public void StarWithoutRunway_StillHasConstraints()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -64,15 +65,15 @@ public class Issue71StarWithoutRunwayTests(ITestOutputHelper output)
 
         engine.Replay(recording, 2);
 
-        var aircraft = engine.FindAircraft("DAL1352");
+        AircraftState? aircraft = engine.FindAircraft("DAL1352");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"DAL1352: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");
         output.WriteLine($"  Altitude: {aircraft.Altitude:F0}, TargetAlt: {aircraft.Targets.TargetAltitude}");
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         output.WriteLine($"  Route ({route.Count} fixes):");
-        foreach (var fix in route)
+        foreach (NavigationTarget fix in route)
         {
             string constraint = fix.AltitudeRestriction is not null ? $" [alt: {fix.AltitudeRestriction}]" : "";
             string speed = fix.SpeedRestriction is not null ? $" [spd: {fix.SpeedRestriction}]" : "";
@@ -97,8 +98,8 @@ public class Issue71StarWithoutRunwayTests(ITestOutputHelper output)
     [Fact]
     public void DelayedAircraft_StarWithoutRunway_StillHasConstraints()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -108,14 +109,14 @@ public class Issue71StarWithoutRunwayTests(ITestOutputHelper output)
         // AAL680 spawns at t=120
         engine.Replay(recording, 122);
 
-        var aircraft = engine.FindAircraft("AAL680");
+        AircraftState? aircraft = engine.FindAircraft("AAL680");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"AAL680: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         output.WriteLine($"  Route ({route.Count} fixes):");
-        foreach (var fix in route)
+        foreach (NavigationTarget fix in route)
         {
             string constraint = fix.AltitudeRestriction is not null ? $" [alt: {fix.AltitudeRestriction}]" : "";
             output.WriteLine($"    {fix.Name}{constraint}");

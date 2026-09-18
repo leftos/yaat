@@ -90,7 +90,7 @@ public static class AtcNumberParser
     /// single-letter form (N/S/E/W). Returns null for anything else so the caller can fail
     /// the rule match cleanly.
     /// </summary>
-    public static string? TryResolveCardinalLetter(string word) => CardinalToLetter.TryGetValue(word, out var letter) ? letter : null;
+    public static string? TryResolveCardinalLetter(string word) => CardinalToLetter.TryGetValue(word, out string? letter) ? letter : null;
 
     /// <summary>
     /// Scan a transcript and replace spoken number phrases with digit-form substrings.
@@ -111,14 +111,14 @@ public static class AtcNumberParser
         // sentence punctuation ("hello, world") stays untouched.
         transcript = StripThousandSeparators(transcript);
 
-        var tokens = Tokenize(transcript);
+        List<string> tokens = Tokenize(transcript);
         var output = new List<string>(tokens.Count);
 
-        var i = 0;
+        int i = 0;
         while (i < tokens.Count)
         {
             // "flight level N N N" → NNN00 (e.g. "flight level three five zero" → "35000")
-            if (TryReadFlightLevel(tokens, i, out var flValue, out var flConsumed))
+            if (TryReadFlightLevel(tokens, i, out int flValue, out int flConsumed))
             {
                 output.Add(flValue.ToString());
                 i += flConsumed;
@@ -126,7 +126,7 @@ public static class AtcNumberParser
             }
 
             // Digit / compound number run
-            if (TryReadNumberRun(tokens, i, out var numberStr, out var numConsumed))
+            if (TryReadNumberRun(tokens, i, out string? numberStr, out int numConsumed))
             {
                 output.Add(numberStr);
                 i += numConsumed;
@@ -168,17 +168,17 @@ public static class AtcNumberParser
     private static List<string> RecoverHeadingTwoMishears(List<string> tokens)
     {
         var result = new List<string>(tokens.Count);
-        var i = 0;
+        int i = 0;
         while (i < tokens.Count)
         {
-            var isHeadingTo =
+            bool isHeadingTo =
                 (i + 2 < tokens.Count)
                 && string.Equals(tokens[i], "heading", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(tokens[i + 1], "to", StringComparison.OrdinalIgnoreCase)
                 && tokens[i + 2].All(char.IsDigit);
             if (isHeadingTo)
             {
-                var digits = tokens[i + 2];
+                string digits = tokens[i + 2];
                 if (digits.Length == 2)
                 {
                     // "heading to 70" — the "to" was the spoken digit "two": heading 270.
@@ -206,7 +206,7 @@ public static class AtcNumberParser
     private static List<string> MergeSingleDigitRuns(List<string> tokens)
     {
         var merged = new List<string>(tokens.Count);
-        var i = 0;
+        int i = 0;
         while (i < tokens.Count)
         {
             if (tokens[i].Length == 1 && char.IsDigit(tokens[i][0]))
@@ -239,7 +239,7 @@ public static class AtcNumberParser
         {
             return "";
         }
-        var digits = flightNumber.ToString();
+        string digits = flightNumber.ToString();
         return string.Join(' ', digits.Select(c => DigitToWord[c - '0']));
     }
 
@@ -262,9 +262,9 @@ public static class AtcNumberParser
         {
             return "";
         }
-        var digits = flightNumber.ToString();
+        string digits = flightNumber.ToString();
         var parts = new List<string>();
-        var i = 0;
+        int i = 0;
         if (digits.Length % 2 == 1)
         {
             parts.Add(DigitToWord[digits[0] - '0']);
@@ -280,8 +280,8 @@ public static class AtcNumberParser
 
     private static string PairToWords(char d1, char d2)
     {
-        var tens = d1 - '0';
-        var ones = d2 - '0';
+        int tens = d1 - '0';
+        int ones = d2 - '0';
 
         // Leading-zero pair: no English cardinal, fall back to digit-by-digit.
         if (tens == 0)
@@ -307,7 +307,7 @@ public static class AtcNumberParser
             };
         }
 
-        var tensWord = tens switch
+        string tensWord = tens switch
         {
             2 => "twenty",
             3 => "thirty",
@@ -337,14 +337,14 @@ public static class AtcNumberParser
         // Flight level form for FL180+. FL is altitudeFeet / 100, spoken digit-by-digit.
         if (altitudeFeet >= 18000 && altitudeFeet % 100 == 0)
         {
-            var fl = altitudeFeet / 100;
-            var digits = fl.ToString("D3");
+            int fl = altitudeFeet / 100;
+            string digits = fl.ToString("D3");
             return "flight level " + string.Join(' ', digits.Select(c => DigitToWord[c - '0']));
         }
 
         // Sub-FL form: N thousand [M hundred]
-        var thousands = altitudeFeet / 1000;
-        var hundreds = (altitudeFeet % 1000) / 100;
+        int thousands = altitudeFeet / 1000;
+        int hundreds = (altitudeFeet % 1000) / 100;
         var parts = new List<string>();
         if (thousands > 0)
         {
@@ -397,9 +397,9 @@ public static class AtcNumberParser
         }
 
         var sb = new StringBuilder(transcript.Length);
-        for (var i = 0; i < transcript.Length; i++)
+        for (int i = 0; i < transcript.Length; i++)
         {
-            var c = transcript[i];
+            char c = transcript[i];
             if (c == ',' && i > 0 && i + 1 < transcript.Length && char.IsDigit(transcript[i - 1]) && char.IsDigit(transcript[i + 1]))
             {
                 continue;
@@ -413,11 +413,11 @@ public static class AtcNumberParser
     {
         // Split on whitespace + simple punctuation. Commas and periods become token boundaries.
         var tokens = new List<string>();
-        var start = -1;
-        for (var idx = 0; idx < transcript.Length; idx++)
+        int start = -1;
+        for (int idx = 0; idx < transcript.Length; idx++)
         {
-            var c = transcript[idx];
-            var isWord = char.IsLetterOrDigit(c);
+            char c = transcript[idx];
+            bool isWord = char.IsLetterOrDigit(c);
             if (isWord)
             {
                 if (start == -1)
@@ -459,8 +459,8 @@ public static class AtcNumberParser
             }
         }
 
-        var prefixLen = tokens[start] == "fl" ? 1 : 2;
-        if (!TryReadDigitSequence(tokens, start + prefixLen, out var digits, out var digitsConsumed))
+        int prefixLen = tokens[start] == "fl" ? 1 : 2;
+        if (!TryReadDigitSequence(tokens, start + prefixLen, out string? digits, out int digitsConsumed))
         {
             return false;
         }
@@ -480,15 +480,15 @@ public static class AtcNumberParser
         consumed = 0;
 
         // Read the leading digit / teen / tens sequence into an integer.
-        if (!TryReadCompoundValue(tokens, start, out var leadValue, out var leadConsumed))
+        if (!TryReadCompoundValue(tokens, start, out CompoundValue leadValue, out int leadConsumed))
         {
             return false;
         }
 
-        var i = start + leadConsumed;
-        var total = leadValue.Value;
-        var used = leadConsumed;
-        var hasMultiplier = false;
+        int i = start + leadConsumed;
+        int total = leadValue.Value;
+        int used = leadConsumed;
+        bool hasMultiplier = false;
 
         // Optional "thousand" scale.
         if (i < tokens.Count && tokens[i] == "thousand")
@@ -499,7 +499,7 @@ public static class AtcNumberParser
             hasMultiplier = true;
 
             // Optional "<compound> hundred" suffix, e.g. "five thousand five hundred" → 5500.
-            if (TryReadCompoundValue(tokens, i, out var afterThousand, out var atcConsumed))
+            if (TryReadCompoundValue(tokens, i, out CompoundValue afterThousand, out int atcConsumed))
             {
                 if (i + atcConsumed < tokens.Count && tokens[i + atcConsumed] == "hundred")
                 {
@@ -528,14 +528,14 @@ public static class AtcNumberParser
         //   - the lead has a hundred / thousand multiplier already applied.
         // A 2- or 3-digit pure digit-by-digit run like "two seven" (=27) or "two seven zero"
         // (=270) is NOT combinable — it's already complete on its own.
-        var combinable = !leadValue.IsPureDigitSequence || leadValue.DigitString.Length == 1 || hasMultiplier;
+        bool combinable = !leadValue.IsPureDigitSequence || leadValue.DigitString.Length == 1 || hasMultiplier;
         if (combinable)
         {
             while (i < tokens.Count)
             {
                 // Optional "and" filler: "two hundred and thirty four" → 234.
-                var pairStart = tokens[i] == "and" ? i + 1 : i;
-                if (!TryReadTwoDigitPair(tokens, pairStart, out var pairValue, out var pairConsumed))
+                int pairStart = tokens[i] == "and" ? i + 1 : i;
+                if (!TryReadTwoDigitPair(tokens, pairStart, out int pairValue, out int pairConsumed))
                 {
                     break;
                 }
@@ -554,7 +554,7 @@ public static class AtcNumberParser
                     total = (total * 100) + pairValue;
                 }
 
-                var advance = pairStart - i + pairConsumed;
+                int advance = pairStart - i + pairConsumed;
                 i += advance;
                 used += advance;
 
@@ -610,10 +610,10 @@ public static class AtcNumberParser
             return false;
         }
 
-        var first = tokens[start];
+        string first = tokens[start];
 
         // Teen (10..19): exactly one token.
-        if (TeenWords.TryGetValue(first, out var teen))
+        if (TeenWords.TryGetValue(first, out int teen))
         {
             value = teen;
             consumed = 1;
@@ -622,9 +622,9 @@ public static class AtcNumberParser
 
         // Tens (20, 30, ..., 90), optionally followed by a non-zero ones digit. We require
         // ones > 0 because "twenty zero" would just be 20 + a leftover "zero" token, not 20.
-        if (TensWords.TryGetValue(first, out var tens))
+        if (TensWords.TryGetValue(first, out int tens))
         {
-            if (start + 1 < tokens.Count && DigitWords.TryGetValue(tokens[start + 1], out var d) && d is > 0 and < 10)
+            if (start + 1 < tokens.Count && DigitWords.TryGetValue(tokens[start + 1], out int d) && d is > 0 and < 10)
             {
                 value = tens + d;
                 consumed = 2;
@@ -637,7 +637,7 @@ public static class AtcNumberParser
 
         // Two consecutive digit-by-digit words. Any pair of digits is fair game here, including
         // leading-zero pairs ("zero five" → 5) and double-zero pairs ("zero zero" → 0).
-        if (start + 1 < tokens.Count && DigitWords.TryGetValue(first, out var d1) && DigitWords.TryGetValue(tokens[start + 1], out var d2))
+        if (start + 1 < tokens.Count && DigitWords.TryGetValue(first, out int d1) && DigitWords.TryGetValue(tokens[start + 1], out int d2))
         {
             value = (d1 * 10) + d2;
             consumed = 2;
@@ -661,21 +661,21 @@ public static class AtcNumberParser
             return false;
         }
 
-        var first = tokens[start];
+        string first = tokens[start];
 
-        if (TeenWords.TryGetValue(first, out var teen))
+        if (TeenWords.TryGetValue(first, out int teen))
         {
             result = new CompoundValue(teen, IsPureDigitSequence: false, DigitString: teen.ToString());
             consumed = 1;
             return true;
         }
 
-        if (TensWords.TryGetValue(first, out var tens))
+        if (TensWords.TryGetValue(first, out int tens))
         {
             // Optional trailing digit: "twenty five" → 25
-            if (start + 1 < tokens.Count && DigitWords.TryGetValue(tokens[start + 1], out var d) && d < 10)
+            if (start + 1 < tokens.Count && DigitWords.TryGetValue(tokens[start + 1], out int d) && d < 10)
             {
-                var v = tens + d;
+                int v = tens + d;
                 result = new CompoundValue(v, IsPureDigitSequence: false, DigitString: v.ToString());
                 consumed = 2;
                 return true;
@@ -685,9 +685,9 @@ public static class AtcNumberParser
             return true;
         }
 
-        if (TryReadDigitSequence(tokens, start, out var digits, out var digitsConsumed))
+        if (TryReadDigitSequence(tokens, start, out string? digits, out int digitsConsumed))
         {
-            var value = digits.Length == 0 ? 0 : int.Parse(digits);
+            int value = digits.Length == 0 ? 0 : int.Parse(digits);
             result = new CompoundValue(value, IsPureDigitSequence: true, DigitString: digits);
             consumed = digitsConsumed;
             return digitsConsumed > 0;
@@ -700,8 +700,8 @@ public static class AtcNumberParser
     private static bool TryReadDigitSequence(List<string> tokens, int start, out string digits, out int consumed)
     {
         var sb = new System.Text.StringBuilder();
-        var i = start;
-        while (i < tokens.Count && DigitWords.TryGetValue(tokens[i], out var d))
+        int i = start;
+        while (i < tokens.Count && DigitWords.TryGetValue(tokens[i], out int d))
         {
             sb.Append(d);
             i++;

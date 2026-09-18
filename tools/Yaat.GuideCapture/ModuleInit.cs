@@ -32,12 +32,12 @@ internal static class ModuleInit
     {
         SweepStaleDirs();
 
-        var dir = Path.Combine(Path.GetTempPath(), RootName, Guid.NewGuid().ToString("N"));
+        string dir = Path.Combine(Path.GetTempPath(), RootName, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, PidMarker), Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
         Environment.SetEnvironmentVariable("YAAT_APPDATA_DIR", dir);
 
-        var prefsPath = Path.Combine(dir, "preferences.json");
+        string prefsPath = Path.Combine(dir, "preferences.json");
         File.WriteAllText(
             prefsPath,
             """
@@ -55,7 +55,7 @@ internal static class ModuleInit
 
     private static void SweepStaleDirs()
     {
-        var rootDir = Path.Combine(Path.GetTempPath(), RootName);
+        string rootDir = Path.Combine(Path.GetTempPath(), RootName);
         if (!Directory.Exists(rootDir))
         {
             return;
@@ -63,7 +63,7 @@ internal static class ModuleInit
 
         try
         {
-            foreach (var subdir in Directory.EnumerateDirectories(rootDir))
+            foreach (string subdir in Directory.EnumerateDirectories(rootDir))
             {
                 if (IsOwnedByLiveProcess(subdir))
                 {
@@ -78,7 +78,7 @@ internal static class ModuleInit
 
     private static bool IsOwnedByLiveProcess(string dir)
     {
-        var pidFile = Path.Combine(dir, PidMarker);
+        string pidFile = Path.Combine(dir, PidMarker);
         if (!File.Exists(pidFile))
         {
             return false;
@@ -86,7 +86,7 @@ internal static class ModuleInit
 
         try
         {
-            var pidText = File.ReadAllText(pidFile).Trim();
+            string pidText = File.ReadAllText(pidFile).Trim();
             if (!int.TryParse(pidText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int pid))
             {
                 return false;

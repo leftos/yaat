@@ -85,7 +85,7 @@ public sealed partial class SimulationEngine
     private void RunSegment(ImmutableArray<SpineStep> steps, ISimulationHost host, string rollup)
     {
         long segmentStart = TimingStart();
-        foreach (var step in steps)
+        foreach (SpineStep step in steps)
         {
             StepTrace.Record(step.Id, 0);
             long start = TimingStart();

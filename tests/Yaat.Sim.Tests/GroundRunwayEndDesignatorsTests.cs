@@ -10,7 +10,7 @@ public class GroundRunwayEndDesignatorsTests
     public void EndDesignators_OakRunways_SplitsEachNameIntoBothEnds()
     {
         var groundData = new TestAirportGroundData();
-        var oak = groundData.GetLayout("OAK");
+        AirportGroundLayout? oak = groundData.GetLayout("OAK");
         if (oak is null)
         {
             return;

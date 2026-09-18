@@ -2,6 +2,7 @@ using System.IO.Compression;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Proto;
 using Yaat.Sim.Testing;
@@ -28,16 +29,16 @@ public class CustomProcedureResolutionTests
     [Fact]
     public void CustomFragment_ResolvesSid_WhenNoCachedCycleHasIt()
     {
-        var dir = Directory.CreateTempSubdirectory("yaat-custom-sid-").FullName;
+        string dir = Directory.CreateTempSubdirectory("yaat-custom-sid-").FullName;
         try
         {
-            var fx = BuildFixture(dir, "ZOA");
+            (string NoNimiCifp, string ArtccsDir, NavDataSet NavData)? fx = BuildFixture(dir, "ZOA");
             if (fx is null)
             {
                 return;
             }
 
-            var (noNimiCifp, artccsDir, navData) = fx.Value;
+            (string? noNimiCifp, string? artccsDir, NavDataSet? navData) = fx.Value;
 
             // Premise: with no supplementary chain and no fragment, the SID is unresolvable.
             var withoutFragment = new NavigationDatabase(navData, noNimiCifp, artccsBaseDir: "", supplementaryCifpFilePaths: []);
@@ -45,7 +46,7 @@ public class CustomProcedureResolutionTests
 
             // The committed fragment resolves it — no cached cycles involved.
             var db = new NavigationDatabase(navData, noNimiCifp, artccsDir, supplementaryCifpFilePaths: []);
-            var sid = db.GetSid("KOAK", "NIMI6", out var source);
+            CifpSidProcedure? sid = db.GetSid("KOAK", "NIMI6", out ProcedureSource? source);
 
             Assert.NotNull(sid);
             Assert.NotNull(source);
@@ -61,21 +62,21 @@ public class CustomProcedureResolutionTests
     [Fact]
     public void CustomFragment_FliesPublishedHeading315_WithNoCachedCycles()
     {
-        var dir = Directory.CreateTempSubdirectory("yaat-custom-hdg-").FullName;
+        string dir = Directory.CreateTempSubdirectory("yaat-custom-hdg-").FullName;
         try
         {
-            var fx = BuildFixture(dir, "ZOA");
+            (string NoNimiCifp, string ArtccsDir, NavDataSet NavData)? fx = BuildFixture(dir, "ZOA");
             if (fx is null)
             {
                 return;
             }
 
-            var (noNimiCifp, artccsDir, navData) = fx.Value;
+            (string? noNimiCifp, string? artccsDir, NavDataSet? navData) = fx.Value;
 
             var db = new NavigationDatabase(navData, noNimiCifp, artccsDir, supplementaryCifpFilePaths: []);
-            using var _ = NavigationDatabase.ScopedOverride(db);
+            using IDisposable _ = NavigationDatabase.ScopedOverride(db);
 
-            var result = DepartureClearanceHandler.ResolveDepartureRoute(new DefaultDeparture(), MakeOakDeparture());
+            DepartureRouteResult? result = DepartureClearanceHandler.ResolveDepartureRoute(new DefaultDeparture(), MakeOakDeparture());
 
             Assert.NotNull(result);
             Assert.False(result.RvSidHoldRunwayHeading);
@@ -84,7 +85,7 @@ public class CustomProcedureResolutionTests
             Assert.Equal(ProcedureSourceKind.ArtccCustom, result.Source?.Kind);
 
             // The instructor advisory names the SID and the supplying ARTCC, not an AIRAC cycle.
-            var advisory = DepartureClearanceHandler.ProcedureSourceSidAdvisory(ClearanceType.ClearedForTakeoff, result, MakeOakDeparture());
+            string? advisory = DepartureClearanceHandler.ProcedureSourceSidAdvisory(ClearanceType.ClearedForTakeoff, result, MakeOakDeparture());
             Assert.NotNull(advisory);
             Assert.Contains("NIMI6", advisory);
             Assert.Contains("ZOA", advisory);
@@ -99,21 +100,21 @@ public class CustomProcedureResolutionTests
     [Fact]
     public void CurrentCycle_WinsOverCustomFragment()
     {
-        var dir = Directory.CreateTempSubdirectory("yaat-custom-prec-").FullName;
+        string dir = Directory.CreateTempSubdirectory("yaat-custom-prec-").FullName;
         try
         {
-            var fx = BuildFixture(dir, "ZOA");
+            (string NoNimiCifp, string ArtccsDir, NavDataSet NavData)? fx = BuildFixture(dir, "ZOA");
             if (fx is null)
             {
                 return;
             }
 
-            var (_, artccsDir, navData) = fx.Value;
+            (string _, string? artccsDir, NavDataSet? navData) = fx.Value;
             string fullCifp = Path.Combine(dir, "FAACIFP18-2604");
 
             // Current cycle still carries NIMITZ: the fragment must not be consulted at all.
             var db = new NavigationDatabase(navData, fullCifp, artccsDir, supplementaryCifpFilePaths: []);
-            var sid = db.GetSid("KOAK", "NIMI5", out var source);
+            CifpSidProcedure? sid = db.GetSid("KOAK", "NIMI5", out ProcedureSource? source);
 
             Assert.NotNull(sid);
             Assert.Null(source);
@@ -127,22 +128,22 @@ public class CustomProcedureResolutionTests
     [Fact]
     public void CustomFragment_WinsOverSupplementaryChain()
     {
-        var dir = Directory.CreateTempSubdirectory("yaat-custom-chain-").FullName;
+        string dir = Directory.CreateTempSubdirectory("yaat-custom-chain-").FullName;
         try
         {
-            var fx = BuildFixture(dir, "ZOA");
+            (string NoNimiCifp, string ArtccsDir, NavDataSet NavData)? fx = BuildFixture(dir, "ZOA");
             if (fx is null)
             {
                 return;
             }
 
-            var (noNimiCifp, artccsDir, navData) = fx.Value;
+            (string? noNimiCifp, string? artccsDir, NavDataSet? navData) = fx.Value;
             string fullCifp = Path.Combine(dir, "FAACIFP18-2604");
 
             // Both the fragment and a cached prior cycle carry NIMITZ — the fragment is authoritative,
             // so the result does not depend on which cycles this machine happens to have cached.
             var db = new NavigationDatabase(navData, noNimiCifp, artccsDir, supplementaryCifpFilePaths: [fullCifp]);
-            var sid = db.GetSid("KOAK", "NIMI6", out var source);
+            CifpSidProcedure? sid = db.GetSid("KOAK", "NIMI6", out ProcedureSource? source);
 
             Assert.NotNull(sid);
             Assert.Equal(ProcedureSourceKind.ArtccCustom, source?.Kind);
@@ -157,28 +158,30 @@ public class CustomProcedureResolutionTests
     [Fact]
     public void TwoArtccsSupplyingTheSameAirport_AreCreditedPerProcedure()
     {
-        var dir = Directory.CreateTempSubdirectory("yaat-custom-multi-").FullName;
+        string dir = Directory.CreateTempSubdirectory("yaat-custom-multi-").FullName;
         try
         {
-            var fx = BuildFixture(dir, "ZOA");
+            (string NoNimiCifp, string ArtccsDir, NavDataSet NavData)? fx = BuildFixture(dir, "ZOA");
             if (fx is null)
             {
                 return;
             }
 
-            var (noNimiCifp, artccsDir, navData) = fx.Value;
+            (string? noNimiCifp, string? artccsDir, NavDataSet? navData) = fx.Value;
             string fullCifp = Path.Combine(dir, "FAACIFP18-2604");
 
             // A second ARTCC contributes a *different* KOAK SID under the same airport bucket. The advisory
             // must credit whichever ARTCC actually supplied the matched procedure, not the first one loaded.
-            var lines = File.ReadAllLines(fullCifp);
-            var renamed = lines.Where(l => l.Contains("KOAKK2DNIMI", StringComparison.Ordinal)).Select(l => l[..13] + "ZZOTH1" + l[19..]);
+            string[] lines = File.ReadAllLines(fullCifp);
+            IEnumerable<string> renamed = lines
+                .Where(l => l.Contains("KOAKK2DNIMI", StringComparison.Ordinal))
+                .Select(l => l[..13] + "ZZOTH1" + l[19..]);
             WriteFragment(artccsDir, "ZLA", "koak-other.cifp", renamed);
 
             var db = new NavigationDatabase(navData, noNimiCifp, artccsDir, supplementaryCifpFilePaths: []);
 
-            db.GetSid("KOAK", "NIMI6", out var nimiSource);
-            db.GetSid("KOAK", "ZZOTH1", out var otherSource);
+            db.GetSid("KOAK", "NIMI6", out ProcedureSource? nimiSource);
+            db.GetSid("KOAK", "ZZOTH1", out ProcedureSource? otherSource);
 
             Assert.Equal("ZOA", nimiSource?.Label);
             Assert.Equal("ZLA", otherSource?.Label);
@@ -192,11 +195,11 @@ public class CustomProcedureResolutionTests
     [Fact]
     public void CustomFragment_ResolvesStar_WhenAbsentFromCurrentCycle()
     {
-        var dir = Directory.CreateTempSubdirectory("yaat-custom-star-").FullName;
+        string dir = Directory.CreateTempSubdirectory("yaat-custom-star-").FullName;
         try
         {
             string fullCifp = Path.Combine(dir, "FAACIFP18-2604");
-            var navData = LoadNavDataOrNull(fullCifp);
+            NavDataSet? navData = LoadNavDataOrNull(fullCifp);
             if (navData is null)
             {
                 return;
@@ -215,7 +218,7 @@ public class CustomProcedureResolutionTests
             }
 
             string token = "KOAKK2E" + starId; // STAR records: section P, subsection E
-            var lines = File.ReadAllLines(fullCifp);
+            string[] lines = File.ReadAllLines(fullCifp);
 
             string noStarCifp = Path.Combine(dir, "FAACIFP18-2606");
             File.WriteAllLines(noStarCifp, lines.Where(l => !l.Contains(token, StringComparison.Ordinal)));
@@ -226,7 +229,7 @@ public class CustomProcedureResolutionTests
             var db = new NavigationDatabase(navData, noStarCifp, artccsDir, supplementaryCifpFilePaths: []);
             Assert.Null(db.GetStars("KOAK").FirstOrDefault(s => s.ProcedureId.Equals(starId, StringComparison.OrdinalIgnoreCase)));
 
-            var resolved = db.GetStar("KOAK", starId, out var source);
+            CifpStarProcedure? resolved = db.GetStar("KOAK", starId, out ProcedureSource? source);
             Assert.NotNull(resolved);
             Assert.Equal(new ProcedureSource(ProcedureSourceKind.ArtccCustom, "ZOA"), source);
         }
@@ -239,11 +242,11 @@ public class CustomProcedureResolutionTests
     [Fact]
     public void CustomFragment_ResolvesApproach_WhenAbsentFromCurrentCycle()
     {
-        var dir = Directory.CreateTempSubdirectory("yaat-custom-appr-").FullName;
+        string dir = Directory.CreateTempSubdirectory("yaat-custom-appr-").FullName;
         try
         {
             string fullCifp = Path.Combine(dir, "FAACIFP18-2604");
-            var navData = LoadNavDataOrNull(fullCifp);
+            NavDataSet? navData = LoadNavDataOrNull(fullCifp);
             if (navData is null)
             {
                 return;
@@ -261,7 +264,7 @@ public class CustomProcedureResolutionTests
             }
 
             string token = "KOAKK2F" + approachId; // Approach records: section P, subsection F
-            var lines = File.ReadAllLines(fullCifp);
+            string[] lines = File.ReadAllLines(fullCifp);
 
             string noApprCifp = Path.Combine(dir, "FAACIFP18-2606");
             File.WriteAllLines(noApprCifp, lines.Where(l => !l.Contains(token, StringComparison.Ordinal)));
@@ -272,7 +275,7 @@ public class CustomProcedureResolutionTests
             var db = new NavigationDatabase(navData, noApprCifp, artccsDir, supplementaryCifpFilePaths: []);
             Assert.Null(db.GetApproaches("KOAK").FirstOrDefault(a => a.ApproachId.Equals(approachId, StringComparison.OrdinalIgnoreCase)));
 
-            var resolved = db.GetApproach("KOAK", approachId, out var source);
+            CifpApproachProcedure? resolved = db.GetApproach("KOAK", approachId, out ProcedureSource? source);
             Assert.NotNull(resolved);
             Assert.Equal(new ProcedureSource(ProcedureSourceKind.ArtccCustom, "ZOA"), source);
         }
@@ -291,13 +294,13 @@ public class CustomProcedureResolutionTests
     private static (string NoNimiCifp, string ArtccsDir, NavDataSet NavData)? BuildFixture(string dir, string artcc)
     {
         string fullCifp = Path.Combine(dir, "FAACIFP18-2604");
-        var navData = LoadNavDataOrNull(fullCifp);
+        NavDataSet? navData = LoadNavDataOrNull(fullCifp);
         if (navData is null)
         {
             return null;
         }
 
-        var lines = File.ReadAllLines(fullCifp);
+        string[] lines = File.ReadAllLines(fullCifp);
         if (!lines.Any(l => l.Contains("KOAKK2DNIMI", StringComparison.Ordinal)))
         {
             return null; // bundle no longer has NIMI — premise not met, skip.
@@ -323,7 +326,7 @@ public class CustomProcedureResolutionTests
         }
 
         using (var gz = new GZipStream(File.OpenRead(bundledGz), CompressionMode.Decompress))
-        using (var outF = File.Create(cifpOutPath))
+        using (FileStream outF = File.Create(cifpOutPath))
         {
             gz.CopyTo(outF);
         }

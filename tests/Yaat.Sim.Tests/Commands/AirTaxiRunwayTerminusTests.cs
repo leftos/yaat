@@ -8,6 +8,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -43,12 +44,12 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
     /// <summary>The runway's full-length entrance: the bar nearest the named end's threshold.</summary>
     private static GroundNode FullLengthBar(AirportGroundLayout layout, string runway)
     {
-        var pavement = layout.FindRunway(runway);
+        GroundRunway? pavement = layout.FindRunway(runway);
         Assert.NotNull(pavement);
         bool isFirstEnd = pavement.Id.End1.Equals(RunwayIdentifier.NormalizeDesignator(runway), StringComparison.OrdinalIgnoreCase);
-        var coord = isFirstEnd ? pavement.Coordinates[0] : pavement.Coordinates[^1];
+        (double Lat, double Lon) coord = isFirstEnd ? pavement.Coordinates[0] : pavement.Coordinates[^1];
         var threshold = new LatLon(coord.Lat, coord.Lon);
-        var bar = layout.GetRunwayHoldShortNodes(runway).OrderBy(n => n.Id).MinBy(n => GeoMath.DistanceNm(threshold, n.Position));
+        GroundNode? bar = layout.GetRunwayHoldShortNodes(runway).OrderBy(n => n.Id).MinBy(n => GeoMath.DistanceNm(threshold, n.Position));
         Assert.NotNull(bar);
         return bar;
     }
@@ -62,7 +63,7 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
     /// </summary>
     private static double DistanceToPavementFt(AirportGroundLayout layout, string runway, LatLon position)
     {
-        var pavement = layout.FindRunway(runway);
+        GroundRunway? pavement = layout.FindRunway(runway);
         Assert.NotNull(pavement);
         var points = pavement.Coordinates.Select(c => new LatLon(c.Lat, c.Lon)).ToList();
         Assert.True(points.Count >= 2, $"runway {runway} has no centerline to measure against");
@@ -84,17 +85,17 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, layout, heli) = fixture;
-        var runway = CommandDispatcher.ResolveRunway(heli, Runway);
+        (SimulationEngine? engine, AirportGroundLayout? layout, AircraftState? heli) = fixture;
+        RunwayInfo? runway = CommandDispatcher.ResolveRunway(heli, Runway);
         Assert.NotNull(runway);
-        var expectedBar = FullLengthBar(layout, Runway);
+        GroundNode expectedBar = FullLengthBar(layout, Runway);
 
-        var result = engine.SendCommand("TEST1", $"ATXI {Runway}");
+        CommandResult result = engine.SendCommand("TEST1", $"ATXI {Runway}");
         output.WriteLine($"ATXI {Runway}: success={result.Success} message=\"{result.Message}\"");
         Assert.True(result.Success, result.Message);
         Assert.Equal("Air taxi to runway 28L, holding short", result.Message);
 
-        var holding = TickToHoldShort(engine, heli, runway);
+        HoldingShortPhase holding = TickToHoldShort(engine, heli, runway);
 
         Assert.Equal(HoldShortReason.DestinationRunway, holding.HoldShort.Reason);
         Assert.Equal(Runway, holding.HoldShort.TargetName);
@@ -137,15 +138,15 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, layout, heli) = fixture;
-        var runway = CommandDispatcher.ResolveRunway(heli, Runway);
+        (SimulationEngine? engine, AirportGroundLayout? layout, AircraftState? heli) = fixture;
+        RunwayInfo? runway = CommandDispatcher.ResolveRunway(heli, Runway);
         Assert.NotNull(runway);
 
         // Pick a bar the bare form would NOT choose, named by its own taxiway — node ids are ephemeral, so the
         // target is resolved from the graph rather than hardcoded.
-        var fullLength = FullLengthBar(layout, Runway);
+        GroundNode fullLength = FullLengthBar(layout, Runway);
         string? fullLengthTaxiway = TaxiwayOf(fullLength);
-        var located = layout
+        GroundNode? located = layout
             .GetRunwayHoldShortNodes(Runway)
             .OrderBy(n => n.Id)
             .FirstOrDefault(n =>
@@ -163,16 +164,16 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
         string taxiway = TaxiwayOf(located)!;
         output.WriteLine($"full-length bar {fullLength.Id} on {fullLengthTaxiway}; located bar {located.Id} on {taxiway}");
 
-        var result = engine.SendCommand("TEST1", $"ATXI {Runway}@{taxiway}");
+        CommandResult result = engine.SendCommand("TEST1", $"ATXI {Runway}@{taxiway}");
         output.WriteLine($"ATXI {Runway}@{taxiway}: success={result.Success} message=\"{result.Message}\"");
         Assert.True(result.Success, result.Message);
         Assert.Equal($"Air taxi to runway 28L at {taxiway}, holding short", result.Message);
 
-        var holding = TickToHoldShort(engine, heli, runway);
+        HoldingShortPhase holding = TickToHoldShort(engine, heli, runway);
 
         Assert.Equal(HoldShortReason.DestinationRunway, holding.HoldShort.Reason);
         Assert.NotEqual(fullLength.Id, holding.HoldShort.NodeId);
-        Assert.True(layout.Nodes.TryGetValue(holding.HoldShort.NodeId, out var reached));
+        Assert.True(layout.Nodes.TryGetValue(holding.HoldShort.NodeId, out GroundNode? reached));
         Assert.True(reached!.Edges.Any(e => e.MatchesTaxiway(taxiway)), $"the bar reached is not on {taxiway}");
         Assert.Null(heli.Ground.ParkingSpot);
     }
@@ -185,11 +186,11 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, layout, heli) = fixture;
+        (SimulationEngine? engine, AirportGroundLayout? layout, AircraftState? heli) = fixture;
 
         // A Spot node whose name no parking or helipad also carries — the ATXI parser strips the $ sigil, so a
         // name shared with a gate would resolve as parking.
-        var spot = layout
+        GroundNode? spot = layout
             .Nodes.Values.OrderBy(n => n.Id)
             .FirstOrDefault(n =>
                 (n.Type == GroundNodeType.Spot)
@@ -199,11 +200,11 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
             );
         Assert.NotNull(spot);
 
-        var result = engine.SendCommand("TEST1", $"ATXI ${spot.Name}");
+        CommandResult result = engine.SendCommand("TEST1", $"ATXI ${spot.Name}");
         output.WriteLine($"ATXI ${spot.Name}: success={result.Success} message=\"{result.Message}\"");
         Assert.True(result.Success, result.Message);
 
-        var phase = TickTo<HoldingInPositionPhase>(engine, heli);
+        HoldingInPositionPhase phase = TickTo<HoldingInPositionPhase>(engine, heli);
         Assert.NotNull(phase);
         Assert.True(heli.IsOnGround);
         Assert.Null(heli.Ground.ParkingSpot);
@@ -218,13 +219,13 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, _, heli) = fixture;
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = fixture;
 
-        var result = engine.SendCommand("TEST1", "ATXI FDX1");
+        CommandResult result = engine.SendCommand("TEST1", "ATXI FDX1");
         Assert.True(result.Success, result.Message);
         Assert.Equal("Air taxi to FDX1", result.Message);
 
-        var phase = TickTo<AtParkingPhase>(engine, heli);
+        AtParkingPhase phase = TickTo<AtParkingPhase>(engine, heli);
         Assert.NotNull(phase);
         Assert.Equal("FDX1", heli.Ground.ParkingSpot);
     }
@@ -237,24 +238,24 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, _, heli) = fixture;
-        var runway = CommandDispatcher.ResolveRunway(heli, Runway);
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = fixture;
+        RunwayInfo? runway = CommandDispatcher.ResolveRunway(heli, Runway);
         Assert.NotNull(runway);
 
         Assert.True(engine.SendCommand("TEST1", $"ATXI {Runway}").Success);
         TickToHoldShort(engine, heli, runway);
 
-        var res = engine.SendCommand("TEST1", "RES");
+        CommandResult res = engine.SendCommand("TEST1", "RES");
         output.WriteLine($"RES: success={res.Success} message=\"{res.Message}\"");
         Assert.False(res.Success, "RES must not release a hold short of the destination runway");
 
-        var cto = engine.SendCommand("TEST1", "CTO");
+        CommandResult cto = engine.SendCommand("TEST1", "CTO");
         output.WriteLine($"CTO: success={cto.Success} message=\"{cto.Message}\"");
         Assert.True(cto.Success, cto.Message);
 
         // The clearance has to be flyable from a bar reached without a taxi route: the line-up is planned, and
         // the heli actually lifts off aligned with the runway it was cleared from.
-        var lineup = heli.Phases!.Phases.OfType<LineUpPhase>().FirstOrDefault();
+        LineUpPhase? lineup = heli.Phases!.Phases.OfType<LineUpPhase>().FirstOrDefault();
         Assert.True(lineup is not null, "CTO planned no line-up");
         Assert.True(lineup!.Status is PhaseStatus.Pending or PhaseStatus.Active, $"line-up is {lineup.Status}");
 
@@ -282,18 +283,18 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, _, heli) = fixture;
-        var runway = CommandDispatcher.ResolveRunway(heli, Runway);
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = fixture;
+        RunwayInfo? runway = CommandDispatcher.ResolveRunway(heli, Runway);
         Assert.NotNull(runway);
 
         Assert.True(engine.SendCommand("TEST1", $"ATXI {Runway}").Success);
         TickToHoldShort(engine, heli, runway);
 
-        var cross = engine.SendCommand("TEST1", $"CROSS {Runway}");
+        CommandResult cross = engine.SendCommand("TEST1", $"CROSS {Runway}");
         output.WriteLine($"CROSS {Runway}: success={cross.Success} message=\"{cross.Message}\"");
         Assert.True(cross.Success, cross.Message);
 
-        var crossing = TickTo<CrossingRunwayPhase>(engine, heli);
+        CrossingRunwayPhase crossing = TickTo<CrossingRunwayPhase>(engine, heli);
         Assert.NotNull(crossing);
     }
 
@@ -311,14 +312,14 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, _, heli) = fixture;
-        var runway = CommandDispatcher.ResolveRunway(heli, Runway);
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = fixture;
+        RunwayInfo? runway = CommandDispatcher.ResolveRunway(heli, Runway);
         Assert.NotNull(runway);
 
         Assert.True(engine.SendCommand("TEST1", $"ATXI {Runway}").Success);
         TickToHoldShort(engine, heli, runway);
 
-        var chained = engine.SendCommand("TEST1", $"CROSS {Runway}; TAXI @FDX1");
+        CommandResult chained = engine.SendCommand("TEST1", $"CROSS {Runway}; TAXI @FDX1");
         output.WriteLine($"CROSS {Runway}; TAXI @FDX1: success={chained.Success} message=\"{chained.Message}\"");
         Assert.True(chained.Success, chained.Message);
 
@@ -345,34 +346,34 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
             return;
         }
 
-        var (engine, layout, heli) = fixture;
-        var runway = CommandDispatcher.ResolveRunway(heli, Runway);
+        (SimulationEngine? engine, AirportGroundLayout? layout, AircraftState? heli) = fixture;
+        RunwayInfo? runway = CommandDispatcher.ResolveRunway(heli, Runway);
         Assert.NotNull(runway);
 
         // A taxi clearance to the same runway first: its route ends at a 28L hold short. Clearing that point is
         // the state a takeoff clearance leaves on the route.
         Assert.True(engine.SendCommand("TEST1", $"TAXIAUTO {Runway}").Success);
-        var taxiRoute = heli.Ground.AssignedTaxiRoute;
+        TaxiRoute? taxiRoute = heli.Ground.AssignedTaxiRoute;
         Assert.NotNull(taxiRoute);
-        var destination = taxiRoute.HoldShortPoints.First(h => h.Reason == HoldShortReason.DestinationRunway);
+        HoldShortPoint destination = taxiRoute.HoldShortPoints.First(h => h.Reason == HoldShortReason.DestinationRunway);
         destination.IsCleared = true;
         output.WriteLine($"taxi route ends at node {destination.NodeId}, cleared");
 
         Assert.True(engine.SendCommand("TEST1", $"ATXI {Runway}").Success);
         Assert.Null(heli.Ground.AssignedTaxiRoute);
 
-        var holding = TickToHoldShort(engine, heli, runway);
+        HoldingShortPhase holding = TickToHoldShort(engine, heli, runway);
         output.WriteLine($"air taxi holds at node {holding.HoldShort.NodeId}");
 
-        var dto = heli.ToSnapshot();
+        AircraftSnapshotDto dto = heli.ToSnapshot();
         var restored = AircraftState.FromSnapshot(dto, layout);
-        var restoredHold = Assert.IsType<HoldingShortPhase>(restored.Phases?.CurrentPhase);
+        HoldingShortPhase restoredHold = Assert.IsType<HoldingShortPhase>(restored.Phases?.CurrentPhase);
 
         Assert.Equal(HoldShortReason.DestinationRunway, restoredHold.HoldShort.Reason);
         Assert.False(restoredHold.HoldShort.IsCleared);
         Assert.Null(restored.Ground.AssignedTaxiRoute);
 
-        var res = CommandDispatcher.Dispatch(
+        CommandResult res = CommandDispatcher.Dispatch(
             CommandParser.Parse("RES").Value!,
             restored,
             TestDispatch.Context(new SerializableRandom(42), groundLayout: layout)
@@ -427,13 +428,13 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("OAK");
+        AirportGroundLayout? layout = groundData.GetLayout("OAK");
         if (layout is null)
         {
             return null;
         }
 
-        var heliSpot = layout.FindSpotByName("HELI");
+        GroundNode? heliSpot = layout.FindSpotByName("HELI");
         Assert.NotNull(heliSpot);
 
         var engine = new SimulationEngine(groundData)

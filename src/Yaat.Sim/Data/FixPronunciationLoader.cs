@@ -31,7 +31,7 @@ public static class FixPronunciationLoader
             return result;
         }
 
-        foreach (var artccDir in Directory.EnumerateDirectories(artccsBaseDir))
+        foreach (string artccDir in Directory.EnumerateDirectories(artccsBaseDir))
         {
             string categoryDir = Path.Combine(artccDir, "FixPronunciations");
             if (!Directory.Exists(categoryDir))
@@ -39,7 +39,7 @@ public static class FixPronunciationLoader
                 continue;
             }
 
-            foreach (var file in Directory.GetFiles(categoryDir, "*.json"))
+            foreach (string file in Directory.GetFiles(categoryDir, "*.json"))
             {
                 LoadFile(file, result);
             }
@@ -53,7 +53,7 @@ public static class FixPronunciationLoader
         List<FixPronunciationDefinition>? definitions;
         try
         {
-            var json = File.ReadAllText(filePath);
+            string json = File.ReadAllText(filePath);
             definitions = JsonSerializer.Deserialize<List<FixPronunciationDefinition>>(json, JsonOptions);
         }
         catch (Exception ex)
@@ -70,8 +70,8 @@ public static class FixPronunciationLoader
 
         for (int i = 0; i < definitions.Count; i++)
         {
-            var def = definitions[i];
-            var location = $"{filePath}[{i}]";
+            FixPronunciationDefinition def = definitions[i];
+            string location = $"{filePath}[{i}]";
 
             if (string.IsNullOrWhiteSpace(def.Fix))
             {

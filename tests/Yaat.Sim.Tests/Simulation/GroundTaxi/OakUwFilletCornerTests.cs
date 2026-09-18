@@ -40,7 +40,7 @@ public class OakUwFilletCornerTests(ITestOutputHelper output)
     [Fact]
     public void Swa2600_TeUWW1_FliesTheUwFilletAtArcSpeed()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         TestVnasData.EnsureInitialized();
         if (recording is null || TestVnasData.NavigationDb is null)
         {
@@ -55,13 +55,13 @@ public class OakUwFilletCornerTests(ITestOutputHelper output)
             engine.ReplayOneSecond();
         }
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine(route.ToSummary());
 
-        var corner = Assert.Single(route.Segments, s => s.FromNodeId == ArcEntryNode && s.ToNodeId == ArcExitNode);
+        TaxiRouteSegment corner = Assert.Single(route.Segments, s => s.FromNodeId == ArcEntryNode && s.ToNodeId == ArcExitNode);
         Assert.IsType<GroundArc>(corner.Edge.Edge);
         Assert.DoesNotContain(route.Segments, s => s.ToNodeId == JunctionCentreNode);
         RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, Callsign);
@@ -73,7 +73,7 @@ public class OakUwFilletCornerTests(ITestOutputHelper output)
         {
             engine.ReplayOneSecond();
             recorder.Record(t);
-            var current = aircraft.Ground.AssignedTaxiRoute;
+            TaxiRoute? current = aircraft.Ground.AssignedTaxiRoute;
             int arcIndex = current?.Segments.FindIndex(s => s.FromNodeId == ArcEntryNode && s.ToNodeId == ArcExitNode) ?? -1;
             if (current is null || arcIndex < 0)
             {

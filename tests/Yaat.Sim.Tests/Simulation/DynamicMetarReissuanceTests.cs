@@ -53,10 +53,10 @@ public class DynamicMetarReissuanceTests
     {
         RecordedAction action = new RecordedWeatherChange(42.0, StaticWeatherJson, reconstructMetars);
 
-        var json = JsonSerializer.Serialize(action, RecordingJsonOptions.Default);
-        var restored = JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default);
+        string json = JsonSerializer.Serialize(action, RecordingJsonOptions.Default);
+        RecordedAction? restored = JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default);
 
-        var weather = Assert.IsType<RecordedWeatherChange>(restored);
+        RecordedWeatherChange weather = Assert.IsType<RecordedWeatherChange>(restored);
         Assert.Equal(42.0, weather.ElapsedSeconds);
         Assert.Equal(StaticWeatherJson, weather.WeatherJson);
         Assert.Equal(reconstructMetars, weather.ReconstructMetars);
@@ -68,9 +68,9 @@ public class DynamicMetarReissuanceTests
         // A recording written before ReconstructMetars existed: the property is simply absent.
         const string legacyJson = """{"$type":"WeatherChange","ElapsedSeconds":7,"WeatherJson":"X"}""";
 
-        var restored = JsonSerializer.Deserialize<RecordedAction>(legacyJson, RecordingJsonOptions.Default);
+        RecordedAction? restored = JsonSerializer.Deserialize<RecordedAction>(legacyJson, RecordingJsonOptions.Default);
 
-        var weather = Assert.IsType<RecordedWeatherChange>(restored);
+        RecordedWeatherChange weather = Assert.IsType<RecordedWeatherChange>(restored);
         Assert.Equal(7.0, weather.ElapsedSeconds);
         Assert.False(weather.ReconstructMetars);
     }
@@ -80,10 +80,10 @@ public class DynamicMetarReissuanceTests
     [Fact]
     public void ScenarioSnapshot_RoundTrips_IntentAndSource()
     {
-        var snapshot = BuildSnapshot(metarReissuanceEnabled: true, weatherSourceJson: TimelineJson());
+        StateSnapshotDto snapshot = BuildSnapshot(metarReissuanceEnabled: true, weatherSourceJson: TimelineJson());
 
-        var json = JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default);
-        var restored = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+        string json = JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default);
+        StateSnapshotDto restored = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
 
         Assert.True(restored.Scenario.MetarReissuanceEnabled);
         Assert.Equal(TimelineJson(), restored.Scenario.WeatherSourceJson);
@@ -92,7 +92,7 @@ public class DynamicMetarReissuanceTests
     [Fact]
     public void ScenarioSnapshot_LegacyV10_MigratesToCurrent_WithDefaults()
     {
-        var snapshot = BuildSnapshot(metarReissuanceEnabled: false, weatherSourceJson: null);
+        StateSnapshotDto snapshot = BuildSnapshot(metarReissuanceEnabled: false, weatherSourceJson: null);
         snapshot.SchemaVersion = 10;
 
         SnapshotSchemaMigrator.Migrate(snapshot);
@@ -107,8 +107,8 @@ public class DynamicMetarReissuanceTests
     [Fact]
     public void RestoreFromSnapshot_TimelineSource_RebuildsTimeline_AndIntent()
     {
-        var engine = NewEngineWithScenario();
-        var snapshot = BuildSnapshot(metarReissuanceEnabled: true, weatherSourceJson: TimelineJson());
+        SimulationEngine engine = NewEngineWithScenario();
+        StateSnapshotDto snapshot = BuildSnapshot(metarReissuanceEnabled: true, weatherSourceJson: TimelineJson());
 
         engine.RestoreFromSnapshot(snapshot);
 
@@ -120,8 +120,8 @@ public class DynamicMetarReissuanceTests
     [Fact]
     public void RestoreFromSnapshot_StaticSource_LeavesTimelineNull()
     {
-        var engine = NewEngineWithScenario();
-        var snapshot = BuildSnapshot(metarReissuanceEnabled: true, weatherSourceJson: StaticWeatherJson);
+        SimulationEngine engine = NewEngineWithScenario();
+        StateSnapshotDto snapshot = BuildSnapshot(metarReissuanceEnabled: true, weatherSourceJson: StaticWeatherJson);
 
         engine.RestoreFromSnapshot(snapshot);
 
@@ -132,7 +132,7 @@ public class DynamicMetarReissuanceTests
     [Fact]
     public void RestoreFromSnapshot_NoSource_ClearsTimeline()
     {
-        var engine = NewEngineWithScenario();
+        SimulationEngine engine = NewEngineWithScenario();
         // Pre-seed a timeline to prove restore clears it when the snapshot has no source.
         engine.Scenario!.WeatherTimeline = WeatherTimelineParser.Parse(TimelineJson()).Timeline;
 
@@ -161,7 +161,7 @@ public class DynamicMetarReissuanceTests
             ScenarioId = "t",
         };
 
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
 
@@ -186,7 +186,7 @@ public class DynamicMetarReissuanceTests
             ScenarioId = "t",
         };
 
-        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+        byte[] bytes = RecordingArchiveWriter.WriteToBytes(recording);
         using var ms = new MemoryStream(bytes);
         using var archive = RecordingArchive.Open(ms);
 

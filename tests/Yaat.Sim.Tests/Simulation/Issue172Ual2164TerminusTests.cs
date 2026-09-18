@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -39,16 +40,16 @@ public class Issue172Ual2164TerminusTests(ITestOutputHelper output)
     [Fact]
     public void TaxiGB_StopsAtGbIntersection_ThenTurnsOntoB()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
-        var gbJunction = layout.FindIntersectionNode("G", "B");
+        GroundNode? gbJunction = layout.FindIntersectionNode("G", "B");
         Assert.NotNull(gbJunction);
 
         // Pin the recorded G exit right after LandingPhase becomes current (t=2085): with the
@@ -57,22 +58,22 @@ public class Issue172Ual2164TerminusTests(ITestOutputHelper output)
         // rule, which needs the recording's on-G premise. Then replay to just before TAXI G B
         // (t=2141) and issue it with the current pathfinder.
         engine.Replay(recording, 2090);
-        var pin = engine.SendCommand("UAL2164", "ER G");
+        CommandResult pin = engine.SendCommand("UAL2164", "ER G");
         Assert.True(pin.Success, pin.Message);
         for (int t = 2091; t <= 2140; t++)
         {
             engine.ReplayOneSecond();
         }
 
-        var aircraft = engine.FindAircraft("UAL2164");
+        AircraftState? aircraft = engine.FindAircraft("UAL2164");
         Assert.NotNull(aircraft);
         Assert.Equal("G", aircraft.Ground.CurrentTaxiway);
 
-        var result = engine.SendCommand("UAL2164", "TAXI G B");
+        CommandResult result = engine.SendCommand("UAL2164", "TAXI G B");
         output.WriteLine($"TAXI G B: success={result.Success} msg={result.Message}");
         Assert.True(result.Success, result.Message);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         // Stops at the G/B intersection and does not commit a direction along B.
@@ -80,11 +81,11 @@ public class Issue172Ual2164TerminusTests(ITestOutputHelper output)
         Assert.DoesNotContain(route.Segments, s => s.TaxiwayName.Equals("B", StringComparison.OrdinalIgnoreCase));
 
         // A follow-up taxi off the junction turns it onto B (the recorded controller's recovery).
-        var followUp = engine.SendCommand("UAL2164", "TAXI B Q A @F11");
+        CommandResult followUp = engine.SendCommand("UAL2164", "TAXI B Q A @F11");
         output.WriteLine($"TAXI B Q A @F11: success={followUp.Success} msg={followUp.Message}");
         Assert.True(followUp.Success, followUp.Message);
 
-        var route2 = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route2 = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route2);
         Assert.Contains(route2.Segments, s => s.TaxiwayName.Equals("B", StringComparison.OrdinalIgnoreCase));
     }

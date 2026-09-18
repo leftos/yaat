@@ -187,7 +187,7 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         }
 
         SetHoldingTargets(ctx);
-        var current = ctx.Aircraft.TrueHeading;
+        TrueHeading current = ctx.Aircraft.TrueHeading;
         double delta = _lastHeading.SignedAngleTo(current);
         _cumulativeTurn += Math.Abs(delta);
         _lastHeading = current;
@@ -243,7 +243,7 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         if (ctx.Targets.AssignedMagneticHeading is null && ctx.Targets.NavigationRoute.Count == 0)
         {
             ctx.Targets.NavigationRoute.Clear();
-            foreach (var target in _originalRoute)
+            foreach (NavigationTarget target in _originalRoute)
             {
                 ctx.Targets.NavigationRoute.Add(CloneNavigationTarget(target));
             }

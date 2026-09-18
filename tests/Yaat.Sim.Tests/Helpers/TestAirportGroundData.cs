@@ -38,11 +38,11 @@ internal sealed class TestAirportGroundData : IAirportGroundData
     public AirportGroundLayout? GetLayout(string airportId)
     {
         string shortId = NormalizeShortId(airportId);
-        var key = (_filletMode, shortId);
+        (FilletMode _filletMode, string shortId) key = (_filletMode, shortId);
 
         lock (CacheLock)
         {
-            if (Cache.TryGetValue(key, out var cached))
+            if (Cache.TryGetValue(key, out AirportGroundLayout? cached))
             {
                 return cached;
             }

@@ -18,11 +18,11 @@ public static class CommandRegistry
     }
 
     public static IReadOnlyList<string> AliasesFor(CanonicalCommandType type) =>
-        All.TryGetValue(type, out var def) ? def.DefaultAliases : Array.Empty<string>();
+        All.TryGetValue(type, out CommandDefinition? def) ? def.DefaultAliases : Array.Empty<string>();
 
     public static bool IsAliasFor(CanonicalCommandType type, string token)
     {
-        foreach (var alias in AliasesFor(type))
+        foreach (string alias in AliasesFor(type))
         {
             if (string.Equals(alias, token, StringComparison.OrdinalIgnoreCase))
             {
@@ -47,19 +47,19 @@ public static class CommandRegistry
     /// </summary>
     public static string RenderSignature(CanonicalCommandType type)
     {
-        if (!All.TryGetValue(type, out var def))
+        if (!All.TryGetValue(type, out CommandDefinition? def))
         {
             return type.ToString().ToUpperInvariant();
         }
 
-        var verb = def.DefaultAliases.Length > 0 ? def.DefaultAliases[0] : def.Type.ToString().ToUpperInvariant();
+        string verb = def.DefaultAliases.Length > 0 ? def.DefaultAliases[0] : def.Type.ToString().ToUpperInvariant();
         if (def.Overloads.Length == 0)
         {
             return verb;
         }
 
         var rendered = new List<string>(def.Overloads.Length);
-        foreach (var overload in def.Overloads)
+        foreach (CommandOverload overload in def.Overloads)
         {
             rendered.Add(RenderOverload(verb, overload));
         }
@@ -75,7 +75,7 @@ public static class CommandRegistry
         }
 
         var parts = new List<string>(overload.Parameters.Length + 1) { verb };
-        foreach (var param in overload.Parameters)
+        foreach (CommandParameter param in overload.Parameters)
         {
             if (param.IsLiteral)
             {
@@ -83,7 +83,7 @@ public static class CommandRegistry
                 continue;
             }
 
-            var name = param.Repeatable ? $"{param.Name}..." : param.Name;
+            string name = param.Repeatable ? $"{param.Name}..." : param.Name;
             parts.Add(param.IsOptional ? $"[<{name}>]" : $"<{name}>");
         }
 
@@ -100,7 +100,7 @@ public static class CommandRegistry
     private static HashSet<string> BuildSingleArgAliases()
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var def in All.Values)
+        foreach (CommandDefinition def in All.Values)
         {
             if (def.Overloads.Length == 0)
             {
@@ -117,7 +117,7 @@ public static class CommandRegistry
                 continue;
             }
 
-            foreach (var alias in def.DefaultAliases)
+            foreach (string alias in def.DefaultAliases)
             {
                 result.Add(alias);
             }
@@ -129,9 +129,9 @@ public static class CommandRegistry
     private static Dictionary<string, CanonicalCommandType> BuildAliasToCanonicType()
     {
         var result = new Dictionary<string, CanonicalCommandType>(StringComparer.OrdinalIgnoreCase);
-        foreach (var def in All.Values)
+        foreach (CommandDefinition def in All.Values)
         {
-            foreach (var alias in def.DefaultAliases)
+            foreach (string alias in def.DefaultAliases)
             {
                 result.TryAdd(alias, def.Type);
             }

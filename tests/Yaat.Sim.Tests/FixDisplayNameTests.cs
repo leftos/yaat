@@ -87,10 +87,10 @@ public class FixDisplayNameTests
     [Fact]
     public void CrossFixResponse_NamedFix_ShowsFriendlyName()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         var cmd = new CrossFixCommand("VPCBT", 37.7197, -122.1064, 3000, CrossFixAltitudeType.At, null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("LAKE CHABOT (VPCBT)", result.Message);
@@ -99,10 +99,10 @@ public class FixDisplayNameTests
     [Fact]
     public void CrossFixResponse_PhoneticOnlyFix_StaysBareId_NoPhoneticLeak()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         var cmd = new CrossFixCommand("SYRAH", 37.8, -121.9, 5000, CrossFixAltitudeType.At, null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("SYRAH", result.Message);
@@ -113,10 +113,10 @@ public class FixDisplayNameTests
     [Fact]
     public void DirectToResponse_NamedFix_ShowsFriendlyName()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         var cmd = new DirectToCommand([new ResolvedFix("VPCBT", 37.7197, -122.1064)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("LAKE CHABOT (VPCBT)", result.Message);
@@ -129,7 +129,7 @@ public class FixDisplayNameTests
     {
         var cmd = new DirectToCommand([new ResolvedFix("VPCBT", 37.7197, -122.1064)], []);
 
-        var terminal = PhraseologyVerbalizer.VerbalizeTerminal(cmd);
+        string? terminal = PhraseologyVerbalizer.VerbalizeTerminal(cmd);
 
         Assert.NotNull(terminal);
         Assert.Contains("Lake Chabot (VPCBT)", terminal);
@@ -140,7 +140,7 @@ public class FixDisplayNameTests
     [Fact]
     public void AtFixCondition_Terminal_ShowsFriendlyName()
     {
-        var lead = PilotResponder.FormatConditionTerminal(new AtFixCondition("VPCBT", 37.7197, -122.1064));
+        string? lead = PilotResponder.FormatConditionTerminal(new AtFixCondition("VPCBT", 37.7197, -122.1064));
 
         Assert.Equal("at Lake Chabot (VPCBT),", lead);
     }
@@ -148,7 +148,7 @@ public class FixDisplayNameTests
     [Fact]
     public void AtFixCondition_Spoken_SpeaksFriendlyName()
     {
-        var lead = PilotResponder.FormatCondition(new AtFixCondition("VPCBT", 37.7197, -122.1064));
+        string? lead = PilotResponder.FormatCondition(new AtFixCondition("VPCBT", 37.7197, -122.1064));
 
         Assert.Equal("at Lake Chabot,", lead);
     }

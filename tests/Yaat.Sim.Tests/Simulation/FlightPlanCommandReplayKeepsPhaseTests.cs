@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -38,7 +39,7 @@ public class FlightPlanCommandReplayKeepsPhaseTests(ITestOutputHelper output)
             return;
         }
 
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -48,10 +49,10 @@ public class FlightPlanCommandReplayKeepsPhaseTests(ITestOutputHelper output)
         {
             SimLogBuilder.CreateForTest(output).InitializeSimLog();
             var engine = new SimulationEngine(new TestAirportGroundData());
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 output.WriteLine($"No snapshot near t={RestoreAtSeconds} — skipping");
@@ -61,17 +62,17 @@ public class FlightPlanCommandReplayKeepsPhaseTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             int t0 = (int)snapshot.ElapsedSeconds;
 
-            var pre = engine.FindAircraft(Callsign);
+            AircraftState? pre = engine.FindAircraft(Callsign);
             Assert.NotNull(pre);
             Assert.IsType<VfrHoldPhase>(pre.Phases?.CurrentPhase);
-            var holdPosition = pre.Position;
+            LatLon holdPosition = pre.Position;
 
             for (int t = t0 + 1; t <= ReplayStopSeconds; t++)
             {
                 engine.ReplayOneSecond();
             }
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
             double movedNm = GeoMath.DistanceNm(holdPosition, ac.Position);
             output.WriteLine(

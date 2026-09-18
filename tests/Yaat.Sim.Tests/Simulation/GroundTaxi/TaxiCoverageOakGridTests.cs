@@ -36,19 +36,19 @@ public class TaxiCoverageOakGridTests(ITestOutputHelper output)
     public static IEnumerable<object[]> AllParkingToRunways()
     {
         TestVnasData.EnsureInitialized();
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             yield break;
         }
 
-        foreach (var parking in layout.Nodes.Values.Where(n => n.Type == GroundNodeType.Parking).OrderBy(n => n.Id))
+        foreach (GroundNode? parking in layout.Nodes.Values.Where(n => n.Type == GroundNodeType.Parking).OrderBy(n => n.Id))
         {
             if (parking.Name is null)
             {
                 continue;
             }
-            foreach (var runway in DepartureRunways)
+            foreach (string runway in DepartureRunways)
             {
                 var pair = new TaxiPair(
                     PairId: $"OAK_{parking.Name}-to-{runway}_piston",
@@ -78,10 +78,10 @@ public class TaxiCoverageOakGridTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout(pair.AirportId);
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(pair.AirportId);
         Assert.NotNull(layout);
 
-        var destination = TaxiCoverageRunner.ResolveNode(
+        GroundNode? destination = TaxiCoverageRunner.ResolveNode(
             layout,
             pair.DestinationName,
             pair.DestinationKind,
@@ -94,7 +94,7 @@ public class TaxiCoverageOakGridTests(ITestOutputHelper output)
             return;
         }
 
-        var origin = TaxiCoverageRunner.ResolveNode(
+        GroundNode? origin = TaxiCoverageRunner.ResolveNode(
             layout,
             pair.OriginName,
             pair.OriginKind,
@@ -123,7 +123,7 @@ public class TaxiCoverageOakGridTests(ITestOutputHelper output)
         // Grid tests run quietly: a few hundred cases per airport, mostly
         // green. Per-case GroundCommandHandler info noise would balloon the
         // CI log. Restrict to Warning so genuine failures still surface.
-        var logBuilder = SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Warning);
+        SimLogBuilder logBuilder = SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Warning);
         // When YAAT_TAXI_TICK_RECORD is set (see TaxiCoverageRunner), also
         // enable navigator/phase debug logging so the captured run includes
         // internal navigator transitions for diagnosis.

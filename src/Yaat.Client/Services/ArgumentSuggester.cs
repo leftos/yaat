@@ -2,6 +2,9 @@ using System.Collections.ObjectModel;
 using Yaat.Client.Models;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.MilitaryRoutes;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Client.Services;
 
@@ -94,9 +97,9 @@ internal static class ArgumentSuggester
         int maxSuggestions
     )
     {
-        var def = parsed.Definition!;
-        var paramIndex = parsed.ParameterIndex;
-        var partial = fullText[parsed.ActiveTokenStart..parsed.CaretIndex];
+        CommandDefinition def = parsed.Definition!;
+        int paramIndex = parsed.ParameterIndex;
+        string partial = fullText[parsed.ActiveTokenStart..parsed.CaretIndex];
 
         // CVA has a custom parser path (LEFT|RIGHT|FOLLOW <cs>) that isn't declared via
         // Overloads or CompoundModifiers, so we handle its callsign flyout here.
@@ -144,7 +147,7 @@ internal static class ArgumentSuggester
         // `HS` in `TAXI A HS `), the modifier's own ArgHint decides the value suggestions — the
         // overload's clamped trailing parameter no longer applies once the parser has switched
         // modes (`CROSS 28R HS ` wants taxiway/runway targets, not more crossing runways).
-        var activeModifier = FindActiveModifier(def, parsed);
+        CompoundModifier? activeModifier = FindActiveModifier(def, parsed);
         if (activeModifier is { ArgHint: { } modifierHint })
         {
             hasRunway = IsRunwayHint(modifierHint);
@@ -153,7 +156,7 @@ internal static class ArgumentSuggester
         }
         else
         {
-            foreach (var overload in def.Overloads)
+            foreach (CommandOverload overload in def.Overloads)
             {
                 int effectiveIndex = paramIndex;
                 if (effectiveIndex >= overload.Parameters.Length)
@@ -174,7 +177,7 @@ internal static class ArgumentSuggester
                     continue;
                 }
 
-                var param = overload.Parameters[effectiveIndex];
+                CommandParameter param = overload.Parameters[effectiveIndex];
                 if (param.IsLiteral)
                 {
                     hasLiterals = true;
@@ -321,13 +324,13 @@ internal static class ArgumentSuggester
     {
         for (int i = 0; i < paramIndex && i < overload.Parameters.Length; i++)
         {
-            var param = overload.Parameters[i];
+            CommandParameter param = overload.Parameters[i];
             if (!param.IsLiteral)
             {
                 continue;
             }
 
-            var wordIndex = verbIndex + 1 + i;
+            int wordIndex = verbIndex + 1 + i;
             if (wordIndex >= words.Length)
             {
                 return false;
@@ -351,11 +354,11 @@ internal static class ArgumentSuggester
         int maxSuggestions
     )
     {
-        var paramIndex = parsed.ParameterIndex;
+        int paramIndex = parsed.ParameterIndex;
         // Track which literal values we've already added to avoid duplicates
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var overload in def.Overloads)
+        foreach (CommandOverload overload in def.Overloads)
         {
             if (suggestions.Count >= maxSuggestions)
             {
@@ -372,7 +375,7 @@ internal static class ArgumentSuggester
                 continue;
             }
 
-            var param = overload.Parameters[paramIndex];
+            CommandParameter param = overload.Parameters[paramIndex];
             if (!param.IsLiteral)
             {
                 continue;
@@ -383,7 +386,7 @@ internal static class ArgumentSuggester
                 continue;
             }
 
-            var description = overload.UsageHint ?? overload.VariantLabel ?? "";
+            string description = overload.UsageHint ?? overload.VariantLabel ?? "";
             AddOption(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, param.Name, description, partial, suggestions, maxSuggestions);
         }
     }
@@ -409,7 +412,7 @@ internal static class ArgumentSuggester
             typedModifiers.Add(parsed.Tokens[i]);
         }
 
-        foreach (var mod in def.CompoundModifiers!)
+        foreach (CompoundModifier mod in def.CompoundModifiers!)
         {
             if (suggestions.Count >= maxSuggestions)
             {
@@ -422,7 +425,7 @@ internal static class ArgumentSuggester
                 continue;
             }
 
-            var description = mod.ArgHint is not null ? $"+ {mod.ArgHint}" : "modifier";
+            string description = mod.ArgHint is not null ? $"+ {mod.ArgHint}" : "modifier";
             AddOption(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, mod.Keyword, description, partial, suggestions, maxSuggestions);
         }
     }
@@ -479,7 +482,7 @@ internal static class ArgumentSuggester
         int maxSuggestions
     )
     {
-        var def = parsed.Definition!;
+        CommandDefinition def = parsed.Definition!;
         if (FindSigilModifier(def, slot.Partial) is not { } modifier)
         {
             return false;
@@ -515,7 +518,7 @@ internal static class ArgumentSuggester
         int argTokensSinceKeyword = 0;
         for (int i = parsed.VerbIndex + 1; i < parsed.ActiveTokenIndex && i < parsed.Tokens.Length; i++)
         {
-            var keywordMatch = modifiers.FirstOrDefault(m =>
+            CompoundModifier? keywordMatch = modifiers.FirstOrDefault(m =>
                 (m.ArgHint is not null) && string.Equals(m.Keyword, parsed.Tokens[i], StringComparison.OrdinalIgnoreCase)
             );
             if (keywordMatch is not null)
@@ -578,13 +581,13 @@ internal static class ArgumentSuggester
         int maxSuggestions
     )
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var candidates = new List<string>();
 
-        foreach (var token in (targetAircraft?.Route ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        foreach (string token in (targetAircraft?.Route ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
-            var name = token.Split('.')[^1];
+            string name = token.Split('.')[^1];
             if (navDb.IsAirway(name) && seen.Add(name))
             {
                 candidates.Add(name);
@@ -593,7 +596,7 @@ internal static class ArgumentSuggester
 
         if (partial.Length >= 2)
         {
-            foreach (var id in navDb.AirwayIds)
+            foreach (string id in navDb.AirwayIds)
             {
                 if (id.StartsWith(partial, StringComparison.OrdinalIgnoreCase) && seen.Add(id))
                 {
@@ -603,7 +606,7 @@ internal static class ArgumentSuggester
         }
 
         candidates.Sort(StringComparer.OrdinalIgnoreCase);
-        foreach (var id in candidates)
+        foreach (string id in candidates)
         {
             if (suggestions.Count >= maxSuggestions)
             {
@@ -615,9 +618,9 @@ internal static class ArgumentSuggester
                 continue;
             }
 
-            var route = navDb.GetMilitaryRoute(id);
-            var description = route is null ? "Airway" : $"Military training route ({route.Type.ToString().ToUpperInvariant()})";
-            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, id);
+            MilitaryRoute? route = navDb.GetMilitaryRoute(id);
+            string description = route is null ? "Airway" : $"Military training route ({route.Type.ToString().ToUpperInvariant()})";
+            (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, id);
             suggestions.Add(
                 new SuggestionItem
                 {
@@ -642,7 +645,7 @@ internal static class ArgumentSuggester
     {
         (string Value, string Description)[] legs = [("UPWIND", "Upwind leg"), ("CROSSWIND", "Crosswind leg"), ("DOWNWIND", "Downwind leg")];
 
-        foreach (var (value, description) in legs)
+        foreach ((string? value, string? description) in legs)
         {
             if (suggestions.Count >= maxSuggestions)
             {
@@ -654,7 +657,7 @@ internal static class ArgumentSuggester
                 continue;
             }
 
-            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
+            (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
             suggestions.Add(
                 new SuggestionItem
                 {
@@ -678,7 +681,7 @@ internal static class ArgumentSuggester
         int maxSuggestions
     )
     {
-        foreach (var ac in aircraft)
+        foreach (AircraftModel ac in aircraft)
         {
             if (suggestions.Count >= maxSuggestions)
             {
@@ -690,8 +693,8 @@ internal static class ArgumentSuggester
                 continue;
             }
 
-            var desc = $"{ac.FiledAircraftType} {ac.Departure}-{ac.Destination}".Trim();
-            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, ac.Callsign);
+            string desc = $"{ac.FiledAircraftType} {ac.Departure}-{ac.Destination}".Trim();
+            (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, ac.Callsign);
             suggestions.Add(
                 new SuggestionItem
                 {
@@ -720,12 +723,12 @@ internal static class ArgumentSuggester
             return;
         }
 
-        var runways = NavigationDatabase.Instance.GetRunways(primaryAirportId);
-        foreach (var rwy in runways)
+        IReadOnlyList<RunwayInfo> runways = NavigationDatabase.Instance.GetRunways(primaryAirportId);
+        foreach (RunwayInfo rwy in runways)
         {
             string[] designators = rwy.Id.End1.Equals(rwy.Id.End2, StringComparison.OrdinalIgnoreCase) ? [rwy.Id.End1] : [rwy.Id.End1, rwy.Id.End2];
 
-            foreach (var designator in designators)
+            foreach (string designator in designators)
             {
                 if (suggestions.Count >= maxSuggestions)
                 {
@@ -737,7 +740,12 @@ internal static class ArgumentSuggester
                     continue;
                 }
 
-                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, designator);
+                (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(
+                    fullText,
+                    activeTokenStart,
+                    activeTokenEnd,
+                    designator
+                );
                 suggestions.Add(
                     new SuggestionItem
                     {
@@ -769,7 +777,7 @@ internal static class ArgumentSuggester
     {
         bool hasSigil = (flavor.Sigil.Length > 0) && slot.Partial.StartsWith(flavor.Sigil, StringComparison.Ordinal);
         string namePartial = hasSigil ? slot.Partial[flavor.Sigil.Length..] : slot.Partial;
-        foreach (var name in names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+        foreach (string? name in names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
         {
             if (suggestions.Count >= maxSuggestions)
             {
@@ -782,7 +790,7 @@ internal static class ArgumentSuggester
             }
 
             string token = flavor.Sigil + name;
-            var (insertText, caret) = CommandInputController.BuildTokenReplacement(slot.FullText, slot.Start, slot.End, token);
+            (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(slot.FullText, slot.Start, slot.End, token);
             suggestions.Add(
                 new SuggestionItem
                 {
@@ -811,9 +819,9 @@ internal static class ArgumentSuggester
             return;
         }
 
-        var approaches = NavigationDatabase.Instance.GetApproaches(targetAircraft.Destination);
+        IReadOnlyList<CifpApproachProcedure> approaches = NavigationDatabase.Instance.GetApproaches(targetAircraft.Destination);
         string normalizedPartial = NavigationDatabase.NormalizeApproachShorthand(partial);
-        foreach (var approach in approaches)
+        foreach (CifpApproachProcedure approach in approaches)
         {
             if (suggestions.Count >= maxSuggestions)
             {
@@ -829,7 +837,12 @@ internal static class ArgumentSuggester
                 continue;
             }
 
-            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, approach.ApproachId);
+            (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(
+                fullText,
+                activeTokenStart,
+                activeTokenEnd,
+                approach.ApproachId
+            );
             suggestions.Add(
                 new SuggestionItem
                 {
@@ -864,7 +877,7 @@ internal static class ArgumentSuggester
             return;
         }
 
-        var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
+        (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
         suggestions.Add(
             new SuggestionItem
             {

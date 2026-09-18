@@ -70,22 +70,22 @@ public class FollowPatternTerminalLeadFlowAheadTests
         Func<string, AircraftState?> Lookup
     ) BuildDownwindFollower()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         Assert.NotNull(navDb);
 
-        var rwy = navDb.GetRunway("KOAK", "28R");
+        RunwayInfo? rwy = navDb.GetRunway("KOAK", "28R");
         Assert.NotNull(rwy);
 
-        var allRunways = navDb.GetRunways("KOAK");
+        IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, Dir, null, null, allRunways, authoredRunway: null);
 
         Func<string, AircraftState?> lookup = _ => null;
 
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
-        var followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 1.0);
-        var follower = Make(FollowerCallsign, "C172", followerPos, wp.DownwindHeading, wp.PatternAltitude, 90);
-        var followerCircuit = PatternBuilder.BuildCircuit(
+        LatLon followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 1.0);
+        AircraftState follower = Make(FollowerCallsign, "C172", followerPos, wp.DownwindHeading, wp.PatternAltitude, 90);
+        List<Phase> followerCircuit = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Piston,
             "",
@@ -105,7 +105,7 @@ public class FollowPatternTerminalLeadFlowAheadTests
             TrafficDirection = Dir,
             PatternRunway = rwy,
         };
-        foreach (var p in followerCircuit)
+        foreach (Phase p in followerCircuit)
         {
             follower.Phases.Add(p);
         }
@@ -125,7 +125,7 @@ public class FollowPatternTerminalLeadFlowAheadTests
     )
     {
         var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
-        var lead = Make(LeadCallsign, aircraftType, threshold, wp.FinalHeading, rwy.ElevationFt + 30, 20);
+        AircraftState lead = Make(LeadCallsign, aircraftType, threshold, wp.FinalHeading, rwy.ElevationFt + 30, 20);
         lead.Phases = new PhaseList
         {
             AssignedRunway = rwy,
@@ -140,14 +140,14 @@ public class FollowPatternTerminalLeadFlowAheadTests
     [Fact]
     public void HelicopterLandingLead_StillAirborne_CountsAsFlowAhead()
     {
-        var (follower, rwy, wp, lookup) = BuildDownwindFollower();
+        (AircraftState? follower, RunwayInfo? rwy, PatternWaypoints? wp, Func<string, AircraftState?>? lookup) = BuildDownwindFollower();
 
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         Assert.NotNull(navDb);
-        var allRunways = navDb.GetRunways("KOAK");
+        IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
 
         // A real helicopter pattern terminates in HelicopterLandingPhase (not LandingPhase).
-        var heliCircuit = PatternBuilder.BuildCircuit(
+        List<Phase> heliCircuit = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Helicopter,
             "",
@@ -165,7 +165,7 @@ public class FollowPatternTerminalLeadFlowAheadTests
 
         // Lead: the helicopter is now on that terminal landing phase, still airborne over the
         // threshold on the hover-descent (IsOnGround only flips at agl <= 0).
-        var lead = BuildTerminalLead(new HelicopterLandingPhase(), "EC30", rwy, wp, lookup);
+        AircraftState lead = BuildTerminalLead(new HelicopterLandingPhase(), "EC30", rwy, wp, lookup);
         Assert.IsType<HelicopterLandingPhase>(lead.Phases!.CurrentPhase);
         Assert.False(lead.IsOnGround, "Helicopter is still airborne on the landing flare.");
 
@@ -183,7 +183,7 @@ public class FollowPatternTerminalLeadFlowAheadTests
     [InlineData("low-approach")]
     public void EveryPatternTerminalLead_CountsAsFlowAhead(string terminalName)
     {
-        var (follower, rwy, wp, lookup) = BuildDownwindFollower();
+        (AircraftState? follower, RunwayInfo? rwy, PatternWaypoints? wp, Func<string, AircraftState?>? lookup) = BuildDownwindFollower();
 
         Phase terminal = terminalName switch
         {
@@ -194,7 +194,7 @@ public class FollowPatternTerminalLeadFlowAheadTests
             _ => throw new ArgumentOutOfRangeException(nameof(terminalName), terminalName, "Unknown terminal"),
         };
 
-        var lead = BuildTerminalLead(terminal, "C172", rwy, wp, lookup);
+        AircraftState lead = BuildTerminalLead(terminal, "C172", rwy, wp, lookup);
 
         Assert.True(
             AirborneFollowHelper.IsLeadPatternFlowAhead(follower, lead),

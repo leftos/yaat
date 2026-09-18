@@ -23,7 +23,7 @@ public class UserPreferencesPinnedMarkersTests
         prefs.SetRadarSettings(scenario, new SavedRadarSettings { PinnedMarkers = ["SFO", "OAK270010"] });
 
         var reader = new UserPreferences();
-        var saved = reader.GetRadarSettings(scenario);
+        SavedRadarSettings? saved = reader.GetRadarSettings(scenario);
 
         Assert.NotNull(saved);
         Assert.Equal(["SFO", "OAK270010"], saved!.PinnedMarkers);

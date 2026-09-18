@@ -35,10 +35,10 @@ public sealed class DeferredDispatchRestoreTests
 
     private static DeferredDispatch DispatchAndTakeDeferral(string command, AircraftState aircraft)
     {
-        var parsed = CommandParser.ParseCompound(command);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success, result.Message);
 
         return Assert.Single(aircraft.DeferredDispatches);
@@ -47,7 +47,7 @@ public sealed class DeferredDispatchRestoreTests
     [Fact]
     public void RestoredWaitDeferral_KeepsTheStrippedPayload_SoItDoesNotRestartItsCountdown()
     {
-        var deferral = DispatchAndTakeDeferral("WAIT 120 FH 090", MakeAirborneAircraft());
+        DeferredDispatch deferral = DispatchAndTakeDeferral("WAIT 120 FH 090", MakeAirborneAircraft());
 
         // Precondition: the live payload has the WAIT gate stripped off, so this cannot pass vacuously.
         Assert.DoesNotContain(deferral.Payload.Blocks.SelectMany(b => b.Commands), c => c is WaitCommand);
@@ -64,7 +64,7 @@ public sealed class DeferredDispatchRestoreTests
     {
         const string SourceText = "BEHIND KLM605 TAXI A B";
 
-        var parsed = CommandParser.ParseCompound(SourceText);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(SourceText);
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
         // Precondition: the stored text really does carry the gate, which is what restore has to strip.
@@ -92,8 +92,8 @@ public sealed class DeferredDispatchRestoreTests
     [Fact]
     public void RestoredReactionDelay_KeepsItsWholePayload()
     {
-        var aircraft = MakeAirborneAircraft();
-        var parsed = CommandParser.ParseCompound("FH 090");
+        AircraftState aircraft = MakeAirborneAircraft();
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("FH 090");
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
         var deferral = new DeferredDispatch(5.0, parsed.Value!) { SourceText = "FH 090", IsReactionDelay = true };

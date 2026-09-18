@@ -16,17 +16,17 @@ public class LiveWeatherServiceTests
             ]
             """;
 
-        var metars = LiveWeatherService.ParseMetars(json);
+        List<LiveWeatherService.MetarJson>? metars = LiveWeatherService.ParseMetars(json);
 
         Assert.NotNull(metars);
         Assert.Equal(2, metars.Count);
 
-        var oak = metars[0];
+        LiveWeatherService.MetarJson oak = metars[0];
         Assert.Equal(270, oak.Wdir);
         Assert.Equal(8, oak.Wspd);
         Assert.StartsWith("METAR KOAK", oak.RawOb);
 
-        var lvk = metars[1];
+        LiveWeatherService.MetarJson lvk = metars[1];
         Assert.Null(lvk.Wdir);
         Assert.Equal(5, lvk.Wspd);
         Assert.StartsWith("METAR KLVK", lvk.RawOb);
@@ -43,7 +43,7 @@ public class LiveWeatherServiceTests
             ]
             """;
 
-        var metars = LiveWeatherService.ParseMetars(json);
+        List<LiveWeatherService.MetarJson>? metars = LiveWeatherService.ParseMetars(json);
 
         Assert.NotNull(metars);
         Assert.Equal(2, metars.Count);
@@ -58,10 +58,10 @@ public class LiveWeatherServiceTests
             [{"icaoId":"KCCR","wdir":"320","wspd":"7","rawOb":"METAR KCCR 081953Z 32007KT 10SM CLR 23/10 A2998"}]
             """;
 
-        var metars = LiveWeatherService.ParseMetars(json);
+        List<LiveWeatherService.MetarJson>? metars = LiveWeatherService.ParseMetars(json);
 
         Assert.NotNull(metars);
-        var ccr = Assert.Single(metars);
+        LiveWeatherService.MetarJson ccr = Assert.Single(metars);
         Assert.Equal(320, ccr.Wdir);
         Assert.Equal(7, ccr.Wspd);
     }
@@ -89,7 +89,7 @@ public class LiveWeatherServiceTests
     {
         // The VRB station's 6 kt joins the speed average; the direction average comes from
         // the directional stations alone.
-        var layer = LiveWeatherService.BuildSurfaceWindLayer(
+        WindLayer? layer = LiveWeatherService.BuildSurfaceWindLayer(
             [
                 Station("METAR KOAK 081953Z 27010KT 10SM CLR 21/12 A2999", 270, 10),
                 Station("METAR KLVK 081953Z VRB06KT 10SM CLR 24/09 A2997", null, 6),
@@ -106,7 +106,7 @@ public class LiveWeatherServiceTests
     [Fact]
     public void BuildSurfaceWindLayer_AllVrb_ProducesVariableLayer()
     {
-        var layer = LiveWeatherService.BuildSurfaceWindLayer(
+        WindLayer? layer = LiveWeatherService.BuildSurfaceWindLayer(
             [
                 Station("METAR KOAK 081953Z VRB04KT 10SM CLR 21/12 A2999", null, 4),
                 Station("METAR KLVK 081953Z VRB06KT 10SM CLR 24/09 A2997", null, 6),
@@ -123,7 +123,7 @@ public class LiveWeatherServiceTests
     public void BuildSurfaceWindLayer_GustsAndSpread_MinedFromRawText()
     {
         // 21015G25KT 180V240 → gusts 25, half-spread 30 on the assembled layer.
-        var layer = LiveWeatherService.BuildSurfaceWindLayer(
+        WindLayer? layer = LiveWeatherService.BuildSurfaceWindLayer(
             [Station("METAR KOAK 081953Z 21015G25KT 180V240 10SM CLR 21/12 A2999", 210, 15)],
             Reference
         );
@@ -140,7 +140,7 @@ public class LiveWeatherServiceTests
     [Fact]
     public void BuildSurfaceWindLayer_SteadyStations_NoSpuriousVariability()
     {
-        var layer = LiveWeatherService.BuildSurfaceWindLayer([Station("METAR KOAK 081953Z 27010KT 10SM CLR 21/12 A2999", 270, 10)], Reference);
+        WindLayer? layer = LiveWeatherService.BuildSurfaceWindLayer([Station("METAR KOAK 081953Z 27010KT 10SM CLR 21/12 A2999", 270, 10)], Reference);
 
         Assert.NotNull(layer);
         Assert.Null(layer.Gusts);

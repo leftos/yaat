@@ -47,16 +47,16 @@ internal sealed class SherpaSttEngine : IDisposable
 
         try
         {
-            var recognizer = EnsureLoaded();
+            OfflineRecognizer? recognizer = EnsureLoaded();
             if (recognizer is null)
             {
                 return null;
             }
 
-            using var stream = recognizer.CreateStream();
+            using OfflineStream stream = recognizer.CreateStream();
             stream.AcceptWaveform(sampleRate, samples);
             recognizer.Decode(stream);
-            var text = stream.Result.Text.Trim();
+            string text = stream.Result.Text.Trim();
             return text.Length == 0 ? null : text;
         }
         catch (Exception ex)
@@ -73,10 +73,10 @@ internal sealed class SherpaSttEngine : IDisposable
             return _recognizer;
         }
 
-        var encoder = FindModelFile("encoder");
-        var decoder = FindModelFile("decoder");
-        var joiner = FindModelFile("joiner");
-        var tokens = Path.Combine(_modelDir, "tokens.txt");
+        string encoder = FindModelFile("encoder");
+        string decoder = FindModelFile("decoder");
+        string joiner = FindModelFile("joiner");
+        string tokens = Path.Combine(_modelDir, "tokens.txt");
         if (!File.Exists(encoder) || !File.Exists(decoder) || !File.Exists(joiner) || !File.Exists(tokens))
         {
             Log.LogError("sherpa-onnx model dir {Dir} is missing encoder/decoder/joiner .onnx or tokens.txt", _modelDir);
@@ -101,7 +101,7 @@ internal sealed class SherpaSttEngine : IDisposable
     /// <summary>Prefers the int8-quantized file when both quantized and fp32 exports coexist.</summary>
     private string FindModelFile(string stem)
     {
-        var int8 = Path.Combine(_modelDir, $"{stem}.int8.onnx");
+        string int8 = Path.Combine(_modelDir, $"{stem}.int8.onnx");
         return File.Exists(int8) ? int8 : Path.Combine(_modelDir, $"{stem}.onnx");
     }
 

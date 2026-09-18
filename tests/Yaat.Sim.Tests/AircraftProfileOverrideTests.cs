@@ -82,7 +82,7 @@ public sealed class AircraftProfileOverrideTests
         // SF50 has no base profile and no sibling, so the override merges onto a synthesized jet
         // category baseline. groundAccelRate is not in the override → it comes from the baseline
         // (CategoryPerformance.GroundAccelRate(Jet) = 5).
-        var profile = AircraftProfileDatabase.Get("SF50");
+        AircraftProfile? profile = AircraftProfileDatabase.Get("SF50");
         Assert.NotNull(profile);
         Assert.Equal((double?)5, profile.GroundAccelRate);
 
@@ -125,7 +125,7 @@ public sealed class AircraftProfileOverrideTests
         };
         var ov = new AircraftProfileOverride { TypeCode = "TEST", ClimbSpeedInitial = 170 };
 
-        var (merged, fields) = ov.ApplyTo(baseProfile);
+        (AircraftProfile? merged, IReadOnlySet<string>? fields) = ov.ApplyTo(baseProfile);
 
         Assert.Equal(170, merged.ClimbSpeedInitial); // overridden
         Assert.Equal(140, merged.FinalApproachSpeed); // untouched
@@ -143,7 +143,7 @@ public sealed class AircraftProfileOverrideTests
         var baseProfile = new AircraftProfile { TypeCode = "TEST", ClimbSpeedFinal = 0.78 };
         var ov = new AircraftProfileOverride { TypeCode = "TEST", ClimbSpeedFinal = 0 };
 
-        var (merged, fields) = ov.ApplyTo(baseProfile);
+        (AircraftProfile? merged, IReadOnlySet<string>? fields) = ov.ApplyTo(baseProfile);
 
         Assert.Equal(0, merged.ClimbSpeedFinal);
         Assert.Contains(nameof(AircraftProfile.ClimbSpeedFinal), fields);
@@ -154,13 +154,13 @@ public sealed class AircraftProfileOverrideTests
     [Fact]
     public void OverridesJson_LoadsAndIsSane()
     {
-        var path = System.IO.Path.Combine(System.AppContext.BaseDirectory, "Data", "AircraftProfileOverrides.json");
+        string path = System.IO.Path.Combine(System.AppContext.BaseDirectory, "Data", "AircraftProfileOverrides.json");
         Assert.True(System.IO.File.Exists(path), "AircraftProfileOverrides.json must be copied to the build output");
 
-        var overrides = AircraftProfileDatabase.LoadOverridesFromFile(path);
+        IReadOnlyList<AircraftProfileOverride> overrides = AircraftProfileDatabase.LoadOverridesFromFile(path);
         Assert.NotEmpty(overrides);
 
-        foreach (var ov in overrides)
+        foreach (AircraftProfileOverride ov in overrides)
         {
             Assert.False(string.IsNullOrWhiteSpace(ov.TypeCode), "every override needs a typeCode");
             Assert.NotNull(AircraftProfileDatabase.Get(ov.TypeCode));

@@ -15,7 +15,7 @@ internal static class AutoClearedToLandSync
 {
     internal static void ApplyToAircraft(IEnumerable<AircraftModel> aircraft, bool value)
     {
-        foreach (var ac in aircraft)
+        foreach (AircraftModel ac in aircraft)
         {
             ac.IsAutoClearedToLand = value;
         }

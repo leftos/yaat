@@ -57,8 +57,8 @@ public class Issue316SfoCrossWhileLuawTests(ITestOutputHelper output)
     /// </summary>
     private static double DistanceFromRunwayCenterlineFt(AircraftState aircraft, GroundRunway runway)
     {
-        var start = runway.Coordinates[0];
-        var end = runway.Coordinates[^1];
+        (double Lat, double Lon) start = runway.Coordinates[0];
+        (double Lat, double Lon) end = runway.Coordinates[^1];
         var heading = new TrueHeading(GeoMath.BearingTo(start.Lat, start.Lon, end.Lat, end.Lon));
         double crossTrackNm = GeoMath.SignedCrossTrackDistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, start.Lat, start.Lon, heading);
         return Math.Abs(crossTrackNm) * GeoMath.FeetPerNm;
@@ -67,8 +67,8 @@ public class Issue316SfoCrossWhileLuawTests(ITestOutputHelper output)
     [Fact]
     public void Skw5237_ReroutedToTheOtherParallel_HoldsShortOfTheOccupiedRunway()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -79,28 +79,28 @@ public class Issue316SfoCrossWhileLuawTests(ITestOutputHelper output)
         // that reaches the buggy moment exactly as the controller saw it.
         engine.Replay(recording, RerouteSeconds);
 
-        var aircraft = engine.FindAircraft("SKW5237");
+        AircraftState? aircraft = engine.FindAircraft("SKW5237");
         Assert.NotNull(aircraft);
 
-        var layout = aircraft.Ground.Layout;
+        AirportGroundLayout? layout = aircraft.Ground.Layout;
         Assert.NotNull(layout);
-        var runway28L = layout.FindRunway("28L");
+        GroundRunway? runway28L = layout.FindRunway("28L");
         Assert.NotNull(runway28L);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine($"t={RerouteSeconds}: route={route.ToSummary()}");
-        foreach (var point in route.HoldShortPoints)
+        foreach (HoldShortPoint point in route.HoldShortPoints)
         {
             output.WriteLine($"  hold-short #{point.NodeId} {point.TargetName} {point.Reason} cleared={point.IsCleared}");
         }
 
-        var nearBar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "F");
-        var farBar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "C");
+        GroundNode? nearBar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "F");
+        GroundNode? farBar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "C");
         Assert.NotNull(nearBar);
         Assert.NotNull(farBar);
 
-        var holdShort10R = Assert.Single(
+        HoldShortPoint holdShort10R = Assert.Single(
             route.HoldShortPoints,
             point => (point.TargetName is not null) && RunwayIdentifier.Parse(point.TargetName).Contains("10R")
         );
@@ -110,7 +110,7 @@ public class Issue316SfoCrossWhileLuawTests(ITestOutputHelper output)
         // SKW5590 occupies 28L for the hold window. Its own line-up taxi runs at the physics taxi rate now,
         // so at the reroute second it is still LiningUp 186 ft off the centerline (measured) and settles on
         // the centerline at t=553 - 16 s into the window below - holding it past LastSecondBeforeResume.
-        var lineUp = engine.FindAircraft("SKW5590");
+        AircraftState? lineUp = engine.FindAircraft("SKW5590");
         Assert.NotNull(lineUp);
         int lineUpOn28LAt = -1;
 
@@ -121,7 +121,7 @@ public class Issue316SfoCrossWhileLuawTests(ITestOutputHelper output)
             aircraft = engine.FindAircraft("SKW5237");
             Assert.NotNull(aircraft);
 
-            var occupant = engine.FindAircraft("SKW5590");
+            AircraftState? occupant = engine.FindAircraft("SKW5590");
             if ((lineUpOn28LAt < 0) && (occupant is not null) && (DistanceFromRunwayCenterlineFt(occupant, runway28L) < halfWidthFt))
             {
                 lineUpOn28LAt = t;
@@ -154,7 +154,7 @@ public class Issue316SfoCrossWhileLuawTests(ITestOutputHelper output)
         Assert.InRange(lineUpOn28LAt, RerouteSeconds + 1, RerouteSeconds + 20);
 
         // Still parked at the Foxtrot bar, waiting for a crossing clearance.
-        var holding = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
+        HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
         Assert.Equal("10R/28L", holding.HoldShort.TargetName);
         Assert.Equal(nearBar.Id, holding.HoldShort.NodeId);
     }
@@ -166,8 +166,8 @@ public class Issue316SfoCrossWhileLuawTests(ITestOutputHelper output)
         // working: GroundCommandHandler's implicit first-crossing clearance authorises the crossing
         // the aircraft is already holding short of. That path only ever clears a RunwayCrossing point,
         // so moving the point to the near-side bar must not break it.
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -175,24 +175,24 @@ public class Issue316SfoCrossWhileLuawTests(ITestOutputHelper output)
 
         engine.Replay(recording, ImplicitCrossSeconds);
 
-        var aircraft = engine.FindAircraft("SKW3473");
+        AircraftState? aircraft = engine.FindAircraft("SKW3473");
         Assert.NotNull(aircraft);
 
-        var layout = aircraft.Ground.Layout;
+        AirportGroundLayout? layout = aircraft.Ground.Layout;
         Assert.NotNull(layout);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine($"t={ImplicitCrossSeconds}: route={route.ToSummary()}");
-        foreach (var point in route.HoldShortPoints)
+        foreach (HoldShortPoint point in route.HoldShortPoints)
         {
             output.WriteLine($"  hold-short #{point.NodeId} {point.TargetName} {point.Reason} cleared={point.IsCleared}");
         }
 
-        var nearBar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "F");
+        GroundNode? nearBar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "F");
         Assert.NotNull(nearBar);
 
-        var crossing = Assert.Single(
+        HoldShortPoint crossing = Assert.Single(
             route.HoldShortPoints,
             point => (point.TargetName is not null) && RunwayIdentifier.Parse(point.TargetName).Contains("10R")
         );

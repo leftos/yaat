@@ -6,15 +6,15 @@ public static class FrdResolver
 
     public static LatLon? Resolve(string frdString, NavigationDatabase navDb)
     {
-        var parsed = ParseFrd(frdString);
+        (string Fix, int? Radial, int? Distance)? parsed = ParseFrd(frdString);
         if (parsed is null)
         {
             return null;
         }
 
-        var (fixName, radial, distance) = parsed.Value;
+        (string? fixName, int? radial, int? distance) = parsed.Value;
 
-        var fixPos = navDb.GetFixPosition(fixName);
+        (double Lat, double Lon)? fixPos = navDb.GetFixPosition(fixName);
         if (fixPos is null)
         {
             return null;
@@ -37,15 +37,15 @@ public static class FrdResolver
             return null;
         }
 
-        var s = frdString.Trim();
+        string s = frdString.Trim();
 
         // Format: {FIX}{radial:3}{distance:3} — fix names are 2-5 chars
         if (s.Length >= 8)
         {
-            var suffix = s[^6..];
+            string suffix = s[^6..];
             if (suffix.All(char.IsDigit))
             {
-                var fixName = s[..^6];
+                string fixName = s[..^6];
                 if (fixName.Length >= 2)
                 {
                     int radial = int.Parse(suffix[..3]);
@@ -58,10 +58,10 @@ public static class FrdResolver
         // Format: {FIX}{radial:3} — fix names are 2+ chars, radial is 3 digits
         if (s.Length >= 5)
         {
-            var suffix = s[^3..];
+            string suffix = s[^3..];
             if (suffix.All(char.IsDigit))
             {
-                var fixName = s[..^3];
+                string fixName = s[..^3];
                 if (fixName.Length >= 2)
                 {
                     int radial = int.Parse(suffix);
@@ -126,9 +126,9 @@ public static class FrdResolver
             anchorLon = 0;
         double anchorDist = maxNm;
 
-        foreach (var fix in fixes)
+        foreach ((string Name, double Lat, double Lon) fix in fixes)
         {
-            var dist = GeoMath.DistanceNm(lat, lon, fix.Lat, fix.Lon);
+            double dist = GeoMath.DistanceNm(lat, lon, fix.Lat, fix.Lon);
             if (dist < exactDist)
             {
                 exactDist = dist;

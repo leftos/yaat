@@ -30,7 +30,7 @@ public static class CoordinationCommandHandler
     /// </summary>
     public static string? InferSenderListId(SimScenarioState scenario, TrackOwner identity)
     {
-        var tcp = FindTcpForIdentity(identity, scenario);
+        Tcp? tcp = FindTcpForIdentity(identity, scenario);
         if (tcp is null)
         {
             return null;
@@ -62,19 +62,19 @@ public static class CoordinationCommandHandler
 
     private static CommandResult HandleRelease(SimulationEngine engine, string callsign, TrackOwner identity, string? listId)
     {
-        var scenario = engine.Scenario;
+        SimScenarioState? scenario = engine.Scenario;
         if (scenario is null)
         {
             return new CommandResult(false, "No active scenario");
         }
 
-        var tcp = FindTcpForIdentity(identity, scenario);
+        Tcp? tcp = FindTcpForIdentity(identity, scenario);
         if (tcp is null)
         {
             return new CommandResult(false, "No TCP for identity");
         }
 
-        var channel = ResolveChannelForSender(scenario, tcp, listId, out var error);
+        CoordinationChannel? channel = ResolveChannelForSender(scenario, tcp, listId, out string? error);
         if (channel is null)
         {
             return new CommandResult(false, error!);
@@ -88,7 +88,7 @@ public static class CoordinationCommandHandler
         // One item per aircraft per list. A recall's linger reverts the item to Unsent rather than removing it, so
         // the sender still holds it — releasing again here would stack a duplicate beside it. Re-sending is RDH's
         // held branch and clearing is RDDEL's; neither is this verb's to do.
-        var held = channel.Items.FirstOrDefault(i =>
+        CoordinationItem? held = channel.Items.FirstOrDefault(i =>
             i.AircraftId.Equals(callsign, StringComparison.OrdinalIgnoreCase) && (i.Status is not StarsCoordinationStatus.Recalled)
         );
 
@@ -97,7 +97,7 @@ public static class CoordinationCommandHandler
             return new CommandResult(false, $"{callsign} already has a coordination item on list {channel.ListId}");
         }
 
-        var seq = channel.NextSequence++;
+        int seq = channel.NextSequence++;
         var item = new CoordinationItem
         {
             Id = $"{channel.ListId}-{seq}",
@@ -108,7 +108,7 @@ public static class CoordinationCommandHandler
         };
 
         // Check auto-acknowledge receivers
-        foreach (var receiver in channel.Receivers)
+        foreach (CoordinationReceiver receiver in channel.Receivers)
         {
             if (receiver.AutoAcknowledge)
             {
@@ -123,32 +123,34 @@ public static class CoordinationCommandHandler
         engine.MarkCoordinationChanged();
         Log.LogInformation("Coordination release: {Callsign} on list {ListId} (status={Status})", callsign, channel.ListId, item.Status);
 
-        var autoAcked = item.Status == StarsCoordinationStatus.Acknowledged;
-        var msg = autoAcked ? $"Released {callsign} on list {channel.ListId} (auto-acknowledged)" : $"Released {callsign} on list {channel.ListId}";
+        bool autoAcked = item.Status == StarsCoordinationStatus.Acknowledged;
+        string msg = autoAcked
+            ? $"Released {callsign} on list {channel.ListId} (auto-acknowledged)"
+            : $"Released {callsign} on list {channel.ListId}";
         return new CommandResult(true, msg);
     }
 
     private static CommandResult HandleHold(SimulationEngine engine, string callsign, TrackOwner identity, string? listId, string? text)
     {
-        var scenario = engine.Scenario;
+        SimScenarioState? scenario = engine.Scenario;
         if (scenario is null)
         {
             return new CommandResult(false, "No active scenario");
         }
 
-        var tcp = FindTcpForIdentity(identity, scenario);
+        Tcp? tcp = FindTcpForIdentity(identity, scenario);
         if (tcp is null)
         {
             return new CommandResult(false, "No TCP for identity");
         }
 
-        var channel = ResolveChannelForSender(scenario, tcp, listId, out var error);
+        CoordinationChannel? channel = ResolveChannelForSender(scenario, tcp, listId, out string? error);
         if (channel is null)
         {
             return new CommandResult(false, error!);
         }
 
-        var existing = channel.Items.FirstOrDefault(i =>
+        CoordinationItem? existing = channel.Items.FirstOrDefault(i =>
             i.AircraftId.Equals(callsign, StringComparison.OrdinalIgnoreCase) && (i.Status == StarsCoordinationStatus.Unsent)
         );
 
@@ -162,7 +164,7 @@ public static class CoordinationCommandHandler
         }
 
         // Create as unsent
-        var seq = channel.NextSequence++;
+        int seq = channel.NextSequence++;
         var item = new CoordinationItem
         {
             Id = $"{channel.ListId}-{seq}",
@@ -181,25 +183,25 @@ public static class CoordinationCommandHandler
 
     private static CommandResult HandleRecall(SimulationEngine engine, string callsign, TrackOwner identity, string? listId)
     {
-        var scenario = engine.Scenario;
+        SimScenarioState? scenario = engine.Scenario;
         if (scenario is null)
         {
             return new CommandResult(false, "No active scenario");
         }
 
-        var tcp = FindTcpForIdentity(identity, scenario);
+        Tcp? tcp = FindTcpForIdentity(identity, scenario);
         if (tcp is null)
         {
             return new CommandResult(false, "No TCP for identity");
         }
 
-        var channel = ResolveChannelForSender(scenario, tcp, listId, out var error);
+        CoordinationChannel? channel = ResolveChannelForSender(scenario, tcp, listId, out string? error);
         if (channel is null)
         {
             return new CommandResult(false, error!);
         }
 
-        var item = channel.Items.FirstOrDefault(i =>
+        CoordinationItem? item = channel.Items.FirstOrDefault(i =>
             i.AircraftId.Equals(callsign, StringComparison.OrdinalIgnoreCase) && (i.Status is not StarsCoordinationStatus.Recalled)
         );
 
@@ -229,19 +231,19 @@ public static class CoordinationCommandHandler
 
     private static CommandResult HandleAcknowledge(SimulationEngine engine, string callsign, TrackOwner identity, string? listId)
     {
-        var scenario = engine.Scenario;
+        SimScenarioState? scenario = engine.Scenario;
         if (scenario is null)
         {
             return new CommandResult(false, "No active scenario");
         }
 
-        var tcp = FindTcpForIdentity(identity, scenario);
+        Tcp? tcp = FindTcpForIdentity(identity, scenario);
         if (tcp is null)
         {
             return new CommandResult(false, "No TCP for identity");
         }
 
-        var channel = ResolveChannelForReceiver(scenario, tcp, callsign, listId, out var resolveError);
+        CoordinationChannel? channel = ResolveChannelForReceiver(scenario, tcp, callsign, listId, out string? resolveError);
         if (channel is null)
         {
             return new CommandResult(false, resolveError!);
@@ -252,7 +254,7 @@ public static class CoordinationCommandHandler
             return new CommandResult(false, $"TCP {tcp.Subset}{tcp.SectorId} is not a receiver on list {channel.ListId}");
         }
 
-        var item = channel.Items.FirstOrDefault(i =>
+        CoordinationItem? item = channel.Items.FirstOrDefault(i =>
             i.AircraftId.Equals(callsign, StringComparison.OrdinalIgnoreCase) && (i.Status == StarsCoordinationStatus.Unacknowledged)
         );
 
@@ -284,7 +286,7 @@ public static class CoordinationCommandHandler
         error = null;
         if (listId is not null)
         {
-            if (!scenario.CoordinationChannels.TryGetValue(listId, out var named))
+            if (!scenario.CoordinationChannels.TryGetValue(listId, out CoordinationChannel? named))
             {
                 error = $"Unknown coordination list: {listId}";
                 return null;
@@ -294,7 +296,7 @@ public static class CoordinationCommandHandler
         }
 
         var matches = new List<CoordinationChannel>();
-        foreach (var ch in scenario.CoordinationChannels.Values)
+        foreach (CoordinationChannel ch in scenario.CoordinationChannels.Values)
         {
             if (!IsReceiver(ch, tcp))
             {
@@ -328,24 +330,24 @@ public static class CoordinationCommandHandler
 
     private static CommandResult HandleAutoAck(SimulationEngine engine, TrackOwner identity, string listId, bool? enable)
     {
-        var scenario = engine.Scenario;
+        SimScenarioState? scenario = engine.Scenario;
         if (scenario is null)
         {
             return new CommandResult(false, "No active scenario");
         }
 
-        if (!scenario.CoordinationChannels.TryGetValue(listId, out var channel))
+        if (!scenario.CoordinationChannels.TryGetValue(listId, out CoordinationChannel? channel))
         {
             return new CommandResult(false, $"Unknown coordination list: {listId}");
         }
 
-        var tcp = FindTcpForIdentity(identity, scenario);
+        Tcp? tcp = FindTcpForIdentity(identity, scenario);
         if (tcp is null)
         {
             return new CommandResult(false, "No TCP for identity");
         }
 
-        var receiver = channel.Receivers.FirstOrDefault(r =>
+        CoordinationReceiver? receiver = channel.Receivers.FirstOrDefault(r =>
             r.Tcp.Subset == tcp.Subset && r.Tcp.SectorId.Equals(tcp.SectorId, StringComparison.OrdinalIgnoreCase)
         );
 
@@ -356,7 +358,7 @@ public static class CoordinationCommandHandler
 
         receiver.AutoAcknowledge = enable ?? !receiver.AutoAcknowledge;
         engine.MarkCoordinationChanged();
-        var state = receiver.AutoAcknowledge ? "ON" : "OFF";
+        string state = receiver.AutoAcknowledge ? "ON" : "OFF";
         return new CommandResult(true, $"Auto-acknowledge {state} for list {listId}");
     }
 
@@ -366,7 +368,7 @@ public static class CoordinationCommandHandler
     /// </summary>
     private static CommandResult HandleDelete(SimulationEngine engine, string callsign, TrackOwner identity, string? listId)
     {
-        var (channel, item, error) = FindSenderItem(engine, callsign, identity, listId);
+        (CoordinationChannel? channel, CoordinationItem? item, string? error) = FindSenderItem(engine, callsign, identity, listId);
         if (channel is null || item is null)
         {
             return new CommandResult(false, error!);
@@ -381,14 +383,14 @@ public static class CoordinationCommandHandler
     /// <summary>Table 34 reorder: moves the aircraft's message to 1-based line <paramref name="position"/>.</summary>
     private static CommandResult HandleReorder(SimulationEngine engine, string callsign, TrackOwner identity, string? listId, int position)
     {
-        var (channel, item, error) = FindSenderItem(engine, callsign, identity, listId);
+        (CoordinationChannel? channel, CoordinationItem? item, string? error) = FindSenderItem(engine, callsign, identity, listId);
         if (channel is null || item is null)
         {
             return new CommandResult(false, error!);
         }
 
         channel.Items.Remove(item);
-        var index = Math.Clamp(position - 1, 0, channel.Items.Count);
+        int index = Math.Clamp(position - 1, 0, channel.Items.Count);
         channel.Items.Insert(index, item);
         engine.MarkCoordinationChanged();
         Log.LogInformation("Coordination reorder: {Callsign} to line {Position} on list {ListId}", callsign, position, channel.ListId);
@@ -398,7 +400,7 @@ public static class CoordinationCommandHandler
     /// <summary>Table 34 modify-text: only a held (unsent) message's text may change.</summary>
     private static CommandResult HandleModify(SimulationEngine engine, string callsign, TrackOwner identity, string? listId, string text)
     {
-        var (channel, item, error) = FindSenderItem(engine, callsign, identity, listId);
+        (CoordinationChannel? channel, CoordinationItem? item, string? error) = FindSenderItem(engine, callsign, identity, listId);
         if (channel is null || item is null)
         {
             return new CommandResult(false, error!);
@@ -422,19 +424,19 @@ public static class CoordinationCommandHandler
         string? listId
     )
     {
-        var scenario = engine.Scenario;
+        SimScenarioState? scenario = engine.Scenario;
         if (scenario is null)
         {
             return (null, null, "No active scenario");
         }
 
-        var tcp = FindTcpForIdentity(identity, scenario);
+        Tcp? tcp = FindTcpForIdentity(identity, scenario);
         if (tcp is null)
         {
             return (null, null, "No TCP for identity");
         }
 
-        var channel = ResolveChannelForSender(scenario, tcp, listId, out var error);
+        CoordinationChannel? channel = ResolveChannelForSender(scenario, tcp, listId, out string? error);
         if (channel is null)
         {
             return (null, null, error);
@@ -445,7 +447,7 @@ public static class CoordinationCommandHandler
             return (null, null, $"TCP {tcp.Subset}{tcp.SectorId} is not a sender on list {channel.ListId}");
         }
 
-        var item = channel.Items.FirstOrDefault(i =>
+        CoordinationItem? item = channel.Items.FirstOrDefault(i =>
             i.AircraftId.Equals(callsign, StringComparison.OrdinalIgnoreCase) && (i.Status is not StarsCoordinationStatus.Recalled)
         );
         return item is null ? (null, null, $"No coordination item for {callsign} on list {channel.ListId}") : (channel, item, null);
@@ -453,7 +455,7 @@ public static class CoordinationCommandHandler
 
     private static Tcp? FindTcpForIdentity(TrackOwner identity, SimScenarioState scenario)
     {
-        var tcp = TrackResolver.FindTcpForOwner(identity, scenario);
+        Tcp? tcp = TrackResolver.FindTcpForOwner(identity, scenario);
         if (tcp is not null)
         {
             return tcp;
@@ -474,7 +476,7 @@ public static class CoordinationCommandHandler
 
         if (listId is not null)
         {
-            if (!scenario.CoordinationChannels.TryGetValue(listId, out var channel))
+            if (!scenario.CoordinationChannels.TryGetValue(listId, out CoordinationChannel? channel))
             {
                 error = $"Unknown coordination list: {listId}";
                 return null;
@@ -485,7 +487,7 @@ public static class CoordinationCommandHandler
 
         // Auto-detect: find channel where tcp is a sender
         var matches = new List<CoordinationChannel>();
-        foreach (var ch in scenario.CoordinationChannels.Values)
+        foreach (CoordinationChannel ch in scenario.CoordinationChannels.Values)
         {
             if (IsSender(ch, tcp))
             {

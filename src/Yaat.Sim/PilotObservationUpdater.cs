@@ -23,10 +23,10 @@ public static class PilotObservationUpdater
             return;
         }
 
-        var observations = aircraft.PendingObservations;
+        List<PilotObservation> observations = aircraft.PendingObservations;
         for (int i = observations.Count - 1; i >= 0; i--)
         {
-            var obs = observations[i];
+            PilotObservation obs = observations[i];
             bool resolved = obs switch
             {
                 TrafficAcquisitionObservation traffic => TryResolveTraffic(
@@ -67,14 +67,14 @@ public static class PilotObservationUpdater
             return false;
         }
 
-        var target = aircraftLookup(obs.TargetCallsign);
+        AircraftState? target = aircraftLookup(obs.TargetCallsign);
         if (target is null)
         {
             // Target left the simulation. Silently drop the observation.
             return true;
         }
 
-        var result = VisualAcquisition.TryAcquireTraffic(aircraft, target, weather);
+        VisualAcquisitionResult result = VisualAcquisition.TryAcquireTraffic(aircraft, target, weather);
         if (!result.Acquired)
         {
             return false;
@@ -99,7 +99,7 @@ public static class PilotObservationUpdater
     /// </summary>
     private static bool TryResolveField(AircraftState aircraft, WeatherProfile? weather, bool soloTrainingMode, bool rpoShowPilotSpeech)
     {
-        var result = VisualAcquisition.TryAcquireAirport(aircraft, weather);
+        VisualAcquisitionResult? result = VisualAcquisition.TryAcquireAirport(aircraft, weather);
         if (result is null)
         {
             // Destination cleared or no longer in nav database. Silently drop.

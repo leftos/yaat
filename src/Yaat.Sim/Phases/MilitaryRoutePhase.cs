@@ -96,8 +96,8 @@ public sealed class MilitaryRoutePhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        var aircraft = ctx.Aircraft;
-        var state = aircraft.MilitaryRoute;
+        AircraftState aircraft = ctx.Aircraft;
+        AircraftMilitaryRoute state = aircraft.MilitaryRoute;
 
         state.Designator = Designator;
         state.Kind = Kind;
@@ -125,7 +125,7 @@ public sealed class MilitaryRoutePhase : Phase
             OnStart(ctx);
         }
 
-        var state = ctx.Aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = ctx.Aircraft.MilitaryRoute;
 
         if (ctx.Targets.NavigationRoute.Count == 0)
         {
@@ -169,7 +169,7 @@ public sealed class MilitaryRoutePhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        var state = ctx.Aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = ctx.Aircraft.MilitaryRoute;
 
         // docs/phases.md: any ControlTargets state a phase writes that physics depends on must be
         // reconciled when the phase clears. Leaving the block armed would pin the aircraft inside
@@ -212,7 +212,7 @@ public sealed class MilitaryRoutePhase : Phase
 
     public override void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx)
     {
-        var state = ctx.Aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = ctx.Aircraft.MilitaryRoute;
         if (cmd == CanonicalCommandType.MaintainMilitaryRouteAltitudes)
         {
             state.AltitudeSource = MilitaryRouteAltitudeSource.RouteAltitudes;
@@ -237,13 +237,13 @@ public sealed class MilitaryRoutePhase : Phase
 
     private void LoadRoute(PhaseContext ctx)
     {
-        var navDb = NavigationDatabase.Instance;
-        var route = ctx.Targets.NavigationRoute;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        List<NavigationTarget> route = ctx.Targets.NavigationRoute;
         route.Clear();
 
-        foreach (var name in PointNames)
+        foreach (string name in PointNames)
         {
-            var position = navDb.GetFixPosition(name);
+            (double Lat, double Lon)? position = navDb.GetFixPosition(name);
             if (position is not null)
             {
                 route.Add(new NavigationTarget { Name = name, Position = new LatLon(position.Value.Lat, position.Value.Lon) });
@@ -254,7 +254,7 @@ public sealed class MilitaryRoutePhase : Phase
     /// <summary>True once the aircraft has reached (and sequenced past) the cleared entry point.</summary>
     private bool IsEstablished(PhaseContext ctx)
     {
-        var route = ctx.Targets.NavigationRoute;
+        List<NavigationTarget> route = ctx.Targets.NavigationRoute;
         return PointNames.Count > 0 && route.Count > 0 && !string.Equals(route[0].Name, PointNames[0], StringComparison.OrdinalIgnoreCase);
     }
 
@@ -267,7 +267,7 @@ public sealed class MilitaryRoutePhase : Phase
     /// </summary>
     private void ReArmBlock(PhaseContext ctx)
     {
-        var state = ctx.Aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = ctx.Aircraft.MilitaryRoute;
         // AtOrBelow re-arms too. §9-2-6.a offers "MAINTAIN AT OR BELOW (altitude)" as an
         // alternative *ceiling*, not as a release from the published profile — the route's floors
         // are the segment's minimum IFR altitudes and an at-or-below restriction cannot lower them.
@@ -281,7 +281,7 @@ public sealed class MilitaryRoutePhase : Phase
             return;
         }
 
-        var route = NavigationDatabase.Instance.GetMilitaryRoute(Designator);
+        MilitaryRoute? route = NavigationDatabase.Instance.GetMilitaryRoute(Designator);
         if (route is null || ctx.Targets.NavigationRoute.Count == 0)
         {
             return;
@@ -296,7 +296,7 @@ public sealed class MilitaryRoutePhase : Phase
             return;
         }
 
-        var nextName = ctx.Targets.NavigationRoute[0].Name;
+        string nextName = ctx.Targets.NavigationRoute[0].Name;
         int index = -1;
         for (int i = 0; i < route.Points.Count; i++)
         {
@@ -324,7 +324,7 @@ public sealed class MilitaryRoutePhase : Phase
     /// </summary>
     private void ApplyRefuelingBlock(PhaseContext ctx, MilitaryRoute route)
     {
-        var state = ctx.Aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = ctx.Aircraft.MilitaryRoute;
         double? floor = state.AssignedFloorFt ?? route.RouteAltitude.FloorFt;
         double? ceiling = state.AssignedCeilingFt ?? route.RouteAltitude.CeilingFt;
         if (floor is null || ceiling is null)
@@ -352,7 +352,7 @@ public sealed class MilitaryRoutePhase : Phase
 
     private void ApplyBlock(PhaseContext ctx, MilitaryRoutePoint point)
     {
-        var block = point.Altitude;
+        MilitaryRouteAltitude block = point.Altitude;
         if (block.Kind is MilitaryRouteAltitudeKind.None or MilitaryRouteAltitudeKind.AsAssigned or MilitaryRouteAltitudeKind.Unparsed)
         {
             return;
@@ -377,7 +377,7 @@ public sealed class MilitaryRoutePhase : Phase
             return;
         }
 
-        var state = ctx.Aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = ctx.Aircraft.MilitaryRoute;
         if (state.AltitudeSource == MilitaryRouteAltitudeSource.AtOrBelow && state.AssignedOverrideFt is { } restriction)
         {
             // §9-2-6.a "MAINTAIN AT OR BELOW (altitude)": the restriction caps the block, but the
@@ -502,7 +502,7 @@ public sealed class MilitaryRoutePhase : Phase
             return;
         }
 
-        var transponder = ctx.Aircraft.Transponder;
+        AircraftTransponder transponder = ctx.Aircraft.Transponder;
         if (transponder.AssignedCode != 0)
         {
             return;
@@ -514,13 +514,13 @@ public sealed class MilitaryRoutePhase : Phase
 
     private static void RestoreSquawk(PhaseContext ctx)
     {
-        var state = ctx.Aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = ctx.Aircraft.MilitaryRoute;
         if (state.PreRouteSquawk is not { } previous)
         {
             return;
         }
 
-        var transponder = ctx.Aircraft.Transponder;
+        AircraftTransponder transponder = ctx.Aircraft.Transponder;
         if (transponder.Code == MilitaryRouteSquawk)
         {
             transponder.Code = transponder.AssignedCode != 0 ? transponder.AssignedCode : previous;

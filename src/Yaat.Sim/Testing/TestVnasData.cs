@@ -59,22 +59,22 @@ public static class TestVnasData
                     return _navigationDatabase;
                 }
 
-                var path = ResolveNavDataPath();
+                string? path = ResolveNavDataPath();
                 if (path is null || !File.Exists(path))
                 {
                     return null;
                 }
 
-                var bytes = File.ReadAllBytes(path);
-                var navData = NavDataSet.Parser.ParseFrom(bytes);
+                byte[] bytes = File.ReadAllBytes(path);
+                NavDataSet navData = NavDataSet.Parser.ParseFrom(bytes);
 
-                var cifpPath = ResolveCifpPath();
+                string? cifpPath = ResolveCifpPath();
                 if (cifpPath is null)
                 {
                     return null;
                 }
 
-                var bundledGz = Path.Combine(_testDataDir, "FAACIFP18.gz");
+                string bundledGz = Path.Combine(_testDataDir, "FAACIFP18.gz");
                 string? supplementaryCifp = null;
                 if (File.Exists(bundledGz))
                 {
@@ -142,7 +142,7 @@ public static class TestVnasData
 
     private static bool IsNavDataDownloadSkipped()
     {
-        var v = Environment.GetEnvironmentVariable("YAAT_SKIP_NAVDATA_DOWNLOAD");
+        string? v = Environment.GetEnvironmentVariable("YAAT_SKIP_NAVDATA_DOWNLOAD");
         return string.Equals(v, "1", StringComparison.Ordinal) || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -155,7 +155,7 @@ public static class TestVnasData
 
         _procedureDbAttempted = true;
 
-        var allowDownload = !IsDownloadSkipped();
+        bool allowDownload = !IsDownloadSkipped();
         _cifpPath =
             CifpPathResolver.CachedPath
             ?? CifpPathResolver.EnsureCurrentCycle(
@@ -171,7 +171,7 @@ public static class TestVnasData
 
     private static bool IsDownloadSkipped()
     {
-        var v = Environment.GetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD");
+        string? v = Environment.GetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD");
         return string.Equals(v, "1", StringComparison.Ordinal) || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -179,13 +179,13 @@ public static class TestVnasData
     {
         SweepStaleCifpTempFiles();
 
-        var decompressedPath = Path.Combine(Path.GetTempPath(), $"yaat-test-FAACIFP18-{Environment.ProcessId}");
+        string decompressedPath = Path.Combine(Path.GetTempPath(), $"yaat-test-FAACIFP18-{Environment.ProcessId}");
 
         if (!File.Exists(decompressedPath))
         {
-            using var inputStream = File.OpenRead(gzPath);
+            using FileStream inputStream = File.OpenRead(gzPath);
             using var gzipStream = new System.IO.Compression.GZipStream(inputStream, System.IO.Compression.CompressionMode.Decompress);
-            using var outputStream = File.Create(decompressedPath);
+            using FileStream outputStream = File.Create(decompressedPath);
             gzipStream.CopyTo(outputStream);
         }
 
@@ -224,7 +224,7 @@ public static class TestVnasData
         // ProcessExit could fire. Patterns: the current yaat-prefixed name plus four legacy
         // patterns from sites that used to have their own DecompressGzip helpers. All
         // exclusively yaat-owned, so this won't touch unrelated files.
-        var tempDir = Path.GetTempPath();
+        string tempDir = Path.GetTempPath();
         string[] patterns =
         [
             "yaat-test-FAACIFP18-*",
@@ -234,11 +234,11 @@ public static class TestVnasData
             "FAACIFP18-taxiroutes-test",
         ];
 
-        foreach (var pattern in patterns)
+        foreach (string pattern in patterns)
         {
             try
             {
-                foreach (var file in Directory.EnumerateFiles(tempDir, pattern))
+                foreach (string file in Directory.EnumerateFiles(tempDir, pattern))
                 {
                     TryDelete(file);
                 }
@@ -298,14 +298,17 @@ public static class TestVnasData
 
     private static void LoadAircraftSpecs()
     {
-        var path = Path.Combine(_testDataDir, "AircraftSpecs.json");
+        string path = Path.Combine(_testDataDir, "AircraftSpecs.json");
         if (!File.Exists(path))
         {
             return;
         }
 
-        var json = File.ReadAllText(path);
-        var specs = JsonSerializer.Deserialize<List<AircraftSpecEntry>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        string json = File.ReadAllText(path);
+        List<AircraftSpecEntry>? specs = JsonSerializer.Deserialize<List<AircraftSpecEntry>>(
+            json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
         if (specs is null)
         {
             return;
@@ -313,7 +316,7 @@ public static class TestVnasData
 
         var catLookup = new Dictionary<string, AircraftCategory>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var spec in specs)
+        foreach (AircraftSpecEntry spec in specs)
         {
             if (string.IsNullOrEmpty(spec.Designator))
             {
@@ -344,21 +347,24 @@ public static class TestVnasData
 
     private static void LoadAircraftCwt()
     {
-        var path = Path.Combine(_testDataDir, "AircraftCwt.json");
+        string path = Path.Combine(_testDataDir, "AircraftCwt.json");
         if (!File.Exists(path))
         {
             return;
         }
 
-        var json = File.ReadAllText(path);
-        var entries = JsonSerializer.Deserialize<List<AircraftCwtEntry>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        string json = File.ReadAllText(path);
+        List<AircraftCwtEntry>? entries = JsonSerializer.Deserialize<List<AircraftCwtEntry>>(
+            json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
         if (entries is null)
         {
             return;
         }
 
         var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var entry in entries)
+        foreach (AircraftCwtEntry entry in entries)
         {
             if (!string.IsNullOrEmpty(entry.TypeCode) && !string.IsNullOrEmpty(entry.CwtCode))
             {
@@ -371,15 +377,15 @@ public static class TestVnasData
 
     private static void LoadFaaAcd()
     {
-        var path = Path.Combine(_testDataDir, "FaaAcd.json");
+        string path = Path.Combine(_testDataDir, "FaaAcd.json");
         if (!File.Exists(path))
         {
             return;
         }
 
-        var json = File.ReadAllText(path);
+        string json = File.ReadAllText(path);
 
-        var records = JsonSerializer.Deserialize<Dictionary<string, FaaAircraftRecord>>(
+        Dictionary<string, FaaAircraftRecord>? records = JsonSerializer.Deserialize<Dictionary<string, FaaAircraftRecord>>(
             json,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
         );
@@ -391,7 +397,7 @@ public static class TestVnasData
 
     private static void LoadAircraftProfiles()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfiles.json");
+        string path = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfiles.json");
         if (!File.Exists(path))
         {
             return;
@@ -399,16 +405,16 @@ public static class TestVnasData
 
         // Sibling map first: profile-override merge resolves no-base types via the sibling map
         // and the category baseline (categorization is already loaded by LoadAircraftSpecs).
-        var siblingPath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileSiblings.json");
+        string siblingPath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileSiblings.json");
         if (File.Exists(siblingPath))
         {
-            var siblings = AircraftSiblingMap.LoadFromFile(siblingPath);
+            Dictionary<string, string> siblings = AircraftSiblingMap.LoadFromFile(siblingPath);
             AircraftSiblingMap.Initialize(siblings);
         }
 
-        var profiles = AircraftProfileDatabase.LoadFromFile(path);
-        var overridePath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileOverrides.json");
-        var overrides = AircraftProfileDatabase.LoadOverridesFromFile(overridePath);
+        Dictionary<string, AircraftProfile> profiles = AircraftProfileDatabase.LoadFromFile(path);
+        string overridePath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileOverrides.json");
+        IReadOnlyList<AircraftProfileOverride> overrides = AircraftProfileDatabase.LoadOverridesFromFile(overridePath);
         AircraftProfileDatabase.Initialize(profiles, overrides);
 
         AircraftPerformance.SetProfileCorrectionAdapter(new OverrideAwareProfileCorrectionAdapter(new EurocontrolProfileCorrectionAdapter()));

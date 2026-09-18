@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
@@ -59,7 +60,7 @@ public class PatternFinalSpeedE2ETests(ITestOutputHelper output)
     [Fact]
     public void Da62_ErdRight28R_NoOverspeedOnFinal()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -90,10 +91,10 @@ public class PatternFinalSpeedE2ETests(ITestOutputHelper output)
         };
         engine.World.AddAircraft(ac);
 
-        var erd = engine.SendCommand("TST001", "ERD 28R");
+        CommandResult erd = engine.SendCommand("TST001", "ERD 28R");
         Assert.True(erd.Success, $"ERD 28R failed: {erd.Message}");
 
-        var category = AircraftCategorization.Categorize("DA62");
+        AircraftCategory category = AircraftCategorization.Categorize("DA62");
         double vref = AircraftPerformance.ApproachSpeed("DA62", category);
         double maxStable = vref * 1.3;
         const double iasNoiseTolerance = 2.0;
@@ -122,7 +123,7 @@ public class PatternFinalSpeedE2ETests(ITestOutputHelper output)
             }
             recorder.Record(t);
 
-            var phaseType = ac.Phases?.CurrentPhase?.GetType();
+            Type? phaseType = ac.Phases?.CurrentPhase?.GetType();
             bool onFinalOrLanding = phaseType == typeof(FinalApproachPhase) || phaseType == typeof(LandingPhase);
             bool inGoAround = phaseType?.Name == "GoAroundPhase";
 

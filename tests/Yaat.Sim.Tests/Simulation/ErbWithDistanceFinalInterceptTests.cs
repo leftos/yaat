@@ -50,8 +50,8 @@ public class ErbWithDistanceFinalInterceptTests(ITestOutputHelper output)
     [Fact]
     public void N10194_ErbWithDistance_RollsOntoFinalAtSpecifiedDistance()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -63,10 +63,10 @@ public class ErbWithDistanceFinalInterceptTests(ITestOutputHelper output)
         // 467 picks it up via action filtering.
         engine.Replay(recording, ErbDispatchTime + 1);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases?.AssignedRunway);
-        var runway = ac.Phases.AssignedRunway;
+        RunwayInfo runway = ac.Phases.AssignedRunway;
         Assert.Equal("28R", runway.Designator);
 
         output.WriteLine(
@@ -100,7 +100,7 @@ public class ErbWithDistanceFinalInterceptTests(ITestOutputHelper output)
 
             if (t % 30 == 0)
             {
-                var phaseName = ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
+                string phaseName = ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
                 output.WriteLine(
                     $"  t+{t, 3}: phase={phaseName} pos=({ac.Position.Lat:F5},{ac.Position.Lon:F5}) hdg={ac.TrueHeading.Degrees:F1} alt={ac.Altitude:F0}"
                 );

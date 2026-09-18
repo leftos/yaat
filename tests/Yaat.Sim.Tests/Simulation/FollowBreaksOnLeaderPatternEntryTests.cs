@@ -1,7 +1,10 @@
 ﻿using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -42,7 +45,7 @@ public class FollowBreaksOnLeaderPatternEntryTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -69,7 +72,7 @@ public class FollowBreaksOnLeaderPatternEntryTests(ITestOutputHelper output)
     [Fact]
     public void FollowerNotCancelled_DuringLeaderPatternEntry()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -77,8 +80,8 @@ public class FollowBreaksOnLeaderPatternEntryTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -89,7 +92,7 @@ public class FollowBreaksOnLeaderPatternEntryTests(ITestOutputHelper output)
             // Snapshot at t=115 is 3s before FOLLOW at t=118 and 62s before
             // the live cancel at t≈207. Run forward to t=220 so we pass the
             // cancel window in both original and fixed code.
-            var snapshot = archive.ReadSnapshotAt(115);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(115);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=115 — skipping");
@@ -99,8 +102,8 @@ public class FollowBreaksOnLeaderPatternEntryTests(ITestOutputHelper output)
             int startTime = (int)snapshot.ElapsedSeconds;
             engine.ReplayRange(startTime, 220, recording.Actions);
 
-            var follower = engine.FindAircraft(Follower);
-            var lead = engine.FindAircraft(Leader);
+            AircraftState? follower = engine.FindAircraft(Follower);
+            AircraftState? lead = engine.FindAircraft(Leader);
             Assert.NotNull(follower);
             Assert.NotNull(lead);
 
@@ -109,7 +112,7 @@ public class FollowBreaksOnLeaderPatternEntryTests(ITestOutputHelper output)
             Assert.DoesNotContain(follower.PendingWarnings, w => w.Contains("unable to catch up", StringComparison.OrdinalIgnoreCase));
             Assert.Equal(Leader, follower.Approach.FollowingCallsign);
 
-            var followerPhase = follower.Phases?.CurrentPhase;
+            Phase? followerPhase = follower.Phases?.CurrentPhase;
             Assert.True(
                 followerPhase is VfrFollowPhase || followerPhase is PatternEntryPhase || followerPhase is DownwindPhase,
                 $"Expected VfrFollowPhase / PatternEntryPhase / DownwindPhase, got {followerPhase?.GetType().Name ?? "(null)"}"
@@ -119,8 +122,8 @@ public class FollowBreaksOnLeaderPatternEntryTests(ITestOutputHelper output)
 
     private void LogTerminalState(string label, SimulationEngine engine)
     {
-        var follower = engine.FindAircraft(Follower);
-        var lead = engine.FindAircraft(Leader);
+        AircraftState? follower = engine.FindAircraft(Follower);
+        AircraftState? lead = engine.FindAircraft(Leader);
         if (follower is null || lead is null)
         {
             output.WriteLine($"{label}: follower or leader missing");

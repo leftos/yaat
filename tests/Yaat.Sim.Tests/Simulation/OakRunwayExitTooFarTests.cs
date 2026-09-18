@@ -60,8 +60,8 @@ public class OakRunwayExitTooFarTests(ITestOutputHelper output)
     [Fact]
     public void N9225L_ExitsAtGorH_NotJ()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine(enableExitLogs: false);
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine(enableExitLogs: false);
         if (recording is null || engine is null)
         {
             return;
@@ -69,7 +69,7 @@ public class OakRunwayExitTooFarTests(ITestOutputHelper output)
 
         engine.Replay(recording, TouchdownSecond);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
         // Replay through rollout — exit is resolved and aircraft turns off during

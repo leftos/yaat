@@ -48,11 +48,11 @@ public class GroundViewModelTaxiRouteRunwayTruncationTests
     /// </summary>
     private static GroundNode InteriorStartOnB(GroundNode holdShort)
     {
-        var current = holdShort;
-        var previous = holdShort;
+        GroundNode current = holdShort;
+        GroundNode previous = holdShort;
         for (int hop = 0; hop < 2; hop++)
         {
-            var next = current
+            GroundNode? next = current
                 .Edges.Where(e => e.TaxiwayName == "B")
                 .Select(e => e.OtherNode(current))
                 .FirstOrDefault(n => n.Id != previous.Id && n.Type != GroundNodeType.RunwayHoldShort);
@@ -71,17 +71,17 @@ public class GroundViewModelTaxiRouteRunwayTruncationTests
     [Fact]
     public void TaxiToRunway_OverlayTruncatesAtHoldShort_NotFullTaxiway()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return; // test data absent — skip (matches AirportE2ETests convention)
         }
 
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetDomainLayoutForTesting(layout);
 
-        var holdShort = HoldShort28ROnB(layout);
-        var start = InteriorStartOnB(holdShort);
+        GroundNode holdShort = HoldShort28ROnB(layout);
+        GroundNode start = InteriorStartOnB(holdShort);
 
         var ac = new AircraftModel
         {
@@ -92,12 +92,12 @@ public class GroundViewModelTaxiRouteRunwayTruncationTests
             AssignedRunway = "28R",
         };
 
-        var route = vm.ResolveRemainingRoute(ac);
+        TaxiRoute? route = vm.ResolveRemainingRoute(ac);
 
         Assert.NotNull(route);
         Assert.NotEmpty(route!.Segments);
 
-        var terminus = layout.Nodes[route.Segments[^1].ToNodeId];
+        GroundNode terminus = layout.Nodes[route.Segments[^1].ToNodeId];
         Assert.Equal(GroundNodeType.RunwayHoldShort, terminus.Type);
         Assert.True(
             terminus.RunwayId is { } rwyId && rwyId.Contains("28R"),
@@ -111,17 +111,17 @@ public class GroundViewModelTaxiRouteRunwayTruncationTests
         // Documents the pre-fix behavior and the reason the runway hint is required: with no assigned
         // runway (empty), the reconstruction has no destination and walks B to its full extent,
         // continuing past the 28R hold-short.
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetDomainLayoutForTesting(layout);
 
-        var holdShort = HoldShort28ROnB(layout);
-        var start = InteriorStartOnB(holdShort);
+        GroundNode holdShort = HoldShort28ROnB(layout);
+        GroundNode start = InteriorStartOnB(holdShort);
 
         var ac = new AircraftModel
         {
@@ -132,10 +132,10 @@ public class GroundViewModelTaxiRouteRunwayTruncationTests
             AssignedRunway = "",
         };
 
-        var route = vm.ResolveRemainingRoute(ac);
+        TaxiRoute? route = vm.ResolveRemainingRoute(ac);
 
         Assert.NotNull(route);
-        var terminus = layout.Nodes[route!.Segments[^1].ToNodeId];
+        GroundNode terminus = layout.Nodes[route!.Segments[^1].ToNodeId];
         bool endsAtHoldShort28R = terminus.Type == GroundNodeType.RunwayHoldShort && (terminus.RunwayId?.Contains("28R") ?? false);
         Assert.False(endsAtHoldShort28R, "without an assigned runway the overlay should walk past the hold-short, not stop at it");
     }

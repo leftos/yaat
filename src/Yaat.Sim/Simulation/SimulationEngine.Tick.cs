@@ -34,7 +34,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public TickPrePhysicsResult TickPrePhysics()
     {
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null)
         {
             return new TickPrePhysicsResult([]);
@@ -47,7 +47,7 @@ public sealed partial class SimulationEngine
 
         // The spawn hooks run before the result reaches the host, so what a spawn queues (its PDC) is engine state on
         // every run kind and the host's own spawn tail — the broadcast — still sees the callsign first.
-        foreach (var state in spawned)
+        foreach (AircraftState state in spawned)
         {
             AfterAircraftSpawned(state);
         }
@@ -119,17 +119,17 @@ public sealed partial class SimulationEngine
     /// </summary>
     private void RehydrateRestoredQueueBlocks()
     {
-        foreach (var aircraft in World.GetSnapshot())
+        foreach (AircraftState aircraft in World.GetSnapshot())
         {
             List<CommandBlock>? failed = null;
-            foreach (var block in aircraft.Queue.Blocks)
+            foreach (CommandBlock block in aircraft.Queue.Blocks)
             {
                 if (block.ApplyAction is not null || block.IsApplied || string.IsNullOrEmpty(block.SourceCommandText))
                 {
                     continue;
                 }
 
-                var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+                AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
                 var ctx = new DispatchContext(
                     groundLayout,
                     World.Rng,
@@ -161,7 +161,7 @@ public sealed partial class SimulationEngine
 
             // A block that cannot be recovered would fire as a silent no-op; drop it with a warning so
             // the RPO knows the instruction was lost rather than believing it is still pending.
-            foreach (var block in failed)
+            foreach (CommandBlock block in failed)
             {
                 _logger.LogWarning(
                     "[Restore] {Callsign}: could not rehydrate queued block '{Description}' from '{Source}' — dropping it",
@@ -187,7 +187,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        if (timings.TryGetValue(bucket, out var entry))
+        if (timings.TryGetValue(bucket, out (int Count, double Ms) entry))
         {
             timings[bucket] = (entry.Count + 1, entry.Ms + ms);
         }
@@ -212,7 +212,7 @@ public sealed partial class SimulationEngine
         }
 
         bool solo = scenario.SoloTrainingMode;
-        foreach (var ac in World.GetSnapshot())
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             if (ac.IsShadow)
             {
@@ -246,7 +246,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        foreach (var ac in World.GetSnapshot())
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             ac.Transponder.Tick(scenario.ElapsedSeconds);
         }
@@ -267,10 +267,10 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var snapshot = World.GetSnapshot();
-        var weather = World.Weather;
+        List<AircraftState> snapshot = World.GetSnapshot();
+        WeatherProfile? weather = World.Weather;
 
-        foreach (var ac in snapshot)
+        foreach (AircraftState ac in snapshot)
         {
             // Only check aircraft on a visual approach (ApproachId starts with VIS)
             if (ac.Phases?.ActiveApproach is not { } approach || !approach.ApproachId.StartsWith("VIS", StringComparison.Ordinal))
@@ -285,7 +285,7 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            var aptPos = NavigationDatabase.Instance.GetFixPosition(airport);
+            (double Lat, double Lon)? aptPos = NavigationDatabase.Instance.GetFixPosition(airport);
             if (aptPos is null)
             {
                 continue;
@@ -297,7 +297,7 @@ public sealed partial class SimulationEngine
             int? primaryCeilingForLogs = null;
             if (weather is not null)
             {
-                var metarData = weather.GetWeatherForAirport(airport);
+                MetarParser.ParsedMetar? metarData = weather.GetWeatherForAirport(airport);
                 layers = metarData?.Layers;
                 visibilitySm = metarData?.VisibilityStatuteMiles;
                 primaryCeilingForLogs = metarData?.CeilingFeetAgl;
@@ -305,14 +305,14 @@ public sealed partial class SimulationEngine
 
             // Field in sight check (with runway direction awareness)
             // Bank angle affects initial acquisition only — once acquired, pilot can track through turns.
-            var runway = ac.Phases.AssignedRunway;
+            RunwayInfo? runway = ac.Phases.AssignedRunway;
             double airportSizeCapNm = VisualAcquisition.AirportSizeCapNm(airport);
             bool fieldLostThisTick = false;
 
             if (!ac.Approach.HasReportedFieldInSight)
             {
                 // Initial acquisition: use actual bank angle
-                var acquireResult = runway is not null
+                VisualAcquisitionResult acquireResult = runway is not null
                     ? VisualDetection.TryAcquireAirportForRunway(
                         ac,
                         aptPos.Value.Lat,
@@ -385,7 +385,13 @@ public sealed partial class SimulationEngine
                     fieldDistanceNm = Math.Min(fieldDistanceNm, thresholdDistanceNm);
                 }
 
-                var maintainResult = VisualDetection.TryMaintainAirportContact(ac, aptElevation.Value, layers, visibilitySm, fieldDistanceNm);
+                VisualAcquisitionResult maintainResult = VisualDetection.TryMaintainAirportContact(
+                    ac,
+                    aptElevation.Value,
+                    layers,
+                    visibilitySm,
+                    fieldDistanceNm
+                );
 
                 if (!maintainResult.Acquired)
                 {
@@ -422,12 +428,12 @@ public sealed partial class SimulationEngine
             // follower against two different cloud decks/visibilities in the same tick.
             if (ac.Approach.FollowingCallsign is { } followCs)
             {
-                var target = snapshot.FirstOrDefault(t => t.Callsign.Equals(followCs, StringComparison.OrdinalIgnoreCase));
+                AircraftState? target = snapshot.FirstOrDefault(t => t.Callsign.Equals(followCs, StringComparison.OrdinalIgnoreCase));
                 if (target is not null)
                 {
                     if (!ac.Approach.HasReportedTrafficInSight)
                     {
-                        var acquireTrafficResult = VisualAcquisition.TryAcquireTraffic(ac, target, weather);
+                        VisualAcquisitionResult acquireTrafficResult = VisualAcquisition.TryAcquireTraffic(ac, target, weather);
                         if (acquireTrafficResult.Acquired)
                         {
                             ac.Approach.HasReportedTrafficInSight = true;
@@ -462,7 +468,7 @@ public sealed partial class SimulationEngine
                         // §4-4-14 NOTE). A flight-visibility collapse below the gap DOES break
                         // contact — that is weather, not finding-geometry (AIM §5-5-11.a.3).
                         // Mirrors the field-maintain path above and AirborneFollowHelper.
-                        var maintainTrafficResult = VisualAcquisition.TryMaintainTrafficContact(ac, target, weather);
+                        VisualAcquisitionResult maintainTrafficResult = VisualAcquisition.TryMaintainTrafficContact(ac, target, weather);
                         if (!maintainTrafficResult.Acquired)
                         {
                             ac.Approach.HasReportedTrafficInSight = false;
@@ -538,17 +544,17 @@ public sealed partial class SimulationEngine
     /// </summary>
     public ConflictAlertChanges TickConflictAlerts()
     {
-        var snapshot = World.GetSnapshot();
-        var conflicts = ConflictAlerts.Conflicts;
+        List<AircraftState> snapshot = World.GetSnapshot();
+        Dictionary<string, ActiveConflict> conflicts = ConflictAlerts.Conflicts;
         var existingIds = new HashSet<string>(conflicts.Keys);
-        var corridors = ConflictAlertDetector.BuildCorridors(ResolveInternalAirports(), NavigationDatabase.Instance);
+        IReadOnlyList<RunwayCorridor> corridors = ConflictAlertDetector.BuildCorridors(ResolveInternalAirports(), NavigationDatabase.Instance);
         var context = new ConflictAlertContext(ExistingConflictIds: existingIds, ApproachCorridors: corridors);
 
-        var detected = ConflictAlertDetector.Detect(snapshot, context);
+        List<ConflictAlertDetector.ConflictPair> detected = ConflictAlertDetector.Detect(snapshot, context);
         var detectedIds = new HashSet<string>(detected.Select(c => c.Id));
 
         var newConflicts = new List<ActiveConflict>();
-        foreach (var pair in detected)
+        foreach (ConflictAlertDetector.ConflictPair pair in detected)
         {
             if (!conflicts.ContainsKey(pair.Id))
             {
@@ -571,11 +577,11 @@ public sealed partial class SimulationEngine
         }
 
         var clearedIds = new List<string>();
-        foreach (var id in existingIds)
+        foreach (string id in existingIds)
         {
             if (!detectedIds.Contains(id))
             {
-                var cleared = conflicts[id];
+                ActiveConflict cleared = conflicts[id];
                 conflicts.Remove(id);
                 clearedIds.Add(id);
 
@@ -600,17 +606,17 @@ public sealed partial class SimulationEngine
     /// </summary>
     public EramConflictAlertChanges TickEramConflictAlerts()
     {
-        var snapshot = World.GetSnapshot();
-        var conflicts = EramConflicts.Conflicts;
+        List<AircraftState> snapshot = World.GetSnapshot();
+        Dictionary<string, EramActiveConflict> conflicts = EramConflicts.Conflicts;
         var existingIds = new HashSet<string>(conflicts.Keys);
 
-        var detected = EramConflictDetector.Detect(snapshot, existingIds);
+        List<EramConflictDetector.ConflictPair> detected = EramConflictDetector.Detect(snapshot, existingIds);
         var detectedIds = new HashSet<string>(detected.Select(c => c.Id));
 
         var ownerFacility = new Dictionary<string, string?>(snapshot.Count);
         var isTracked = new Dictionary<string, bool>(snapshot.Count);
         var isCorrelated = new Dictionary<string, bool>(snapshot.Count);
-        foreach (var ac in snapshot)
+        foreach (AircraftState ac in snapshot)
         {
             ownerFacility[ac.Callsign] = ac.Track.Owner is { OwnerType: TrackOwnerType.Eram, FacilityId: { } facility } ? facility : null;
             isTracked[ac.Callsign] = ac.Track.Owner is not null;
@@ -618,14 +624,14 @@ public sealed partial class SimulationEngine
         }
 
         var newConflicts = new List<EramActiveConflict>();
-        foreach (var pair in detected)
+        foreach (EramConflictDetector.ConflictPair pair in detected)
         {
-            ownerFacility.TryGetValue(pair.CallsignA, out var facilityA);
-            ownerFacility.TryGetValue(pair.CallsignB, out var facilityB);
-            isTracked.TryGetValue(pair.CallsignA, out var trackedA);
-            isTracked.TryGetValue(pair.CallsignB, out var trackedB);
-            isCorrelated.TryGetValue(pair.CallsignA, out var correlatedA);
-            isCorrelated.TryGetValue(pair.CallsignB, out var correlatedB);
+            ownerFacility.TryGetValue(pair.CallsignA, out string? facilityA);
+            ownerFacility.TryGetValue(pair.CallsignB, out string? facilityB);
+            isTracked.TryGetValue(pair.CallsignA, out bool trackedA);
+            isTracked.TryGetValue(pair.CallsignB, out bool trackedB);
+            isCorrelated.TryGetValue(pair.CallsignA, out bool correlatedA);
+            isCorrelated.TryGetValue(pair.CallsignB, out bool correlatedB);
 
             // A conflict alert protects a controlled aircraft (7110.65 §2-1-6, §5-13-1), and the §377 facility
             // gate needs a target owned in some ERAM facility — so two untracked returns are not an alert.
@@ -639,12 +645,12 @@ public sealed partial class SimulationEngine
             // target that is BOTH untracked AND uncorrelated (no flight plan). A correlated-but-unowned target
             // (a filed flight plan that no controller has tracked yet) is NOT an intruder — it flashes an
             // ordinary data block as a normal conflict alert. At most one side is untracked here.
-            var intruder =
+            string? intruder =
                 (!trackedA && !correlatedA) ? pair.CallsignA
                 : (!trackedB && !correlatedB) ? pair.CallsignB
                 : null;
 
-            if (conflicts.TryGetValue(pair.Id, out var existing))
+            if (conflicts.TryGetValue(pair.Id, out EramActiveConflict? existing))
             {
                 existing.OwnerFacilityA = facilityA;
                 existing.OwnerFacilityB = facilityB;
@@ -673,7 +679,7 @@ public sealed partial class SimulationEngine
         }
 
         var clearedIds = new List<string>();
-        foreach (var id in existingIds)
+        foreach (string id in existingIds)
         {
             if (!detectedIds.Contains(id))
             {
@@ -700,14 +706,14 @@ public sealed partial class SimulationEngine
             return [];
         }
 
-        var mode = scenario.EffectiveAutoDeleteMode;
+        string? mode = scenario.EffectiveAutoDeleteMode;
         bool modeDisabled =
             string.IsNullOrEmpty(mode)
             || mode.Equals("None", StringComparison.OrdinalIgnoreCase)
             || mode.Equals("Never", StringComparison.OrdinalIgnoreCase);
 
         var toDelete = new List<AircraftState>();
-        foreach (var ac in World.GetSnapshot())
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             // Per-aircraft opt-in raised by a queued ONHS DEL (or any queued DeleteCommand) whose trigger
             // has fired. This bypasses AutoDeleteExempt — the controller explicitly asked for the delete.
@@ -763,7 +769,7 @@ public sealed partial class SimulationEngine
             _logger.LogDebug("AutoDelete: {Count} aircraft pending deletion at t={T}s", toDelete.Count, scenario.ElapsedSeconds);
         }
 
-        foreach (var ac in toDelete)
+        foreach (AircraftState ac in toDelete)
         {
             // An overflight leaving its corridor is a completed transit, not a drop: stamp it so the removal below
             // records a debrief row (landings and handoffs are stamped where they happen).
@@ -820,7 +826,7 @@ public sealed partial class SimulationEngine
             return null;
         }
 
-        var profile = timeline.GetWeatherAt(scenario.ElapsedSeconds);
+        WeatherProfile profile = timeline.GetWeatherAt(scenario.ElapsedSeconds);
         World.Weather = profile;
         return profile;
     }
@@ -838,7 +844,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        foreach (var ac in World.GetSnapshot())
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             if (ac.PositionHistory.Count >= AircraftState.PositionHistoryCapacity)
             {
@@ -892,7 +898,7 @@ public sealed partial class SimulationEngine
 
     private static LatLon? LookupAirportPosition(string airportId)
     {
-        var pos = NavigationDatabase.Instance.GetFixPosition(airportId);
+        (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetFixPosition(airportId);
         return pos.HasValue ? new LatLon(pos.Value.Lat, pos.Value.Lon) : null;
     }
 
@@ -950,7 +956,7 @@ public sealed partial class SimulationEngine
     private HashSet<int> BuildOccupiedHoldShortNodes()
     {
         var occupied = new HashSet<int>();
-        foreach (var ac in World.GetSnapshot())
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             if (ac.Phases?.CurrentPhase is HoldingShortPhase hs)
             {
@@ -1005,10 +1011,10 @@ public sealed partial class SimulationEngine
     /// </summary>
     private PhaseContext BuildPhaseContext(AircraftState aircraft, double deltaSeconds)
     {
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-        var runway = aircraft.Phases?.AssignedRunway;
-        var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
-        var occupiedNodes = _occupiedHoldShortNodes;
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
+        AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+        HashSet<int>? occupiedNodes = _occupiedHoldShortNodes;
 
         return new PhaseContext
         {

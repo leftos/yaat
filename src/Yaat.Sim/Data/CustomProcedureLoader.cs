@@ -43,7 +43,7 @@ public static class CustomProcedureLoader
             return result;
         }
 
-        foreach (var artccDir in Directory.EnumerateDirectories(artccsBaseDir).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+        foreach (string? artccDir in Directory.EnumerateDirectories(artccsBaseDir).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
         {
             string categoryDir = Path.Combine(artccDir, "Procedures");
             if (!Directory.Exists(categoryDir))
@@ -52,7 +52,7 @@ public static class CustomProcedureLoader
             }
 
             string artccId = Path.GetFileName(artccDir).ToUpperInvariant();
-            foreach (var file in Directory.GetFiles(categoryDir, "*.cifp").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+            foreach (string? file in Directory.GetFiles(categoryDir, "*.cifp").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
             {
                 LoadFile(artccId, file, result);
             }
@@ -91,7 +91,7 @@ public static class CustomProcedureLoader
     private static HashSet<string> ReadAirportIcaos(string filePath)
     {
         var icaos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var line in File.ReadLines(filePath))
+        foreach (string line in File.ReadLines(filePath))
         {
             if (line.Length < MinRecordLength || !line.StartsWith("SUSAP", StringComparison.Ordinal))
             {

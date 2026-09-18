@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -34,13 +35,13 @@ public class Issue189AtpaPconesTests(ITestOutputHelper output)
     [Fact]
     public void TrailingArrivalsOnIahFinal_ReceiveAtpaCones()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -48,8 +49,8 @@ public class Issue189AtpaPconesTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var starsConfig = archive.DeserializeArtccConfig()?.GetStarsConfigForFacility(StudentFacilityId);
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            StarsConfig? starsConfig = archive.DeserializeArtccConfig()?.GetStarsConfigForFacility(StudentFacilityId);
             if (starsConfig is null || starsConfig.AtpaVolumes.Count == 0)
             {
                 output.WriteLine("No ZHU/I90 ATPA volumes in bundle — skipping");
@@ -58,7 +59,7 @@ public class Issue189AtpaPconesTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(490);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(490);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=490 — skipping");
@@ -66,10 +67,10 @@ public class Issue189AtpaPconesTests(ITestOutputHelper output)
             }
             engine.RestoreFromSnapshot(snapshot.State);
 
-            var aircraft = engine.World.GetSnapshot();
-            var results = new AtpaProcessor().Process(aircraft, starsConfig.AtpaVolumes, starsConfig);
+            List<AircraftState> aircraft = engine.World.GetSnapshot();
+            Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(aircraft, starsConfig.AtpaVolumes, starsConfig);
 
-            foreach (var (callsign, r) in results)
+            foreach ((string? callsign, AtpaResult? r) in results)
             {
                 output.WriteLine(
                     $"{callsign}: state={r.ConeState} target={r.TargetTrackId} allowed={r.AllowedSeparation:F1} actual={r.ActualSeparation:F1} mon=[{string.Join(",", r.AtpaMonitorTcps)}] alert=[{string.Join(",", r.AtpaAlertTcps)}]"

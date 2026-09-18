@@ -1,4 +1,5 @@
 using Yaat.LayoutInspector.Tick;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.LayoutInspector.Commands;
 
@@ -44,19 +45,19 @@ public sealed class TickTableCommand : ICommand
                 return 2;
             }
 
-            var parts = options.TickRefRunway.Split('/');
+            string[] parts = options.TickRefRunway.Split('/');
             string rwy = parts[1].ToUpperInvariant();
 
             foreach (string twy in options.TickHoldShorts)
             {
-                var nodes = HoldShortResolver.Find(analyzer.Layout, rwy, twy);
+                List<GroundNode> nodes = HoldShortResolver.Find(analyzer.Layout, rwy, twy);
                 if (nodes.Count == 0)
                 {
                     Console.Error.WriteLine($"warn: no hold-short nodes found for runway {rwy} taxiway {twy}");
                     continue;
                 }
 
-                foreach (var n in nodes)
+                foreach (GroundNode n in nodes)
                 {
                     Console.Error.WriteLine($"# exit {twy}: node #{n.Id} at ({n.Position.Lat:F6},{n.Position.Lon:F6})");
                 }
@@ -65,7 +66,7 @@ public sealed class TickTableCommand : ICommand
             }
         }
 
-        var recording = TickJsonReader.Read(options.TicksJsonPath);
+        TickRecording? recording = TickJsonReader.Read(options.TicksJsonPath);
         if (recording is null)
         {
             Console.Error.WriteLine("error: tick recording is empty or unreadable");

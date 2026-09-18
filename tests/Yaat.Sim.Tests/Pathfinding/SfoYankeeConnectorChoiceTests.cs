@@ -45,7 +45,7 @@ public class SfoYankeeConnectorChoiceTests
     [Fact]
     public void TaxiYAA1_FromYankeeFacingA1_BridgesThroughAy3_NotBackThroughAy2()
     {
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         if ((layout is null) || (TestVnasData.NavigationDb is null))
         {
             _output.WriteLine("SFO layout or navdata not found — skipping");
@@ -56,10 +56,10 @@ public class SfoYankeeConnectorChoiceTests
         var startHeading = new TrueHeading(StartHeadingDeg);
 
         // The same start-node resolution GroundCommandHandler.TryTaxi performs for a TAXI command.
-        var startNode = layout.FindNearestNodeForTaxi(startPosition, startHeading) ?? layout.FindNearestNode(startPosition);
+        GroundNode? startNode = layout.FindNearestNodeForTaxi(startPosition, startHeading) ?? layout.FindNearestNode(startPosition);
         Assert.NotNull(startNode);
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode!.Id,
             ["Y", "A", "A1"],

@@ -40,15 +40,15 @@ public sealed class VnasDataService : IDisposable
     {
         Directory.CreateDirectory(_cacheDir);
 
-        var airac = AiracCycle.GetCurrentCycleId();
+        string airac = AiracCycle.GetCurrentCycleId();
         CurrentAiracCycle = airac;
         Log.LogInformation("Current AIRAC cycle: {Cycle}", airac);
 
-        var nextDate = AiracCycle.GetNextCycleDate(DateOnly.FromDateTime(DateTime.UtcNow));
-        var daysUntilNext = nextDate.DayNumber - DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
+        DateOnly nextDate = AiracCycle.GetNextCycleDate(DateOnly.FromDateTime(DateTime.UtcNow));
+        int daysUntilNext = nextDate.DayNumber - DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
         Log.LogInformation("Next AIRAC cycle effective in {Days} days ({Date:yyyy-MM-dd})", daysUntilNext, nextDate);
 
-        var manifest = LoadManifest();
+        CacheManifest? manifest = LoadManifest();
         VnasConfig? config = null;
 
         try
@@ -101,13 +101,13 @@ public sealed class VnasDataService : IDisposable
     {
         Log.LogInformation("Fetching VNAS config from {Url}", ConfigUrl);
 
-        var json = await _http.GetStringAsync(ConfigUrl);
+        string json = await _http.GetStringAsync(ConfigUrl);
         return JsonSerializer.Deserialize<VnasConfig>(json, JsonOptions);
     }
 
     private async Task LoadNavDataAsync(VnasConfig? config, CacheManifest? manifest)
     {
-        var cachePath = Path.Combine(_cacheDir, "NavData.dat");
+        string cachePath = Path.Combine(_cacheDir, "NavData.dat");
 
         bool needsDownload = config is not null && (manifest is null || config.NavDataSerial != manifest.NavDataSerial || !File.Exists(cachePath));
 
@@ -117,7 +117,7 @@ public sealed class VnasDataService : IDisposable
             {
                 Log.LogInformation("Downloading NavData.dat (serial {Serial})", config.NavDataSerial);
 
-                var bytes = await _http.GetByteArrayAsync(config.NavDataUrl);
+                byte[] bytes = await _http.GetByteArrayAsync(config.NavDataUrl);
                 await File.WriteAllBytesAsync(cachePath, bytes);
 
                 Log.LogInformation("NavData.dat cached ({Size:N0} bytes)", bytes.Length);
@@ -132,7 +132,7 @@ public sealed class VnasDataService : IDisposable
         {
             try
             {
-                var bytes = await File.ReadAllBytesAsync(cachePath);
+                byte[] bytes = await File.ReadAllBytesAsync(cachePath);
                 NavData = NavDataSet.Parser.ParseFrom(bytes);
 
                 Log.LogInformation(
@@ -157,7 +157,7 @@ public sealed class VnasDataService : IDisposable
 
     private async Task LoadAircraftSpecsAsync(VnasConfig? config, CacheManifest? manifest)
     {
-        var cachePath = Path.Combine(_cacheDir, "AircraftSpecs.json");
+        string cachePath = Path.Combine(_cacheDir, "AircraftSpecs.json");
 
         bool needsDownload =
             config is not null && (manifest is null || config.AircraftSpecsSerial != manifest.AircraftSpecsSerial || !File.Exists(cachePath));
@@ -168,7 +168,7 @@ public sealed class VnasDataService : IDisposable
             {
                 Log.LogInformation("Downloading AircraftSpecs.json (serial {Serial})", config.AircraftSpecsSerial);
 
-                var json = await _http.GetStringAsync(config.AircraftSpecsUrl);
+                string json = await _http.GetStringAsync(config.AircraftSpecsUrl);
                 await File.WriteAllTextAsync(cachePath, json);
             }
             catch (Exception ex)
@@ -181,8 +181,8 @@ public sealed class VnasDataService : IDisposable
         {
             try
             {
-                var json = await File.ReadAllTextAsync(cachePath);
-                var specs = JsonSerializer.Deserialize<List<AircraftSpecEntry>>(json, JsonOptions);
+                string json = await File.ReadAllTextAsync(cachePath);
+                List<AircraftSpecEntry>? specs = JsonSerializer.Deserialize<List<AircraftSpecEntry>>(json, JsonOptions);
                 AircraftSpecs = specs ?? [];
 
                 Log.LogInformation("AircraftSpecs loaded: {Count} aircraft types", AircraftSpecs.Count);
@@ -196,7 +196,7 @@ public sealed class VnasDataService : IDisposable
 
     private async Task LoadAircraftCwtAsync(VnasConfig? config, CacheManifest? manifest)
     {
-        var cachePath = Path.Combine(_cacheDir, "AircraftCwt.json");
+        string cachePath = Path.Combine(_cacheDir, "AircraftCwt.json");
 
         bool needsDownload =
             config is not null && (manifest is null || config.AircraftCwtSerial != manifest.AircraftCwtSerial || !File.Exists(cachePath));
@@ -207,7 +207,7 @@ public sealed class VnasDataService : IDisposable
             {
                 Log.LogInformation("Downloading AircraftCwt.json (serial {Serial})", config.AircraftCwtSerial);
 
-                var json = await _http.GetStringAsync(config.AircraftCwtUrl);
+                string json = await _http.GetStringAsync(config.AircraftCwtUrl);
                 await File.WriteAllTextAsync(cachePath, json);
             }
             catch (Exception ex)
@@ -220,8 +220,8 @@ public sealed class VnasDataService : IDisposable
         {
             try
             {
-                var json = await File.ReadAllTextAsync(cachePath);
-                var cwt = JsonSerializer.Deserialize<List<AircraftCwtEntry>>(json, JsonOptions);
+                string json = await File.ReadAllTextAsync(cachePath);
+                List<AircraftCwtEntry>? cwt = JsonSerializer.Deserialize<List<AircraftCwtEntry>>(json, JsonOptions);
                 AircraftCwt = cwt ?? [];
 
                 Log.LogInformation("AircraftCwt loaded: {Count} entries", AircraftCwt.Count);
@@ -235,7 +235,7 @@ public sealed class VnasDataService : IDisposable
 
     private CacheManifest? LoadManifest()
     {
-        var path = Path.Combine(_cacheDir, "manifest.json");
+        string path = Path.Combine(_cacheDir, "manifest.json");
 
         if (!File.Exists(path))
         {
@@ -244,7 +244,7 @@ public sealed class VnasDataService : IDisposable
 
         try
         {
-            var json = File.ReadAllText(path);
+            string json = File.ReadAllText(path);
             return JsonSerializer.Deserialize<CacheManifest>(json, JsonOptions);
         }
         catch
@@ -264,8 +264,8 @@ public sealed class VnasDataService : IDisposable
             LastUpdated = DateTime.UtcNow,
         };
 
-        var path = Path.Combine(_cacheDir, "manifest.json");
-        var json = JsonSerializer.Serialize(manifest, IndentedJsonOptions);
+        string path = Path.Combine(_cacheDir, "manifest.json");
+        string json = JsonSerializer.Serialize(manifest, IndentedJsonOptions);
         File.WriteAllText(path, json);
     }
 
@@ -279,7 +279,7 @@ public sealed class VnasDataService : IDisposable
 
         var lookup = new Dictionary<string, AircraftCategory>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var spec in AircraftSpecs)
+        foreach (AircraftSpecEntry spec in AircraftSpecs)
         {
             if (string.IsNullOrEmpty(spec.Designator))
             {
@@ -320,7 +320,7 @@ public sealed class VnasDataService : IDisposable
         }
 
         var cwtLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var entry in AircraftCwt)
+        foreach (AircraftCwtEntry entry in AircraftCwt)
         {
             if (!string.IsNullOrEmpty(entry.TypeCode) && !string.IsNullOrEmpty(entry.CwtCode))
             {
@@ -353,10 +353,10 @@ public sealed class VnasDataService : IDisposable
         // initialized above) must be ready before profiles are loaded.
         try
         {
-            var siblingPath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileSiblings.json");
+            string siblingPath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileSiblings.json");
             if (File.Exists(siblingPath))
             {
-                var siblings = AircraftSiblingMap.LoadFromFile(siblingPath);
+                Dictionary<string, string> siblings = AircraftSiblingMap.LoadFromFile(siblingPath);
                 AircraftSiblingMap.Initialize(siblings);
             }
         }
@@ -367,16 +367,16 @@ public sealed class VnasDataService : IDisposable
 
         try
         {
-            var path = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfiles.json");
+            string path = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfiles.json");
             if (!File.Exists(path))
             {
                 Log.LogWarning("AircraftProfiles.json not found at {Path}; category defaults will be used", path);
                 return;
             }
 
-            var profiles = AircraftProfileDatabase.LoadFromFile(path);
-            var overridePath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileOverrides.json");
-            var overrides = AircraftProfileDatabase.LoadOverridesFromFile(overridePath);
+            Dictionary<string, AircraftProfile> profiles = AircraftProfileDatabase.LoadFromFile(path);
+            string overridePath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileOverrides.json");
+            IReadOnlyList<AircraftProfileOverride> overrides = AircraftProfileDatabase.LoadOverridesFromFile(overridePath);
             AircraftProfileDatabase.Initialize(profiles, overrides);
         }
         catch (Exception ex)
@@ -387,9 +387,9 @@ public sealed class VnasDataService : IDisposable
 
     private void LogSummary()
     {
-        var hasNav = NavData is not null;
-        var hasSpecs = AircraftSpecs.Count > 0;
-        var hasCwt = AircraftCwt.Count > 0;
+        bool hasNav = NavData is not null;
+        bool hasSpecs = AircraftSpecs.Count > 0;
+        bool hasCwt = AircraftCwt.Count > 0;
 
         if (hasNav && hasSpecs && hasCwt)
         {

@@ -25,8 +25,8 @@ public static class CommandSchemeParser
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme, out ParseFailure? failure)
     {
         failure = null;
-        var aliasNormalized = SplitTrailingGiveWay(NormalizeSeparatorAliases(input.Trim()));
-        var trimmed = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(aliasNormalized, scheme)));
+        string aliasNormalized = SplitTrailingGiveWay(NormalizeSeparatorAliases(input.Trim()));
+        string trimmed = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(aliasNormalized, scheme)));
         trimmed = CommaBeforeCondition.Replace(trimmed, ";");
         trimmed = CommaBeforeGiveWayCondition.Replace(trimmed, ";");
         if (string.IsNullOrEmpty(trimmed))
@@ -35,7 +35,7 @@ public static class CommandSchemeParser
         }
 
         bool isCompound = trimmed.Contains(';') || trimmed.Contains(',');
-        var upper = trimmed.ToUpperInvariant();
+        string upper = trimmed.ToUpperInvariant();
         if (!isCompound)
         {
             isCompound =
@@ -50,7 +50,7 @@ public static class CommandSchemeParser
             // GIVEWAY/BEHIND/GW are compound only if they have 3+ tokens (condition form)
             if (!isCompound && (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ") || upper.StartsWith("GW ")))
             {
-                var tokens = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                string[] tokens = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 isCompound = tokens.Length >= 3;
             }
         }
@@ -58,7 +58,7 @@ public static class CommandSchemeParser
         if (!isCompound)
         {
             // Single command
-            var parsed = Parse(trimmed, scheme, out failure);
+            ParsedInput? parsed = Parse(trimmed, scheme, out failure);
             if (parsed is null)
             {
                 return null;
@@ -68,18 +68,18 @@ public static class CommandSchemeParser
         }
 
         // Split by ';' for sequential blocks
-        var blockStrings = trimmed.Split(';');
+        string[] blockStrings = trimmed.Split(';');
         var canonicalBlocks = new List<string>();
 
-        foreach (var blockStr in blockStrings)
+        foreach (string blockStr in blockStrings)
         {
-            var block = blockStr.Trim();
+            string block = blockStr.Trim();
             if (string.IsNullOrEmpty(block))
             {
                 continue;
             }
 
-            var canonicalBlock = ParseBlockToCanonical(block, scheme, out failure);
+            string? canonicalBlock = ParseBlockToCanonical(block, scheme, out failure);
             if (canonicalBlock is null)
             {
                 return null;
@@ -122,7 +122,7 @@ public static class CommandSchemeParser
             return input;
         }
 
-        var tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length < 4 || !CommandRegistry.IsAliasFor(CanonicalCommandType.Taxi, tokens[0]))
         {
             return input;
@@ -158,13 +158,13 @@ public static class CommandSchemeParser
     /// </summary>
     private static bool IsGiveWayConditionBlock(string block)
     {
-        var upper = block.ToUpperInvariant();
+        string upper = block.ToUpperInvariant();
         if (!(upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ") || upper.StartsWith("GW ")))
         {
             return false;
         }
 
-        var tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return (tokens.Length >= 3) && CommandParser.IsGiveWayConditionVerb(tokens[2]);
     }
 
@@ -174,10 +174,10 @@ public static class CommandSchemeParser
     /// </summary>
     private static bool IsWaitOnlyCommandList(string canonicalCommands)
     {
-        var commands = canonicalCommands.Split(',');
-        foreach (var command in commands)
+        string[] commands = canonicalCommands.Split(',');
+        foreach (string command in commands)
         {
-            var trimmed = command.Trim();
+            string trimmed = command.Trim();
             if (!(trimmed.StartsWith("WAIT ", StringComparison.Ordinal) || trimmed.StartsWith("WAITD ", StringComparison.Ordinal)))
             {
                 return false;
@@ -198,7 +198,7 @@ public static class CommandSchemeParser
             return true;
         }
 
-        var upper = canonicalBlock.ToUpperInvariant();
+        string upper = canonicalBlock.ToUpperInvariant();
         return upper.StartsWith("LV ")
             || upper.StartsWith("AT ")
             || upper.StartsWith("ATFN ")
@@ -218,7 +218,7 @@ public static class CommandSchemeParser
     {
         int letters = 0;
         int digits = 0;
-        foreach (var ch in token)
+        foreach (char ch in token)
         {
             if (char.IsLetter(ch))
             {
@@ -261,25 +261,25 @@ public static class CommandSchemeParser
     /// </summary>
     private static void InjectCfixImplicitAtCondition(List<string> canonicalBlocks)
     {
-        var firstBlock = canonicalBlocks[0];
+        string firstBlock = canonicalBlocks[0];
         if (!firstBlock.StartsWith("CFIX ", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
         // Extract fix name: canonical form is "CFIX <fixname> <alt> [speed]"
-        var tokens = firstBlock.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = firstBlock.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length < 2)
         {
             return;
         }
 
-        var fixName = tokens[1];
+        string fixName = tokens[1];
 
         for (int i = 1; i < canonicalBlocks.Count; i++)
         {
-            var block = canonicalBlocks[i];
-            var firstToken = block.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
+            string block = canonicalBlocks[i];
+            string firstToken = block.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
             if (CanonicalConditionKeywords.Contains(firstToken))
             {
                 continue;
@@ -293,13 +293,13 @@ public static class CommandSchemeParser
     {
         failure = null;
         var parts = new List<string>();
-        var remaining = block;
+        string remaining = block;
 
         // Check for LV or AT prefix
-        var upper = remaining.ToUpperInvariant();
+        string upper = remaining.ToUpperInvariant();
         if (upper.StartsWith("LV "))
         {
-            var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+            string[] tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 3)
             {
                 failure = new ParseFailure("LV", "expects an altitude and a command (e.g. LV 5000 CM 190)");
@@ -317,7 +317,7 @@ public static class CommandSchemeParser
         }
         else if (upper.StartsWith("AT "))
         {
-            var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+            string[] tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 2)
             {
                 failure = new ParseFailure("AT", "expects a fix or altitude and a command (e.g. AT BRIXX CM 190)");
@@ -336,7 +336,7 @@ public static class CommandSchemeParser
         }
         else if (upper.StartsWith("ATFN "))
         {
-            var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+            string[] tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 3)
             {
                 failure = new ParseFailure("ATFN", "expects a distance and a command (e.g. ATFN 5 CM 190)");
@@ -356,7 +356,7 @@ public static class CommandSchemeParser
         {
             // GIVEWAY/BEHIND/GW as a *condition* (callsign + ground verb). A standalone give-way
             // (GIVEWAY <callsign>) is not a condition — it falls through to the command parser below.
-            var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+            string[] tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
             parts.Add($"GIVEWAY {tokens[1].ToUpperInvariant()}");
             remaining = tokens[2];
         }
@@ -365,7 +365,7 @@ public static class CommandSchemeParser
         // part of the prefix.
         else if (upper.StartsWith("ONHO ") || upper.StartsWith("ONH "))
         {
-            var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            string[] tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 2)
             {
                 failure = new ParseFailure("ONHO", "expects a command (e.g. ONHO CM 190)");
@@ -373,13 +373,13 @@ public static class CommandSchemeParser
             }
 
             remaining = tokens[1];
-            var remainderUpper = remaining.ToUpperInvariant();
+            string remainderUpper = remaining.ToUpperInvariant();
 
             // ONHO followed by another condition → emit ONHO as a standalone block,
             // then recursively parse the remainder as a separate block
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                var innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure);
+                string? innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -392,7 +392,7 @@ public static class CommandSchemeParser
         }
         else if (upper.StartsWith("ONHS "))
         {
-            var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            string[] tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 2)
             {
                 failure = new ParseFailure("ONHS", "expects a command (e.g. ONHS CM 190)");
@@ -400,11 +400,11 @@ public static class CommandSchemeParser
             }
 
             remaining = tokens[1];
-            var remainderUpper = remaining.ToUpperInvariant();
+            string remainderUpper = remaining.ToUpperInvariant();
 
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                var innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure);
+                string? innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -417,7 +417,7 @@ public static class CommandSchemeParser
         }
         else if (upper.StartsWith("OTG "))
         {
-            var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            string[] tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 2)
             {
                 failure = new ParseFailure("OTG", "expects a command (e.g. OTG MLT 28L)");
@@ -425,11 +425,11 @@ public static class CommandSchemeParser
             }
 
             remaining = tokens[1];
-            var remainderUpper = remaining.ToUpperInvariant();
+            string remainderUpper = remaining.ToUpperInvariant();
 
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                var innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure);
+                string? innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -442,7 +442,7 @@ public static class CommandSchemeParser
         }
 
         // Apply ExpandWait and ExpandSpeedUntil to the remainder after condition extraction
-        var expandedRemainder = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(remaining, scheme)));
+        string expandedRemainder = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(remaining, scheme)));
         if (expandedRemainder.Contains(';'))
         {
             // Expansion produced additional blocks — split and handle each
@@ -453,16 +453,16 @@ public static class CommandSchemeParser
             }
 
             // First sub-block gets the condition prefix
-            var firstCmds = ParseCommandList(subBlocks[0], scheme, out failure);
+            string? firstCmds = ParseCommandList(subBlocks[0], scheme, out failure);
             if (firstCmds is null)
             {
                 return null;
             }
 
             var tailCanonicals = new List<string>();
-            foreach (var subBlock in subBlocks.Skip(1))
+            foreach (string? subBlock in subBlocks.Skip(1))
             {
-                var canonicalBlock = ParseBlockToCanonical(subBlock, scheme, out failure);
+                string? canonicalBlock = ParseBlockToCanonical(subBlock, scheme, out failure);
                 if (canonicalBlock is null)
                 {
                     return null;
@@ -485,7 +485,7 @@ public static class CommandSchemeParser
                 }
             }
 
-            var firstBlock = parts.Count > 0 ? $"{string.Join(" ", parts)} {firstCmds}" : firstCmds;
+            string firstBlock = parts.Count > 0 ? $"{string.Join(" ", parts)} {firstCmds}" : firstCmds;
             if (mergeCount > 0)
             {
                 firstBlock = $"{firstBlock} {string.Join(" ", tailCanonicals.Take(mergeCount))}";
@@ -505,7 +505,7 @@ public static class CommandSchemeParser
             return string.Join(" ", parts);
         }
 
-        var commandResult = ParseCommandList(remaining, scheme, out failure);
+        string? commandResult = ParseCommandList(remaining, scheme, out failure);
         if (commandResult is null)
         {
             return null;
@@ -523,30 +523,30 @@ public static class CommandSchemeParser
     {
         failure = null;
         // SAY, TIMER and BM consume their entire remainder as literal text — don't split on comma
-        var trimmedRemaining = remaining.TrimStart();
+        string trimmedRemaining = remaining.TrimStart();
         if (
             StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Say)
             || StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Timer)
             || StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Bookmark)
         )
         {
-            var parsed = Parse(remaining.Trim(), scheme, out failure);
+            ParsedInput? parsed = Parse(remaining.Trim(), scheme, out failure);
             return parsed is not null ? ToCanonical(parsed.Type, parsed.Argument) : null;
         }
 
         // Split remaining by ',' for parallel commands
-        var commandStrings = remaining.Split(',');
+        string[] commandStrings = remaining.Split(',');
         var canonicalCommands = new List<string>();
 
-        foreach (var cmdStr in commandStrings)
+        foreach (string cmdStr in commandStrings)
         {
-            var cmd = cmdStr.Trim();
+            string cmd = cmdStr.Trim();
             if (string.IsNullOrEmpty(cmd))
             {
                 continue;
             }
 
-            var parsed = Parse(cmd, scheme, out failure);
+            ParsedInput? parsed = Parse(cmd, scheme, out failure);
             if (parsed is not null)
             {
                 canonicalCommands.Add(ToCanonical(parsed.Type, parsed.Argument));
@@ -554,21 +554,21 @@ public static class CommandSchemeParser
             }
 
             // Try expanding concatenated commands: "FH 270 CM 5000" → "FH 270, CM 5000"
-            var expanded = ExpandMultiCommand(cmd);
+            string expanded = ExpandMultiCommand(cmd);
             if (expanded == cmd)
             {
                 if (failure is null)
                 {
-                    var verb = cmd.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
+                    string verb = cmd.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
                     failure = new ParseFailure(verb, "is not a recognized command");
                 }
 
                 return null;
             }
 
-            foreach (var subCmd in expanded.Split(','))
+            foreach (string subCmd in expanded.Split(','))
             {
-                var subParsed = Parse(subCmd.Trim(), scheme, out failure);
+                ParsedInput? subParsed = Parse(subCmd.Trim(), scheme, out failure);
                 if (subParsed is null)
                 {
                     return null;
@@ -594,7 +594,7 @@ public static class CommandSchemeParser
     public static ParsedInput? Parse(string input, CommandScheme scheme, out ParseFailure? failure)
     {
         failure = null;
-        var trimmed = input.Trim().ToUpperInvariant();
+        string trimmed = input.Trim().ToUpperInvariant();
         if (string.IsNullOrEmpty(trimmed))
         {
             return null;
@@ -602,7 +602,7 @@ public static class CommandSchemeParser
 
         // Text-arg commands are always space-separated regardless of scheme mode.
         // Check longer prefixes first (HFIXL/HFIXR before HFIX).
-        var textArgMatch = ParseTextArgCommand(trimmed, scheme);
+        ParsedInput? textArgMatch = ParseTextArgCommand(trimmed, scheme);
         if (textArgMatch is not null)
         {
             return textArgMatch;
@@ -614,7 +614,7 @@ public static class CommandSchemeParser
     public static string ToCanonical(CanonicalCommandType type, string? argument)
     {
         var canonical = CommandScheme.Default();
-        if (!canonical.Patterns.TryGetValue(type, out var pattern))
+        if (!canonical.Patterns.TryGetValue(type, out CommandPattern? pattern))
         {
             return "";
         }
@@ -650,28 +650,28 @@ public static class CommandSchemeParser
         // Handle CTOMRT/CTOMLT legacy merged forms
         if (input.StartsWith("CTOMRT", StringComparison.OrdinalIgnoreCase) && (input.Length == 6 || input[6] == ' '))
         {
-            var suffix = input.Length > 7 ? " " + input[7..].Trim() : "";
-            var arg = "MRT" + suffix;
+            string suffix = input.Length > 7 ? " " + input[7..].Trim() : "";
+            string arg = "MRT" + suffix;
             return new ParsedInput(CanonicalCommandType.ClearedForTakeoff, arg.Trim());
         }
         if (input.StartsWith("CTOMLT", StringComparison.OrdinalIgnoreCase) && (input.Length == 6 || input[6] == ' '))
         {
-            var suffix = input.Length > 7 ? " " + input[7..].Trim() : "";
-            var arg = "MLT" + suffix;
+            string suffix = input.Length > 7 ? " " + input[7..].Trim() : "";
+            string arg = "MLT" + suffix;
             return new ParsedInput(CanonicalCommandType.ClearedForTakeoff, arg.Trim());
         }
 
         // Build (alias, type) pairs from the scheme, longest alias first so
         // HFIXL matches before HFIX.
         var candidates = new List<(string Alias, CanonicalCommandType Type)>();
-        foreach (var type in TextArgCommandTypes)
+        foreach (CanonicalCommandType type in TextArgCommandTypes)
         {
-            if (!scheme.Patterns.TryGetValue(type, out var pattern))
+            if (!scheme.Patterns.TryGetValue(type, out CommandPattern? pattern))
             {
                 continue;
             }
 
-            foreach (var alias in pattern.Aliases)
+            foreach (string alias in pattern.Aliases)
             {
                 candidates.Add((alias, type));
             }
@@ -679,7 +679,7 @@ public static class CommandSchemeParser
 
         candidates.Sort((a, b) => b.Alias.Length.CompareTo(a.Alias.Length));
 
-        foreach (var (alias, type) in candidates)
+        foreach ((string? alias, CanonicalCommandType type) in candidates)
         {
             if (!input.StartsWith(alias, StringComparison.OrdinalIgnoreCase))
             {
@@ -698,7 +698,7 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            var arg = input[(alias.Length + 1)..].Trim();
+            string arg = input[(alias.Length + 1)..].Trim();
             return arg.Length > 0 ? new ParsedInput(type, arg) : null;
         }
 
@@ -707,7 +707,7 @@ public static class CommandSchemeParser
 
     private static bool MatchesAnyAlias(string token, CommandPattern pattern)
     {
-        foreach (var alias in pattern.Aliases)
+        foreach (string alias in pattern.Aliases)
         {
             if (string.Equals(token, alias, StringComparison.OrdinalIgnoreCase))
             {
@@ -721,14 +721,14 @@ public static class CommandSchemeParser
     private static ParsedInput? ParseSpaceSeparated(string input, CommandScheme scheme, out ParseFailure? failure)
     {
         failure = null;
-        var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        var verb = parts[0];
-        var arg = parts.Length > 1 ? parts[1].Trim() : null;
+        string[] parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        string verb = parts[0];
+        string? arg = parts.Length > 1 ? parts[1].Trim() : null;
 
         // RWY {runway} [TAXI] {path} → rewrite to Taxi with RWY keyword
         if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase) && arg is not null)
         {
-            var rewritten = CommandParser.RewriteRwyToTaxiArg(arg);
+            string? rewritten = CommandParser.RewriteRwyToTaxiArg(arg);
             if (rewritten is not null)
             {
                 return new ParsedInput(CanonicalCommandType.Taxi, rewritten);
@@ -738,20 +738,20 @@ public static class CommandSchemeParser
         // Relative turns: T{digits}L / T{digits}R (hardcoded T prefix)
         if (verb.Length >= 3 && verb.StartsWith('T') && char.IsDigit(verb[1]) && verb[^1] is 'L' or 'R' && int.TryParse(verb[1..^1], out _))
         {
-            var type = verb[^1] == 'L' ? CanonicalCommandType.RelativeLeft : CanonicalCommandType.RelativeRight;
+            CanonicalCommandType type = verb[^1] == 'L' ? CanonicalCommandType.RelativeLeft : CanonicalCommandType.RelativeRight;
             return new ParsedInput(type, verb[1..^1]);
         }
 
         string? verbMatchReason = null;
         CanonicalCommandType? verbMatchType = null;
-        foreach (var (type, pattern) in scheme.Patterns)
+        foreach ((CanonicalCommandType type, CommandPattern? pattern) in scheme.Patterns)
         {
             if (!MatchesAnyAlias(verb, pattern))
             {
                 continue;
             }
 
-            var argMode = CommandRegistry.Get(type)?.ArgMode ?? ArgMode.None;
+            ArgMode argMode = CommandRegistry.Get(type)?.ArgMode ?? ArgMode.None;
 
             if (argMode == ArgMode.Required && arg is null)
             {
@@ -769,7 +769,7 @@ public static class CommandSchemeParser
 
             if (type == CanonicalCommandType.SpawnDelay)
             {
-                var normalized = NormalizeDelayArg(arg);
+                string? normalized = NormalizeDelayArg(arg);
                 return normalized is not null ? new ParsedInput(type, normalized) : null;
             }
 
@@ -780,9 +780,9 @@ public static class CommandSchemeParser
         // written without a space (e.g. FH270, CM240, H270, SQ1234).
         // Try longer aliases first to avoid matching "S" when "SQ" would work.
         var candidates = new List<(string Alias, CanonicalCommandType Type)>();
-        foreach (var (type, pattern) in scheme.Patterns)
+        foreach ((CanonicalCommandType type, CommandPattern? pattern) in scheme.Patterns)
         {
-            var concatArgMode = CommandRegistry.Get(type)?.ArgMode ?? ArgMode.None;
+            ArgMode concatArgMode = CommandRegistry.Get(type)?.ArgMode ?? ArgMode.None;
             if (concatArgMode == ArgMode.None)
             {
                 continue;
@@ -793,7 +793,7 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            foreach (var alias in pattern.Aliases)
+            foreach (string alias in pattern.Aliases)
             {
                 candidates.Add((alias, type));
             }
@@ -801,14 +801,14 @@ public static class CommandSchemeParser
 
         candidates.Sort((a, b) => b.Alias.Length.CompareTo(a.Alias.Length));
 
-        foreach (var (alias, type) in candidates)
+        foreach ((string? alias, CanonicalCommandType type) in candidates)
         {
             if (!input.StartsWith(alias, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            var remainder = input[alias.Length..];
+            string remainder = input[alias.Length..];
             if (remainder.Length == 0)
             {
                 continue;
@@ -825,7 +825,7 @@ public static class CommandSchemeParser
 
         if (verbMatchReason is not null)
         {
-            var expected = verbMatchType is { } t ? CommandRegistry.RenderSignature(t) : null;
+            string? expected = verbMatchType is { } t ? CommandRegistry.RenderSignature(t) : null;
             failure = new ParseFailure(verb, verbMatchReason, expected);
         }
         else
@@ -910,7 +910,7 @@ public static class CommandSchemeParser
                 i++;
             }
 
-            var token = input.AsSpan(start, i - start);
+            ReadOnlySpan<char> token = input.AsSpan(start, i - start);
 
             // A transparent prefix's argument token is copied verbatim: it must neither become a
             // separator nor start a SAY literal, and the command start it guards stays open.
@@ -964,7 +964,7 @@ public static class CommandSchemeParser
     /// <summary>The separator a token stands for when it is one of the word aliases, or null for an ordinary token.</summary>
     private static char? SeparatorAliasFor(ReadOnlySpan<char> token)
     {
-        foreach (var (word, separator) in SeparatorAliases)
+        foreach ((string? word, char separator) in SeparatorAliases)
         {
             if (token.Equals(word, StringComparison.OrdinalIgnoreCase))
             {
@@ -1037,7 +1037,7 @@ public static class CommandSchemeParser
             return input;
         }
 
-        var tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         if (tokens.Length >= 2)
         {
@@ -1082,7 +1082,7 @@ public static class CommandSchemeParser
 
     private static Regex BuildCommaBeforeGiveWayConditionRegex()
     {
-        var groundVerbs = new[]
+        IEnumerable<string> groundVerbs = new[]
         {
             CanonicalCommandType.Taxi,
             CanonicalCommandType.AssignRunway,
@@ -1091,7 +1091,7 @@ public static class CommandSchemeParser
         }
             .SelectMany(CommandRegistry.AliasesFor)
             .Select(Regex.Escape);
-        var alternation = string.Join("|", groundVerbs);
+        string alternation = string.Join("|", groundVerbs);
         return new Regex($@",\s*(?=(?:GIVEWAY|BEHIND|GW)\s+\S+\s+(?:{alternation})(?:\s|$))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     }
 
@@ -1118,8 +1118,8 @@ public static class CommandSchemeParser
 
             for (int end = i + 1; end <= tokens.Length; end++)
             {
-                var candidate = string.Join(' ', tokens[i..end]);
-                var result = CommandParser.Parse(candidate);
+                string candidate = string.Join(' ', tokens[i..end]);
+                ParseResult<ParsedCommand> result = CommandParser.Parse(candidate);
                 if (result.IsSuccess)
                 {
                     lastGood = candidate;
@@ -1151,7 +1151,7 @@ public static class CommandSchemeParser
             return string.Join(' ', tokens);
         }
 
-        var singleArgVerbs = CommandRegistry.SingleArgAliases;
+        HashSet<string> singleArgVerbs = CommandRegistry.SingleArgAliases;
 
         for (int i = 0; i < tokens.Length; i += 2)
         {
@@ -1179,23 +1179,23 @@ public static class CommandSchemeParser
 
     public static string ExpandSpeedUntil(string input, CommandScheme scheme)
     {
-        var speedAliases = GetAliases(scheme, CanonicalCommandType.Speed);
+        IReadOnlyList<string> speedAliases = GetAliases(scheme, CanonicalCommandType.Speed);
         // Split by semicolons to process blocks independently
-        var blocks = input.Split(';');
+        string[] blocks = input.Split(';');
         var result = new List<string>();
 
         for (int i = 0; i < blocks.Length; i++)
         {
-            var block = blocks[i].Trim();
+            string block = blocks[i].Trim();
 
             // Match "SPD X UNTIL Y" where Y is numeric (distance)
-            if (TryParseSpeedUntilDistance(block, speedAliases, out var spdPart, out var distPart))
+            if (TryParseSpeedUntilDistance(block, speedAliases, out string? spdPart, out string? distPart))
             {
                 // Look at the next block for chaining
                 if (i + 1 < blocks.Length)
                 {
-                    var nextBlock = blocks[i + 1].Trim();
-                    if (TryParseSpeedUntilDistance(nextBlock, speedAliases, out var nextSpdPart, out var nextDistPart))
+                    string nextBlock = blocks[i + 1].Trim();
+                    if (TryParseSpeedUntilDistance(nextBlock, speedAliases, out string? nextSpdPart, out string? nextDistPart))
                     {
                         result.Add(spdPart);
                         result.Add($"ATFN {distPart} {nextSpdPart}");
@@ -1211,7 +1211,7 @@ public static class CommandSchemeParser
             }
 
             // Match "SPD X UNTIL FIXNAME" where FIXNAME is 2-5 alpha chars (fix-based)
-            if (TryParseSpeedUntilFix(block, speedAliases, out spdPart, out var fixName))
+            if (TryParseSpeedUntilFix(block, speedAliases, out spdPart, out string? fixName))
             {
                 result.Add(spdPart);
                 result.Add($"AT {fixName} RNS");
@@ -1233,11 +1233,11 @@ public static class CommandSchemeParser
     }
 
     private static IReadOnlyList<string> GetAliases(CommandScheme scheme, CanonicalCommandType type) =>
-        scheme.Patterns.TryGetValue(type, out var pattern) ? pattern.Aliases : CommandRegistry.AliasesFor(type);
+        scheme.Patterns.TryGetValue(type, out CommandPattern? pattern) ? pattern.Aliases : CommandRegistry.AliasesFor(type);
 
     private static bool StartsWithSchemeAlias(string input, CommandScheme scheme, CanonicalCommandType type)
     {
-        foreach (var alias in GetAliases(scheme, type))
+        foreach (string alias in GetAliases(scheme, type))
         {
             if (input.Length <= alias.Length)
             {
@@ -1255,7 +1255,7 @@ public static class CommandSchemeParser
 
     private static bool IsSchemeAlias(string token, IReadOnlyList<string> aliases)
     {
-        foreach (var alias in aliases)
+        foreach (string alias in aliases)
         {
             if (string.Equals(alias, token, StringComparison.OrdinalIgnoreCase))
             {
@@ -1271,7 +1271,7 @@ public static class CommandSchemeParser
         spdPart = "";
         distPart = "";
 
-        var tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (
             (tokens.Length != 4)
             || (!IsSchemeAlias(tokens[0], speedAliases))
@@ -1293,7 +1293,7 @@ public static class CommandSchemeParser
         spdPart = "";
         fixName = "";
 
-        var tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (
             (tokens.Length != 4)
             || (!IsSchemeAlias(tokens[0], speedAliases))
@@ -1315,7 +1315,7 @@ public static class CommandSchemeParser
         spdPart = "";
         fixName = "";
 
-        var tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if ((tokens.Length != 3) || (!IsSchemeAlias(tokens[0], speedAliases)) || (!IsSpeedToken(tokens[1])) || (!IsFixToken(tokens[2])))
         {
             return false;
@@ -1339,12 +1339,12 @@ public static class CommandSchemeParser
     /// </summary>
     public static string ExpandWait(string input)
     {
-        var blocks = input.Split(';');
+        string[] blocks = input.Split(';');
         var result = new List<string>();
 
-        foreach (var rawBlock in blocks)
+        foreach (string rawBlock in blocks)
         {
-            var block = rawBlock.Trim();
+            string block = rawBlock.Trim();
             if (string.IsNullOrEmpty(block))
             {
                 continue;
@@ -1358,13 +1358,13 @@ public static class CommandSchemeParser
 
     private static void ExpandWaitBlock(string block, List<string> result)
     {
-        var tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return;
         }
 
-        var upper0 = tokens[0].ToUpperInvariant();
+        string upper0 = tokens[0].ToUpperInvariant();
 
         // Not a WAIT/DELAY block — pass through as-is
         if (upper0 is not ("WAIT" or "DELAY"))
@@ -1387,7 +1387,7 @@ public static class CommandSchemeParser
         // WAIT FIXNAME ... → AT FIXNAME ... (fix name instead of numeric delay)
         if (!int.TryParse(tokens[1], out _))
         {
-            var rewritten = "AT " + string.Join(" ", tokens[1..]);
+            string rewritten = "AT " + string.Join(" ", tokens[1..]);
             ExpandWaitBlock(rewritten, result);
             return;
         }
@@ -1403,7 +1403,7 @@ public static class CommandSchemeParser
         result.Add($"WAIT {tokens[1]}");
 
         // Remainder after WAIT N — may itself start with WAIT/DELAY
-        var remainder = string.Join(" ", tokens[2..]);
+        string remainder = string.Join(" ", tokens[2..]);
         ExpandWaitBlock(remainder, result);
     }
 
@@ -1414,17 +1414,17 @@ public static class CommandSchemeParser
             return null;
         }
 
-        if (int.TryParse(arg, out var secs) && secs >= 0)
+        if (int.TryParse(arg, out int secs) && secs >= 0)
         {
             return secs.ToString();
         }
 
-        var colonIdx = arg.IndexOf(':');
+        int colonIdx = arg.IndexOf(':');
         if (
             colonIdx > 0
             && colonIdx < arg.Length - 1
-            && int.TryParse(arg[..colonIdx], out var minutes)
-            && int.TryParse(arg[(colonIdx + 1)..], out var seconds)
+            && int.TryParse(arg[..colonIdx], out int minutes)
+            && int.TryParse(arg[(colonIdx + 1)..], out int seconds)
             && minutes >= 0
             && seconds >= 0
             && seconds < 60

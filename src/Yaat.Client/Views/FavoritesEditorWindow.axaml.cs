@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using MsBox.Avalonia;
+using MsBox.Avalonia.Base;
 using MsBox.Avalonia.Enums;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -52,7 +53,7 @@ public partial class FavoritesEditorWindow : Window
         WireButton("DeleteFavoritesButton", OnDeleteFavoritesClick);
         WireButton("CloseButton", (_, _) => Close());
 
-        var containers = this.FindControl<ListBox>("ContainersList");
+        ListBox? containers = this.FindControl<ListBox>("ContainersList");
         if (containers is not null)
         {
             containers.SelectionChanged += OnContainerSelectionChanged;
@@ -64,7 +65,7 @@ public partial class FavoritesEditorWindow : Window
 
     private void WireButton(string name, EventHandler<RoutedEventArgs> handler)
     {
-        var btn = this.FindControl<Button>(name);
+        Button? btn = this.FindControl<Button>(name);
         if (btn is not null)
         {
             btn.Click += handler;
@@ -73,14 +74,14 @@ public partial class FavoritesEditorWindow : Window
 
     private void PopulateContainers()
     {
-        var list = this.FindControl<ListBox>("ContainersList");
+        ListBox? list = this.FindControl<ListBox>("ContainersList");
         if (list is null)
         {
             return;
         }
 
         var items = new List<ListBoxItem>();
-        foreach (var set in _store.OrderedSets)
+        foreach (FavoriteSet set in _store.OrderedSets)
         {
             items.Add(set.Kind == FavoriteSetKind.Named ? CreateNamedSetRow(set) : CreatePlainRow(set.DisplayName, set.Id));
         }
@@ -89,7 +90,7 @@ public partial class FavoritesEditorWindow : Window
 
         list.SelectionChanged -= OnContainerSelectionChanged;
         list.ItemsSource = items;
-        var selected =
+        ListBoxItem selected =
             items.FirstOrDefault(i => string.Equals(i.Tag as string, _selectedContainerId, StringComparison.OrdinalIgnoreCase)) ?? items[0];
         list.SelectedItem = selected;
         _selectedContainerId = (string)selected.Tag!;
@@ -107,7 +108,7 @@ public partial class FavoritesEditorWindow : Window
 
     private ListBoxItem CreateNamedSetRow(FavoriteSet set)
     {
-        var setId = set.Id;
+        string setId = set.Id;
         var loadedBox = new CheckBox
         {
             IsChecked = _preferences.LoadedFavoriteSetIds.Any(id => string.Equals(id, setId, StringComparison.OrdinalIgnoreCase)),
@@ -125,7 +126,7 @@ public partial class FavoritesEditorWindow : Window
 
     private void OnContainerSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        var list = this.FindControl<ListBox>("ContainersList");
+        ListBox? list = this.FindControl<ListBox>("ContainersList");
         if (list?.SelectedItem is not ListBoxItem { Tag: string containerId })
         {
             return;
@@ -142,7 +143,7 @@ public partial class FavoritesEditorWindow : Window
 
     private void PopulateFavorites()
     {
-        var list = this.FindControl<ListBox>("FavoritesList");
+        ListBox? list = this.FindControl<ListBox>("FavoritesList");
         if (list is null)
         {
             return;
@@ -158,7 +159,7 @@ public partial class FavoritesEditorWindow : Window
 
     private string DescribeFavorite(FavoriteCommand favorite)
     {
-        var description = favorite.IsSpacer
+        string description = favorite.IsSpacer
             ? $"(blank) — {MainViewModel.NormalizeFavoriteCategory(favorite.Category)}"
             : $"{favorite.Label} — {MainViewModel.NormalizeFavoriteCategory(favorite.Category)}";
 
@@ -173,26 +174,26 @@ public partial class FavoritesEditorWindow : Window
 
     private List<int> GetSelectedFavoriteIndices()
     {
-        var list = this.FindControl<ListBox>("FavoritesList");
+        ListBox? list = this.FindControl<ListBox>("FavoritesList");
         return list is null ? [] : list.Selection.SelectedIndexes.ToList();
     }
 
     private List<FavoriteCommand> GetSelectedFavorites()
     {
-        var favorites = GetSelectedContainerFavorites();
+        List<FavoriteCommand> favorites = GetSelectedContainerFavorites();
         return GetSelectedFavoriteIndices().Distinct().Order().Where(i => (i >= 0) && (i < favorites.Count)).Select(i => favorites[i]).ToList();
     }
 
     private void ReselectFavorites(IEnumerable<int> indices)
     {
-        var list = this.FindControl<ListBox>("FavoritesList");
+        ListBox? list = this.FindControl<ListBox>("FavoritesList");
         if (list is null)
         {
             return;
         }
 
         list.Selection.Clear();
-        foreach (var index in indices)
+        foreach (int index in indices)
         {
             list.Selection.Select(index);
         }
@@ -200,7 +201,7 @@ public partial class FavoritesEditorWindow : Window
 
     private void SetStatus(string? message)
     {
-        var status = this.FindControl<TextBlock>("StatusText");
+        TextBlock? status = this.FindControl<TextBlock>("StatusText");
         if (status is null)
         {
             return;
@@ -225,7 +226,7 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        var set = _store.CreateNamedSet(dlg.SetName);
+        FavoriteSet? set = _store.CreateNamedSet(dlg.SetName);
         if (set is null)
         {
             SetStatus($"Could not create set \"{dlg.SetName}\".");
@@ -246,7 +247,7 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        var others = NamedSetNames.Where(n => !string.Equals(n, set.Name, StringComparison.OrdinalIgnoreCase));
+        IEnumerable<string> others = NamedSetNames.Where(n => !string.Equals(n, set.Name, StringComparison.OrdinalIgnoreCase));
         var dlg = new FavoriteSetNameDialog(others, set.Name) { Title = "Rename Favorite Set" };
         await dlg.ShowDialog(this);
         if (dlg.SetName is null || string.Equals(dlg.SetName, set.Name, StringComparison.Ordinal))
@@ -278,12 +279,12 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        var box = MessageBoxManager.GetMessageBoxStandard(
+        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard(
             "Delete set?",
             $"Delete \"{set.DisplayName}\"? Its favorites are kept — any not in another set move to \"Not in any set\".",
             ButtonEnum.YesNo
         );
-        var result = await box.ShowWindowDialogAsync(this);
+        ButtonResult result = await box.ShowWindowDialogAsync(this);
         if (result != ButtonResult.Yes)
         {
             return;
@@ -315,7 +316,7 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        var indices = GetSelectedFavoriteIndices();
+        List<int> indices = GetSelectedFavoriteIndices();
         if (indices.Count == 0)
         {
             SetStatus("Select one or more favorites first.");
@@ -323,7 +324,7 @@ public partial class FavoritesEditorWindow : Window
         }
 
         var ids = set.FavoriteIds.ToList();
-        var moved = reorder(ids, indices);
+        List<int> moved = reorder(ids, indices);
         _store.ReplaceSetFavorites(set.Id, ids);
         SetStatus(null);
         PopulateFavorites();
@@ -337,7 +338,7 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        var selected = GetSelectedFavorites();
+        List<FavoriteCommand> selected = GetSelectedFavorites();
         if (selected.Count == 0)
         {
             SetStatus("Select one or more favorites first.");
@@ -345,14 +346,14 @@ public partial class FavoritesEditorWindow : Window
         }
 
         var flyout = new MenuFlyout();
-        foreach (var set in _store.OrderedSets)
+        foreach (FavoriteSet set in _store.OrderedSets)
         {
             if (string.Equals(set.Id, _selectedContainerId, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            var targetId = set.Id;
+            string targetId = set.Id;
             var item = new MenuItem { Header = set.DisplayName };
             item.Click += (_, _) => TransferSelection(targetId, move);
             flyout.Items.Add(item);
@@ -375,7 +376,7 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        var set = _store.CreateNamedSet(dlg.SetName);
+        FavoriteSet? set = _store.CreateNamedSet(dlg.SetName);
         if (set is null)
         {
             SetStatus($"Could not create set \"{dlg.SetName}\".");
@@ -387,13 +388,13 @@ public partial class FavoritesEditorWindow : Window
 
     private void TransferSelection(string targetSetId, bool move)
     {
-        var selected = GetSelectedFavorites();
+        List<FavoriteCommand> selected = GetSelectedFavorites();
         if (selected.Count == 0)
         {
             return;
         }
 
-        foreach (var favorite in selected)
+        foreach (FavoriteCommand favorite in selected)
         {
             _store.AddToSet(targetSetId, favorite.Id);
             if (move && SelectedSet is { } source)
@@ -415,14 +416,14 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        var selected = GetSelectedFavorites();
+        List<FavoriteCommand> selected = GetSelectedFavorites();
         if (selected.Count == 0)
         {
             SetStatus("Select one or more favorites first.");
             return;
         }
 
-        foreach (var favorite in selected)
+        foreach (FavoriteCommand favorite in selected)
         {
             _store.RemoveFromSet(set.Id, favorite.Id);
         }
@@ -434,25 +435,25 @@ public partial class FavoritesEditorWindow : Window
 
     private async void OnDeleteFavoritesClick(object? sender, RoutedEventArgs e)
     {
-        var selected = GetSelectedFavorites();
+        List<FavoriteCommand> selected = GetSelectedFavorites();
         if (selected.Count == 0)
         {
             SetStatus("Select one or more favorites first.");
             return;
         }
 
-        var box = MessageBoxManager.GetMessageBoxStandard(
+        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard(
             "Delete favorites?",
             $"Delete {selected.Count} favorite(s) everywhere, from every set?",
             ButtonEnum.YesNo
         );
-        var result = await box.ShowWindowDialogAsync(this);
+        ButtonResult result = await box.ShowWindowDialogAsync(this);
         if (result != ButtonResult.Yes)
         {
             return;
         }
 
-        foreach (var favorite in selected)
+        foreach (FavoriteCommand favorite in selected)
         {
             _store.DeleteFavorite(favorite.Id);
         }

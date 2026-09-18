@@ -50,8 +50,8 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
             return;
         }
 
-        var ctx = BuildContext(["N346G"], EmptyRunways, EmptyDestinations);
-        var result = await SpeechRecognitionService.MapTranscriptAsync(
+        SpeechContext ctx = BuildContext(["N346G"], EmptyRunways, EmptyDestinations);
+        TranscriptMapResult result = await SpeechRecognitionService.MapTranscriptAsync(
             "november three four six golf turn left heading three one zero",
             ctx,
             _ruleMapper,
@@ -88,8 +88,8 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
             return;
         }
 
-        var ctx = BuildContext(["N346G"], EmptyRunways, EmptyDestinations);
-        var result = await SpeechRecognitionService.MapTranscriptAsync(
+        SpeechContext ctx = BuildContext(["N346G"], EmptyRunways, EmptyDestinations);
+        TranscriptMapResult result = await SpeechRecognitionService.MapTranscriptAsync(
             "november three four six golf turn left hitting tree one zero",
             ctx,
             _ruleMapper,
@@ -113,8 +113,8 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
     [Fact]
     public async Task Transcript_WhisperHittingForHeading_NoLlm_SurfacesPartialFallback()
     {
-        var ctx = BuildContext(["N346G"], EmptyRunways, EmptyDestinations);
-        var result = await SpeechRecognitionService.MapTranscriptAsync(
+        SpeechContext ctx = BuildContext(["N346G"], EmptyRunways, EmptyDestinations);
+        TranscriptMapResult result = await SpeechRecognitionService.MapTranscriptAsync(
             "november three four six golf turn left hitting tree one zero",
             ctx,
             _ruleMapper,
@@ -144,8 +144,8 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
             return;
         }
 
-        var ctx = BuildContext(["N9225L", "SWA123"], EmptyRunways, EmptyDestinations);
-        var result = await SpeechRecognitionService.MapTranscriptAsync(
+        SpeechContext ctx = BuildContext(["N9225L", "SWA123"], EmptyRunways, EmptyDestinations);
+        TranscriptMapResult result = await SpeechRecognitionService.MapTranscriptAsync(
             "november diner 225 lima climb and maintain 2000",
             ctx,
             _ruleMapper,
@@ -173,8 +173,8 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
             return;
         }
 
-        var ctx = BuildContext(["N9225L"], EmptyRunways, EmptyDestinations);
-        var result = await SpeechRecognitionService.MapTranscriptAsync(
+        SpeechContext ctx = BuildContext(["N9225L"], EmptyRunways, EmptyDestinations);
+        TranscriptMapResult result = await SpeechRecognitionService.MapTranscriptAsync(
             "november N9225L climb and maintain 2000",
             ctx,
             _ruleMapper,
@@ -210,8 +210,8 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
             return;
         }
 
-        var koakRunways = new[] { "28R", "10L", "28L", "10R", "30", "12", "33", "15" };
-        var ctx = BuildContext(
+        string[] koakRunways = new[] { "28R", "10L", "28L", "10R", "30", "12", "33", "15" };
+        SpeechContext ctx = BuildContext(
             activeCallsigns: ["N9225L"],
             availableRunways: new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase) { ["KOAK"] = koakRunways },
             aircraftDestinations: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["N9225L"] = "KOAK" }
@@ -224,15 +224,15 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
         // working this area can paste the exact prompts into the speech sandbox UI without
         // having to re-derive them. xUnit prints ITestOutputHelper content on test failure;
         // pass --logger "console;verbosity=detailed" to also see it on success.
-        var (commandText, _) = SpeechRecognitionService.ExtractAndStripCallsign(rawTranscript, ctx.ActiveCallsigns);
+        (string? commandText, string? _) = SpeechRecognitionService.ExtractAndStripCallsign(rawTranscript, ctx.ActiveCallsigns);
         var mapContext = new MapContext(ctx.ActiveCallsigns, ctx.ProgrammedFixes)
         {
             CustomFixPatterns = ctx.CustomFixPatterns,
             AvailableRunways = ctx.AvailableRunways,
             AircraftDestinations = ctx.AircraftDestinations,
         };
-        var systemPrompt = LocalLlmCommandMapper.GetDefaultSystemPrompt();
-        var userPrompt = LocalLlmCommandMapper.BuildUserPromptForDebug(commandText, mapContext);
+        string systemPrompt = LocalLlmCommandMapper.GetDefaultSystemPrompt();
+        string userPrompt = LocalLlmCommandMapper.BuildUserPromptForDebug(commandText, mapContext);
         _output.WriteLine("================ RAW TRANSCRIPT ================");
         _output.WriteLine(rawTranscript);
         _output.WriteLine("");
@@ -246,7 +246,7 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
         _output.WriteLine(userPrompt);
         _output.WriteLine("================ END OF PROMPTS ================");
 
-        var result = await SpeechRecognitionService.MapTranscriptAsync(
+        TranscriptMapResult result = await SpeechRecognitionService.MapTranscriptAsync(
             rawTranscript,
             ctx,
             _ruleMapper,

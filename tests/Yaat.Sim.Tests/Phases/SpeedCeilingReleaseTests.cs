@@ -50,7 +50,7 @@ public sealed class SpeedCeilingReleaseTests
     [Fact]
     public void ProcedureTurn_ReleasesItsSpeedCeiling_WhenThePhaseEnds()
     {
-        var (aircraft, ctx) = MakeFixture();
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture();
 
         var pt = new ProcedureTurnPhase
         {
@@ -83,7 +83,7 @@ public sealed class SpeedCeilingReleaseTests
     [Fact]
     public void ProcedureTurn_LeavesATighterControllerCeilingAlone()
     {
-        var (aircraft, ctx) = MakeFixture();
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture();
 
         var pt = new ProcedureTurnPhase
         {

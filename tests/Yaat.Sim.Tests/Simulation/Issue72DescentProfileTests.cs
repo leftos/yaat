@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -25,14 +26,14 @@ public class Issue72DescentProfileTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -57,8 +58,8 @@ public class Issue72DescentProfileTests(ITestOutputHelper output)
     [Fact]
     public void DescentVia_ContinuesDescendingThroughMultipleConstraints()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -68,15 +69,15 @@ public class Issue72DescentProfileTests(ITestOutputHelper output)
         // UAL238 spawns at t=180
         engine.Replay(recording, 182);
 
-        var aircraft = engine.FindAircraft("UAL238");
+        AircraftState? aircraft = engine.FindAircraft("UAL238");
         Assert.NotNull(aircraft);
 
         double spawnAlt = aircraft.Altitude;
         output.WriteLine($"UAL238 at spawn: alt={spawnAlt:F0} StarViaMode={aircraft.Procedure.StarViaMode}");
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         output.WriteLine($"  Route ({route.Count} fixes):");
-        foreach (var fix in route)
+        foreach (NavigationTarget fix in route)
         {
             string constraint = fix.AltitudeRestriction is not null ? $" [alt: {fix.AltitudeRestriction}]" : "";
             output.WriteLine($"    {fix.Name}{constraint}");
@@ -121,8 +122,8 @@ public class Issue72DescentProfileTests(ITestOutputHelper output)
     [Fact]
     public void DescentVia_FullDescentProfile()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -132,7 +133,7 @@ public class Issue72DescentProfileTests(ITestOutputHelper output)
         // UAL238 spawns at t=180
         engine.Replay(recording, 182);
 
-        var aircraft = engine.FindAircraft("UAL238");
+        AircraftState? aircraft = engine.FindAircraft("UAL238");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"UAL238 descent profile (spawned at {aircraft.Altitude:F0} ft):");
@@ -151,8 +152,8 @@ public class Issue72DescentProfileTests(ITestOutputHelper output)
 
             if (t % 10 == 0)
             {
-                var routeNames = string.Join("→", aircraft.Targets.NavigationRoute.Select(f => f.Name));
-                var nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
+                string routeNames = string.Join("→", aircraft.Targets.NavigationRoute.Select(f => f.Name));
+                string nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
                 output.WriteLine(
                     $"{t, 5} {aircraft.Altitude, 7:F0} {aircraft.Targets.TargetAltitude?.ToString("F0") ?? "null", 7} {aircraft.VerticalSpeed, 6:F0} {nextFix, -8} {routeNames}"
                 );

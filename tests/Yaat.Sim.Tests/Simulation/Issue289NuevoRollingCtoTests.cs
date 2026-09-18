@@ -40,8 +40,8 @@ public class Issue289NuevoRollingCtoTests(ITestOutputHelper output)
     [Fact]
     public void Pcm8679_FliesRunwayHeading_NotDirectToSaply()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -53,12 +53,12 @@ public class Issue289NuevoRollingCtoTests(ITestOutputHelper output)
         // climb-out - the same margin past liftoff the old t=340 sample had.
         engine.Replay(recording, 355);
 
-        var ac = engine.FindAircraft("PCM8679");
+        AircraftState? ac = engine.FindAircraft("PCM8679");
         Assert.NotNull(ac);
         Assert.False(ac!.IsOnGround, "PCM8679 should be airborne on the NUEVO8 by t=355");
 
         double heading = ac.TrueHeading.Degrees;
-        var nextFix = ac.Targets.NavigationRoute.Count > 0 ? ac.Targets.NavigationRoute[0].Name : "-";
+        string nextFix = ac.Targets.NavigationRoute.Count > 0 ? ac.Targets.NavigationRoute[0].Name : "-";
         output.WriteLine($"PCM8679 t=355 airborne={!ac.IsOnGround} hdg={heading:F1} alt={ac.Altitude:F0} nextfix={nextFix}");
 
         // OAK 28L runway heading is ~291° true (the NUEVO8 VD/VM legs fly runway heading, 278° mag).

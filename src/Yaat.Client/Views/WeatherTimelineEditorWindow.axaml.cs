@@ -42,8 +42,8 @@ public partial class WeatherTimelineEditorWindow : Window
 
         try
         {
-            var json = vm.BuildJson();
-            var name = string.IsNullOrWhiteSpace(vm.Name) ? "Custom Weather" : vm.Name;
+            string json = vm.BuildJson();
+            string name = string.IsNullOrWhiteSpace(vm.Name) ? "Custom Weather" : vm.Name;
             await _applyCallback(json, name);
         }
         catch (Exception ex)
@@ -59,7 +59,7 @@ public partial class WeatherTimelineEditorWindow : Window
             return;
         }
 
-        var path = await _filePicker.SaveFileAsync(
+        string? path = await _filePicker.SaveFileAsync(
             new SaveFileOptions(
                 Title: "Save Weather As…",
                 SuggestedFileName: string.IsNullOrWhiteSpace(vm.Name) ? "weather" : vm.Name,
@@ -75,7 +75,7 @@ public partial class WeatherTimelineEditorWindow : Window
 
         try
         {
-            var json = vm.BuildJson();
+            string json = vm.BuildJson();
             await File.WriteAllTextAsync(path, json);
             Log.LogInformation("Weather saved to {Path}", path);
         }

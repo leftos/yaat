@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
@@ -29,9 +30,9 @@ public class TaxiInCallTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, [ground]);
-        var aircraft = LandAndExit(engine);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, [ground]);
+        AircraftState aircraft = LandAndExit(engine);
         Assert.True(aircraft.Ground.AwaitingTaxiInCall);
 
         aircraft = AiTestFixture.TickUntil(
@@ -40,7 +41,7 @@ public class TaxiInCallTests
             ac => ac.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi },
             10
         );
-        var request = aircraft.PendingPilotRequest!;
+        PilotPendingRequest request = aircraft.PendingPilotRequest!;
         Assert.Equal("Oakland Ground", request.FacilityCallName);
         Assert.NotNull(request.ParkingName);
         Assert.False(ArrivalParkingPicker.IsGateNumber(request.ParkingName), request.ParkingName);
@@ -71,8 +72,8 @@ public class TaxiInCallTests
             return;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, []);
-        var aircraft = LandAndExit(engine);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, []);
+        AircraftState aircraft = LandAndExit(engine);
 
         AiTestFixture.Tick(engine, 30);
         Assert.Null(aircraft.PendingPilotRequest);
@@ -89,10 +90,10 @@ public class TaxiInCallTests
         }
 
         // A tower of its own answers at OAK: the pilot stays with it after landing until sent to ground (AIM 4-3-14.c).
-        var ground = TestAiPositions.OakGround(_zoa);
-        var tower = TestAiPositions.OakTower(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, [ground, tower]);
-        var aircraft = LandAndExit(engine);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        AiPositionConfig tower = TestAiPositions.OakTower(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, [ground, tower]);
+        AircraftState aircraft = LandAndExit(engine);
 
         AiTestFixture.Tick(engine, 30);
         Assert.False(aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi });
@@ -120,13 +121,13 @@ public class TaxiInCallTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.SoloTrainingMode = true;
         scenario.StudentPosition = ground.Identity;
         scenario.StudentPositionType = "GND";
-        var aircraft = LandAndExit(engine);
+        AircraftState aircraft = LandAndExit(engine);
 
         // (The student also heard the pilot's final call; the taxi-in request supersedes it.)
         aircraft = AiTestFixture.TickUntil(
@@ -166,14 +167,20 @@ public class TaxiInCallTests
     {
         var aircraft = new AircraftState { Callsign = "SWA1234", AircraftType = "B738" };
 
-        var gate = PilotResponder.BuildTaxiInRequest(aircraft, "Oakland Ground", "30", "W", "29");
+        PilotSpeechText gate = PilotResponder.BuildTaxiInRequest(aircraft, "Oakland Ground", "30", "W", "29");
         Assert.Equal("Oakland Ground, clear of runway 30 at W, taxi to gate 29.", gate.Terminal);
         Assert.Equal(
             $"Oakland Ground, southwest twelve thirty four, clear of runway three zero at {PhraseologyVerbalizer.SpellTaxiway("W")}, taxi to gate two nine.",
             gate.Tts
         );
 
-        var ramp = PilotResponder.BuildTaxiInRequest(new AircraftState { Callsign = "N152SP", AircraftType = "C172" }, "ground", null, null, "SIG1");
+        PilotSpeechText ramp = PilotResponder.BuildTaxiInRequest(
+            new AircraftState { Callsign = "N152SP", AircraftType = "C172" },
+            "ground",
+            null,
+            null,
+            "SIG1"
+        );
         Assert.Equal("ground, clear of the runway, taxi to parking SIG1.", ramp.Terminal);
         Assert.Contains("clear of the runway, taxi to parking sierra india golf one.", ramp.Tts);
     }

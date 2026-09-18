@@ -52,7 +52,7 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
 
     public async Task<MapResult?> MapAsync(string transcript, MapContext context, CancellationToken ct)
     {
-        var (result, _) = await MapWithTraceAsync(transcript, context, ct).ConfigureAwait(false);
+        (MapResult? result, LlmMapperTrace _) = await MapWithTraceAsync(transcript, context, ct).ConfigureAwait(false);
         return result;
     }
 
@@ -65,26 +65,26 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
     /// </summary>
     public async Task<(MapResult? Result, LlmMapperTrace Trace)> MapWithTraceAsync(string transcript, MapContext context, CancellationToken ct)
     {
-        var systemPrompt = _systemPrompt.Value;
+        string systemPrompt = _systemPrompt.Value;
 
         if (string.IsNullOrWhiteSpace(transcript))
         {
             return (null, new LlmMapperTrace(systemPrompt, string.Empty, string.Empty, null, "empty transcript"));
         }
 
-        var userPrompt = BuildUserPrompt(transcript, context);
+        string userPrompt = BuildUserPrompt(transcript, context);
         // Constrain generation with the canonical-command GBNF derived from CommandRegistry.
         // The grammar guarantees the model can only emit syntactically valid clauses ("CM 5000",
         // "AT CEPIN CAPP ILS28R", etc.) so NormalizeOutput's verb/charset checks become a cheap
         // defence-in-depth instead of the only line of defence. NEW commands automatically expand
         // the grammar because CanonicalCommandGrammar enumerates the registry at runtime.
-        var raw = await _llm.GenerateAsync(systemPrompt, userPrompt, CanonicalCommandGrammar.Default, ct).ConfigureAwait(false);
+        string? raw = await _llm.GenerateAsync(systemPrompt, userPrompt, CanonicalCommandGrammar.Default, ct).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(raw))
         {
             return (null, new LlmMapperTrace(systemPrompt, userPrompt, raw ?? string.Empty, null, "LLM produced empty output"));
         }
 
-        var canonical = NormalizeOutput(raw);
+        string? canonical = NormalizeOutput(raw);
         if (canonical is null)
         {
             Log.LogDebug("LLM output did not parse as canonical command: {Raw}", raw);
@@ -122,13 +122,13 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
             return null;
         }
 
-        var raw = await _llm.GenerateAsync(systemPrompt, userPrompt, CanonicalCommandGrammar.Default, ct).ConfigureAwait(false);
+        string? raw = await _llm.GenerateAsync(systemPrompt, userPrompt, CanonicalCommandGrammar.Default, ct).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(raw))
         {
             return null;
         }
 
-        var canonical = NormalizeOutput(raw);
+        string? canonical = NormalizeOutput(raw);
         if (canonical is null)
         {
             Log.LogDebug("LLM output did not parse as canonical command (override prompt path): {Raw}", raw);
@@ -164,7 +164,7 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         if (context.AvailableRunways.Count > 0)
         {
             sb.AppendLine("Available runways:");
-            foreach (var (airport, runways) in context.AvailableRunways)
+            foreach ((string? airport, IReadOnlyList<string>? runways) in context.AvailableRunways)
             {
                 sb.Append("  ").Append(airport).Append(": ").AppendLine(string.Join(' ', runways));
             }
@@ -179,7 +179,7 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         if (context.AircraftDestinations.Count > 0)
         {
             sb.AppendLine("Active aircraft (callsign -> destination):");
-            foreach (var (cs, dest) in context.AircraftDestinations)
+            foreach ((string? cs, string? dest) in context.AircraftDestinations)
             {
                 sb.Append("  ").Append(cs).Append(" -> ").AppendLine(dest);
             }
@@ -225,7 +225,7 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         // Keep rule insertion order (Heading, Alt/Speed, Nav, Tower, Approach, Pattern, Hold,
         // Helicopter, Transponder, Ground, Broadcast) — that's the order PhraseologyRules.Build()
         // constructs them, and it's a reasonable category grouping for the model to read.
-        var grouped = PhraseologyRules
+        IEnumerable<(string Output, List<string> Patterns)> grouped = PhraseologyRules
             .All.GroupBy(r => r.OutputTemplate, StringComparer.Ordinal)
             .Select(g =>
                 (
@@ -239,7 +239,7 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
                 )
             );
 
-        foreach (var (output, patterns) in grouped)
+        foreach ((string? output, List<string>? patterns) in grouped)
         {
             sb.Append(output).Append(": ").AppendLine(string.Join(" / ", patterns));
         }
@@ -268,13 +268,13 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
     /// </summary>
     internal static string? NormalizeOutput(string raw)
     {
-        var trimmed = raw.Trim();
+        string trimmed = raw.Trim();
 
         // Strip code fences (```...```) and inline backticks.
         if (trimmed.StartsWith("```", StringComparison.Ordinal))
         {
             trimmed = trimmed.Trim('`').Trim();
-            var firstNewline = trimmed.IndexOf('\n');
+            int firstNewline = trimmed.IndexOf('\n');
             if (firstNewline > 0 && trimmed[..firstNewline].All(static c => char.IsLetter(c)))
             {
                 trimmed = trimmed[(firstNewline + 1)..].Trim();
@@ -284,7 +284,7 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         trimmed = trimmed.Trim('`', '"', '\'').Trim();
 
         // Drop leading "Output:" / "Canonical:" / "Command:" labels if the model chose to include them.
-        foreach (var prefix in new[] { "Output:", "Canonical:", "Command:", "Answer:" })
+        foreach (string? prefix in new[] { "Output:", "Canonical:", "Command:", "Answer:" })
         {
             if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
@@ -294,7 +294,7 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         }
 
         // Keep only the first line — models sometimes spill chain-of-thought after the answer.
-        var newlineIdx = trimmed.IndexOfAny(['\n', '\r']);
+        int newlineIdx = trimmed.IndexOfAny(['\n', '\r']);
         if (newlineIdx > 0)
         {
             trimmed = trimmed[..newlineIdx].Trim();
@@ -310,13 +310,13 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         // Validate: each comma-separated clause must start with a known canonical verb, optionally
         // after a condition prefix ("AT <FIX>" / "LV <ALT>"). We don't validate the args themselves —
         // the command dispatcher will reject nonsense args when the user hits Enter.
-        var clauses = trimmed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string[] clauses = trimmed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (clauses.Length == 0)
         {
             return null;
         }
 
-        foreach (var clause in clauses)
+        foreach (string clause in clauses)
         {
             if (!ClauseStartsWithKnownVerb(clause))
             {
@@ -329,7 +329,7 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
 
     private static bool ClauseStartsWithKnownVerb(string clause)
     {
-        var tokens = clause.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = clause.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return false;
@@ -347,7 +347,7 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
 
         // Reject any token containing non-command characters — the LLM sometimes emits prose with
         // dashes, parentheses, etc. Canonical tokens are alphanumerics plus a small set of specials.
-        foreach (var token in tokens)
+        foreach (string token in tokens)
         {
             if (!IsCanonicalToken(token))
             {
@@ -356,7 +356,7 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         }
 
         // Skip an optional condition prefix: "AT <fix>" or "LV <alt>".
-        var verbIdx = 0;
+        int verbIdx = 0;
         if (ConditionPrefixes.Contains(tokens[0]) && tokens.Length >= 3)
         {
             verbIdx = 2;
@@ -369,8 +369,8 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
 
     private static bool IsCanonicalToken(string token)
     {
-        var hasAlphanumeric = false;
-        foreach (var c in token)
+        bool hasAlphanumeric = false;
+        foreach (char c in token)
         {
             // Allow uppercase letters, digits, and the small set of punctuation used in real
             // canonical args: '+' / '-' / '.' / '/' (e.g. KOAK+010, ILS28R, 28L/28R).

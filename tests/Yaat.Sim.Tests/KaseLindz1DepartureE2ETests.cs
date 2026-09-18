@@ -29,7 +29,7 @@ public class KaseLindz1DepartureE2ETests
 
     private static RunwayInfo? Kase33()
     {
-        var phys = NavigationDatabase
+        RunwayInfo? phys = NavigationDatabase
             .Instance.GetRunways("KASE")
             .FirstOrDefault(r => r.Id.End1 == "33" || r.Id.End2 == "33" || r.Designator.Contains("33", StringComparison.Ordinal));
         if (phys is null)
@@ -56,7 +56,7 @@ public class KaseLindz1DepartureE2ETests
     [Fact]
     public void FliesChartedClimbThenLeftTurnThenBackCourse()
     {
-        var rwy = Kase33();
+        RunwayInfo? rwy = Kase33();
         if (rwy is null)
         {
             _output.WriteLine("KASE RWY33 not in test nav data — skipping.");
@@ -86,7 +86,7 @@ public class KaseLindz1DepartureE2ETests
         ac.Phases.Add(holding);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -97,11 +97,11 @@ public class KaseLindz1DepartureE2ETests
         );
         _output.WriteLine($"CTO success={result.Success}: {result.Message}");
 
-        var climb = ac.Phases.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
+        InitialClimbPhase? climb = ac.Phases.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
         _output.WriteLine($"InitialClimb procedureLegs={climb?.DepartureProcedureLegs?.Count.ToString() ?? "null"}");
         if (climb?.DepartureProcedureLegs is { } legs)
         {
-            foreach (var l in legs)
+            foreach (ProcedureLeg l in legs)
             {
                 _output.WriteLine($"  leg {l.Type} course={l.CourseMagnetic} alt={l.TargetAltitudeFt} fix={l.FixName}");
             }
@@ -114,7 +114,7 @@ public class KaseLindz1DepartureE2ETests
         ac.Altitude = rwy.ElevationFt + 450;
         ac.IndicatedAirspeed = 210;
 
-        var cat = AircraftCategorization.Categorize(ac.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
         var ctx = new PhaseContext
         {
             Aircraft = ac,
@@ -132,7 +132,7 @@ public class KaseLindz1DepartureE2ETests
         Assert.Equal(ProcedureLegType.HeadingToIntercept, climb.DepartureProcedureLegs[1].Type);
         Assert.Equal(ProcedureLegType.CourseToFix, climb.DepartureProcedureLegs[2].Type);
 
-        var lindzPos = NavigationDatabase.Instance.GetFixPosition("LINDZ");
+        (double Lat, double Lon)? lindzPos = NavigationDatabase.Instance.GetFixPosition("LINDZ");
         Assert.NotNull(lindzPos);
         var lindz = new LatLon(lindzPos!.Value.Lat, lindzPos.Value.Lon);
         double rwyTrue = rwy.TrueHeading.Degrees;
@@ -167,7 +167,7 @@ public class KaseLindz1DepartureE2ETests
         // (1) Climbs to ≥9100 before the climbing LEFT turn (old code turned direct to LINDZ
         // at ~400 ft AGL ≈ 8240 ft). The VA leg flies ~runway heading and slightly right (343°),
         // so heading dipping clearly below runway heading marks the start of the 273° left turn.
-        var leftTurn = samples.FirstOrDefault(s => s.T > 1 && s.Hdg < rwyTrue - 10);
+        (int T, double Alt, double Hdg, double Tgt, double Dist) leftTurn = samples.FirstOrDefault(s => s.T > 1 && s.Hdg < rwyTrue - 10);
         Assert.True(leftTurn.Dist > 0, "aircraft never started the left turn");
         Assert.True(
             leftTurn.Alt >= 9100,
@@ -195,7 +195,7 @@ public class KaseLindz1DepartureE2ETests
     [Fact]
     public void FullDeparture_FromTakeoffRoll_FliesLindz1AsCharted()
     {
-        var rwy = Kase33();
+        RunwayInfo? rwy = Kase33();
         if (rwy is null)
         {
             _output.WriteLine("KASE RWY33 not in test nav data — skipping.");
@@ -227,7 +227,7 @@ public class KaseLindz1DepartureE2ETests
         ac.Phases.Add(holding);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var cto = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult cto = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -238,7 +238,7 @@ public class KaseLindz1DepartureE2ETests
         );
         Assert.True(cto.Success, cto.Message);
 
-        var cat = AircraftCategorization.Categorize(ac.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
         var ctx = new PhaseContext
         {
             Aircraft = ac,
@@ -251,7 +251,7 @@ public class KaseLindz1DepartureE2ETests
         };
         ac.Phases.SkipTo<TakeoffPhase>(ctx);
 
-        var lindzPos = NavigationDatabase.Instance.GetFixPosition("LINDZ");
+        (double Lat, double Lon)? lindzPos = NavigationDatabase.Instance.GetFixPosition("LINDZ");
         Assert.NotNull(lindzPos);
         var lindz = new LatLon(lindzPos!.Value.Lat, lindzPos.Value.Lon);
         double rwyTrue = rwy.TrueHeading.Degrees;
@@ -301,7 +301,9 @@ public class KaseLindz1DepartureE2ETests
         double cfTrue = new MagneticHeading(303).ToTrue(decl).Degrees;
 
         // Climbed to ≥9100 before the climbing LEFT turn (not a direct-to-LINDZ turn at 400 AGL).
-        var leftTurn = samples.FirstOrDefault(s => !ac.IsOnGround && s.Alt > rwy.ElevationFt + 600 && s.Hdg < rwyTrue - 10);
+        (int T, double Alt, double Hdg, double Tgt, double Dist) leftTurn = samples.FirstOrDefault(s =>
+            !ac.IsOnGround && s.Alt > rwy.ElevationFt + 600 && s.Hdg < rwyTrue - 10
+        );
         Assert.True(leftTurn.Dist > 0, "aircraft never started the left turn");
         Assert.True(leftTurn.Alt >= 9100, $"left turn began at {leftTurn.Alt:F0} ft — should be ≥9100 (VA gate)");
 

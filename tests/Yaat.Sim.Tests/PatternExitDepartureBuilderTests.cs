@@ -30,7 +30,7 @@ public class PatternExitDepartureBuilderTests
     [Fact]
     public void BuildPatternExitCircuit_DownwindExit_UpwindCrosswindExit_NoLandingTail()
     {
-        var phases = PatternBuilder.BuildPatternExitCircuit(
+        List<Phase> phases = PatternBuilder.BuildPatternExitCircuit(
             Oak28R(),
             AircraftCategory.Piston,
             "",
@@ -62,7 +62,7 @@ public class PatternExitDepartureBuilderTests
         // (FlightPlan.CruiseAltitude defaults to 0) and no assigned altitude must climb toward
         // pattern altitude, never 0 ft MSL — otherwise the legs target 0 and fly the climb rate
         // straight into the ground.
-        var phases = PatternBuilder.BuildPatternExitCircuit(
+        List<Phase> phases = PatternBuilder.BuildPatternExitCircuit(
             Oak28R(),
             AircraftCategory.Piston,
             "",
@@ -87,7 +87,7 @@ public class PatternExitDepartureBuilderTests
     [Fact]
     public void BuildPatternExitCircuit_CrosswindExit_UpwindThenExit_NoCrosswindLeg()
     {
-        var phases = PatternBuilder.BuildPatternExitCircuit(
+        List<Phase> phases = PatternBuilder.BuildPatternExitCircuit(
             Oak28R(),
             AircraftCategory.Piston,
             "",
@@ -106,7 +106,7 @@ public class PatternExitDepartureBuilderTests
 
         // An assigned altitude wins as the climb target.
         Assert.Equal(3000, ((UpwindPhase)phases[0]).DepartureClimbTargetFt);
-        var exit = Assert.IsType<PatternExitPhase>(phases[1]);
+        PatternExitPhase exit = Assert.IsType<PatternExitPhase>(phases[1]);
         Assert.Equal(3000, exit.ClimbTargetFt);
         Assert.Equal(PatternDirection.Left, exit.Direction);
     }
@@ -118,7 +118,7 @@ public class PatternExitDepartureBuilderTests
     [InlineData(PatternEntryLeg.Downwind, PatternDirection.Left, ", left downwind departure")]
     public void FormatDepartureInstructionSuffix_PatternExit_VernacularPhrasing(PatternEntryLeg leg, PatternDirection dir, string expected)
     {
-        var suffix = DepartureClearanceHandler.FormatDepartureInstructionSuffix(new PatternExitDeparture(leg, dir));
+        string suffix = DepartureClearanceHandler.FormatDepartureInstructionSuffix(new PatternExitDeparture(leg, dir));
         Assert.Equal(expected, suffix);
     }
 
@@ -129,9 +129,9 @@ public class PatternExitDepartureBuilderTests
     [InlineData("CTO MLD", PatternEntryLeg.Downwind, PatternDirection.Left)]
     public void Cto_NamedPatternDeparture_RoundTripsToCanonical(string input, PatternEntryLeg leg, PatternDirection dir)
     {
-        var parsed = CommandParser.Parse(input);
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(parsed.Value);
-        var ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(parsed.Value);
+        PatternExitDeparture ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
         Assert.Equal(leg, ped.ExitLeg);
         Assert.Equal(dir, ped.Direction);
 

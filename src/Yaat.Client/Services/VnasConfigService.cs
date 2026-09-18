@@ -32,7 +32,7 @@ public sealed class VnasConfigService : IDisposable
 
         try
         {
-            var json = await _http.GetStringAsync(ConfigUrl);
+            string json = await _http.GetStringAsync(ConfigUrl);
             config = JsonSerializer.Deserialize<VnasConfig>(json, JsonOptions);
 
             if (config is not null)
@@ -51,7 +51,7 @@ public sealed class VnasConfigService : IDisposable
         {
             try
             {
-                var json = await File.ReadAllTextAsync(CachePath);
+                string json = await File.ReadAllTextAsync(CachePath);
                 config = JsonSerializer.Deserialize<VnasConfig>(json, JsonOptions);
                 _log.LogDebug("Loaded vNAS config from cache");
             }

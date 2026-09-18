@@ -14,7 +14,7 @@ internal static class HandoffFlyout
 {
     public static Popup Build(Control anchor, AircraftModel aircraft, RadarViewModel radarVm, string initials)
     {
-        var subtitle = string.IsNullOrEmpty(aircraft.HandoffDisplay) ? null : $"Pending: {aircraft.HandoffDisplay}";
+        string? subtitle = string.IsNullOrEmpty(aircraft.HandoffDisplay) ? null : $"Pending: {aircraft.HandoffDisplay}";
 
         var actions = new List<(string Label, Func<Task> Action)>();
         if (!string.IsNullOrEmpty(aircraft.HandoffDisplay))
@@ -32,7 +32,7 @@ internal static class HandoffFlyout
             extraActions: actions,
             onSubmit: async value =>
             {
-                var trimmed = value.Trim();
+                string trimmed = value.Trim();
                 if (trimmed.Length == 0)
                 {
                     return;

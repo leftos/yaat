@@ -23,7 +23,7 @@ internal static class Program
         // Wire SimLog directly to a console-line provider so transport and
         // vTDLS view logs land in the browser DevTools console. Mirrors
         // Yaat.VStrips.Web's bootstrap.
-        var factory = LoggerFactory.Create(builder =>
+        ILoggerFactory factory = LoggerFactory.Create(builder =>
         {
             builder.SetMinimumLevel(LogLevel.Information);
             builder.AddProvider(new ConsoleLineLoggerProvider());

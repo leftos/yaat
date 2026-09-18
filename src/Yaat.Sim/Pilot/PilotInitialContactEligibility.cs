@@ -94,9 +94,9 @@ public static class PilotInitialContactEligibility
             return true;
         }
 
-        var ownerPositionType = AtcPositionTypeClassifier.Classify(owner.Callsign);
-        var targetPositionType = positionType ?? AtcPositionTypeClassifier.Classify(target.Callsign);
-        var observedTiming =
+        string? ownerPositionType = AtcPositionTypeClassifier.Classify(owner.Callsign);
+        string? targetPositionType = positionType ?? AtcPositionTypeClassifier.Classify(target.Callsign);
+        InitialContactTransferTiming observedTiming =
             aircraft.Track.HandoffPeer?.MatchesPosition(target) == true
                 ? InitialContactTransferTiming.HandoffInitiated
                 : InitialContactTransferTiming.NoHandoffNecessary;

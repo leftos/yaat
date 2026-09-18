@@ -20,9 +20,9 @@ public sealed class ArtccBoundary
         init
         {
             _rings = value;
-            foreach (var ring in value)
+            foreach (IReadOnlyList<LatLon> ring in value)
             {
-                foreach (var p in ring)
+                foreach (LatLon p in ring)
                 {
                     _minLat = Math.Min(_minLat, p.Lat);
                     _maxLat = Math.Max(_maxLat, p.Lat);
@@ -45,7 +45,7 @@ public sealed class ArtccBoundary
             return false;
         }
 
-        foreach (var ring in _rings)
+        foreach (IReadOnlyList<LatLon> ring in _rings)
         {
             if (GeoMath.PointInRing(position, ring))
             {
@@ -65,12 +65,12 @@ public sealed class ArtccBoundary
         }
 
         double bestFt = double.PositiveInfinity;
-        foreach (var ring in _rings)
+        foreach (IReadOnlyList<LatLon> ring in _rings)
         {
             for (int i = 0; i < ring.Count; i++)
             {
-                var a = ring[i];
-                var b = ring[(i + 1) % ring.Count];
+                LatLon a = ring[i];
+                LatLon b = ring[(i + 1) % ring.Count];
                 bestFt = Math.Min(bestFt, GeoMath.DistanceToSegmentFt(position, a, b));
             }
         }

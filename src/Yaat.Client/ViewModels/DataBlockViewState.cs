@@ -61,7 +61,7 @@ public sealed class GroundDataBlockViewState : DataBlockViewState
 
     public void ToggleHiddenDataBlock(string callsign)
     {
-        var set = StartWithAllHidden ? ShownDataBlockCallsigns : HiddenDataBlockCallsigns;
+        HashSet<string> set = StartWithAllHidden ? ShownDataBlockCallsigns : HiddenDataBlockCallsigns;
         if (!set.Remove(callsign))
         {
             set.Add(callsign);

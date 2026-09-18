@@ -36,8 +36,8 @@ public sealed class InitialContactTransferCatalog
             return false;
         }
 
-        var candidateRules = SelectRulesForArtcc(artccId);
-        foreach (var rule in candidateRules)
+        IEnumerable<InitialContactTransferRule> candidateRules = SelectRulesForArtcc(artccId);
+        foreach (InitialContactTransferRule rule in candidateRules)
         {
             if (!TimingAllows(rule.Timing, observedTiming))
             {
@@ -91,7 +91,7 @@ public sealed class InitialContactTransferCatalog
             return true;
         }
 
-        foreach (var airportId in airportIds)
+        foreach (string airportId in airportIds)
         {
             if (NavigationDatabase.AirportIdsMatch(ruleAirportId, airportId))
             {

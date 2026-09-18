@@ -30,7 +30,7 @@ public class AircraftDataBlockSnapshotTests
     [Fact]
     public void ParkedDataBlock_RoundTrips()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.DataBlock = new AircraftDataBlock
         {
             Binding = DataBlockBinding.Parked,
@@ -63,11 +63,11 @@ public class AircraftDataBlockSnapshotTests
     [Fact]
     public void LegacySnapshot_NoDataBlockField_DefaultsToBound()
     {
-        var dto = MakeAircraft().ToSnapshot();
-        var json = JsonSerializer.Serialize(dto);
-        var node = JsonNode.Parse(json)!.AsObject();
+        AircraftSnapshotDto dto = MakeAircraft().ToSnapshot();
+        string json = JsonSerializer.Serialize(dto);
+        JsonObject node = JsonNode.Parse(json)!.AsObject();
         node.Remove("DataBlock");
-        var legacy = JsonSerializer.Deserialize<AircraftSnapshotDto>(node.ToJsonString())!;
+        AircraftSnapshotDto legacy = JsonSerializer.Deserialize<AircraftSnapshotDto>(node.ToJsonString())!;
 
         var restored = AircraftState.FromSnapshot(legacy, null);
 

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -28,14 +29,14 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 
         return new SimulationEngine(groundData);
@@ -50,8 +51,8 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
     [Fact]
     public void SKW3398_SlowsTo180AtCepin()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -61,14 +62,14 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
         // CEPIN is sequenced at ~t=99, so start early enough to observe it.
         engine.Replay(recording, 50);
 
-        var initialAc = engine.FindAircraft("SKW3398");
+        AircraftState? initialAc = engine.FindAircraft("SKW3398");
         bool cepinWasInRoute = initialAc?.Targets.NavigationRoute.Any(f => f.Name == "CEPIN") ?? false;
         int? cepinSequencedAt = null;
 
         for (int t = 1; t <= 400; t++)
         {
             engine.ReplayOneSecond();
-            var aircraft = engine.FindAircraft("SKW3398");
+            AircraftState? aircraft = engine.FindAircraft("SKW3398");
             if (aircraft is null)
             {
                 continue;

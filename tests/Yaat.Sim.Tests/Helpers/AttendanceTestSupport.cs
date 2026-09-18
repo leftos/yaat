@@ -18,11 +18,11 @@ public static class AttendanceTestSupport
     /// </summary>
     public static void Attend(SimulationEngine engine, params string[] tcpCodes)
     {
-        var scenario = engine.Scenario ?? throw new InvalidOperationException("Attend requires a loaded scenario");
-        var config = scenario.ArtccConfig ?? throw new InvalidOperationException("Attend requires the scenario's ARTCC config");
+        SimScenarioState scenario = engine.Scenario ?? throw new InvalidOperationException("Attend requires a loaded scenario");
+        ArtccConfigRoot config = scenario.ArtccConfig ?? throw new InvalidOperationException("Attend requires the scenario's ARTCC config");
 
         var ids = new List<string>();
-        foreach (var code in tcpCodes)
+        foreach (string code in tcpCodes)
         {
             if (TrackResolver.FindTcpByCode(scenario, code) is not { } tcp)
             {
@@ -37,7 +37,7 @@ public static class AttendanceTestSupport
 
     private static void CollectPositionIds(FacilityConfig facility, string tcpId, List<string> ids)
     {
-        foreach (var position in facility.Positions)
+        foreach (PositionConfig position in facility.Positions)
         {
             if (position.StarsConfiguration?.TcpId == tcpId)
             {
@@ -45,7 +45,7 @@ public static class AttendanceTestSupport
             }
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
             CollectPositionIds(child, tcpId, ids);
         }

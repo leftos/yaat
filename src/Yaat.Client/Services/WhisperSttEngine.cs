@@ -114,7 +114,7 @@ public sealed class WhisperSttEngine : IDisposable
 
         try
         {
-            var stt = EnsureLoaded();
+            SpeechToText? stt = EnsureLoaded();
             if (stt is null)
             {
                 return null;
@@ -128,7 +128,7 @@ public sealed class WhisperSttEngine : IDisposable
             // Convert float[] to in-memory WAV bytes via the existing WavHeader helper, then
             // construct a WaveFile for LM-Kit. We use the in-memory byte[] constructor (rather
             // than writing a temp file) so PTT latency stays under audio-duration overhead.
-            var wavStream = WavHeader.WritePcm16(samples, AudioCaptureService.SampleRate);
+            MemoryStream wavStream = WavHeader.WritePcm16(samples, AudioCaptureService.SampleRate);
             using var waveFile = new WaveFile(wavStream.ToArray());
 
             var sb = new StringBuilder();
@@ -151,7 +151,7 @@ public sealed class WhisperSttEngine : IDisposable
                 stt.OnNewSegment -= OnSegment;
             }
 
-            var text = sb.ToString().Trim();
+            string text = sb.ToString().Trim();
             Log.LogDebug("Whisper transcript: {Text}", text);
             if (text.Length == 0 || IsNoiseMarker(text))
             {
@@ -205,7 +205,7 @@ public sealed class WhisperSttEngine : IDisposable
 
         try
         {
-            var stt = EnsureLoaded();
+            SpeechToText? stt = EnsureLoaded();
             if (stt is null)
             {
                 return;
@@ -214,8 +214,8 @@ public sealed class WhisperSttEngine : IDisposable
             // Run a tiny silence transcription to prime the decoder graph + GPU kernels so the
             // first real PTT press has no measurable load overhead. Whisper emits no segments
             // on silence, so this is essentially pure graph warmup.
-            var silence = new float[AudioCaptureService.SampleRate / 2]; // 0.5s
-            var wavStream = WavHeader.WritePcm16(silence, AudioCaptureService.SampleRate);
+            float[] silence = new float[AudioCaptureService.SampleRate / 2]; // 0.5s
+            MemoryStream wavStream = WavHeader.WritePcm16(silence, AudioCaptureService.SampleRate);
             using var waveFile = new WaveFile(wavStream.ToArray());
             _ = await stt.TranscribeAsync(waveFile, language: "en", ct).ConfigureAwait(false);
 
@@ -252,14 +252,14 @@ public sealed class WhisperSttEngine : IDisposable
             return false;
         }
 
-        var first = text[0];
-        var last = text[^1];
+        char first = text[0];
+        char last = text[^1];
         return (first == '[' && last == ']') || (first == '(' && last == ')');
     }
 
     private SpeechToText? EnsureLoaded()
     {
-        var source = _config.ModelSource;
+        string source = _config.ModelSource;
         if (string.IsNullOrWhiteSpace(source))
         {
             Log.LogWarning("Whisper model identifier is empty");
@@ -287,7 +287,7 @@ public sealed class WhisperSttEngine : IDisposable
             {
                 _model = new LM(source, deviceConfig, loadingOptions: null, loadingProgress: null);
             }
-            else if (Uri.TryCreate(source, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https")
+            else if (Uri.TryCreate(source, UriKind.Absolute, out Uri? uri) && uri.Scheme is "http" or "https")
             {
                 _model = new LM(uri, storagePath: null, deviceConfig, loadingOptions: null, downloadingProgress: null, loadingProgress: null);
             }
@@ -364,9 +364,9 @@ internal static class WavHeader
         const int channels = 1;
         const int bitsPerSample = 16;
         const ushort formatPcm = 1; // WAVE_FORMAT_PCM
-        var byteRate = sampleRate * channels * (bitsPerSample / 8);
-        var blockAlign = (ushort)(channels * (bitsPerSample / 8));
-        var dataSize = samples.Length * sizeof(short);
+        int byteRate = sampleRate * channels * (bitsPerSample / 8);
+        ushort blockAlign = (ushort)(channels * (bitsPerSample / 8));
+        int dataSize = samples.Length * sizeof(short);
 
         var stream = new MemoryStream(44 + dataSize);
         var writer = new BinaryWriter(stream, Encoding.ASCII, leaveOpen: true);
@@ -395,7 +395,7 @@ internal static class WavHeader
         // is -32768 and multiplying -1.0 by 32768 would overflow when stored back as short.
         for (int i = 0; i < samples.Length; i++)
         {
-            var clamped = Math.Clamp(samples[i], -1.0f, 1.0f);
+            float clamped = Math.Clamp(samples[i], -1.0f, 1.0f);
             writer.Write((short)(clamped * short.MaxValue));
         }
 
@@ -413,7 +413,7 @@ internal static class WavHeader
     /// </summary>
     public static float[] ReadPcm16(string path)
     {
-        using var fs = File.OpenRead(path);
+        using FileStream fs = File.OpenRead(path);
         using var reader = new BinaryReader(fs, Encoding.ASCII, leaveOpen: false);
 
         if (Encoding.ASCII.GetString(reader.ReadBytes(4)) != "RIFF")
@@ -435,8 +435,8 @@ internal static class WavHeader
 
         while (fs.Position < fs.Length - 8)
         {
-            var chunkId = Encoding.ASCII.GetString(reader.ReadBytes(4));
-            var chunkSize = reader.ReadInt32();
+            string chunkId = Encoding.ASCII.GetString(reader.ReadBytes(4));
+            int chunkSize = reader.ReadInt32();
             if (chunkId == "fmt ")
             {
                 formatTag = reader.ReadUInt16();
@@ -471,15 +471,15 @@ internal static class WavHeader
             throw new InvalidDataException($"WAV must be PCM mono 16-bit, got format={formatTag} channels={channels} bits={bitsPerSample}: {path}");
         }
 
-        var sampleCount = pcmBytes.Length / sizeof(short);
-        var samples = new float[sampleCount];
-        for (var i = 0; i < sampleCount; i++)
+        int sampleCount = pcmBytes.Length / sizeof(short);
+        float[] samples = new float[sampleCount];
+        for (int i = 0; i < sampleCount; i++)
         {
             // Read little-endian int16 and rescale to [-1, 1]. Symmetric inverse of the
             // multiply-by-short.MaxValue + clamp in WritePcm16.
-            var lo = pcmBytes[i * 2];
-            var hi = (sbyte)pcmBytes[i * 2 + 1];
-            var value = (short)((hi << 8) | lo);
+            byte lo = pcmBytes[i * 2];
+            sbyte hi = (sbyte)pcmBytes[i * 2 + 1];
+            short value = (short)((hi << 8) | lo);
             samples[i] = value / (float)short.MaxValue;
         }
         return samples;

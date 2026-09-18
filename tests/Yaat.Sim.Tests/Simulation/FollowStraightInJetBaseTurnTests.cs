@@ -4,6 +4,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -64,7 +65,7 @@ public class FollowStraightInJetBaseTurnTests(ITestOutputHelper output)
     [Fact]
     public void N629PU_TurnsBase_WhileStraightInJetIsStillAirborne()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -72,15 +73,15 @@ public class FollowStraightInJetBaseTurnTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
             engine.Replay(recording, 0);
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 output.WriteLine($"No snapshot near t={RestoreAtSeconds} — skipping");
@@ -90,7 +91,7 @@ public class FollowStraightInJetBaseTurnTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             int t0 = (int)snapshot.ElapsedSeconds;
 
-            var pre = engine.FindAircraft(Follower);
+            AircraftState? pre = engine.FindAircraft(Follower);
             Assert.NotNull(pre);
             Assert.IsType<DownwindPhase>(pre.Phases?.CurrentPhase);
 
@@ -99,7 +100,7 @@ public class FollowStraightInJetBaseTurnTests(ITestOutputHelper output)
                 engine.ReplayOneSecond();
             }
 
-            var afterFollow = engine.FindAircraft(Follower);
+            AircraftState? afterFollow = engine.FindAircraft(Follower);
             Assert.NotNull(afterFollow);
             Assert.Equal(Leader, afterFollow.Approach.FollowingCallsign);
 
@@ -115,8 +116,8 @@ public class FollowStraightInJetBaseTurnTests(ITestOutputHelper output)
             for (int t = ReplayStopSeconds + 1; t <= ReplayStopSeconds + 240; t++)
             {
                 engine.TickOneSecond();
-                var f = engine.FindAircraft(Follower);
-                var l = engine.FindAircraft(Leader);
+                AircraftState? f = engine.FindAircraft(Follower);
+                AircraftState? l = engine.FindAircraft(Leader);
                 if (f is null || l is null)
                 {
                     break;

@@ -23,8 +23,8 @@ public static class TimerCommandApplier
             return new CommandResult(false, $"Aircraft '{callsign}' not found");
         }
 
-        var seconds = timer.Seconds!.Value;
-        var id = scenario.NextTimerId++;
+        double seconds = timer.Seconds!.Value;
+        int id = scenario.NextTimerId++;
         scenario.ActiveTimers.Add(
             new ActiveTimer
             {

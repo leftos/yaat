@@ -71,10 +71,10 @@ public class VisualApproachLostReferenceTests(ITestOutputHelper output)
 
     private static AircraftState EstablishCvaWithFieldInSight(SimulationEngine engine, double finalDistanceNm, double altitude)
     {
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
         Assert.NotNull(rwy);
-        var (lat, lon) = OnFinal(rwy, finalDistanceNm);
-        var ac = MakeB738OnFinal("FLD1", lat, lon, rwy.TrueHeading.Degrees, altitude);
+        (double lat, double lon) = OnFinal(rwy, finalDistanceNm);
+        AircraftState ac = MakeB738OnFinal("FLD1", lat, lon, rwy.TrueHeading.Degrees, altitude);
         engine.World.AddAircraft(ac);
 
         Assert.True(engine.SendCommand("FLD1", "RFIS").Success);
@@ -91,13 +91,13 @@ public class VisualApproachLostReferenceTests(ITestOutputHelper output)
     [Fact]
     public void FieldLost_NoFollow_NotCommitted_LevelsOffRequestsVectors()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return; // navdata absent → skip, per no-synthetic-data convention
         }
 
-        var ac = EstablishCvaWithFieldInSight(engine, finalDistanceNm: 6.0, altitude: 2500);
+        AircraftState ac = EstablishCvaWithFieldInSight(engine, finalDistanceNm: 6.0, altitude: 2500);
 
         double expectedLevelOff = Math.Round(ac.Altitude / 100.0) * 100.0;
         engine.World.Weather = OakVisibility("2SM");
@@ -131,17 +131,17 @@ public class VisualApproachLostReferenceTests(ITestOutputHelper output)
     [Fact]
     public void FieldLost_Committed_GoesAround()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var ac = EstablishCvaWithFieldInSight(engine, finalDistanceNm: 6.0, altitude: 2000);
+        AircraftState ac = EstablishCvaWithFieldInSight(engine, finalDistanceNm: 6.0, altitude: 2000);
 
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
         Assert.NotNull(rwy);
-        var (lat, lon) = OnFinal(rwy, 2.5);
+        (double lat, double lon) = OnFinal(rwy, 2.5);
         ac.Position = new LatLon(lat, lon);
         ac.Altitude = 800;
         engine.World.Weather = OakVisibility("1SM");
@@ -166,19 +166,19 @@ public class VisualApproachLostReferenceTests(ITestOutputHelper output)
     [Fact]
     public void FieldLost_TrafficHeld_VisualContinues_Silent()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
         Assert.NotNull(rwy);
         double finalCourse = rwy.TrueHeading.Degrees;
-        var (leadLat, leadLon) = OnFinal(rwy, 4.0);
-        var (trailLat, trailLon) = OnFinal(rwy, 6.0);
-        var leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 1300);
-        var trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 2000);
+        (double leadLat, double leadLon) = OnFinal(rwy, 4.0);
+        (double trailLat, double trailLon) = OnFinal(rwy, 6.0);
+        AircraftState leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 1300);
+        AircraftState trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 2000);
         engine.World.AddAircraft(leader);
         engine.World.AddAircraft(trailer);
 
@@ -224,22 +224,22 @@ public class VisualApproachLostReferenceTests(ITestOutputHelper output)
     [Fact]
     public void TrafficLost_FieldNeverHeld_EndsVisual()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
         Assert.NotNull(rwy);
         double finalCourse = rwy.TrueHeading.Degrees;
         // 5SM caps field acquisition well short of the trailer's 15 nm, so the field is never
         // held; the 4 nm gap to the lead is inside the traffic acquisition range.
         engine.World.Weather = OakVisibility("5SM");
-        var (leadLat, leadLon) = OnFinal(rwy, 11.0);
-        var (trailLat, trailLon) = OnFinal(rwy, 15.0);
-        var leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 3000);
-        var trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 3500);
+        (double leadLat, double leadLon) = OnFinal(rwy, 11.0);
+        (double trailLat, double trailLon) = OnFinal(rwy, 15.0);
+        AircraftState leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 3000);
+        AircraftState trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 3500);
         engine.World.AddAircraft(leader);
         engine.World.AddAircraft(trailer);
 
@@ -261,7 +261,7 @@ public class VisualApproachLostReferenceTests(ITestOutputHelper output)
 
         // Visibility collapses below the gap: the only reference is gone.
         engine.World.Weather = OakVisibility("2SM");
-        var warnings = CaptureWarnings(engine, "TRAIL1");
+        List<string> warnings = CaptureWarnings(engine, "TRAIL1");
 
         engine.TickOneSecond();
 
@@ -279,22 +279,22 @@ public class VisualApproachLostReferenceTests(ITestOutputHelper output)
     [Fact]
     public void LeadLands_FieldNeverHeld_ReacquiresAndContinues()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var (leader, trailer) = EstablishFollowWithoutField(engine);
+        (AircraftState? leader, AircraftState? trailer) = EstablishFollowWithoutField(engine);
 
         // Lead touches down; the trailer is repositioned to short final where the field
         // (measured to the ARP by the acquisition path) is inside the 6SM range.
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "30")!;
+        RunwayInfo rwy = NavigationDatabase.Instance.GetRunway("OAK", "30")!;
         GroundLeader(leader, rwy);
-        var (lat, lon) = OnFinal(rwy, 2.5);
+        (double lat, double lon) = OnFinal(rwy, 2.5);
         trailer.Position = new LatLon(lat, lon);
         trailer.Altitude = 1200;
-        var warnings = CaptureWarnings(engine, "TRAIL1");
+        List<string> warnings = CaptureWarnings(engine, "TRAIL1");
 
         for (int t = 0; t < 3; t++)
         {
@@ -314,17 +314,17 @@ public class VisualApproachLostReferenceTests(ITestOutputHelper output)
     [Fact]
     public void LeadLands_FieldNotAcquirable_EndsVisual()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var (leader, trailer) = EstablishFollowWithoutField(engine);
+        (AircraftState? leader, AircraftState? trailer) = EstablishFollowWithoutField(engine);
 
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "30")!;
+        RunwayInfo rwy = NavigationDatabase.Instance.GetRunway("OAK", "30")!;
         GroundLeader(leader, rwy);
-        var warnings = CaptureWarnings(engine, "TRAIL1");
+        List<string> warnings = CaptureWarnings(engine, "TRAIL1");
 
         for (int t = 0; t < 3; t++)
         {
@@ -340,13 +340,13 @@ public class VisualApproachLostReferenceTests(ITestOutputHelper output)
     [Fact]
     public void ManualGoAround_OnVisual_VoidsClearance()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var ac = EstablishCvaWithFieldInSight(engine, finalDistanceNm: 6.0, altitude: 2000);
+        AircraftState ac = EstablishCvaWithFieldInSight(engine, finalDistanceNm: 6.0, altitude: 2000);
 
         Assert.True(engine.SendCommand("FLD1", "GA").Success);
 
@@ -363,16 +363,16 @@ public class VisualApproachLostReferenceTests(ITestOutputHelper output)
     [Fact]
     public void Cva_PreservesGatingBasisAcrossClearance()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
         Assert.NotNull(rwy);
-        var (lat, lon) = OnFinal(rwy, 6.0);
-        var ac = MakeB738OnFinal("FLD1", lat, lon, rwy.TrueHeading.Degrees, altitude: 2000);
+        (double lat, double lon) = OnFinal(rwy, 6.0);
+        AircraftState ac = MakeB738OnFinal("FLD1", lat, lon, rwy.TrueHeading.Degrees, altitude: 2000);
         engine.World.AddAircraft(ac);
 
         Assert.True(engine.SendCommand("FLD1", "RFIS").Success);
@@ -434,14 +434,14 @@ public class VisualApproachLostReferenceTests(ITestOutputHelper output)
     /// </summary>
     private (AircraftState Leader, AircraftState Trailer) EstablishFollowWithoutField(SimulationEngine engine)
     {
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
         Assert.NotNull(rwy);
         double finalCourse = rwy.TrueHeading.Degrees;
         engine.World.Weather = OakVisibility("6SM");
-        var (leadLat, leadLon) = OnFinal(rwy, 8.0);
-        var (trailLat, trailLon) = OnFinal(rwy, 11.0);
-        var leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 2500);
-        var trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 3500);
+        (double leadLat, double leadLon) = OnFinal(rwy, 8.0);
+        (double trailLat, double trailLon) = OnFinal(rwy, 11.0);
+        AircraftState leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 2500);
+        AircraftState trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 3500);
         engine.World.AddAircraft(leader);
         engine.World.AddAircraft(trailer);
 

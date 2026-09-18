@@ -46,27 +46,27 @@ public class Issue235SfoTaxiBKAParkingLoopTests
 
     private static bool SegmentIncludesTaxiway(string taxiwayName, string target)
     {
-        var parts = taxiwayName.Split(" - ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = taxiwayName.Split(" - ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         return parts.Any(part => string.Equals(part, target, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
     public void TaxiBKA_ToF10_DoesNotLoopThroughQ1()
     {
-        var layout = new PinnedSfoGroundData(PinnedSfoPath).GetLayout("SFO");
+        AirportGroundLayout? layout = new PinnedSfoGroundData(PinnedSfoPath).GetLayout("SFO");
         if (layout is null || TestVnasData.NavigationDb is null)
         {
             _output.WriteLine("SFO layout / navdata unavailable — skipping");
             return;
         }
 
-        var f10 = layout.FindParkingByName("F10");
+        GroundNode? f10 = layout.FindParkingByName("F10");
         Assert.NotNull(f10);
 
-        var start = NearestNodeOnTaxiway(layout, "D", StartLat, StartLon);
+        GroundNode start = NearestNodeOnTaxiway(layout, "D", StartLat, StartLon);
         _output.WriteLine($"start node = {start.Id} on D, F10 = {f10.Id}");
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             start.Id,
             ["D", "B", "K", "A"],

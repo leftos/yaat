@@ -27,23 +27,23 @@ public class ConditionWaitClientCanonicalTests(ITestOutputHelper output)
     private (int? crossedAt, int? descendedAt) Run(bool useClientCanonical)
     {
         const string typed = "LV 050 WAIT 5 DM 110";
-        var ac = MakeAircraft();
-        var ctx = TestDispatch.Context(new SerializableRandom(42));
+        AircraftState ac = MakeAircraft();
+        DispatchContext ctx = TestDispatch.Context(new SerializableRandom(42));
 
         // A prior, still-in-progress instruction: descend to 4,000 ft. The aircraft is crossing 5,000 ft
         // downward, so LV 050 fires almost immediately, but DM 040 stays the current (incomplete) block.
         CommandDispatcher.DispatchCompound(CommandParser.ParseCompound("DM 040").Value!, ac, ctx);
 
-        var toDispatch = typed;
+        string toDispatch = typed;
         if (useClientCanonical)
         {
-            var canonical = CommandSchemeParser.ParseCompound(typed, CommandScheme.Default());
+            CompoundParseResult? canonical = CommandSchemeParser.ParseCompound(typed, CommandScheme.Default());
             Assert.NotNull(canonical);
             toDispatch = canonical!.CanonicalString;
             output.WriteLine($"client canonical: '{typed}' -> '{toDispatch}'");
         }
 
-        var parsed = CommandParser.ParseCompound(toDispatch);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(toDispatch);
         Assert.True(parsed.IsSuccess, $"parse failed: {toDispatch}");
         CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
 
@@ -70,7 +70,7 @@ public class ConditionWaitClientCanonicalTests(ITestOutputHelper output)
     [Fact]
     public void ClientCanonical_ConditionWaitPayload_FiresAfterWait_NotBehindUnrelatedInProgressCommand()
     {
-        var direct = Run(useClientCanonical: false);
+        (int? crossedAt, int? descendedAt) direct = Run(useClientCanonical: false);
         Assert.NotNull(direct.crossedAt);
         Assert.True(direct.descendedAt is not null, "control: direct form never descended");
         Assert.True(
@@ -78,7 +78,7 @@ public class ConditionWaitClientCanonicalTests(ITestOutputHelper output)
             $"control: direct form should descend ~5 s after crossing; was {direct.descendedAt - direct.crossedAt}s"
         );
 
-        var canon = Run(useClientCanonical: true);
+        (int? crossedAt, int? descendedAt) canon = Run(useClientCanonical: true);
         Assert.NotNull(canon.crossedAt);
         Assert.True(canon.descendedAt is not null, "canonical form never descended (payload orphaned behind the in-progress DM 040)");
         Assert.True(

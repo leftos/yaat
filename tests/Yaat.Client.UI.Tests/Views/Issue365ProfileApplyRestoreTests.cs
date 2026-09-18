@@ -41,13 +41,13 @@ public class Issue365ProfileApplyRestoreTests
     [AvaloniaFact]
     public void ApplyGeometry_OnMinimizedWindow_RestoresAndActivates()
     {
-        var (window, helper) = NewShownWindow("Issue365RestoreTest");
+        (Window? window, WindowGeometryHelper? helper) = NewShownWindow("Issue365RestoreTest");
         try
         {
             window.WindowState = WindowState.Minimized;
             Dispatcher.UIThread.RunJobs();
 
-            var activated = false;
+            bool activated = false;
             window.Activated += (_, _) => activated = true;
 
             helper.ApplyGeometry(NormalGeometry());
@@ -68,13 +68,13 @@ public class Issue365ProfileApplyRestoreTests
     [AvaloniaFact]
     public void ApplyGeometry_OnMinimizedWindow_WithMaximizedGeometry_Maximizes()
     {
-        var (window, helper) = NewShownWindow("Issue365MaximizeTest");
+        (Window? window, WindowGeometryHelper? helper) = NewShownWindow("Issue365MaximizeTest");
         try
         {
             window.WindowState = WindowState.Minimized;
             Dispatcher.UIThread.RunJobs();
 
-            var geo = NormalGeometry();
+            SavedWindowGeometry geo = NormalGeometry();
             geo.IsMaximized = true;
             helper.ApplyGeometry(geo);
             Dispatcher.UIThread.RunJobs();
@@ -91,13 +91,13 @@ public class Issue365ProfileApplyRestoreTests
     [AvaloniaFact]
     public void ApplyGeometry_WithMinimizedGeometry_MinimizesWithoutActivating()
     {
-        var (window, helper) = NewShownWindow("Issue365MinimizeTest");
+        (Window? window, WindowGeometryHelper? helper) = NewShownWindow("Issue365MinimizeTest");
         try
         {
-            var activated = false;
+            bool activated = false;
             window.Activated += (_, _) => activated = true;
 
-            var geo = NormalGeometry();
+            SavedWindowGeometry geo = NormalGeometry();
             geo.IsMinimized = true;
             helper.ApplyGeometry(geo);
             Dispatcher.UIThread.RunJobs();
@@ -116,7 +116,7 @@ public class Issue365ProfileApplyRestoreTests
     public void SaveGeometry_MinimizedFromMaximized_RecordsBothFlags()
     {
         const string windowName = "Issue365CaptureTest";
-        var (window, helper) = NewShownWindow(windowName);
+        (Window? window, WindowGeometryHelper? helper) = NewShownWindow(windowName);
         try
         {
             window.WindowState = WindowState.Maximized;
@@ -126,7 +126,7 @@ public class Issue365ProfileApplyRestoreTests
 
             helper.FlushSavedGeometry();
 
-            var saved = new UserPreferences().GetWindowGeometry(windowName);
+            SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);
             Assert.NotNull(saved);
             Assert.True(saved.IsMinimized);
             Assert.True(saved.IsMaximized);
@@ -142,7 +142,7 @@ public class Issue365ProfileApplyRestoreTests
     public void SaveGeometry_MinimizedFromNormal_RecordsMinimizedOnly()
     {
         const string windowName = "Issue365CaptureNormalTest";
-        var (window, helper) = NewShownWindow(windowName);
+        (Window? window, WindowGeometryHelper? helper) = NewShownWindow(windowName);
         try
         {
             window.WindowState = WindowState.Minimized;
@@ -150,7 +150,7 @@ public class Issue365ProfileApplyRestoreTests
 
             helper.FlushSavedGeometry();
 
-            var saved = new UserPreferences().GetWindowGeometry(windowName);
+            SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);
             Assert.NotNull(saved);
             Assert.True(saved.IsMinimized);
             Assert.False(saved.IsMaximized);
@@ -195,14 +195,14 @@ public class Issue365ProfileApplyRestoreTests
 
         try
         {
-            var applied = NormalGeometry();
+            SavedWindowGeometry applied = NormalGeometry();
             applied.IsMaximized = true;
             helper.ApplyGeometry(applied);
             Dispatcher.UIThread.RunJobs();
 
             helper.FlushSavedGeometry();
 
-            var saved = new UserPreferences().GetWindowGeometry(windowName);
+            SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);
             Assert.NotNull(saved);
             Assert.Equal(320, saved.X);
             Assert.Equal(240, saved.Y);

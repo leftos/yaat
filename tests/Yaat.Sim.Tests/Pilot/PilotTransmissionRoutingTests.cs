@@ -64,9 +64,9 @@ public class PilotTransmissionRoutingTests
     [Fact]
     public void HoldingShortPhase_SoloMode_AddsTerseWarning_AndAnnouncesReady()
     {
-        var ac = MakeAircraft("N172SP");
-        var phase = MakeHoldingShortPhase();
-        var ctx = MakeCtx(ac, soloTrainingMode: true, rpoShowPilotSpeech: false);
+        AircraftState ac = MakeAircraft("N172SP");
+        HoldingShortPhase phase = MakeHoldingShortPhase();
+        PhaseContext ctx = MakeCtx(ac, soloTrainingMode: true, rpoShowPilotSpeech: false);
 
         phase.OnStart(ctx);
 
@@ -81,9 +81,9 @@ public class PilotTransmissionRoutingTests
     [Fact]
     public void HoldingShortPhase_RpoMode_PilotSpeechOff_AddsTerseWarning()
     {
-        var ac = MakeAircraft("N172SP");
-        var phase = MakeHoldingShortPhase();
-        var ctx = MakeCtx(ac, soloTrainingMode: false, rpoShowPilotSpeech: false);
+        AircraftState ac = MakeAircraft("N172SP");
+        HoldingShortPhase phase = MakeHoldingShortPhase();
+        PhaseContext ctx = MakeCtx(ac, soloTrainingMode: false, rpoShowPilotSpeech: false);
 
         phase.OnStart(ctx);
 
@@ -95,15 +95,15 @@ public class PilotTransmissionRoutingTests
     [Fact]
     public void HoldingShortPhase_RpoMode_PilotSpeechOn_AddsSpelledOutPilotSpeech()
     {
-        var ac = MakeAircraft("N172SP");
-        var phase = MakeHoldingShortPhase();
-        var ctx = MakeCtx(ac, soloTrainingMode: false, rpoShowPilotSpeech: true);
+        AircraftState ac = MakeAircraft("N172SP");
+        HoldingShortPhase phase = MakeHoldingShortPhase();
+        PhaseContext ctx = MakeCtx(ac, soloTrainingMode: false, rpoShowPilotSpeech: true);
 
         phase.OnStart(ctx);
 
         Assert.Empty(ac.PendingWarnings);
         Assert.Empty(ac.PendingNotifications);
-        var speech = Assert.Single(ac.PendingPilotSpeech);
+        string speech = Assert.Single(ac.PendingPilotSpeech);
         Assert.Equal(PilotResponder.BuildHoldingShortCrossing(ac, "28R").Tts, speech);
     }
 

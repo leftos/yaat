@@ -328,7 +328,7 @@ public static class TugMovePlanner
         double halfLenNm = (FuselageLengthFt(aircraftType) / 2.0) / GeoMath.FeetPerNm;
         double pullFwdNm = SpotPullForwardFt(aircraftType) / GeoMath.FeetPerNm;
 
-        var intoRamp = new TrueHeading(facingTrueDeg).ToReciprocal();
+        TrueHeading intoRamp = new TrueHeading(facingTrueDeg).ToReciprocal();
         return (GeoMath.ProjectPoint(spot.Position, intoRamp, halfLenNm), GeoMath.ProjectPoint(spot.Position, intoRamp, halfLenNm + pullFwdNm));
     }
 
@@ -375,7 +375,7 @@ public static class TugMovePlanner
             throw new ArgumentException("A tug request needs at least one goal", nameof(request));
         }
 
-        var last = request.Goals[^1].Kind;
+        TugGoalKind last = request.Goals[^1].Kind;
         if ((request.FinalFacingTrueDeg is not null) && (last is TugGoalKind.Clear or TugGoalKind.StraightBackTo))
         {
             throw new ArgumentException(
@@ -441,10 +441,10 @@ internal static class TugGoalResolver
 
     internal static ResolvedTugGoal Resolve(AirportGroundLayout? layout, TugRequest request, int index)
     {
-        var goal = request.Goals[index];
+        TugGoal goal = request.Goals[index];
         bool isLast = index == (request.Goals.Count - 1);
         double? facing = FacingOf(layout, goal, isLast ? request.FinalFacingTrueDeg : null);
-        var basis = Basis(goal, index, request.Goals.Count);
+        ResolvedTugGoal basis = Basis(goal, index, request.Goals.Count);
         return goal.Kind switch
         {
             TugGoalKind.Spot or TugGoalKind.Stand or TugGoalKind.Node => ResolveNodeGoal(request.AircraftType, basis, facing),
@@ -490,17 +490,17 @@ internal static class TugGoalResolver
     /// </summary>
     private static ResolvedTugGoal ResolveNodeGoal(string aircraftType, ResolvedTugGoal basis, double? facing)
     {
-        var node = basis.Goal.Node!;
+        GroundNode node = basis.Goal.Node!;
         if (facing is not { } facingDeg)
         {
             return ToNode(basis, node);
         }
 
-        var faced = basis with { Shape = TugGoalShape.Faced, FacingTrueDeg = facingDeg, Stop = node.Position };
+        ResolvedTugGoal faced = basis with { Shape = TugGoalShape.Faced, FacingTrueDeg = facingDeg, Stop = node.Position };
         switch (basis.Goal.Kind)
         {
             case TugGoalKind.Spot:
-                var (stop, staging) = TugMovePlanner.SpotStopGeometry(node, facingDeg, aircraftType);
+                (LatLon stop, LatLon staging) = TugMovePlanner.SpotStopGeometry(node, facingDeg, aircraftType);
                 return faced with { Stop = stop, Staging = staging };
             case TugGoalKind.Node:
                 return faced with { ExemptNames = NodeEdgeNames(node) };
@@ -512,8 +512,8 @@ internal static class TugGoalResolver
     /// <summary>A taxiway-line or straight-back goal: the line runs through the exit node, and the taxiway is exempt.</summary>
     private static ResolvedTugGoal ResolveTaxiwayGoal(ResolvedTugGoal basis, double? facing)
     {
-        var goal = basis.Goal;
-        var onTaxiway = basis with { Stop = goal.Node!.Position, ExemptNames = Names(goal.TaxiwayName!) };
+        TugGoal goal = basis.Goal;
+        ResolvedTugGoal onTaxiway = basis with { Stop = goal.Node!.Position, ExemptNames = Names(goal.TaxiwayName!) };
         return goal.Kind == TugGoalKind.TaxiwayLine
             ? onTaxiway with
             {
@@ -555,10 +555,10 @@ internal readonly record struct TugRun(PushbackLegKind Kind, double StartTravelD
     internal static (TugRun? Open, bool Wandered) Follow(TugRun? open, IReadOnlyList<TugMoveTrace> traces)
     {
         bool wandered = false;
-        var run = open;
-        foreach (var trace in traces)
+        TugRun? run = open;
+        foreach (TugMoveTrace trace in traces)
         {
-            var kind = trace.Move.Kind;
+            PushbackLegKind kind = trace.Move.Kind;
             if ((run is not { } current) || (current.Kind != kind))
             {
                 wandered |= run is { Wandered: true };
@@ -573,7 +573,7 @@ internal readonly record struct TugRun(PushbackLegKind Kind, double StartTravelD
 
     private TugRun Including(TugMoveTrace trace)
     {
-        var kind = Kind;
+        PushbackLegKind kind = Kind;
         double start = StartTravelDeg;
         double deviation = trace.Samples.Max(s => TugMovePlanner.AbsDiffDeg(s.TravelTrueDeg(kind), start));
         return this with { HasTurn = HasTurn || (trace.Move.Shape == TugMoveShape.TurnTo), MaxDeviationDeg = Math.Max(MaxDeviationDeg, deviation) };
@@ -622,8 +622,8 @@ internal sealed class TugCandidate
             return;
         }
 
-        var flagged = move with { DwellBefore = (LastKind is { } last) && (last != move.Kind) };
-        var trace = TugKinematics.Simulate(End, [flagged], _aircraftType, TugMovePlanner.StepFt).Moves[0];
+        TugMove flagged = move with { DwellBefore = (LastKind is { } last) && (last != move.Kind) };
+        TugMoveTrace trace = TugKinematics.Simulate(End, [flagged], _aircraftType, TugMovePlanner.StepFt).Moves[0];
         _traces.Add(trace);
         End = trace.End;
         LastKind = flagged.Kind;
@@ -751,19 +751,19 @@ internal sealed class TugPlanBuilder
 
     internal bool TryPlanGoal(int index, out string refusal)
     {
-        var goal = WithStandBehindExempt(TugGoalResolver.Resolve(_layout, _request, index));
+        ResolvedTugGoal goal = WithStandBehindExempt(TugGoalResolver.Resolve(_layout, _request, index));
         if (IsRefusedOutright(goal, out refusal))
         {
             return false;
         }
 
         bool offStand = (index == 0) && _request.StartsAtStand;
-        if (!TryBuildCandidates(goal, offStand, out var candidates, out refusal))
+        if (!TryBuildCandidates(goal, offStand, out List<TugCandidate>? candidates, out refusal))
         {
             return false;
         }
 
-        var best = Choose(goal, candidates, offStand, out refusal);
+        TugCandidate? best = Choose(goal, candidates, offStand, out refusal);
         if (best is null)
         {
             return false;
@@ -788,8 +788,8 @@ internal sealed class TugPlanBuilder
             return names;
         }
 
-        var start = request.Start;
-        var behind = pathCheck.FirstCrossing(
+        TugPose start = request.Start;
+        (IGroundEdge Edge, double DistanceFt)? behind = pathCheck.FirstCrossing(
             start.Position,
             start.TravelTrueDeg(PushbackLegKind.Push),
             (0.0, TugMovePlanner.StandBehindExemptionFt),
@@ -844,9 +844,11 @@ internal sealed class TugPlanBuilder
 
     private bool TryBuildCandidates(ResolvedTugGoal goal, bool offStand, out List<TugCandidate> candidates, out string refusal)
     {
-        var standPushOff = offStand ? TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.FuselageLengthFt(_request.AircraftType) / 2.0) : null;
+        TugMove? standPushOff = offStand
+            ? TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.FuselageLengthFt(_request.AircraftType) / 2.0)
+            : null;
         bool straightBack = goal.Shape is TugGoalShape.Clear or TugGoalShape.StraightBack;
-        var pushOff = straightBack ? null : standPushOff;
+        TugMove? pushOff = straightBack ? null : standPushOff;
         refusal = string.Empty;
         switch (goal.Shape)
         {
@@ -871,10 +873,10 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private List<TugCandidate> FacedCandidates(ResolvedTugGoal goal, TugMove? pushOff)
     {
-        var from = NewCandidate("probe", pushOff).End;
+        TugPose from = NewCandidate("probe", pushOff).End;
         double facing = goal.FacingTrueDeg;
         double stopOffFacingDeg = TugMovePlanner.AbsDiffDeg(GeoMath.BearingTo(from.Position, goal.Stop), facing);
-        var sides = SidesFor(stopOffFacingDeg);
+        PushbackLegKind[] sides = SidesFor(stopOffFacingDeg);
         Log.LogDebug(
             "Tug {Subject}: stop {StopOffFacingDeg:F2}° off the facing; building candidates for the {Sides} side",
             goal.Subject,
@@ -907,7 +909,7 @@ internal sealed class TugPlanBuilder
     /// <summary>T1: the side move straight onto the approach line.</summary>
     private TugCandidate Direct(ResolvedTugGoal goal, TugMove? pushOff, PushbackLegKind side)
     {
-        var candidate = NewCandidate($"T1 direct, {side} side", pushOff);
+        TugCandidate candidate = NewCandidate($"T1 direct, {side} side", pushOff);
         AddApproach(candidate, goal, side);
         return candidate;
     }
@@ -915,7 +917,7 @@ internal sealed class TugPlanBuilder
     /// <summary>T2: the other kind onto the approach line first, then the side move.</summary>
     private TugCandidate OtherKindFirst(ResolvedTugGoal goal, TugMove? pushOff, PushbackLegKind side)
     {
-        var candidate = NewCandidate($"T2 other kind first, {side} side", pushOff);
+        TugCandidate candidate = NewCandidate($"T2 other kind first, {side} side", pushOff);
         candidate.Add(LineMove(goal, Opposite(side), stopAt: null));
         AddApproach(candidate, goal, side);
         return candidate;
@@ -938,7 +940,7 @@ internal sealed class TugPlanBuilder
                     continue;
                 }
 
-                var candidate = NewCandidate($"T3 three-point turn to {intermediateDeg:F0}°, {side} side", pushOff);
+                TugCandidate candidate = NewCandidate($"T3 three-point turn to {intermediateDeg:F0}°, {side} side", pushOff);
                 candidate.Add(TugMove.TurnTo(Opposite(side), intermediateDeg));
                 AddApproach(candidate, goal, side);
                 yield return candidate;
@@ -956,7 +958,7 @@ internal sealed class TugPlanBuilder
     {
         bool staged = (side == PushbackLegKind.Push) && (goal.Staging is not null);
         bool creepOntoSpot = (side == PushbackLegKind.Pull) && (goal.Goal.Kind == TugGoalKind.Spot);
-        var approach = LineMove(goal, side, staged ? goal.Staging : goal.Stop);
+        TugMove approach = LineMove(goal, side, staged ? goal.Staging : goal.Stop);
         candidate.Add(approach with { Creep = creepOntoSpot });
         if (!staged || !candidate.Flyable)
         {
@@ -972,9 +974,9 @@ internal sealed class TugPlanBuilder
 
     private bool TryToNodeCandidate(ResolvedTugGoal goal, TugMove? pushOff, out List<TugCandidate> candidates, out string refusal)
     {
-        var candidate = NewCandidate("to node", pushOff);
+        TugCandidate candidate = NewCandidate("to node", pushOff);
         double offNoseDeg = TugMovePlanner.AbsDiffDeg(GeoMath.BearingTo(candidate.End.Position, goal.Stop), candidate.End.NoseTrueDeg);
-        var kind = offNoseDeg > AheadDeg ? PushbackLegKind.Push : PushbackLegKind.Pull;
+        PushbackLegKind kind = offNoseDeg > AheadDeg ? PushbackLegKind.Push : PushbackLegKind.Pull;
         if ((pushOff is not null) && (kind == PushbackLegKind.Pull))
         {
             candidates = [];
@@ -1031,7 +1033,7 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private TugCandidate? StraightBackCandidate(ResolvedTugGoal goal, double pushTravelDeg, Func<IGroundEdge, bool> isCentreline)
     {
-        var crossing = _pathCheck!.FirstCrossing(
+        (IGroundEdge Edge, double DistanceFt)? crossing = _pathCheck!.FirstCrossing(
             _end.Position,
             pushTravelDeg,
             (TugMovePlanner.StepFt, TugMovePlanner.MaxGoalDistanceFt),
@@ -1050,7 +1052,7 @@ internal sealed class TugPlanBuilder
             behind.Edge.Nodes[1].Id,
             behind.DistanceFt
         );
-        var candidate = NewCandidate("straight back", pushOff: null);
+        TugCandidate candidate = NewCandidate("straight back", pushOff: null);
         candidate.Add(TugMove.Straight(PushbackLegKind.Push, behind.DistanceFt));
         return candidate;
     }
@@ -1098,13 +1100,13 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private TugCandidate? AlongsideCandidate(ResolvedTugGoal goal, double pushTravelDeg, TugMove? standPushOff, Func<IGroundEdge, bool> isCentreline)
     {
-        var window = (AcrossAngleDeg, TugMovePlanner.MaxGoalDistanceFt);
+        (double AcrossAngleDeg, double MaxGoalDistanceFt) window = (AcrossAngleDeg, TugMovePlanner.MaxGoalDistanceFt);
         if (_pathCheck!.NearestAlongside(_end.Position, pushTravelDeg, window, isCentreline) is not { } alongside)
         {
             return null;
         }
 
-        var edge = alongside.Edge;
+        IGroundEdge edge = alongside.Edge;
         Log.LogDebug(
             "Tug {Subject}: the push ray crosses no {Taxiway} edge; edge {NodeA}-{NodeB} runs alongside on {LineDeg:F1}° "
                 + "(push {PushDeg:F1}°), its nearest point {DistanceFt:F1} ft away and {AlongFt:F1} ft behind the aircraft",
@@ -1117,7 +1119,7 @@ internal sealed class TugPlanBuilder
             alongside.DistanceFt,
             alongside.AlongFt
         );
-        var captured = NewCandidate("onto the taxiway alongside, stopping at the capture", standPushOff);
+        TugCandidate captured = NewCandidate("onto the taxiway alongside, stopping at the capture", standPushOff);
         captured.Add(TugMove.ViaLine(PushbackLegKind.Push, edge.Nodes[0].Position, alongside.LineTravelTrueDeg, stopAt: null));
         if (captured.Flyable && _pathCheck.IsOnEdgeExtent(captured.End.Position, OnTaxiwayCorridorFt, isCentreline))
         {
@@ -1140,7 +1142,7 @@ internal sealed class TugPlanBuilder
             captured.End.Position.Lat,
             captured.End.Position.Lon
         );
-        var candidate = NewCandidate("onto the taxiway alongside", standPushOff);
+        TugCandidate candidate = NewCandidate("onto the taxiway alongside", standPushOff);
         candidate.Add(TugMove.ViaLine(PushbackLegKind.Push, edge.Nodes[0].Position, alongside.LineTravelTrueDeg, alongside.NearestPoint));
         return candidate;
     }
@@ -1148,7 +1150,7 @@ internal sealed class TugPlanBuilder
     /// <summary>The one move list a facing, clear or taxiway-line goal has.</summary>
     private TugCandidate SingleCandidate(ResolvedTugGoal goal, TugMove? pushOff)
     {
-        var candidate = NewCandidate(goal.Shape.ToString(), pushOff);
+        TugCandidate candidate = NewCandidate(goal.Shape.ToString(), pushOff);
         switch (goal.Shape)
         {
             case TugGoalShape.Facing:
@@ -1211,9 +1213,9 @@ internal sealed class TugPlanBuilder
     private TugCandidate? Choose(ResolvedTugGoal goal, List<TugCandidate> candidates, bool offStand, out string refusal)
     {
         var tally = new TugChoiceTally();
-        foreach (var candidate in candidates)
+        foreach (TugCandidate candidate in candidates)
         {
-            var verdict = Judge(goal, candidate, offStand);
+            TugVerdict verdict = Judge(goal, candidate, offStand);
             Tally(goal, candidate, verdict, tally);
             if (RoomBeforeReversal(candidate, verdict) is { } retry)
             {
@@ -1221,7 +1223,7 @@ internal sealed class TugPlanBuilder
             }
         }
 
-        var best = tally.Best;
+        TugCandidate? best = tally.Best;
         refusal = best is null ? (tally.PathRefusal?.Message ?? $"Unable, cannot line up on {goal.Name} from here") : string.Empty;
         if (best is not null)
         {
@@ -1279,8 +1281,8 @@ internal sealed class TugPlanBuilder
             return null;
         }
 
-        var traces = candidate.Traces;
-        var pull = traces[^1].Move;
+        IReadOnlyList<TugMoveTrace> traces = candidate.Traces;
+        TugMove pull = traces[^1].Move;
         if ((traces.Count < 2) || !pull.DwellBefore)
         {
             return null;
@@ -1288,7 +1290,7 @@ internal sealed class TugPlanBuilder
 
         double roomFt = (RoomRetryOvershootFactor * overshootFt) + RoomRetryPadFt;
         var retry = new TugCandidate($"{candidate.Template}, {roomFt:F1} ft room before the reversal", _request.AircraftType, _end, _lastKind);
-        foreach (var trace in traces.Take(traces.Count - 1))
+        foreach (TugMoveTrace? trace in traces.Take(traces.Count - 1))
         {
             retry.Add(trace.Move);
         }
@@ -1328,8 +1330,9 @@ internal sealed class TugPlanBuilder
             return new TugVerdict("a move ran past its travel budget", null, null);
         }
 
-        var (shapeReason, finalPullOvershootFt) = goal.Shape == TugGoalShape.Faced ? FacedDropReason(goal, candidate, offStand) : (null, null);
-        var path = _pathCheck?.Check(candidate.Traces, goal.ExemptNames, goal.Subject);
+        (string? shapeReason, double? finalPullOvershootFt) =
+            goal.Shape == TugGoalShape.Faced ? FacedDropReason(goal, candidate, offStand) : (null, null);
+        TugPathRefusal? path = _pathCheck?.Check(candidate.Traces, goal.ExemptNames, goal.Subject);
         return new TugVerdict(shapeReason, path, finalPullOvershootFt);
     }
 
@@ -1339,7 +1342,7 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private (string? Reason, double? FinalPullOvershootFt) FacedDropReason(ResolvedTugGoal goal, TugCandidate candidate, bool offStand)
     {
-        var traces = candidate.Traces;
+        IReadOnlyList<TugMoveTrace> traces = candidate.Traces;
         if (offStand && (traces.Count > 1) && (traces[1].Move.Kind == PushbackLegKind.Pull))
         {
             return ("the move after the stand push-off is a pull", null);
@@ -1350,7 +1353,7 @@ internal sealed class TugPlanBuilder
             return ($"a same-kind run without a turn wandered more than {TugRun.MaxWanderDeg:0}°", null);
         }
 
-        var last = traces[^1];
+        TugMoveTrace last = traces[^1];
         if ((EndDropReason(goal, last) ?? OvershootDropReason(goal, traces.Take(traces.Count - 1))) is { } reason)
         {
             return (reason, null);
@@ -1375,7 +1378,7 @@ internal sealed class TugPlanBuilder
 
     private static string? OvershootDropReason(ResolvedTugGoal goal, IEnumerable<TugMoveTrace> traces)
     {
-        foreach (var trace in traces)
+        foreach (TugMoveTrace trace in traces)
         {
             if ((StopOvershootFt(trace, goal) is { } stopFt) && (stopFt > StopOvershootToleranceFt))
             {
@@ -1397,7 +1400,7 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private static double? StopOvershootFt(TugMoveTrace trace, ResolvedTugGoal goal)
     {
-        var move = trace.Move;
+        TugMove move = trace.Move;
         if ((move.Shape == TugMoveShape.ViaLine) && (move.StopAt == goal.Stop))
         {
             return trace.EndOvershootFt;

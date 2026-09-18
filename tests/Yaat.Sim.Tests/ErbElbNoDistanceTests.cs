@@ -75,20 +75,30 @@ public class ErbElbNoDistanceTests : IDisposable
     private static (double Lat, double Lon) PositionFromThreshold(RunwayInfo runway, double alongTrackOutboundNm, double crossTrackRightNm)
     {
         var reciprocal = new TrueHeading((runway.TrueHeading.Degrees + 180) % 360);
-        var centerline = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, alongTrackOutboundNm);
+        (double Lat, double Lon) centerline = GeoMath.ProjectPoint(
+            runway.ThresholdLatitude,
+            runway.ThresholdLongitude,
+            reciprocal,
+            alongTrackOutboundNm
+        );
 
         // crossTrackRightNm positive = project at (runwayHeading + 90°) from the centerline point
         // (right of the landing direction = NNE for runway 28).
         double crossHdg = crossTrackRightNm >= 0 ? (runway.TrueHeading.Degrees + 90) % 360 : (runway.TrueHeading.Degrees + 270) % 360;
-        var result = GeoMath.ProjectPoint(centerline.Lat, centerline.Lon, new TrueHeading(crossHdg), Math.Abs(crossTrackRightNm));
+        (double Lat, double Lon) result = GeoMath.ProjectPoint(
+            centerline.Lat,
+            centerline.Lon,
+            new TrueHeading(crossHdg),
+            Math.Abs(crossTrackRightNm)
+        );
         return (result.Lat, result.Lon);
     }
 
     private void DumpPhases(AircraftState aircraft)
     {
-        var phases = aircraft.Phases!.Phases;
+        List<Phase> phases = aircraft.Phases!.Phases;
         _output.WriteLine($"Phases ({phases.Count}):");
-        foreach (var p in phases)
+        foreach (Phase p in phases)
         {
             _output.WriteLine($"  {p.GetType().Name}: {p.Name}");
         }
@@ -101,15 +111,15 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_NoDistance_AlongTrack2nm_CrossTrack3nmNNE_SkipsPatternEntryAndSetsDerivedFinalDistance()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         // Right pattern on 28R: NNE side is correct side.
         // Position aircraft 2nm outbound + 3nm NNE of centerline.
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: 3.0);
-        var aircraft = MakeAircraft(lat, lon, 2000, heading: 90);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: 3.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 2000, heading: 90);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -135,13 +145,13 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_NoDistance_PistonAt1_5nmAlong_BasePhaseFinalDistanceApprox1_5nm()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
         // C182 is a piston (minimum 1.0nm floor). 1.5nm along-track clears the floor.
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 1.5, crossTrackRightNm: 2.0);
-        var aircraft = MakeAircraft(lat, lon, 1000, heading: 270);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 1.5, crossTrackRightNm: 2.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 1000, heading: 270);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -165,14 +175,14 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ELB_NoDistance_AircraftOnLeftPatternSide_SkipsPatternEntryAndSetsDerivedFinalDistance()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         // Left pattern on 28R: SSW side is correct side (crossTrackRightNm negative).
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: -3.0);
-        var aircraft = MakeAircraft(lat, lon, 2000, heading: 90);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: -3.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 2000, heading: 90);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Left,
             PatternEntryLeg.Base,
@@ -196,14 +206,14 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_WithDistance_RegressionPreserved_PatternEntryPhaseInserted()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         // 2nm outbound + 5nm NNE — large enough to trigger distToEntry > 1nm
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: 5.0);
-        var aircraft = MakeAircraft(lat, lon, 3000, heading: 270);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: 5.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 3000, heading: 270);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -235,14 +245,14 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_WithDistance3nm_EntryPointAtAlong3nmCrossOnRightPatternSide()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         // Far enough out to take the PatternEntryPhase path (distToEntry > 1nm).
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 7.0, crossTrackRightNm: 3.0);
-        var aircraft = MakeAircraft(lat, lon, 3000, heading: 270);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 7.0, crossTrackRightNm: 3.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 3000, heading: 270);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -274,15 +284,15 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ELB_WithDistance3nm_EntryPointAtAlong3nmCrossOnLeftPatternSide()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         // Position aircraft on the LEFT pattern side (south of centerline) so
         // it isn't flagged as wrong-side and the explicit-distance branch runs.
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 7.0, crossTrackRightNm: -3.0);
-        var aircraft = MakeAircraft(lat, lon, 3000, heading: 270);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 7.0, crossTrackRightNm: -3.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 3000, heading: 270);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Left,
             PatternEntryLeg.Base,
@@ -316,14 +326,14 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_NoDistance_AircraftPastThreshold_RejectsAsTooClose()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         // Negative along-track = aircraft is on the landing side (past threshold).
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: -1.0, crossTrackRightNm: 2.0);
-        var aircraft = MakeAircraft(lat, lon, 1000, heading: 90);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: -1.0, crossTrackRightNm: 2.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 1000, heading: 90);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -339,14 +349,14 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_NoDistance_PistonAt0_8nmAlong_RejectsBelowPistonFloor()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         // 0.8nm outbound — below the 1.0nm piston floor (C182).
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 0.8, crossTrackRightNm: 2.0);
-        var aircraft = MakeAircraft(lat, lon, 1000, heading: 90);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 0.8, crossTrackRightNm: 2.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 1000, heading: 90);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -361,10 +371,10 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_NoDistance_JetAt1_5nmAlong_RejectsBelowJetFloor()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         // 1.5nm outbound — above piston floor (1.0nm) but below jet floor (2.0nm).
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 1.5, crossTrackRightNm: 3.0);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 1.5, crossTrackRightNm: 3.0);
 
         // Force jet category by using a known jet ICAO type (B738 — 737-800).
         var aircraft = new AircraftState
@@ -379,7 +389,7 @@ public class ErbElbNoDistanceTests : IDisposable
             Phases = new PhaseList { AssignedRunway = runway },
         };
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -395,16 +405,16 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_NoDistance_AircraftTooHighForDescent_RejectsAsTooHigh()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         // Short path (2nm along + 2nm cross = 4nm). At piston base speed 80 kt,
         // that's 3 min; at 700 fpm descent, max descent = 2100 ft. Aircraft at
         // 5000 ft (4991 ft AGL from field elev 9) exceeds that.
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: 2.0);
-        var aircraft = MakeAircraft(lat, lon, 5000, heading: 270);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: 2.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 5000, heading: 270);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -427,13 +437,13 @@ public class ErbElbNoDistanceTests : IDisposable
     [InlineData("C208")]
     public void ERB_NoDistance_LightAircraftAt2500ftWithFiveMilesOfBaseAndFinal_Accepts(string aircraftType)
     {
-        var runway = MakeOak28R();
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 3.4, crossTrackRightNm: 1.75);
-        var aircraft = MakeAircraft(lat, lon, 2500, heading: 125);
+        RunwayInfo runway = MakeOak28R();
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 3.4, crossTrackRightNm: 1.75);
+        AircraftState aircraft = MakeAircraft(lat, lon, 2500, heading: 125);
         aircraft.AircraftType = aircraftType;
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -454,12 +464,12 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_NoDistance_MarginallyHigh_AcceptsWithWarning()
     {
-        var runway = MakeOak28R();
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 3.4, crossTrackRightNm: 1.75);
-        var aircraft = MakeAircraft(lat, lon, 3000, heading: 125);
+        RunwayInfo runway = MakeOak28R();
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 3.4, crossTrackRightNm: 1.75);
+        AircraftState aircraft = MakeAircraft(lat, lon, 3000, heading: 125);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -481,14 +491,14 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_NoDistance_AssignedSlowSpeed_DoesNotBuyDescentRoom()
     {
-        var runway = MakeOak28R();
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 3.4, crossTrackRightNm: 1.75);
-        var aircraft = MakeAircraft(lat, lon, 3600, heading: 125);
+        RunwayInfo runway = MakeOak28R();
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 3.4, crossTrackRightNm: 1.75);
+        AircraftState aircraft = MakeAircraft(lat, lon, 3600, heading: 125);
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Targets.HasExplicitSpeedCommand = true;
         aircraft.Targets.TargetSpeed = 60;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -503,14 +513,14 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_NoDistance_AircraftAtTpa_AcceptsDescentFeasible()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         // Aircraft near TPA — altitude feasibility passes easily.
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: 2.0);
-        var aircraft = MakeAircraft(lat, lon, 1000, heading: 270);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: 2.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 1000, heading: 270);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -529,14 +539,14 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_NoDistance_WrongSide_StillGoesThroughMidfieldCrossing()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         // Right pattern wants NNE side; SSW is wrong side.
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: -3.0);
-        var aircraft = MakeAircraft(lat, lon, 2500, heading: 90);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: -3.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 2500, heading: 90);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -551,7 +561,7 @@ public class ErbElbNoDistanceTests : IDisposable
         // BasePhase.FinalDistanceNm must remain null (derivation must not fire).
         Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
 
-        var basePhaseInCircuit = aircraft.Phases.Phases.OfType<BasePhase>().FirstOrDefault();
+        BasePhase? basePhaseInCircuit = aircraft.Phases.Phases.OfType<BasePhase>().FirstOrDefault();
         Assert.NotNull(basePhaseInCircuit);
         Assert.Null(basePhaseInCircuit!.FinalDistanceNm);
     }
@@ -563,9 +573,9 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ERB_NoDistance_BasePhaseWaypointsHaveRightBaseHeading()
     {
-        var runway = MakeOak28R();
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: 3.0);
-        var aircraft = MakeAircraft(lat, lon, 2000, heading: 90);
+        RunwayInfo runway = MakeOak28R();
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: 3.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 2000, heading: 90);
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Base, runwayId: "28R", finalDistanceNm: null);
@@ -582,9 +592,9 @@ public class ErbElbNoDistanceTests : IDisposable
     [Fact]
     public void ELB_NoDistance_BasePhaseWaypointsHaveLeftBaseHeading()
     {
-        var runway = MakeOak28R();
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: -3.0);
-        var aircraft = MakeAircraft(lat, lon, 2000, heading: 90);
+        RunwayInfo runway = MakeOak28R();
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 2.0, crossTrackRightNm: -3.0);
+        AircraftState aircraft = MakeAircraft(lat, lon, 2000, heading: 90);
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Base, runwayId: "28R", finalDistanceNm: null);

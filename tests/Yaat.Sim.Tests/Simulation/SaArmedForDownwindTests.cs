@@ -31,7 +31,7 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -58,8 +58,8 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
     [Fact]
     public void SaOnPatternEntry_ArmsPendingDownwind()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -72,16 +72,16 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
         // it ourselves to test the fix path.
         engine.Replay(recording, 790);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.NotNull(aircraft.Phases);
         Assert.IsType<PatternEntryPhase>(aircraft.Phases.CurrentPhase);
 
-        var pendingDownwind = aircraft.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
+        DownwindPhase? pendingDownwind = aircraft.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
         Assert.NotNull(pendingDownwind);
         Assert.False(pendingDownwind.ShortApproachArmed, "Downwind should not be pre-armed before SA dispatch");
 
-        var result = engine.SendCommand(Callsign, "SA");
+        CommandResult result = engine.SendCommand(Callsign, "SA");
         output.WriteLine($"SA dispatch: success={result.Success}, message={result.Message}");
 
         Assert.True(result.Success, $"SA on PatternEntry should succeed: {result.Message}");
@@ -109,7 +109,7 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
                 break;
             }
 
-            var current = aircraft.Phases?.CurrentPhase;
+            Phase? current = aircraft.Phases?.CurrentPhase;
             if (current is BasePhase)
             {
                 reachedBase = true;
@@ -135,8 +135,8 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
     [Fact]
     public void CompoundErdSa_ArmsPendingDownwindImmediately()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -148,14 +148,14 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
         // Aircraft is en route, no pattern phases active.
         engine.Replay(recording, 605);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
-        var preCurrent = aircraft.Phases?.CurrentPhase;
+        Phase? preCurrent = aircraft.Phases?.CurrentPhase;
         output.WriteLine($"t=605: {Callsign} alt={aircraft.Altitude:F0} phase={preCurrent?.GetType().Name ?? "(none)"}");
         Assert.Null(preCurrent);
 
-        var result = engine.SendCommand(Callsign, "ERD 28R; SA");
+        CommandResult result = engine.SendCommand(Callsign, "ERD 28R; SA");
         output.WriteLine($"ERD 28R; SA dispatch: success={result.Success}, message={result.Message}");
 
         Assert.True(result.Success, $"Compound ERD;SA should succeed: {result.Message}");
@@ -166,7 +166,7 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
 
         // ERD established the pattern phases including a pending DownwindPhase
         // which is now armed for short approach.
-        var pendingDownwind = aircraft.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
+        DownwindPhase? pendingDownwind = aircraft.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
         Assert.NotNull(pendingDownwind);
         Assert.True(pendingDownwind.ShortApproachArmed, "Pending DownwindPhase should be armed for short approach immediately after compound ERD;SA");
     }
@@ -177,8 +177,8 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
     [Fact]
     public void MnaCancelsArmedShortApproach()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -187,19 +187,19 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
 
         engine.Replay(recording, 790);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.NotNull(aircraft.Phases);
         Assert.IsType<PatternEntryPhase>(aircraft.Phases.CurrentPhase);
 
-        var saResult = engine.SendCommand(Callsign, "SA");
+        CommandResult saResult = engine.SendCommand(Callsign, "SA");
         Assert.True(saResult.Success, $"SA should succeed: {saResult.Message}");
 
-        var pendingDownwind = aircraft.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
+        DownwindPhase? pendingDownwind = aircraft.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
         Assert.NotNull(pendingDownwind);
         Assert.True(pendingDownwind.ShortApproachArmed, "Precondition: SA armed the pending Downwind");
 
-        var mnaResult = engine.SendCommand(Callsign, "MNA");
+        CommandResult mnaResult = engine.SendCommand(Callsign, "MNA");
         output.WriteLine($"MNA dispatch: success={mnaResult.Success}, message={mnaResult.Message}");
         Assert.True(mnaResult.Success, $"MNA on PatternEntry should succeed: {mnaResult.Message}");
 
@@ -237,14 +237,14 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
     public void TouchAndGo_ShortApproachAppliesOncePerCircuit()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             output.WriteLine("Skipped: NavData not available");
             return;
         }
 
-        var oakRunway = navDb.GetRunway("KOAK", "28R");
+        RunwayInfo? oakRunway = navDb.GetRunway("KOAK", "28R");
         if (oakRunway is null)
         {
             output.WriteLine("Skipped: KOAK 28R not in NavData");
@@ -259,12 +259,12 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
             .EnableCategory("CommandDispatcher", LogLevel.Debug)
             .InitializeSimLog();
 
-        var ac = MakeC172OnUpwind(oakRunway);
+        AircraftState ac = MakeC172OnUpwind(oakRunway);
         ac.Phases!.AssignedRunway = oakRunway;
         ac.Phases!.TrafficDirection = PatternDirection.Right;
         ac.Phases.LandingClearance = ClearanceType.ClearedTouchAndGo;
 
-        var phases = PatternBuilder.BuildCircuit(
+        List<Phase> phases = PatternBuilder.BuildCircuit(
             oakRunway,
             AircraftCategory.Piston,
             "",
@@ -278,21 +278,21 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
             airportRunways: null,
             authoredRunway: null
         );
-        foreach (var p in phases)
+        foreach (Phase p in phases)
         {
             ac.Phases.Add(p);
         }
         ac.Phases.Start(CtxFor(ac));
 
         // SA dispatched while on Upwind — arms the pending Downwind in this circuit.
-        var saResult = CommandDispatcher.DispatchCompound(
+        CommandResult saResult = CommandDispatcher.DispatchCompound(
             new CompoundCommand([new ParsedBlock(null, [new MakeShortApproachCommand()])]),
             ac,
             TestDispatch.Context(Random.Shared)
         );
         Assert.True(saResult.Success, $"SA on Upwind should succeed: {saResult.Message}");
 
-        var armedDownwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
+        DownwindPhase? armedDownwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
         Assert.NotNull(armedDownwind);
         Assert.True(armedDownwind.ShortApproachArmed, "Circuit-1 Downwind must be armed after SA");
 
@@ -303,11 +303,11 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
         DownwindPhase? circuit2Downwind = null;
         for (int t = 0; t < 4000 && circuit2Downwind is null; t++)
         {
-            var ctx = CtxFor(ac);
+            PhaseContext ctx = CtxFor(ac);
             FlightPhysics.Update(ac, ctx.DeltaSeconds);
             PhaseRunner.Tick(ac, ctx);
 
-            var current = ac.Phases.CurrentPhase;
+            Phase? current = ac.Phases.CurrentPhase;
             if (current is null)
             {
                 break;
@@ -343,7 +343,7 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
         );
 
         // Issue SA again on circuit 2's upwind, then CLAND. Both must succeed.
-        var saResult2 = CommandDispatcher.DispatchCompound(
+        CommandResult saResult2 = CommandDispatcher.DispatchCompound(
             new CompoundCommand([new ParsedBlock(null, [new MakeShortApproachCommand()])]),
             ac,
             TestDispatch.Context(Random.Shared)
@@ -351,7 +351,7 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
         Assert.True(saResult2.Success, $"SA on circuit 2 should succeed: {saResult2.Message}");
         Assert.True(circuit2Downwind.ShortApproachArmed, "Circuit-2 Downwind must be armed after second SA");
 
-        var clandResult = CommandDispatcher.DispatchCompound(
+        CommandResult clandResult = CommandDispatcher.DispatchCompound(
             new CompoundCommand([new ParsedBlock(null, [new ClearedToLandCommand()])]),
             ac,
             TestDispatch.Context(Random.Shared)
@@ -362,11 +362,11 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
         bool landed = false;
         for (int t = 0; t < 4000 && !landed; t++)
         {
-            var ctx = CtxFor(ac);
+            PhaseContext ctx = CtxFor(ac);
             FlightPhysics.Update(ac, ctx.DeltaSeconds);
             PhaseRunner.Tick(ac, ctx);
 
-            var current = ac.Phases.CurrentPhase;
+            Phase? current = ac.Phases.CurrentPhase;
             if (current is null)
             {
                 break;
@@ -395,7 +395,7 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
         // Spawn ~0.5 nm past the departure end of the runway, climbing on runway
         // heading at typical C172 climb speed. Altitude well below TPA so the
         // aircraft climbs into upwind under normal phase logic.
-        var spawnPos = GeoMath.ProjectPoint(new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading, 1.0);
+        LatLon spawnPos = GeoMath.ProjectPoint(new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading, 1.0);
         return new AircraftState
         {
             Callsign = "N172TG",
@@ -418,7 +418,7 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
 
     private static PhaseContext CtxFor(AircraftState ac, double dt = 1.0)
     {
-        var rwy = ac.Phases!.AssignedRunway!;
+        RunwayInfo rwy = ac.Phases!.AssignedRunway!;
         return new PhaseContext
         {
             Aircraft = ac,

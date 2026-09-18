@@ -29,10 +29,10 @@ public class ReportInSightTests
     [Fact]
     public void Rfis_SucceedsInClearWeatherInsideRange()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK");
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.True(ac.Approach.HasReportedFieldInSight);
@@ -44,10 +44,10 @@ public class ReportInSightTests
     [Fact]
     public void Rfis_Fails_WhenNoDestinationAssigned()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "");
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.False(result.Success);
         Assert.Contains("no arrival airport", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -57,10 +57,10 @@ public class ReportInSightTests
     [Fact]
     public void Rfis_Fails_WhenDestinationNotInNavDatabase()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "ZZZZ");
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "ZZZZ");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.False(result.Success);
         Assert.Contains("ZZZZ", result.Message);
@@ -71,10 +71,10 @@ public class ReportInSightTests
     [Fact]
     public void Rfis_SoftFails_InClassA()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 19000, destination: "KOAK");
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 19000, destination: "KOAK");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.False(ac.Approach.HasReportedFieldInSight);
@@ -88,11 +88,11 @@ public class ReportInSightTests
     [Fact]
     public void Rfis_SoftFails_AboveCeiling()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 4000, destination: "KOAK");
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 4000, destination: "KOAK");
         var weather = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 10SM OVC020 20/12 A2992"] };
-        var ctx = TestDispatch.Context(Random.Shared, weather: weather);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, weather: weather);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.False(ac.Approach.HasReportedFieldInSight);
@@ -110,11 +110,11 @@ public class ReportInSightTests
         // 16,000 MSL is below FL180 but above the OVC at 15,000 AGL → fail with
         // binding = OVC150. The scattered layer is present in Layers but does not
         // mislead the check.
-        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 16000, destination: "KOAK");
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 16000, destination: "KOAK");
         var weather = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 10SM SCT020 OVC150 20/12 A2992"] };
-        var ctx = TestDispatch.Context(Random.Shared, weather: weather);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, weather: weather);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.Contains("OVC150", result.Message);
@@ -125,10 +125,10 @@ public class ReportInSightTests
     public void Rfis_SoftFails_WhenAirportBehind()
     {
         // Aircraft north of KOAK heading north → airport behind
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.False(ac.Approach.HasReportedFieldInSight);
@@ -145,11 +145,11 @@ public class ReportInSightTests
     public void Rfis_SoftFails_OutOfRange()
     {
         // 1 SM visibility → ~0.87 nm max range; aircraft 3+ nm north of KOAK
-        var ac = MakeAircraft(37.76, -122.221, heading: 180, altitude: 3000, destination: "KOAK");
+        AircraftState ac = MakeAircraft(37.76, -122.221, heading: 180, altitude: 3000, destination: "KOAK");
         var weather = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 1SM BR SCT005 20/12 A2992"] };
-        var ctx = TestDispatch.Context(Random.Shared, weather: weather);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, weather: weather);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.False(ac.Approach.HasReportedFieldInSight);
@@ -166,11 +166,11 @@ public class ReportInSightTests
     {
         // Aircraft south of KOAK, heading east, airport to the northwest (left side).
         // Right bank 25° → high wing left → airport occluded.
-        var ac = MakeAircraft(37.71, -122.30, heading: 90, altitude: 3000, destination: "KOAK");
+        AircraftState ac = MakeAircraft(37.71, -122.30, heading: 90, altitude: 3000, destination: "KOAK");
         ac.BankAngle = 25.0;
-        var ctx = TestDispatch.Context(Random.Shared);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.False(ac.Approach.HasReportedFieldInSight);
@@ -188,10 +188,10 @@ public class ReportInSightTests
     [Fact]
     public void Rtis_Fails_WhenNoCallsignSpecified()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK");
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand(null), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand(null), ac, ctx);
 
         Assert.False(result.Success);
         Assert.Contains("no traffic", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -200,10 +200,10 @@ public class ReportInSightTests
     [Fact]
     public void Rtis_Fails_WhenTargetNotFound()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: _ => null);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: _ => null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ac, ctx);
 
         Assert.False(result.Success);
         Assert.Contains("LEAD", result.Message);
@@ -213,11 +213,11 @@ public class ReportInSightTests
     [Fact]
     public void Rtis_Succeeds_WhenTargetInFront()
     {
-        var ownship = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "OWN1");
-        var lead = MakeAircraft(37.73, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "LEAD");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.73, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "LEAD");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
         Assert.True(ownship.Approach.HasReportedTrafficInSight);
@@ -240,15 +240,15 @@ public class ReportInSightTests
         // Reviewed with aviation-sim-expert: pilot readback for "traffic behind us"
         // is the plain "negative contact, {cs}, looking" — real crews don't
         // verbally report hemisphere geometry.
-        var ownship = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK", callsign: "OWN1");
-        var lead = MakeAircraft(37.70, -122.221, heading: 0, altitude: 3000, destination: "KOAK", callsign: "LEAD");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK", callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.70, -122.221, heading: 0, altitude: 3000, destination: "KOAK", callsign: "LEAD");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
-        var notification = ownship.PendingPilotReadbacks[0];
+        string notification = ownship.PendingPilotReadbacks[0];
         Assert.Contains("Negative contact", notification, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("LEAD", notification);
         Assert.Contains("looking", notification, StringComparison.OrdinalIgnoreCase);
@@ -257,15 +257,15 @@ public class ReportInSightTests
     [Fact]
     public void Rtis_TargetOutOfRange_PilotReportsNegativeContactAndLooking()
     {
-        var ownship = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "OWN1");
-        var lead = MakeAircraft(37.60, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "LEAD", aircraftType: "C172");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.60, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "LEAD", aircraftType: "C172");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
-        var notification = ownship.PendingPilotReadbacks[0];
+        string notification = ownship.PendingPilotReadbacks[0];
         Assert.Contains("Negative contact", notification, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("looking", notification, StringComparison.OrdinalIgnoreCase);
     }
@@ -275,16 +275,16 @@ public class ReportInSightTests
     {
         // Reviewed with aviation-sim-expert: pilot paraphrases the METAR code as
         // "clouds between us" rather than reading the raw OVC030 tag.
-        var ownship = MakeAircraft(37.75, -122.221, heading: 180, altitude: 2000, destination: "KOAK", callsign: "OWN1");
-        var lead = MakeAircraft(37.73, -122.221, heading: 180, altitude: 5000, destination: "KOAK", callsign: "LEAD");
+        AircraftState ownship = MakeAircraft(37.75, -122.221, heading: 180, altitude: 2000, destination: "KOAK", callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.73, -122.221, heading: 180, altitude: 5000, destination: "KOAK", callsign: "LEAD");
         var weather = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 10SM OVC030 20/12 A2992"] };
-        var ctx = TestDispatch.Context(Random.Shared, weather: weather, findAircraft: cs => cs == "LEAD" ? lead : null);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, weather: weather, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
-        var notification = ownship.PendingPilotReadbacks[0];
+        string notification = ownship.PendingPilotReadbacks[0];
         Assert.Contains("clouds between us", notification, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("looking", notification, StringComparison.OrdinalIgnoreCase);
     }
@@ -296,12 +296,12 @@ public class ReportInSightTests
     [Fact]
     public void Rfis_FastPath_WhenFlagAlreadySet()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
         // Heading north so live detection would fail (field behind), but flag is already set
         ac.Approach.HasReportedFieldInSight = true;
-        var ctx = TestDispatch.Context(Random.Shared);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.Equal("field in sight.", ac.PendingPilotReadbacks[0]);
@@ -312,11 +312,11 @@ public class ReportInSightTests
     {
         // Bare RTIS while the flag is already set re-confirms the current in-sight traffic
         // without re-running acquisition (heading north would otherwise fail the geometry check).
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
         ac.Approach.HasReportedTrafficInSight = true;
-        var ctx = TestDispatch.Context(Random.Shared);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand(null), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand(null), ac, ctx);
 
         Assert.True(result.Success);
         Assert.Equal("traffic in sight.", ac.PendingPilotReadbacks[0]);
@@ -327,12 +327,12 @@ public class ReportInSightTests
     {
         // Re-issuing RTIS for the traffic already in sight echoes without re-acquisition. The
         // context has no findAircraft, proving the acquisition path is not re-entered.
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
         ac.Approach.HasReportedTrafficInSight = true;
         ac.Approach.LastReportedTrafficCallsign = "LEAD";
-        var ctx = TestDispatch.Context(Random.Shared);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ac, ctx);
 
         Assert.True(result.Success);
         Assert.Equal("traffic (LEAD) in sight.", ac.PendingPilotReadbacks[0]);
@@ -345,12 +345,12 @@ public class ReportInSightTests
         // callsign that resolves to no aircraft must be rejected — not echoed as
         // "traffic (X) in sight". The bogus callsign must not overwrite the real in-sight
         // traffic or emit a pilot readback.
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
         ac.Approach.HasReportedTrafficInSight = true;
         ac.Approach.LastReportedTrafficCallsign = "N263FY";
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: _ => null);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: _ => null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("TB"), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("TB"), ac, ctx);
 
         Assert.False(result.Success);
         Assert.Contains("TB", result.Message);
@@ -364,13 +364,13 @@ public class ReportInSightTests
     {
         // A different, valid aircraft in front is a new sighting: the fast path falls through and
         // actually acquires it, updating the stored callsign.
-        var ownship = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "OWN1");
+        AircraftState ownship = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "OWN1");
         ownship.Approach.HasReportedTrafficInSight = true;
         ownship.Approach.LastReportedTrafficCallsign = "OLD1";
-        var lead = MakeAircraft(37.73, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "LEAD");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState lead = MakeAircraft(37.73, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "LEAD");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
         Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
@@ -382,13 +382,13 @@ public class ReportInSightTests
     {
         // A different, valid aircraft behind ownship soft-fails ("looking") and queues an
         // observation — it does not falsely echo "in sight", and the prior sighting is preserved.
-        var ownship = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK", callsign: "OWN1");
+        AircraftState ownship = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK", callsign: "OWN1");
         ownship.Approach.HasReportedTrafficInSight = true;
         ownship.Approach.LastReportedTrafficCallsign = "OLD1";
-        var lead = MakeAircraft(37.70, -122.221, heading: 0, altitude: 3000, destination: "KOAK", callsign: "LEAD");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState lead = MakeAircraft(37.70, -122.221, heading: 0, altitude: 3000, destination: "KOAK", callsign: "LEAD");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
         Assert.Contains("Looking for traffic", result.Message);

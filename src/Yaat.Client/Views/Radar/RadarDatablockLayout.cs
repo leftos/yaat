@@ -385,7 +385,7 @@ internal readonly struct RadarDatablockLayout
     /// </summary>
     internal static string? BuildOwnerScratchpadLine(AircraftModel ac, bool showHandoff)
     {
-        var effectiveSp1 = EffectiveScratchpad1(ac);
+        string? effectiveSp1 = EffectiveScratchpad1(ac);
         bool hasAssigned = !string.IsNullOrEmpty(ac.AssignedTo);
         bool hasOwner = !string.IsNullOrEmpty(ac.OwnerDisplay);
         bool hasHandoff = !string.IsNullOrEmpty(ac.HandoffDisplay);
@@ -544,7 +544,7 @@ internal readonly struct RadarDatablockLayout
             string gsTens = ((int)ac.GroundSpeed / 10).ToString("D2");
             string handoff = !string.IsNullOrEmpty(ac.HandoffDisplay) ? $"{ac.HandoffDisplay} " : "";
             string line1 = $"{altHundreds} {handoff}{gsTens}{ident}";
-            var effectiveSp1 = EffectiveScratchpad1(ac);
+            string? effectiveSp1 = EffectiveScratchpad1(ac);
             return !string.IsNullOrEmpty(effectiveSp1) ? [line1, effectiveSp1] : [line1];
         }
 

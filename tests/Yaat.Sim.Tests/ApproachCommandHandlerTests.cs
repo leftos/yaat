@@ -64,12 +64,12 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_Basic_CreatesPhaseSequence()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -82,12 +82,12 @@ public class ApproachCommandHandlerTests
         // When the user supplies an explicit airport code that is not in the navigation
         // database, CAPP must reject with a clear "Unknown airport" message instead of
         // continuing into approach resolution against a bogus identifier.
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", "ZZZZ", false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.NotNull(result.Message);
@@ -98,9 +98,9 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_SetsActiveApproach()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -114,9 +114,9 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_CancelsSpeedRestriction()
     {
-        var aircraft = MakeAircraft(speed: 210);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(speed: 210);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         Assert.Equal(210, aircraft.Targets.TargetSpeed);
 
@@ -129,42 +129,42 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_WithAtFix_PrependsFixToApproachNav()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, "SUNOL", 37.5, -121.8, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
+        ApproachNavigationPhase navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
         Assert.Equal("SUNOL", navPhase.Fixes[0].Name);
     }
 
     [Fact]
     public void Capp_WithDctFix_PrependsFixToApproachNav()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
+        ApproachNavigationPhase navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
         Assert.Equal("SUNOL", navPhase.Fixes[0].Name);
     }
 
     [Fact]
     public void Capp_WithCrossFixAltitude_SetsAltitude()
     {
-        var aircraft = MakeAircraft(altitude: 5000);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(altitude: 5000);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, 3400, CrossFixAltitudeType.At);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(3400, aircraft.Targets.TargetAltitude);
@@ -177,12 +177,12 @@ public class ApproachCommandHandlerTests
     {
         // Aircraft heading 180 vs final course 280 = 100° — should still succeed at dispatch
         // Intercept angle validation happens at capture time, not dispatch time
-        var aircraft = MakeAircraft(heading: 180);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(heading: 180);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
     }
@@ -192,14 +192,14 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_WithAssignedHeading_UsesInterceptPhase()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Targets.TargetTrueHeading = new TrueHeading(340);
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -214,14 +214,14 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_WithAssignedHeadingAndCrossFixAlt_AppliesCrossAlt()
     {
-        var aircraft = MakeAircraft(altitude: 5000);
+        AircraftState aircraft = MakeAircraft(altitude: 5000);
         aircraft.Targets.TargetTrueHeading = new TrueHeading(340);
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, 3000, CrossFixAltitudeType.At);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(3000, aircraft.Targets.TargetAltitude);
@@ -231,47 +231,47 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_WithAssignedHeadingAndAtFix_UsesFixNavigation()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Targets.TargetTrueHeading = new TrueHeading(340);
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, "SUNOL", 37.5, -121.8, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
+        ApproachNavigationPhase navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
         Assert.Equal("SUNOL", navPhase.Fixes[0].Name);
     }
 
     [Fact]
     public void Capp_WithAssignedHeadingAndDctFix_UsesFixNavigation()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Targets.TargetTrueHeading = new TrueHeading(340);
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
+        ApproachNavigationPhase navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
         Assert.Equal("SUNOL", navPhase.Fixes[0].Name);
     }
 
     [Fact]
     public void Capp_WithoutAssignedHeading_UsesFixNavigation()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         Assert.Null(aircraft.Targets.TargetTrueHeading);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains(aircraft.Phases!.Phases, p => p is ApproachNavigationPhase);
@@ -283,14 +283,14 @@ public class ApproachCommandHandlerTests
         // Regression: TargetHeading is set by physics every tick during route navigation,
         // but AssignedHeading is null because no controller heading command was issued.
         // CAPP must use fix navigation, not intercept.
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Targets.TargetTrueHeading = new TrueHeading(280);
         Assert.Null(aircraft.Targets.AssignedMagneticHeading);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains(aircraft.Phases!.Phases, p => p is ApproachNavigationPhase);
@@ -300,11 +300,11 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_WithAssignedHeading_ClearsSpeedRestriction()
     {
-        var aircraft = MakeAircraft(speed: 210);
+        AircraftState aircraft = MakeAircraft(speed: 210);
         aircraft.Targets.TargetTrueHeading = new TrueHeading(340);
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -317,9 +317,9 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_NonForced_LeavesClearanceForceFalse()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -331,12 +331,12 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Cappf_SetsClearanceForceFlag()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, true, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -352,16 +352,16 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_ImpliedPtac_CarriesAssignedHeadingIntoInterceptPhase()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        var intercept = aircraft.Phases!.Phases.OfType<InterceptCoursePhase>().SingleOrDefault();
+        InterceptCoursePhase? intercept = aircraft.Phases!.Phases.OfType<InterceptCoursePhase>().SingleOrDefault();
         Assert.NotNull(intercept);
         Assert.Equal(340, intercept.AssignedInterceptHeading!.Value.Degrees);
         Assert.Null(aircraft.Targets.AssignedMagneticHeading);
@@ -371,15 +371,15 @@ public class ApproachCommandHandlerTests
     public void Cappf_ImpliedPtac_PropagatesForceTo_InterceptCoursePhase()
     {
         // Aircraft on assigned heading with no AT/DCT fix → implied-PTAC branch creates InterceptCoursePhase
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, true, null, null, null, null, null, null, null, null);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var intercept = aircraft.Phases!.Phases.OfType<InterceptCoursePhase>().SingleOrDefault();
+        InterceptCoursePhase? intercept = aircraft.Phases!.Phases.OfType<InterceptCoursePhase>().SingleOrDefault();
         Assert.NotNull(intercept);
         Assert.True(intercept.ForcedIntercept);
     }
@@ -389,12 +389,12 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Japp_CreatesPhaseSequence()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -404,9 +404,9 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Japp_CancelsSpeedRestriction()
     {
-        var aircraft = MakeAircraft(speed: 210);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(speed: 210);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -417,12 +417,12 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Japp_SucceedsRegardlessOfInterceptAngle()
     {
-        var aircraft = MakeAircraft(heading: 180);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(heading: 180);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
     }
@@ -432,9 +432,9 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Japp_NonForced_LeavesClearanceForceFalse()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -446,12 +446,12 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Jappf_SetsClearanceForceFlag()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinApproachCommand("ILS28R", null, true);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -464,12 +464,12 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Cappsi_SkipsHoldInLieu()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDbWithHoldInLieu();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDbWithHoldInLieu();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachStraightInCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("straight-in", result.Message);
@@ -482,12 +482,12 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Jappsi_SkipsHoldInLieu()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDbWithHoldInLieu();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDbWithHoldInLieu();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinApproachStraightInCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.DoesNotContain(aircraft.Phases!.Phases, p => p is HoldingPatternPhase);
@@ -498,18 +498,18 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Japp_WithHoldInLieu_InsertsHoldPhase()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDbWithHoldInLieu();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDbWithHoldInLieu();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
         Assert.Contains(aircraft.Phases.Phases, p => p is HoldingPatternPhase);
 
-        var holdPhase = aircraft.Phases.Phases.OfType<HoldingPatternPhase>().First();
+        HoldingPatternPhase holdPhase = aircraft.Phases.Phases.OfType<HoldingPatternPhase>().First();
         Assert.Equal(1, holdPhase.MaxCircuits);
     }
 
@@ -518,12 +518,12 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptac_SetsHeadingAndAltitude()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(340, aircraft.Targets.TargetTrueHeading?.Degrees);
@@ -533,9 +533,9 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptac_CreatesInterceptPhaseSequence()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: false);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -550,9 +550,9 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptac_CancelsSpeedRestriction()
     {
-        var aircraft = MakeAircraft(speed: 210);
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(speed: 210);
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: false);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -563,9 +563,9 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptac_SetsActiveApproach()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: false);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -579,12 +579,12 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptac_PresentHeading_UsesAircraftHeading()
     {
-        var aircraft = MakeAircraft(heading: 195);
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(heading: 195);
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(null, 2500, "ILS28R", Forced: false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(195, aircraft.Targets.TargetTrueHeading?.Degrees);
@@ -593,12 +593,12 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptac_PresentAltitude_UsesAircraftAltitude()
     {
-        var aircraft = MakeAircraft(altitude: 4500);
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(altitude: 4500);
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(280), null, "ILS28R", Forced: false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(4500, aircraft.Targets.TargetAltitude);
@@ -607,13 +607,13 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptac_NoApproachId_AutoResolves()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Approach.Expected = "ILS28R";
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(280), 2500, null, Forced: false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -623,13 +623,13 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptac_AllPresent_BarePtac()
     {
-        var aircraft = MakeAircraft(heading: 310, altitude: 3500);
+        AircraftState aircraft = MakeAircraft(heading: 310, altitude: 3500);
         aircraft.Approach.Expected = "ILS28R";
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(null, null, null, Forced: false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(310, aircraft.Targets.TargetTrueHeading?.Degrees);
@@ -640,12 +640,12 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptac_ExplicitValues_StillWork()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(340, aircraft.Targets.TargetTrueHeading?.Degrees);
@@ -655,16 +655,16 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptac_NonForced_LeavesClearanceForceFalse()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: false);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.False(aircraft.Phases.ActiveApproach.Force);
-        var intercept = aircraft.Phases.Phases.OfType<InterceptCoursePhase>().Single();
+        InterceptCoursePhase intercept = aircraft.Phases.Phases.OfType<InterceptCoursePhase>().Single();
         Assert.False(intercept.ForcedIntercept);
     }
 
@@ -673,9 +673,9 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptacf_Parses_PTACF_Alias()
     {
-        var result = CommandParser.Parse("PTACF 340 025 ILS28R");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("PTACF 340 025 ILS28R");
         Assert.True(result.IsSuccess);
-        var cmd = Assert.IsType<PositionTurnAltitudeClearanceCommand>(result.Value);
+        PositionTurnAltitudeClearanceCommand cmd = Assert.IsType<PositionTurnAltitudeClearanceCommand>(result.Value);
         Assert.True(cmd.Forced);
         Assert.Equal(340, cmd.MagneticHeading?.Degrees);
         Assert.Equal(2500, cmd.Altitude);
@@ -685,21 +685,21 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptac_Parses_NonForced()
     {
-        var result = CommandParser.Parse("PTAC 340 025 ILS28R");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("PTAC 340 025 ILS28R");
         Assert.True(result.IsSuccess);
-        var cmd = Assert.IsType<PositionTurnAltitudeClearanceCommand>(result.Value);
+        PositionTurnAltitudeClearanceCommand cmd = Assert.IsType<PositionTurnAltitudeClearanceCommand>(result.Value);
         Assert.False(cmd.Forced);
     }
 
     [Fact]
     public void Ptacf_SetsClearanceForceFlag()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: true);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -709,26 +709,26 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Ptacf_PropagatesForceTo_InterceptCoursePhase()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: true);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        var intercept = aircraft.Phases!.Phases.OfType<InterceptCoursePhase>().Single();
+        InterceptCoursePhase intercept = aircraft.Phases!.Phases.OfType<InterceptCoursePhase>().Single();
         Assert.True(intercept.ForcedIntercept);
     }
 
     [Fact]
     public void Ptacf_SuccessMessage_IncludesForcePrefix()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDbRunwayAndApproachOnly();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: true);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.StartsWith("Force:", result.Message);
@@ -742,8 +742,8 @@ public class ApproachCommandHandlerTests
         var fixes = new List<ApproachFix> { new("FIX1", 37.80, -122.30), new("FIX2", 37.75, -122.25) };
 
         var phase = new ApproachNavigationPhase { Fixes = fixes };
-        var aircraft = MakeAircraft(lat: 37.80, lon: -122.30);
-        var ctx = MakeContext(aircraft);
+        AircraftState aircraft = MakeAircraft(lat: 37.80, lon: -122.30);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
 
@@ -759,8 +759,8 @@ public class ApproachCommandHandlerTests
         var fixes = new List<ApproachFix> { new("FIX1", 37.80, -122.30) };
 
         var phase = new ApproachNavigationPhase { Fixes = fixes };
-        var aircraft = MakeAircraft(lat: 37.80, lon: -122.30);
-        var ctx = MakeContext(aircraft);
+        AircraftState aircraft = MakeAircraft(lat: 37.80, lon: -122.30);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
 
@@ -778,8 +778,8 @@ public class ApproachCommandHandlerTests
         var phase = new ApproachNavigationPhase { Fixes = fixes };
         // Aircraft placed close enough to the threshold that gsAltitude (≈ 327 ft at 1 nm)
         // is well below the At 3000 constraint, so the constraint is the binding floor.
-        var aircraft = MakeAircraft(altitude: 5000, lat: 37.735, lon: -122.235);
-        var ctx = MakeContext(aircraft, MakeRunway());
+        AircraftState aircraft = MakeAircraft(altitude: 5000, lat: 37.735, lon: -122.235);
+        PhaseContext ctx = MakeContext(aircraft, MakeRunway());
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
@@ -850,8 +850,8 @@ public class ApproachCommandHandlerTests
 
         var phase = new ApproachNavigationPhase { Fixes = fixes };
         // Aircraft close enough to the threshold that gsAltitude is below the 1800 floor.
-        var aircraft = MakeAircraft(altitude: 3000, lat: 37.735, lon: -122.235);
-        var ctx = MakeContext(aircraft, MakeRunway());
+        AircraftState aircraft = MakeAircraft(altitude: 3000, lat: 37.735, lon: -122.235);
+        PhaseContext ctx = MakeContext(aircraft, MakeRunway());
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
@@ -865,13 +865,13 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_BareWithExpectedApproach_ResolvesFromExpectedApproach()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Approach.Expected = "I28R";
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand(null, null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -881,14 +881,14 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_BareWithExpectedApproachAndDestinationRunway_PrefersExpectedApproach()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Approach.Expected = "I28R";
         aircraft.Procedure.DestinationRunway = "28L";
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand(null, null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -899,16 +899,16 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_BareCompound_ReadbackContainsResolvedApproachId()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Approach.Expected = "I28R";
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Use DispatchCompound (the compound command path) with null ApproachId.
         // Before the fix, NaturalDescription was pre-computed with a blank approach ID.
         var cappCmd = new ClearedApproachCommand(null, null, false, null, null, null, null, null, null, null, null);
         var compound = new CompoundCommand([new ParsedBlock(null, [cappCmd])]);
-        var result = CommandDispatcher.DispatchCompound(compound, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("I28R", result.Message);
@@ -920,12 +920,12 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_UnknownApproach_Fails()
     {
-        var aircraft = MakeAircraft();
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("VOR99", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
@@ -935,7 +935,7 @@ public class ApproachCommandHandlerTests
 
     private static PhaseContext MakeContext(AircraftState aircraft, RunwayInfo? runway = null)
     {
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         return new PhaseContext
         {
             Aircraft = aircraft,
@@ -1007,9 +1007,9 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_WithCrossFixAltitude_SetsAssignedAltitude()
     {
-        var aircraft = MakeAircraft(altitude: 5000);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(altitude: 5000);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, 3400, CrossFixAltitudeType.At);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -1020,11 +1020,11 @@ public class ApproachCommandHandlerTests
     [Fact]
     public void Capp_WithAssignedHeadingAndCrossFixAlt_SetsAssignedAltitude()
     {
-        var aircraft = MakeAircraft(altitude: 5000);
+        AircraftState aircraft = MakeAircraft(altitude: 5000);
         aircraft.Targets.TargetTrueHeading = new TrueHeading(340);
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, 3000, CrossFixAltitudeType.At);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -1039,15 +1039,15 @@ public class ApproachCommandHandlerTests
         // it does NOT cancel a previously assigned speed (7110.65 5-7-1.h.4 — only an
         // approach/climb-via/descend-via clearance cancels assigned speeds). It does clear
         // the assigned heading because the approach phases take over lateral steering.
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Targets.TargetSpeed = 210;
         aircraft.Targets.AssignedSpeed = 210;
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(210, aircraft.Targets.AssignedSpeed);

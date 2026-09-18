@@ -36,13 +36,13 @@ public sealed class TowerCabImageService : IDisposable
     /// </summary>
     public async Task<TowerCabImage?> GetImageAsync(string towerCabImagesBaseUrl, string artccId, string airportId, bool highRes)
     {
-        var resolution = highRes ? "High" : "Low";
-        var fileName = $"{airportId}-{resolution}Res.jpg";
-        var artccCacheDir = Path.Combine(CacheDir, artccId);
+        string resolution = highRes ? "High" : "Low";
+        string fileName = $"{airportId}-{resolution}Res.jpg";
+        string artccCacheDir = Path.Combine(CacheDir, artccId);
         Directory.CreateDirectory(artccCacheDir);
-        var cachePath = Path.Combine(artccCacheDir, fileName);
+        string cachePath = Path.Combine(artccCacheDir, fileName);
 
-        var url = $"{towerCabImagesBaseUrl}/{artccId}/{fileName}";
+        string url = $"{towerCabImagesBaseUrl}/{artccId}/{fileName}";
 
         await EnsureFreshAsync(url, cachePath, airportId, resolution);
 
@@ -65,7 +65,7 @@ public sealed class TowerCabImageService : IDisposable
             {
                 var fileInfo = new FileInfo(cachePath);
                 using var headReq = new HttpRequestMessage(HttpMethod.Head, url);
-                using var headResp = await _http.SendAsync(headReq);
+                using HttpResponseMessage headResp = await _http.SendAsync(headReq);
 
                 if (headResp.StatusCode == HttpStatusCode.NotFound)
                 {
@@ -75,7 +75,7 @@ public sealed class TowerCabImageService : IDisposable
 
                 if (headResp.IsSuccessStatusCode)
                 {
-                    var serverLastModified = headResp.Content.Headers.LastModified?.UtcDateTime;
+                    DateTime? serverLastModified = headResp.Content.Headers.LastModified?.UtcDateTime;
                     if ((serverLastModified is { } sm) && (sm <= fileInfo.LastWriteTimeUtc))
                     {
                         _log.LogDebug("Tower cab image {AirportId} {Res}Res is up to date", airportId, resolution);
@@ -108,7 +108,7 @@ public sealed class TowerCabImageService : IDisposable
     {
         _log.LogInformation("Downloading tower cab image {AirportId} {Res}Res from {Url}", airportId, resolution, url);
 
-        using var response = await _http.GetAsync(url);
+        using HttpResponseMessage response = await _http.GetAsync(url);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             _log.LogDebug("Tower cab image {AirportId} {Res}Res not found (404)", airportId, resolution);
@@ -116,10 +116,10 @@ public sealed class TowerCabImageService : IDisposable
         }
 
         response.EnsureSuccessStatusCode();
-        var bytes = await response.Content.ReadAsByteArrayAsync();
+        byte[] bytes = await response.Content.ReadAsByteArrayAsync();
         await File.WriteAllBytesAsync(cachePath, bytes);
 
-        var stamp = serverLastModified ?? response.Content.Headers.LastModified?.UtcDateTime;
+        DateTime? stamp = serverLastModified ?? response.Content.Headers.LastModified?.UtcDateTime;
         if (stamp is { } s)
         {
             File.SetLastWriteTimeUtc(cachePath, s);
@@ -132,7 +132,7 @@ public sealed class TowerCabImageService : IDisposable
     {
         try
         {
-            var bounds = ExtractGpsBounds(path);
+            (double BLLat, double BLLon, double TRLat, double TRLon)? bounds = ExtractGpsBounds(path);
             if (bounds is null)
             {
                 _log.LogWarning("Tower cab image {AirportId} has no EXIF GPS data", airportId);
@@ -196,7 +196,7 @@ public sealed class TowerCabImageService : IDisposable
                 return null;
             }
 
-            var (blLat, blLon, trLat, trLon) = bounds.Value;
+            (double blLat, double blLon, double trLat, double trLon) = bounds.Value;
 
             _log.LogDebug(
                 "Tower cab image {AirportId}: {W}x{H}, bounds ({BLLat:F6},{BLLon:F6})-({TRLat:F6},{TRLon:F6})",
@@ -224,26 +224,26 @@ public sealed class TowerCabImageService : IDisposable
     /// </summary>
     private static (double BLLat, double BLLon, double TRLat, double TRLon)? ExtractGpsBounds(string path)
     {
-        var directories = MetadataExtractor.ImageMetadataReader.ReadMetadata(path);
+        IReadOnlyList<MetadataExtractor.Directory> directories = MetadataExtractor.ImageMetadataReader.ReadMetadata(path);
 
-        var gpsDir = directories.OfType<GpsDirectory>().FirstOrDefault();
+        GpsDirectory? gpsDir = directories.OfType<GpsDirectory>().FirstOrDefault();
         if (gpsDir is null)
         {
             return null;
         }
 
         // Bottom-left: standard GPS position
-        var blGeo = gpsDir.GetGeoLocation();
+        GeoLocation? blGeo = gpsDir.GetGeoLocation();
         if (blGeo is null)
         {
             return null;
         }
 
         // Top-right: GPS destination (CRC convention)
-        var trLatRationals = gpsDir.GetRationalArray(GpsDirectory.TagDestLatitude);
-        var trLatRef = gpsDir.GetString(GpsDirectory.TagDestLatitudeRef);
-        var trLonRationals = gpsDir.GetRationalArray(GpsDirectory.TagDestLongitude);
-        var trLonRef = gpsDir.GetString(GpsDirectory.TagDestLongitudeRef);
+        Rational[]? trLatRationals = gpsDir.GetRationalArray(GpsDirectory.TagDestLatitude);
+        string? trLatRef = gpsDir.GetString(GpsDirectory.TagDestLatitudeRef);
+        Rational[]? trLonRationals = gpsDir.GetRationalArray(GpsDirectory.TagDestLongitude);
+        string? trLonRef = gpsDir.GetString(GpsDirectory.TagDestLongitudeRef);
 
         if (trLatRationals is null || trLonRationals is null || trLatRef is null || trLonRef is null)
         {
@@ -262,7 +262,7 @@ public sealed class TowerCabImageService : IDisposable
             trLon = -trLon;
         }
 
-        var bl = blGeo.Value;
+        GeoLocation bl = blGeo.Value;
         return (bl.Latitude, bl.Longitude, trLat, trLon);
     }
 

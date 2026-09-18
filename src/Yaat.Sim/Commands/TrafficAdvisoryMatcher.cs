@@ -109,7 +109,7 @@ internal static class TrafficAdvisoryMatcher
         double bestError = double.MaxValue;
         string? bestCallsign = null;
 
-        foreach (var target in aircraft)
+        foreach (AircraftState target in aircraft)
         {
             if (target.Callsign.Equals(recipient.Callsign, StringComparison.OrdinalIgnoreCase))
             {
@@ -144,7 +144,7 @@ internal static class TrafficAdvisoryMatcher
 
             bestError = weighted;
             bestCallsign = target.Callsign;
-            var (quality, detail) = Grade(clockError, milesError, directionError, altitudeError, typeMatches);
+            (AdvisoryMatchQuality quality, string? detail) = Grade(clockError, milesError, directionError, altitudeError, typeMatches);
             best = new TrafficAdvisoryTargetMatch(target, quality, detail);
         }
 
@@ -181,7 +181,7 @@ internal static class TrafficAdvisoryMatcher
             )
             .ToList();
 
-        var description = $"traffic alert target {details.Clock} o'clock, {details.Miles} mile(s)";
+        string description = $"traffic alert target {details.Clock} o'clock, {details.Miles} mile(s)";
         if (eligible.Count == 1)
         {
             error = "";
@@ -215,7 +215,7 @@ internal static class TrafficAdvisoryMatcher
         double bestError = double.MaxValue;
         string? bestCallsign = null;
 
-        foreach (var target in aircraft)
+        foreach (AircraftState target in aircraft)
         {
             if (target.Callsign.Equals(recipient.Callsign, StringComparison.OrdinalIgnoreCase))
             {
@@ -286,14 +286,14 @@ internal static class TrafficAdvisoryMatcher
         double bestError = double.MaxValue;
         string? bestCallsign = null;
 
-        foreach (var target in aircraft)
+        foreach (AircraftState target in aircraft)
         {
             if (target.Callsign.Equals(recipient.Callsign, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            var runway = target.Phases?.AssignedRunway;
+            RunwayInfo? runway = target.Phases?.AssignedRunway;
             if ((runway is null) || !runway.IsActiveEnd(details.RunwayId))
             {
                 continue;
@@ -370,7 +370,7 @@ internal static class TrafficAdvisoryMatcher
         double bestError = double.MaxValue;
         string? bestCallsign = null;
 
-        foreach (var target in aircraft)
+        foreach (AircraftState target in aircraft)
         {
             if (target.Callsign.Equals(recipient.Callsign, StringComparison.OrdinalIgnoreCase))
             {
@@ -480,7 +480,7 @@ internal static class TrafficAdvisoryMatcher
 
     private static string Describe(TrafficAdvisoryDetails details)
     {
-        var basePart = $"traffic {details.Clock} o'clock, {details.Miles} mile(s), {details.Direction}bound, {details.AircraftType}";
+        string basePart = $"traffic {details.Clock} o'clock, {details.Miles} mile(s), {details.Direction}bound, {details.AircraftType}";
         return details.Altitude is { } altitude ? $"{basePart}, {altitude:N0}" : basePart;
     }
 
@@ -516,7 +516,7 @@ internal static class TrafficAdvisoryMatcher
             return true;
         }
 
-        var record = FaaAircraftDatabase.Get(target.AircraftType);
+        FaaAircraftRecord? record = FaaAircraftDatabase.Get(target.AircraftType);
         if (record is null)
         {
             return false;

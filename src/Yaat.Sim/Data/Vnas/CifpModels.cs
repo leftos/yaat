@@ -141,7 +141,7 @@ public static class CifpLegExtensions
             return (lat, lon);
         }
 
-        var pos = navDb.GetFixPosition(leg.FixIdentifier);
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(leg.FixIdentifier);
         if (pos is null && !string.IsNullOrEmpty(leg.FixIdentifier))
         {
             Log.LogWarning(

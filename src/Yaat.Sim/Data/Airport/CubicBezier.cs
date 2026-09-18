@@ -73,8 +73,8 @@ public readonly struct CubicBezier(double p0Lat, double p0Lon, double p1Lat, dou
     /// </summary>
     public double TangentBearing(double t)
     {
-        var (dLat, dLon) = Derivative(t);
-        var (lat, _) = Evaluate(t);
+        (double dLat, double dLon) = Derivative(t);
+        (double lat, double _) = Evaluate(t);
 
         // Convert to local feet: dY = dLat in north direction, dX = dLon in east direction
         double dyFt = dLat * NmPerDegLat * GeoMath.FeetPerNm;
@@ -98,8 +98,8 @@ public readonly struct CubicBezier(double p0Lat, double p0Lon, double p1Lat, dou
     /// </summary>
     public double DerivativeMagnitudeFt(double t)
     {
-        var (dLat, dLon) = Derivative(t);
-        var (lat, _) = Evaluate(t);
+        (double dLat, double dLon) = Derivative(t);
+        (double lat, double _) = Evaluate(t);
 
         double dyFt = dLat * NmPerDegLat * GeoMath.FeetPerNm;
         double dxFt = dLon * Math.Cos(lat * (Math.PI / 180.0)) * NmPerDegLat * GeoMath.FeetPerNm;
@@ -113,8 +113,8 @@ public readonly struct CubicBezier(double p0Lat, double p0Lon, double p1Lat, dou
     /// </summary>
     public double RadiusOfCurvatureFt(double t, double refLat)
     {
-        var (dLat, dLon) = Derivative(t);
-        var (ddLat, ddLon) = SecondDerivative(t);
+        (double dLat, double dLon) = Derivative(t);
+        (double ddLat, double ddLon) = SecondDerivative(t);
 
         double cosLat = Math.Cos(refLat * (Math.PI / 180.0));
         double scale = NmPerDegLat * GeoMath.FeetPerNm;
@@ -163,12 +163,12 @@ public readonly struct CubicBezier(double p0Lat, double p0Lon, double p1Lat, dou
     public double ArcLengthNm(int segments)
     {
         double totalNm = 0;
-        var (prevLat, prevLon) = Evaluate(0);
+        (double prevLat, double prevLon) = Evaluate(0);
 
         for (int i = 1; i <= segments; i++)
         {
             double t = (double)i / segments;
-            var (lat, lon) = Evaluate(t);
+            (double lat, double lon) = Evaluate(t);
             totalNm += GeoMath.DistanceNm(prevLat, prevLon, lat, lon);
             prevLat = lat;
             prevLon = lon;
@@ -188,11 +188,11 @@ public readonly struct CubicBezier(double p0Lat, double p0Lon, double p1Lat, dou
     {
         double end = Math.Clamp(t, 0.0, 1.0);
         double totalNm = 0;
-        var (prevLat, prevLon) = Evaluate(0);
+        (double prevLat, double prevLon) = Evaluate(0);
 
         for (int i = 1; i <= segments; i++)
         {
-            var (lat, lon) = Evaluate(end * i / segments);
+            (double lat, double lon) = Evaluate(end * i / segments);
             totalNm += GeoMath.DistanceNm(prevLat, prevLon, lat, lon);
             prevLat = lat;
             prevLon = lon;
@@ -215,7 +215,7 @@ public readonly struct CubicBezier(double p0Lat, double p0Lon, double p1Lat, dou
         for (int i = 0; i <= coarseSamples; i++)
         {
             double t = (double)i / coarseSamples;
-            var (pLat, pLon) = Evaluate(t);
+            (double pLat, double pLon) = Evaluate(t);
             double dLat = pLat - lat;
             double dLon = pLon - lon;
             double dist = (dLat * dLat) + (dLon * dLon); // squared distance (monotonic)
@@ -235,10 +235,10 @@ public readonly struct CubicBezier(double p0Lat, double p0Lon, double p1Lat, dou
             double mid1 = lo + ((hi - lo) / 3.0);
             double mid2 = hi - ((hi - lo) / 3.0);
 
-            var (p1Lat, p1Lon) = Evaluate(mid1);
+            (double p1Lat, double p1Lon) = Evaluate(mid1);
             double d1 = Sq(p1Lat - lat) + Sq(p1Lon - lon);
 
-            var (p2Lat, p2Lon) = Evaluate(mid2);
+            (double p2Lat, double p2Lon) = Evaluate(mid2);
             double d2 = Sq(p2Lat - lat) + Sq(p2Lon - lon);
 
             if (d1 < d2)

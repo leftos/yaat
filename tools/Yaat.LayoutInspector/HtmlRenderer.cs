@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Yaat.LayoutInspector.Tick;
@@ -42,7 +43,7 @@ public sealed class HtmlRenderer
 
     public string Render()
     {
-        var data = BuildDataJson();
+        string data = BuildDataJson();
         string html = LoadAsset("inspector-template.html");
         string css = LoadAsset("inspector.css");
         string js = LoadAsset("inspector.js");
@@ -59,7 +60,7 @@ public sealed class HtmlRenderer
 
         // Nodes
         writer.WriteStartArray("nodes");
-        foreach (var node in _layout.Nodes.Values)
+        foreach (GroundNode node in _layout.Nodes.Values)
         {
             writer.WriteStartObject();
             writer.WriteNumber("id", node.Id);
@@ -75,13 +76,13 @@ public sealed class HtmlRenderer
                 writer.WriteString("rwyId", rid.ToString());
             }
             writer.WriteBoolean("hl", _highlightNodes.Contains(node.Id));
-            if (_nodeAnnotations.TryGetValue(node.Id, out var ann))
+            if (_nodeAnnotations.TryGetValue(node.Id, out string? ann))
             {
                 writer.WriteString("ann", ann);
             }
 
             writer.WriteStartArray("edges");
-            foreach (var e in node.Edges)
+            foreach (IGroundEdge e in node.Edges)
             {
                 writer.WriteStartObject();
                 writer.WriteNumber("to", e.OtherNode(node).Id);
@@ -100,7 +101,7 @@ public sealed class HtmlRenderer
 
         // Straight edges
         writer.WriteStartArray("edges");
-        foreach (var e in _layout.Edges)
+        foreach (GroundEdge e in _layout.Edges)
         {
             writer.WriteStartObject();
             writer.WriteNumber("a", e.Nodes[0].Id);
@@ -118,7 +119,7 @@ public sealed class HtmlRenderer
 
         // Arcs
         writer.WriteStartArray("arcs");
-        foreach (var arc in _layout.Arcs)
+        foreach (GroundArc arc in _layout.Arcs)
         {
             writer.WriteStartObject();
             writer.WriteNumber("a", arc.Nodes[0].Id);
@@ -141,12 +142,12 @@ public sealed class HtmlRenderer
             writer.WriteNumber("bearing0", Math.Round(arc.EdgeBearingAtNode0Deg, 1));
             writer.WriteNumber("bearing1", Math.Round(arc.EdgeBearingAtNode1Deg, 1));
 
-            var bez = arc.ToBezier();
+            CubicBezier bez = arc.ToBezier();
             writer.WriteStartArray("pts");
             for (int i = 0; i <= 16; i++)
             {
                 double t = (double)i / 16;
-                var (lat, lon) = bez.Evaluate(t);
+                (double lat, double lon) = bez.Evaluate(t);
                 writer.WriteStartArray();
                 writer.WriteNumberValue(Math.Round(lat, 7));
                 writer.WriteNumberValue(Math.Round(lon, 7));
@@ -161,14 +162,14 @@ public sealed class HtmlRenderer
 
         // Runways
         writer.WriteStartArray("runways");
-        foreach (var rwy in _layout.Runways)
+        foreach (GroundRunway rwy in _layout.Runways)
         {
             writer.WriteStartObject();
             writer.WriteString("name", rwy.Name);
             writer.WriteNumber("widthFt", rwy.WidthFt);
             bool hl = false;
             var rid = RunwayIdentifier.Parse(rwy.Name);
-            foreach (var h in _highlightRunways)
+            foreach (string h in _highlightRunways)
             {
                 if (rid.Contains(h))
                 {
@@ -178,7 +179,7 @@ public sealed class HtmlRenderer
             writer.WriteBoolean("hl", hl);
 
             writer.WriteStartArray("coords");
-            foreach (var c in rwy.Coordinates)
+            foreach ((double Lat, double Lon) c in rwy.Coordinates)
             {
                 writer.WriteStartArray();
                 writer.WriteNumberValue(Math.Round(c.Lat, 7));
@@ -193,14 +194,14 @@ public sealed class HtmlRenderer
         writer.WriteEndArray();
 
         writer.WriteStartArray("hlTaxiways");
-        foreach (var t in _highlightTaxiways)
+        foreach (string t in _highlightTaxiways)
         {
             writer.WriteStringValue(t);
         }
         writer.WriteEndArray();
 
         writer.WriteStartArray("hlRunways");
-        foreach (var r in _highlightRunways)
+        foreach (string r in _highlightRunways)
         {
             writer.WriteStringValue(r);
         }
@@ -216,7 +217,7 @@ public sealed class HtmlRenderer
         if (_tickRecording is not null)
         {
             writer.WriteStartArray("aircraft");
-            foreach (var meta in _tickRecording.Aircraft)
+            foreach (AircraftMetadata meta in _tickRecording.Aircraft)
             {
                 writer.WriteStartObject();
                 writer.WriteString("callsign", meta.Callsign);
@@ -235,7 +236,7 @@ public sealed class HtmlRenderer
             writer.WriteEndArray();
 
             writer.WriteStartArray("ticks");
-            foreach (var tick in _tickRecording.Ticks)
+            foreach (TickEvent tick in _tickRecording.Ticks)
             {
                 writer.WriteStartObject();
                 writer.WriteNumber("t", tick.T);
@@ -298,14 +299,14 @@ public sealed class HtmlRenderer
             return true;
         }
 
-        foreach (var t in _highlightTaxiways)
+        foreach (string t in _highlightTaxiways)
         {
             if (edge.MatchesTaxiway(t))
             {
                 return true;
             }
         }
-        foreach (var r in _highlightRunways)
+        foreach (string r in _highlightRunways)
         {
             if (edge.MatchesRunway(r))
             {
@@ -327,8 +328,8 @@ public sealed class HtmlRenderer
     /// </summary>
     private static string LoadAsset(string fileName)
     {
-        var asm = typeof(HtmlRenderer).Assembly;
-        using (var stream = asm.GetManifestResourceStream("Yaat.LayoutInspector." + fileName))
+        Assembly asm = typeof(HtmlRenderer).Assembly;
+        using (Stream? stream = asm.GetManifestResourceStream("Yaat.LayoutInspector." + fileName))
         {
             if (stream is not null)
             {

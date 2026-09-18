@@ -52,7 +52,7 @@ public class ManualConsolidationTests
         var state = new ConsolidationState();
         state.Consolidate(Tcp1T, Tcp1F, basic: true);
 
-        var ov = state.GetOverride(IdF);
+        ConsolidationState.ManualOverride? ov = state.GetOverride(IdF);
         Assert.NotNull(ov);
         Assert.Equal(IdT, ov!.ReceivingTcpId);
         Assert.True(ov.IsBasic);
@@ -97,7 +97,7 @@ public class ManualConsolidationTests
         Assert.Null(state.GetOverride(IdS)); // was sending to 1F
 
         // 1H→1G override is unaffected
-        var hOv = state.GetOverride(IdH);
+        ConsolidationState.ManualOverride? hOv = state.GetOverride(IdH);
         Assert.NotNull(hOv);
         Assert.Equal(IdG, hOv!.ReceivingTcpId);
     }
@@ -108,7 +108,7 @@ public class ManualConsolidationTests
         var state = new ConsolidationState();
         state.Consolidate(Tcp1T, Tcp1F, basic: true);
 
-        var snap = state.GetSnapshot();
+        Dictionary<string, ConsolidationState.ManualOverride> snap = state.GetSnapshot();
         Assert.Single(snap);
 
         // Mutating snapshot doesn't affect state
@@ -236,13 +236,13 @@ public class ManualConsolidationTests
         state.Consolidate(Tcp1T, Tcp1F, basic: true);
 
         // GetConsolidationOwner for 1F should return 1T
-        var owner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1F, isAttended, state);
+        Tcp? owner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1F, isAttended, state);
         Assert.NotNull(owner);
         Assert.Equal(IdT, owner!.Id);
 
         // Items should show 1F owned by 1T
-        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
-        var fItem = FindItem(items, IdF);
+        List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
+        ConsolidationItem fItem = FindItem(items, IdF);
         Assert.Equal(IdT, fItem.Owner!.Id);
         Assert.True(fItem.BasicConsolidation);
     }
@@ -259,8 +259,8 @@ public class ManualConsolidationTests
         // Full consolidation: 1F under 1T
         state.Consolidate(Tcp1T, Tcp1F, basic: false);
 
-        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
-        var fItem = FindItem(items, IdF);
+        List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
+        ConsolidationItem fItem = FindItem(items, IdF);
         Assert.Equal(IdT, fItem.Owner!.Id);
         Assert.False(fItem.BasicConsolidation);
     }
@@ -279,12 +279,12 @@ public class ManualConsolidationTests
         state.Deconsolidate(Tcp1F);
 
         // 1F should now own itself again (attended → null in DTO)
-        var owner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1F, isAttended, state);
+        Tcp? owner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1F, isAttended, state);
         Assert.NotNull(owner);
         Assert.Equal(IdF, owner!.Id);
 
-        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
-        var fItem = FindItem(items, IdF);
+        List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
+        ConsolidationItem fItem = FindItem(items, IdF);
         Assert.Null(fItem.Owner);
         Assert.False(fItem.BasicConsolidation);
     }
@@ -301,25 +301,25 @@ public class ManualConsolidationTests
         Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
 
         // Without manual overrides: 1S auto-consolidates to 1T
-        var autoOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1S, isAttended);
+        Tcp? autoOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1S, isAttended);
         Assert.Equal(IdT, autoOwner!.Id);
 
         // Manual override: move 1S under 1G
         state.Consolidate(Tcp1G, Tcp1S, basic: false);
 
         // 1S should now be owned by 1G
-        var manualOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1S, isAttended, state);
+        Tcp? manualOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1S, isAttended, state);
         Assert.NotNull(manualOwner);
         Assert.Equal(IdG, manualOwner!.Id);
 
         // 1F still auto-consolidated under 1T
-        var fOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1F, isAttended, state);
+        Tcp? fOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1F, isAttended, state);
         Assert.Equal(IdT, fOwner!.Id);
 
         // Items: 1G's children should include 1S + 1H (descendant of 1S); self excluded
-        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
-        var gItem = FindItem(items, IdG);
-        var gChildren = ChildIds(gItem);
+        List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
+        ConsolidationItem gItem = FindItem(items, IdG);
+        HashSet<string> gChildren = ChildIds(gItem);
         Assert.DoesNotContain(IdG, gChildren);
         Assert.Contains(IdS, gChildren);
         Assert.Contains(IdH, gChildren);
@@ -337,7 +337,7 @@ public class ManualConsolidationTests
         state.Consolidate(Tcp1F, Tcp1G, basic: true);
 
         // 1G's owner should walk up from 1F to 1T
-        var owner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1G, isAttended, state);
+        Tcp? owner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1G, isAttended, state);
         Assert.NotNull(owner);
         Assert.Equal(IdT, owner!.Id);
     }
@@ -364,7 +364,7 @@ public class ManualConsolidationTests
         Assert.Null(state.GetOverride(IdS));
 
         // 1H→1G unaffected
-        var snap = state.GetSnapshot();
+        Dictionary<string, ConsolidationState.ManualOverride> snap = state.GetSnapshot();
         Assert.Single(snap);
         Assert.True(snap.ContainsKey(IdH));
     }
@@ -394,14 +394,14 @@ public class ManualConsolidationTests
         Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
 
         // Without manual overrides: 1S has no owner (auto off, not attended)
-        var autoOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended);
+        Tcp? autoOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended);
         Assert.Null(autoOwner);
 
         // Manual override: consolidate 1S under 1F
         state.Consolidate(Tcp1F, Tcp1S, basic: false);
 
         // Now 1S should be owned by 1F
-        var manualOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended, state);
+        Tcp? manualOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended, state);
         Assert.NotNull(manualOwner);
         Assert.Equal(IdF, manualOwner!.Id);
     }
@@ -419,7 +419,7 @@ public class ManualConsolidationTests
 
         // Then re-consolidate 1F under 1G
         state.Consolidate(Tcp1G, Tcp1F, basic: false);
-        var ov = state.GetOverride(IdF);
+        ConsolidationState.ManualOverride? ov = state.GetOverride(IdF);
         Assert.NotNull(ov);
         Assert.Equal(IdG, ov!.ReceivingTcpId);
         Assert.False(ov.IsBasic);
@@ -437,16 +437,16 @@ public class ManualConsolidationTests
         Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
 
         // Without overrides: 1T owns itself; CRC adds OurTcp automatically → Children empty
-        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended);
-        var tChildren = ChildIds(FindItem(items, IdT));
+        List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended);
+        HashSet<string> tChildren = ChildIds(FindItem(items, IdT));
         Assert.Empty(tChildren);
 
         // Consolidate 1F under 1T (basic)
         state.Consolidate(Tcp1T, Tcp1F, basic: true);
 
         // Now 1T should own [1F, 1S, 1H] (self excluded; CRC adds OurTcp automatically)
-        var itemsWithOv = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
-        var tChildrenOv = ChildIds(FindItem(itemsWithOv, IdT));
+        List<ConsolidationItem> itemsWithOv = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
+        HashSet<string> tChildrenOv = ChildIds(FindItem(itemsWithOv, IdT));
         Assert.DoesNotContain(IdT, tChildrenOv);
         Assert.Contains(IdF, tChildrenOv);
         Assert.Contains(IdS, tChildrenOv);
@@ -468,13 +468,13 @@ public class ManualConsolidationTests
         // 1S, a *descendant* of 1F, is SEPARATELY consolidated into 1T.
         state.Consolidate(Tcp1T, Tcp1S, basic: false); // 1S → 1T
 
-        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
+        List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
 
         // 1S's own item owner is 1T — its explicit override wins.
         Assert.Equal(IdT, FindItem(items, IdS).Owner!.Id);
 
-        var gChildren = ChildIds(FindItem(items, IdG));
-        var tChildren = ChildIds(FindItem(items, IdT));
+        HashSet<string> gChildren = ChildIds(FindItem(items, IdG));
+        HashSet<string> tChildren = ChildIds(FindItem(items, IdT));
 
         // 1S is consolidated under 1T, so it must appear under 1T...
         Assert.Contains(IdS, tChildren);
@@ -496,17 +496,17 @@ public class ManualConsolidationTests
 
         state.Consolidate(Tcp1G, Tcp1F, basic: false);
 
-        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
+        List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
 
         // 1G should have 1F + 1S + 1H as children (descendants of 1F); self excluded
-        var gChildren = ChildIds(FindItem(items, IdG));
+        HashSet<string> gChildren = ChildIds(FindItem(items, IdG));
         Assert.DoesNotContain(IdG, gChildren);
         Assert.Contains(IdF, gChildren);
         Assert.Contains(IdS, gChildren);
         Assert.Contains(IdH, gChildren);
 
         // 1T should only have itself excluded; 1F and descendants moved away → empty
-        var tChildren = ChildIds(FindItem(items, IdT));
+        HashSet<string> tChildren = ChildIds(FindItem(items, IdT));
         Assert.DoesNotContain(IdT, tChildren);
         Assert.DoesNotContain(IdF, tChildren);
         Assert.DoesNotContain(IdS, tChildren);
@@ -527,11 +527,11 @@ public class ManualConsolidationTests
 
         state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G (non-leaf sender)
 
-        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
+        List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
 
         // GetConsolidationItems already lists 1S and 1H under 1G's children
         // (asserted by ManualConsolidation_DescendantsOfSendingTcpFollowOverride).
-        var gChildren = ChildIds(FindItem(items, IdG));
+        HashSet<string> gChildren = ChildIds(FindItem(items, IdG));
         Assert.Contains(IdS, gChildren);
         Assert.Contains(IdH, gChildren);
 
@@ -542,9 +542,9 @@ public class ManualConsolidationTests
         Assert.Equal(IdG, FindItem(items, IdS).Owner!.Id);
         Assert.Equal(IdG, FindItem(items, IdH).Owner!.Id);
 
-        var sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1S, isAttended, state);
+        Tcp? sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1S, isAttended, state);
         Assert.Equal(IdG, sOwner!.Id);
-        var hOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1H, isAttended, state);
+        Tcp? hOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1H, isAttended, state);
         Assert.Equal(IdG, hOwner!.Id);
     }
 
@@ -560,10 +560,10 @@ public class ManualConsolidationTests
 
         state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G (non-leaf sender)
 
-        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, false, isAttended, state);
+        List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, false, isAttended, state);
 
         // The children pass folds 1S and 1H into 1G even with auto off.
-        var gChildren = ChildIds(FindItem(items, IdG));
+        HashSet<string> gChildren = ChildIds(FindItem(items, IdG));
         Assert.Contains(IdS, gChildren);
         Assert.Contains(IdH, gChildren);
 
@@ -573,9 +573,9 @@ public class ManualConsolidationTests
         Assert.Equal(IdG, FindItem(items, IdS).Owner!.Id);
         Assert.Equal(IdG, FindItem(items, IdH).Owner!.Id);
 
-        var sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended, state);
+        Tcp? sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended, state);
         Assert.Equal(IdG, sOwner!.Id);
-        var hOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1H, isAttended, state);
+        Tcp? hOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1H, isAttended, state);
         Assert.Equal(IdG, hOwner!.Id);
     }
 
@@ -593,18 +593,18 @@ public class ManualConsolidationTests
 
         state.Consolidate(Tcp1F, Tcp1S, basic: false); // 1S → 1F (receiver unattended)
 
-        var sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended, state);
+        Tcp? sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended, state);
         Assert.Null(sOwner);
-        var hOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1H, isAttended, state);
+        Tcp? hOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1H, isAttended, state);
         Assert.Null(hOwner);
 
-        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, false, isAttended, state);
+        List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, false, isAttended, state);
         Assert.Null(FindItem(items, IdS).Owner);
         Assert.Null(FindItem(items, IdH).Owner);
 
         // 1T never absorbed 1F's airspace — the sender block must not
         // surface under it.
-        var tChildren = ChildIds(FindItem(items, IdT));
+        HashSet<string> tChildren = ChildIds(FindItem(items, IdT));
         Assert.DoesNotContain(IdS, tChildren);
         Assert.DoesNotContain(IdH, tChildren);
     }
@@ -622,17 +622,17 @@ public class ManualConsolidationTests
         state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G
         state.Consolidate(Tcp1X, Tcp1G, basic: false); // 1G → 1X
 
-        var fOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1F, isAttended, state);
+        Tcp? fOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1F, isAttended, state);
         Assert.Equal(IdX, fOwner!.Id);
-        var sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended, state);
+        Tcp? sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended, state);
         Assert.Equal(IdX, sOwner!.Id);
 
-        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, false, isAttended, state);
+        List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, false, isAttended, state);
         Assert.Equal(IdX, FindItem(items, IdF).Owner!.Id);
         Assert.Equal(IdX, FindItem(items, IdS).Owner!.Id);
         Assert.Equal(IdX, FindItem(items, IdH).Owner!.Id);
 
-        var xChildren = ChildIds(FindItem(items, IdX));
+        HashSet<string> xChildren = ChildIds(FindItem(items, IdX));
         Assert.Contains(IdG, xChildren);
         Assert.Contains(IdF, xChildren);
         Assert.Contains(IdS, xChildren);
@@ -652,20 +652,20 @@ public class ManualConsolidationTests
         state.Consolidate(Tcp1X, Tcp1G, basic: false); // 1G → 1X
 
         // The chain resolves through the unattended intermediate receiver.
-        var fOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1F, isAttended, state);
+        Tcp? fOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1F, isAttended, state);
         Assert.Equal(IdX, fOwner!.Id);
 
         // Descendants of 1F follow the whole chain too.
-        var sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1S, isAttended, state);
+        Tcp? sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1S, isAttended, state);
         Assert.Equal(IdX, sOwner!.Id);
 
-        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
+        List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
         Assert.Equal(IdX, FindItem(items, IdF).Owner!.Id);
         Assert.Equal(IdX, FindItem(items, IdS).Owner!.Id);
         Assert.Equal(IdX, FindItem(items, IdH).Owner!.Id);
 
         // ...and the children list lands on the same position; self excluded.
-        var xChildren = ChildIds(FindItem(items, IdX));
+        HashSet<string> xChildren = ChildIds(FindItem(items, IdX));
         Assert.DoesNotContain(IdX, xChildren);
         Assert.Contains(IdG, xChildren);
         Assert.Contains(IdF, xChildren);

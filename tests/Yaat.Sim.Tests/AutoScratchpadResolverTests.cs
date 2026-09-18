@@ -41,14 +41,14 @@ public class AutoScratchpadResolverTests
         starsConfig = null!;
         area = null!;
 
-        var config = TestArtccConfig.LoadZoa();
-        var facility = config?.FindFacility(facilityId);
+        ArtccConfigRoot? config = TestArtccConfig.LoadZoa();
+        FacilityConfig? facility = config?.FindFacility(facilityId);
         if (facility?.StarsConfiguration is null)
         {
             return false;
         }
 
-        foreach (var candidate in facility.StarsConfiguration.Areas)
+        foreach (StarsAreaConfig candidate in facility.StarsConfiguration.Areas)
         {
             if (candidate.Name == areaName)
             {
@@ -64,12 +64,12 @@ public class AutoScratchpadResolverTests
     [Fact]
     public void PrimaryArrival_ShowsDestination()
     {
-        if (!TryGetZoaArea("O90", "OAK", out var starsConfig, out var area))
+        if (!TryGetZoaArea("O90", "OAK", out StarsConfig? starsConfig, out StarsAreaConfig? area))
         {
             return;
         }
 
-        var ac = MakeAircraft("KLAX", "KOAK");
+        AircraftState ac = MakeAircraft("KLAX", "KOAK");
 
         Assert.Equal("OAK", AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area));
     }
@@ -79,13 +79,13 @@ public class AutoScratchpadResolverTests
     {
         // SFO is internal to O90 but is not the OAK area's tower-list airport, so an SFO arrival
         // viewed from the OAK area is a satellite arrival.
-        if (!TryGetZoaArea("O90", "OAK", out var starsConfig, out var area))
+        if (!TryGetZoaArea("O90", "OAK", out StarsConfig? starsConfig, out StarsAreaConfig? area))
         {
             return;
         }
 
-        var ac = MakeAircraft("KLAX", "KSFO");
-        var classification = AutoScratchpadResolver.Classify(ac, starsConfig, area);
+        AircraftState ac = MakeAircraft("KLAX", "KSFO");
+        StarsFlightClassification classification = AutoScratchpadResolver.Classify(ac, starsConfig, area);
 
         Assert.True(classification.IsSatelliteArrival);
         Assert.False(classification.IsPrimaryArrival);
@@ -96,13 +96,13 @@ public class AutoScratchpadResolverTests
     public void Departure_ShowsDestination_WhenAreaEnablesIt()
     {
         // O90's OAK area has showDestinationDepartures = true.
-        if (!TryGetZoaArea("O90", "OAK", out var starsConfig, out var area))
+        if (!TryGetZoaArea("O90", "OAK", out StarsConfig? starsConfig, out StarsAreaConfig? area))
         {
             return;
         }
 
         Assert.True(area.ShowDestinationDepartures);
-        var ac = MakeAircraft("KOAK", "KLAX");
+        AircraftState ac = MakeAircraft("KOAK", "KLAX");
 
         Assert.Equal("LAX", AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area));
     }
@@ -112,13 +112,13 @@ public class AutoScratchpadResolverTests
     {
         // O90's HWD area has showDestinationDepartures = false — the same departure that shows a
         // destination from the OAK area must show nothing here.
-        if (!TryGetZoaArea("O90", "HWD", out var starsConfig, out var area))
+        if (!TryGetZoaArea("O90", "HWD", out StarsConfig? starsConfig, out StarsAreaConfig? area))
         {
             return;
         }
 
         Assert.False(area.ShowDestinationDepartures);
-        var ac = MakeAircraft("KHWD", "KLAX");
+        AircraftState ac = MakeAircraft("KHWD", "KLAX");
 
         Assert.True(AutoScratchpadResolver.Classify(ac, starsConfig, area).IsDeparture);
         Assert.Null(AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area));
@@ -129,14 +129,14 @@ public class AutoScratchpadResolverTests
     {
         // O90's top-level area has no towerListConfigurations, so it has no primary airport and
         // the primary-arrival branch is unreachable.
-        if (!TryGetZoaArea("O90", "O90", out var starsConfig, out var area))
+        if (!TryGetZoaArea("O90", "O90", out StarsConfig? starsConfig, out StarsAreaConfig? area))
         {
             return;
         }
 
         Assert.Empty(area.TowerListConfigurations);
-        var ac = MakeAircraft("KLAX", "KOAK");
-        var classification = AutoScratchpadResolver.Classify(ac, starsConfig, area);
+        AircraftState ac = MakeAircraft("KLAX", "KOAK");
+        StarsFlightClassification classification = AutoScratchpadResolver.Classify(ac, starsConfig, area);
 
         Assert.False(classification.IsPrimaryArrival);
         Assert.True(classification.IsSatelliteArrival);
@@ -146,13 +146,13 @@ public class AutoScratchpadResolverTests
     [Fact]
     public void Overflight_ShowsNothing()
     {
-        if (!TryGetZoaArea("O90", "OAK", out var starsConfig, out var area))
+        if (!TryGetZoaArea("O90", "OAK", out StarsConfig? starsConfig, out StarsAreaConfig? area))
         {
             return;
         }
 
-        var ac = MakeAircraft("KDEN", "KJFK");
-        var classification = AutoScratchpadResolver.Classify(ac, starsConfig, area);
+        AircraftState ac = MakeAircraft("KDEN", "KJFK");
+        StarsFlightClassification classification = AutoScratchpadResolver.Classify(ac, starsConfig, area);
 
         Assert.True(classification.IsOverflight);
         Assert.Null(AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area));
@@ -163,13 +163,13 @@ public class AutoScratchpadResolverTests
     {
         // An OAK-to-SFO hop is both a departure and an arrival. CRC checks the arrival cases
         // first, so the OAK area classifies it as a satellite arrival.
-        if (!TryGetZoaArea("O90", "OAK", out var starsConfig, out var area))
+        if (!TryGetZoaArea("O90", "OAK", out StarsConfig? starsConfig, out StarsAreaConfig? area))
         {
             return;
         }
 
-        var ac = MakeAircraft("KOAK", "KSFO");
-        var classification = AutoScratchpadResolver.Classify(ac, starsConfig, area);
+        AircraftState ac = MakeAircraft("KOAK", "KSFO");
+        StarsFlightClassification classification = AutoScratchpadResolver.Classify(ac, starsConfig, area);
 
         Assert.True(classification.IsDeparture);
         Assert.True(classification.IsSatelliteArrival);
@@ -178,12 +178,12 @@ public class AutoScratchpadResolverTests
     [Fact]
     public void ExistingScratchpad1_SuppressesFallback()
     {
-        if (!TryGetZoaArea("O90", "OAK", out var starsConfig, out var area))
+        if (!TryGetZoaArea("O90", "OAK", out StarsConfig? starsConfig, out StarsAreaConfig? area))
         {
             return;
         }
 
-        var ac = MakeAircraft("KLAX", "KOAK");
+        AircraftState ac = MakeAircraft("KLAX", "KOAK");
         ac.Stars.Scratchpad1 = "ABC";
 
         Assert.Null(AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area));
@@ -194,12 +194,12 @@ public class AutoScratchpadResolverTests
     {
         // Clearing the slot must actually clear it — otherwise the destination would reappear
         // and the controller's clear would look like a no-op.
-        if (!TryGetZoaArea("O90", "OAK", out var starsConfig, out var area))
+        if (!TryGetZoaArea("O90", "OAK", out StarsConfig? starsConfig, out StarsAreaConfig? area))
         {
             return;
         }
 
-        var ac = MakeAircraft("KLAX", "KOAK");
+        AircraftState ac = MakeAircraft("KLAX", "KOAK");
         ac.Stars.WasScratchpad1Cleared = true;
 
         Assert.Null(AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area));
@@ -208,12 +208,12 @@ public class AutoScratchpadResolverTests
     [Fact]
     public void BlankDestination_ShowsNothing()
     {
-        if (!TryGetZoaArea("O90", "OAK", out var starsConfig, out var area))
+        if (!TryGetZoaArea("O90", "OAK", out StarsConfig? starsConfig, out StarsAreaConfig? area))
         {
             return;
         }
 
-        var ac = MakeAircraft("KOAK", "");
+        AircraftState ac = MakeAircraft("KOAK", "");
 
         Assert.Null(AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area));
     }
@@ -222,13 +222,13 @@ public class AutoScratchpadResolverTests
     public void IcaoFiledDestination_DisplaysFaaId()
     {
         // Filing "KOAK" must display "OAK", not a 3-char truncation of the ICAO form ("KOA").
-        if (!TryGetZoaArea("O90", "OAK", out var starsConfig, out var area))
+        if (!TryGetZoaArea("O90", "OAK", out StarsConfig? starsConfig, out StarsAreaConfig? area))
         {
             return;
         }
 
-        var ac = MakeAircraft("KLAX", "KOAK");
-        var result = AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area);
+        AircraftState ac = MakeAircraft("KLAX", "KOAK");
+        string? result = AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area);
 
         Assert.Equal("OAK", result);
         Assert.NotEqual("KOA", result);
@@ -247,9 +247,9 @@ public class AutoScratchpadResolverTests
             ShowDestinationPrimaryArrivals = false,
             ShowDestinationDepartures = true,
         };
-        var ac = MakeAircraft("KSFO", "KOAK");
+        AircraftState ac = MakeAircraft("KSFO", "KOAK");
 
-        var classification = AutoScratchpadResolver.Classify(ac, starsConfig, area);
+        StarsFlightClassification classification = AutoScratchpadResolver.Classify(ac, starsConfig, area);
         Assert.True(classification.IsPrimaryArrival);
         Assert.True(classification.IsDeparture);
 
@@ -269,7 +269,7 @@ public class AutoScratchpadResolverTests
             TowerListConfigurations = [new TowerListConfig { AirportId = "CL56" }],
             ShowDestinationPrimaryArrivals = true,
         };
-        var ac = MakeAircraft("KLAX", "CL56");
+        AircraftState ac = MakeAircraft("KLAX", "CL56");
 
         Assert.Equal("CL56", AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area));
     }
@@ -282,7 +282,7 @@ public class AutoScratchpadResolverTests
         // adapted scratchpad code and would mislead the controller.
         var starsConfig = new StarsConfig { InternalAirports = ["OAK"] };
         var area = new StarsAreaConfig { ShowDestinationDepartures = true };
-        var ac = MakeAircraft("KOAK", "CYVR");
+        AircraftState ac = MakeAircraft("KOAK", "CYVR");
 
         Assert.True(AutoScratchpadResolver.Classify(ac, starsConfig, area).IsDeparture);
         Assert.Equal("CYVR", AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area));
@@ -294,14 +294,14 @@ public class AutoScratchpadResolverTests
         // The fallback is a display projection. Writing it back to Stars.Scratchpad1 would ship the
         // synthetic destination to CRC as though a controller had typed it, bypassing CRC's own
         // per-area gating and breaking the SP1 clear/undo toggle for the student.
-        if (!TryGetZoaArea("O90", "OAK", out var starsConfig, out var area))
+        if (!TryGetZoaArea("O90", "OAK", out StarsConfig? starsConfig, out StarsAreaConfig? area))
         {
             return;
         }
 
-        var ac = MakeAircraft("KLAX", "KOAK");
+        AircraftState ac = MakeAircraft("KLAX", "KOAK");
 
-        var result = AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area);
+        string? result = AutoScratchpadResolver.ResolveAutoScratchpad1(ac, starsConfig, area);
 
         Assert.Equal("OAK", result);
         Assert.Null(ac.Stars.Scratchpad1);
@@ -312,7 +312,7 @@ public class AutoScratchpadResolverTests
     [Fact]
     public void NullConfig_ShowsNothing()
     {
-        var ac = MakeAircraft("KLAX", "KOAK");
+        AircraftState ac = MakeAircraft("KLAX", "KOAK");
 
         Assert.Null(AutoScratchpadResolver.ResolveAutoScratchpad1(ac, null, null));
         Assert.Null(AutoScratchpadResolver.ResolveAutoScratchpad1(ac, new StarsConfig(), null));

@@ -19,7 +19,7 @@ public sealed class VisitedNodeSetTests
     public void Add_IsPersistent_OriginalUnchanged()
     {
         var a = VisitedNodeSet.Single(5);
-        var b = a.Add(3).Add(9);
+        VisitedNodeSet b = a.Add(3).Add(9);
 
         Assert.Equal(1, a.Count);
         Assert.False(a.Contains(3));
@@ -30,7 +30,7 @@ public sealed class VisitedNodeSetTests
     [Fact]
     public void Add_ExistingNode_ReturnsSameCount()
     {
-        var set = VisitedNodeSet.Single(4).Add(4);
+        VisitedNodeSet set = VisitedNodeSet.Single(4).Add(4);
 
         Assert.Equal(1, set.Count);
     }

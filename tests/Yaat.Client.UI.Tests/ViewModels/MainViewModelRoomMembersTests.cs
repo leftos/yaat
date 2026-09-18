@@ -40,7 +40,7 @@ public class MainViewModelRoomMembersTests
 
         vm.ApplyRoomState(RoomStateWith(Member("CX", Yaat.Sim.ClientKind.Main, "conn-main")));
 
-        var member = Assert.Single(vm.RoomMembers);
+        RoomMemberDto member = Assert.Single(vm.RoomMembers);
         Assert.Equal("CX", member.Initials);
         Assert.Equal("conn-main", member.ConnectionId);
     }
@@ -69,7 +69,7 @@ public class MainViewModelRoomMembersTests
 
         vm.ApplyRoomState(RoomStateWith(Member("CX", Yaat.Sim.ClientKind.VTdls, "conn-new")));
 
-        var member = Assert.Single(vm.RoomMembers);
+        RoomMemberDto member = Assert.Single(vm.RoomMembers);
         Assert.Equal("conn-new", member.ConnectionId);
         Assert.Equal("vTDLS", member.KindLabel);
     }

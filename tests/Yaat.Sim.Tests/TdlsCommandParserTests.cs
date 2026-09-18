@@ -7,7 +7,7 @@ public sealed class TdlsCommandParserTests
 {
     private static ParsedCommand Parse(string input)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.True(result.IsSuccess, $"parse failed for '{input}': {result.Reason}");
         return result.Value!;
     }
@@ -15,7 +15,7 @@ public sealed class TdlsCommandParserTests
     [Fact]
     public void TDLSOPS_ParsesFacilityAndConfig()
     {
-        var cmd = Assert.IsType<TdlsOpsConfigCommand>(Parse("TDLSOPS OAK OAKE"));
+        TdlsOpsConfigCommand cmd = Assert.IsType<TdlsOpsConfigCommand>(Parse("TDLSOPS OAK OAKE"));
         Assert.Equal("OAK", cmd.FacilityId);
         Assert.Equal("OAKE", cmd.Config);
     }
@@ -25,7 +25,7 @@ public sealed class TdlsCommandParserTests
     {
         // Facility Engineers name configurations freely — BOS ships "Logan Sid" — so the config
         // token has to run to end of line rather than stopping at the first space.
-        var cmd = Assert.IsType<TdlsOpsConfigCommand>(Parse("TDLSOPS BOS Logan Sid"));
+        TdlsOpsConfigCommand cmd = Assert.IsType<TdlsOpsConfigCommand>(Parse("TDLSOPS BOS Logan Sid"));
         Assert.Equal("BOS", cmd.FacilityId);
         Assert.Equal("Logan Sid", cmd.Config);
     }
@@ -35,7 +35,7 @@ public sealed class TdlsCommandParserTests
     {
         // The facility is an identifier; the config may be matched by name, and names are
         // displayed verbatim in the footer, so its casing is preserved for the error message.
-        var cmd = Assert.IsType<TdlsOpsConfigCommand>(Parse("tdlsops oak Logan Sid"));
+        TdlsOpsConfigCommand cmd = Assert.IsType<TdlsOpsConfigCommand>(Parse("tdlsops oak Logan Sid"));
         Assert.Equal("OAK", cmd.FacilityId);
         Assert.Equal("Logan Sid", cmd.Config);
     }
@@ -75,7 +75,9 @@ public sealed class TdlsCommandParserTests
     [Fact]
     public void TDLSS_NineFields_ParsesAsSendWithAllFieldsPositional()
     {
-        var send = Assert.IsType<TdlsSendCommand>(Parse("TDLSS 10 MIN AFT DP|OAKLAND4|ALTAM||CLIMB VIA SID|5000||120.9|ADV ATIS AND LOCATION"));
+        TdlsSendCommand send = Assert.IsType<TdlsSendCommand>(
+            Parse("TDLSS 10 MIN AFT DP|OAKLAND4|ALTAM||CLIMB VIA SID|5000||120.9|ADV ATIS AND LOCATION")
+        );
 
         Assert.Equal(9, send.Fields.Count);
         Assert.Equal("10 MIN AFT DP", send.Fields[0]); // Expect
@@ -92,7 +94,7 @@ public sealed class TdlsCommandParserTests
     [Fact]
     public void TDLSS_AllEmpty_ParsesAsNineEmptyFields()
     {
-        var send = Assert.IsType<TdlsSendCommand>(Parse("TDLSS ||||||||"));
+        TdlsSendCommand send = Assert.IsType<TdlsSendCommand>(Parse("TDLSS ||||||||"));
         Assert.Equal(9, send.Fields.Count);
         Assert.All(send.Fields, f => Assert.Equal("", f));
     }
@@ -100,7 +102,7 @@ public sealed class TdlsCommandParserTests
     [Fact]
     public void TDLSS_FewerThanNineFields_Fails()
     {
-        var result = CommandParser.Parse("TDLSS a|b|c");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("TDLSS a|b|c");
         Assert.False(result.IsSuccess);
         Assert.NotNull(result.Reason);
         Assert.Contains("nine", result.Reason, StringComparison.OrdinalIgnoreCase);
@@ -109,7 +111,7 @@ public sealed class TdlsCommandParserTests
     [Fact]
     public void TDLSS_MoreThanNineFields_Fails()
     {
-        var result = CommandParser.Parse("TDLSS a|b|c|d|e|f|g|h|i|j");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("TDLSS a|b|c|d|e|f|g|h|i|j");
         Assert.False(result.IsSuccess);
     }
 
@@ -145,7 +147,7 @@ public sealed class TdlsCommandParserTests
 
     private static void AssertRoundTrip(ParsedCommand cmd, string expectedCanonical)
     {
-        var canonical = CommandDescriber.DescribeCommand(cmd);
+        string canonical = CommandDescriber.DescribeCommand(cmd);
         Assert.Equal(expectedCanonical, canonical);
     }
 }

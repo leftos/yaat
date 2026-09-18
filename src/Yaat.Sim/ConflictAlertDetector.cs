@@ -53,14 +53,14 @@ public static class ConflictAlertDetector
     public static List<ConflictPair> Detect(List<AircraftState> aircraft, ConflictAlertContext context)
     {
         var results = new List<ConflictPair>();
-        var eligible = FilterEligible(aircraft);
+        List<AircraftState> eligible = FilterEligible(aircraft);
 
         for (int i = 0; i < eligible.Count; i++)
         {
             for (int j = i + 1; j < eligible.Count; j++)
             {
-                var a = eligible[i];
-                var b = eligible[j];
+                AircraftState a = eligible[i];
+                AircraftState b = eligible[j];
 
                 if (!IsPairEligible(a, b, context.ApproachCorridors))
                 {
@@ -89,15 +89,15 @@ public static class ConflictAlertDetector
     public static IReadOnlyList<RunwayCorridor> BuildCorridors(IEnumerable<string> internalAirports, NavigationDatabase navDb)
     {
         var corridors = new List<RunwayCorridor>();
-        foreach (var apt in internalAirports)
+        foreach (string apt in internalAirports)
         {
-            var runways = navDb.GetRunways(apt);
+            IReadOnlyList<RunwayInfo> runways = navDb.GetRunways(apt);
             if (runways.Count == 0)
             {
                 runways = navDb.GetRunways("K" + apt);
             }
 
-            foreach (var rw in runways)
+            foreach (RunwayInfo rw in runways)
             {
                 corridors.Add(MakeCorridor(rw, rw.Id.End1));
                 corridors.Add(MakeCorridor(rw, rw.Id.End2));
@@ -115,7 +115,7 @@ public static class ConflictAlertDetector
     /// </summary>
     private static RunwayCorridor MakeCorridor(RunwayInfo rw, string endDesignator)
     {
-        var oriented = rw.ForApproach(endDesignator);
+        RunwayInfo oriented = rw.ForApproach(endDesignator);
         var outbound = new TrueHeading((oriented.TrueHeading.Degrees + 180.0) % 360.0);
         return new RunwayCorridor(
             Threshold: new LatLon(oriented.ThresholdLatitude, oriented.ThresholdLongitude),
@@ -142,7 +142,7 @@ public static class ConflictAlertDetector
             return false;
         }
 
-        var shadow =
+        AircraftState? shadow =
             a.IsShadow ? a
             : b.IsShadow ? b
             : null;
@@ -174,7 +174,7 @@ public static class ConflictAlertDetector
     private static List<AircraftState> FilterEligible(List<AircraftState> aircraft)
     {
         var eligible = new List<AircraftState>(aircraft.Count);
-        foreach (var ac in aircraft)
+        foreach (AircraftState ac in aircraft)
         {
             if (IsEligible(ac))
             {
@@ -195,7 +195,7 @@ public static class ConflictAlertDetector
     private static (double Lat, double Lon, double Altitude) Predict(AircraftState ac)
     {
         double distNm = ac.GroundSpeed * PredictionSeconds / 3600.0;
-        var (lat, lon) = GeoMath.ProjectPoint(ac.Position, ac.TrueTrack, distNm);
+        (double lat, double lon) = GeoMath.ProjectPoint(ac.Position, ac.TrueTrack, distNm);
         double altitude = ac.Altitude + (ac.VerticalSpeed * PredictionSeconds / 60.0);
         return (lat, lon, altitude);
     }
@@ -217,8 +217,8 @@ public static class ConflictAlertDetector
         double currentHorizontal = GeoMath.DistanceNm(a.Position, b.Position);
         double currentVertical = Math.Abs(a.Altitude - b.Altitude);
 
-        var (predLatA, predLonA, predAltA) = Predict(a);
-        var (predLatB, predLonB, predAltB) = Predict(b);
+        (double predLatA, double predLonA, double predAltA) = Predict(a);
+        (double predLatB, double predLonB, double predAltB) = Predict(b);
         double predictedHorizontal = GeoMath.DistanceNm(new LatLon(predLatA, predLonA), new LatLon(predLatB, predLonB));
         double predictedVertical = Math.Abs(predAltA - predAltB);
 
@@ -249,7 +249,7 @@ public static class ConflictAlertDetector
 
     private static bool IsInAnyApproachCorridor(AircraftState ac, IReadOnlyList<RunwayCorridor> corridors)
     {
-        foreach (var corridor in corridors)
+        foreach (RunwayCorridor corridor in corridors)
         {
             if (IsInsideCorridor(ac, corridor))
             {

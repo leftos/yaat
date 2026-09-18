@@ -32,13 +32,13 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
     [Fact]
     public void ExplicitTaxi_OakTeUWW1ToRunway30_TurnsOntoWOverTheFilletArc()
     {
-        var layout = LoadLayout("OAK");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
         }
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             OakTeStart,
             ["TE", "U", "W", "W1"],
@@ -51,7 +51,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
         Assert.NotNull(route);
         Dump(route);
 
-        var corner = Assert.Single(route.Segments, s => s.FromNodeId == OakUArcEntry && s.ToNodeId == OakWArcExit);
+        TaxiRouteSegment corner = Assert.Single(route.Segments, s => s.FromNodeId == OakUArcEntry && s.ToNodeId == OakWArcExit);
         Assert.IsType<GroundArc>(corner.Edge.Edge);
         Assert.DoesNotContain(route.Segments, s => s.FromNodeId == OakUwJunctionCentre || s.ToNodeId == OakUwJunctionCentre);
         RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, "OAK 904 TE U W W1 -> 30");
@@ -63,18 +63,18 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
     [InlineData(RoutePreference.Fastest)]
     public void AutoRoute_OakGate22ToRunway30_NeverPivotsSquareAtAFilletedJunction(RoutePreference preference)
     {
-        var layout = LoadLayout("OAK");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
         }
 
-        var origin = layout.FindParkingByName("22");
+        GroundNode? origin = layout.FindParkingByName("22");
         Assert.NotNull(origin);
-        var destination = TaxiCoverageRunner.ResolveNode(layout, "30", TaxiNodeKind.RunwayExit, "30", requireForwardLineup: true);
+        GroundNode? destination = TaxiCoverageRunner.ResolveNode(layout, "30", TaxiNodeKind.RunwayExit, "30", requireForwardLineup: true);
         Assert.NotNull(destination);
 
-        var routes = TaxiPathfinder.FindRoutes(
+        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(
             layout,
             origin.Id,
             destination.Id,
@@ -83,7 +83,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             authorizedTaxiways: null,
             AircraftCategory.Jet
         );
-        var route = Assert.Single(routes);
+        TaxiRoute route = Assert.Single(routes);
         Dump(route);
 
         RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, $"OAK gate 22 -> 30 ({preference})");
@@ -98,21 +98,21 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
     [MemberData(nameof(SmokePairsByPreference))]
     public void SmokePairAutoRoutes_NeverPivotSquareWhereAFilletExists(string caseId, TaxiPair pair, RoutePreference preference)
     {
-        var layout = LoadLayout(pair.AirportId);
+        AirportGroundLayout? layout = LoadLayout(pair.AirportId);
         if (layout is null)
         {
             output.WriteLine($"SKIP {caseId}: NavigationDb not initialized");
             return;
         }
 
-        var destination = TaxiCoverageRunner.ResolveNode(
+        GroundNode? destination = TaxiCoverageRunner.ResolveNode(
             layout,
             pair.DestinationName,
             pair.DestinationKind,
             pair.DestinationRunway,
             requireForwardLineup: true
         );
-        var origin = destination is null
+        GroundNode? origin = destination is null
             ? null
             : TaxiCoverageRunner.ResolveNode(
                 layout,
@@ -128,7 +128,15 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             return;
         }
 
-        var routes = TaxiPathfinder.FindRoutes(layout, origin.Id, destination.Id, preference, maxRoutes: 1, authorizedTaxiways: null, pair.Category);
+        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(
+            layout,
+            origin.Id,
+            destination.Id,
+            preference,
+            maxRoutes: 1,
+            authorizedTaxiways: null,
+            pair.Category
+        );
         if (routes.Count == 0)
         {
             output.WriteLine($"SKIP {caseId}: no route from {origin.Id} to {destination.Id}");
@@ -143,7 +151,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
         output.WriteLine(route.ToSummary());
         for (int i = 0; i < route.Segments.Count; i++)
         {
-            var seg = route.Segments[i];
+            TaxiRouteSegment seg = route.Segments[i];
             string kind = seg.Edge.Edge is GroundArc ? "arc" : "   ";
             output.WriteLine($"  seg[{i, 3}] {kind} {seg.TaxiwayName, -8} {seg.FromNodeId, 5} -> {seg.ToNodeId, -5}");
         }

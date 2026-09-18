@@ -30,7 +30,7 @@ public static class FilletEligibility
 
         int runwayEdgeCount = 0;
         int nonRunwayEdgeCount = 0;
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge.IsRunwayCenterline)
             {

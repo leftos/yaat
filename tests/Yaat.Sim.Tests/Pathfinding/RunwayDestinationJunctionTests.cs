@@ -33,7 +33,7 @@ public class RunwayDestinationJunctionTests
     [Fact]
     public void Oak_TaxiDJC_To33_RoutesStraightToRunway_NoADetour()
     {
-        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
         if (layout is null || TestVnasData.NavigationDb is null)
         {
             _output.WriteLine("oak layout / navdata unavailable — skipping");
@@ -43,13 +43,13 @@ public class RunwayDestinationJunctionTests
         // N342T's position when re-taxied "D J C 33" at t=324 (recorded snapshot), mid taxiway D.
         const double StartLat = 37.736298725227435;
         const double StartLon = -122.21898354608565;
-        var startNode = layout
+        GroundNode startNode = layout
             .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("D")))
             .OrderBy(n => GeoMath.DistanceNm(StartLat, StartLon, n.Position.Lat, n.Position.Lon))
             .First();
         _output.WriteLine($"start node = {startNode.Id}");
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode.Id,
             ["D", "J", "C"],
@@ -67,13 +67,13 @@ public class RunwayDestinationJunctionTests
         Assert.Null(failReason);
 
         _output.WriteLine($"Route: {route.Segments.Count} segments");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             _output.WriteLine($"  {seg.TaxiwayName, -12} #{seg.FromNodeId} -> #{seg.ToNodeId}");
         }
 
         // The route must end at a hold-short for the destination runway 33.
-        var destHs = route.HoldShortPoints.LastOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
+        HoldShortPoint? destHs = route.HoldShortPoints.LastOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
         Assert.NotNull(destHs);
         Assert.Contains("33", destHs.TargetName ?? "");
 

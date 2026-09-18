@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -29,8 +30,8 @@ public class GustyWindConflictNonRegressionTests(ITestOutputHelper output)
             return;
         }
 
-        var steadyPairs = RunAndCollectConflicts(gusty: false);
-        var gustyPairs = RunAndCollectConflicts(gusty: true);
+        HashSet<string>? steadyPairs = RunAndCollectConflicts(gusty: false);
+        HashSet<string>? gustyPairs = RunAndCollectConflicts(gusty: true);
         if (steadyPairs is null || gustyPairs is null)
         {
             return;
@@ -43,7 +44,7 @@ public class GustyWindConflictNonRegressionTests(ITestOutputHelper output)
 
     private HashSet<string>? RunAndCollectConflicts(bool gusty)
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return null;
@@ -51,11 +52,11 @@ public class GustyWindConflictNonRegressionTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             var engine = new SimulationEngine(new TestAirportGroundData());
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 output.WriteLine($"No snapshot near t={RestoreAtSeconds} — skipping");
@@ -82,7 +83,7 @@ public class GustyWindConflictNonRegressionTests(ITestOutputHelper output)
                 };
             }
 
-            var corridors = ConflictAlertDetector.BuildCorridors(["OAK"], NavigationDatabase.Instance);
+            IReadOnlyList<RunwayCorridor> corridors = ConflictAlertDetector.BuildCorridors(["OAK"], NavigationDatabase.Instance);
             Assert.NotEmpty(corridors);
 
             var pairs = new HashSet<string>(StringComparer.Ordinal);
@@ -91,10 +92,10 @@ public class GustyWindConflictNonRegressionTests(ITestOutputHelper output)
                 // Full engine seconds so ElapsedSeconds advances and the wind field evolves.
                 engine.TickOneSecond();
 
-                var aircraft = engine.World.GetSnapshot();
-                foreach (var pair in ConflictAlertDetector.Detect(aircraft, new ConflictAlertContext([], corridors)))
+                List<AircraftState> aircraft = engine.World.GetSnapshot();
+                foreach (ConflictAlertDetector.ConflictPair pair in ConflictAlertDetector.Detect(aircraft, new ConflictAlertContext([], corridors)))
                 {
-                    var key =
+                    string key =
                         string.CompareOrdinal(pair.CallsignA, pair.CallsignB) <= 0
                             ? pair.CallsignA + "/" + pair.CallsignB
                             : pair.CallsignB + "/" + pair.CallsignA;

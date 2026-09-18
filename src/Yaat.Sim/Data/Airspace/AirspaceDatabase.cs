@@ -41,7 +41,7 @@ public sealed class AirspaceDatabase
     /// </summary>
     public bool IsUnderClassBShelf(LatLon position, double altitudeFtMsl)
     {
-        foreach (var volume in _bravoVolumes)
+        foreach (AirspaceVolume volume in _bravoVolumes)
         {
             if (altitudeFtMsl < volume.LowerFtMsl && volume.ContainsLateral(position))
             {
@@ -59,12 +59,12 @@ public sealed class AirspaceDatabase
             return null;
         }
 
-        var from = aircraft.Position;
-        var to = ProjectPosition(aircraft, lookaheadSeconds);
+        LatLon from = aircraft.Position;
+        LatLon to = ProjectPosition(aircraft, lookaheadSeconds);
         double projectedAltitude = ProjectAltitude(aircraft, lookaheadSeconds);
         double lookaheadNm = GeoMath.DistanceNm(from, to);
         AirspaceBoundaryCrossing? best = null;
-        foreach (var volume in Volumes)
+        foreach (AirspaceVolume volume in Volumes)
         {
             if (volume.Contains(from, aircraft.Altitude))
             {
@@ -78,7 +78,7 @@ public sealed class AirspaceDatabase
 
             if (lookaheadNm > 0)
             {
-                foreach (var intersection in volume.FindLateralIntersections(from, to))
+                foreach (LatLon intersection in volume.FindLateralIntersections(from, to))
                 {
                     double distanceNm = GeoMath.DistanceNm(from, intersection);
                     double timeToEntrySeconds = Math.Clamp(distanceNm / lookaheadNm, 0.0, 1.0) * lookaheadSeconds;
@@ -119,7 +119,7 @@ public sealed class AirspaceDatabase
                 return;
             }
 
-            var position = ProjectPosition(aircraft, timeToEntrySeconds);
+            LatLon position = ProjectPosition(aircraft, timeToEntrySeconds);
             if (volume.ContainsLateral(position))
             {
                 ConsiderCandidate(volume, position, timeToEntrySeconds, boundaryAltitudeFtMsl);
@@ -196,9 +196,9 @@ public sealed class AirspaceDatabase
 
     public static AirspaceDatabase LoadDefault()
     {
-        var baseDir = AppContext.BaseDirectory;
-        var dataDir = Path.Combine(baseDir, DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        var files = FindGeoJsonFiles(dataDir);
+        string baseDir = AppContext.BaseDirectory;
+        string dataDir = Path.Combine(baseDir, DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        string[] files = FindGeoJsonFiles(dataDir);
 
         if (files.Length == 0)
         {
@@ -207,7 +207,7 @@ public sealed class AirspaceDatabase
 
         if (files.Length == 0)
         {
-            var sourcePaths = FindFixturesFromWorkingTree();
+            List<string> sourcePaths = FindFixturesFromWorkingTree();
             if (sourcePaths.Count > 0)
             {
                 files = [.. sourcePaths];
@@ -227,7 +227,7 @@ public sealed class AirspaceDatabase
         var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, "src", "Yaat.Sim", DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string candidate = Path.Combine(dir.FullName, "src", "Yaat.Sim", DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
             if (Directory.Exists(candidate))
             {
                 return FindGeoJsonFiles(candidate).ToList();
@@ -252,10 +252,10 @@ public sealed class AirspaceDatabase
     public static AirspaceDatabase FromGeoJsonFiles(IEnumerable<string> paths)
     {
         var volumesById = new Dictionary<string, AirspaceVolume>(StringComparer.OrdinalIgnoreCase);
-        foreach (var path in paths.Order(StringComparer.OrdinalIgnoreCase))
+        foreach (string? path in paths.Order(StringComparer.OrdinalIgnoreCase))
         {
-            var db = FromGeoJson(ReadGeoJsonText(path));
-            foreach (var volume in db.Volumes)
+            AirspaceDatabase db = FromGeoJson(ReadGeoJsonText(path));
+            foreach (AirspaceVolume volume in db.Volumes)
             {
                 volumesById.TryAdd(volume.Id, volume);
             }
@@ -271,7 +271,7 @@ public sealed class AirspaceDatabase
             return File.ReadAllText(path);
         }
 
-        using var file = File.OpenRead(path);
+        using FileStream file = File.OpenRead(path);
         using var brotli = new BrotliStream(file, CompressionMode.Decompress);
         using var reader = new StreamReader(brotli);
         return reader.ReadToEnd();
@@ -280,16 +280,16 @@ public sealed class AirspaceDatabase
     public static AirspaceDatabase FromGeoJson(string geoJson)
     {
         using var doc = JsonDocument.Parse(geoJson);
-        var root = doc.RootElement;
-        if (!root.TryGetProperty("features", out var features) || features.ValueKind != JsonValueKind.Array)
+        JsonElement root = doc.RootElement;
+        if (!root.TryGetProperty("features", out JsonElement features) || features.ValueKind != JsonValueKind.Array)
         {
             return new AirspaceDatabase([]);
         }
 
         var volumes = new List<AirspaceVolume>();
-        foreach (var feature in features.EnumerateArray())
+        foreach (JsonElement feature in features.EnumerateArray())
         {
-            var volume = ParseFeature(feature);
+            AirspaceVolume? volume = ParseFeature(feature);
             if (volume is not null)
             {
                 volumes.Add(volume);
@@ -301,13 +301,13 @@ public sealed class AirspaceDatabase
 
     private static AirspaceVolume? ParseFeature(JsonElement feature)
     {
-        if (!feature.TryGetProperty("properties", out var props) || !feature.TryGetProperty("geometry", out var geometry))
+        if (!feature.TryGetProperty("properties", out JsonElement props) || !feature.TryGetProperty("geometry", out JsonElement geometry))
         {
             return null;
         }
 
-        var classText = GetString(props, "CLASS");
-        var airspaceClass = classText switch
+        string? classText = GetString(props, "CLASS");
+        AirspaceClass? airspaceClass = classText switch
         {
             "B" => AirspaceClass.Bravo,
             "C" => AirspaceClass.Charlie,
@@ -318,16 +318,16 @@ public sealed class AirspaceDatabase
             return null;
         }
 
-        var rings = ParseRings(geometry);
+        List<IReadOnlyList<LatLon>> rings = ParseRings(geometry);
         if (rings.Count == 0)
         {
             return null;
         }
 
-        var objectId = GetInt(props, "OBJECTID") ?? 0;
-        var ident = GetString(props, "IDENT") ?? "";
-        var icaoId = GetString(props, "ICAO_ID") ?? "";
-        var name = GetString(props, "NAME") ?? ident;
+        int objectId = GetInt(props, "OBJECTID") ?? 0;
+        string ident = GetString(props, "IDENT") ?? "";
+        string icaoId = GetString(props, "ICAO_ID") ?? "";
+        string name = GetString(props, "NAME") ?? ident;
         int lower = ResolveAltitudeFt(props, "LOWER", defaultValue: 0);
         int upper = ResolveAltitudeFt(props, "UPPER", defaultValue: int.MaxValue);
 
@@ -346,13 +346,13 @@ public sealed class AirspaceDatabase
 
     private static int ResolveAltitudeFt(JsonElement props, string prefix, int defaultValue)
     {
-        var code = GetString(props, prefix + "_CODE");
+        string? code = GetString(props, prefix + "_CODE");
         if (code is "SFC")
         {
             return 0;
         }
 
-        var value = GetDouble(props, prefix + "_VAL");
+        double? value = GetDouble(props, prefix + "_VAL");
         if (value is null || value <= -9990)
         {
             return defaultValue;
@@ -364,7 +364,7 @@ public sealed class AirspaceDatabase
     private static List<IReadOnlyList<LatLon>> ParseRings(JsonElement geometry)
     {
         var rings = new List<IReadOnlyList<LatLon>>();
-        if (!geometry.TryGetProperty("type", out var typeElement) || !geometry.TryGetProperty("coordinates", out var coords))
+        if (!geometry.TryGetProperty("type", out JsonElement typeElement) || !geometry.TryGetProperty("coordinates", out JsonElement coords))
         {
             return rings;
         }
@@ -375,7 +375,7 @@ public sealed class AirspaceDatabase
                 ParsePolygon(coords, rings);
                 break;
             case "MultiPolygon":
-                foreach (var polygon in coords.EnumerateArray())
+                foreach (JsonElement polygon in coords.EnumerateArray())
                 {
                     ParsePolygon(polygon, rings);
                 }
@@ -387,12 +387,12 @@ public sealed class AirspaceDatabase
 
     private static void ParsePolygon(JsonElement polygon, List<IReadOnlyList<LatLon>> rings)
     {
-        foreach (var ringElement in polygon.EnumerateArray())
+        foreach (JsonElement ringElement in polygon.EnumerateArray())
         {
             var ring = new List<LatLon>();
-            foreach (var coordinate in ringElement.EnumerateArray())
+            foreach (JsonElement coordinate in ringElement.EnumerateArray())
             {
-                var pair = coordinate.EnumerateArray().ToArray();
+                JsonElement[] pair = coordinate.EnumerateArray().ToArray();
                 if (pair.Length < 2)
                 {
                     continue;
@@ -409,11 +409,11 @@ public sealed class AirspaceDatabase
     }
 
     private static string? GetString(JsonElement props, string name) =>
-        props.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        props.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     private static int? GetInt(JsonElement props, string name)
     {
-        if (!props.TryGetProperty(name, out var value))
+        if (!props.TryGetProperty(name, out JsonElement value))
         {
             return null;
         }
@@ -428,7 +428,7 @@ public sealed class AirspaceDatabase
 
     private static double? GetDouble(JsonElement props, string name)
     {
-        if (!props.TryGetProperty(name, out var value))
+        if (!props.TryGetProperty(name, out JsonElement value))
         {
             return null;
         }

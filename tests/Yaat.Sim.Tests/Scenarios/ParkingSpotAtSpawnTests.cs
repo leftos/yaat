@@ -48,36 +48,36 @@ public class ParkingSpotAtSpawnTests
     [Fact]
     public void ScenarioLoader_ParkingSpawn_SetsGroundParkingSpot()
     {
-        var layout = GroundData.GetLayout("SFO");
+        AirportGroundLayout? layout = GroundData.GetLayout("SFO");
         Assert.NotNull(layout);
-        var node = layout.FindParkingByName(Stand) ?? layout.FindSpotByName(Stand);
+        GroundNode? node = layout.FindParkingByName(Stand) ?? layout.FindSpotByName(Stand);
         Assert.NotNull(node);
 
-        var result = ScenarioLoader.Load(ParkedAtSfo, GroundData, new Random(0), MagneticDeclination.EvaluationDateUtc);
+        ScenarioLoadResult result = ScenarioLoader.Load(ParkedAtSfo, GroundData, new Random(0), MagneticDeclination.EvaluationDateUtc);
 
-        var state = Assert.Single(result.ImmediateAircraft).State;
+        AircraftState state = Assert.Single(result.ImmediateAircraft).State;
         Assert.IsType<AtParkingPhase>(state.Phases?.CurrentPhase);
         Assert.Equal(node.Name, state.Ground.ParkingSpot);
 
         // The Info column is a pure projection of that datum: naming the stand there is the point of setting it.
-        var status = AircraftStatusDescriber.Describe(state, AircraftStatusContext.None).Text;
+        string status = AircraftStatusDescriber.Describe(state, AircraftStatusContext.None).Text;
         Assert.Contains($"at parking {node.Name}", status, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public void Taxi_FromStand_ClearsGroundParkingSpot()
     {
-        var layout = GroundData.GetLayout("SFO");
+        AirportGroundLayout? layout = GroundData.GetLayout("SFO");
         Assert.NotNull(layout);
-        var stand = layout.FindParkingByName(Stand) ?? layout.FindSpotByName(Stand);
+        GroundNode? stand = layout.FindParkingByName(Stand) ?? layout.FindSpotByName(Stand);
         Assert.NotNull(stand);
 
-        var ac = AircraftAtStand(stand);
+        AircraftState ac = AircraftAtStand(stand);
         Assert.Equal(Stand, ac.Ground.ParkingSpot);
 
         // Auto-routed so the test asserts the clearance's effect on ParkingSpot, not a hand-written
         // SFO ramp path; TAXIAUTO runs the same TryTaxiCore rebuild as a typed TAXI <route> <rwy>.
-        var result = GroundCommandHandler.TryTaxiAuto(
+        CommandResult result = GroundCommandHandler.TryTaxiAuto(
             ac,
             new TaxiAutoCommand(DestinationRunway: "28L", DestinationParking: null, DestinationSpot: null),
             layout

@@ -38,14 +38,14 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
     [Fact]
     public void RecordedManualSpawn_ReplaysIntoActiveWorld()
     {
-        var setup = BuildReplay();
+        (SimulationEngine Engine, AirportGroundLayout Layout, RecordingArchive Archive)? setup = BuildReplay();
         if (setup is null)
         {
             return;
         }
 
-        using var archive = setup.Value.Archive;
-        var engine = setup.Value.Engine;
+        using RecordingArchive archive = setup.Value.Archive;
+        SimulationEngine engine = setup.Value.Engine;
 
         // The SPAWN command is recorded at t=91; before then THY41J sits in the delayed queue.
         for (int t = 1; t <= 95; t++)
@@ -53,7 +53,7 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
             engine.ReplayOneSecond();
         }
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.DoesNotContain(engine.Scenario!.DelayedQueue, e => e.Aircraft.State.Callsign == Callsign);
         output.WriteLine($"{Callsign} active after replaying past the recorded SPAWN at t=91");
@@ -62,15 +62,15 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_RoutesAcrossRunway12_ToDestinationRunway9()
     {
-        var setup = BuildReplay();
+        (SimulationEngine Engine, AirportGroundLayout Layout, RecordingArchive Archive)? setup = BuildReplay();
         if (setup is null)
         {
             return;
         }
 
-        using var archive = setup.Value.Archive;
-        var engine = setup.Value.Engine;
-        var layout = setup.Value.Layout;
+        using RecordingArchive archive = setup.Value.Archive;
+        SimulationEngine engine = setup.Value.Engine;
+        AirportGroundLayout layout = setup.Value.Layout;
 
         // Replay just past the manual spawn so the RWY 9 TAXI P S HS 12 preset has resolved.
         for (int t = 1; t <= 96; t++)
@@ -78,15 +78,15 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
             engine.ReplayOneSecond();
         }
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         int terminalNodeId = route.Segments[^1].ToNodeId;
-        var terminalNode = layout.Nodes[terminalNodeId];
+        GroundNode terminalNode = layout.Nodes[terminalNodeId];
         output.WriteLine($"route segs={route.Segments.Count} terminal={terminalNodeId} ({terminalNode.Type} rwy={terminalNode.RunwayId})");
-        foreach (var p in route.HoldShortPoints)
+        foreach (HoldShortPoint p in route.HoldShortPoints)
         {
             output.WriteLine($"  HSP node={p.NodeId} target={p.TargetName} reason={p.Reason}");
         }
@@ -96,7 +96,7 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
         Assert.True(terminalNode.RunwayId?.Contains("9") ?? false, $"route should end at a runway-9 hold-short, ended at {terminalNode.RunwayId}");
 
         // Runway 12 must appear as an en-route (non-terminal) hold-short, marked from HS 12.
-        var twelve = route.HoldShortPoints.FirstOrDefault(p => p.TargetName is { } n && RunwayIdentifier.Parse(n).Contains("12"));
+        HoldShortPoint? twelve = route.HoldShortPoints.FirstOrDefault(p => p.TargetName is { } n && RunwayIdentifier.Parse(n).Contains("12"));
         Assert.NotNull(twelve);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, twelve.Reason);
         Assert.NotEqual(terminalNodeId, twelve.NodeId);
@@ -110,13 +110,13 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
             return null;
         }
 
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return null;
         }
 
-        var layout = archive.ReadLayout("mia");
+        AirportGroundLayout layout = archive.ReadLayout("mia");
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Debug).InitializeSimLog();
 
         var engine = new SimulationEngine(new SingleLayoutGroundData(layout));

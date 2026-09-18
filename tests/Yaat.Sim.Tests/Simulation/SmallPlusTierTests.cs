@@ -30,22 +30,22 @@ public class SmallPlusTierTests
     [Fact]
     public void SmallPlusJet_IsUpperSmallBizjets_AllCwtH_NoRegionals()
     {
-        var pool = AircraftGenerator.GetTypesForCombo(WeightClass.SmallPlus, EngineKind.Jet);
+        string[]? pool = AircraftGenerator.GetTypesForCombo(WeightClass.SmallPlus, EngineKind.Jet);
         Assert.NotNull(pool);
 
-        foreach (var bizjet in new[] { "C560", "C56X", "C680", "LJ60", "LJ45" })
+        foreach (string? bizjet in new[] { "C560", "C56X", "C680", "LJ60", "LJ45" })
         {
             Assert.Contains(bizjet, pool!);
         }
 
         // Regional jets are CWT G — they moved to Large. Mainline narrow-bodies stay in Large too.
-        foreach (var excluded in new[] { "CRJ7", "CRJ9", "E170", "E75L", "E145", "E135", "A320", "B738" })
+        foreach (string? excluded in new[] { "CRJ7", "CRJ9", "E170", "E75L", "E145", "E135", "A320", "B738" })
         {
             Assert.DoesNotContain(excluded, pool!);
         }
 
         // Every member is CWT H (upper small).
-        foreach (var type in pool!)
+        foreach (string type in pool!)
         {
             Assert.Equal("H", WakeTurbulenceData.GetCwt(type));
         }
@@ -54,12 +54,12 @@ public class SmallPlusTierTests
     [Fact]
     public void SmallJet_IsLightBizjets_AllCwtI()
     {
-        var pool = AircraftGenerator.GetTypesForCombo(WeightClass.Small, EngineKind.Jet);
+        string[]? pool = AircraftGenerator.GetTypesForCombo(WeightClass.Small, EngineKind.Jet);
         Assert.NotNull(pool);
 
         // C560 is CWT H — it moved up to SmallPlus; the Small jet pool is CWT I only.
         Assert.DoesNotContain("C560", pool!);
-        foreach (var type in pool!)
+        foreach (string type in pool!)
         {
             Assert.Equal("I", WakeTurbulenceData.GetCwt(type));
         }
@@ -68,15 +68,15 @@ public class SmallPlusTierTests
     [Fact]
     public void LargeJet_IncludesMainlineAndRegionals()
     {
-        var pool = AircraftGenerator.GetTypesForCombo(WeightClass.Large, EngineKind.Jet);
+        string[]? pool = AircraftGenerator.GetTypesForCombo(WeightClass.Large, EngineKind.Jet);
         Assert.NotNull(pool);
 
-        foreach (var mainline in new[] { "B737", "B738", "B739", "A319", "A320", "A321" })
+        foreach (string? mainline in new[] { "B737", "B738", "B739", "A319", "A320", "A321" })
         {
             Assert.Contains(mainline, pool!);
         }
 
-        foreach (var regional in new[] { "CRJ7", "CRJ9", "E170", "E75L", "E145", "E135" })
+        foreach (string? regional in new[] { "CRJ7", "CRJ9", "E170", "E75L", "E145", "E135" })
         {
             Assert.Contains(regional, pool!);
         }
@@ -85,9 +85,9 @@ public class SmallPlusTierTests
     [Fact]
     public void SmallPlusTurboprop_KeepsLowFasCommuters_AndLargeTurbopropBucketIsGone()
     {
-        var pool = AircraftGenerator.GetTypesForCombo(WeightClass.SmallPlus, EngineKind.Turboprop);
+        string[]? pool = AircraftGenerator.GetTypesForCombo(WeightClass.SmallPlus, EngineKind.Turboprop);
         Assert.NotNull(pool);
-        foreach (var t in new[] { "AT72", "DH8C", "SF34", "B190", "B350" })
+        foreach (string? t in new[] { "AT72", "DH8C", "SF34", "B190", "B350" })
         {
             Assert.Contains(t, pool!);
         }
@@ -101,14 +101,14 @@ public class SmallPlusTierTests
     {
         // Guards the E175-vs-E75L class of bug: AssertEveryTypeResolves checks profile + engine
         // category but not CWT, so a non-resolvable designator would silently be wake-unknown.
-        foreach (var weight in new[] { WeightClass.Small, WeightClass.SmallPlus, WeightClass.Large, WeightClass.Heavy })
+        foreach (WeightClass weight in new[] { WeightClass.Small, WeightClass.SmallPlus, WeightClass.Large, WeightClass.Heavy })
         {
-            var pool = AircraftGenerator.GetTypesForCombo(weight, EngineKind.Jet);
+            string[]? pool = AircraftGenerator.GetTypesForCombo(weight, EngineKind.Jet);
             if (pool is null)
             {
                 continue;
             }
-            foreach (var type in pool)
+            foreach (string type in pool)
             {
                 Assert.True(WakeTurbulenceData.GetCwt(type) is not null, $"{weight}+Jet type '{type}' has no CWT category");
             }
@@ -137,7 +137,14 @@ public class SmallPlusTierTests
             DistanceNm = 5,
             Altitude = 3000,
         };
-        var (state, error) = AircraftGenerator.Generate(request, "KOAK", Array.Empty<AircraftState>(), groundLayout: null, rng, new BeaconCodePool());
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
+            request,
+            "KOAK",
+            Array.Empty<AircraftState>(),
+            groundLayout: null,
+            rng,
+            new BeaconCodePool()
+        );
         Assert.True(state is not null, $"SmallPlus+Piston spawn failed: {error}");
         Assert.Equal(AircraftCategory.Piston, AircraftCategorization.Categorize(state!.AircraftType));
     }
@@ -166,10 +173,10 @@ public class SmallPlusTierTests
             engine.TickOneSecond();
         }
 
-        var bizjetPool = AircraftGenerator.GetTypesForCombo(WeightClass.SmallPlus, EngineKind.Jet)!;
+        string[] bizjetPool = AircraftGenerator.GetTypesForCombo(WeightClass.SmallPlus, EngineKind.Jet)!;
         var spawnedTypes = engine.World.GetSnapshot().Select(a => AircraftState.StripTypePrefix(a.AircraftType)).Distinct().ToList();
         Assert.NotEmpty(spawnedTypes);
-        foreach (var type in spawnedTypes)
+        foreach (string? type in spawnedTypes)
         {
             _output.WriteLine($"spawned {type}");
             Assert.True(

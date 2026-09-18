@@ -60,16 +60,16 @@ public class BlockedTurnPathfinderTests
     [Fact]
     public void AutoRoute_FromL_ToF_UsesTheConnector_NeverTheBlockedCorner()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null || !layout.Nodes.ContainsKey(FSouthEast))
         {
             return;
         }
 
         int start = layout.FindNearestNode(L.Lat, L.Lon)!.Id; // #325
-        var blocked = Blocked(layout);
+        BlockedTurnResult blocked = Blocked(layout);
 
-        var (route, failure) = AutoRouter.Run(Ctx(layout, start, FSouthEast, [], blocked));
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(Ctx(layout, start, FSouthEast, [], blocked));
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -80,16 +80,16 @@ public class BlockedTurnPathfinderTests
     [Fact]
     public void ExplicitTaxi_LF_RoutesViaConnector_NotTheApex()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null || !layout.Nodes.ContainsKey(FSouthEast))
         {
             return;
         }
 
         int start = layout.FindNearestNode(L.Lat, L.Lon)!.Id; // #325
-        var blocked = Blocked(layout);
+        BlockedTurnResult blocked = Blocked(layout);
 
-        var (route, failure) = SegmentExpander.Run(Ctx(layout, start, FSouthEast, ["L", "F"], blocked));
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(Ctx(layout, start, FSouthEast, ["L", "F"], blocked));
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -100,15 +100,15 @@ public class BlockedTurnPathfinderTests
     [Fact]
     public void ExplicitTaxi_FL_RoutesViaConnector_ReverseDirection()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null || !layout.Nodes.ContainsKey(FSouthEast) || !layout.Nodes.ContainsKey(LSouthWest))
         {
             return;
         }
 
-        var blocked = Blocked(layout);
+        BlockedTurnResult blocked = Blocked(layout);
 
-        var (route, failure) = SegmentExpander.Run(Ctx(layout, FSouthEast, LSouthWest, ["F", "L"], blocked));
+        (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(Ctx(layout, FSouthEast, LSouthWest, ["F", "L"], blocked));
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -119,13 +119,13 @@ public class BlockedTurnPathfinderTests
     [Fact]
     public void StraightThroughF_AcrossTheApex_IsNotOverBlocked()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var blocked = Blocked(layout);
+        BlockedTurnResult blocked = Blocked(layout);
         int apex = layout.FindNearestNode(ApexA.Lat, ApexA.Lon)!.Id; // #279
 
         // The two F tangent cuts on opposite sides of the apex: straight-through on F (1602 ↔ 1603 across
@@ -133,7 +133,7 @@ public class BlockedTurnPathfinderTests
         int fNw = layout.FindNearestNode(37.616322, -122.373062)!.Id; // #1602 (NW F tangent)
         int fSe = layout.FindNearestNode(37.616112, -122.372561)!.Id; // #1603 (SE F tangent)
 
-        var (route, failure) = AutoRouter.Run(Ctx(layout, fNw, fSe, [], blocked));
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(Ctx(layout, fNw, fSe, [], blocked));
 
         Assert.Null(failure);
         Assert.NotNull(route);

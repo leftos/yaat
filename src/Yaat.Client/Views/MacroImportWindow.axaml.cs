@@ -76,37 +76,37 @@ public partial class MacroImportWindow : Window
 
         InitializeComponent();
 
-        var list = this.FindControl<ItemsControl>("ConflictList");
+        ItemsControl? list = this.FindControl<ItemsControl>("ConflictList");
         if (list is not null)
         {
             list.ItemsSource = _items;
         }
 
-        var applyBtn = this.FindControl<Button>("ApplyButton");
+        Button? applyBtn = this.FindControl<Button>("ApplyButton");
         if (applyBtn is not null)
         {
             applyBtn.Click += OnApplyClick;
         }
 
-        var overwriteAllBtn = this.FindControl<Button>("OverwriteAllButton");
+        Button? overwriteAllBtn = this.FindControl<Button>("OverwriteAllButton");
         if (overwriteAllBtn is not null)
         {
             overwriteAllBtn.Click += OnOverwriteAllClick;
         }
 
-        var skipAllBtn = this.FindControl<Button>("SkipAllButton");
+        Button? skipAllBtn = this.FindControl<Button>("SkipAllButton");
         if (skipAllBtn is not null)
         {
             skipAllBtn.Click += OnSkipAllClick;
         }
 
-        var cancelBtn = this.FindControl<Button>("CancelButton");
+        Button? cancelBtn = this.FindControl<Button>("CancelButton");
         if (cancelBtn is not null)
         {
             cancelBtn.Click += OnCancelClick;
         }
 
-        foreach (var item in _items)
+        foreach (MacroImportItem item in _items)
         {
             item.PropertyChanged += (_, args) =>
             {
@@ -131,7 +131,7 @@ public partial class MacroImportWindow : Window
 
     private void OnOverwriteAllClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        foreach (var item in _items)
+        foreach (MacroImportItem item in _items)
         {
             item.Resolution = ConflictResolution.Overwrite;
         }
@@ -141,7 +141,7 @@ public partial class MacroImportWindow : Window
 
     private void OnSkipAllClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        foreach (var item in _items)
+        foreach (MacroImportItem item in _items)
         {
             item.Resolution = ConflictResolution.Skip;
         }
@@ -172,17 +172,17 @@ public partial class MacroImportWindow : Window
     {
         // Collect all renamed base names to detect duplicates among rename items themselves
         var renamedBaseNames = new List<(MacroImportItem Item, string BaseName)>();
-        foreach (var item in _items)
+        foreach (MacroImportItem item in _items)
         {
             if (item.Resolution == ConflictResolution.Rename)
             {
-                var name = item.RenamedName.Trim();
-                var baseName = name.Length > 0 ? MacroDefinition.ExtractBaseName(name) : "";
+                string name = item.RenamedName.Trim();
+                string baseName = name.Length > 0 ? MacroDefinition.ExtractBaseName(name) : "";
                 renamedBaseNames.Add((item, baseName));
             }
         }
 
-        foreach (var item in _items)
+        foreach (MacroImportItem item in _items)
         {
             if (item.Resolution != ConflictResolution.Rename)
             {
@@ -190,7 +190,7 @@ public partial class MacroImportWindow : Window
                 continue;
             }
 
-            var name = item.RenamedName.Trim();
+            string name = item.RenamedName.Trim();
             if (string.IsNullOrWhiteSpace(name))
             {
                 item.RenameError = "Name is required";
@@ -203,11 +203,11 @@ public partial class MacroImportWindow : Window
                 continue;
             }
 
-            var baseName = MacroDefinition.ExtractBaseName(name);
+            string baseName = MacroDefinition.ExtractBaseName(name);
 
             // Check against existing macros (including non-conflicting imports)
-            var newMacroBaseNames = _newMacros.Select(m => MacroDefinition.ExtractBaseName(m.Name));
-            var allTaken = _allExistingBaseNames.Union(newMacroBaseNames, StringComparer.OrdinalIgnoreCase);
+            IEnumerable<string> newMacroBaseNames = _newMacros.Select(m => MacroDefinition.ExtractBaseName(m.Name));
+            IEnumerable<string> allTaken = _allExistingBaseNames.Union(newMacroBaseNames, StringComparer.OrdinalIgnoreCase);
             if (allTaken.Contains(baseName, StringComparer.OrdinalIgnoreCase))
             {
                 item.RenameError = "Name already exists";
@@ -215,7 +215,7 @@ public partial class MacroImportWindow : Window
             }
 
             // Check for duplicates among other rename items
-            var duplicateCount = renamedBaseNames.Count(r =>
+            int duplicateCount = renamedBaseNames.Count(r =>
                 r.Item != item && string.Equals(r.BaseName, baseName, StringComparison.OrdinalIgnoreCase)
             );
             if (duplicateCount > 0)

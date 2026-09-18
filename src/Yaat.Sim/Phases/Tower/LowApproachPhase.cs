@@ -104,7 +104,7 @@ public sealed class LowApproachPhase : Phase
         {
             // Same datum FinalApproachPhase just handed off on, so the descent profile doesn't jump
             // when the low pass takes over on a runway with a displaced threshold.
-            var threshold = LandingThreshold.Resolve(ctx.Runway, ctx.GroundLayout);
+            LatLon threshold = LandingThreshold.Resolve(ctx.Runway, ctx.GroundLayout);
             _thresholdLat = threshold.Lat;
             _thresholdLon = threshold.Lon;
         }

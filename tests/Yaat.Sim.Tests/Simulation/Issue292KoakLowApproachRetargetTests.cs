@@ -6,6 +6,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -61,21 +62,21 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
             return null;
         }
 
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return null;
         }
 
         engine.Replay(archive.ToBaseSessionRecording(), 0);
-        var snapshot = archive.ReadSnapshotAt(2410);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(2410);
         if (snapshot is null)
         {
             return null;
         }
 
         engine.RestoreFromSnapshot(snapshot.State);
-        var ac = engine.FindAircraft("N104NT");
+        AircraftState? ac = engine.FindAircraft("N104NT");
         return ac is null ? null : (engine, ac);
     }
 
@@ -86,17 +87,17 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
     [Fact]
     public void N104NT_Cland33_RetargetsAndLandsOn33()
     {
-        var setup = RestoreToLowApproach(BuildEngine());
+        (SimulationEngine Engine, AircraftState Aircraft)? setup = RestoreToLowApproach(BuildEngine());
         if (setup is null)
         {
             return;
         }
-        var (engine, ac) = setup.Value;
+        (SimulationEngine? engine, AircraftState? ac) = setup.Value;
 
         Assert.Equal("28R", ac.Phases?.AssignedRunway?.Designator);
         Assert.Equal(ClearanceType.ClearedLowApproach, ac.Phases?.LandingClearance);
 
-        var result = engine.SendCommand("N104NT", "CLAND 33");
+        CommandResult result = engine.SendCommand("N104NT", "CLAND 33");
         Assert.True(result.Success, result.Message);
         Assert.Contains("runway 33", result.Message!, StringComparison.OrdinalIgnoreCase);
 
@@ -152,14 +153,14 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
     [Fact]
     public void Cland33Retarget_DoesNotLeaveASpeedCeilingBehind()
     {
-        var setup = RestoreToLowApproach(BuildEngine());
+        (SimulationEngine Engine, AircraftState Aircraft)? setup = RestoreToLowApproach(BuildEngine());
         if (setup is null)
         {
             return;
         }
-        var (engine, ac) = setup.Value;
+        (SimulationEngine? engine, AircraftState? ac) = setup.Value;
 
-        var result = engine.SendCommand("N104NT", "CLAND 33");
+        CommandResult result = engine.SendCommand("N104NT", "CLAND 33");
         Assert.True(result.Success, result.Message);
 
         bool leftLowApproach = false;
@@ -203,18 +204,22 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
     [Fact]
     public void Guardrail_28RTo33_RecordingGeometry_Feasible()
     {
-        var setup = RestoreToLowApproach(BuildEngine());
+        (SimulationEngine Engine, AircraftState Aircraft)? setup = RestoreToLowApproach(BuildEngine());
         if (setup is null)
         {
             return;
         }
-        var (_, ac) = setup.Value;
+        (SimulationEngine _, AircraftState? ac) = setup.Value;
 
-        var rwy28R = ac.Phases!.AssignedRunway!;
-        var rwy33 = NavigationDatabase.Instance.GetRunway("OAK", "33");
+        RunwayInfo rwy28R = ac.Phases!.AssignedRunway!;
+        RunwayInfo? rwy33 = NavigationDatabase.Instance.GetRunway("OAK", "33");
         Assert.NotNull(rwy33);
 
-        var feasibility = PatternCommandHandler.EvaluateLowApproachRetargetFeasibility(ac, rwy28R, rwy33);
+        (bool Feasible, string Reason, double GateLat, double GateLon) feasibility = PatternCommandHandler.EvaluateLowApproachRetargetFeasibility(
+            ac,
+            rwy28R,
+            rwy33
+        );
         Assert.True(feasibility.Feasible, feasibility.Reason);
     }
 
@@ -227,13 +232,17 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
             return;
         }
 
-        var rwy28R = NavigationDatabase.Instance.GetRunway("OAK", "28R");
-        var rwy28L = NavigationDatabase.Instance.GetRunway("OAK", "28L");
+        RunwayInfo? rwy28R = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        RunwayInfo? rwy28L = NavigationDatabase.Instance.GetRunway("OAK", "28L");
         Assert.NotNull(rwy28R);
         Assert.NotNull(rwy28L);
 
-        var ac = MakeAirborne("C172", new LatLon(37.70, -122.15), 292);
-        var feasibility = PatternCommandHandler.EvaluateLowApproachRetargetFeasibility(ac, rwy28R, rwy28L);
+        AircraftState ac = MakeAirborne("C172", new LatLon(37.70, -122.15), 292);
+        (bool Feasible, string Reason, double GateLat, double GateLon) feasibility = PatternCommandHandler.EvaluateLowApproachRetargetFeasibility(
+            ac,
+            rwy28R,
+            rwy28L
+        );
         Assert.False(feasibility.Feasible);
         Assert.Contains("too close", feasibility.Reason, StringComparison.OrdinalIgnoreCase);
     }
@@ -247,13 +256,17 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
             return;
         }
 
-        var rwy28R = NavigationDatabase.Instance.GetRunway("OAK", "28R");
-        var rwy10R = NavigationDatabase.Instance.GetRunway("OAK", "10R");
+        RunwayInfo? rwy28R = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        RunwayInfo? rwy10R = NavigationDatabase.Instance.GetRunway("OAK", "10R");
         Assert.NotNull(rwy28R);
         Assert.NotNull(rwy10R);
 
-        var ac = MakeAirborne("C172", new LatLon(37.70, -122.15), 292);
-        var feasibility = PatternCommandHandler.EvaluateLowApproachRetargetFeasibility(ac, rwy28R, rwy10R);
+        AircraftState ac = MakeAirborne("C172", new LatLon(37.70, -122.15), 292);
+        (bool Feasible, string Reason, double GateLat, double GateLon) feasibility = PatternCommandHandler.EvaluateLowApproachRetargetFeasibility(
+            ac,
+            rwy28R,
+            rwy10R
+        );
         Assert.False(feasibility.Feasible);
         Assert.Contains("re-enter", feasibility.Reason, StringComparison.OrdinalIgnoreCase);
     }
@@ -267,15 +280,19 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
             return;
         }
 
-        var rwy28R = NavigationDatabase.Instance.GetRunway("OAK", "28R");
-        var rwy33 = NavigationDatabase.Instance.GetRunway("OAK", "33");
+        RunwayInfo? rwy28R = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        RunwayInfo? rwy33 = NavigationDatabase.Instance.GetRunway("OAK", "33");
         Assert.NotNull(rwy28R);
         Assert.NotNull(rwy33);
 
         // Aircraft sitting at 33's threshold — NW of its final gate, so a turn onto 33's final would
         // require turning away from the field.
-        var ac = MakeAirborne("C172", new LatLon(rwy33.ThresholdLatitude, rwy33.ThresholdLongitude), 292);
-        var feasibility = PatternCommandHandler.EvaluateLowApproachRetargetFeasibility(ac, rwy28R, rwy33);
+        AircraftState ac = MakeAirborne("C172", new LatLon(rwy33.ThresholdLatitude, rwy33.ThresholdLongitude), 292);
+        (bool Feasible, string Reason, double GateLat, double GateLon) feasibility = PatternCommandHandler.EvaluateLowApproachRetargetFeasibility(
+            ac,
+            rwy28R,
+            rwy33
+        );
         Assert.False(feasibility.Feasible);
         Assert.Contains("past the final", feasibility.Reason, StringComparison.OrdinalIgnoreCase);
     }
@@ -291,15 +308,19 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
             return;
         }
 
-        var rwy28R = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        RunwayInfo? rwy28R = NavigationDatabase.Instance.GetRunway("OAK", "28R");
         Assert.NotNull(rwy28R);
 
         // Normal approach to 28R (a plain LandingPhase, NOT a low approach).
-        var ac = MakeAirborne("C172", new LatLon(37.70, -122.15), 292);
+        AircraftState ac = MakeAirborne("C172", new LatLon(37.70, -122.15), 292);
         ac.Phases = new PhaseList { AssignedRunway = rwy28R };
         ac.Phases.Add(new LandingPhase());
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "33" }, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryClearedToLand(
+            new ClearedToLandCommand { RunwayId = "33" },
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
         Assert.False(result.Success);
         Assert.Contains("established for runway", result.Message!, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
@@ -308,15 +329,19 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
     [Fact]
     public void Cland28L_DuringLowApproach_GuardrailRejects_LeavesLowApproachIntact()
     {
-        var setup = RestoreToLowApproach(BuildEngine());
+        (SimulationEngine Engine, AircraftState Aircraft)? setup = RestoreToLowApproach(BuildEngine());
         if (setup is null)
         {
             return;
         }
-        var (_, ac) = setup.Value;
+        (SimulationEngine _, AircraftState? ac) = setup.Value;
 
         // 28L is near-parallel to 28R → the guardrail rejects; the low approach must be left untouched.
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28L" }, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryClearedToLand(
+            new ClearedToLandCommand { RunwayId = "28L" },
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
         Assert.False(result.Success);
         Assert.Equal("28R", ac.Phases?.AssignedRunway?.Designator);
         Assert.Equal(ClearanceType.ClearedLowApproach, ac.Phases?.LandingClearance);
@@ -326,16 +351,20 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
     [Fact]
     public void Cland28R_SameRunwayDuringLowApproach_LandsNormallyNotRetarget()
     {
-        var setup = RestoreToLowApproach(BuildEngine());
+        (SimulationEngine Engine, AircraftState Aircraft)? setup = RestoreToLowApproach(BuildEngine());
         if (setup is null)
         {
             return;
         }
-        var (_, ac) = setup.Value;
+        (SimulationEngine _, AircraftState? ac) = setup.Value;
 
         // Same runway as assigned → the runway-mismatch branch is not taken; this is an ordinary CLAND
         // that converts the pending low approach into a full-stop landing on 28R.
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryClearedToLand(
+            new ClearedToLandCommand { RunwayId = "28R" },
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
         Assert.True(result.Success, result.Message);
         Assert.Equal("28R", ac.Phases?.AssignedRunway?.Designator);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases?.LandingClearance);
@@ -350,15 +379,19 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
             return;
         }
 
-        var rwy28R = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        RunwayInfo? rwy28R = NavigationDatabase.Instance.GetRunway("OAK", "28R");
         Assert.NotNull(rwy28R);
 
         // A jet on a low approach: the tight ~1 nm final on a diverging runway is unflyable, so reject.
-        var ac = MakeAirborne("B738", new LatLon(37.70, -122.15), 292);
+        AircraftState ac = MakeAirborne("B738", new LatLon(37.70, -122.15), 292);
         ac.Phases = new PhaseList { AssignedRunway = rwy28R, LandingClearance = ClearanceType.ClearedLowApproach };
         ac.Phases.Add(new LowApproachPhase());
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "33" }, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryClearedToLand(
+            new ClearedToLandCommand { RunwayId = "33" },
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
         Assert.False(result.Success);
         Assert.Contains("light-aircraft", result.Message!, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
@@ -370,20 +403,20 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
     [Fact]
     public void Cland33Retarget_ControllerAndPilotSay_ChangeToRunway()
     {
-        var setup = RestoreToLowApproach(BuildEngine());
+        (SimulationEngine Engine, AircraftState Aircraft)? setup = RestoreToLowApproach(BuildEngine());
         if (setup is null)
         {
             return;
         }
-        var (_, ac) = setup.Value;
+        (SimulationEngine _, AircraftState? ac) = setup.Value;
 
         var cland = new ClearedToLandCommand { RunwayId = "33" };
-        var result = PatternCommandHandler.TryClearedToLand(cland, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryClearedToLand(cland, ac, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success, result.Message);
         Assert.Contains("change to runway 33", result.Message!, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("cleared to land", result.Message!, StringComparison.OrdinalIgnoreCase);
 
-        var readback = PilotResponder.BuildReadback(new CompoundCommand([new ParsedBlock(null, [cland])]), ac);
+        PilotSpeechText? readback = PilotResponder.BuildReadback(new CompoundCommand([new ParsedBlock(null, [cland])]), ac);
         Assert.NotNull(readback);
         Assert.Contains("change to runway", readback.Terminal, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("cleared to land", readback.Terminal, StringComparison.OrdinalIgnoreCase);

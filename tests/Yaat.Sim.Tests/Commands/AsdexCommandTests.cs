@@ -30,10 +30,10 @@ public class AsdexCommandTests
     [InlineData("ASDXFIX SEGUL", AsdexEditField.Fix, "SEGUL")]
     public void Parser_AsdexEditCommands_ProduceCorrectFieldAndText(string input, AsdexEditField expectedField, string expectedText)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
 
         Assert.True(result.IsSuccess, result.Reason);
-        var asdexEdit = Assert.IsType<AsdexEditCommand>(result.Value);
+        AsdexEditCommand asdexEdit = Assert.IsType<AsdexEditCommand>(result.Value);
         Assert.Equal(expectedField, asdexEdit.Field);
         Assert.Equal(expectedText, asdexEdit.Text);
     }
@@ -43,10 +43,10 @@ public class AsdexCommandTests
     [InlineData("ASDXFIX", AsdexEditField.Fix)]
     public void Parser_AsdexEditCommandsWithNoArg_ProduceEmptyText(string input, AsdexEditField expectedField)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
 
         Assert.True(result.IsSuccess, result.Reason);
-        var asdexEdit = Assert.IsType<AsdexEditCommand>(result.Value);
+        AsdexEditCommand asdexEdit = Assert.IsType<AsdexEditCommand>(result.Value);
         Assert.Equal(expectedField, asdexEdit.Field);
         Assert.Equal("", asdexEdit.Text);
     }
@@ -59,17 +59,17 @@ public class AsdexCommandTests
     [InlineData("ASDXINHIB", AsdexVerb.InhibitAlerts)]
     public void Parser_AsdexVerbCommands_ProduceCorrectVerb(string input, AsdexVerb expectedVerb)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
 
         Assert.True(result.IsSuccess, result.Reason);
-        var asdexVerb = Assert.IsType<AsdexVerbCommand>(result.Value);
+        AsdexVerbCommand asdexVerb = Assert.IsType<AsdexVerbCommand>(result.Value);
         Assert.Equal(expectedVerb, asdexVerb.Verb);
     }
 
     [Fact]
     public void Parser_AsdexEnableAllAlerts_ProducesGlobalCommand()
     {
-        var result = CommandParser.Parse("ASDXALERTS");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("ASDXALERTS");
 
         Assert.True(result.IsSuccess, result.Reason);
         Assert.IsType<AsdexEnableAllAlertsCommand>(result.Value);
@@ -80,7 +80,7 @@ public class AsdexCommandTests
     [Fact]
     public void HandleAsdexEdit_Scratchpad1_SetsAndClearsAsdexFieldOnly()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Stars.Scratchpad1 = "STARS"; // STARS scratchpad must NOT be touched
 
         TrackEngine.HandleAsdexEdit(ac, AsdexEditField.Scratchpad1, "ASDX");
@@ -102,7 +102,7 @@ public class AsdexCommandTests
     [InlineData(AsdexEditField.Fix, "SEGUL")]
     public void HandleAsdexEdit_AllFields_RoundTripThroughOverrideSlots(AsdexEditField field, string text)
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         TrackEngine.HandleAsdexEdit(ac, field, text);
 
@@ -131,7 +131,7 @@ public class AsdexCommandTests
     [Fact]
     public void HandleAsdexVerb_Suspend_FlipsBitOnAircraftStarsState()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         TrackEngine.HandleAsdexVerb(ac, AsdexVerb.Suspend);
 
@@ -145,7 +145,7 @@ public class AsdexCommandTests
     [Fact]
     public void HandleAsdexVerb_Tag_ClearsTerminatedBit()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Stars.AsdexTerminated = true;
 
         TrackEngine.HandleAsdexVerb(ac, AsdexVerb.Tag);
@@ -156,7 +156,7 @@ public class AsdexCommandTests
     [Fact]
     public void HandleAsdexVerb_Terminate_SetsTerminatedBit()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         TrackEngine.HandleAsdexVerb(ac, AsdexVerb.Terminate);
 
@@ -166,7 +166,7 @@ public class AsdexCommandTests
     [Fact]
     public void HandleAsdexVerb_InhibitAlerts_FlipsBit()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         TrackEngine.HandleAsdexVerb(ac, AsdexVerb.InhibitAlerts);
 

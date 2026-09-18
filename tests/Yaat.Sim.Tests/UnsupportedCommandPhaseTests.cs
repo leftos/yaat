@@ -20,7 +20,7 @@ public class UnsupportedCommandPhaseTests
 
     private static AircraftState MakeAircraftInUpwind()
     {
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         var ac = new AircraftState
         {
             Callsign = "N342T",
@@ -33,7 +33,17 @@ public class UnsupportedCommandPhaseTests
             FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
         };
 
-        var waypoints = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        PatternWaypoints waypoints = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Piston,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
         var phases = new PhaseList { AssignedRunway = rwy };
         phases.Add(new UpwindPhase { Waypoints = waypoints });
         phases.Add(new CrosswindPhase { Waypoints = waypoints });
@@ -47,14 +57,14 @@ public class UnsupportedCommandPhaseTests
     [Fact]
     public void UnsupportedCommand_DoesNotClearPatternPhases()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
         Assert.NotNull(ac.Phases);
         Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
 
         // Dispatch an UnsupportedCommand (what "PS 0.5M" parses to)
         var unsupported = new UnsupportedCommand("PS 0.5M");
         var compound = new CompoundCommand([new ParsedBlock(null, [unsupported])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.False(result.Success);
         Assert.Contains("not yet supported", result.Message!);
@@ -67,13 +77,13 @@ public class UnsupportedCommandPhaseTests
     [Fact]
     public void ValidHeadingCommand_DoesClearPatternPhases()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
         Assert.NotNull(ac.Phases);
 
         // A real heading command should clear phases (by design)
         var heading = new FlyHeadingCommand(new MagneticHeading(360));
         var compound = new CompoundCommand([new ParsedBlock(null, [heading])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success);
         Assert.Null(ac.Phases);

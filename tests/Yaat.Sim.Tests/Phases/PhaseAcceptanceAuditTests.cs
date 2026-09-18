@@ -116,7 +116,7 @@ public class PhaseAcceptanceAuditTests
             ThresholdLon = 0,
         };
         var phase = TakeoffPhase.FromSnapshot(dto);
-        var acceptance = phase.CanAcceptCommand(CanonicalCommandType.Speed);
+        CommandAcceptance acceptance = phase.CanAcceptCommand(CanonicalCommandType.Speed);
         Assert.True(acceptance.IsRejected, "Speed should be rejected during takeoff roll");
     }
 
@@ -179,7 +179,7 @@ public class PhaseAcceptanceAuditTests
     public void FinalApproachPhase_SpeedFamily_RejectedInsideFiveNm(CanonicalCommandType cmd)
     {
         var phase = new FinalApproachPhase { DistanceToThresholdNm = 3.0 };
-        var acceptance = phase.CanAcceptCommand(cmd);
+        CommandAcceptance acceptance = phase.CanAcceptCommand(cmd);
         Assert.True(acceptance.IsRejected, $"{cmd} inside 5 nm should be rejected, not clear the approach");
         Assert.False(acceptance.ClearsThePhase);
     }
@@ -334,7 +334,7 @@ public class PhaseAcceptanceAuditTests
     public void PatternPhase_SpeedFamilyAllowed(Phase phase)
     {
         foreach (
-            var cmd in new[]
+            CanonicalCommandType cmd in new[]
             {
                 CanonicalCommandType.Speed,
                 CanonicalCommandType.Mach,
@@ -383,7 +383,7 @@ public class PhaseAcceptanceAuditTests
     public void PatternInterLegPhase_SpeedFamilyAllowed(Phase phase)
     {
         foreach (
-            var cmd in new[]
+            CanonicalCommandType cmd in new[]
             {
                 CanonicalCommandType.Speed,
                 CanonicalCommandType.Mach,
@@ -417,7 +417,7 @@ public class PhaseAcceptanceAuditTests
     [MemberData(nameof(TugMoveStartPhases))]
     public void GroundStopPhases_AcceptPushbackMultiWithoutClearing(Phase phase)
     {
-        var acceptance = phase.CanAcceptCommand(CanonicalCommandType.PushbackMulti);
+        CommandAcceptance acceptance = phase.CanAcceptCommand(CanonicalCommandType.PushbackMulti);
 
         Assert.Equal(CommandAcceptance.Allowed, acceptance);
         Assert.False(acceptance.ClearsThePhase, $"{phase.Name} must not be cleared before the tug move is planned");
@@ -445,13 +445,13 @@ public class PhaseAcceptanceAuditTests
     [InlineData("$17", "a spot bar")]
     public void HoldingShortPhase_NonRunwayBar_AcceptsFollowGround(string targetName, string because)
     {
-        var phase = HoldingShortAt(targetName, HoldShortReason.ExplicitHoldShort);
+        HoldingShortPhase phase = HoldingShortAt(targetName, HoldShortReason.ExplicitHoldShort);
 
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FollowGround));
         Assert.False(phase.CanAcceptCommand(CanonicalCommandType.FollowGround).IsRejected, $"FOLLOWG must apply at {because}");
 
         // The catch-all names what a taxiway/spot bar actually offers — RES and FOLLOWG both apply here.
-        var refusal = phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain);
+        CommandAcceptance refusal = phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain);
         Assert.Contains("RES/FOLLOWG/CROSS/HSC", refusal.Reason);
     }
 
@@ -466,9 +466,9 @@ public class PhaseAcceptanceAuditTests
     [InlineData("28L", HoldShortReason.DestinationRunway)]
     public void HoldingShortPhase_RunwayBar_RejectsFollowGround(string targetName, HoldShortReason reason)
     {
-        var phase = HoldingShortAt(targetName, reason);
+        HoldingShortPhase phase = HoldingShortAt(targetName, reason);
 
-        var acceptance = phase.CanAcceptCommand(CanonicalCommandType.FollowGround);
+        CommandAcceptance acceptance = phase.CanAcceptCommand(CanonicalCommandType.FollowGround);
 
         Assert.True(acceptance.IsRejected, $"FOLLOWG must not apply while holding short of runway {targetName}");
         Assert.Contains("CROSS", acceptance.Reason);

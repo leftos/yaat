@@ -17,10 +17,10 @@ public class DelatAliasParserTests
     [InlineData("CLR")]
     public void DelatAliases_BareForm_ParseToDeleteQueuedCommandWithNullBlock(string input)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
 
         Assert.True(result.IsSuccess, $"Failed to parse '{input}': {result.Reason}");
-        var cmd = Assert.IsType<DeleteQueuedCommand>(result.Value);
+        DeleteQueuedCommand cmd = Assert.IsType<DeleteQueuedCommand>(result.Value);
         Assert.Null(cmd.BlockNumber);
     }
 
@@ -33,10 +33,10 @@ public class DelatAliasParserTests
     [InlineData("CLR 12", 12)]
     public void DelatAliases_WithBlockNumber_ParseToDeleteQueuedCommandWithIndex(string input, int expectedBlock)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
 
         Assert.True(result.IsSuccess, $"Failed to parse '{input}': {result.Reason}");
-        var cmd = Assert.IsType<DeleteQueuedCommand>(result.Value);
+        DeleteQueuedCommand cmd = Assert.IsType<DeleteQueuedCommand>(result.Value);
         Assert.Equal(expectedBlock, cmd.BlockNumber);
     }
 
@@ -46,7 +46,7 @@ public class DelatAliasParserTests
     [InlineData("clr")]
     public void DelatAliases_LowerCase_ParseSuccessfully(string input)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
 
         Assert.True(result.IsSuccess, $"Failed to parse '{input}': {result.Reason}");
         Assert.IsType<DeleteQueuedCommand>(result.Value);

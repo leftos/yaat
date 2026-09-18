@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -54,8 +55,8 @@ public class CtoMrdPatternExitTests(ITestOutputHelper output)
     [Fact]
     public void ExtUpwind_DuringCtoMrdClimbout_Succeeds_AndArmsUpwind()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -63,19 +64,19 @@ public class CtoMrdPatternExitTests(ITestOutputHelper output)
 
         engine.Replay(recording, 600);
 
-        var ac = engine.FindAircraft("N784ME");
+        AircraftState? ac = engine.FindAircraft("N784ME");
         Assert.NotNull(ac);
 
         // The reported bug: both of these were rejected. After the fix the pending
         // UpwindPhase is armed (bare EXT and EXT UPWIND both reach the same path).
-        var extUpwind = engine.SendCommand("N784ME", "EXT UPWIND");
+        CommandResult extUpwind = engine.SendCommand("N784ME", "EXT UPWIND");
         Assert.True(extUpwind.Success, $"EXT UPWIND rejected: {extUpwind.Message}");
 
-        var ext = engine.SendCommand("N784ME", "EXT");
+        CommandResult ext = engine.SendCommand("N784ME", "EXT");
         Assert.True(ext.Success, $"EXT rejected: {ext.Message}");
 
-        var after = engine.FindAircraft("N784ME");
-        var upwind = after!.Phases?.Phases.OfType<UpwindPhase>().FirstOrDefault();
+        AircraftState? after = engine.FindAircraft("N784ME");
+        UpwindPhase? upwind = after!.Phases?.Phases.OfType<UpwindPhase>().FirstOrDefault();
         Assert.NotNull(upwind);
         Assert.True(upwind!.IsExtended, "EXT UPWIND should arm IsExtended on the pending upwind leg");
     }

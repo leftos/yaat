@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -88,7 +89,7 @@ public class Issue283GoAroundMakeRightTrafficE2ETests(ITestOutputHelper output)
     [Fact]
     public void N131WF_GoAroundThenMakeRightTraffic_ClimbsToPatternAltitudeAndTurnsCrosswind()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -96,8 +97,8 @@ public class Issue283GoAroundMakeRightTrafficE2ETests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -105,7 +106,7 @@ public class Issue283GoAroundMakeRightTrafficE2ETests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreTime);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreTime);
             if (snapshot is null)
             {
                 return;
@@ -113,7 +114,7 @@ public class Issue283GoAroundMakeRightTrafficE2ETests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
 
             // Sanity: N131WF is on final for 28R, and CLAND has already wiped the pattern direction.
-            var pre = engine.FindAircraft(Callsign);
+            AircraftState? pre = engine.FindAircraft(Callsign);
             Assert.NotNull(pre);
             Assert.IsType<FinalApproachPhase>(pre.Phases?.CurrentPhase);
             Assert.Equal("28R", pre.Phases?.AssignedRunway?.Designator);
@@ -122,9 +123,9 @@ public class Issue283GoAroundMakeRightTrafficE2ETests(ITestOutputHelper output)
             // Replay the recorded GA (t=2529) and MRT (t=2533) with current code.
             engine.FastForwardTo(AfterMrtTime, recording.Actions);
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
-            var goAround = Assert.IsType<GoAroundPhase>(ac.Phases?.CurrentPhase);
+            GoAroundPhase goAround = Assert.IsType<GoAroundPhase>(ac.Phases?.CurrentPhase);
             output.WriteLine(
                 $"t={AfterMrtTime}: GoAroundPhase ReenterPattern={goAround.ReenterPattern} "
                     + $"TargetAltitude={goAround.TargetAltitude?.ToString() ?? "none"} alt={ac.Altitude:F0}"

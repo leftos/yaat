@@ -80,10 +80,10 @@ public class NimiRadarVectorsSidTests
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
-        var ac = MakeOakDeparture("NIMI5 OAK V6 SAC", runwayDesignator, runwayHeading);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        AircraftState ac = MakeOakDeparture("NIMI5 OAK V6 SAC", runwayDesignator, runwayHeading);
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
 
         Assert.NotNull(result);
         Assert.Equal(ExpectedRvHeading, result.DepartureHeadingMagnetic);
@@ -100,17 +100,17 @@ public class NimiRadarVectorsSidTests
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
 
         // Real-world failure mode: flight plan filed on NIMI5, FAA amendment cycle
         // publishes NIMI6 (or vice versa). NavigationDatabase.GetSid's
         // StripTrailingDigits fallback must catch the version skew and return the
         // current procedure with the same 315° heading.
-        var ac5 = MakeOakDeparture("NIMI5 OAK V6 SAC", "28R", 280.0);
-        var ac6 = MakeOakDeparture("NIMI6 OAK V6 SAC", "28R", 280.0);
+        AircraftState ac5 = MakeOakDeparture("NIMI5 OAK V6 SAC", "28R", 280.0);
+        AircraftState ac6 = MakeOakDeparture("NIMI6 OAK V6 SAC", "28R", 280.0);
 
-        var r5 = DepartureClearanceHandler.TryResolveSidFromCifp(ac5);
-        var r6 = DepartureClearanceHandler.TryResolveSidFromCifp(ac6);
+        DepartureRouteResult? r5 = DepartureClearanceHandler.TryResolveSidFromCifp(ac5);
+        DepartureRouteResult? r6 = DepartureClearanceHandler.TryResolveSidFromCifp(ac6);
 
         Assert.NotNull(r5);
         Assert.NotNull(r6);
@@ -126,14 +126,14 @@ public class NimiRadarVectorsSidTests
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
 
         // The fallback must not be brittle to which specific number is currently
         // in the cycle: any "NIMIn" should resolve to whichever NIMI exists.
-        foreach (var name in new[] { "NIMI1", "NIMI4", "NIMI5", "NIMI6", "NIMI9" })
+        foreach (string? name in new[] { "NIMI1", "NIMI4", "NIMI5", "NIMI6", "NIMI9" })
         {
-            var ac = MakeOakDeparture($"{name} OAK V6 SAC", "28R", 280.0);
-            var result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
+            AircraftState ac = MakeOakDeparture($"{name} OAK V6 SAC", "28R", 280.0);
+            DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
             Assert.NotNull(result);
             Assert.Equal(ExpectedRvHeading, result.DepartureHeadingMagnetic);
         }
@@ -148,10 +148,10 @@ public class NimiRadarVectorsSidTests
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
-        var ac = MakeOakDeparture("OAK6 OAK SYRAH", runwayDesignator, runwayHeading);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        AircraftState ac = MakeOakDeparture("OAK6 OAK SYRAH", runwayDesignator, runwayHeading);
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
 
         Assert.NotNull(result);
         Assert.Equal(expectedHeading, result.DepartureHeadingMagnetic);
@@ -165,14 +165,14 @@ public class NimiRadarVectorsSidTests
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
-        var ac = MakeOakDeparture("OAK6 OAK SYRAH", "28R", 280.0);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        AircraftState ac = MakeOakDeparture("OAK6 OAK SYRAH", "28R", 280.0);
 
         var holding = new HoldingInPositionPhase();
         ac.Phases!.Add(holding);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -184,7 +184,7 @@ public class NimiRadarVectorsSidTests
 
         Assert.True(result.Success);
 
-        var initialClimb = ac.Phases.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
+        InitialClimbPhase? initialClimb = ac.Phases.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
         Assert.NotNull(initialClimb);
         Assert.Equal(278.2, initialClimb.SidDepartureHeadingMagnetic);
         Assert.Null(initialClimb.DepartureSidId);
@@ -198,7 +198,7 @@ public class NimiRadarVectorsSidTests
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
 
         // Full clearance pipeline: CTO from holding-in-position → InsertTowerPhasesAfterCurrent
         // → ResolveDepartureRoute → InitialClimbPhase.SidDepartureHeadingMagnetic = 315.
@@ -206,13 +206,13 @@ public class NimiRadarVectorsSidTests
         // because it consumes the pre-set AssignedRunway directly and skips the
         // navDB runway-lookup-by-target-name dance, keeping the test focused on
         // the SID-resolution + heading-propagation behavior under test.
-        var ac = MakeOakDeparture("NIMI5 OAK V6 SAC", "28R", 280.0);
+        AircraftState ac = MakeOakDeparture("NIMI5 OAK V6 SAC", "28R", 280.0);
 
         var holding = new HoldingInPositionPhase();
         ac.Phases!.Add(holding);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -224,7 +224,7 @@ public class NimiRadarVectorsSidTests
 
         Assert.True(result.Success);
 
-        var initialClimb = ac.Phases.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
+        InitialClimbPhase? initialClimb = ac.Phases.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
         Assert.NotNull(initialClimb);
         Assert.Equal(ExpectedRvHeading, initialClimb.SidDepartureHeadingMagnetic);
         // SidId is null for RV SIDs — the procedure ID is intentionally not threaded
@@ -240,14 +240,14 @@ public class NimiRadarVectorsSidTests
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
 
         // ADD I S P 28R NIMI6.OAK.SAU — spawn an IFR piston lined up on KOAK 28R, filed on the NIMI6 RV SID.
-        var (request, parseError) = SpawnParser.Parse("I S P 28R NIMI6.OAK.SAU");
+        (SpawnRequest? request, string? parseError) = SpawnParser.Parse("I S P 28R NIMI6.OAK.SAU");
         Assert.Null(parseError);
         Assert.NotNull(request);
 
-        var (ac, _) = AircraftGenerator.Generate(
+        (AircraftState? ac, string? _) = AircraftGenerator.Generate(
             request,
             primaryAirportId: "KOAK",
             existingAircraft: [],
@@ -264,13 +264,13 @@ public class NimiRadarVectorsSidTests
         Assert.True(ac.IsOnGround);
         Assert.Equal("NIMI6 OAK SAU", ac.FlightPlan.Route);
         Assert.Equal("KOAK", ac.FlightPlan.Departure);
-        var runway = ac.Phases!.AssignedRunway!;
+        RunwayInfo runway = ac.Phases!.AssignedRunway!;
         Assert.Contains("28R", runway.Designator);
 
         // Start the lined-up phases and clear for takeoff (bare CTO — relies on the SID's published heading).
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
-        var luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
-        var ctoResult = DepartureClearanceHandler.TryClearedForTakeoff(
+        LinedUpAndWaitingPhase luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
+        CommandResult ctoResult = DepartureClearanceHandler.TryClearedForTakeoff(
             new ClearedForTakeoffCommand(new DefaultDeparture()),
             ac,
             luaw,
@@ -278,7 +278,7 @@ public class NimiRadarVectorsSidTests
         );
         Assert.True(ctoResult.Success, ctoResult.Message);
 
-        var climb = ac.Phases.Phases.OfType<InitialClimbPhase>().First();
+        InitialClimbPhase climb = ac.Phases.Phases.OfType<InitialClimbPhase>().First();
         Assert.Equal(ExpectedRvHeading, climb.SidDepartureHeadingMagnetic);
 
         // Fly it: airborne, past the departure end of runway and above the 400 ft AGL turn floor.
@@ -305,7 +305,7 @@ public class NimiRadarVectorsSidTests
         Assert.True(ctx.Targets.TargetTrueHeading!.Value.AbsAngleTo(runway.TrueHeading) < 0.5);
 
         // Past the gate it turns to the published 315° and holds it (no comms handoff → no nav route loaded).
-        var expected315True = new MagneticHeading(ExpectedRvHeading).ToTrue(ac.Declination);
+        TrueHeading expected315True = new MagneticHeading(ExpectedRvHeading).ToTrue(ac.Declination);
         for (int i = 0; i < 60; i++)
         {
             climb.OnTick(ctx);
@@ -331,7 +331,7 @@ public class NimiRadarVectorsSidTests
     private static (InitialClimbPhase Phase, AircraftState Aircraft, PhaseContext Ctx) BuildRvSidClimbHarness()
     {
         const double fieldElev = 6.0;
-        var runway = TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 280.0, elevationFt: fieldElev);
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 280.0, elevationFt: fieldElev);
         var ac = new AircraftState
         {
             Callsign = "TEST1",
@@ -384,7 +384,7 @@ public class NimiRadarVectorsSidTests
     {
         // HasLeftStudentFrequency stays false — controller never issued CT. Aircraft
         // must hold 315° and not load NavigationRoute, regardless of how long passes.
-        var (phase, ac, ctx) = BuildRvSidClimbHarness();
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildRvSidClimbHarness();
         Assert.False(ac.HasLeftStudentFrequency);
 
         for (int i = 0; i < 60; i++)
@@ -403,7 +403,7 @@ public class NimiRadarVectorsSidTests
         // heading hold, because comms haven't been transferred. Pre-fix this would
         // start a 5s timer based purely on Track.Owner; post-fix the timer is gated
         // on HasLeftStudentFrequency.
-        var (phase, ac, ctx) = BuildRvSidClimbHarness();
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildRvSidClimbHarness();
         ac.Track.Owner = TrackOwner.CreateNonNas("OAK_APP");
         ac.Track.HandoffAccepted = true;
         Assert.False(ac.HasLeftStudentFrequency);
@@ -423,7 +423,7 @@ public class NimiRadarVectorsSidTests
         // Controller issues CT (HasLeftStudentFrequency = true). 5s grace period:
         // aircraft still holds 315° (simulates pilot retuning the radio). After 5s
         // elapses the route loads and FlightPhysics takes over to fly to FESIK.
-        var (phase, ac, ctx) = BuildRvSidClimbHarness();
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildRvSidClimbHarness();
 
         ac.HasLeftStudentFrequency = true;
 

@@ -36,15 +36,15 @@ public static class VfrSpawnSiting
     /// <summary>False when the point is inside standard radar separation of any existing aircraft.</summary>
     public static bool IsClearOfTraffic(LatLon position, double altitudeFtMsl, IReadOnlyCollection<AircraftState> existingAircraft)
     {
-        foreach (var other in existingAircraft)
+        foreach (AircraftState other in existingAircraft)
         {
             if (other.IsOnGround)
             {
                 continue;
             }
 
-            var lateralNm = GeoMath.DistanceNm(position.Lat, position.Lon, other.Position.Lat, other.Position.Lon);
-            var verticalFt = Math.Abs(other.Altitude - altitudeFtMsl);
+            double lateralNm = GeoMath.DistanceNm(position.Lat, position.Lon, other.Position.Lat, other.Position.Lon);
+            double verticalFt = Math.Abs(other.Altitude - altitudeFtMsl);
             if (lateralNm < MinLateralSeparationNm && verticalFt < MinVerticalSeparationFt)
             {
                 return false;
@@ -67,7 +67,7 @@ public static class VfrSpawnSiting
     /// </summary>
     public static double RollBearing(double fromDeg, double toDeg, Random rng)
     {
-        var span = (toDeg - fromDeg) % 360.0;
+        double span = (toDeg - fromDeg) % 360.0;
         if (span <= 0)
         {
             span += 360.0;

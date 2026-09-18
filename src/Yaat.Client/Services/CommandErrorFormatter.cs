@@ -20,8 +20,8 @@ internal static class CommandErrorFormatter
 
     internal static Result Format(string commandText, ParseFailure? parseFailure, CommandScheme scheme, IReadOnlyCollection<AircraftModel> aircraft)
     {
-        var errorText = commandText;
-        var head = commandText.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        string errorText = commandText;
+        string[] head = commandText.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         if (head.Length == 2 && CallsignMatcher.Match(head[0], aircraft).Match is not null)
         {
             // Re-derive the failure from the verb after the callsign so the message names
@@ -32,13 +32,13 @@ internal static class CommandErrorFormatter
 
         if (parseFailure is not null)
         {
-            var statusText = parseFailure.Expected is { } expected
+            string statusText = parseFailure.Expected is { } expected
                 ? $"\"{parseFailure.Verb}\" {parseFailure.Reason}. Expected: {expected}"
                 : $"\"{parseFailure.Verb}\" {parseFailure.Reason}";
             return new Result(parseFailure.Verb, parseFailure.Reason, statusText);
         }
 
-        var verb = errorText.Split([' ', ',', ';'], 2)[0];
+        string verb = errorText.Split([' ', ',', ';'], 2)[0];
         return new Result(verb, "is not a recognized command", $"Unrecognized command \"{verb}\" — type a command like FH 270, CM 240, CLAND");
     }
 }

@@ -1,5 +1,6 @@
 ﻿using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Tests.Helpers;
 
@@ -20,7 +21,7 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
     public void ClimbVia_Cndel5Susey_MeetsAllConstraints()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             output.WriteLine("Skipped: NavData not available");
@@ -30,7 +31,7 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         // Resolve CNDEL5 SID from CIFP
-        var sid = navDb.GetSid("KOAK", "CNDEL5");
+        CifpSidProcedure? sid = navDb.GetSid("KOAK", "CNDEL5");
         if (sid is null)
         {
             output.WriteLine("Skipped: CNDEL5 SID not found in CIFP data");
@@ -41,14 +42,14 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
         var orderedLegs = new List<CifpLeg>();
 
         // Runway transition for RW30
-        if (sid.RunwayTransitions.TryGetValue("RW30", out var rwTransition))
+        if (sid.RunwayTransitions.TryGetValue("RW30", out CifpTransition? rwTransition))
         {
             orderedLegs.AddRange(rwTransition.Legs);
         }
         else
         {
             // Try "both" key
-            foreach (var key in sid.RunwayTransitions.Keys)
+            foreach (string key in sid.RunwayTransitions.Keys)
             {
                 output.WriteLine($"  Available runway transition: {key}");
             }
@@ -59,13 +60,13 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
 
         orderedLegs.AddRange(sid.CommonLegs);
 
-        if (sid.EnrouteTransitions.TryGetValue("SUSEY", out var enTransition))
+        if (sid.EnrouteTransitions.TryGetValue("SUSEY", out CifpTransition? enTransition))
         {
             orderedLegs.AddRange(enTransition.Legs);
         }
         else
         {
-            foreach (var key in sid.EnrouteTransitions.Keys)
+            foreach (string key in sid.EnrouteTransitions.Keys)
             {
                 output.WriteLine($"  Available enroute transition: {key}");
             }
@@ -75,11 +76,11 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
         }
 
         // Convert to navigation targets
-        var route = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs);
+        List<NavigationTarget> route = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs);
         Assert.NotEmpty(route);
 
         output.WriteLine($"CNDEL5 RW30 → SUSEY route ({route.Count} fixes):");
-        foreach (var fix in route)
+        foreach (NavigationTarget fix in route)
         {
             string alt = fix.AltitudeRestriction is not null ? $" [{fix.AltitudeRestriction}]" : "";
             string spd = fix.SpeedRestriction is not null ? $" [{fix.SpeedRestriction}]" : "";
@@ -100,7 +101,7 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
             Procedure = new AircraftProcedure { ActiveSidId = "CNDEL5", SidViaMode = true },
         };
 
-        foreach (var target in route)
+        foreach (NavigationTarget target in route)
         {
             aircraft.Targets.NavigationRoute.Add(target);
         }
@@ -124,7 +125,7 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
             FlightPhysics.Update(aircraft, 1.0);
 
             // Check for sequenced constraint fixes
-            foreach (var fixName in constraintFixes.ToList())
+            foreach (string? fixName in constraintFixes.ToList())
             {
                 if (
                     !aircraft.Targets.NavigationRoute.Any(f => f.Name.Equals(fixName, StringComparison.OrdinalIgnoreCase))
@@ -138,7 +139,7 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
 
             if (t % 30 == 0)
             {
-                var nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
+                string nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
                 output.WriteLine(
                     $"{t, 5} {aircraft.Altitude, 7:F0} {aircraft.Targets.TargetAltitude?.ToString("F0") ?? "null", 7} {aircraft.VerticalSpeed, 6:F0} {nextFix, -10}"
                 );
@@ -153,7 +154,7 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
 
         // Verify each constraint was met
         output.WriteLine("\nConstraint crossing summary:");
-        foreach (var fix in route.Where(t => t.AltitudeRestriction is not null))
+        foreach (NavigationTarget? fix in route.Where(t => t.AltitudeRestriction is not null))
         {
             if (!crossingAltitudes.TryGetValue(fix.Name, out double crossAlt))
             {
@@ -161,7 +162,7 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
                 continue;
             }
 
-            var restriction = fix.AltitudeRestriction!;
+            CifpAltitudeRestriction restriction = fix.AltitudeRestriction!;
             bool met = IsConstraintMet(crossAlt, restriction);
             string status = met ? "OK" : "MISSED";
             output.WriteLine($"  {fix.Name}: crossed at {crossAlt:F0}ft, constraint={restriction} [{status}]");

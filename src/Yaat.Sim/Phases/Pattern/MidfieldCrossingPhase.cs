@@ -168,7 +168,7 @@ public sealed class MidfieldCrossingPhase : Phase
         {
             double normalSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-            var adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
+            double? adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
             if (adjusted is not null)
             {
                 ctx.Targets.TargetSpeed = Math.Min(adjusted.Value, normalSpeed);

@@ -26,13 +26,13 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void NewStore_CreatesGlobalSet_AndReportsEmptyLoad()
     {
-        var store = NewStore();
+        FavoriteStore store = NewStore();
 
         Assert.True(store.LoadedFromEmpty);
         Assert.Equal(FavoriteSetKind.Global, store.GlobalSet.Kind);
         Assert.Equal("Global", store.GlobalSet.DisplayName);
 
-        var reloaded = NewStore();
+        FavoriteStore reloaded = NewStore();
         Assert.False(reloaded.LoadedFromEmpty);
         Assert.Equal(store.GlobalSet.Id, reloaded.GlobalSet.Id);
     }
@@ -40,7 +40,7 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void SaveFavorite_AssignsId_AndRoundTripsThroughDisk()
     {
-        var store = NewStore();
+        FavoriteStore store = NewStore();
         var favorite = new FavoriteCommand
         {
             Label = "T3 B",
@@ -56,8 +56,8 @@ public class FavoriteStoreTests : IDisposable
         Assert.Matches("^[0-9a-f]{8}$", favorite.Id);
         store.AddToSet(store.GlobalSet.Id, favorite.Id);
 
-        var reloaded = NewStore();
-        var restored = Assert.Single(reloaded.GetSetFavorites(reloaded.GlobalSet.Id));
+        FavoriteStore reloaded = NewStore();
+        FavoriteCommand restored = Assert.Single(reloaded.GetSetFavorites(reloaded.GlobalSet.Id));
         Assert.Equal(favorite.Id, restored.Id);
         Assert.Equal("T3 B", restored.Label);
         Assert.Equal("T T3 B", restored.CommandText);
@@ -71,11 +71,11 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void FavoriteFileName_CarriesLabelAndId_AndFollowsRename()
     {
-        var store = NewStore();
-        var favorite = Fav("FH 270");
+        FavoriteStore store = NewStore();
+        FavoriteCommand favorite = Fav("FH 270");
         store.SaveFavorite(favorite);
 
-        var commandsDir = Path.Combine(_root, "commands");
+        string commandsDir = Path.Combine(_root, "commands");
         Assert.True(File.Exists(Path.Combine(commandsDir, $"FH 270.{favorite.Id}.json")));
 
         favorite.Label = "FH 090";
@@ -98,7 +98,7 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void CreateNamedSet_RejectsBlankAndCaseInsensitiveCollision()
     {
-        var store = NewStore();
+        FavoriteStore store = NewStore();
         Assert.NotNull(store.CreateNamedSet("S1 Training"));
 
         Assert.Null(store.CreateNamedSet("s1 training"));
@@ -108,15 +108,15 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void RenameNamedSet_RenamesFileAndRejectsCollisions()
     {
-        var store = NewStore();
-        var setA = store.CreateNamedSet("Alpha")!;
+        FavoriteStore store = NewStore();
+        FavoriteSet setA = store.CreateNamedSet("Alpha")!;
         store.CreateNamedSet("Bravo");
 
         Assert.False(store.RenameNamedSet(setA.Id, "bravo"));
         Assert.False(store.RenameNamedSet(store.GlobalSet.Id, "Anything"));
         Assert.True(store.RenameNamedSet(setA.Id, "Charlie"));
 
-        var setsDir = Path.Combine(_root, "sets");
+        string setsDir = Path.Combine(_root, "sets");
         Assert.True(File.Exists(Path.Combine(setsDir, $"Charlie.{setA.Id}.json")));
         Assert.False(File.Exists(Path.Combine(setsDir, $"Alpha.{setA.Id}.json")));
     }
@@ -124,9 +124,9 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void DeleteSet_RemovesFileButKeepsFavoriteEntities()
     {
-        var store = NewStore();
-        var set = store.CreateNamedSet("Doomed")!;
-        var favorite = Fav("Survivor");
+        FavoriteStore store = NewStore();
+        FavoriteSet set = store.CreateNamedSet("Doomed")!;
+        FavoriteCommand favorite = Fav("Survivor");
         store.SaveFavorite(favorite);
         store.AddToSet(set.Id, favorite.Id);
 
@@ -141,24 +141,24 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void Clear_RemovesEverything_LeavesEmptyGlobal()
     {
-        var store = NewStore();
-        var named = store.CreateNamedSet("Doomed")!;
-        var airport = store.GetOrCreateAirportSet("OAK");
-        var a = Fav("A");
-        var b = Fav("B");
+        FavoriteStore store = NewStore();
+        FavoriteSet named = store.CreateNamedSet("Doomed")!;
+        FavoriteSet airport = store.GetOrCreateAirportSet("OAK");
+        FavoriteCommand a = Fav("A");
+        FavoriteCommand b = Fav("B");
         store.SaveFavorite(a);
         store.SaveFavorite(b);
         store.AddToSet(store.GlobalSet.Id, a.Id);
         store.AddToSet(named.Id, a.Id);
         store.AddToSet(airport.Id, b.Id);
 
-        var changes = 0;
+        int changes = 0;
         store.Changed += () => changes++;
         store.Clear();
 
         Assert.Equal(1, changes);
         Assert.Empty(store.AllFavorites);
-        var global = Assert.Single(store.OrderedSets);
+        FavoriteSet global = Assert.Single(store.OrderedSets);
         Assert.Equal(FavoriteSetKind.Global, global.Kind);
         Assert.Empty(global.FavoriteIds);
 
@@ -166,9 +166,9 @@ public class FavoriteStoreTests : IDisposable
         Assert.Empty(Directory.EnumerateFiles(Path.Combine(_root, "commands"), "*.json"));
         Assert.Single(Directory.EnumerateFiles(Path.Combine(_root, "sets"), "*.json"));
 
-        var reloaded = NewStore();
+        FavoriteStore reloaded = NewStore();
         Assert.Empty(reloaded.AllFavorites);
-        var reloadedGlobal = Assert.Single(reloaded.OrderedSets);
+        FavoriteSet reloadedGlobal = Assert.Single(reloaded.OrderedSets);
         Assert.Equal(global.Id, reloadedGlobal.Id);
         Assert.Empty(reloadedGlobal.FavoriteIds);
     }
@@ -176,11 +176,11 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void Membership_AddInsertRemove_KeepOrderAndDedupe()
     {
-        var store = NewStore();
-        var set = store.CreateNamedSet("Order")!;
-        var a = Fav("A");
-        var b = Fav("B");
-        var c = Fav("C");
+        FavoriteStore store = NewStore();
+        FavoriteSet set = store.CreateNamedSet("Order")!;
+        FavoriteCommand a = Fav("A");
+        FavoriteCommand b = Fav("B");
+        FavoriteCommand c = Fav("C");
         store.SaveFavorite(a);
         store.SaveFavorite(b);
         store.SaveFavorite(c);
@@ -199,9 +199,9 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void ReplaceSetFavorites_PrunesUnknownIdsAndDuplicates()
     {
-        var store = NewStore();
-        var set = store.CreateNamedSet("Pruned")!;
-        var a = Fav("A");
+        FavoriteStore store = NewStore();
+        FavoriteSet set = store.CreateNamedSet("Pruned")!;
+        FavoriteCommand a = Fav("A");
         store.SaveFavorite(a);
 
         store.ReplaceSetFavorites(set.Id, [a.Id, "deadbeef", a.Id]);
@@ -212,9 +212,9 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void DeleteFavorite_RemovesEntityFromEverySet()
     {
-        var store = NewStore();
-        var set = store.CreateNamedSet("Holder")!;
-        var favorite = Fav("Everywhere");
+        FavoriteStore store = NewStore();
+        FavoriteSet set = store.CreateNamedSet("Holder")!;
+        FavoriteCommand favorite = Fav("Everywhere");
         store.SaveFavorite(favorite);
         store.AddToSet(store.GlobalSet.Id, favorite.Id);
         store.AddToSet(set.Id, favorite.Id);
@@ -230,14 +230,14 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void GetMembershipSetIds_ListsEverySetHoldingTheFavorite()
     {
-        var store = NewStore();
-        var set = store.CreateNamedSet("Second")!;
-        var favorite = Fav("Shared");
+        FavoriteStore store = NewStore();
+        FavoriteSet set = store.CreateNamedSet("Second")!;
+        FavoriteCommand favorite = Fav("Shared");
         store.SaveFavorite(favorite);
         store.AddToSet(store.GlobalSet.Id, favorite.Id);
         store.AddToSet(set.Id, favorite.Id);
 
-        var memberships = store.GetMembershipSetIds(favorite.Id);
+        List<string> memberships = store.GetMembershipSetIds(favorite.Id);
         Assert.Equal(2, memberships.Count);
         Assert.Contains(store.GlobalSet.Id, memberships);
         Assert.Contains(set.Id, memberships);
@@ -246,16 +246,16 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void ComposeDisplay_OrdersGlobalAirportScenarioThenLoadedSets()
     {
-        var store = NewStore();
-        var airport = store.GetOrCreateAirportSet("oak");
-        var scenario = store.GetOrCreateScenarioSet("SCN-1", "Practice");
-        var named = store.CreateNamedSet("Extras")!;
+        FavoriteStore store = NewStore();
+        FavoriteSet airport = store.GetOrCreateAirportSet("oak");
+        FavoriteSet scenario = store.GetOrCreateScenarioSet("SCN-1", "Practice");
+        FavoriteSet named = store.CreateNamedSet("Extras")!;
 
-        var g = Fav("G");
-        var a = Fav("A");
-        var s = Fav("S");
-        var n = Fav("N");
-        foreach (var fav in new[] { g, a, s, n })
+        FavoriteCommand g = Fav("G");
+        FavoriteCommand a = Fav("A");
+        FavoriteCommand s = Fav("S");
+        FavoriteCommand n = Fav("N");
+        foreach (FavoriteCommand? fav in new[] { g, a, s, n })
         {
             store.SaveFavorite(fav);
         }
@@ -264,27 +264,27 @@ public class FavoriteStoreTests : IDisposable
         store.AddToSet(scenario.Id, s.Id);
         store.AddToSet(named.Id, n.Id);
 
-        var display = store.ComposeDisplay("SCN-1", "OAK", [named.Id]);
+        List<FavoriteDisplayEntry> display = store.ComposeDisplay("SCN-1", "OAK", [named.Id]);
         Assert.Equal(["G", "A", "S", "N"], display.Select(e => e.Favorite.Label));
 
-        var withoutContext = store.ComposeDisplay(null, null, []);
+        List<FavoriteDisplayEntry> withoutContext = store.ComposeDisplay(null, null, []);
         Assert.Equal(["G"], withoutContext.Select(e => e.Favorite.Label));
 
-        var unknownLoadedId = store.ComposeDisplay(null, null, ["deadbeef"]);
+        List<FavoriteDisplayEntry> unknownLoadedId = store.ComposeDisplay(null, null, ["deadbeef"]);
         Assert.Equal(["G"], unknownLoadedId.Select(e => e.Favorite.Label));
     }
 
     [Fact]
     public void ComposeDisplay_ShowsSharedFavoriteOncePerVisibleContainer()
     {
-        var store = NewStore();
-        var named = store.CreateNamedSet("Both")!;
-        var favorite = Fav("Twice");
+        FavoriteStore store = NewStore();
+        FavoriteSet named = store.CreateNamedSet("Both")!;
+        FavoriteCommand favorite = Fav("Twice");
         store.SaveFavorite(favorite);
         store.AddToSet(store.GlobalSet.Id, favorite.Id);
         store.AddToSet(named.Id, favorite.Id);
 
-        var display = store.ComposeDisplay(null, null, [named.Id]);
+        List<FavoriteDisplayEntry> display = store.ComposeDisplay(null, null, [named.Id]);
 
         Assert.Equal(2, display.Count);
         Assert.All(display, e => Assert.Same(favorite, e.Favorite));
@@ -294,10 +294,10 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void GetOrCreateScenarioSet_RefreshesDisplayName()
     {
-        var store = NewStore();
-        var created = store.GetOrCreateScenarioSet("SCN-9", "SCN-9");
+        FavoriteStore store = NewStore();
+        FavoriteSet created = store.GetOrCreateScenarioSet("SCN-9", "SCN-9");
 
-        var refreshed = store.GetOrCreateScenarioSet("SCN-9", "Friendly Name");
+        FavoriteSet refreshed = store.GetOrCreateScenarioSet("SCN-9", "Friendly Name");
 
         Assert.Equal(created.Id, refreshed.Id);
         Assert.Equal("Scenario (Friendly Name)", refreshed.DisplayName);
@@ -306,9 +306,9 @@ public class FavoriteStoreTests : IDisposable
     [Fact]
     public void Load_PrunesMembershipOfMissingFavoriteFiles()
     {
-        var store = NewStore();
-        var keep = Fav("Keep");
-        var lost = Fav("Lost");
+        FavoriteStore store = NewStore();
+        FavoriteCommand keep = Fav("Keep");
+        FavoriteCommand lost = Fav("Lost");
         store.SaveFavorite(keep);
         store.SaveFavorite(lost);
         store.AddToSet(store.GlobalSet.Id, keep.Id);
@@ -316,14 +316,14 @@ public class FavoriteStoreTests : IDisposable
 
         File.Delete(Path.Combine(_root, "commands", $"Lost.{lost.Id}.json"));
 
-        var reloaded = NewStore();
+        FavoriteStore reloaded = NewStore();
         Assert.Equal(["Keep"], reloaded.GetSetFavorites(reloaded.GlobalSet.Id).Select(f => f.Label));
     }
 
     [Fact]
     public void OrderedSets_SortGlobalAirportsScenariosThenNamed()
     {
-        var store = NewStore();
+        FavoriteStore store = NewStore();
         store.CreateNamedSet("Zulu");
         store.CreateNamedSet("alpha");
         store.GetOrCreateAirportSet("SFO");
@@ -338,9 +338,9 @@ public class FavoriteStoreTests : IDisposable
     [InlineData("ButtonWidth")]
     public void RetiredButtonWidthField_IsIgnoredOnLoad_AndDroppedOnRewrite(string fieldName)
     {
-        var commandsDir = Path.Combine(_root, "commands");
+        string commandsDir = Path.Combine(_root, "commands");
         Directory.CreateDirectory(commandsDir);
-        var path = Path.Combine(commandsDir, "Legacy.0123abcd.json");
+        string path = Path.Combine(commandsDir, "Legacy.0123abcd.json");
         File.WriteAllText(
             path,
             $$"""
@@ -359,8 +359,8 @@ public class FavoriteStoreTests : IDisposable
             """
         );
 
-        var store = NewStore();
-        var favorite = store.GetFavorite("0123abcd");
+        FavoriteStore store = NewStore();
+        FavoriteCommand? favorite = store.GetFavorite("0123abcd");
 
         Assert.NotNull(favorite);
         Assert.Equal("Legacy", favorite.Label);

@@ -38,16 +38,16 @@ public sealed class RejectedDctPreservesStateTests
     [Fact]
     public void RejectedDct_LeavesQueuedConditionalAndDeferredDispatchIntact()
     {
-        var aircraft = MakeAircraft();
-        var navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState aircraft = MakeAircraft();
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var conditional = CommandParser.ParseCompound("AT 6000 CM 120");
+        ParseResult<CompoundCommand> conditional = CommandParser.ParseCompound("AT 6000 CM 120");
         Assert.True(conditional.IsSuccess, conditional.Reason);
         CommandDispatcher.DispatchCompound(conditional.Value!, aircraft, ctx);
 
-        var deferredPayload = CommandParser.ParseCompound("FH 090");
+        ParseResult<CompoundCommand> deferredPayload = CommandParser.ParseCompound("FH 090");
         Assert.True(deferredPayload.IsSuccess, deferredPayload.Reason);
         aircraft.DeferredDispatches.Add(new DeferredDispatch(120, deferredPayload.Value!));
 
@@ -57,9 +57,9 @@ public sealed class RejectedDctPreservesStateTests
         Assert.NotEmpty(aircraft.DeferredDispatches);
         int queuedBefore = aircraft.Queue.Blocks.Count;
 
-        var dct = CommandParser.ParseCompound("DCT RANDOM");
+        ParseResult<CompoundCommand> dct = CommandParser.ParseCompound("DCT RANDOM");
         Assert.True(dct.IsSuccess, dct.Reason);
-        var result = CommandDispatcher.DispatchCompound(dct.Value!, aircraft, ctx);
+        CommandResult result = CommandDispatcher.DispatchCompound(dct.Value!, aircraft, ctx);
 
         Assert.False(result.Success);
         Assert.Contains("not programmed", result.Message);
@@ -78,7 +78,7 @@ public sealed class RejectedDctPreservesStateTests
     [Fact]
     public void DctToFixOnAlreadyActiveApproach_IsAccepted()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -91,17 +91,17 @@ public sealed class RejectedDctPreservesStateTests
             },
         };
 
-        var navDb = TestNavDbFactory.WithFixes(("BERYL", 37.6, -122.1));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
-        var ctx = TestDispatch.Context(Random.Shared);
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("BERYL", 37.6, -122.1));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
         // Precondition: BERYL is reachable only via the active approach procedure, never via the filed route.
         Assert.DoesNotContain("BERYL", aircraft.FlightPlan.Route);
         Assert.Contains("BERYL", aircraft.GetProgrammedFixes());
 
-        var dct = CommandParser.ParseCompound("DCT BERYL");
+        ParseResult<CompoundCommand> dct = CommandParser.ParseCompound("DCT BERYL");
         Assert.True(dct.IsSuccess, dct.Reason);
-        var result = CommandDispatcher.DispatchCompound(dct.Value!, aircraft, ctx);
+        CommandResult result = CommandDispatcher.DispatchCompound(dct.Value!, aircraft, ctx);
 
         Assert.True(result.Success, result.Message);
     }

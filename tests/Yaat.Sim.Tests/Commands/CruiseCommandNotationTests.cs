@@ -21,7 +21,7 @@ public class CruiseCommandNotationTests
     [Fact]
     public void HandleCruise_IfrAircraft_SetsSingleIfrAltitude()
     {
-        var ac = Aircraft("IFR", PlannedAltitude.Ifr(11000));
+        AircraftState ac = Aircraft("IFR", PlannedAltitude.Ifr(11000));
         TrackEngine.HandleCruise(ac, 150);
         Assert.Equal(PlannedAltitude.Ifr(15000), ac.FlightPlan.Altitude);
     }
@@ -29,7 +29,7 @@ public class CruiseCommandNotationTests
     [Fact]
     public void HandleCruise_VfrAircraft_KeepsVfrNotation()
     {
-        var ac = Aircraft("VFR", PlannedAltitude.Vfr(5500));
+        AircraftState ac = Aircraft("VFR", PlannedAltitude.Vfr(5500));
         TrackEngine.HandleCruise(ac, 65);
         Assert.Equal(PlannedAltitude.Vfr(6500), ac.FlightPlan.Altitude);
     }
@@ -37,7 +37,7 @@ public class CruiseCommandNotationTests
     [Fact]
     public void HandleCruise_OtpAircraft_KeepsVfrOnTopNotation()
     {
-        var ac = Aircraft("IFR", PlannedAltitude.Otp(5500));
+        AircraftState ac = Aircraft("IFR", PlannedAltitude.Otp(5500));
         TrackEngine.HandleCruise(ac, 120);
         Assert.Equal(PlannedAltitude.Otp(12000), ac.FlightPlan.Altitude);
         Assert.True(ac.FlightPlan.Altitude.IsVfrOnTop);

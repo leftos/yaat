@@ -1,3 +1,4 @@
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -301,7 +302,7 @@ public static class SameRunwayArrivalProtection
     /// </summary>
     private static LeaderRollout ExitRollout(AircraftState aircraft, double remainderNm, double elapsedSeconds)
     {
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool expediting = aircraft.Ground.IsExpeditingExit;
         double ceiling = CategoryPerformance.TaxiSpeed(category) * (expediting ? CategoryPerformance.TaxiExpediteMultiplier : 1.0);
         double decelRate = expediting ? CategoryPerformance.ExpediteExitDecelRate(category) : CategoryPerformance.TaxiDecelRate(category);
@@ -421,8 +422,8 @@ public static class SameRunwayArrivalProtection
     private static double ExitPathDistanceNm(Phases.ResolvedExitInfo exit)
     {
         double total = 0.0;
-        var previous = exit.BranchPointNode;
-        foreach (var node in exit.Path.Append(exit.HoldShortNode))
+        GroundNode previous = exit.BranchPointNode;
+        foreach (GroundNode? node in exit.Path.Append(exit.HoldShortNode))
         {
             if (node.Id == previous.Id)
             {

@@ -75,7 +75,7 @@ public static class ArmTable
     private static readonly FrozenDictionary<RecordedCommandKind, ActionArm> Rows = Build();
 
     public static ActionArm For(RecordedCommandKind kind) =>
-        Rows.TryGetValue(kind, out var arm) ? arm : throw new InvalidOperationException($"{kind} has no ActionArm — add a row to ArmTable");
+        Rows.TryGetValue(kind, out ActionArm? arm) ? arm : throw new InvalidOperationException($"{kind} has no ActionArm — add a row to ArmTable");
 
     public static IEnumerable<ActionArm> All => Rows.Values;
 
@@ -143,9 +143,9 @@ public static class ArmTable
             Sim(RecordedCommandKind.AsdexEnableAllAlerts, RecordingPolicy.Text, static ctx => ctx.Engine.EnableAllAsdexAlerts()),
         };
 
-        foreach (var row in rows)
+        foreach (ActionArm row in rows)
         {
-            var expected = RecordedCommandClassifier.ScopeOf(row.Kind);
+            ActionScope expected = RecordedCommandClassifier.ScopeOf(row.Kind);
             if (row.Scope != expected)
             {
                 throw new InvalidOperationException($"ArmTable row {row.Kind} declares scope {row.Scope}; the classifier says {expected}");
@@ -162,7 +162,7 @@ public static class ArmTable
     /// </summary>
     private static CommandResult ApplyStrip(ArmContext ctx)
     {
-        var applied = StripCommandHandler.Handle(ctx.Engine, ctx.Parsed!, ctx.Input.Callsign, ctx.Input.Baked?.StripId);
+        StripApplyResult applied = StripCommandHandler.Handle(ctx.Engine, ctx.Parsed!, ctx.Input.Callsign, ctx.Input.Baked?.StripId);
         ctx.StripId = applied.StripId;
         return applied.Result;
     }

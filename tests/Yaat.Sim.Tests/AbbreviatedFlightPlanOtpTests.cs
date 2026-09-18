@@ -14,10 +14,10 @@ public class AbbreviatedFlightPlanOtpTests
     [Fact]
     public void Parse_DotP_YieldsOtpFlightRules()
     {
-        var result = CommandParser.ParseCompound("DA C172 055 .P");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("DA C172 055 .P");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var cmd = Assert.IsType<CreateAbbreviatedFlightPlanCommand>(result.Value!.Blocks[0].Commands[0]);
+        CreateAbbreviatedFlightPlanCommand cmd = Assert.IsType<CreateAbbreviatedFlightPlanCommand>(result.Value!.Blocks[0].Commands[0]);
         Assert.Equal("OTP", cmd.FlightRules);
     }
 
@@ -26,7 +26,7 @@ public class AbbreviatedFlightPlanOtpTests
     {
         var cmd = new CreateAbbreviatedFlightPlanCommand(null, null, null, "C172", 5500, "OTP");
 
-        var canonical = CommandDescriber.DescribeCommand(cmd);
+        string canonical = CommandDescriber.DescribeCommand(cmd);
 
         Assert.Contains(".P", canonical);
         Assert.DoesNotContain(".V", canonical);
@@ -36,12 +36,12 @@ public class AbbreviatedFlightPlanOtpTests
     public void Canonical_OtpRoundTrips()
     {
         var cmd = new CreateAbbreviatedFlightPlanCommand(null, null, null, "C172", 5500, "OTP");
-        var canonical = CommandDescriber.DescribeCommand(cmd);
+        string canonical = CommandDescriber.DescribeCommand(cmd);
 
-        var reparsed = CommandParser.ParseCompound(canonical);
+        ParseResult<CompoundCommand> reparsed = CommandParser.ParseCompound(canonical);
 
         Assert.True(reparsed.IsSuccess, reparsed.Reason);
-        var reparsedCmd = Assert.IsType<CreateAbbreviatedFlightPlanCommand>(reparsed.Value!.Blocks[0].Commands[0]);
+        CreateAbbreviatedFlightPlanCommand reparsedCmd = Assert.IsType<CreateAbbreviatedFlightPlanCommand>(reparsed.Value!.Blocks[0].Commands[0]);
         Assert.Equal("OTP", reparsedCmd.FlightRules);
     }
 }

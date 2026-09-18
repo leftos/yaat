@@ -24,9 +24,9 @@ internal readonly struct LatLonBounds(double minLat, double maxLat, double minLo
         double minLon = double.PositiveInfinity;
         double maxLon = double.NegativeInfinity;
 
-        foreach (var ring in rings)
+        foreach (IReadOnlyList<LatLon> ring in rings)
         {
-            foreach (var p in ring)
+            foreach (LatLon p in ring)
             {
                 if (p.Lat < minLat)
                 {

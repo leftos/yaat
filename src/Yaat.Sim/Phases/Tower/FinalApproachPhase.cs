@@ -469,7 +469,7 @@ public sealed class FinalApproachPhase : Phase
         // Fly the approach to the landing threshold, not the pavement end: on a displaced end the
         // glidepath has to reach the surface where landings may begin (AIM 2-3-3.b.8.2). Falls back to
         // the pavement threshold when no airport map is loaded.
-        var threshold = LandingThreshold.Resolve(ctx.Runway, ctx.GroundLayout);
+        LatLon threshold = LandingThreshold.Resolve(ctx.Runway, ctx.GroundLayout);
         _thresholdLat = threshold.Lat;
         _thresholdLon = threshold.Lon;
         _thresholdElevation = ctx.Runway.ElevationFt;
@@ -480,7 +480,7 @@ public sealed class FinalApproachPhase : Phase
         // (and the JFAC handler) via FinalApproachCourseExtractor. When the aircraft was
         // spawned directly into final approach without a clearance, fall back to runway
         // heading + threshold for both fields.
-        var clearance = ctx.Aircraft.Phases?.ActiveApproach;
+        ApproachClearance? clearance = ctx.Aircraft.Phases?.ActiveApproach;
         _finalApproachCourse = clearance?.FinalApproachCourse ?? _runwayHeading;
         _anchorLat = clearance?.FinalApproachAnchorLat ?? _thresholdLat;
         _anchorLon = clearance?.FinalApproachAnchorLon ?? _thresholdLon;
@@ -553,18 +553,18 @@ public sealed class FinalApproachPhase : Phase
         // HasMadeInitialContact gate excludes them. Pattern traffic is also excluded:
         // PatternEntryPhase fires its own initial-call (closed-traffic request), and the
         // uncleared short-final reminder below handles the mid-final pilot speech.
-        var atAirportId = ctx.Runway?.AirportId ?? clearance?.AirportCode;
+        string? atAirportId = ctx.Runway?.AirportId ?? clearance?.AirportCode;
         if (
             !_isPatternTraffic
             && ctx.PilotContacts.ResolveFor(ctx.Aircraft, "TWR", atAirportId, ctx.ToEligibilityContext(), true) is { } answering
             && !answering.HasInitialContact(ctx.Aircraft)
         )
         {
-            var rwyId = ctx.Runway?.Designator ?? clearance?.RunwayId ?? "the runway";
-            var ifrWithApch = !ctx.Aircraft.FlightPlan.IsVfr && clearance is not null;
-            var distMiles = (int)Math.Round(startDist);
-            var facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
-            var line = PilotResponder.BuildOnFinal(
+            string rwyId = ctx.Runway?.Designator ?? clearance?.RunwayId ?? "the runway";
+            bool ifrWithApch = !ctx.Aircraft.FlightPlan.IsVfr && clearance is not null;
+            int distMiles = (int)Math.Round(startDist);
+            string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
+            PilotSpeechText line = PilotResponder.BuildOnFinal(
                 ctx.Aircraft,
                 rwyId,
                 ifrWithApch,
@@ -625,7 +625,7 @@ public sealed class FinalApproachPhase : Phase
     /// </summary>
     internal void RetargetRunway(RunwayInfo newRunway, AirportGroundLayout? groundLayout, double gsAngleDeg)
     {
-        var threshold = LandingThreshold.Resolve(newRunway, groundLayout);
+        LatLon threshold = LandingThreshold.Resolve(newRunway, groundLayout);
         _thresholdLat = threshold.Lat;
         _thresholdLon = threshold.Lon;
         _thresholdElevation = newRunway.ElevationFt;
@@ -753,7 +753,7 @@ public sealed class FinalApproachPhase : Phase
                 + AircraftPerformance.WindApproachAdditive(ctx.Weather, _runwayHeading.Degrees);
             double gs = ctx.Aircraft.GroundSpeed;
             bool inStabilizationWindow = (gs > 0) && ((distNm / gs * 3600.0) <= StabilizationWindowSeconds);
-            var lead = ctx.AircraftLookup?.Invoke(ctx.Aircraft.Approach.FollowingCallsign);
+            AircraftState? lead = ctx.AircraftLookup?.Invoke(ctx.Aircraft.Approach.FollowingCallsign);
             bool leaderOnGround = lead?.IsOnGround ?? true;
 
             if (inStabilizationWindow || leaderOnGround)
@@ -762,7 +762,7 @@ public sealed class FinalApproachPhase : Phase
             }
             else
             {
-                var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, vref, vref, AirborneFollowHelper.MaxSpeedAdjustFinalKts);
+                double? adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, vref, vref, AirborneFollowHelper.MaxSpeedAdjustFinalKts);
                 if (adjusted is not null)
                 {
                     ctx.Targets.TargetSpeed = adjusted.Value;
@@ -781,9 +781,9 @@ public sealed class FinalApproachPhase : Phase
         }
         else if (ShouldAutoSTurnForSpacing(ctx, distNm) && ctx.Aircraft.Phases is { } phasesForSTurn)
         {
-            var initialDir = ctx.Aircraft.Phases.TrafficDirection == PatternDirection.Right ? TurnDirection.Right : TurnDirection.Left;
+            TurnDirection initialDir = ctx.Aircraft.Phases.TrafficDirection == PatternDirection.Right ? TurnDirection.Right : TurnDirection.Left;
             var sTurn = new STurnPhase { InitialDirection = initialDir, Count = 1 };
-            var resume = CloneForResume();
+            FinalApproachPhase resume = CloneForResume();
             resume._sTurnSpacingCooldownSeconds = STurnSpacingCooldownSeconds;
             phasesForSTurn.InsertAfterCurrent(new List<Phase> { sTurn, resume });
 
@@ -995,7 +995,7 @@ public sealed class FinalApproachPhase : Phase
             return false;
         }
 
-        var activeApproach = ctx.Aircraft.Phases?.ActiveApproach;
+        ApproachClearance? activeApproach = ctx.Aircraft.Phases?.ActiveApproach;
         if (activeApproach?.MapAltitudeFt is { } mapAltitudeFt)
         {
             double warningAltitudeFt = mapAltitudeFt + MinimumsNoClearanceWarningBufferFt;
@@ -1376,7 +1376,7 @@ public sealed class FinalApproachPhase : Phase
         // without an approach clearance (pattern/visual turning final), pattern traffic, visual
         // approaches (no electronic glideslope), and PTACF forced intercepts (which intentionally
         // S-turn back onto course and would otherwise be stranded high).
-        var clearance = ctx.Aircraft.Phases?.ActiveApproach;
+        ApproachClearance? clearance = ctx.Aircraft.Phases?.ActiveApproach;
         if (clearance is null || _isPatternTraffic)
         {
             return true;
@@ -1417,7 +1417,7 @@ public sealed class FinalApproachPhase : Phase
             return false;
         }
 
-        var lead = ctx.AircraftLookup?.Invoke(leadCallsign);
+        AircraftState? lead = ctx.AircraftLookup?.Invoke(leadCallsign);
         if (lead is null || lead.IsOnGround)
         {
             return false;
@@ -1479,7 +1479,7 @@ public sealed class FinalApproachPhase : Phase
         // TBL 5-9-1 — grading them against the vectoring criteria fails a controller who did the
         // right thing. The score is still recorded for the report; only the legality verdicts below
         // are exempt. Mirrors the same reasoning in IsLaterallyEstablishedForGs.
-        var interceptClearance = ctx.Aircraft.Phases?.ActiveApproach;
+        ApproachClearance? interceptClearance = ctx.Aircraft.Phases?.ActiveApproach;
         bool notVectoredToFac =
             interceptClearance is null || _isPatternTraffic || interceptClearance.ApproachId.StartsWith("VIS", StringComparison.Ordinal);
 
@@ -1523,8 +1523,8 @@ public sealed class FinalApproachPhase : Phase
         bool wasForced = ctx.Aircraft.Phases?.ActiveApproach?.Force ?? false;
 
         // Capture approach score
-        var approachId = ctx.Aircraft.Phases?.ActiveApproach?.ApproachId ?? "";
-        var airportCode = ctx.Aircraft.Phases?.ActiveApproach?.AirportCode ?? ctx.Runway.AirportId;
+        string approachId = ctx.Aircraft.Phases?.ActiveApproach?.ApproachId ?? "";
+        string airportCode = ctx.Aircraft.Phases?.ActiveApproach?.AirportCode ?? ctx.Runway.AirportId;
 
         var score = new ApproachScore
         {
@@ -1559,7 +1559,7 @@ public sealed class FinalApproachPhase : Phase
             return true;
         }
 
-        var phases = ctx.Aircraft.Phases;
+        PhaseList? phases = ctx.Aircraft.Phases;
         if (phases is null)
         {
             return false;
@@ -1604,7 +1604,7 @@ public sealed class FinalApproachPhase : Phase
             return false;
         }
 
-        var assignedThreshold = LandingThreshold.Resolve(assignedRunway, ctx.GroundLayout);
+        LatLon assignedThreshold = LandingThreshold.Resolve(assignedRunway, ctx.GroundLayout);
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position.Lat, ctx.Aircraft.Position.Lon, assignedThreshold.Lat, assignedThreshold.Lon);
         double signedXteNm = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, assignedThreshold, assignedRunway.TrueHeading);
         // Along-track (not slant) distance: at large xte close-in the slant overstates the
@@ -1616,7 +1616,7 @@ public sealed class FinalApproachPhase : Phase
         // (its ramp-lerped cross-track was captured this tick as _lastGuidanceXteNm), else
         // the assigned centerline itself — an approach chain aimed at a different runway is
         // precisely what the gate must not excuse.
-        var activeApproach = ctx.Aircraft.Phases?.ActiveApproach;
+        ApproachClearance? activeApproach = ctx.Aircraft.Phases?.ActiveApproach;
         bool guidanceTargetsAssigned = (activeApproach?.RunwayId is not { } guidanceRunwayId) || assignedRunway.IsActiveEnd(guidanceRunwayId);
         double deviationNm = guidanceTargetsAssigned ? _lastGuidanceXteNm : signedXteNm;
         bool offCourse = Math.Abs(deviationNm) > LateralGateXteNm;
@@ -1719,7 +1719,7 @@ public sealed class FinalApproachPhase : Phase
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
         // Clearance / GA / runway-exit commands always pass through.
-        var alwaysAllowed = cmd switch
+        bool alwaysAllowed = cmd switch
         {
             CanonicalCommandType.ClearedToLand => true,
             CanonicalCommandType.ForceLanding => true,

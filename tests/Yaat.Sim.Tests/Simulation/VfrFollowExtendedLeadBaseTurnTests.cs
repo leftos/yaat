@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -55,8 +56,8 @@ public class VfrFollowExtendedLeadBaseTurnTests(ITestOutputHelper output)
     [Fact]
     public void Follower_HoldsDownwind_WhileLeadExtends()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -68,8 +69,8 @@ public class VfrFollowExtendedLeadBaseTurnTests(ITestOutputHelper output)
         // WAIT presets, so the pre-bug state is reached faithfully.
         engine.Replay(recording, 430);
 
-        var lead0 = engine.FindAircraft(Leader);
-        var foll0 = engine.FindAircraft(Follower);
+        AircraftState? lead0 = engine.FindAircraft(Leader);
+        AircraftState? foll0 = engine.FindAircraft(Follower);
         Assert.NotNull(lead0);
         Assert.NotNull(foll0);
         output.WriteLine(
@@ -97,13 +98,13 @@ public class VfrFollowExtendedLeadBaseTurnTests(ITestOutputHelper output)
         for (int now = 431; now <= 465; now++)
         {
             engine.ReplayOneSecond();
-            var lead = engine.FindAircraft(Leader);
-            var foll = engine.FindAircraft(Follower);
+            AircraftState? lead = engine.FindAircraft(Leader);
+            AircraftState? foll = engine.FindAircraft(Follower);
             Assert.NotNull(lead);
             Assert.NotNull(foll);
 
-            var leadPhase = lead.Phases?.CurrentPhase;
-            var follPhase = foll.Phases?.CurrentPhase;
+            Phase? leadPhase = lead.Phases?.CurrentPhase;
+            Phase? follPhase = foll.Phases?.CurrentPhase;
             output.WriteLine(
                 $"t={now} lead={leadPhase?.GetType().Name} "
                     + $"ext={(leadPhase as DownwindPhase)?.IsExtended} | "

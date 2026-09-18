@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -72,13 +73,13 @@ public class GoAroundClimbOutTests
     [Fact]
     public void ResolvePatternIntent_AfterClandWipedDirection_RecoversSideFromFlownPatternLeg()
     {
-        var runway = Runway("28L");
+        RunwayInfo? runway = Runway("28L");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.Add(new DownwindPhase { Waypoints = WaypointsFor(runway, PatternDirection.Right), Status = PhaseStatus.Completed });
         aircraft.Phases.Add(new FinalApproachPhase());
 
@@ -90,8 +91,8 @@ public class GoAroundClimbOutTests
     [Fact]
     public void ResolvePatternIntent_VfrWithNoPatternLegs_InfersFromParallelRunwaySuffix()
     {
-        var right = Runway("28R");
-        var left = Runway("28L");
+        RunwayInfo? right = Runway("28R");
+        RunwayInfo? left = Runway("28L");
         if (right is null || left is null)
         {
             return;
@@ -105,13 +106,13 @@ public class GoAroundClimbOutTests
     [Fact]
     public void ResolvePatternIntent_PersistentMltIntent_OutranksRunwaySuffix()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Pattern.TrafficDirection = PatternDirection.Left;
 
         Assert.Equal(PatternDirection.Left, GoAroundHelper.ResolvePatternIntent(aircraft));
@@ -121,13 +122,13 @@ public class GoAroundClimbOutTests
     [Fact]
     public void ResolvePatternIntent_IfrNotInPattern_ReturnsNull()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.FlightPlan = new AircraftFlightPlan { FlightRules = "IFR", Destination = "KOAK" };
 
         Assert.Null(GoAroundHelper.ResolvePatternIntent(aircraft));
@@ -138,14 +139,14 @@ public class GoAroundClimbOutTests
     [Fact]
     public void ResolveClimbOutAltitude_CategoryDefault_LevelsThreeHundredBelowPatternAltitude()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
+        AircraftState aircraft = MakeVfrAircraft(runway);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
 
         int expected = (int)(runway.AirportElevationFt + PistonPatternAltitudeAgl - HandoffMarginFt);
         Assert.Equal(expected, GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: true, missedApproachPhases: []));
@@ -158,15 +159,15 @@ public class GoAroundClimbOutTests
     [Fact]
     public void ResolveClimbOutAltitude_AuthoredPatternAltitude_OverridesCategoryDefault()
     {
-        var runway = Runway("28L");
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        RunwayInfo? runway = Runway("28L");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (runway is null || layout is null || layout.FindRunway("28L")?.PatternAltitudeAglFt is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        AircraftState aircraft = MakeVfrAircraft(runway);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
 
         int expected = (int)(runway.AirportElevationFt + Oak28LAuthoredPatternAltitudeAgl - HandoffMarginFt);
         Assert.Equal(expected, GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: true, missedApproachPhases: []));
@@ -176,16 +177,16 @@ public class GoAroundClimbOutTests
     [Fact]
     public void ResolveClimbOutAltitude_CommandedAltitudeOverride_Wins()
     {
-        var runway = Runway("28L");
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        RunwayInfo? runway = Runway("28L");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (runway is null || layout is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Pattern.AltitudeOverrideFt = 1500;
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
 
         Assert.Equal(1200, GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: true, missedApproachPhases: []));
     }
@@ -197,15 +198,15 @@ public class GoAroundClimbOutTests
     [Fact]
     public void ResolveClimbOutAltitude_NoAssignedRunway_FallsBackToFieldElevation()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.AssignedRunway = null;
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
 
         int expected = (int)(ctx.FieldElevation + PistonPatternAltitudeAgl - HandoffMarginFt);
         Assert.Equal(expected, GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: true, missedApproachPhases: []));
@@ -215,13 +216,13 @@ public class GoAroundClimbOutTests
     [Fact]
     public void ResolveClimbOutAltitude_NotPattern_ReturnsNull()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var ctx = CommandDispatcher.BuildMinimalContext(MakeVfrAircraft(runway), groundLayout: null);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(MakeVfrAircraft(runway), groundLayout: null);
 
         Assert.Null(GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: false, missedApproachPhases: []));
     }
@@ -235,21 +236,21 @@ public class GoAroundClimbOutTests
     [Fact]
     public void GoAroundCommand_VfrArrival_ReentersPatternAtPatternAltitude()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
 
-        var result = PatternCommandHandler.TryGoAround(new GoAroundCommand(null, null, null), aircraft, groundLayout: null);
+        CommandResult result = PatternCommandHandler.TryGoAround(new GoAroundCommand(null, null, null), aircraft, groundLayout: null);
 
         Assert.True(result.Success, result.Message);
-        var goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
+        GoAroundPhase goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
         Assert.True(goAround.ReenterPattern);
         Assert.Equal((int)(runway.AirportElevationFt + PistonPatternAltitudeAgl - HandoffMarginFt), goAround.TargetAltitude);
     }
@@ -261,20 +262,24 @@ public class GoAroundClimbOutTests
     [Fact]
     public void GoAroundCommand_WithAssignedHeading_DoesNotInferPatternReentry()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.Add(new FinalApproachPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
 
-        var result = PatternCommandHandler.TryGoAround(new GoAroundCommand(new MagneticHeading(270), null, null), aircraft, groundLayout: null);
+        CommandResult result = PatternCommandHandler.TryGoAround(
+            new GoAroundCommand(new MagneticHeading(270), null, null),
+            aircraft,
+            groundLayout: null
+        );
 
         Assert.True(result.Success, result.Message);
-        var goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
+        GoAroundPhase goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
         Assert.False(goAround.ReenterPattern);
         Assert.Null(goAround.TargetAltitude);
         Assert.Null(aircraft.Phases.TrafficDirection);
@@ -290,18 +295,18 @@ public class GoAroundClimbOutTests
     [Fact]
     public void ClearedTouchAndGo_WithoutStatedSide_InfersSameDirectionAsGoAround()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
 
-        var result = PatternCommandHandler.TrySetupTouchAndGo(aircraft, OptionPatternModifier.None, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TrySetupTouchAndGo(aircraft, OptionPatternModifier.None, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(PatternDirection.Right, aircraft.Phases.TrafficDirection);
@@ -311,19 +316,19 @@ public class GoAroundClimbOutTests
     [Fact]
     public void ClearedTouchAndGo_WithoutStatedSide_KeepsTheSideAlreadyFlown()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.Add(new DownwindPhase { Waypoints = WaypointsFor(runway, PatternDirection.Left) });
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
 
-        var result = PatternCommandHandler.TrySetupTouchAndGo(aircraft, OptionPatternModifier.None, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TrySetupTouchAndGo(aircraft, OptionPatternModifier.None, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(PatternDirection.Left, aircraft.Phases.TrafficDirection);
@@ -340,13 +345,13 @@ public class GoAroundClimbOutTests
     [Fact]
     public void MakeRightTraffic_ForADifferentRunway_InvalidatesTheLandingClearance()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null || Runway("30") is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.Add(new DownwindPhase { Waypoints = WaypointsFor(runway, PatternDirection.Right) });
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
@@ -354,7 +359,12 @@ public class GoAroundClimbOutTests
         aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
         aircraft.Phases.ClearedRunwayId = "28R";
 
-        var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, runwayId: "30", altitudeOverride: null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            aircraft,
+            PatternDirection.Right,
+            runwayId: "30",
+            altitudeOverride: null
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("30", aircraft.Phases.AssignedRunway?.Designator);
@@ -366,13 +376,13 @@ public class GoAroundClimbOutTests
     [Fact]
     public void MakeRightTraffic_ForTheSameRunway_KeepsTheLandingClearance()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.Add(new DownwindPhase { Waypoints = WaypointsFor(runway, PatternDirection.Left) });
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
@@ -380,7 +390,12 @@ public class GoAroundClimbOutTests
         aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
         aircraft.Phases.ClearedRunwayId = "28R";
 
-        var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, runwayId: "28R", altitudeOverride: null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            aircraft,
+            PatternDirection.Right,
+            runwayId: "28R",
+            altitudeOverride: null
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(ClearanceType.ClearedToLand, aircraft.Phases.LandingClearance);
@@ -397,13 +412,13 @@ public class GoAroundClimbOutTests
     [Fact]
     public void MakeRightTraffic_DuringNonPatternGoAround_RetargetsClimbOutToPatternAltitude()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.Add(
             new GoAroundPhase
             {
@@ -415,10 +430,15 @@ public class GoAroundClimbOutTests
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
 
-        var goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
+        GoAroundPhase goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
         Assert.Equal(runway.ElevationFt + 2000, aircraft.Targets.TargetAltitude);
 
-        var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, runwayId: null, altitudeOverride: null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            aircraft,
+            PatternDirection.Right,
+            runwayId: null,
+            altitudeOverride: null
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.True(goAround.ReenterPattern);
@@ -436,13 +456,13 @@ public class GoAroundClimbOutTests
     [Fact]
     public void MakeRightTraffic_DuringGoAroundWithAssignedHeading_DropsTheHeading()
     {
-        var runway = Runway("28R");
+        RunwayInfo? runway = Runway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeVfrAircraft(runway);
+        AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.Add(
             new GoAroundPhase
             {
@@ -453,7 +473,7 @@ public class GoAroundClimbOutTests
         );
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
 
-        var goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
+        GoAroundPhase goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
 
         PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, runwayId: null, altitudeOverride: null);
 

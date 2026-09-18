@@ -37,7 +37,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {
             return;
@@ -45,8 +45,8 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).EnableCategory("TaxiPathfinder", LogLevel.Debug).InitializeSimLog();
 
-        Assert.True(layout.Nodes.TryGetValue(StartNodeId, out var startNode), $"Node {StartNodeId} missing from current sfo layout");
-        var parkingNode = layout.Nodes.Values.FirstOrDefault(n =>
+        Assert.True(layout.Nodes.TryGetValue(StartNodeId, out GroundNode? startNode), $"Node {StartNodeId} missing from current sfo layout");
+        GroundNode? parkingNode = layout.Nodes.Values.FirstOrDefault(n =>
             (n.Type == GroundNodeType.Parking || n.Type == GroundNodeType.Spot)
             && string.Equals(n.Name, ParkingName, StringComparison.OrdinalIgnoreCase)
         );
@@ -55,7 +55,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         output.WriteLine($"start node #{startNode.Id} type={startNode.Type} pos=({startNode.Position.Lat:F6},{startNode.Position.Lon:F6})");
         output.WriteLine($"parking #{parkingNode.Id} name={parkingNode.Name} pos=({parkingNode.Position.Lat:F6},{parkingNode.Position.Lon:F6})");
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: StartNodeId,
             taxiwayNames: Taxiways,
@@ -71,15 +71,15 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         output.WriteLine($"=== ROUTE: {route.Segments.Count} segments ===");
         for (int i = 0; i < route.Segments.Count; i++)
         {
-            var s = route.Segments[i];
+            TaxiRouteSegment s = route.Segments[i];
             output.WriteLine($"  [{i, 3}] {s.FromNodeId, 5} -> {s.ToNodeId, 5} ({s.TaxiwayName})");
         }
 
         var reversals = new List<(int Index, int A, int B)>();
         for (int i = 0; i < route.Segments.Count - 1; i++)
         {
-            var a = route.Segments[i];
-            var b = route.Segments[i + 1];
+            TaxiRouteSegment a = route.Segments[i];
+            TaxiRouteSegment b = route.Segments[i + 1];
             if (a.FromNodeId == b.ToNodeId && a.ToNodeId == b.FromNodeId)
             {
                 reversals.Add((i, a.FromNodeId, a.ToNodeId));
@@ -90,7 +90,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         {
             output.WriteLine("");
             output.WriteLine($"!!! {reversals.Count} immediate reversal(s) detected:");
-            foreach (var (idx, a, b) in reversals)
+            foreach ((int idx, int a, int b) in reversals)
             {
                 output.WriteLine($"  segment [{idx}] {a}->{b} immediately followed by {b}->{a}");
             }
@@ -130,7 +130,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {
             return;
@@ -139,13 +139,13 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         Assert.True(layout.Nodes.TryGetValue(StartNodeId, out _), $"Node {StartNodeId} missing from current sfo layout");
-        var parkingNode = layout.Nodes.Values.FirstOrDefault(n =>
+        GroundNode? parkingNode = layout.Nodes.Values.FirstOrDefault(n =>
             (n.Type == GroundNodeType.Parking || n.Type == GroundNodeType.Spot)
             && string.Equals(n.Name, ParkingName, StringComparison.OrdinalIgnoreCase)
         );
         Assert.NotNull(parkingNode);
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: StartNodeId,
             taxiwayNames: Taxiways,
@@ -176,7 +176,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         if (fSegments.Count > 0)
         {
             output.WriteLine($"!!! {fSegments.Count} segment(s) on un-authorized taxiway F:");
-            foreach (var (idx, seg) in fSegments)
+            foreach ((int idx, TaxiRouteSegment? seg) in fSegments)
             {
                 output.WriteLine($"  [{idx}] {seg.FromNodeId}->{seg.ToNodeId}");
             }
@@ -185,7 +185,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         if (tightArcs.Count > 0)
         {
             output.WriteLine($"!!! {tightArcs.Count} degenerate-radius arc segment(s) (radius < {DegenerateRadiusFt:F0}ft):");
-            foreach (var (idx, seg) in tightArcs)
+            foreach ((int idx, TaxiRouteSegment? seg) in tightArcs)
             {
                 var arc = (GroundArc)seg.Edge.Edge;
                 output.WriteLine(
@@ -224,7 +224,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {
             return;
@@ -232,13 +232,13 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var parkingNode = layout.Nodes.Values.FirstOrDefault(n =>
+        GroundNode? parkingNode = layout.Nodes.Values.FirstOrDefault(n =>
             (n.Type == GroundNodeType.Parking || n.Type == GroundNodeType.Spot)
             && string.Equals(n.Name, ParkingName, StringComparison.OrdinalIgnoreCase)
         );
         Assert.NotNull(parkingNode);
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: StartNodeId,
             taxiwayNames: Taxiways,
@@ -258,7 +258,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         if (ySegments.Count > 0)
         {
             output.WriteLine($"!!! {ySegments.Count} segment(s) on un-authorized letter-only taxiway Y:");
-            foreach (var (idx, seg) in ySegments)
+            foreach ((int idx, TaxiRouteSegment? seg) in ySegments)
             {
                 output.WriteLine($"  [{idx}] {seg.FromNodeId}->{seg.ToNodeId}");
             }
@@ -300,7 +300,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var recording = RecordingLoader.Load(RecordingPath);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         if (recording is null)
         {
             return;
@@ -309,19 +309,19 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         var engine = new SimulationEngine(groundData);
         engine.Replay(recording, 820);
 
-        var ac = engine.FindAircraft("SKW3078");
+        AircraftState? ac = engine.FindAircraft("SKW3078");
         Assert.NotNull(ac);
 
         output.WriteLine($"position=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F1} ias={ac.IndicatedAirspeed:F1}");
 
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         output.WriteLine("");
         output.WriteLine($"=== ROUTE: {route.Segments.Count} segments, currentIdx={route.CurrentSegmentIndex} ===");
         for (int i = 0; i < route.Segments.Count; i++)
         {
-            var s = route.Segments[i];
+            TaxiRouteSegment s = route.Segments[i];
             string marker = i == route.CurrentSegmentIndex ? "  <- current" : "";
             output.WriteLine($"  [{i, 3}] {s.FromNodeId, 5} -> {s.ToNodeId, 5} ({s.TaxiwayName}){marker}");
         }
@@ -329,8 +329,8 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         var reversals = new List<int>();
         for (int i = 0; i < route.Segments.Count - 1; i++)
         {
-            var a = route.Segments[i];
-            var b = route.Segments[i + 1];
+            TaxiRouteSegment a = route.Segments[i];
+            TaxiRouteSegment b = route.Segments[i + 1];
             if (a.FromNodeId == b.ToNodeId && a.ToNodeId == b.FromNodeId)
             {
                 reversals.Add(i);

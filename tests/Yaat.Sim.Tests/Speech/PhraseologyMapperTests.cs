@@ -30,7 +30,7 @@ public class PhraseologyMapperTests
     [InlineData("maintain present heading", "FPH")]
     public void Heading_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -42,7 +42,7 @@ public class PhraseologyMapperTests
     [InlineData("turn thirty degrees right", "RELR 30")]
     public void RelativeTurn_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -64,7 +64,7 @@ public class PhraseologyMapperTests
     [InlineData("expedite descent to five thousand", "EXP 5000")]
     public void Altitude_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -78,7 +78,7 @@ public class PhraseologyMapperTests
     {
         // CommandSchemeParser.ExpandSpeedUntil rewrites "SPD 250 UNTIL CEPIN" downstream into
         // "SPD 250; AT CEPIN RNS" — the STT rule just emits the literal compound canonical.
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand.ToUpperInvariant());
     }
@@ -89,7 +89,7 @@ public class PhraseologyMapperTests
     [InlineData("cruise flight level two five zero", "CRUISE 25000")]
     public void Cruise_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -103,7 +103,7 @@ public class PhraseologyMapperTests
     [InlineData("reduce to final approach speed", "RFAS")]
     public void Speed_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -118,7 +118,7 @@ public class PhraseologyMapperTests
     [InlineData("fly direct cepin", "DCT CEPIN")]
     public void Navigation_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         // Fix names come through in whatever case the transcript had — mapper is lowercase
         // internally but passes captures through. Tower-layer normalization happens later.
@@ -143,7 +143,7 @@ public class PhraseologyMapperTests
     [InlineData("cross cepin at five thousand at two five zero knots", "CFIX CEPIN AT 5000 250")]
     public void CrossFix_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand.ToUpperInvariant());
     }
@@ -153,7 +153,7 @@ public class PhraseologyMapperTests
     {
         // Regression guard: ground-side "cross runway 28R" must keep mapping to CROSS (taxi),
         // not be hijacked by the new "cross {fix} at {alt}" rule with {fix}="runway".
-        var result = PhraseologyMapper.Map("cross runway two eight right", NoContext);
+        MapResult? result = PhraseologyMapper.Map("cross runway two eight right", NoContext);
         Assert.NotNull(result);
         Assert.Equal("CROSS 28R", result!.CanonicalCommand);
     }
@@ -164,7 +164,7 @@ public class PhraseologyMapperTests
         // §4-8 / §5-9 / AIM §5-4: "Cross (fix) at or above (altitude), cleared (type) approach."
         // The greedy multi-clause matcher should consume CrossFix then ClearedApproach as
         // two adjacent clauses joined by ", " — no special compound rule needed.
-        var result = PhraseologyMapper.Map("cross cepin at or above five thousand cleared ils runway two eight right approach", NoContext);
+        MapResult? result = PhraseologyMapper.Map("cross cepin at or above five thousand cleared ils runway two eight right approach", NoContext);
         Assert.NotNull(result);
         Assert.Equal("CFIX CEPIN A5000, CAPP ILS28R", result!.CanonicalCommand.ToUpperInvariant());
     }
@@ -180,7 +180,7 @@ public class PhraseologyMapperTests
     [InlineData("climb via sid except maintain flight level one eight zero", "CVIA 18000")]
     public void ClimbVia_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -191,7 +191,7 @@ public class PhraseologyMapperTests
         // FAA 7110.65 §4-5: "CLIMB VIA SID, EXCEPT CROSS (fix) (revised altitude)".
         // The greedy multi-clause matcher should parse the bare CV rule plus the CrossFix rule
         // as two adjacent clauses joined by ", ", with "except" skipped as an unmatched filler.
-        var result = PhraseologyMapper.Map("climb via sid except cross cepin at or above five thousand", NoContext);
+        MapResult? result = PhraseologyMapper.Map("climb via sid except cross cepin at or above five thousand", NoContext);
         Assert.NotNull(result);
         Assert.Equal("CVIA, CFIX CEPIN A5000", result!.CanonicalCommand.ToUpperInvariant());
     }
@@ -214,7 +214,7 @@ public class PhraseologyMapperTests
     [InlineData("descend via the eagle five arrival", "JARR EAGUL5")]
     public void DescendViaNamed_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, ProcedureContext(Eagul5Star));
+        MapResult? result = PhraseologyMapper.Map(transcript, ProcedureContext(Eagul5Star));
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -225,7 +225,7 @@ public class PhraseologyMapperTests
     [InlineData("climb via the suzan two departure except maintain five thousand", "CVIA 5000")]
     public void ClimbViaNamed_DropsNameEmitsBare(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, ProcedureContext(Suzan2Sid));
+        MapResult? result = PhraseologyMapper.Map(transcript, ProcedureContext(Suzan2Sid));
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -233,7 +233,7 @@ public class PhraseologyMapperTests
     [Fact]
     public void StarBareClearance_EmitsJoinStar()
     {
-        var result = PhraseologyMapper.Map("eagul five arrival", ProcedureContext(Eagul5Star));
+        MapResult? result = PhraseologyMapper.Map("eagul five arrival", ProcedureContext(Eagul5Star));
         Assert.NotNull(result);
         Assert.Equal("JARR EAGUL5", result!.CanonicalCommand);
     }
@@ -243,7 +243,7 @@ public class PhraseologyMapperTests
     {
         // "apple five arrival" has no matching procedure — the procedure-validation post-pass
         // rejects the rule, returning null so the LLM fallback gets a shot.
-        var result = PhraseologyMapper.Map("descend via the apple five arrival", ProcedureContext(Eagul5Star));
+        MapResult? result = PhraseologyMapper.Map("descend via the apple five arrival", ProcedureContext(Eagul5Star));
         Assert.Null(result);
     }
 
@@ -255,7 +255,7 @@ public class PhraseologyMapperTests
         // AtcNumberParser is the digit "5" — the first non-fix-like-looking thing the rule mapper
         // sees in this transcript). Result is a nonsense JARR but no crash. Pinned here to
         // document the fallthrough; production callers populate Procedures so this can't fire.
-        var result = PhraseologyMapper.Map("eagul five arrival", MapContext.Empty);
+        MapResult? result = PhraseologyMapper.Map("eagul five arrival", MapContext.Empty);
         Assert.NotNull(result);
         Assert.StartsWith("JARR ", result!.CanonicalCommand);
     }
@@ -268,7 +268,7 @@ public class PhraseologyMapperTests
     [InlineData("depart cepin heading zero niner zero", "DEPART CEPIN 090")]
     public void DepartFix_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand.ToUpperInvariant());
     }
@@ -278,7 +278,7 @@ public class PhraseologyMapperTests
     [InlineData("option approved", "COPT")]
     public void OptionApproved_Rule(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -290,7 +290,7 @@ public class PhraseologyMapperTests
     [InlineData("caution wake turbulence boeing seven three seven on five mile final", "CWT")]
     public void WakeAdvisory_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -308,11 +308,11 @@ public class PhraseologyMapperTests
     [InlineData("hold for traffic", "HOLD")]
     public void TaxiAndGroundSynonyms_Rules(string transcript, string expected)
     {
-        var ctx = MapContext.Empty with
+        MapContext ctx = MapContext.Empty with
         {
             TaxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "B", "C" },
         };
-        var result = PhraseologyMapper.Map(transcript, ctx);
+        MapResult? result = PhraseologyMapper.Map(transcript, ctx);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -325,7 +325,7 @@ public class PhraseologyMapperTests
         // intermediary path before the LLM fallback. We verify the rule pattern matches an
         // arbitrary single-token capture via the test-only matcher to keep the regression
         // honest without depending on CallsignParser's behavior in the full pipeline.
-        var captures = PhraseologyMapper.TryMatchPatternForTests(["behind", "{callsign}"], ["behind", "ualx5321"]);
+        Dictionary<string, string>? captures = PhraseologyMapper.TryMatchPatternForTests(["behind", "{callsign}"], ["behind", "ualx5321"]);
         Assert.NotNull(captures);
         Assert.Equal("ualx5321", captures!["callsign"]);
     }
@@ -349,7 +349,7 @@ public class PhraseologyMapperTests
     [InlineData("if able turn right alpha", "ER A")]
     public void TurnExit_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, TaxiwayContext("A", "C"));
+        MapResult? result = PhraseologyMapper.Map(transcript, TaxiwayContext("A", "C"));
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -358,7 +358,7 @@ public class PhraseologyMapperTests
     public void TurnExit_UnknownTaxiway_FailsValidation()
     {
         // "harriet" isn't a NATO letter and isn't in the taxiway list — rule rejects, result null.
-        var result = PhraseologyMapper.Map("turn left harriet", TaxiwayContext("A", "C"));
+        MapResult? result = PhraseologyMapper.Map("turn left harriet", TaxiwayContext("A", "C"));
         Assert.Null(result);
     }
 
@@ -367,7 +367,7 @@ public class PhraseologyMapperTests
     {
         // Regression: longer "turn left heading {hdg}" rule (4 tokens) must still win over the
         // new 3-token "turn left {taxiway}" rule for heading inputs.
-        var result = PhraseologyMapper.Map("turn left heading two seven zero", TaxiwayContext("A", "C"));
+        MapResult? result = PhraseologyMapper.Map("turn left heading two seven zero", TaxiwayContext("A", "C"));
         Assert.NotNull(result);
         Assert.Equal("TL 270", result!.CanonicalCommand);
     }
@@ -393,7 +393,7 @@ public class PhraseologyMapperTests
     [InlineData("turn right if able delta", "ER D")]
     public void ExitLeftRight_PreambleAndConnectors(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, TaxiwayContext("A", "C", "D"));
+        MapResult? result = PhraseologyMapper.Map(transcript, TaxiwayContext("A", "C", "D"));
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -403,7 +403,7 @@ public class PhraseologyMapperTests
     {
         // Regression: even without TaxiwayNames context, the taxiway sanity check must reject
         // pure-letter 4-char captures like "when" so we get bare "EL" instead of "EL when".
-        var result = PhraseologyMapper.Map("exit left when able", NoContext);
+        MapResult? result = PhraseologyMapper.Map("exit left when able", NoContext);
         Assert.NotNull(result);
         Assert.Equal("EL", result!.CanonicalCommand);
     }
@@ -419,7 +419,7 @@ public class PhraseologyMapperTests
     [InlineData("left traffic approved", "MLT")]
     public void PatternEntryApproved_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -444,7 +444,7 @@ public class PhraseologyMapperTests
     [InlineData("change to runway two eight right runway two eight right cleared to land", "CLAND")]
     public void TowerModifierWedges_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -460,7 +460,7 @@ public class PhraseologyMapperTests
     [InlineData("go around", "GA")]
     public void Tower_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -476,7 +476,7 @@ public class PhraseologyMapperTests
     [InlineData("cleared visual approach runway niner", "CVA 9")]
     public void Approach_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -495,7 +495,7 @@ public class PhraseologyMapperTests
     [InlineData("cleared lda runway one seven left approach", "CAPP LDA17L")]
     public void ApproachType_Variants(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -511,7 +511,7 @@ public class PhraseologyMapperTests
     [InlineData("expect lda runway one seven left approach", "EAPP LDA17L")]
     public void ExpectApproachType_Variants(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -544,7 +544,7 @@ public class PhraseologyMapperTests
     [InlineData("fly heading two seven zero descend and maintain three thousand cleared rnav runway one two approach", "PTAC 270 3000 RNAV12")]
     public void Ptac_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -558,7 +558,7 @@ public class PhraseologyMapperTests
     [InlineData("ident", "IDENT")]
     public void Transponder_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -568,7 +568,7 @@ public class PhraseologyMapperTests
     [Fact]
     public void Compound_ClimbAndFly()
     {
-        var result = PhraseologyMapper.Map("climb and maintain five thousand and fly heading two seven zero", NoContext);
+        MapResult? result = PhraseologyMapper.Map("climb and maintain five thousand and fly heading two seven zero", NoContext);
         Assert.NotNull(result);
         Assert.Equal("CM 5000, FH 270", result!.CanonicalCommand);
         Assert.Equal(2, result.MatchedRuleCount);
@@ -577,7 +577,7 @@ public class PhraseologyMapperTests
     [Fact]
     public void Compound_DescendSpeedHeading()
     {
-        var result = PhraseologyMapper.Map(
+        MapResult? result = PhraseologyMapper.Map(
             "descend and maintain three thousand reduce speed to two five zero turn left heading one eight zero",
             NoContext
         );
@@ -595,7 +595,7 @@ public class PhraseologyMapperTests
         // "climb to {alt}" with {alt}="main" and produce the nonsense canonical "CM main".
         // Instead it should fail to match and let a later position (the flight level) pick up
         // the actual altitude — or fall through to null if nothing valid is found.
-        var result = PhraseologyMapper.Map("climb to main aim flight level tree five zero", NoContext);
+        MapResult? result = PhraseologyMapper.Map("climb to main aim flight level tree five zero", NoContext);
         if (result is not null)
         {
             // Whatever we produce, it must not have "main" or any non-digit token after CM.
@@ -609,7 +609,7 @@ public class PhraseologyMapperTests
     public void FlyHeading_NonNumericHeading_RejectsMatch()
     {
         // "fly heading apple" should not match "fly heading {hdg}" with {hdg}="apple".
-        var result = PhraseologyMapper.Map("fly heading apple", NoContext);
+        MapResult? result = PhraseologyMapper.Map("fly heading apple", NoContext);
         Assert.Null(result);
     }
 
@@ -617,7 +617,7 @@ public class PhraseologyMapperTests
     public void Squawk_NonNumericCode_RejectsMatch()
     {
         // "squawk vfr" is a special-case rule (SQVFR); "squawk random" should not match.
-        var result = PhraseologyMapper.Map("squawk random", NoContext);
+        MapResult? result = PhraseologyMapper.Map("squawk random", NoContext);
         Assert.Null(result);
     }
 
@@ -625,7 +625,7 @@ public class PhraseologyMapperTests
     public void ClimbToFlightLevel_ValidAltitude_StillMatches()
     {
         // Happy path regression: verify the validator didn't break normal "climb to {alt}" matching.
-        var result = PhraseologyMapper.Map("climb to flight level three five zero", NoContext);
+        MapResult? result = PhraseologyMapper.Map("climb to flight level three five zero", NoContext);
         Assert.NotNull(result);
         Assert.Equal("CM 35000", result!.CanonicalCommand);
     }
@@ -646,7 +646,7 @@ public class PhraseologyMapperTests
         // The capture is re-joined into the layout's name form. Both orders are accepted (AIM
         // 4-3-18.b.4.c "taxi to Page via …" and §3-11-1.c "via … to …"); gate / stand / helipad
         // are STT synonyms for the @ destination.
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -675,7 +675,7 @@ public class PhraseologyMapperTests
     {
         // "echo four" spells ECS4 and "delta one two" spells DAL12, but nobody by those callsigns is
         // on frequency — the tokens after the noun are the position's name.
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Null(result!.Callsign);
         Assert.Equal(expected, result.CanonicalCommand);
@@ -686,7 +686,7 @@ public class PhraseologyMapperTests
     {
         // Even with DAL12 on frequency, "parking" followed by nothing is not a clearance — the name
         // reading wins directly after the noun.
-        var result = PhraseologyMapper.Map("taxi to parking delta one two", new MapContext(["DAL12"], []));
+        MapResult? result = PhraseologyMapper.Map("taxi to parking delta one two", new MapContext(["DAL12"], []));
         Assert.NotNull(result);
         Assert.Null(result!.Callsign);
         Assert.Equal("TAXI @D12", result.CanonicalCommand);
@@ -695,7 +695,7 @@ public class PhraseologyMapperTests
     [Fact]
     public void Taxi_ToParking_TrailingCallsignAfterTheNameIsStillExtracted()
     {
-        var result = PhraseologyMapper.Map("taxi to parking bravo one two delta one five", new MapContext(["DAL15"], []));
+        MapResult? result = PhraseologyMapper.Map("taxi to parking bravo one two delta one five", new MapContext(["DAL15"], []));
         Assert.NotNull(result);
         Assert.Equal("DAL15", result!.Callsign);
         Assert.Equal("TAXI @B12", result.CanonicalCommand);
@@ -708,12 +708,12 @@ public class PhraseologyMapperTests
         // trailing tokens are the callsign and the gate is C3; otherwise the whole spelling is the gate.
         const string transcript = "taxi to parking charlie three bravo one two";
 
-        var onFrequency = PhraseologyMapper.Map(transcript, new MapContext(["BRV12"], []));
+        MapResult? onFrequency = PhraseologyMapper.Map(transcript, new MapContext(["BRV12"], []));
         Assert.NotNull(onFrequency);
         Assert.Equal("BRV12", onFrequency!.Callsign);
         Assert.Equal("TAXI @C3", onFrequency.CanonicalCommand);
 
-        var notOnFrequency = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? notOnFrequency = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(notOnFrequency);
         Assert.Null(notOnFrequency!.Callsign);
         Assert.Equal("TAXI @C3B12", notOnFrequency.CanonicalCommand);
@@ -756,7 +756,7 @@ public class PhraseologyMapperTests
     [InlineData("taxi via alpha to parking bravo one two hold short of charlie at juliett", "TAXI A @B12 HS C@J")]
     public void Taxi_ToParkingWithRunwayClauses_KeepsTheWholeClearance(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -769,7 +769,7 @@ public class PhraseologyMapperTests
         // A bare "taxi to runway 28R" carries no route; it is the clearance for an aircraft already
         // at its runway (issue #393) and must stay distinct from the via forms, which still win
         // whenever a route is spoken (see the ground-command theory below).
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -779,7 +779,7 @@ public class PhraseologyMapperTests
     [Fact]
     public void Callsign_Leading_Airline()
     {
-        var result = PhraseologyMapper.Map("southwest one two three climb and maintain five thousand", NoContext);
+        MapResult? result = PhraseologyMapper.Map("southwest one two three climb and maintain five thousand", NoContext);
         Assert.NotNull(result);
         Assert.Equal("SWA123", result!.Callsign);
         Assert.Equal("CM 5000", result.CanonicalCommand);
@@ -788,7 +788,7 @@ public class PhraseologyMapperTests
     [Fact]
     public void Callsign_Trailing_Airline()
     {
-        var result = PhraseologyMapper.Map("climb and maintain five thousand southwest one two three", NoContext);
+        MapResult? result = PhraseologyMapper.Map("climb and maintain five thousand southwest one two three", NoContext);
         Assert.NotNull(result);
         Assert.Equal("SWA123", result!.Callsign);
         Assert.Equal("CM 5000", result.CanonicalCommand);
@@ -797,7 +797,7 @@ public class PhraseologyMapperTests
     [Fact]
     public void Callsign_Leading_UsGa()
     {
-        var result = PhraseologyMapper.Map("november one two three four five cleared for takeoff", NoContext);
+        MapResult? result = PhraseologyMapper.Map("november one two three four five cleared for takeoff", NoContext);
         Assert.NotNull(result);
         Assert.Equal("N12345", result!.Callsign);
         Assert.Equal("CTO", result.CanonicalCommand);
@@ -809,7 +809,7 @@ public class PhraseologyMapperTests
         // Whisper's initial_prompt is seeded with the ICAO form "N9225L", so it normalizes the
         // tail mid-transcription while still emitting the word "november" the speaker prefixed.
         // Regression test for the hybrid form reaching the mapper.
-        var result = PhraseologyMapper.Map("november N9225L climb and maintain 2000", NoContext);
+        MapResult? result = PhraseologyMapper.Map("november N9225L climb and maintain 2000", NoContext);
         Assert.NotNull(result);
         Assert.Equal("N9225L", result!.Callsign);
         Assert.Equal("CM 2000", result.CanonicalCommand);
@@ -819,7 +819,7 @@ public class PhraseologyMapperTests
     public void Callsign_Leading_UsGa_BareIcaoForm()
     {
         // Fully-normalized form: Whisper emitted just "N9225L" with no "november" prefix.
-        var result = PhraseologyMapper.Map("N9225L climb and maintain 2000", NoContext);
+        MapResult? result = PhraseologyMapper.Map("N9225L climb and maintain 2000", NoContext);
         Assert.NotNull(result);
         Assert.Equal("N9225L", result!.Callsign);
         Assert.Equal("CM 2000", result.CanonicalCommand);
@@ -830,7 +830,7 @@ public class PhraseologyMapperTests
     [Fact]
     public void Condition_AtFix()
     {
-        var result = PhraseologyMapper.Map("at cepin climb and maintain five thousand", NoContext);
+        MapResult? result = PhraseologyMapper.Map("at cepin climb and maintain five thousand", NoContext);
         Assert.NotNull(result);
         Assert.Equal("AT CEPIN CM 5000", result!.CanonicalCommand);
     }
@@ -838,7 +838,7 @@ public class PhraseologyMapperTests
     [Fact]
     public void Condition_WhenLevelAt()
     {
-        var result = PhraseologyMapper.Map("when level at five thousand fly heading two seven zero", NoContext);
+        MapResult? result = PhraseologyMapper.Map("when level at five thousand fly heading two seven zero", NoContext);
         Assert.NotNull(result);
         Assert.Equal("LV 5000 FH 270", result!.CanonicalCommand);
     }
@@ -849,7 +849,7 @@ public class PhraseologyMapperTests
     public void Disregard_ClearsPriorCommands()
     {
         // Controller: "Climb and maintain 5000. Disregard. Descend and maintain 3000."
-        var result = PhraseologyMapper.Map("climb and maintain five thousand disregard descend and maintain three thousand", NoContext);
+        MapResult? result = PhraseologyMapper.Map("climb and maintain five thousand disregard descend and maintain three thousand", NoContext);
         Assert.NotNull(result);
         Assert.Equal("DM 3000", result!.CanonicalCommand);
     }
@@ -858,7 +858,7 @@ public class PhraseologyMapperTests
     public void Disregard_AloneDoesNotMatch()
     {
         // Just "disregard" by itself has nothing to cancel and no command — return null.
-        var result = PhraseologyMapper.Map("disregard", NoContext);
+        MapResult? result = PhraseologyMapper.Map("disregard", NoContext);
         Assert.Null(result);
     }
 
@@ -888,7 +888,7 @@ public class PhraseologyMapperTests
     public void FillerWords_AreStripped()
     {
         // "please" and "uh" are filler; the core command still matches.
-        var result = PhraseologyMapper.Map("uh climb and maintain five thousand please", NoContext);
+        MapResult? result = PhraseologyMapper.Map("uh climb and maintain five thousand please", NoContext);
         Assert.NotNull(result);
         Assert.Equal("CM 5000", result!.CanonicalCommand);
     }
@@ -918,7 +918,7 @@ public class PhraseologyMapperTests
     [InlineData("enter left downwind for runway one eight left", "ELD 18L")]
     public void Pattern_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -946,8 +946,8 @@ public class PhraseologyMapperTests
     [Fact]
     public void RunwayCapture_ValidRunway_Matches()
     {
-        var ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L", "30", "12", "33", "15");
-        var result = PhraseologyMapper.Map("enter right downwind for runway two eight right", ctx);
+        MapContext ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L", "30", "12", "33", "15");
+        MapResult? result = PhraseologyMapper.Map("enter right downwind for runway two eight right", ctx);
         Assert.NotNull(result);
         Assert.Equal("ERD 28R", result!.CanonicalCommand);
     }
@@ -959,8 +959,8 @@ public class PhraseologyMapperTests
         // phonetic mapping) drops the rule match entirely so the LLM fallback gets a chance to
         // recover with full transcript context. The 28R/28L/etc. variants ARE in the airport's
         // list, so the only reason this fails is the absent phonetic snap for trailing 4.
-        var ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L", "30", "12", "33", "15");
-        var result = PhraseologyMapper.Map("enter right downwind for runway 274", ctx);
+        MapContext ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L", "30", "12", "33", "15");
+        MapResult? result = PhraseologyMapper.Map("enter right downwind for runway 274", ctx);
         Assert.Null(result);
     }
 
@@ -970,7 +970,7 @@ public class PhraseologyMapperTests
         // With AvailableRunways empty, validation is skipped — the rule still fires and produces
         // its raw capture. This protects every existing PhraseologyMapperTests case that passes
         // MapContext.Empty (NoContext) from regressing when the validator is added.
-        var result = PhraseologyMapper.Map("enter right downwind for runway 288", NoContext);
+        MapResult? result = PhraseologyMapper.Map("enter right downwind for runway 288", NoContext);
         Assert.NotNull(result);
         Assert.Equal("ERD 288", result!.CanonicalCommand);
     }
@@ -987,8 +987,8 @@ public class PhraseologyMapperTests
     {
         // Validation requires the runway to be in AvailableRunways — supply both the padded form
         // (the actual airport runway) and confirm the collapse produces it.
-        var ctx = ContextWithRunways("KSFO", "01L", "01R", "19L", "19R", "09L", "09R", "27L", "27R");
-        var result = PhraseologyMapper.Map(transcript, ctx);
+        MapContext ctx = ContextWithRunways("KSFO", "01L", "01R", "19L", "19R", "09L", "09R", "27L", "27R");
+        MapResult? result = PhraseologyMapper.Map(transcript, ctx);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -1010,8 +1010,8 @@ public class PhraseologyMapperTests
     [InlineData("enter right downwind runway one zero eft", "ERD 10L")]
     public void RunwayCapture_PhoneticSuffixCollapse(string transcript, string expected)
     {
-        var ctx = ContextWithRunways("KOAK", "10L", "10R", "28L", "28R");
-        var result = PhraseologyMapper.Map(transcript, ctx);
+        MapContext ctx = ContextWithRunways("KOAK", "10L", "10R", "28L", "28R");
+        MapResult? result = PhraseologyMapper.Map(transcript, ctx);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -1027,8 +1027,8 @@ public class PhraseologyMapperTests
     [InlineData("098", "ERD 09R")]
     public void RunwayCapture_FuzzyRecovery_TrailingEight(string captured, string expected)
     {
-        var ctx = ContextWithRunways("KOAK", "01R", "01L", "09R", "09L", "10R", "10L", "28R", "28L");
-        var result = PhraseologyMapper.Map($"enter right downwind runway {captured}", ctx);
+        MapContext ctx = ContextWithRunways("KOAK", "01R", "01L", "09R", "09L", "10R", "10L", "28R", "28L");
+        MapResult? result = PhraseologyMapper.Map($"enter right downwind runway {captured}", ctx);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -1040,8 +1040,8 @@ public class PhraseologyMapperTests
     [InlineData("100", "ERD 10L")]
     public void RunwayCapture_FuzzyRecovery_TrailingZero_PrefersLeft(string captured, string expected)
     {
-        var ctx = ContextWithRunways("KOAK", "10R", "10L", "28R", "28L");
-        var result = PhraseologyMapper.Map($"enter right downwind runway {captured}", ctx);
+        MapContext ctx = ContextWithRunways("KOAK", "10R", "10L", "28R", "28L");
+        MapResult? result = PhraseologyMapper.Map($"enter right downwind runway {captured}", ctx);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -1052,8 +1052,8 @@ public class PhraseologyMapperTests
         // Trailing digits other than 8 and 0 have no phonetic mapping — TryRecoverRunway returns
         // null, which escalates runwayInvalid and Map returns null. The LLM fallback (which
         // doesn't run in this unit test) would then own recovery.
-        var ctx = ContextWithRunways("KOAK", "28R", "28L");
-        var result = PhraseologyMapper.Map("enter right downwind runway 285", ctx);
+        MapContext ctx = ContextWithRunways("KOAK", "28R", "28L");
+        MapResult? result = PhraseologyMapper.Map("enter right downwind runway 285", ctx);
         Assert.Null(result);
     }
 
@@ -1062,8 +1062,8 @@ public class PhraseologyMapperTests
     {
         // 3-digit "300" with no L/R/C variant in the airport's list — falls back to the bare
         // base "30" if it exists.
-        var ctx = ContextWithRunways("KOAK", "30", "12", "33", "15");
-        var result = PhraseologyMapper.Map("enter right downwind runway 300", ctx);
+        MapContext ctx = ContextWithRunways("KOAK", "30", "12", "33", "15");
+        MapResult? result = PhraseologyMapper.Map("enter right downwind runway 300", ctx);
         Assert.NotNull(result);
         Assert.Equal("ERD 30", result!.CanonicalCommand);
     }
@@ -1081,7 +1081,7 @@ public class PhraseologyMapperTests
                 ["KSFO"] = ["28L", "28R", "01L", "01R"],
             },
         };
-        var result = PhraseologyMapper.Map("enter right downwind runway zero one right", ctx);
+        MapResult? result = PhraseologyMapper.Map("enter right downwind runway zero one right", ctx);
         Assert.NotNull(result);
         Assert.Equal("ERD 01R", result!.CanonicalCommand);
     }
@@ -1097,7 +1097,7 @@ public class PhraseologyMapperTests
     [InlineData("cleared for stop and go", "SG")]
     public void TwoPassFiller_PreservesForLiteralRules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -1109,8 +1109,8 @@ public class PhraseologyMapperTests
         // conversational filler "for" as the runway and fails validation. Pass 2 strips the
         // filler, resolves CROSS 28R, and wins — pass 1's invalid capture must not null out the
         // winning pass 2 result (that would force a needless LLM fallback).
-        var ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L");
-        var result = PhraseologyMapper.Map("cross runway for two eight right", ctx);
+        MapContext ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L");
+        MapResult? result = PhraseologyMapper.Map("cross runway for two eight right", ctx);
         Assert.NotNull(result);
         Assert.Equal("CROSS 28R", result!.CanonicalCommand);
     }
@@ -1120,8 +1120,8 @@ public class PhraseologyMapperTests
     {
         // Genuinely invalid runway: 18L isn't at the airport, so both passes fail validation.
         // The invalid-runway guard must still drop the match so the LLM fallback owns recovery.
-        var ctx = ContextWithRunways("KOAK", "28R", "28L");
-        var result = PhraseologyMapper.Map("cross runway for one eight left", ctx);
+        MapContext ctx = ContextWithRunways("KOAK", "28R", "28L");
+        MapResult? result = PhraseologyMapper.Map("cross runway for one eight left", ctx);
         Assert.Null(result);
     }
 
@@ -1136,7 +1136,7 @@ public class PhraseologyMapperTests
     [InlineData("hold at cepin right turns", "HFIXR CEPIN")]
     public void Hold_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand.ToUpperInvariant());
     }
@@ -1149,7 +1149,7 @@ public class PhraseologyMapperTests
     [InlineData("cleared for takeoff present position", "CTOPP")]
     public void Helicopter_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -1208,7 +1208,7 @@ public class PhraseologyMapperTests
     [InlineData("pushback onto tango tail west approved", "PUSH T TAIL W")]
     public void Ground_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -1219,7 +1219,7 @@ public class PhraseologyMapperTests
         // Airport has taxiway "TE" — "tango echo" should collapse to a single TE token
         // rather than two letters. Rule output carries the multi-letter name through.
         var ctx = new MapContext([], []) { TaxiwayNames = new HashSet<string>(["TE"], StringComparer.OrdinalIgnoreCase) };
-        var result = PhraseologyMapper.Map("taxi via tango echo", ctx);
+        MapResult? result = PhraseologyMapper.Map("taxi via tango echo", ctx);
         Assert.NotNull(result);
         Assert.Equal("TAXI TE", result!.CanonicalCommand);
     }
@@ -1229,7 +1229,7 @@ public class PhraseologyMapperTests
     {
         // Airport has separate T and E taxiways with no TE — "tango echo" must split.
         var ctx = new MapContext([], []) { TaxiwayNames = new HashSet<string>(["T", "E"], StringComparer.OrdinalIgnoreCase) };
-        var result = PhraseologyMapper.Map("taxi via tango echo", ctx);
+        MapResult? result = PhraseologyMapper.Map("taxi via tango echo", ctx);
         Assert.NotNull(result);
         Assert.Equal("TAXI T E", result!.CanonicalCommand);
     }
@@ -1239,7 +1239,7 @@ public class PhraseologyMapperTests
     {
         // Taxiway set present; single-letter "tango" still collapses, cardinal still resolves.
         var ctx = new MapContext([], []) { TaxiwayNames = new HashSet<string>(["T"], StringComparer.OrdinalIgnoreCase) };
-        var result = PhraseologyMapper.Map("pushback onto tango facing north", ctx);
+        MapResult? result = PhraseologyMapper.Map("pushback onto tango facing north", ctx);
         Assert.NotNull(result);
         Assert.Equal("PUSH T FACE N", result!.CanonicalCommand);
     }
@@ -1254,7 +1254,7 @@ public class PhraseologyMapperTests
         var output = new CollectingOutput();
         SimLogBuilder.CreateForTest(output).EnableCategory("PhraseologyMapper", LogLevel.Debug).InitializeSimLog();
 
-        var result = PhraseologyMapper.Map("runway 288 right uh taxi via tingo uniform whiskey november 346 gulf", NoContext);
+        MapResult? result = PhraseologyMapper.Map("runway 288 right uh taxi via tingo uniform whiskey november 346 gulf", NoContext);
         Assert.NotNull(result);
 
         // The order below is the exact pipeline order; each string is a tag from the log line.
@@ -1268,8 +1268,8 @@ public class PhraseologyMapperTests
             "RuleMatch", // matched rule
         ];
 
-        var log = output.ToString();
-        foreach (var step in expectedSteps)
+        string log = output.ToString();
+        foreach (string step in expectedSteps)
         {
             Assert.Contains($"[Speech] {step}", log);
         }
@@ -1307,7 +1307,7 @@ public class PhraseologyMapperTests
         // NATO normalizer can't resolve on their own. With the near-miss resolver in place,
         // "tingo" → "tango" and "gulf" → "golf" before callsign extraction, letting the full
         // pipeline recover the intended canonical command.
-        var result = PhraseologyMapper.Map("runway 288 right taxi via tingo uniform whiskey november 346 gulf", NoContext);
+        MapResult? result = PhraseologyMapper.Map("runway 288 right taxi via tingo uniform whiskey november 346 gulf", NoContext);
         Assert.NotNull(result);
         Assert.Equal("N346G", result!.Callsign);
         Assert.Equal("TAXI T U W 28R", result.CanonicalCommand);
@@ -1321,7 +1321,7 @@ public class PhraseologyMapperTests
         // homophone → "288 right" (which must collapse to "28R", not "288R"), and the callsign
         // trailed with a "for November..." leading filler that was a pilot-style signoff.
         // Both mappers previously failed here; with the fix the rule engine handles it end-to-end.
-        var result = PhraseologyMapper.Map("runway 288 right taxi via tango uniform whiskey november three four six golf", NoContext);
+        MapResult? result = PhraseologyMapper.Map("runway 288 right taxi via tango uniform whiskey november three four six golf", NoContext);
         Assert.NotNull(result);
         Assert.Equal("N346G", result!.Callsign);
         Assert.Equal("TAXI T U W 28R", result.CanonicalCommand);
@@ -1335,7 +1335,7 @@ public class PhraseologyMapperTests
         // bare "pushback approved" rule, silently dropping the facing clause. Known limitation;
         // the LLM fallback path can't engage here because the rule engine already produced a
         // valid canonical. Document the behavior with a test so regressions are caught.
-        var result = PhraseologyMapper.Map("pushback approved facing northeast", NoContext);
+        MapResult? result = PhraseologyMapper.Map("pushback approved facing northeast", NoContext);
         Assert.NotNull(result);
         Assert.Equal("PUSH", result!.CanonicalCommand);
     }
@@ -1351,7 +1351,7 @@ public class PhraseologyMapperTests
     [InlineData("report position", "SPOS")]
     public void Broadcast_Rules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -1369,7 +1369,7 @@ public class PhraseologyMapperTests
     [InlineData("cleared for option", "COPT")]
     public void Tower_ExpandedRules(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, NoContext);
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -1381,7 +1381,7 @@ public class PhraseologyMapperTests
     {
         // When the transcript has the correct fix name, the matcher is a no-op.
         var ctx = new MapContext([], ["CEPIN", "SUNOL"]);
-        var result = PhraseologyMapper.Map("direct to cepin", ctx);
+        MapResult? result = PhraseologyMapper.Map("direct to cepin", ctx);
         Assert.NotNull(result);
         Assert.Equal("DCT CEPIN", result!.CanonicalCommand);
     }
@@ -1391,7 +1391,7 @@ public class PhraseologyMapperTests
     {
         // Whisper heard "sepin"; real fix is CEPIN. The matcher should swap it in.
         var ctx = new MapContext([], ["CEPIN", "SUNOL"]);
-        var result = PhraseologyMapper.Map("direct to sepin", ctx);
+        MapResult? result = PhraseologyMapper.Map("direct to sepin", ctx);
         Assert.NotNull(result);
         Assert.Equal("DCT CEPIN", result!.CanonicalCommand);
     }
@@ -1401,7 +1401,7 @@ public class PhraseologyMapperTests
     {
         // With no programmed fixes context, the matcher can't correct and the raw token
         // survives (upper-cased by the fill-template step? actually captures preserve case).
-        var result = PhraseologyMapper.Map("direct to sepin", NoContext);
+        MapResult? result = PhraseologyMapper.Map("direct to sepin", NoContext);
         Assert.NotNull(result);
         // Either raw or matched via nav DB fallback (if it happened to load in this test).
         // For the no-nav-DB test context, we just assert a DCT command was produced.
@@ -1413,7 +1413,7 @@ public class PhraseologyMapperTests
     {
         // Ensure the matcher only rewrites capture values, not literal tokens from the rule.
         var ctx = new MapContext([], ["CEPIN", "SUNOL"]);
-        var result = PhraseologyMapper.Map("climb and maintain five thousand direct to sepin", ctx);
+        MapResult? result = PhraseologyMapper.Map("climb and maintain five thousand direct to sepin", ctx);
         Assert.NotNull(result);
         Assert.Equal("CM 5000, DCT CEPIN", result!.CanonicalCommand);
     }
@@ -1424,7 +1424,10 @@ public class PhraseologyMapperTests
     public void Variadic_Trailing_GreedyConsumesAllRemaining()
     {
         // Trailing variadic in the last position consumes every remaining token into one capture.
-        var captures = PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}"], ["taxi", "via", "b", "c", "d"]);
+        Dictionary<string, string>? captures = PhraseologyMapper.TryMatchPatternForTests(
+            ["taxi", "via", "{path...}"],
+            ["taxi", "via", "b", "c", "d"]
+        );
         Assert.NotNull(captures);
         Assert.Equal("b c d", captures!["path"]);
     }
@@ -1434,7 +1437,7 @@ public class PhraseologyMapperTests
     {
         // Variadic followed by a required literal captures up to (not including) the first
         // occurrence of that literal. Minimum 1 token consumed.
-        var captures = PhraseologyMapper.TryMatchPatternForTests(
+        Dictionary<string, string>? captures = PhraseologyMapper.TryMatchPatternForTests(
             ["taxi", "via", "{path...}", "hold", "short"],
             ["taxi", "via", "b", "c", "hold", "short"]
         );
@@ -1446,7 +1449,10 @@ public class PhraseologyMapperTests
     public void Variadic_SingleTokenCapture_IsAllowed()
     {
         // Minimum-size match: exactly one variadic token before the trailing literal.
-        var captures = PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}", "hold"], ["taxi", "via", "b", "hold"]);
+        Dictionary<string, string>? captures = PhraseologyMapper.TryMatchPatternForTests(
+            ["taxi", "via", "{path...}", "hold"],
+            ["taxi", "via", "b", "hold"]
+        );
         Assert.NotNull(captures);
         Assert.Equal("b", captures!["path"]);
     }
@@ -1456,7 +1462,10 @@ public class PhraseologyMapperTests
     {
         // Variadic requires at least one token — an empty slice (literal immediately follows)
         // must not match.
-        var captures = PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}", "hold"], ["taxi", "via", "hold"]);
+        Dictionary<string, string>? captures = PhraseologyMapper.TryMatchPatternForTests(
+            ["taxi", "via", "{path...}", "hold"],
+            ["taxi", "via", "hold"]
+        );
         Assert.Null(captures);
     }
 
@@ -1464,7 +1473,7 @@ public class PhraseologyMapperTests
     public void Variadic_Trailing_ZeroInput_Fails()
     {
         // Trailing variadic with no remaining tokens must fail — minimum 1 token consumed.
-        var captures = PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}"], ["taxi", "via"]);
+        Dictionary<string, string>? captures = PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}"], ["taxi", "via"]);
         Assert.Null(captures);
     }
 
@@ -1472,7 +1481,10 @@ public class PhraseologyMapperTests
     public void Variadic_NoMatchingNextLiteral_Fails()
     {
         // Variadic followed by a literal that never appears in the input must fail.
-        var captures = PhraseologyMapper.TryMatchPatternForTests(["taxi", "via", "{path...}", "hold"], ["taxi", "via", "b", "c", "d"]);
+        Dictionary<string, string>? captures = PhraseologyMapper.TryMatchPatternForTests(
+            ["taxi", "via", "{path...}", "hold"],
+            ["taxi", "via", "b", "c", "d"]
+        );
         Assert.Null(captures);
     }
 
@@ -1504,7 +1516,7 @@ public class PhraseologyMapperTests
         // literal word "route". Regression guard for the doubled {route} capture in the rule
         // ["cleared","into","{route}","maintain","{route}","altitudes"], where the second capture
         // overwrote the designator with the token "route".
-        var result = PhraseologyMapper.Map("cleared into IR149 maintain route altitudes", NoContext);
+        MapResult? result = PhraseologyMapper.Map("cleared into IR149 maintain route altitudes", NoContext);
         Assert.NotNull(result);
         Assert.Equal("CMTR IR149", result!.CanonicalCommand.ToUpperInvariant());
     }

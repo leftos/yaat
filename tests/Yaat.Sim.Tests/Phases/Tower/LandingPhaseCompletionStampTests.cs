@@ -38,7 +38,7 @@ public class LandingPhaseCompletionStampTests
     [Fact]
     public void LandingPhase_TickTouchdown_StampsLandedCompletionWithRunway()
     {
-        var runway = Oak28R();
+        RunwayInfo runway = Oak28R();
         var ac = new AircraftState
         {
             Callsign = "N123AB",
@@ -85,7 +85,7 @@ public class LandingPhaseCompletionStampTests
     {
         // A controller could conceivably issue CT before landing and then the aircraft
         // touches down anyway. First-write-wins keeps the canonical completion record.
-        var runway = Oak28R();
+        RunwayInfo runway = Oak28R();
         var ac = new AircraftState
         {
             Callsign = "N123AB",

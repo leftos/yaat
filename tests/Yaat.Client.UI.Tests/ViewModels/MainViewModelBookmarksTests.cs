@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -34,7 +35,7 @@ public class MainViewModelBookmarksTests
 
         vm.ApplyBookmarks([Bm("a", 5, "First", "JD")]);
 
-        var bookmark = Assert.Single(vm.Bookmarks);
+        TimelineBookmarkVm bookmark = Assert.Single(vm.Bookmarks);
         Assert.Equal("JD", bookmark.CreatorInitials);
         Assert.Contains("JD", bookmark.ListLabel);
         Assert.Contains("JD", bookmark.ToolTipText);
@@ -58,7 +59,7 @@ public class MainViewModelBookmarksTests
 
         vm.ApplyBookmarks([Bm("c", 30, "C", "AB"), Bm("a", 10, null), Bm("b", 20, "B")]);
 
-        var snapshot = vm.SnapshotBookmarks();
+        IReadOnlyList<TimelineBookmark> snapshot = vm.SnapshotBookmarks();
         Assert.Equal([10, 20, 30], snapshot.Select(b => b.TimeSeconds));
         Assert.Null(snapshot[0].Name);
         Assert.Equal("B", snapshot[1].Name);
@@ -217,7 +218,7 @@ public class MainViewModelBookmarksTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.ApplyBookmarks([Bm("a", 5, "First")]);
-        var bookmark = Assert.Single(vm.Bookmarks);
+        TimelineBookmarkVm bookmark = Assert.Single(vm.Bookmarks);
 
         BookmarkNamePrompt? prompted = null;
         vm.BookmarkNamePromptRequested += p => prompted = p;

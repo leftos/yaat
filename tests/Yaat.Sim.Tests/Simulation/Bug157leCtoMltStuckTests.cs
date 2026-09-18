@@ -59,8 +59,8 @@ public class Bug157leCtoMltStuckTests(ITestOutputHelper output)
     [Fact]
     public void TaxiBwRwy30_RouteTerminatesAtHoldShort()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine(output);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine(output);
         if (recording is null || engine is null)
         {
             return;
@@ -68,19 +68,19 @@ public class Bug157leCtoMltStuckTests(ITestOutputHelper output)
 
         engine.Replay(recording, AfterTaxiCommand);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
-        var route = ac.Ground?.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground?.AssignedTaxiRoute;
         Assert.NotNull(route);
         Assert.True(route.Segments.Count > 0, "Expected non-empty taxi route");
 
         int terminalId = route.Segments[^1].ToNodeId;
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("OAK");
+        AirportGroundLayout? layout = groundData.GetLayout("OAK");
         Assert.NotNull(layout);
-        Assert.True(layout.Nodes.TryGetValue(terminalId, out var terminalNode), $"Terminal node #{terminalId} missing from OAK layout");
+        Assert.True(layout.Nodes.TryGetValue(terminalId, out GroundNode? terminalNode), $"Terminal node #{terminalId} missing from OAK layout");
 
         output.WriteLine(
             $"Route terminal: node #{terminalId} type={terminalNode.Type} runway={terminalNode.RunwayId?.ToString() ?? "(none)"} "
@@ -100,8 +100,8 @@ public class Bug157leCtoMltStuckTests(ITestOutputHelper output)
     [Fact]
     public void CtoMlt_AdvancesPastLineUpPhase()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine(output);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine(output);
         if (recording is null || engine is null)
         {
             return;
@@ -109,10 +109,10 @@ public class Bug157leCtoMltStuckTests(ITestOutputHelper output)
 
         engine.Replay(recording, AfterCtoCleared);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
-        var current = ac.Phases?.CurrentPhase;
+        Phase? current = ac.Phases?.CurrentPhase;
         string chain = DescribePhases(ac);
         output.WriteLine(
             $"t={AfterCtoCleared} {Callsign}: phase={current?.GetType().Name ?? "(null)"} "
@@ -132,7 +132,7 @@ public class Bug157leCtoMltStuckTests(ITestOutputHelper output)
         {
             return "(null)";
         }
-        var plist = ac.Phases.Phases;
+        List<Phase> plist = ac.Phases.Phases;
         if (plist.Count == 0)
         {
             return "(empty)";
@@ -150,20 +150,20 @@ public class Bug157leCtoMltStuckTests(ITestOutputHelper output)
     [Fact]
     public void TaxiBwRwy30_RouteHasNoDiscontinuity()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine(output);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine(output);
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, AfterTaxiCommand);
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
-        var route = ac.Ground?.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground?.AssignedTaxiRoute;
         Assert.NotNull(route);
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
 
         for (int i = 1; i < route.Segments.Count; i++)
@@ -173,7 +173,7 @@ public class Bug157leCtoMltStuckTests(ITestOutputHelper output)
             if (prevTo != curFrom)
             {
                 double gapFt = 0;
-                if (layout.Nodes.TryGetValue(prevTo, out var a) && layout.Nodes.TryGetValue(curFrom, out var b))
+                if (layout.Nodes.TryGetValue(prevTo, out GroundNode? a) && layout.Nodes.TryGetValue(curFrom, out GroundNode? b))
                 {
                     gapFt = GeoMath.DistanceNm(a.Position, b.Position) * GeoMath.FeetPerNm;
                 }

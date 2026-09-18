@@ -29,7 +29,7 @@ public class AdwSidecarTests
     [Fact]
     public void LoadAll_ReadsAdwSection()
     {
-        var result = LoadSidecar(
+        AirportSidecarLoadResult result = LoadSidecar(
             """
             {
               "airportId": "KMIA",
@@ -41,8 +41,8 @@ public class AdwSidecarTests
         );
 
         Assert.Empty(result.Warnings);
-        var airport = Assert.Single(result.Airports);
-        var window = Assert.Single(airport.Adw);
+        AirportSidecar airport = Assert.Single(result.Airports);
+        AdwWindow window = Assert.Single(airport.Adw);
         Assert.Equal("26R", window.ArrivalRunway);
         Assert.Equal("30", window.DepartureRunway);
         Assert.Equal(2.7, window.OuterNm);
@@ -53,7 +53,7 @@ public class AdwSidecarTests
     [Fact]
     public void LoadAll_NormalizesSingleDigitDesignators()
     {
-        var result = LoadSidecar(
+        AirportSidecarLoadResult result = LoadSidecar(
             """
             {
               "airportId": "KTST",
@@ -62,7 +62,7 @@ public class AdwSidecarTests
             """
         );
 
-        var window = Assert.Single(Assert.Single(result.Airports).Adw);
+        AdwWindow window = Assert.Single(Assert.Single(result.Airports).Adw);
         Assert.Equal("09", window.ArrivalRunway);
         Assert.Equal("04L", window.DepartureRunway);
     }
@@ -78,7 +78,7 @@ public class AdwSidecarTests
     [InlineData("""{ "arrivalRunway": "26R", "departureRunway": "30", "outerNm": -0.1, "innerNm": -0.5 }""", "must be positive")]
     public void LoadAll_InvalidEntry_WarnsAndSkips(string entry, string expectedWarningFragment)
     {
-        var result = LoadSidecar(
+        AirportSidecarLoadResult result = LoadSidecar(
             $$"""
             { "airportId": "KTST", "adw": [ {{entry}} ] }
             """
@@ -106,13 +106,13 @@ public class AdwSidecarTests
     public void ShippedMiamiSidecar_CarriesThePublishedWindows()
     {
         string baseDir = Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");
-        var result = AirportSidecarLoader.LoadAll(baseDir);
+        AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(baseDir);
 
-        var mia = Assert.Single(result.Airports, a => a.AirportId == "KMIA");
+        AirportSidecar mia = Assert.Single(result.Airports, a => a.AirportId == "KMIA");
         Assert.Equal(4, mia.Adw.Count);
         Assert.All(mia.Adw, w => Assert.False(string.IsNullOrWhiteSpace(w.Notes), "every ADW entry must cite its facility directive"));
 
-        var arr30Dep26R = Assert.Single(mia.Adw, w => (w.ArrivalRunway == "30") && (w.DepartureRunway == "26R"));
+        AdwWindow arr30Dep26R = Assert.Single(mia.Adw, w => (w.ArrivalRunway == "30") && (w.DepartureRunway == "26R"));
         Assert.Equal(2.9, arr30Dep26R.OuterNm);
         Assert.Equal(-0.3, arr30Dep26R.InnerNm);
 

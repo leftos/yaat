@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -23,7 +24,7 @@ public class CvaPatternEntryVeerTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -43,8 +44,8 @@ public class CvaPatternEntryVeerTests(ITestOutputHelper output)
     [Fact]
     public void CvaAfterErd_AircraftDoesNotVeerAway()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -56,7 +57,7 @@ public class CvaPatternEntryVeerTests(ITestOutputHelper output)
         // step through CVA (t=2394) and CLAND (t=2400) so the >90° pattern-entry geometry
         // under test is still exercised.
         engine.Replay(recording, 2393);
-        var preCva = engine.FindAircraft("N3212L");
+        AircraftState? preCva = engine.FindAircraft("N3212L");
         Assert.NotNull(preCva);
         preCva.Approach.HasReportedFieldInSight = true;
         for (int t = 2394; t <= 2405; t++)
@@ -64,7 +65,7 @@ public class CvaPatternEntryVeerTests(ITestOutputHelper output)
             engine.ReplayOneSecond();
         }
 
-        var ac = engine.FindAircraft("N3212L");
+        AircraftState? ac = engine.FindAircraft("N3212L");
         Assert.NotNull(ac);
 
         // OAK runway 28R threshold is approximately at this position

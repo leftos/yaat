@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -40,8 +41,8 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
         int count = 0;
         for (int i = 0; i + 1 < segments.Count; i++)
         {
-            var a = segments[i];
-            var b = segments[i + 1];
+            TaxiRouteSegment a = segments[i];
+            TaxiRouteSegment b = segments[i + 1];
             if (a.FromNodeId == b.ToNodeId && a.ToNodeId == b.FromNodeId)
             {
                 count++;
@@ -58,13 +59,13 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
     /// </summary>
     private static void TickUntilAtParking(SimulationEngine engine, string callsign, int maxTicks)
     {
-        var keep = engine.SendCommand(callsign, "NODEL");
+        CommandResult keep = engine.SendCommand(callsign, "NODEL");
         Assert.True(keep.Success, $"NODEL failed: {keep.Message}");
 
         for (int i = 0; i < maxTicks; i++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(callsign);
+            AircraftState? ac = engine.FindAircraft(callsign);
             if (ac?.Phases?.CurrentPhase?.Name == "At Parking")
             {
                 return;
@@ -75,7 +76,7 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
     [Fact]
     public void N9225L_TaxiD_AtNEW1_HasNoReversals()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -83,14 +84,14 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            using var _ = TickRecorder.Attach(engine, Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-n9225l-taxi.json"), "N9225L");
+            using IDisposable _ = TickRecorder.Attach(engine, Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-n9225l-taxi.json"), "N9225L");
 
             // The recording's TAXI D @NEW1 fires at t=424, but the route a TAXI resolves
             // depends on the aircraft's exact position when the command is issued. Replaying
@@ -103,7 +104,7 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
             // runway, stopped), then issue TAXI D @NEW1 from that deterministic position.
             engine.Replay(recording, 423);
 
-            var ac = engine.FindAircraft("N9225L");
+            AircraftState? ac = engine.FindAircraft("N9225L");
             Assert.NotNull(ac);
             for (int t = 0; (t < 120) && (ac!.Phases?.CurrentPhase?.Name != "Holding After Exit"); t++)
             {
@@ -113,14 +114,14 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
             Assert.Equal("Holding After Exit", ac!.Phases?.CurrentPhase?.Name);
 
-            var taxi = engine.SendCommand("N9225L", "TAXI D @NEW1");
+            CommandResult taxi = engine.SendCommand("N9225L", "TAXI D @NEW1");
             Assert.True(taxi.Success, $"TAXI D @NEW1 failed: {taxi.Message}");
 
             ac = engine.FindAircraft("N9225L");
             Assert.NotNull(ac);
             Assert.NotNull(ac.Ground.AssignedTaxiRoute);
 
-            var segments = ac.Ground.AssignedTaxiRoute.Segments;
+            List<TaxiRouteSegment> segments = ac.Ground.AssignedTaxiRoute.Segments;
             int reversals = CountReversals(segments);
             output.WriteLine($"N9225L AssignedTaxiRoute: {segments.Count} segments, {reversals} reversal(s)");
             Assert.True(reversals == 0, $"N9225L TAXI D @NEW1 produced {reversals} reversal(s) in {segments.Count} segments");
@@ -146,7 +147,7 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
     [Fact]
     public void TaxiWhileExitingRunway_ClearsOwnExitHoldShort()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -154,8 +155,8 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -168,7 +169,7 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
             RunwayExitPhase? exitPhase = null;
             for (int t = 0; t < 60 && exitPhase is null; t++)
             {
-                var probe = engine.FindAircraft("N9225L");
+                AircraftState? probe = engine.FindAircraft("N9225L");
                 exitPhase = probe?.Phases?.CurrentPhase as RunwayExitPhase;
                 if (exitPhase is null)
                 {
@@ -181,15 +182,15 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
             string exitRwy = exitPhase.RunwayId!;
             output.WriteLine($"N9225L caught mid-exit of {exitRwy}");
 
-            var result = engine.SendCommand("N9225L", "TAXI D @NEW1");
+            CommandResult result = engine.SendCommand("N9225L", "TAXI D @NEW1");
             Assert.True(result.Success, $"TAXI D @NEW1 failed: {result.Message}");
 
-            var ac = engine.FindAircraft("N9225L");
+            AircraftState? ac = engine.FindAircraft("N9225L");
             Assert.NotNull(ac);
-            var route = ac.Ground.AssignedTaxiRoute;
+            TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
             Assert.NotNull(route);
 
-            var firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
+            HoldShortPoint? firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
             Assert.NotNull(firstCrossing);
             Assert.True(
                 RunwayIdentifier.Parse(firstCrossing.TargetName!).Overlaps(RunwayIdentifier.Parse(exitRwy)),
@@ -215,7 +216,7 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
     [Fact]
     public void N9225L_TaxiCD_AtNEW1_GoesDirectNotWrongWayAcrossRunway()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -223,8 +224,8 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -236,7 +237,7 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
             // the issue #412 descent fix put the touchdown at the aiming point).
             engine.Replay(recording, 423);
 
-            var ac = engine.FindAircraft("N9225L");
+            AircraftState? ac = engine.FindAircraft("N9225L");
             Assert.NotNull(ac);
             for (int t = 0; (t < 120) && (ac!.Phases?.CurrentPhase?.Name != "Holding After Exit"); t++)
             {
@@ -246,14 +247,14 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
             Assert.Equal("Holding After Exit", ac!.Phases?.CurrentPhase?.Name);
 
-            var taxi = engine.SendCommand("N9225L", "TAXI C D @NEW1");
+            CommandResult taxi = engine.SendCommand("N9225L", "TAXI C D @NEW1");
             Assert.True(taxi.Success, $"TAXI C D @NEW1 failed: {taxi.Message}");
 
             ac = engine.FindAircraft("N9225L");
             Assert.NotNull(ac);
             Assert.NotNull(ac.Ground.AssignedTaxiRoute);
 
-            var segments = ac.Ground.AssignedTaxiRoute.Segments;
+            List<TaxiRouteSegment> segments = ac.Ground.AssignedTaxiRoute.Segments;
             output.WriteLine($"N9225L AssignedTaxiRoute: {segments.Count} segments, {ac.Ground.AssignedTaxiRoute.TotalDistanceNm:F2} nm");
 
             // The wrong-way loop's signature is re-crossing runway 28R/10L (or reversing) on the
@@ -272,7 +273,7 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
     [Fact]
     public void N436MS_TaxiC_AtJSX1_HasNoReversals()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -280,14 +281,14 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            using var _ = TickRecorder.Attach(engine, Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-n436ms-taxi.json"), "N436MS");
+            using IDisposable _ = TickRecorder.Attach(engine, Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-n436ms-taxi.json"), "N436MS");
 
             // The recording's TAXI C @JSX1 at t=455 is rejected during replay because our
             // re-simulated physics has N436MS still in the Landing phase at t=455 (minor
@@ -295,20 +296,20 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
             // aircraft settles into HoldingAfterExit, then re-issue the command.
             engine.Replay(recording, 614);
 
-            var ac = engine.FindAircraft("N436MS");
+            AircraftState? ac = engine.FindAircraft("N436MS");
             Assert.NotNull(ac);
             output.WriteLine(
                 $"N436MS at t=614: phase={ac.Phases?.CurrentPhase?.Name} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) gs={ac.GroundSpeed:F1}"
             );
 
-            var taxi = engine.SendCommand("N436MS", "TAXI C @JSX1");
+            CommandResult taxi = engine.SendCommand("N436MS", "TAXI C @JSX1");
             Assert.True(taxi.Success, $"TAXI C @JSX1 failed after replay: {taxi.Message}");
 
             ac = engine.FindAircraft("N436MS");
             Assert.NotNull(ac);
             Assert.NotNull(ac.Ground.AssignedTaxiRoute);
 
-            var segments = ac.Ground.AssignedTaxiRoute.Segments;
+            List<TaxiRouteSegment> segments = ac.Ground.AssignedTaxiRoute.Segments;
             int reversals = CountReversals(segments);
             output.WriteLine($"N436MS AssignedTaxiRoute: {segments.Count} segments, {reversals} reversal(s)");
             Assert.True(reversals == 0, $"N436MS TAXI C @JSX1 produced {reversals} reversal(s) in {segments.Count} segments");

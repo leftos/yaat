@@ -39,16 +39,16 @@ public sealed class RunwayExitRestoreTests
     /// </summary>
     private static (GroundNode Branch, GroundNode HoldShort, string Taxiway)? FindExitPair(AirportGroundLayout layout, string runwayId)
     {
-        foreach (var holdShort in layout.GetRunwayHoldShortNodes(runwayId))
+        foreach (GroundNode holdShort in layout.GetRunwayHoldShortNodes(runwayId))
         {
-            foreach (var edge in holdShort.Edges)
+            foreach (IGroundEdge edge in holdShort.Edges)
             {
                 if (string.IsNullOrEmpty(edge.TaxiwayName))
                 {
                     continue;
                 }
 
-                foreach (var node in edge.Nodes)
+                foreach (GroundNode node in edge.Nodes)
                 {
                     if (node.Id != holdShort.Id)
                     {
@@ -64,19 +64,19 @@ public sealed class RunwayExitRestoreTests
     [Fact]
     public void RestoredMidExit_ContinuesFollowingTheExitPath_InsteadOfReportingComplete()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
         }
 
-        var pair = FindExitPair(layout, "28R");
+        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
         if (pair is null)
         {
             return;
         }
 
-        var (branch, holdShort, taxiway) = pair.Value;
+        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
 
         var dto = new RunwayExitPhaseDto
         {
@@ -132,19 +132,19 @@ public sealed class RunwayExitRestoreTests
     [Fact]
     public void TurnStarted_SurvivesASnapshotRoundTrip()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
         }
 
-        var pair = FindExitPair(layout, "28R");
+        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
         if (pair is null)
         {
             return;
         }
 
-        var (branch, holdShort, taxiway) = pair.Value;
+        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
 
         var dto = new RunwayExitPhaseDto
         {
@@ -165,7 +165,7 @@ public sealed class RunwayExitRestoreTests
         var restored = RunwayExitPhase.FromSnapshot(dto, layout);
         Assert.True(restored.TurnStarted);
 
-        var round = Assert.IsType<RunwayExitPhaseDto>(restored.ToSnapshot());
+        RunwayExitPhaseDto round = Assert.IsType<RunwayExitPhaseDto>(restored.ToSnapshot());
         Assert.True(round.TurnStarted);
     }
 
@@ -177,19 +177,19 @@ public sealed class RunwayExitRestoreTests
     [Fact]
     public void RestoredPastTheBranchNode_ResumesOnTheExitTaxiway_EvenWhenTheStoredIndexIsStillZero()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
         }
 
-        var pair = FindExitPair(layout, "28R");
+        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
         if (pair is null)
         {
             return;
         }
 
-        var (branch, holdShort, taxiway) = pair.Value;
+        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
         var runwayHeading = new TrueHeading(281.0);
 
         var dto = new RunwayExitPhaseDto
@@ -238,7 +238,7 @@ public sealed class RunwayExitRestoreTests
 
         Assert.False(phase.OnTick(ctx));
 
-        var round = Assert.IsType<RunwayExitPhaseDto>(phase.ToSnapshot());
+        RunwayExitPhaseDto round = Assert.IsType<RunwayExitPhaseDto>(phase.ToSnapshot());
         Assert.True(
             round.ExitWaypointIndex >= 1,
             $"rebuilt route resumed on segment {round.ExitWaypointIndex} (the virtual approach leg back to the branch the aircraft already crossed)"
@@ -258,7 +258,7 @@ public sealed class RunwayExitRestoreTests
     private static AircraftState NewLandingAircraft(RunwayInfo runway)
     {
         double reciprocal = (runway.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 1.0);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 1.0);
         var aircraft = new AircraftState
         {
             Callsign = "TSTAC",
@@ -299,7 +299,7 @@ public sealed class RunwayExitRestoreTests
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
@@ -308,10 +308,10 @@ public sealed class RunwayExitRestoreTests
         SimLogBuilder.CreateForTest(_output).InitializeSimLog();
 
         var engine = new SimulationEngine(new TestAirportGroundData());
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "30");
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "30");
         Assert.NotNull(runway);
 
-        var aircraft = NewLandingAircraft(runway);
+        AircraftState aircraft = NewLandingAircraft(runway);
         aircraft.Ground.Layout = layout;
         aircraft.Phases!.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
         engine.World.AddAircraft(aircraft);
@@ -341,7 +341,7 @@ public sealed class RunwayExitRestoreTests
             }
 
             dto = aircraft.ToSnapshot();
-            var exitDto = Assert.IsType<RunwayExitPhaseDto>(exit.ToSnapshot());
+            RunwayExitPhaseDto exitDto = Assert.IsType<RunwayExitPhaseDto>(exit.ToSnapshot());
             _output.WriteLine(
                 $"snapshot at t={t}: pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}) "
                     + $"hdg={aircraft.TrueHeading.Degrees:F1} gs={aircraft.GroundSpeed:F1} twy={aircraft.Ground.CurrentTaxiway} "

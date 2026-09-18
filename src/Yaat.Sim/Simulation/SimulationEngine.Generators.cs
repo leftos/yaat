@@ -31,10 +31,10 @@ public sealed partial class SimulationEngine
 
     private void ProcessDelayedSpawns(List<AircraftState> spawned)
     {
-        var scenario = Scenario!;
+        SimScenarioState scenario = Scenario!;
         for (int i = scenario.DelayedQueue.Count - 1; i >= 0; i--)
         {
-            var entry = scenario.DelayedQueue[i];
+            DelayedSpawn entry = scenario.DelayedQueue[i];
 
             // Hold-for-release spawn gate: a held runway/airborne departure does not appear on the
             // scope while its airport is armed — it spawns only when released (REL clears the flag).
@@ -56,7 +56,7 @@ public sealed partial class SimulationEngine
 
                 EmitTerminal("System", entry.Aircraft.State.Callsign, "[Spawn] Delayed");
 
-                foreach (var msg in entry.Aircraft.AutoTrackMessages)
+                foreach (string msg in entry.Aircraft.AutoTrackMessages)
                 {
                     EmitTerminal("System", entry.Aircraft.State.Callsign, msg);
                 }
@@ -79,17 +79,17 @@ public sealed partial class SimulationEngine
 
     private void ProcessGenerators(List<AircraftState> spawned)
     {
-        var scenario = Scenario!;
+        SimScenarioState scenario = Scenario!;
         if (!RunProfile.RunsGenerators)
         {
             return;
         }
 
         // The solo arrival-rate slider scales arrival streams only; overflights are not an arrival source.
-        var ratePercent = ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent);
+        int ratePercent = ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent);
         if (ratePercent > 0)
         {
-            foreach (var gen in scenario.Generators)
+            foreach (GeneratorState gen in scenario.Generators)
             {
                 if (IsGeneratorActive(gen))
                 {
@@ -97,7 +97,7 @@ public sealed partial class SimulationEngine
                 }
             }
 
-            foreach (var gen in scenario.VfrArrivalGenerators)
+            foreach (VfrArrivalGeneratorState gen in scenario.VfrArrivalGenerators)
             {
                 if (IsGeneratorActive(gen))
                 {
@@ -106,7 +106,7 @@ public sealed partial class SimulationEngine
             }
         }
 
-        foreach (var gen in scenario.OverflightGenerators)
+        foreach (OverflightGeneratorState gen in scenario.OverflightGenerators)
         {
             if (IsGeneratorActive(gen))
             {
@@ -123,9 +123,9 @@ public sealed partial class SimulationEngine
     /// </summary>
     private bool IsGeneratorActive(IGeneratorRuntimeState state)
     {
-        var scenario = Scenario!;
-        var config = state.ConfigBase;
-        var isActive = GeneratorActivation.IsActive(config, scenario.ElapsedSeconds);
+        SimScenarioState scenario = Scenario!;
+        IGeneratorConfig config = state.ConfigBase;
+        bool isActive = GeneratorActivation.IsActive(config, scenario.ElapsedSeconds);
 
         if (isActive != state.WasActive)
         {
@@ -152,7 +152,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     private double StaggeredFirstSpawn(IGeneratorConfig config)
     {
-        var firstSpawnSeconds = (double)config.StartTimeOffset;
+        double firstSpawnSeconds = (double)config.StartTimeOffset;
         if (config.RandomizeInterval)
         {
             firstSpawnSeconds += World.Rng.NextDouble() * config.IntervalTime;
@@ -171,16 +171,16 @@ public sealed partial class SimulationEngine
     /// </summary>
     private void TrySpawnArrival(GeneratorState gen, int ratePercent, List<AircraftState> spawned)
     {
-        var scenario = Scenario!;
+        SimScenarioState scenario = Scenario!;
         if (scenario.ElapsedSeconds < gen.NextSpawnSeconds)
         {
             return;
         }
 
-        var engine = ResolveEngine(gen.Config.EngineType);
-        var weight = ResolveWeight(gen.Config, engine, World.Rng);
-        var corridor = CorridorAircraft(gen);
-        var rearmost = RearmostInbound(corridor);
+        EngineKind engine = ResolveEngine(gen.Config.EngineType);
+        WeightClass weight = ResolveWeight(gen.Config, engine, World.Rng);
+        List<(double DistanceNm, AircraftState Aircraft)> corridor = CorridorAircraft(gen);
+        (double DistanceNm, AircraftState Aircraft)? rearmost = RearmostInbound(corridor);
 
         double gap;
         double placement;
@@ -191,7 +191,7 @@ public sealed partial class SimulationEngine
         }
         else
         {
-            var (leaderDistance, leader) = rearmost.Value;
+            (double leaderDistance, AircraftState? leader) = rearmost.Value;
             gap = SpacingGapNm(gen, leader, weight);
             placement = Math.Max(gen.Config.InitialDistance, leaderDistance + gap);
         }
@@ -218,7 +218,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var state = SpawnGeneratedArrival(gen, placement, weight, engine);
+        AircraftState? state = SpawnGeneratedArrival(gen, placement, weight, engine);
         if (state is null)
         {
             gen.NextSpawnSeconds = scenario.ElapsedSeconds + SpawnRetryBackoffSeconds;
@@ -254,8 +254,8 @@ public sealed partial class SimulationEngine
         List<(double DistanceNm, AircraftState Aircraft)> corridor
     )
     {
-        var (position, altitudeFt) = AircraftInitializer.FinalApproachPoint(gen.Runway, AircraftGenerator.CategoryFor(engine), distanceNm);
-        foreach (var other in World.GetSnapshot())
+        (LatLon position, double altitudeFt) = AircraftInitializer.FinalApproachPoint(gen.Runway, AircraftGenerator.CategoryFor(engine), distanceNm);
+        foreach (AircraftState other in World.GetSnapshot())
         {
             if (corridor.Exists(e => ReferenceEquals(e.Aircraft, other)) || VfrSpawnSiting.IsClearOfTraffic(position, altitudeFt, [other]))
             {
@@ -283,7 +283,7 @@ public sealed partial class SimulationEngine
     {
         if (config.RandomizeInterval)
         {
-            var jitter = intervalSeconds * 0.25;
+            double jitter = intervalSeconds * 0.25;
             intervalSeconds += ((World.Rng.NextDouble() * 2) - 1) * jitter;
         }
         return Math.Max(intervalSeconds, SpawnRetryBackoffSeconds);
@@ -300,7 +300,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     private static double SpacingGapNm(GeneratorState gen, AircraftState leader, WeightClass followerWeight)
     {
-        var wakeFloor = WakeTurbulenceData.OnApproachWakeSeparationNm(
+        double wakeFloor = WakeTurbulenceData.OnApproachWakeSeparationNm(
             WakeTurbulenceData.WakeClassForType(leader.AircraftType, AircraftCategorization.Categorize(leader.AircraftType)),
             WakeClassForWeight(followerWeight)
         );
@@ -338,24 +338,24 @@ public sealed partial class SimulationEngine
     /// </summary>
     private List<(double DistanceNm, AircraftState Aircraft)> CorridorAircraft(GeneratorState gen)
     {
-        var rwy = gen.Runway;
+        RunwayInfo rwy = gen.Runway;
         var threshold = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
         var outbound = new TrueHeading((rwy.TrueHeading.Degrees + 180.0) % 360.0);
-        var maxAlong = gen.Config.MaxDistance + FinalCorridorMarginNm;
+        double maxAlong = gen.Config.MaxDistance + FinalCorridorMarginNm;
 
         var result = new List<(double DistanceNm, AircraftState Aircraft)>();
-        foreach (var ac in World.GetSnapshot())
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             if (ac.IsOnGround)
             {
                 continue;
             }
-            var cross = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Position, threshold, outbound));
+            double cross = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Position, threshold, outbound));
             if (cross > FinalCorridorHalfWidthNm)
             {
                 continue;
             }
-            var along = GeoMath.AlongTrackDistanceNm(ac.Position, threshold, outbound);
+            double along = GeoMath.AlongTrackDistanceNm(ac.Position, threshold, outbound);
             if (along <= 0 || along > maxAlong)
             {
                 continue;
@@ -384,7 +384,7 @@ public sealed partial class SimulationEngine
             return true;
         }
 
-        var landingRunway = aircraft.Phases?.AssignedRunway?.Designator ?? aircraft.Phases?.ActiveApproach?.RunwayId;
+        string? landingRunway = aircraft.Phases?.AssignedRunway?.Designator ?? aircraft.Phases?.ActiveApproach?.RunwayId;
         return ApproachCommandHandler.IsInboundToLand(aircraft)
             && string.Equals(landingRunway, runway.Designator, StringComparison.OrdinalIgnoreCase);
     }
@@ -396,7 +396,7 @@ public sealed partial class SimulationEngine
     private static (double DistanceNm, AircraftState Aircraft)? RearmostInbound(List<(double DistanceNm, AircraftState Aircraft)> corridor)
     {
         (double DistanceNm, AircraftState Aircraft)? rearmost = null;
-        foreach (var entry in corridor)
+        foreach ((double DistanceNm, AircraftState Aircraft) entry in corridor)
         {
             if (rearmost is null || entry.DistanceNm > rearmost.Value.DistanceNm)
             {
@@ -451,7 +451,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     private void ApplyArrivalSpacing()
     {
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null)
         {
             return;
@@ -463,7 +463,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        foreach (var gen in scenario.Generators)
+        foreach (GeneratorState gen in scenario.Generators)
         {
             ManageGeneratorStream(gen, scenario);
         }
@@ -485,7 +485,7 @@ public sealed partial class SimulationEngine
 
         for (int i = 0; i < stream.Count; i++)
         {
-            var (distanceNm, aircraft) = stream[i];
+            (double distanceNm, AircraftState? aircraft) = stream[i];
             if (!HoldsSpacingAuthority(aircraft, scenario))
             {
                 continue;
@@ -566,10 +566,10 @@ public sealed partial class SimulationEngine
         SimScenarioState scenario
     )
     {
-        var (leaderDist, leader) = leaderEntry;
-        var (followerDist, follower) = followerEntry;
-        var (followerCategory, vref, scheduled) = ManagedSpeeds(follower, followerDist);
-        var leaderCategory = AircraftCategorization.Categorize(leader.AircraftType);
+        (double leaderDist, AircraftState? leader) = leaderEntry;
+        (double followerDist, AircraftState? follower) = followerEntry;
+        (AircraftCategory followerCategory, double vref, double scheduled) = ManagedSpeeds(follower, followerDist);
+        AircraftCategory leaderCategory = AircraftCategorization.Categorize(leader.AircraftType);
         double wakeFloor = WakeTurbulenceData.OnApproachWakeSeparationNm(
             leader.AircraftType,
             leaderCategory,
@@ -611,7 +611,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     private static (AircraftCategory Category, double VrefKts, double ScheduledKts) ManagedSpeeds(AircraftState aircraft, double distanceNm)
     {
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         double vref = AircraftPerformance.ApproachSpeed(aircraft.AircraftType, category);
         double scheduled = ArrivalSpacingManager.ScheduledFinalSpeedKts(aircraft.AircraftType, category, vref, aircraft.Callsign, distanceNm);
         return (category, vref, scheduled);
@@ -631,7 +631,7 @@ public sealed partial class SimulationEngine
         }
 
         ReleaseManagedSpeedCeiling(lead);
-        var (_, _, scheduled) = ManagedSpeeds(lead, distanceNm);
+        (AircraftCategory _, double _, double scheduled) = ManagedSpeeds(lead, distanceNm);
         RestoreManagedSpeed(lead, distanceNm, scheduled, isStreamLead: true, scenario);
     }
 
@@ -696,7 +696,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     private void ReleaseAllManagedSpacingCeilings()
     {
-        foreach (var aircraft in World.GetSnapshot())
+        foreach (AircraftState aircraft in World.GetSnapshot())
         {
             if (aircraft.IsGeneratorArrival && (aircraft.Phases?.CurrentPhase is FinalApproachPhase) && !aircraft.Approach.AutoSpacingReleased)
             {
@@ -772,7 +772,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     private void ApplySameRunwayArrivalProtection()
     {
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null)
         {
             return;
@@ -786,11 +786,11 @@ public sealed partial class SimulationEngine
         // is switched off or the student takes a position that owns the stream.
         if (scenario.AutoArrivalSpacingOnOccupiedRunway && scenario.HasSimulatedApproachController)
         {
-            foreach (var stream in BuildRunwayArrivalStreams())
+            foreach (List<(double DistanceNm, AircraftState Aircraft, RunwayInfo Runway, bool PreClearance)> stream in BuildRunwayArrivalStreams())
             {
                 for (int i = 0; i < stream.Count; i++)
                 {
-                    var (followerDistance, follower, runway, preClearance) = stream[i];
+                    (double followerDistance, AircraftState? follower, RunwayInfo? runway, bool preClearance) = stream[i];
 
                     // The student taking the track is a handoff, not a release: the receiving controller inherits the
                     // restrictions the aircraft is flying (§5-4-5.h.3, §5-4-6.c), so the pass lets go of the speed
@@ -831,7 +831,7 @@ public sealed partial class SimulationEngine
         // §5-7-1.b.4 window, or stopped being eligible: hand its speed back. A latched tower instruction is released
         // here too — it survives the conflict clearing and the §5-7-1.b.4 window, but not the aircraft leaving the
         // arrival stream (it landed or went around) or someone else taking its speed.
-        foreach (var aircraft in World.GetSnapshot())
+        foreach (AircraftState aircraft in World.GetSnapshot())
         {
             if (PassOwnsProtection(aircraft) && !protectedThisTick.Contains(aircraft.Callsign))
             {
@@ -860,7 +860,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     private static void HandOverSameRunwayProtection(AircraftState aircraft)
     {
-        var approach = aircraft.Approach;
+        AircraftApproachState approach = aircraft.Approach;
         approach.SameRunwayProtectionCeilingKts = null;
         approach.SameRunwayProtectionDisplacedCeilingKts = null;
         approach.SameRunwayProtectionFasInstructed = false;
@@ -883,7 +883,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     private static void ReleaseSameRunwayProtection(AircraftState aircraft)
     {
-        var approach = aircraft.Approach;
+        AircraftApproachState approach = aircraft.Approach;
         approach.SameRunwayProtectionFasInstructed = false;
         if (approach.SameRunwayProtectionCeilingKts is not { } stamped)
         {
@@ -929,14 +929,14 @@ public sealed partial class SimulationEngine
         }
 
         string airport = CommandDispatcher.ResolveAirport(aircraft);
-        var key = (Airport: airport.Length > 0 ? airport : aircraft.AirportId, ApproachId: hint);
-        if (_expectedArrivalRunways.TryGetValue(key, out var memoized))
+        (string Airport, string ApproachId) key = (Airport: airport.Length > 0 ? airport : aircraft.AirportId, ApproachId: hint);
+        if (_expectedArrivalRunways.TryGetValue(key, out RunwayInfo? memoized))
         {
             return memoized;
         }
 
-        var resolved = ApproachCommandHandler.ResolveApproach(null, null, aircraft);
-        var runway = resolved.Success ? resolved.Runway : null;
+        ApproachCommandHandler.ResolvedApproach resolved = ApproachCommandHandler.ResolveApproach(null, null, aircraft);
+        RunwayInfo? runway = resolved.Success ? resolved.Runway : null;
         _expectedArrivalRunways[key] = runway;
         return runway;
     }
@@ -964,7 +964,7 @@ public sealed partial class SimulationEngine
                 (string Airport, string Designator),
                 List<(double DistanceNm, AircraftState Aircraft, RunwayInfo Runway, bool PreClearance)>
             >();
-        foreach (var aircraft in World.GetSnapshot())
+        foreach (AircraftState aircraft in World.GetSnapshot())
         {
             if (ResolveArrivalRunway(aircraft) is not { } runway)
             {
@@ -988,8 +988,8 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            var key = (runway.AirportId, runway.Designator);
-            if (!groups.TryGetValue(key, out var stream))
+            (string AirportId, string Designator) key = (runway.AirportId, runway.Designator);
+            if (!groups.TryGetValue(key, out List<(double DistanceNm, AircraftState Aircraft, RunwayInfo Runway, bool PreClearance)>? stream))
             {
                 stream = [];
                 groups[key] = stream;
@@ -1052,7 +1052,7 @@ public sealed partial class SimulationEngine
             return false;
         }
 
-        var phase = follower.Phases?.CurrentPhase;
+        Phase? phase = follower.Phases?.CurrentPhase;
         if ((phase is not (ApproachNavigationPhase or FinalApproachPhase)) && !(preClearance && (phase is null)))
         {
             return false;
@@ -1142,7 +1142,7 @@ public sealed partial class SimulationEngine
         SimScenarioState scenario
     )
     {
-        var layout = World.GroundLayout;
+        AirportGroundLayout? layout = World.GroundLayout;
         double followerEta = RunwayOccupancy.SecondsToAssignedThreshold(follower, runway, layout);
         double leaderEta = LeaderThresholdEtaSeconds(leader, runway, layout);
         if (!double.IsFinite(followerEta) || !double.IsFinite(leaderEta))
@@ -1165,8 +1165,8 @@ public sealed partial class SimulationEngine
             return HoldApproachReductionInsideTowerBoundary(follower);
         }
 
-        var followerCategory = AircraftCategorization.Categorize(follower.AircraftType);
-        var leaderCategory = AircraftCategorization.Categorize(leader.AircraftType);
+        AircraftCategory followerCategory = AircraftCategorization.Categorize(follower.AircraftType);
+        AircraftCategory leaderCategory = AircraftCategorization.Categorize(leader.AircraftType);
         double vref = AircraftPerformance.ApproachSpeed(follower.AircraftType, followerCategory);
         double wakeNm = WakeTurbulenceData.OnApproachWakeSeparationNm(leader.AircraftType, leaderCategory, follower.AircraftType, followerCategory);
         double required = SameRunwayArrivalProtection.RequiredThresholdIntervalSeconds(
@@ -1395,7 +1395,7 @@ public sealed partial class SimulationEngine
             return GenericTowerLabel;
         }
 
-        foreach (var position in scenario.AtcPositions)
+        foreach (ResolvedAtcPosition position in scenario.AtcPositions)
         {
             string callsign = position.Owner.Callsign;
             if ((AtcPositionTypeClassifier.Classify(callsign) == GenericTowerLabel) && CallsignIsAtAirport(callsign, runway.AirportId))
@@ -1404,7 +1404,7 @@ public sealed partial class SimulationEngine
             }
         }
 
-        foreach (var contact in scenario.PilotContacts.Positions)
+        foreach (PilotAnsweringPosition contact in scenario.PilotContacts.Positions)
         {
             bool covers = contact.AirportIds.Any(id => NavigationDatabase.AirportIdsMatch(id, runway.AirportId));
             if ((contact.PositionType == GenericTowerLabel) && covers && contact.Owner?.Callsign is { Length: > 0 } aiCallsign)
@@ -1451,7 +1451,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     private AircraftState? SpawnGeneratedArrival(GeneratorState gen, double distanceNm, WeightClass weight, EngineKind engine)
     {
-        var scenario = Scenario!;
+        SimScenarioState scenario = Scenario!;
         var request = new SpawnRequest
         {
             Rules = FlightRulesKind.Ifr,
@@ -1463,9 +1463,16 @@ public sealed partial class SimulationEngine
             PreferredAirlineAirportId = scenario.PrimaryAirportId,
         };
 
-        var existing = World.GetSnapshot();
-        var groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
-        var (state, error) = AircraftGenerator.Generate(request, scenario.PrimaryAirportId, existing, groundLayout, World.Rng, BeaconCodePool);
+        List<AircraftState> existing = World.GetSnapshot();
+        AirportGroundLayout? groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
+            request,
+            scenario.PrimaryAirportId,
+            existing,
+            groundLayout,
+            World.Rng,
+            BeaconCodePool
+        );
 
         if (state is null)
         {
@@ -1505,13 +1512,13 @@ public sealed partial class SimulationEngine
 
     private void TrySpawnVfrArrival(VfrArrivalGeneratorState gen, int ratePercent, List<AircraftState> spawned)
     {
-        var scenario = Scenario!;
+        SimScenarioState scenario = Scenario!;
         if (scenario.ElapsedSeconds < gen.NextSpawnSeconds)
         {
             return;
         }
 
-        var state = SpawnGeneratedVfrArrival(gen);
+        AircraftState? state = SpawnGeneratedVfrArrival(gen);
         if (state is null)
         {
             gen.NextSpawnSeconds = scenario.ElapsedSeconds + SpawnRetryBackoffSeconds;
@@ -1527,13 +1534,13 @@ public sealed partial class SimulationEngine
 
     private void TrySpawnOverflight(OverflightGeneratorState gen, List<AircraftState> spawned)
     {
-        var scenario = Scenario!;
+        SimScenarioState scenario = Scenario!;
         if (scenario.ElapsedSeconds < gen.NextSpawnSeconds)
         {
             return;
         }
 
-        var state = SpawnGeneratedOverflight(gen);
+        AircraftState? state = SpawnGeneratedOverflight(gen);
         if (state is null)
         {
             gen.NextSpawnSeconds = scenario.ElapsedSeconds + SpawnRetryBackoffSeconds;
@@ -1561,17 +1568,17 @@ public sealed partial class SimulationEngine
         double maxAltitudeFt
     )
     {
-        var existing = World.GetSnapshot();
-        var airspace = AirspaceDatabase.Default;
+        List<AircraftState> existing = World.GetSnapshot();
+        AirspaceDatabase airspace = AirspaceDatabase.Default;
 
-        for (var attempt = 0; attempt < VfrSpawnSiting.MaxSpawnAttempts; attempt++)
+        for (int attempt = 0; attempt < VfrSpawnSiting.MaxSpawnAttempts; attempt++)
         {
-            var bearingMagnetic = VfrSpawnSiting.RollBearing(bearingFrom, bearingTo, World.Rng);
-            var distanceNm = VfrSpawnSiting.RollInRange(minDistanceNm, maxDistanceNm, World.Rng);
-            var altitudeFt = VfrSpawnSiting.RollInRange(minAltitudeFt, maxAltitudeFt, World.Rng);
+            double bearingMagnetic = VfrSpawnSiting.RollBearing(bearingFrom, bearingTo, World.Rng);
+            double distanceNm = VfrSpawnSiting.RollInRange(minDistanceNm, maxDistanceNm, World.Rng);
+            double altitudeFt = VfrSpawnSiting.RollInRange(minAltitudeFt, maxAltitudeFt, World.Rng);
 
-            var bearingTrue = MagneticDeclination.MagneticToTrue(bearingMagnetic, airport, Scenario!.MagneticModelDateUtc);
-            var (lat, lon) = GeoMath.ProjectPoint(airport.Lat, airport.Lon, new TrueHeading(bearingTrue), distanceNm);
+            double bearingTrue = MagneticDeclination.MagneticToTrue(bearingMagnetic, airport, Scenario!.MagneticModelDateUtc);
+            (double lat, double lon) = GeoMath.ProjectPoint(airport.Lat, airport.Lon, new TrueHeading(bearingTrue), distanceNm);
             var position = new LatLon(lat, lon);
 
             if (VfrSpawnSiting.IsUsableSpawn(position, altitudeFt, airspace, existing))
@@ -1603,16 +1610,16 @@ public sealed partial class SimulationEngine
     /// </summary>
     private AircraftState? SpawnGeneratedVfrArrival(VfrArrivalGeneratorState gen)
     {
-        var scenario = Scenario!;
-        var config = gen.Config;
-        var airportId = scenario.PrimaryAirportId;
+        SimScenarioState scenario = Scenario!;
+        VfrArrivalGeneratorConfig config = gen.Config;
+        string? airportId = scenario.PrimaryAirportId;
         if (string.IsNullOrEmpty(airportId))
         {
             _logger.LogWarning("VFR arrival generator '{Id}' skipped: scenario has no primary airport", config.Id);
             return null;
         }
 
-        var airportPos = NavigationDatabase.Instance.GetFixPosition(airportId);
+        (double Lat, double Lon)? airportPos = NavigationDatabase.Instance.GetFixPosition(airportId);
         if (airportPos is null)
         {
             _logger.LogWarning("VFR arrival generator '{Id}': primary airport '{Airport}' not in navdata", config.Id, airportId);
@@ -1620,7 +1627,7 @@ public sealed partial class SimulationEngine
         }
 
         var airport = new LatLon(airportPos.Value.Lat, airportPos.Value.Lon);
-        var site = RollVfrSpawnSite(
+        (LatLon Position, double BearingTrue, double BearingMagnetic, double DistanceNm, double AltitudeFt)? site = RollVfrSpawnSite(
             config.Id,
             airport,
             config.BearingFrom,
@@ -1647,8 +1654,15 @@ public sealed partial class SimulationEngine
             VfrFiledDestination = airportId,
         };
 
-        var groundLayout = _groundData.GetLayout(airportId);
-        var (state, error) = AircraftGenerator.Generate(request, airportId, World.GetSnapshot(), groundLayout, World.Rng, BeaconCodePool);
+        AirportGroundLayout? groundLayout = _groundData.GetLayout(airportId);
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
+            request,
+            airportId,
+            World.GetSnapshot(),
+            groundLayout,
+            World.Rng,
+            BeaconCodePool
+        );
         if (state is null)
         {
             _logger.LogWarning("VFR arrival generator '{Id}' spawn failed at t={T}s: {Error}", config.Id, scenario.ElapsedSeconds, error);
@@ -1661,9 +1675,9 @@ public sealed partial class SimulationEngine
         state.FlightPlan.Altitude = PlannedAltitude.Vfr((int)Math.Round(site.Value.AltitudeFt));
 
         var routeWarnings = new List<string>();
-        var directTo = string.IsNullOrWhiteSpace(config.DirectTo) ? airportId : config.DirectTo;
+        string directTo = string.IsNullOrWhiteSpace(config.DirectTo) ? airportId : config.DirectTo;
         ArrivalRouteResolver.PopulateNavigationRoute(state, directTo, routeWarnings);
-        foreach (var warning in routeWarnings)
+        foreach (string warning in routeWarnings)
         {
             _logger.LogWarning("VFR arrival generator '{Id}': {Warning}", config.Id, warning);
         }
@@ -1700,16 +1714,16 @@ public sealed partial class SimulationEngine
     /// </summary>
     private AircraftState? SpawnGeneratedOverflight(OverflightGeneratorState gen)
     {
-        var scenario = Scenario!;
-        var config = gen.Config;
-        var airportId = scenario.PrimaryAirportId;
+        SimScenarioState scenario = Scenario!;
+        OverflightGeneratorConfig config = gen.Config;
+        string? airportId = scenario.PrimaryAirportId;
         if (string.IsNullOrEmpty(airportId))
         {
             _logger.LogWarning("Overflight generator '{Id}' skipped: scenario has no primary airport", config.Id);
             return null;
         }
 
-        var airportPos = NavigationDatabase.Instance.GetFixPosition(airportId);
+        (double Lat, double Lon)? airportPos = NavigationDatabase.Instance.GetFixPosition(airportId);
         if (airportPos is null)
         {
             _logger.LogWarning("Overflight generator '{Id}': primary airport '{Airport}' not in navdata", config.Id, airportId);
@@ -1717,9 +1731,9 @@ public sealed partial class SimulationEngine
         }
 
         var airport = new LatLon(airportPos.Value.Lat, airportPos.Value.Lon);
-        var exitDistanceNm = config.ExitDistance ?? (config.MaxDistance + DefaultOverflightExitMarginNm);
+        double exitDistanceNm = config.ExitDistance ?? (config.MaxDistance + DefaultOverflightExitMarginNm);
 
-        var site = RollVfrSpawnSite(
+        (LatLon Position, double BearingTrue, double BearingMagnetic, double DistanceNm, double AltitudeFt)? site = RollVfrSpawnSite(
             config.Id,
             airport,
             config.FromBearingFrom,
@@ -1734,18 +1748,18 @@ public sealed partial class SimulationEngine
             return null;
         }
 
-        var exitBearingMagnetic = VfrSpawnSiting.RollBearing(config.ToBearingFrom, config.ToBearingTo, World.Rng);
-        var exitBearingTrue = MagneticDeclination.MagneticToTrue(exitBearingMagnetic, airport, Scenario!.MagneticModelDateUtc);
-        var exitPoint = GeoMath.ProjectPoint(airport, new TrueHeading(exitBearingTrue), exitDistanceNm);
+        double exitBearingMagnetic = VfrSpawnSiting.RollBearing(config.ToBearingFrom, config.ToBearingTo, World.Rng);
+        double exitBearingTrue = MagneticDeclination.MagneticToTrue(exitBearingMagnetic, airport, Scenario!.MagneticModelDateUtc);
+        LatLon exitPoint = GeoMath.ProjectPoint(airport, new TrueHeading(exitBearingTrue), exitDistanceNm);
 
         // Name the exit point as an FRD off the field so the route overlay labels it rather than drawing it
         // as an unnamed arc vertex.
-        var exitName = $"{airportId}{(int)Math.Round(exitBearingMagnetic) % 360:000}{(int)Math.Round(exitDistanceNm):000}";
+        string exitName = $"{airportId}{(int)Math.Round(exitBearingMagnetic) % 360:000}{(int)Math.Round(exitDistanceNm):000}";
 
         // 91.159(a) binds level cruising flight more than 3000 ft above the surface, and it keys on the
         // aircraft's magnetic course over the ground -- which runs spawn -> exit point, not along the
         // author's "to" radial from the field.
-        var altitudeFt = site.Value.AltitudeFt;
+        double altitudeFt = site.Value.AltitudeFt;
         if (config.SnapHemisphericAltitude)
         {
             altitudeFt = SnapOverflightAltitude(config, site.Value.Position, exitPoint, altitudeFt, airportId);
@@ -1762,8 +1776,15 @@ public sealed partial class SimulationEngine
             Altitude = altitudeFt,
         };
 
-        var groundLayout = _groundData.GetLayout(airportId);
-        var (state, error) = AircraftGenerator.Generate(request, airportId, World.GetSnapshot(), groundLayout, World.Rng, BeaconCodePool);
+        AirportGroundLayout? groundLayout = _groundData.GetLayout(airportId);
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
+            request,
+            airportId,
+            World.GetSnapshot(),
+            groundLayout,
+            World.Rng,
+            BeaconCodePool
+        );
         if (state is null)
         {
             _logger.LogWarning("Overflight generator '{Id}' spawn failed at t={T}s: {Error}", config.Id, scenario.ElapsedSeconds, error);
@@ -1802,15 +1823,15 @@ public sealed partial class SimulationEngine
 
     private double SnapOverflightAltitude(OverflightGeneratorConfig config, LatLon spawn, LatLon exitPoint, double rolledAltitudeFt, string airportId)
     {
-        var fieldElevation = NavigationDatabase.Instance.GetAirportElevation(airportId) ?? 0;
+        double fieldElevation = NavigationDatabase.Instance.GetAirportElevation(airportId) ?? 0;
         if (rolledAltitudeFt - fieldElevation <= HemisphericAltitude.AglFloorFt)
         {
             return rolledAltitudeFt;
         }
 
-        var courseTrue = GeoMath.BearingTo(spawn, exitPoint);
-        var courseMagnetic = MagneticDeclination.TrueToMagnetic(courseTrue, spawn, Scenario!.MagneticModelDateUtc);
-        var snapped = HemisphericAltitude.Snap(courseMagnetic, rolledAltitudeFt, config.AltitudeMin, config.AltitudeMax);
+        double courseTrue = GeoMath.BearingTo(spawn, exitPoint);
+        double courseMagnetic = MagneticDeclination.TrueToMagnetic(courseTrue, spawn, Scenario!.MagneticModelDateUtc);
+        double? snapped = HemisphericAltitude.Snap(courseMagnetic, rolledAltitudeFt, config.AltitudeMin, config.AltitudeMax);
 
         if (snapped is null)
         {
@@ -1836,7 +1857,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var first = state.Targets.NavigationRoute[0].Position;
+        LatLon first = state.Targets.NavigationRoute[0].Position;
         TrueHeading heading = new(GeoMath.BearingTo(state.Position, first));
         state.TrueHeading = heading;
         state.TrueTrack = heading;
@@ -1855,19 +1876,19 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var fieldElevation = NavigationDatabase.Instance.GetAirportElevation(airportId) ?? 0;
-        var category = AircraftCategorization.Categorize(state.AircraftType);
-        var patternAglFt = category is AircraftCategory.Jet or AircraftCategory.Turboprop ? 1500.0 : 1000.0;
-        var descendTo = config.DescendToAltitude ?? (Math.Round((fieldElevation + patternAglFt) / 100.0) * 100.0);
+        double fieldElevation = NavigationDatabase.Instance.GetAirportElevation(airportId) ?? 0;
+        AircraftCategory category = AircraftCategorization.Categorize(state.AircraftType);
+        double patternAglFt = category is AircraftCategory.Jet or AircraftCategory.Turboprop ? 1500.0 : 1000.0;
+        double descendTo = config.DescendToAltitude ?? (Math.Round((fieldElevation + patternAglFt) / 100.0) * 100.0);
 
-        var performanceRate = AircraftPerformance.DescentRate(state.AircraftType, category, state.Altitude);
+        double performanceRate = AircraftPerformance.DescentRate(state.AircraftType, category, state.Altitude);
         state.Targets.TargetAltitude = Math.Min(descendTo, state.Altitude);
         state.Targets.DesiredVerticalRate = Math.Min(Math.Abs(config.InitialVsFpm), performanceRate);
     }
 
     private bool TryReserveSoloParkingInitialCallupSlot(double nowSeconds)
     {
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null)
         {
             return true;
@@ -1883,18 +1904,18 @@ public sealed partial class SimulationEngine
         bool rescheduleFromNow
     )
     {
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null)
         {
             return;
         }
 
-        var oldParkingRate = ScenarioPacing.ClampParkingInitialCallupPercent(scenario.SoloParkingInitialCallupRatePercent);
-        var newParkingRate = ScenarioPacing.ClampParkingInitialCallupPercent(parkingInitialCallupRatePercent);
-        var parkingChanged = oldParkingRate != newParkingRate;
-        var oldArrivalRate = ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent);
-        var newArrivalRate = ScenarioPacing.ClampArrivalGeneratorPercent(arrivalGeneratorRatePercent);
-        var arrivalChanged = oldArrivalRate != newArrivalRate;
+        int oldParkingRate = ScenarioPacing.ClampParkingInitialCallupPercent(scenario.SoloParkingInitialCallupRatePercent);
+        int newParkingRate = ScenarioPacing.ClampParkingInitialCallupPercent(parkingInitialCallupRatePercent);
+        bool parkingChanged = oldParkingRate != newParkingRate;
+        int oldArrivalRate = ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent);
+        int newArrivalRate = ScenarioPacing.ClampArrivalGeneratorPercent(arrivalGeneratorRatePercent);
+        bool arrivalChanged = oldArrivalRate != newArrivalRate;
 
         scenario.SoloParkingInitialCallupRatePercent = newParkingRate;
         scenario.SoloArrivalGeneratorRatePercent = newArrivalRate;
@@ -1919,7 +1940,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var now = scenario.ElapsedSeconds;
+        double now = scenario.ElapsedSeconds;
         if ((oldRate <= 0) || (newRate > oldRate))
         {
             scenario.NextSoloParkingInitialCallupSlotSeconds = now;
@@ -1928,7 +1949,7 @@ public sealed partial class SimulationEngine
 
         if (newRate < oldRate)
         {
-            var slowerSlot = now + ScenarioPacing.EffectiveParkingInitialCallupIntervalSeconds(newRate);
+            double slowerSlot = now + ScenarioPacing.EffectiveParkingInitialCallupIntervalSeconds(newRate);
             scenario.NextSoloParkingInitialCallupSlotSeconds = double.IsPositiveInfinity(scenario.NextSoloParkingInitialCallupSlotSeconds)
                 ? slowerSlot
                 : Math.Max(scenario.NextSoloParkingInitialCallupSlotSeconds, slowerSlot);
@@ -1941,9 +1962,9 @@ public sealed partial class SimulationEngine
     /// </summary>
     private static void RescheduleArrivalGeneratorsFromNow(SimScenarioState scenario)
     {
-        var rate = ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent);
+        int rate = ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent);
 
-        foreach (var gen in scenario.Generators.Cast<IGeneratorRuntimeState>().Concat(scenario.VfrArrivalGenerators))
+        foreach (IGeneratorRuntimeState? gen in scenario.Generators.Cast<IGeneratorRuntimeState>().Concat(scenario.VfrArrivalGenerators))
         {
             if (!GeneratorActivation.IsActive(gen.ConfigBase, scenario.ElapsedSeconds))
             {
@@ -1959,7 +1980,7 @@ public sealed partial class SimulationEngine
 
     private static WeightClass ResolveWeight(ScenarioGeneratorConfig config, EngineKind engine, Random rng)
     {
-        var baseWeight = ParseWeightCategory(config.WeightCategory);
+        WeightClass baseWeight = ParseWeightCategory(config.WeightCategory);
         return config.RandomizeWeightCategory ? RandomWeightForEngine(engine, baseWeight, rng) : baseWeight;
     }
 
@@ -2019,8 +2040,8 @@ public sealed partial class SimulationEngine
                 .ToList();
         }
 
-        var pick = rng.NextDouble() * band.Sum(e => e.Share);
-        foreach (var entry in band)
+        double pick = rng.NextDouble() * band.Sum(e => e.Share);
+        foreach ((WeightClass Weight, double Share) entry in band)
         {
             pick -= entry.Share;
             if (pick <= 0)
@@ -2064,7 +2085,7 @@ public sealed partial class SimulationEngine
         ApplyAutoTrackConditions(loaded);
         RecordGeneratedAircraftSpawn(state);
 
-        foreach (var msg in loaded.AutoTrackMessages)
+        foreach (string msg in loaded.AutoTrackMessages)
         {
             EmitTerminal("System", state.Callsign, msg);
         }

@@ -101,7 +101,7 @@ public class MissedApproachTests
             FlightPlan = new AircraftFlightPlan { Destination = "KTEST" },
         };
 
-        var runway = MakeRunway();
+        RunwayInfo runway = MakeRunway();
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
         if (isPattern)
         {
@@ -119,11 +119,11 @@ public class MissedApproachTests
     [Fact]
     public void BuildMissedApproachFixes_ResolvesFixPositions()
     {
-        var procedure = MakeProcedure();
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
+        CifpApproachProcedure procedure = MakeProcedure();
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
 
-        var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        List<ApproachFix> result = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("MAPWP", result[0].Name);
@@ -137,11 +137,11 @@ public class MissedApproachTests
     [Fact]
     public void BuildMissedApproachFixes_EmptyLegs_ReturnsEmpty()
     {
-        var procedure = MakeProcedure(mapLegs: []);
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
+        CifpApproachProcedure procedure = MakeProcedure(mapLegs: []);
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
 
-        var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        List<ApproachFix> result = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         Assert.Empty(result);
     }
@@ -149,11 +149,11 @@ public class MissedApproachTests
     [Fact]
     public void BuildMissedApproachFixes_SkipsUnresolvableFixes()
     {
-        var procedure = MakeProcedure();
-        var fixes = TestNavDbFactory.WithFixes(("MAPWP", 37.02, -122.08));
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
+        CifpApproachProcedure procedure = MakeProcedure();
+        NavigationDatabase fixes = TestNavDbFactory.WithFixes(("MAPWP", 37.02, -122.08));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
 
-        var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        List<ApproachFix> result = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         Assert.Single(result);
         Assert.Equal("MAPWP", result[0].Name);
@@ -162,11 +162,11 @@ public class MissedApproachTests
     [Fact]
     public void BuildMissedApproachPhases_InstrumentWithMap_ReturnsNavigationPhase()
     {
-        var aircraft = MakeAircraft();
-        var procedure = MakeProcedure();
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        AircraftState aircraft = MakeAircraft();
+        CifpApproachProcedure procedure = MakeProcedure();
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        List<ApproachFix> mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -178,7 +178,7 @@ public class MissedApproachTests
             MissedApproachFixes = mapFixes,
         };
 
-        var result = ApproachCommandHandler.BuildMissedApproachPhases(aircraft);
+        List<Phase> result = ApproachCommandHandler.BuildMissedApproachPhases(aircraft);
 
         Assert.Single(result);
         Assert.IsType<ApproachNavigationPhase>(result[0]);
@@ -190,8 +190,8 @@ public class MissedApproachTests
     [Fact]
     public void BuildMissedApproachPhases_NoMapData_ReturnsEmpty()
     {
-        var aircraft = MakeAircraft();
-        var procedure = MakeProcedure(mapLegs: []);
+        AircraftState aircraft = MakeAircraft();
+        CifpApproachProcedure procedure = MakeProcedure(mapLegs: []);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -203,7 +203,7 @@ public class MissedApproachTests
             MissedApproachFixes = [],
         };
 
-        var result = ApproachCommandHandler.BuildMissedApproachPhases(aircraft);
+        List<Phase> result = ApproachCommandHandler.BuildMissedApproachPhases(aircraft);
 
         Assert.Empty(result);
     }
@@ -211,7 +211,7 @@ public class MissedApproachTests
     [Fact]
     public void BuildMissedApproachPhases_VisualApproach_ReturnsEmpty()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -223,7 +223,7 @@ public class MissedApproachTests
             MissedApproachFixes = [new ApproachFix("MAPWP", 37.02, -122.08)],
         };
 
-        var result = ApproachCommandHandler.BuildMissedApproachPhases(aircraft);
+        List<Phase> result = ApproachCommandHandler.BuildMissedApproachPhases(aircraft);
 
         Assert.Empty(result);
     }
@@ -231,7 +231,7 @@ public class MissedApproachTests
     [Fact]
     public void BuildMissedApproachPhases_NoProcedure_ReturnsEmpty()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -242,7 +242,7 @@ public class MissedApproachTests
             Procedure = null,
         };
 
-        var result = ApproachCommandHandler.BuildMissedApproachPhases(aircraft);
+        List<Phase> result = ApproachCommandHandler.BuildMissedApproachPhases(aircraft);
 
         Assert.Empty(result);
     }
@@ -256,7 +256,7 @@ public class MissedApproachTests
             new("MHOLD", 37.03, -122.10, new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 3000)),
         };
 
-        var alt = ApproachCommandHandler.GetMissedApproachAltitude(mapFixes);
+        int? alt = ApproachCommandHandler.GetMissedApproachAltitude(mapFixes);
 
         Assert.Equal(2000, alt);
     }
@@ -266,7 +266,7 @@ public class MissedApproachTests
     {
         var mapFixes = new List<ApproachFix> { new("MAPWP", 37.02, -122.08) };
 
-        var alt = ApproachCommandHandler.GetMissedApproachAltitude(mapFixes);
+        int? alt = ApproachCommandHandler.GetMissedApproachAltitude(mapFixes);
 
         Assert.Null(alt);
     }
@@ -274,11 +274,11 @@ public class MissedApproachTests
     [Fact]
     public void ManualGoAround_NoOverride_QueuesMapNavigation()
     {
-        var aircraft = MakeAircraft();
-        var procedure = MakeProcedure();
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        AircraftState aircraft = MakeAircraft();
+        CifpApproachProcedure procedure = MakeProcedure();
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        List<ApproachFix> mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -292,11 +292,11 @@ public class MissedApproachTests
 
         // Add a current phase so ReplaceUpcoming works
         aircraft.Phases.Add(new FinalApproachPhase());
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, null, null);
-        var result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
+        CommandResult result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         Assert.True(result.Success);
 
@@ -309,11 +309,11 @@ public class MissedApproachTests
     [Fact]
     public void ManualGoAround_WithAtcOverride_NoMapPhases()
     {
-        var aircraft = MakeAircraft();
-        var procedure = MakeProcedure();
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        AircraftState aircraft = MakeAircraft();
+        CifpApproachProcedure procedure = MakeProcedure();
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        List<ApproachFix> mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -326,12 +326,12 @@ public class MissedApproachTests
         };
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
         // ATC override: explicit heading
         var ga = new GoAroundCommand(new MagneticHeading(090), null, null);
-        var result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
+        CommandResult result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         Assert.True(result.Success);
 
@@ -343,11 +343,11 @@ public class MissedApproachTests
     [Fact]
     public void ManualGoAround_WithAltOverride_NoMapPhases()
     {
-        var aircraft = MakeAircraft();
-        var procedure = MakeProcedure();
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        AircraftState aircraft = MakeAircraft();
+        CifpApproachProcedure procedure = MakeProcedure();
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        List<ApproachFix> mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -360,11 +360,11 @@ public class MissedApproachTests
         };
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, 5000, null);
-        var result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
+        CommandResult result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         Assert.True(result.Success);
 
@@ -375,11 +375,11 @@ public class MissedApproachTests
     [Fact]
     public void PatternTraffic_GoAround_NoMapPhases()
     {
-        var aircraft = MakeAircraft(isPattern: true);
-        var procedure = MakeProcedure();
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        AircraftState aircraft = MakeAircraft(isPattern: true);
+        CifpApproachProcedure procedure = MakeProcedure();
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        List<ApproachFix> mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -392,11 +392,11 @@ public class MissedApproachTests
         };
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, null, null);
-        var result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
+        CommandResult result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         Assert.True(result.Success);
 
@@ -407,11 +407,11 @@ public class MissedApproachTests
     [Fact]
     public void MapGoAround_TargetAltitude_FromFirstRestriction()
     {
-        var aircraft = MakeAircraft();
-        var procedure = MakeProcedure();
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        AircraftState aircraft = MakeAircraft();
+        CifpApproachProcedure procedure = MakeProcedure();
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        List<ApproachFix> mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -424,13 +424,13 @@ public class MissedApproachTests
         };
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, null, null);
         PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
-        var goAroundPhase = aircraft.Phases.Phases.OfType<GoAroundPhase>().FirstOrDefault();
+        GoAroundPhase? goAroundPhase = aircraft.Phases.Phases.OfType<GoAroundPhase>().FirstOrDefault();
         Assert.NotNull(goAroundPhase);
         Assert.Equal(2000, goAroundPhase.TargetAltitude);
     }
@@ -443,11 +443,11 @@ public class MissedApproachTests
     [Fact]
     public void ExtractMissedApproachHold_ReturnsHoldFromHmLeg()
     {
-        var procedure = MakeProcedureWithHold();
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
+        CifpApproachProcedure procedure = MakeProcedureWithHold();
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
 
-        var hold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
+        MissedApproachHold? hold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
 
         Assert.NotNull(hold);
         Assert.Equal("MHOLD", hold.FixName);
@@ -461,11 +461,11 @@ public class MissedApproachTests
     [Fact]
     public void ExtractMissedApproachHold_NoHoldLeg_ReturnsNull()
     {
-        var procedure = MakeProcedure(); // only TF legs
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
+        CifpApproachProcedure procedure = MakeProcedure(); // only TF legs
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
 
-        var hold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
+        MissedApproachHold? hold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
 
         Assert.Null(hold);
     }
@@ -473,12 +473,12 @@ public class MissedApproachTests
     [Fact]
     public void BuildMissedApproachPhases_WithHold_QueuesHoldingPhase()
     {
-        var aircraft = MakeAircraft();
-        var procedure = MakeProcedureWithHold();
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
-        var mapHold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
+        AircraftState aircraft = MakeAircraft();
+        CifpApproachProcedure procedure = MakeProcedureWithHold();
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        List<ApproachFix> mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        MissedApproachHold? mapHold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -491,7 +491,7 @@ public class MissedApproachTests
             MapHold = mapHold,
         };
 
-        var result = ApproachCommandHandler.BuildMissedApproachPhases(aircraft);
+        List<Phase> result = ApproachCommandHandler.BuildMissedApproachPhases(aircraft);
 
         Assert.Equal(2, result.Count);
         Assert.IsType<ApproachNavigationPhase>(result[0]);
@@ -504,11 +504,11 @@ public class MissedApproachTests
     [Fact]
     public void BuildMissedApproachPhases_NoHold_NoHoldingPhase()
     {
-        var aircraft = MakeAircraft();
-        var procedure = MakeProcedure(); // no hold leg
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        AircraftState aircraft = MakeAircraft();
+        CifpApproachProcedure procedure = MakeProcedure(); // no hold leg
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        List<ApproachFix> mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -521,7 +521,7 @@ public class MissedApproachTests
             MapHold = null,
         };
 
-        var result = ApproachCommandHandler.BuildMissedApproachPhases(aircraft);
+        List<Phase> result = ApproachCommandHandler.BuildMissedApproachPhases(aircraft);
 
         Assert.Single(result);
         Assert.IsType<ApproachNavigationPhase>(result[0]);
@@ -530,12 +530,12 @@ public class MissedApproachTests
     [Fact]
     public void ManualGoAround_WithHold_QueuesFullSequence()
     {
-        var aircraft = MakeAircraft();
-        var procedure = MakeProcedureWithHold();
-        var fixes = MakeFixLookup();
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
-        var mapHold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
+        AircraftState aircraft = MakeAircraft();
+        CifpApproachProcedure procedure = MakeProcedureWithHold();
+        NavigationDatabase fixes = MakeFixLookup();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        List<ApproachFix> mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        MissedApproachHold? mapHold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -549,7 +549,7 @@ public class MissedApproachTests
         };
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, null, null);

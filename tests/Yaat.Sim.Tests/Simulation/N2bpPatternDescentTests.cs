@@ -1,4 +1,6 @@
 using Xunit;
+using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -24,7 +26,7 @@ public class N2bpPatternDescentTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -45,8 +47,8 @@ public class N2bpPatternDescentTests(ITestOutputHelper output)
     [Fact]
     public void EnterFinal_DoesNotGoAroundDueToAltitude()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -56,7 +58,7 @@ public class N2bpPatternDescentTests(ITestOutputHelper output)
         // Replay to just after the EF 28L command at t=851
         engine.Replay(recording, 852);
 
-        var aircraft = engine.FindAircraft("N2BP");
+        AircraftState? aircraft = engine.FindAircraft("N2BP");
         Assert.NotNull(aircraft);
         output.WriteLine($"N2BP at t=852: alt={aircraft.Altitude:F0}, phase={aircraft.Phases?.CurrentPhase?.Name}");
 
@@ -72,7 +74,7 @@ public class N2bpPatternDescentTests(ITestOutputHelper output)
                 break;
             }
 
-            var phase = aircraft.Phases?.CurrentPhase;
+            Phase? phase = aircraft.Phases?.CurrentPhase;
             if (phase?.Name == "Landing")
             {
                 landed = true;

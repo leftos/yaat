@@ -37,7 +37,7 @@ internal static class ManagedStackCapture
 
         try
         {
-            using DataTarget dataTarget = DataTarget.CreateSnapshotAndAttach(Environment.ProcessId);
+            using var dataTarget = DataTarget.CreateSnapshotAndAttach(Environment.ProcessId);
             if (dataTarget.ClrVersions.Length == 0)
             {
                 Log.LogWarning("Stack capture found no CLR in the snapshot — cannot walk managed stacks");

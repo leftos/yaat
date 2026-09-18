@@ -30,7 +30,7 @@ public class CompoundPolicyTests
     [InlineData("AN 1 X, PAUSE", typeof(PauseCommand))]
     public void ChainWithNonCompoundable_IsFound(string command, Type expectedType)
     {
-        var found = CompoundPolicy.FindNonCompoundableInChain(command);
+        ParsedCommand? found = CompoundPolicy.FindNonCompoundableInChain(command);
         Assert.NotNull(found);
         Assert.IsType(expectedType, found);
     }
@@ -58,7 +58,7 @@ public class CompoundPolicyTests
     [Fact]
     public void AChainLedByASpacedBareVerb_IsSeenAsAChain()
     {
-        var found = CompoundPolicy.FindNonCompoundableInChain("ASSUME ; H 180");
+        ParsedCommand? found = CompoundPolicy.FindNonCompoundableInChain("ASSUME ; H 180");
 
         Assert.NotNull(found);
         Assert.IsType<AssumeCommand>(found);
@@ -105,7 +105,7 @@ public class CompoundPolicyTests
     {
         Assert.Null(CompoundPolicy.FindNonCompoundableInChain("FH 090; RDTXT /1 HOLD, PAUSE"));
 
-        var found = CompoundPolicy.FindNonCompoundableInChain("FH 090; PAUSE");
+        ParsedCommand? found = CompoundPolicy.FindNonCompoundableInChain("FH 090; PAUSE");
         Assert.NotNull(found);
         Assert.IsType<PauseCommand>(found);
     }
@@ -125,7 +125,7 @@ public class CompoundPolicyTests
     [InlineData("SP1 ABC; CTO, R270", typeof(MakeRight270Command))]
     public void TakeoffPairedWithImmediateTurn_IsFound(string command, Type expectedType)
     {
-        var found = CompoundPolicy.FindTakeoffPairedWithImmediateTurn(command);
+        ParsedCommand? found = CompoundPolicy.FindTakeoffPairedWithImmediateTurn(command);
         Assert.NotNull(found);
         Assert.IsType(expectedType, found);
     }

@@ -40,12 +40,12 @@ public class TrackEngineAcceptedIndicatorTests
     [Fact]
     public void HandleAccept_RecordsPreviousOwner_NotForced_WithAcceptTime()
     {
-        var ac = Aircraft();
-        var previousOwner = Eram("ZOA_40", "40");
+        AircraftState ac = Aircraft();
+        TrackOwner previousOwner = Eram("ZOA_40", "40");
         ac.Track.Owner = previousOwner;
         ac.Track.HandoffPeer = Eram("ZOA_36", "36");
 
-        var result = TrackEngine.HandleAccept(ac, Scenario(elapsedSeconds: 128));
+        CommandResult result = TrackEngine.HandleAccept(ac, Scenario(elapsedSeconds: 128));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(previousOwner, ac.Eram.RecentHandoffPreviousOwner);
@@ -56,8 +56,8 @@ public class TrackEngineAcceptedIndicatorTests
     [Fact]
     public void MarkRecentHandoffAccepted_Forced_SetsForcedFlag()
     {
-        var ac = Aircraft();
-        var previousOwner = Eram("ZOA_40", "40");
+        AircraftState ac = Aircraft();
+        TrackOwner previousOwner = Eram("ZOA_40", "40");
 
         TrackEngine.MarkRecentHandoffAccepted(ac, previousOwner, wasForced: true, Scenario(elapsedSeconds: 5));
 
@@ -69,7 +69,7 @@ public class TrackEngineAcceptedIndicatorTests
     [Fact]
     public void MarkRecentHandoffAccepted_NullPreviousOwner_IsNoOp()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
         TrackEngine.MarkRecentHandoffAccepted(ac, previousOwner: null, wasForced: false, Scenario(elapsedSeconds: 5));
 
@@ -82,9 +82,9 @@ public class TrackEngineAcceptedIndicatorTests
     {
         // A owns the track and already has an outbound handoff to 44 in flight (Field-E H44); sector 36
         // steals it with /OK. The stale outbound handoff must be cleared so A shows K36, not a residual H44.
-        var ac = Aircraft();
-        var previousOwner = Eram("ZOA_40", "40");
-        var stealTarget = Eram("ZOA_36", "36");
+        AircraftState ac = Aircraft();
+        TrackOwner previousOwner = Eram("ZOA_40", "40");
+        TrackOwner stealTarget = Eram("ZOA_36", "36");
         ac.Track.Owner = previousOwner;
         ac.Track.HandoffPeer = Eram("ZOA_44", "44");
         var scenario = new SimScenarioState
@@ -98,7 +98,7 @@ public class TrackEngineAcceptedIndicatorTests
             AtcPositions = [Atc(stealTarget, subset: 2, sectorId: "36")],
         };
 
-        var result = TrackEngine.ApplyForceHandoff(ac, scenario, tcpCode: "236");
+        CommandResult result = TrackEngine.ApplyForceHandoff(ac, scenario, tcpCode: "236");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(stealTarget, ac.Track.Owner);
@@ -111,13 +111,13 @@ public class TrackEngineAcceptedIndicatorTests
     [Fact]
     public void HandleDrop_ClearsAcceptedIndicator()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = Eram("ZOA_40", "40");
         ac.Eram.RecentHandoffPreviousOwner = Eram("ZOA_36", "36");
         ac.Eram.RecentHandoffWasForced = true;
         ac.Eram.RecentHandoffAcceptedAtSeconds = 12;
 
-        var result = TrackEngine.HandleDrop(ac);
+        CommandResult result = TrackEngine.HandleDrop(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Null(ac.Eram.RecentHandoffPreviousOwner);

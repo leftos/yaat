@@ -51,8 +51,8 @@ public class VfrColdCallTests(ITestOutputHelper output)
     [Fact]
     public void N2BP_NoScenarioFlightPlan_SpawnsAsColdCall()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -61,7 +61,7 @@ public class VfrColdCallTests(ITestOutputHelper output)
 
         engine.Replay(recording, AssertAtSeconds);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
         output.WriteLine(

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -45,22 +46,22 @@ public class OakTaxiCurrentTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void Jsx170_TaxiW_FromW5_Succeeds()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 1043);
-        var aircraft = engine.FindAircraft("JSX170");
+        AircraftState? aircraft = engine.FindAircraft("JSX170");
         Assert.NotNull(aircraft);
 
         // Precondition: aircraft exited onto W5 and is holding after exit.
         Assert.IsType<HoldingAfterExitPhase>(aircraft.Phases?.CurrentPhase);
         Assert.Equal("W5", aircraft.Ground.CurrentTaxiway);
 
-        var result = engine.SendCommand("JSX170", "TAXI W");
+        CommandResult result = engine.SendCommand("JSX170", "TAXI W");
         output.WriteLine($"TAXI W response: success={result.Success} msg={result.Message}");
 
         Assert.True(result.Success, $"TAXI W should succeed from W5 but failed: {result.Message}");
@@ -69,21 +70,21 @@ public class OakTaxiCurrentTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void N157LE_TaxiE_FromC_NoWarningNoJunctionArc()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 1894);
-        var aircraft = engine.FindAircraft("N157LE");
+        AircraftState? aircraft = engine.FindAircraft("N157LE");
         Assert.NotNull(aircraft);
 
         // Precondition: aircraft is on taxiway C.
         Assert.Equal("C", aircraft.Ground.CurrentTaxiway);
 
-        var result = engine.SendCommand("N157LE", "TAXI E RWY 28R");
+        CommandResult result = engine.SendCommand("N157LE", "TAXI E RWY 28R");
         output.WriteLine($"TAXI E RWY 28R response: success={result.Success} msg={result.Message}");
 
         Assert.True(result.Success, $"TAXI E RWY 28R should succeed but failed: {result.Message}");
@@ -95,7 +96,7 @@ public class OakTaxiCurrentTaxiwayTests(ITestOutputHelper output)
         Assert.DoesNotContain(" - ", result.Message);
 
         // The route reaches taxiway E and has a destination hold-short for 28R.
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         Assert.Contains(route.Segments, s => s.TaxiwayName.Equals("E", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(route.HoldShortPoints, h => h.Reason == HoldShortReason.DestinationRunway && (h.TargetName?.Contains("28R") ?? false));

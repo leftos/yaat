@@ -94,7 +94,7 @@ public sealed class WindowGeometryHelper
 
     public void Restore()
     {
-        var geo = _preferences.GetWindowGeometry(_windowName);
+        SavedWindowGeometry? geo = _preferences.GetWindowGeometry(_windowName);
 
         if (geo is not null && geo.Width > 0 && geo.Height > 0)
         {
@@ -193,33 +193,33 @@ public sealed class WindowGeometryHelper
     /// </summary>
     public static ResolvedGeometry ResolveGeometry(SavedWindowGeometry geo, IReadOnlyList<ScreenInfo> screens)
     {
-        var target = ResolveTargetScreen(screens, geo);
-        var workArea = target.WorkingArea;
-        var scaling = SafeScaling(target.Scaling);
+        ScreenInfo target = ResolveTargetScreen(screens, geo);
+        PixelRect workArea = target.WorkingArea;
+        double scaling = SafeScaling(target.Scaling);
 
-        var widthPx = (int)Math.Round(Math.Min(geo.Width * scaling, workArea.Width));
-        var heightPx = (int)Math.Round(Math.Min(geo.Height * scaling, workArea.Height));
-        var width = geo.Width * scaling > workArea.Width ? workArea.Width / scaling : geo.Width;
-        var height = geo.Height * scaling > workArea.Height ? workArea.Height / scaling : geo.Height;
+        int widthPx = (int)Math.Round(Math.Min(geo.Width * scaling, workArea.Width));
+        int heightPx = (int)Math.Round(Math.Min(geo.Height * scaling, workArea.Height));
+        double width = geo.Width * scaling > workArea.Width ? workArea.Width / scaling : geo.Width;
+        double height = geo.Height * scaling > workArea.Height ? workArea.Height / scaling : geo.Height;
 
         if (IsSufficientlyVisible(new PixelRect(geo.X, geo.Y, widthPx, heightPx), screens))
         {
             return new ResolvedGeometry(geo.X, geo.Y, width, height);
         }
 
-        var x = Clamp(geo.X, workArea.X, workArea.Right - widthPx);
-        var y = Clamp(geo.Y, workArea.Y, workArea.Bottom - heightPx);
+        int x = Clamp(geo.X, workArea.X, workArea.Right - widthPx);
+        int y = Clamp(geo.Y, workArea.Y, workArea.Bottom - heightPx);
 
         return new ResolvedGeometry(x, y, width, height);
     }
 
     private static bool IsSufficientlyVisible(PixelRect windowRect, IReadOnlyList<ScreenInfo> screens)
     {
-        foreach (var screen in screens)
+        foreach (ScreenInfo screen in screens)
         {
-            var workArea = screen.WorkingArea;
-            var overlapWidth = Math.Min(windowRect.Right, workArea.Right) - Math.Max(windowRect.X, workArea.X);
-            var overlapHeight = Math.Min(windowRect.Bottom, workArea.Bottom) - Math.Max(windowRect.Y, workArea.Y);
+            PixelRect workArea = screen.WorkingArea;
+            int overlapWidth = Math.Min(windowRect.Right, workArea.Right) - Math.Max(windowRect.X, workArea.X);
+            int overlapHeight = Math.Min(windowRect.Bottom, workArea.Bottom) - Math.Max(windowRect.Y, workArea.Y);
             if ((overlapWidth >= MinVisibleWidthPx) && (overlapHeight >= MinVisibleHeightPx))
             {
                 return true;
@@ -238,9 +238,9 @@ public sealed class WindowGeometryHelper
         }
 
         // Fall back to whichever screen contains the saved center point
-        foreach (var screen in screens)
+        foreach (ScreenInfo screen in screens)
         {
-            var scaling = SafeScaling(screen.Scaling);
+            double scaling = SafeScaling(screen.Scaling);
             var center = new PixelPoint(geo.X + (int)(geo.Width * scaling / 2), geo.Y + (int)(geo.Height * scaling / 2));
             if (screen.WorkingArea.Contains(center))
             {
@@ -256,10 +256,10 @@ public sealed class WindowGeometryHelper
 
     private void ApplyGeometryToWindow(SavedWindowGeometry geo, bool isStartupRestore)
     {
-        var screenInfos = GetScreenSnapshot();
+        IReadOnlyList<ScreenInfo> screenInfos = GetScreenSnapshot();
         if (screenInfos.Count > 0)
         {
-            var resolved = ResolveGeometry(geo, screenInfos);
+            ResolvedGeometry resolved = ResolveGeometry(geo, screenInfos);
 
             Log.LogDebug(
                 "{Window} apply ({Mode}): saved={Saved} resolved={Resolved} screens=[{Screens}]",
@@ -380,17 +380,17 @@ public sealed class WindowGeometryHelper
             return;
         }
 
-        var screens = GetScreenSnapshot();
+        IReadOnlyList<ScreenInfo> screens = GetScreenSnapshot();
         if (screens.Count == 0)
         {
             Log.LogWarning("{Window} post-open verify skipped: no screens reported", _windowName);
             return;
         }
 
-        var resolved = ResolveGeometry(saved, screens);
-        var actualPosition = _window.Position;
-        var actualWidth = _window.Width;
-        var actualHeight = _window.Height;
+        ResolvedGeometry resolved = ResolveGeometry(saved, screens);
+        PixelPoint actualPosition = _window.Position;
+        double actualWidth = _window.Width;
+        double actualHeight = _window.Height;
 
         if (IsAtResolvedGeometry(resolved, actualPosition, actualWidth, actualHeight))
         {
@@ -416,9 +416,9 @@ public sealed class WindowGeometryHelper
 
     private IReadOnlyList<ScreenInfo> GetScreenSnapshot()
     {
-        var screens = _window.Screens.All;
+        IReadOnlyList<Screen> screens = _window.Screens.All;
         var screenInfos = new ScreenInfo[screens.Count];
-        for (var i = 0; i < screens.Count; i++)
+        for (int i = 0; i < screens.Count; i++)
         {
             screenInfos[i] = new ScreenInfo(screens[i].WorkingArea, screens[i].Scaling);
         }
@@ -444,7 +444,7 @@ public sealed class WindowGeometryHelper
             snapshot = ActiveHelpers.ToArray();
         }
 
-        foreach (var helper in snapshot)
+        foreach (WindowGeometryHelper helper in snapshot)
         {
             helper.FlushSavedGeometry();
         }
@@ -561,7 +561,7 @@ public sealed class WindowGeometryHelper
             return;
         }
 
-        var sinceOpened = DateTime.UtcNow - _openedAtUtc;
+        TimeSpan sinceOpened = DateTime.UtcNow - _openedAtUtc;
         if ((sinceOpened >= TimeSpan.Zero) && (sinceOpened < EarlyMoveLogWindow))
         {
             Log.LogInformation("{Window} moved to {Position} within {Seconds:0}s of opening", _windowName, e.Point, EarlyMoveLogWindow.TotalSeconds);
@@ -569,7 +569,7 @@ public sealed class WindowGeometryHelper
 
         // A minimize can report its iconic position before WindowState flips to
         // Minimized — never let that sentinel replace the last normal geometry.
-        var current = CaptureCurrentGeometry();
+        NormalWindowGeometry current = CaptureCurrentGeometry();
         if (!_startupVerifyPending && (_window.WindowState == WindowState.Normal) && !IsIconicOrigin(current))
         {
             _previousNormalGeometry = _lastNormalGeometry;
@@ -643,7 +643,7 @@ public sealed class WindowGeometryHelper
             return;
         }
 
-        var geo = CreateSavedGeometry();
+        SavedWindowGeometry geo = CreateSavedGeometry();
         Log.LogDebug(
             "{Window} save: {Saved} (state={State}, was={Previous}, trigger={Trigger})",
             _windowName,
@@ -663,9 +663,9 @@ public sealed class WindowGeometryHelper
 
     private SavedWindowGeometry CreateSavedGeometry()
     {
-        var state = _window.WindowState;
-        var isMinimized = state == WindowState.Minimized;
-        var geometry = GetNormalGeometryForPersistence(isNotNormal: state != WindowState.Normal);
+        WindowState state = _window.WindowState;
+        bool isMinimized = state == WindowState.Minimized;
+        NormalWindowGeometry geometry = GetNormalGeometryForPersistence(isNotNormal: state != WindowState.Normal);
         return new SavedWindowGeometry
         {
             X = geometry.Position.X,
@@ -718,11 +718,11 @@ public sealed class WindowGeometryHelper
 
     private int GetCurrentScreenIndex(NormalWindowGeometry geometry)
     {
-        var screens = _window.Screens.All;
+        IReadOnlyList<Screen> screens = _window.Screens.All;
 
-        for (var i = 0; i < screens.Count; i++)
+        for (int i = 0; i < screens.Count; i++)
         {
-            var scaling = SafeScaling(screens[i].Scaling);
+            double scaling = SafeScaling(screens[i].Scaling);
             var center = new PixelPoint(
                 geometry.Position.X + (int)(geometry.Width * scaling / 2),
                 geometry.Position.Y + (int)(geometry.Height * scaling / 2)

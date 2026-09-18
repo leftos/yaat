@@ -43,18 +43,18 @@ public sealed class FlightStripState
     {
         lock (Gate)
         {
-            foreach (var bay in bays)
+            foreach (StripBayConfig bay in bays)
             {
-                if (!Bays.TryGetValue(bay.Id, out var racks))
+                if (!Bays.TryGetValue(bay.Id, out Dictionary<string, List<string>[]>? racks))
                 {
                     racks = new Dictionary<string, List<string>[]>();
                     Bays[bay.Id] = racks;
                 }
 
-                var rackCount = bay.NumberOfRacks > 0 ? bay.NumberOfRacks : 3;
-                for (var i = 0; i < rackCount; i++)
+                int rackCount = bay.NumberOfRacks > 0 ? bay.NumberOfRacks : 3;
+                for (int i = 0; i < rackCount; i++)
                 {
-                    var key = i.ToString();
+                    string key = i.ToString();
                     if (!racks.ContainsKey(key))
                     {
                         racks[key] = [new List<string>()];

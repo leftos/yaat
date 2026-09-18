@@ -36,7 +36,7 @@ public class AirborneMrtCompletedChainUnitTests
     /// </summary>
     private static AircraftState? BuildDepartedAircraftWithSpentChain()
     {
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "28R");
         if (runway is null)
         {
             return null;
@@ -62,9 +62,9 @@ public class AirborneMrtCompletedChainUnitTests
 
         // Spend the chain: Clear pushes CurrentIndex past the end; stamp Completed to mirror a
         // chain that genuinely ran to completion rather than one that was skipped.
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
         aircraft.Phases.Clear(ctx);
-        foreach (var phase in aircraft.Phases.Phases)
+        foreach (Phase phase in aircraft.Phases.Phases)
         {
             phase.Status = PhaseStatus.Completed;
         }
@@ -75,25 +75,25 @@ public class AirborneMrtCompletedChainUnitTests
     [Fact]
     public void AirborneMrt_AfterCompletedChain_ActivatesSplicedUpwind()
     {
-        var aircraft = BuildDepartedAircraftWithSpentChain();
+        AircraftState? aircraft = BuildDepartedAircraftWithSpentChain();
         if (aircraft is null)
         {
             return;
         }
 
-        var result = CommandDispatcher.Dispatch(new MakeRightTrafficCommand(null, null), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new MakeRightTrafficCommand(null, null), aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success, $"MRT failed: {result.Message}");
 
-        var current = aircraft.Phases!.CurrentPhase;
+        Phase? current = aircraft.Phases!.CurrentPhase;
         _output.WriteLine($"after MRT: index={aircraft.Phases.CurrentIndex} phase={current?.GetType().Name} status={current?.Status}");
-        var upwind = Assert.IsType<UpwindPhase>(current);
+        UpwindPhase upwind = Assert.IsType<UpwindPhase>(current);
         Assert.Equal(PhaseStatus.Active, upwind.Status);
     }
 
     [Fact]
     public void PhaseRunner_PendingPhaseAppendedPastSpentChain_NeverRewindsIndex()
     {
-        var aircraft = BuildDepartedAircraftWithSpentChain();
+        AircraftState? aircraft = BuildDepartedAircraftWithSpentChain();
         if (aircraft is null)
         {
             return;
@@ -106,10 +106,10 @@ public class AirborneMrtCompletedChainUnitTests
         // Regardless of whether the handler pre-activated the spliced phase, PhaseRunner must
         // never rewind into the spent prefix on a Pending current phase.
         aircraft.Phases.CurrentPhase!.Status = PhaseStatus.Pending;
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
         PhaseRunner.Tick(aircraft, ctx);
 
-        var current = aircraft.Phases.CurrentPhase;
+        Phase? current = aircraft.Phases.CurrentPhase;
         _output.WriteLine($"after tick: index={aircraft.Phases.CurrentIndex} phase={current?.GetType().Name} status={current?.Status}");
         Assert.True(
             aircraft.Phases.CurrentIndex >= indexAfterMrt,

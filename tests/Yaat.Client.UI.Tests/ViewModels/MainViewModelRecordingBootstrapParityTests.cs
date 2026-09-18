@@ -60,10 +60,10 @@ public class MainViewModelRecordingBootstrapParityTests
     {
         List<AircraftDto> aircraft = [MakeAircraft("SWA101"), MakeAircraft("UAL202")];
 
-        var viaBootstrap = NewVm();
+        MainViewModel viaBootstrap = NewVm();
         viaBootstrap.ApplyScenarioBootstrap(new ScenarioBootstrap(ScenarioId, ScenarioName, AirportId, null, null, aircraft));
 
-        var viaRecording = NewVm();
+        MainViewModel viaRecording = NewVm();
         viaRecording.ApplyRecordingResult(
             new RewindResultDto(
                 Success: true,
@@ -93,7 +93,7 @@ public class MainViewModelRecordingBootstrapParityTests
     [AvaloniaFact]
     public void ApplyRecordingResult_KeysTheGroundViewsSavedViewOnTheRecordingsScenario()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         vm.ApplyRecordingResult(
             new RewindResultDto(
                 Success: true,

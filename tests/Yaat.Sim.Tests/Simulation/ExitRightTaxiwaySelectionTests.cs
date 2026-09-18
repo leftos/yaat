@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -21,7 +22,7 @@ public class ExitRightTaxiwaySelectionTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -40,8 +41,8 @@ public class ExitRightTaxiwaySelectionTests(ITestOutputHelper output)
     [Fact]
     public void WJA1508_ExitsAtTaxiwayD_NotE()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -51,7 +52,7 @@ public class ExitRightTaxiwaySelectionTests(ITestOutputHelper output)
         // but before landing (~t=1000). The ER D command is in the recording actions.
         engine.Replay(recording, 950);
 
-        var ac = engine.FindAircraft("WJA1508");
+        AircraftState? ac = engine.FindAircraft("WJA1508");
         Assert.NotNull(ac);
 
         output.WriteLine(

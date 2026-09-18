@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 using Yaat.Client.Logging;
 
 namespace Yaat.Client.Services;
@@ -32,16 +33,16 @@ public static class CrcConfigService
 
     private static CrcEnvironmentEntry[] LoadEmbeddedYaatEntries()
     {
-        var assembly = typeof(CrcConfigService).Assembly;
-        using var stream =
+        Assembly assembly = typeof(CrcConfigService).Assembly;
+        using Stream stream =
             assembly.GetManifestResourceStream(EmbeddedEnvironmentsResourceName)
             ?? throw new InvalidOperationException(
                 $"Embedded resource '{EmbeddedEnvironmentsResourceName}' not found in {assembly.GetName().Name}. "
                     + $"Available resources: {string.Join(", ", assembly.GetManifestResourceNames())}"
             );
         using var reader = new StreamReader(stream);
-        var json = reader.ReadToEnd();
-        var entries =
+        string json = reader.ReadToEnd();
+        CrcEnvironmentEntry[] entries =
             JsonSerializer.Deserialize<CrcEnvironmentEntry[]>(json, JsonOptions)
             ?? throw new InvalidOperationException($"Embedded resource '{EmbeddedEnvironmentsResourceName}' deserialized to null");
         if (entries.Length == 0)
@@ -55,13 +56,13 @@ public static class CrcConfigService
 
     public static bool AreYaatEntriesPresent()
     {
-        var configDir = GetCrcConfigDir();
+        string? configDir = GetCrcConfigDir();
         if (configDir is null)
         {
             return false;
         }
 
-        var jsonPath = Path.Combine(configDir, EnvironmentsFileName);
+        string jsonPath = Path.Combine(configDir, EnvironmentsFileName);
         if (!File.Exists(jsonPath))
         {
             return false;
@@ -69,12 +70,12 @@ public static class CrcConfigService
 
         try
         {
-            var json = File.ReadAllText(jsonPath);
-            var environments = JsonSerializer.Deserialize<List<CrcEnvironmentEntry>>(json, JsonOptions) ?? [];
+            string json = File.ReadAllText(jsonPath);
+            List<CrcEnvironmentEntry> environments = JsonSerializer.Deserialize<List<CrcEnvironmentEntry>>(json, JsonOptions) ?? [];
 
-            foreach (var expected in YaatEntries)
+            foreach (CrcEnvironmentEntry expected in YaatEntries)
             {
-                var existing = environments.Find(e => string.Equals(e.Name, expected.Name, StringComparison.OrdinalIgnoreCase));
+                CrcEnvironmentEntry? existing = environments.Find(e => string.Equals(e.Name, expected.Name, StringComparison.OrdinalIgnoreCase));
                 if (existing is null)
                 {
                     return false;
@@ -100,21 +101,21 @@ public static class CrcConfigService
 
     public static void Configure()
     {
-        var configDir = GetCrcConfigDir();
+        string? configDir = GetCrcConfigDir();
         if (configDir is null)
         {
             Log.LogWarning("CRC config directory not found — cannot configure environments");
             return;
         }
 
-        var jsonPath = Path.Combine(configDir, EnvironmentsFileName);
+        string jsonPath = Path.Combine(configDir, EnvironmentsFileName);
 
         try
         {
             List<CrcEnvironmentEntry> environments;
             if (File.Exists(jsonPath))
             {
-                var json = File.ReadAllText(jsonPath);
+                string json = File.ReadAllText(jsonPath);
                 environments = JsonSerializer.Deserialize<List<CrcEnvironmentEntry>>(json, JsonOptions) ?? [];
             }
             else
@@ -122,9 +123,9 @@ public static class CrcConfigService
                 environments = [];
             }
 
-            foreach (var entry in YaatEntries)
+            foreach (CrcEnvironmentEntry entry in YaatEntries)
             {
-                var existing = environments.Find(e => string.Equals(e.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
+                CrcEnvironmentEntry? existing = environments.Find(e => string.Equals(e.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
                 if (existing is not null)
                 {
                     Log.LogInformation("Updating existing CRC environment '{Name}'", entry.Name);
@@ -149,7 +150,7 @@ public static class CrcConfigService
                 }
             }
 
-            var output = JsonSerializer.Serialize(environments, JsonOptions);
+            string output = JsonSerializer.Serialize(environments, JsonOptions);
             File.WriteAllText(jsonPath, output);
             Log.LogInformation("CRC DevEnvironments.json updated at {Path}", jsonPath);
         }
@@ -163,7 +164,7 @@ public static class CrcConfigService
 
     internal static string? FindFirstConfigDir(IEnumerable<string> candidates)
     {
-        foreach (var candidate in candidates)
+        foreach (string candidate in candidates)
         {
             try
             {
@@ -185,13 +186,13 @@ public static class CrcConfigService
     {
         if (OperatingSystem.IsWindows())
         {
-            var fromRegistry = TryGetWindowsInstallDirFromRegistry();
+            string? fromRegistry = TryGetWindowsInstallDirFromRegistry();
             if (fromRegistry is not null)
             {
                 yield return fromRegistry;
             }
 
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             if (!string.IsNullOrEmpty(localAppData))
             {
                 yield return Path.Combine(localAppData, "CRC");
@@ -199,7 +200,7 @@ public static class CrcConfigService
         }
         else if (OperatingSystem.IsMacOS())
         {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             if (!string.IsNullOrEmpty(home))
             {
                 yield return Path.Combine(home, "Library", "Application Support", "CRC");
@@ -207,7 +208,7 @@ public static class CrcConfigService
         }
         else if (OperatingSystem.IsLinux())
         {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             if (!string.IsNullOrEmpty(home))
             {
                 yield return Path.Combine(home, ".config", "CRC");
@@ -224,7 +225,7 @@ public static class CrcConfigService
 
         try
         {
-            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(CrcRegKey);
+            using RegistryKey? key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(CrcRegKey);
             if (key?.GetValue(CrcRegValue) is not string installDir)
             {
                 return null;

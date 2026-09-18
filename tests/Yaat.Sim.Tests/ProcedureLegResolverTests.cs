@@ -44,10 +44,10 @@ public class ProcedureLegResolverTests
 
         // KOAK COAST9 RWY 30 leg 10: heading 296° to OAK 4.0 DME, between 1400 and 2000.
         var window = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 2000, 1400);
-        var legs = ProcedureLegResolver.Resolve([DistanceLeg(CifpPathTerminator.VD, "OAK", 296.0, 4.0, window)]);
+        List<ProcedureLeg> legs = ProcedureLegResolver.Resolve([DistanceLeg(CifpPathTerminator.VD, "OAK", 296.0, 4.0, window)]);
 
         Assert.Single(legs);
-        var leg = legs[0];
+        ProcedureLeg leg = legs[0];
         Assert.Equal(ProcedureLegType.HeadingToDistance, leg.Type);
         Assert.Equal(296.0, leg.CourseMagnetic);
         Assert.Equal(4.0, leg.TerminationDistanceNm);
@@ -58,7 +58,7 @@ public class ProcedureLegResolverTests
         Assert.Equal(2000, leg.AltitudeRestriction.Altitude1Ft);
 
         // The distance leg is a coded leg, so it stays the leading leg the phase flies.
-        var active = ProcedureLegResolver.ExtractActiveDepartureLegs(legs);
+        List<ProcedureLeg>? active = ProcedureLegResolver.ExtractActiveDepartureLegs(legs);
         Assert.NotNull(active);
         Assert.Equal(ProcedureLegType.HeadingToDistance, active![0].Type);
     }
@@ -70,7 +70,7 @@ public class ProcedureLegResolverTests
         {
             return;
         }
-        var legs = ProcedureLegResolver.Resolve([DistanceLeg(CifpPathTerminator.CD, "OAK", 135.0, 9.0, null)]);
+        List<ProcedureLeg> legs = ProcedureLegResolver.Resolve([DistanceLeg(CifpPathTerminator.CD, "OAK", 135.0, 9.0, null)]);
         Assert.Single(legs);
         Assert.Equal(ProcedureLegType.CourseToDistance, legs[0].Type);
         Assert.Equal(9.0, legs[0].TerminationDistanceNm);
@@ -84,7 +84,7 @@ public class ProcedureLegResolverTests
             return;
         }
         // FC: track a course from SEGUL for 5 nm. Reference is the origin fix, not a navaid.
-        var legs = ProcedureLegResolver.Resolve([DistanceLeg(CifpPathTerminator.FC, "SEGUL", 90.0, 5.0, null)]);
+        List<ProcedureLeg> legs = ProcedureLegResolver.Resolve([DistanceLeg(CifpPathTerminator.FC, "SEGUL", 90.0, 5.0, null)]);
         Assert.Single(legs);
         Assert.Equal(ProcedureLegType.CourseToDistance, legs[0].Type);
         Assert.Equal(segul.Lat, legs[0].TerminationReferencePosition!.Value.Lat, precision: 4);
@@ -111,7 +111,7 @@ public class ProcedureLegResolverTests
             RecommendedNavaidId: "OAK",
             Theta: 165.0
         );
-        var legs = ProcedureLegResolver.Resolve([leg]);
+        List<ProcedureLeg> legs = ProcedureLegResolver.Resolve([leg]);
         Assert.Single(legs);
         Assert.Equal(ProcedureLegType.HeadingToRadial, legs[0].Type);
         Assert.Equal(165.0, legs[0].TerminationRadialMagnetic);
@@ -153,7 +153,7 @@ public class ProcedureLegResolverTests
     [Fact]
     public void LindzShape_ReturnsAllThreeCodedLegs()
     {
-        var prefix = ProcedureLegResolver.ExtractActiveDepartureLegs([Va(), Vi(), Cf("LINDZ"), Tf("SLOLM")]);
+        List<ProcedureLeg>? prefix = ProcedureLegResolver.ExtractActiveDepartureLegs([Va(), Vi(), Cf("LINDZ"), Tf("SLOLM")]);
         Assert.NotNull(prefix);
         Assert.Equal(3, prefix!.Count);
         Assert.Equal(ProcedureLegType.CourseToFix, prefix[2].Type);
@@ -162,7 +162,7 @@ public class ProcedureLegResolverTests
     [Fact]
     public void LeadingCfThenFix_ReturnsOnlyTheLeadingCf()
     {
-        var prefix = ProcedureLegResolver.ExtractActiveDepartureLegs([Cf("ABCDE"), Tf("FGHIJ"), Tf("KLMNO")]);
+        List<ProcedureLeg>? prefix = ProcedureLegResolver.ExtractActiveDepartureLegs([Cf("ABCDE"), Tf("FGHIJ"), Tf("KLMNO")]);
         Assert.NotNull(prefix);
         Assert.Single(prefix!);
         Assert.Equal(ProcedureLegType.CourseToFix, prefix![0].Type);

@@ -36,7 +36,7 @@ public class TransportStepTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
         engine.Scenario!.IsPaused = false;
         engine.Scenario!.SimRate = 1.0;
         return engine;
@@ -55,12 +55,12 @@ public class TransportStepTests
 
         var host = new AttendanceActionHost();
 
-        var paused = Issue(engine, host, "PAUSE");
+        CommandResult paused = Issue(engine, host, "PAUSE");
 
         Assert.True(paused.Success, paused.Message);
         Assert.True(engine.Scenario!.IsPaused);
 
-        var resumed = Issue(engine, host, "UNPAUSE");
+        CommandResult resumed = Issue(engine, host, "UNPAUSE");
 
         Assert.True(resumed.Success, resumed.Message);
         Assert.False(engine.Scenario!.IsPaused);
@@ -78,7 +78,7 @@ public class TransportStepTests
             return;
         }
 
-        var result = Issue(engine, new AttendanceActionHost(), command);
+        CommandResult result = Issue(engine, new AttendanceActionHost(), command);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(expected, engine.Scenario!.SimRate);
@@ -95,7 +95,7 @@ public class TransportStepTests
 
         engine.Scenario!.LiveTrafficEnabled = true;
 
-        var result = Issue(engine, new AttendanceActionHost(), "SIMRATE 4");
+        CommandResult result = Issue(engine, new AttendanceActionHost(), "SIMRATE 4");
 
         Assert.False(result.Success);
         Assert.Contains("live traffic", result.Message);
@@ -158,7 +158,7 @@ public class TransportStepTests
             return;
         }
 
-        var outcome = engine.Actions.Apply(new RecordedCommand(0, "", "PAUSE", "XX", "conn-1"), new AttendanceActionHost());
+        ActionOutcome outcome = engine.Actions.Apply(new RecordedCommand(0, "", "PAUSE", "XX", "conn-1"), new AttendanceActionHost());
 
         Assert.False(outcome.Result.Success);
         Assert.False(engine.Scenario!.IsPaused);

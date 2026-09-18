@@ -90,25 +90,25 @@ public class PilotSayBuilderTests
     public void BuildPosition_DepartureAirportAnchor_ShowsCodeAndFriendlyName()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var oakPos = navDb.GetFixPosition("KOAK");
+        (double Lat, double Lon)? oakPos = navDb.GetFixPosition("KOAK");
         if (oakPos is null)
         {
             return;
         }
 
         // Aircraft 5 nm north of KOAK on departure roll.
-        var ac = MakeAircraftAt(oakPos.Value.Lat + 5.0 / 60.0, oakPos.Value.Lon);
+        AircraftState ac = MakeAircraftAt(oakPos.Value.Lat + 5.0 / 60.0, oakPos.Value.Lon);
         ac.FlightPlan.Departure = "KOAK";
         ac.FlightPlan.Destination = "KSAN";
 
-        var result = PilotSayBuilder.BuildPosition(ac);
+        string result = PilotSayBuilder.BuildPosition(ac);
 
         Assert.Contains("KOAK", result);
         Assert.Contains("Oakland", result);
@@ -119,25 +119,25 @@ public class PilotSayBuilderTests
     public void BuildPosition_DestinationAirportAnchor_ShowsCodeAndFriendlyName()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var sfoPos = navDb.GetFixPosition("KSFO");
+        (double Lat, double Lon)? sfoPos = navDb.GetFixPosition("KSFO");
         if (sfoPos is null)
         {
             return;
         }
 
         // Aircraft 8 nm east of KSFO on final.
-        var ac = MakeAircraftAt(sfoPos.Value.Lat, sfoPos.Value.Lon + 8.0 / 60.0);
+        AircraftState ac = MakeAircraftAt(sfoPos.Value.Lat, sfoPos.Value.Lon + 8.0 / 60.0);
         ac.FlightPlan.Departure = "KLAX";
         ac.FlightPlan.Destination = "KSFO";
 
-        var result = PilotSayBuilder.BuildPosition(ac);
+        string result = PilotSayBuilder.BuildPosition(ac);
 
         Assert.Contains("KSFO", result);
         Assert.Contains("San Francisco", result);
@@ -147,23 +147,23 @@ public class PilotSayBuilderTests
     public void BuildPosition_NoFlightPlan_FallsBackToSizeableAirport()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var oakPos = navDb.GetFixPosition("KOAK");
+        (double Lat, double Lon)? oakPos = navDb.GetFixPosition("KOAK");
         if (oakPos is null)
         {
             return;
         }
 
         // VFR aircraft, no flight plan, ~3 nm south of KOAK.
-        var ac = MakeAircraftAt(oakPos.Value.Lat - 3.0 / 60.0, oakPos.Value.Lon);
+        AircraftState ac = MakeAircraftAt(oakPos.Value.Lat - 3.0 / 60.0, oakPos.Value.Lon);
 
-        var result = PilotSayBuilder.BuildPosition(ac);
+        string result = PilotSayBuilder.BuildPosition(ac);
 
         Assert.NotEqual("Unable to determine position", result);
         // Sizeable-airport fallback should land on a nearby airport — KOAK or another major
@@ -175,17 +175,17 @@ public class PilotSayBuilderTests
     public void BuildPosition_FarFromEverything_Unable()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Mid-Pacific — no fixes or airports within 100 nm.
-        var ac = MakeAircraftAt(20.0, -160.0);
+        AircraftState ac = MakeAircraftAt(20.0, -160.0);
 
-        var result = PilotSayBuilder.BuildPosition(ac);
+        string result = PilotSayBuilder.BuildPosition(ac);
 
         Assert.Equal("Unable to determine position", result);
     }
@@ -197,9 +197,9 @@ public class PilotSayBuilderTests
     /// </summary>
     private static (string Name, double Lat, double Lon)? FindNamedIntersection(NavigationDatabase navDb)
     {
-        foreach (var name in new[] { "WAITZ", "MENLO", "ARCHI", "STINS", "BRIXX", "GROAN", "CEDES", "WOODY", "LIDAT", "SUNOL" })
+        foreach (string? name in new[] { "WAITZ", "MENLO", "ARCHI", "STINS", "BRIXX", "GROAN", "CEDES", "WOODY", "LIDAT", "SUNOL" })
         {
-            var pos = navDb.GetFixPosition(name);
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(name);
             if (pos is null)
             {
                 continue;
@@ -221,19 +221,19 @@ public class PilotSayBuilderTests
     public void BuildPosition_VorAnchor_RendersAsCodeDashNameVor()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Pick the first VHF navaid we can find from a small candidate set.
         (string Name, double Lat, double Lon, string FriendlyName)? vor = null;
-        foreach (var code in new[] { "OSI", "SAC", "SNS", "MOD", "PYE", "OAK" })
+        foreach (string? code in new[] { "OSI", "SAC", "SNS", "MOD", "PYE", "OAK" })
         {
-            var pos = navDb.GetFixPosition(code);
-            var navaidName = navDb.GetNavaidName(code);
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(code);
+            string? navaidName = navDb.GetNavaidName(code);
             if (pos is not null && !string.IsNullOrEmpty(navaidName))
             {
                 vor = (code, pos.Value.Lat, pos.Value.Lon, navaidName);
@@ -245,10 +245,10 @@ public class PilotSayBuilderTests
             return;
         }
 
-        var ac = MakeAircraftAt(vor.Value.Lat, vor.Value.Lon);
+        AircraftState ac = MakeAircraftAt(vor.Value.Lat, vor.Value.Lon);
         ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = vor.Value.Name, Position = new LatLon(vor.Value.Lat, vor.Value.Lon) });
 
-        var result = PilotSayBuilder.BuildPosition(ac);
+        string result = PilotSayBuilder.BuildPosition(ac);
 
         Assert.Contains($"{vor.Value.Name} - ", result);
         Assert.Contains(" VOR", result);
@@ -258,23 +258,23 @@ public class PilotSayBuilderTests
     public void BuildPosition_IntersectionAnchor_RendersWithIntersectionSuffixAndAirportContext()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var fix = FindNamedIntersection(navDb);
+        (string Name, double Lat, double Lon)? fix = FindNamedIntersection(navDb);
         if (fix is null)
         {
             return;
         }
 
-        var ac = MakeAircraftAt(fix.Value.Lat, fix.Value.Lon);
+        AircraftState ac = MakeAircraftAt(fix.Value.Lat, fix.Value.Lon);
         ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Value.Name, Position = new LatLon(fix.Value.Lat, fix.Value.Lon) });
 
-        var result = PilotSayBuilder.BuildPosition(ac);
+        string result = PilotSayBuilder.BuildPosition(ac);
 
         Assert.Contains($"{fix.Value.Name} intersection", result);
         // Intersections don't self-place — the report must append a comma-separated airport context.
@@ -286,14 +286,14 @@ public class PilotSayBuilderTests
     public void BuildPosition_PrefersRouteFixOverArbitraryNearbyFix()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var oakPos = navDb.GetFixPosition("KOAK");
+        (double Lat, double Lon)? oakPos = navDb.GetFixPosition("KOAK");
         if (oakPos is null)
         {
             return;
@@ -303,11 +303,11 @@ public class PilotSayBuilderTests
         // implementation picked the unrestricted nearest fix from the entire navdata
         // (often an obscure RNAV waypoint a few hundred feet away). The new
         // implementation must restrict to route candidates and pick KOAK.
-        var ac = MakeAircraftAt(oakPos.Value.Lat + 1.0 / 60.0, oakPos.Value.Lon);
+        AircraftState ac = MakeAircraftAt(oakPos.Value.Lat + 1.0 / 60.0, oakPos.Value.Lon);
         ac.FlightPlan.Departure = "KOAK";
         ac.FlightPlan.Destination = "KSAN";
 
-        var result = PilotSayBuilder.BuildPosition(ac);
+        string result = PilotSayBuilder.BuildPosition(ac);
 
         Assert.Contains("KOAK", result);
     }
@@ -349,10 +349,10 @@ public class PilotSayBuilderTests
     {
         // SFO area carries ~13°E declination, so magnetic is well clear of the 270 true heading.
         var pos = new LatLon(37.62, -122.38);
-        var ac = MakeAircraftAt(pos.Lat, pos.Lon);
+        AircraftState ac = MakeAircraftAt(pos.Lat, pos.Lon);
         ac.TrueHeading = new TrueHeading(270);
 
-        var result = PilotSayBuilder.BuildHeading(ac);
+        string result = PilotSayBuilder.BuildHeading(ac);
 
         Assert.Equal($"Heading {ExpectedMagneticReadback(270, pos)}", result);
         Assert.NotEqual("Heading 270", result); // the old true-heading bug
@@ -362,12 +362,12 @@ public class PilotSayBuilderTests
     public void BuildHeading_Turning_ReportsMagneticCurrentAndTarget()
     {
         var pos = new LatLon(37.62, -122.38);
-        var ac = MakeAircraftAt(pos.Lat, pos.Lon);
+        AircraftState ac = MakeAircraftAt(pos.Lat, pos.Lon);
         ac.TrueHeading = new TrueHeading(130);
         ac.BankAngle = -10; // negative bank = turning left
         ac.Targets.TargetTrueHeading = new TrueHeading(90);
 
-        var result = PilotSayBuilder.BuildHeading(ac);
+        string result = PilotSayBuilder.BuildHeading(ac);
 
         Assert.Equal($"Heading {ExpectedMagneticReadback(130, pos)}, turning left {ExpectedMagneticReadback(90, pos)}", result);
     }
@@ -376,24 +376,28 @@ public class PilotSayBuilderTests
     public void FindNearestSizeableAirport_FiltersByRunwayLength()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var oakPos = navDb.GetFixPosition("KOAK");
+        (double Lat, double Lon)? oakPos = navDb.GetFixPosition("KOAK");
         if (oakPos is null)
         {
             return;
         }
 
         // KOAK has a 10,500 ft runway — qualifies at any sane threshold.
-        var atOak = navDb.FindNearestSizeableAirport(new LatLon(oakPos.Value.Lat, oakPos.Value.Lon), 6500, 50);
+        (string Id, double Lat, double Lon)? atOak = navDb.FindNearestSizeableAirport(new LatLon(oakPos.Value.Lat, oakPos.Value.Lon), 6500, 50);
         Assert.NotNull(atOak);
 
         // 50,000 ft threshold — no real airport qualifies.
-        var noneQualify = navDb.FindNearestSizeableAirport(new LatLon(oakPos.Value.Lat, oakPos.Value.Lon), 50_000, 100);
+        (string Id, double Lat, double Lon)? noneQualify = navDb.FindNearestSizeableAirport(
+            new LatLon(oakPos.Value.Lat, oakPos.Value.Lon),
+            50_000,
+            100
+        );
         Assert.Null(noneQualify);
     }
 }

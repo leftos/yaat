@@ -113,24 +113,31 @@ public static class RampLaneReposition
             return null;
         }
 
-        var (currentLane, rolling) = ResolveCurrentLane(layout, position, currentTaxiway);
+        (string? currentLane, bool rolling) = ResolveCurrentLane(layout, position, currentTaxiway);
         if ((currentLane is null) || !SameLaneFamily(currentLane, lane))
         {
             Log.LogDebug("[Reposition] {Lane} is not a sibling of current lane {Current}; no ramp cut", lane, currentLane ?? "(none)");
             return null;
         }
 
-        var family = LaneFamily(layout, lane);
-        var candidates = RankTargets(layout, position, rolling ? heading.Degrees : null, lane, family);
+        HashSet<string> family = LaneFamily(layout, lane);
+        List<GroundNode> candidates = RankTargets(layout, position, rolling ? heading.Degrees : null, lane, family);
         if (candidates.Count == 0)
         {
             Log.LogDebug("[Reposition] no {Lane} node within {Max:F0} ft of the aircraft across open apron", lane, MaxCrossingFt);
             return null;
         }
 
-        foreach (var target in candidates)
+        foreach (GroundNode target in candidates)
         {
-            var tail = TaxiPathfinder.ResolveExplicitPathDetailed(layout, target.Id, path.ToList(), out var tailFailure, options, category);
+            TaxiRoute? tail = TaxiPathfinder.ResolveExplicitPathDetailed(
+                layout,
+                target.Id,
+                path.ToList(),
+                out PathfindingFailure? tailFailure,
+                options,
+                category
+            );
             if (tail is null)
             {
                 Log.LogDebug("[Reposition] route from {Lane} node {Node} does not resolve: {Reason}", lane, target.Id, tailFailure?.HumanMessage);
@@ -146,7 +153,7 @@ public static class RampLaneReposition
     private static RampLaneRepositionPlan BuildPlan(LatLon position, string currentLane, string lane, GroundNode target, TaxiRoute tail)
     {
         double crossingFt = DistanceFt(position, target.Position);
-        var crossing = VirtualNode.CreateSegment(VirtualNode.Create(position.Lat, position.Lon), target, tail.Segments[0].TaxiwayName);
+        TaxiRouteSegment crossing = VirtualNode.CreateSegment(VirtualNode.Create(position.Lat, position.Lon), target, tail.Segments[0].TaxiwayName);
         var route = new TaxiRoute
         {
             Segments = [crossing, .. tail.Segments],
@@ -198,7 +205,7 @@ public static class RampLaneReposition
             return null;
         }
 
-        var (destinationLane, leadIn) = LeadOut(destination);
+        (string? destinationLane, List<GroundNode>? leadIn) = LeadOut(destination);
         if ((destinationLane is null) || !IsRampTaxilane(layout, destinationLane) || !AreSiblingLanes(lane, destinationLane))
         {
             Log.LogDebug(
@@ -210,7 +217,7 @@ public static class RampLaneReposition
             return null;
         }
 
-        var family = LaneFamily(layout, lane);
+        HashSet<string> family = LaneFamily(layout, lane);
         var targets = layout
             .GetNodesOnTaxiway(destinationLane)
             .Where(n => HasStraightEdgeOf(n, destinationLane))
@@ -224,7 +231,7 @@ public static class RampLaneReposition
             .Take(MaxCutOrigins)
             .ToList();
 
-        foreach (var origin in origins)
+        foreach (GroundNode? origin in origins)
         {
             var reachable = targets
                 .Select(t => (Node: t, Ft: DistanceFt(origin.Position, t.Position)))
@@ -240,16 +247,16 @@ public static class RampLaneReposition
                 continue;
             }
 
-            var head = ResolveHeadTo(layout, startNodeId, path, origin, options, category);
+            TaxiRoute? head = ResolveHeadTo(layout, startNodeId, path, origin, options, category);
             if (head is null)
             {
                 Log.LogDebug("[Reposition] clearance does not resolve to {Lane} node {Node}; trying the next origin", lane, origin.Id);
                 continue;
             }
 
-            foreach (var (target, crossingFt) in reachable)
+            foreach ((GroundNode? target, double crossingFt) in reachable)
             {
-                var tail = TaxiPathfinder.FindRoute(layout, target.Id, destination.Id, category);
+                TaxiRoute? tail = TaxiPathfinder.FindRoute(layout, target.Id, destination.Id, category);
                 if (tail is null)
                 {
                     continue;
@@ -288,18 +295,18 @@ public static class RampLaneReposition
             return null;
         }
 
-        var (destinationLane, _) = LeadOut(destination);
+        (string? destinationLane, List<GroundNode> _) = LeadOut(destination);
         if ((destinationLane is null) || !IsRampTaxilane(layout, destinationLane))
         {
             return null;
         }
 
-        var family = LaneFamily(layout, destinationLane);
+        HashSet<string> family = LaneFamily(layout, destinationLane);
         double totalFt = resolvedRoute.TotalDistanceFt;
         (GroundNode Node, int HeadSegments, double CutFt, double ResultFt)? best = null;
         for (int i = 0; i <= resolvedRoute.Segments.Count; i++)
         {
-            var node = i == 0 ? resolvedRoute.Segments[0].Edge.FromNode : resolvedRoute.Segments[i - 1].Edge.ToNode;
+            GroundNode node = i == 0 ? resolvedRoute.Segments[0].Edge.FromNode : resolvedRoute.Segments[i - 1].Edge.ToNode;
             double prefixFt = resolvedRoute.PrefixDistanceFt(i);
             double cutFt = DistanceFt(node.Position, destination.Position);
             if (!IsWorthCutting(totalFt - prefixFt, cutFt) || !IsCuttableFrom(layout, node, destination, family))
@@ -353,7 +360,7 @@ public static class RampLaneReposition
         var head = resolvedRoute.Segments.Take(cut.HeadSegments).ToList();
         // The crossing is apron, not the lane: named RAMP so the broadcast taxiway sequence stays the pavement the
         // aircraft actually follows, and the client rebuilds the same cut from the destination.
-        var crossing = VirtualNode.CreateSegment(cut.Node, destination, "RAMP");
+        TaxiRouteSegment crossing = VirtualNode.CreateSegment(cut.Node, destination, "RAMP");
         var route = new TaxiRoute
         {
             Segments = [.. head, crossing],
@@ -398,7 +405,7 @@ public static class RampLaneReposition
             PathTurnHints = options.PathTurnHints,
             StartHeadingTrue = options.StartHeadingTrue,
         };
-        var head = TaxiPathfinder.ResolveExplicitPathDetailed(layout, startNodeId, path.ToList(), out _, headOptions, category);
+        TaxiRoute? head = TaxiPathfinder.ResolveExplicitPathDetailed(layout, startNodeId, path.ToList(), out _, headOptions, category);
         if (head is null)
         {
             return null;
@@ -430,7 +437,7 @@ public static class RampLaneReposition
     {
         // The crossing is apron, not the lane: named RAMP so the broadcast taxiway sequence and the readback stay
         // the clearance as issued ("V T TE"), and the client reconstructs the cut from the destination instead.
-        var crossing = VirtualNode.CreateSegment(origin, target, "RAMP");
+        TaxiRouteSegment crossing = VirtualNode.CreateSegment(origin, target, "RAMP");
         var route = new TaxiRoute
         {
             Segments = [.. head.Segments, crossing, .. tail.Segments],
@@ -569,13 +576,13 @@ public static class RampLaneReposition
             return (currentTaxiway, true);
         }
 
-        var nearest = layout.FindNearestNode(position);
+        GroundNode? nearest = layout.FindNearestNode(position);
         if ((nearest is { Type: GroundNodeType.Parking }) && (DistanceFt(position, nearest.Position) <= ParkedToleranceFt))
         {
             return (LeadOutLane(nearest), false);
         }
 
-        var edge = layout.FindNearestTaxiEdge(position);
+        AirportGroundLayout.NearestTaxiEdge? edge = layout.FindNearestTaxiEdge(position);
         if ((edge is { } e) && ((e.DistNm * GeoMath.FeetPerNm) <= CurrentLaneMaxFt))
         {
             return (e.Edge.TaxiwayName, true);
@@ -601,8 +608,8 @@ public static class RampLaneReposition
         queue.Enqueue((parking, 0));
         while (queue.Count > 0)
         {
-            var (node, depth) = queue.Dequeue();
-            foreach (var edge in node.Edges)
+            (GroundNode? node, int depth) = queue.Dequeue();
+            foreach (IGroundEdge edge in node.Edges)
             {
                 string? lane = FirstNamedTaxiway(edge);
                 if (lane is not null)
@@ -610,7 +617,7 @@ public static class RampLaneReposition
                     return (lane, rampNodes);
                 }
 
-                var next = edge.OtherNode(node);
+                GroundNode next = edge.OtherNode(node);
                 if (((depth + 1) <= MaxLeadOutHops) && visited.Add(next.Id))
                 {
                     rampNodes.Add(next);
@@ -659,7 +666,7 @@ public static class RampLaneReposition
     private static List<GroundNode> RankTargets(AirportGroundLayout layout, LatLon position, double? noseBearing, string lane, HashSet<string> family)
     {
         var reachable = new List<(GroundNode Node, double Ft)>();
-        foreach (var node in layout.GetNodesOnTaxiway(lane))
+        foreach (GroundNode node in layout.GetNodesOnTaxiway(lane))
         {
             if (AirportGroundLayout.HasRunwayCenterlineEdge(node) || !node.Edges.Any(e => (e is GroundEdge) && e.MatchesTaxiway(lane)))
             {
@@ -696,7 +703,7 @@ public static class RampLaneReposition
     /// </summary>
     private static bool CrossesForeignPavement(AirportGroundLayout layout, LatLon from, GroundNode target, HashSet<string> family)
     {
-        foreach (var edge in layout.AllEdges)
+        foreach (IGroundEdge edge in layout.AllEdges)
         {
             if (edge.HasNode(target.Id))
             {

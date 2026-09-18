@@ -60,7 +60,7 @@ public readonly record struct HoldShortTarget(string Target, string? OnTaxiway, 
     /// <summary>Throwing form of <see cref="TryParse"/> for callers whose input is already validated (tools, tests).</summary>
     public static HoldShortTarget Parse(string token)
     {
-        if (!TryParse(token, out var target, out string? error))
+        if (!TryParse(token, out HoldShortTarget target, out string? error))
         {
             throw new ArgumentException(error, nameof(token));
         }

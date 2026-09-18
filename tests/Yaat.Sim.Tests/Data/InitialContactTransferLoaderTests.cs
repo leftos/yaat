@@ -8,8 +8,8 @@ public sealed class InitialContactTransferLoaderTests
     [Fact]
     public void LoadAll_LoadsArtccScopedTransferRules()
     {
-        var root = Path.Combine(Path.GetTempPath(), "yaat-initial-contact-transfer-tests", Guid.NewGuid().ToString("N"));
-        var category = Path.Combine(root, "ZOA", "InitialContactTransfers");
+        string root = Path.Combine(Path.GetTempPath(), "yaat-initial-contact-transfer-tests", Guid.NewGuid().ToString("N"));
+        string category = Path.Combine(root, "ZOA", "InitialContactTransfers");
         Directory.CreateDirectory(category);
         File.WriteAllText(
             Path.Combine(category, "sfo.json"),
@@ -27,7 +27,7 @@ public sealed class InitialContactTransferLoaderTests
 
         try
         {
-            var result = InitialContactTransferLoader.LoadAll(root);
+            InitialContactTransferLoadResult result = InitialContactTransferLoader.LoadAll(root);
             var catalog = new InitialContactTransferCatalog(result.Rules);
 
             Assert.Empty(result.Warnings);

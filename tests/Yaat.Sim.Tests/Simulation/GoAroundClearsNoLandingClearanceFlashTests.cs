@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -44,8 +45,8 @@ public class GoAroundClearsNoLandingClearanceFlashTests(ITestOutputHelper output
     [Fact]
     public void ManualGoAround_ClearsNoLandingClearanceFlash()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -56,7 +57,7 @@ public class GoAroundClearsNoLandingClearanceFlashTests(ITestOutputHelper output
         // with no landing clearance (~2 nm / ~640 ft AGL, well above the 200 ft AGL auto-go-around gate).
         engine.Replay(recording, 1497);
 
-        var ac = engine.FindAircraft("SWA2224");
+        AircraftState? ac = engine.FindAircraft("SWA2224");
         Assert.NotNull(ac);
         for (int t = 0; (t < 30) && !ac.NoLandingClearanceWarningActive; t++)
         {
@@ -70,7 +71,7 @@ public class GoAroundClearsNoLandingClearanceFlashTests(ITestOutputHelper output
             $"precondition: NoLndgClnc flash should be armed on final without a landing clearance (alt={ac.Altitude:F0})"
         );
 
-        var gaResult = engine.SendCommand("SWA2224", "GA");
+        CommandResult gaResult = engine.SendCommand("SWA2224", "GA");
         Assert.True(gaResult.Success, $"GA failed: {gaResult.Message}");
 
         // Drive through the go-around. The command carries a ~2 s pilot reaction delay, so the

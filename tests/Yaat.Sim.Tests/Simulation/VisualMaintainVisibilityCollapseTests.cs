@@ -66,23 +66,23 @@ public class VisualMaintainVisibilityCollapseTests(ITestOutputHelper output)
     [Fact]
     public void MaintainedTrafficContact_VisibilityCollapsesBelowGap_ReportsLostSight()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return; // navdata absent → skip, per no-synthetic-data convention
         }
 
-        var (leader, trailer, finalCourse) = EstablishCvaFollowWithTrafficInSight(engine);
+        (AircraftState? leader, AircraftState? trailer, double finalCourse) = EstablishCvaFollowWithTrafficInSight(engine);
 
         // Weather collapses to 3SM. The lead sits 5 nm ahead — beyond the
         // 3 SM ≈ 2.6 nm flight-visibility range, so contact is genuinely lost.
-        var weather = OakVisibility("3SM");
-        var parsed = weather.GetWeatherForAirport("OAK");
+        WeatherProfile weather = OakVisibility("3SM");
+        MetarParser.ParsedMetar? parsed = weather.GetWeatherForAirport("OAK");
         Assert.NotNull(parsed);
         Assert.Equal(3.0, parsed.VisibilityStatuteMiles);
         engine.World.Weather = weather;
 
-        var (newLeadLat, newLeadLon) = GeoMath.ProjectPointRaw(trailer.Position.Lat, trailer.Position.Lon, finalCourse, 5.0);
+        (double newLeadLat, double newLeadLon) = GeoMath.ProjectPointRaw(trailer.Position.Lat, trailer.Position.Lon, finalCourse, 5.0);
         leader.Position = new LatLon(newLeadLat, newLeadLon);
         Assert.True(GeoMath.DistanceNm(trailer.Position, leader.Position) > (3.0 * SmToNm));
 
@@ -97,18 +97,18 @@ public class VisualMaintainVisibilityCollapseTests(ITestOutputHelper output)
     [Fact]
     public void MaintainedTrafficContact_GapWithinCollapsedVisibility_KeepsContact()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var (leader, trailer, finalCourse) = EstablishCvaFollowWithTrafficInSight(engine);
+        (AircraftState? leader, AircraftState? trailer, double finalCourse) = EstablishCvaFollowWithTrafficInSight(engine);
 
         // Same 3SM collapse, but the lead is only 2 nm ahead — inside the
         // 2.6 nm flight-visibility range, so contact holds.
         engine.World.Weather = OakVisibility("3SM");
-        var (newLeadLat, newLeadLon) = GeoMath.ProjectPointRaw(trailer.Position.Lat, trailer.Position.Lon, finalCourse, 2.0);
+        (double newLeadLat, double newLeadLon) = GeoMath.ProjectPointRaw(trailer.Position.Lat, trailer.Position.Lon, finalCourse, 2.0);
         leader.Position = new LatLon(newLeadLat, newLeadLon);
 
         engine.TickVisualDetection();
@@ -119,18 +119,18 @@ public class VisualMaintainVisibilityCollapseTests(ITestOutputHelper output)
     [Fact]
     public void MaintainedTrafficContact_CensoredTenMileVisibility_NeverCapsRange()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var (leader, trailer, finalCourse) = EstablishCvaFollowWithTrafficInSight(engine);
+        (AircraftState? leader, AircraftState? trailer, double finalCourse) = EstablishCvaFollowWithTrafficInSight(engine);
 
         // 10SM is the censored METAR maximum ("10 or more") — it asserts no limit,
         // so even a 14 nm gap (also beyond the B738 type detection range) holds.
         engine.World.Weather = OakVisibility("10SM");
-        var (newLeadLat, newLeadLon) = GeoMath.ProjectPointRaw(trailer.Position.Lat, trailer.Position.Lon, finalCourse, 14.0);
+        (double newLeadLat, double newLeadLon) = GeoMath.ProjectPointRaw(trailer.Position.Lat, trailer.Position.Lon, finalCourse, 14.0);
         leader.Position = new LatLon(newLeadLat, newLeadLon);
 
         engine.TickVisualDetection();
@@ -141,13 +141,13 @@ public class VisualMaintainVisibilityCollapseTests(ITestOutputHelper output)
     [Fact]
     public void MaintainedFieldContact_VisibilityCollapsesBelowFieldDistance_ReportsLostSight()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var ac = EstablishCvaWithFieldInSight(engine, finalDistanceNm: 6.0, altitude: 2000);
+        AircraftState ac = EstablishCvaWithFieldInSight(engine, finalDistanceNm: 6.0, altitude: 2000);
 
         // Weather collapses to 2SM while the aircraft is ~6 nm out — far beyond the
         // 2 SM ≈ 1.7 nm flight-visibility range to the field.
@@ -164,21 +164,21 @@ public class VisualMaintainVisibilityCollapseTests(ITestOutputHelper output)
     [Fact]
     public void MaintainedFieldContact_CloseInUnderCollapsedVisibility_KeepsContact()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var ac = EstablishCvaWithFieldInSight(engine, finalDistanceNm: 6.0, altitude: 2000);
+        AircraftState ac = EstablishCvaWithFieldInSight(engine, finalDistanceNm: 6.0, altitude: 2000);
 
         // Reposition to short final (1 nm, 500 ft) BEFORE the collapse: at 1 nm the
         // field is inside the 2 SM ≈ 1.7 nm visibility range and stays in sight.
-        var navDb = NavigationDatabase.Instance;
-        var rwy = navDb.GetRunway("OAK", "30");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? rwy = navDb.GetRunway("OAK", "30");
         Assert.NotNull(rwy);
         double reciprocal = (rwy.TrueHeading.Degrees + 180) % 360;
-        var (lat, lon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 1.0);
+        (double lat, double lon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 1.0);
         ac.Position = new LatLon(lat, lon);
         ac.Altitude = 500;
         engine.World.Weather = OakVisibility("2SM");
@@ -198,14 +198,14 @@ public class VisualMaintainVisibilityCollapseTests(ITestOutputHelper output)
     [Fact]
     public void MaintainedFieldContact_SprawlingField_MaintainDatumNeverExceedsAcquireDatum()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var arp = navDb.GetFixPosition("DEN");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        (double Lat, double Lon)? arp = navDb.GetFixPosition("DEN");
         Assert.NotNull(arp);
         double? aptElev = navDb.GetAirportElevation("DEN");
         Assert.NotNull(aptElev);
@@ -215,7 +215,7 @@ public class VisualMaintainVisibilityCollapseTests(ITestOutputHelper output)
         // threshold the collapsed visibility range cannot reach from mid-field.
         RunwayInfo? rwy = null;
         double arpToThr = 0.0;
-        foreach (var candidate in navDb.GetRunways("DEN"))
+        foreach (RunwayInfo candidate in navDb.GetRunways("DEN"))
         {
             double d = GeoMath.DistanceNm(arpPos, new LatLon(candidate.ThresholdLatitude, candidate.ThresholdLongitude));
             if (d > arpToThr)
@@ -231,8 +231,8 @@ public class VisualMaintainVisibilityCollapseTests(ITestOutputHelper output)
 
         // Establish field-in-sight on a 6 nm final for that runway in clear weather.
         double reciprocal = (rwy.TrueHeading.Degrees + 180) % 360;
-        var (lat, lon) = GeoMath.ProjectPointRaw(thr.Lat, thr.Lon, reciprocal, 6.0);
-        var ac = MakeB738OnFinal("DEN1", lat, lon, rwy.TrueHeading.Degrees, altitude: aptElev.Value + 2000);
+        (double lat, double lon) = GeoMath.ProjectPointRaw(thr.Lat, thr.Lon, reciprocal, 6.0);
+        AircraftState ac = MakeB738OnFinal("DEN1", lat, lon, rwy.TrueHeading.Degrees, altitude: aptElev.Value + 2000);
         ac.FlightPlan.Destination = "DEN";
         engine.World.AddAircraft(ac);
         Assert.True(engine.SendCommand("DEN1", "RFIS").Success);
@@ -247,7 +247,7 @@ public class VisualMaintainVisibilityCollapseTests(ITestOutputHelper output)
         // assigned threshold lies arpToThr + 1 nm away — well beyond the 2SM maintained
         // range (2 × 0.869 × 1.25 ≈ 2.2 nm) — while the field itself is right off the wing.
         double awayFromThr = (GeoMath.BearingTo(arpPos, thr) + 180) % 360;
-        var (midLat, midLon) = GeoMath.ProjectPointRaw(arpPos.Lat, arpPos.Lon, awayFromThr, 1.0);
+        (double midLat, double midLon) = GeoMath.ProjectPointRaw(arpPos.Lat, arpPos.Lon, awayFromThr, 1.0);
         ac.Position = new LatLon(midLat, midLon);
         ac.Altitude = aptElev.Value + 1500;
         double thrDist = GeoMath.DistanceNm(ac.Position, thr);
@@ -269,16 +269,16 @@ public class VisualMaintainVisibilityCollapseTests(ITestOutputHelper output)
     /// </summary>
     private static (AircraftState Leader, AircraftState Trailer, double FinalCourse) EstablishCvaFollowWithTrafficInSight(SimulationEngine engine)
     {
-        var navDb = NavigationDatabase.Instance;
-        var rwy = navDb.GetRunway("OAK", "30");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? rwy = navDb.GetRunway("OAK", "30");
         Assert.NotNull(rwy);
         double finalCourse = rwy.TrueHeading.Degrees;
         double reciprocal = (finalCourse + 180) % 360;
 
-        var (leadLat, leadLon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 10.0);
-        var (trailLat, trailLon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 15.0);
-        var leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 3000);
-        var trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 3500);
+        (double leadLat, double leadLon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 10.0);
+        (double trailLat, double trailLon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 15.0);
+        AircraftState leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 3000);
+        AircraftState trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 3500);
         engine.World.AddAircraft(leader);
         engine.World.AddAircraft(trailer);
 
@@ -307,12 +307,12 @@ public class VisualMaintainVisibilityCollapseTests(ITestOutputHelper output)
     /// </summary>
     private static AircraftState EstablishCvaWithFieldInSight(SimulationEngine engine, double finalDistanceNm, double altitude)
     {
-        var navDb = NavigationDatabase.Instance;
-        var rwy = navDb.GetRunway("OAK", "30");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? rwy = navDb.GetRunway("OAK", "30");
         Assert.NotNull(rwy);
         double reciprocal = (rwy.TrueHeading.Degrees + 180) % 360;
-        var (lat, lon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, finalDistanceNm);
-        var ac = MakeB738OnFinal("FLD1", lat, lon, rwy.TrueHeading.Degrees, altitude);
+        (double lat, double lon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, finalDistanceNm);
+        AircraftState ac = MakeB738OnFinal("FLD1", lat, lon, rwy.TrueHeading.Degrees, altitude);
         engine.World.AddAircraft(ac);
 
         Assert.True(engine.SendCommand("FLD1", "RFIS").Success);

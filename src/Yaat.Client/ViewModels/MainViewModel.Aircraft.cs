@@ -30,7 +30,7 @@ public partial class MainViewModel
     private void RepopulateTerminalFromRecording(IReadOnlyList<TerminalBroadcastDto> terminalLog)
     {
         TerminalEntries.Clear();
-        foreach (var dto in terminalLog)
+        foreach (TerminalBroadcastDto dto in terminalLog)
         {
             TerminalEntries.Add(TerminalEntryFromBroadcast(dto));
         }
@@ -133,7 +133,7 @@ public partial class MainViewModel
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            var entry = TerminalEntryFromBroadcast(dto);
+            TerminalEntry entry = TerminalEntryFromBroadcast(dto);
             AddTerminalEntry(entry);
 
             if (entry.Kind == TerminalEntryKind.PilotSpeech && _preferences.RpoPilotSpeechAudibleAlert)
@@ -176,7 +176,7 @@ public partial class MainViewModel
         {
             return;
         }
-        var aircraft = FindAircraft(callsign);
+        AircraftModel? aircraft = FindAircraft(callsign);
         if (aircraft is null)
         {
             return;
@@ -203,13 +203,13 @@ public partial class MainViewModel
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            var existing = FindAircraft(dto.Callsign);
+            AircraftModel? existing = FindAircraft(dto.Callsign);
             if (existing is not null)
             {
-                var wasDelayed = existing.IsDelayed;
-                var wasUnsupported = existing.IsUnsupported;
-                var wasGhostOverlay = existing.IsGhostOverlay;
-                var wasOnGround = existing.IsOnGround;
+                bool wasDelayed = existing.IsDelayed;
+                bool wasUnsupported = existing.IsUnsupported;
+                bool wasGhostOverlay = existing.IsGhostOverlay;
+                bool wasOnGround = existing.IsOnGround;
                 existing.UpdateFromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(existing);
                 ApplyDelayedSpawnTransition(wasDelayed, existing.IsDelayed);
@@ -268,12 +268,12 @@ public partial class MainViewModel
             () =>
             {
                 _shownRouteRefreshScheduled = false;
-                foreach (var radar in AllRadarViews)
+                foreach (RadarViewModel radar in AllRadarViews)
                 {
                     radar.RefreshShownPaths();
                 }
 
-                foreach (var ground in AllGroundViews)
+                foreach (GroundViewModel ground in AllGroundViews)
                 {
                     ground.RefreshShownTaxiRoutes();
                 }
@@ -291,8 +291,8 @@ public partial class MainViewModel
     /// </summary>
     internal void SweepCfrExpiry()
     {
-        var now = DateTime.UtcNow;
-        foreach (var ac in Aircraft)
+        DateTime now = DateTime.UtcNow;
+        foreach (AircraftModel ac in Aircraft)
         {
             ac.UpdateCfrBadge(now);
             if (ac.CfrWindowStartUtc is not null)
@@ -310,7 +310,7 @@ public partial class MainViewModel
     /// </summary>
     private void EvaluateCfrAlerts(AircraftModel ac, bool wasOnGround)
     {
-        var kind = _cfrMonitor.Evaluate(ac.Callsign, ac.CfrWindowStartUtc, ac.CfrWindowEndUtc, ac.IsOnGround, wasOnGround, DateTime.UtcNow);
+        CfrAlertKind? kind = _cfrMonitor.Evaluate(ac.Callsign, ac.CfrWindowStartUtc, ac.CfrWindowEndUtc, ac.IsOnGround, wasOnGround, DateTime.UtcNow);
         if (kind is { } fired)
         {
             AddAircraftWarning(ac.Callsign, FormatCfrAlert(fired, ac));
@@ -319,7 +319,7 @@ public partial class MainViewModel
 
     private static string FormatCfrAlert(CfrAlertKind kind, AircraftModel ac)
     {
-        var window = $"{ac.CfrWindowStartUtc:HHmm}–{ac.CfrWindowEndUtc:HHmm}Z";
+        string window = $"{ac.CfrWindowStartUtc:HHmm}–{ac.CfrWindowEndUtc:HHmm}Z";
         return kind switch
         {
             CfrAlertKind.EarlyTakeoff => $"{ac.Callsign} departed before its release window opened ({window})",
@@ -380,19 +380,19 @@ public partial class MainViewModel
     /// </summary>
     private void ReplaceAircraftFromManifest(List<AircraftDto> manifest)
     {
-        foreach (var ac in Aircraft)
+        foreach (AircraftModel ac in Aircraft)
         {
             _cfrMonitor.Remove(ac.Callsign);
         }
 
         FlightPlanEditorManager.Close();
-        foreach (var radar in AllRadarViews)
+        foreach (RadarViewModel radar in AllRadarViews)
         {
             radar.ClearShownPaths();
             radar.DataBlockState.Clear();
         }
 
-        foreach (var ground in AllGroundViews)
+        foreach (GroundViewModel ground in AllGroundViews)
         {
             ground.ClearShownTaxiRoutes();
             ground.DataBlockState.Clear();
@@ -401,7 +401,7 @@ public partial class MainViewModel
         Aircraft.Clear();
 
         int delayed = 0;
-        foreach (var dto in manifest)
+        foreach (AircraftDto dto in manifest)
         {
             var model = AircraftModel.FromDto(dto, ComputeDistance);
             ApplyAutoClearedToLand(model);
@@ -422,17 +422,17 @@ public partial class MainViewModel
         {
             _cfrMonitor.Remove(callsign);
             FlightPlanEditorManager.Close();
-            foreach (var radar in AllRadarViews)
+            foreach (RadarViewModel radar in AllRadarViews)
             {
                 radar.RemoveShownPath(callsign);
             }
 
-            foreach (var ground in AllGroundViews)
+            foreach (GroundViewModel ground in AllGroundViews)
             {
                 ground.RemoveShownTaxiRoute(callsign);
             }
 
-            var ac = FindAircraft(callsign);
+            AircraftModel? ac = FindAircraft(callsign);
             if (ac is not null)
             {
                 if (ac.IsDelayed && PendingDelayedSpawnCount > 0)
@@ -456,7 +456,7 @@ public partial class MainViewModel
     /// </summary>
     private void RemoveAircraftFromList(AircraftModel ac)
     {
-        var selectionToKeep = ReferenceEquals(SelectedAircraft, ac) ? null : SelectedAircraft;
+        AircraftModel? selectionToKeep = ReferenceEquals(SelectedAircraft, ac) ? null : SelectedAircraft;
 
         AircraftView.MoveCurrentToPosition(-1);
 
@@ -481,12 +481,12 @@ public partial class MainViewModel
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            var existing = FindAircraft(dto.Callsign);
+            AircraftModel? existing = FindAircraft(dto.Callsign);
             if (existing is not null)
             {
-                var wasDelayed = existing.IsDelayed;
-                var wasUnsupported = existing.IsUnsupported;
-                var wasGhostOverlay = existing.IsGhostOverlay;
+                bool wasDelayed = existing.IsDelayed;
+                bool wasUnsupported = existing.IsUnsupported;
+                bool wasGhostOverlay = existing.IsGhostOverlay;
                 existing.UpdateFromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(existing);
                 ApplyDelayedSpawnTransition(wasDelayed, existing.IsDelayed);
@@ -541,7 +541,7 @@ public partial class MainViewModel
 
     private AircraftModel? FindAircraft(string callsign)
     {
-        foreach (var a in Aircraft)
+        foreach (AircraftModel a in Aircraft)
         {
             if (a.Callsign == callsign)
             {

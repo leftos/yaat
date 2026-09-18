@@ -45,7 +45,7 @@ public class VTdlsCanonicalBuilderTests
             DepFreq: "120.9"
         );
 
-        var canonical = VTdlsCanonicalBuilder.BuildSend(clearance);
+        string canonical = VTdlsCanonicalBuilder.BuildSend(clearance);
 
         Assert.Equal("TDLSS 10 MIN|OAKLAND4|ALTAM|ON COURSE|EXCEPT MAINTAIN 5000|5000|OAK DEP|120.9|RWY 28L", canonical);
     }

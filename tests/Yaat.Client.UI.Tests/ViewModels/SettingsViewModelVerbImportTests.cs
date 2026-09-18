@@ -17,18 +17,18 @@ public class SettingsViewModelVerbImportTests
     public void ImportVerbs_UpdatesListedRowsOnly()
     {
         var vm = new SettingsViewModel();
-        var untouched = vm.VerbMappings.First(r => r.CommandType == CanonicalCommandType.Speed);
-        var untouchedAliases = untouched.Aliases;
+        VerbMappingRow untouched = vm.VerbMappings.First(r => r.CommandType == CanonicalCommandType.Speed);
+        string untouchedAliases = untouched.Aliases;
 
         vm.ImportVerbs(
             new CommandSchemeImport(new Dictionary<CanonicalCommandType, List<string>> { [CanonicalCommandType.FlyHeading] = ["HDG"] }, [])
         );
 
-        var heading = vm.VerbMappings.First(r => r.CommandType == CanonicalCommandType.FlyHeading);
+        VerbMappingRow heading = vm.VerbMappings.First(r => r.CommandType == CanonicalCommandType.FlyHeading);
         Assert.Equal("HDG", heading.Aliases);
         Assert.Equal(untouchedAliases, untouched.Aliases);
 
-        var exported = vm.ExportVerbs();
+        CommandScheme exported = vm.ExportVerbs();
         Assert.Equal(["HDG"], exported.Patterns[CanonicalCommandType.FlyHeading].Aliases);
         Assert.Equal(untouchedAliases.Split(',', StringSplitOptions.TrimEntries), exported.Patterns[CanonicalCommandType.Speed].Aliases);
         Assert.False(vm.VerbImportIsError);

@@ -69,7 +69,7 @@ public partial class LiveSessionWindow : Window
 
     private async Task LoadTreeAsync()
     {
-        var artccId = _preferences.ArtccId;
+        string artccId = _preferences.ArtccId;
         if (_connection is null || string.IsNullOrWhiteSpace(artccId))
         {
             _facilityTree.ItemsSource = new[]
@@ -97,7 +97,7 @@ public partial class LiveSessionWindow : Window
             return;
         }
 
-        var rootItem = BuildItem(_root);
+        TreeViewItem rootItem = BuildItem(_root);
         _facilityTree.ItemsSource = new[] { rootItem };
         rootItem.IsExpanded = true;
         PreselectLastChoice(rootItem);
@@ -106,7 +106,7 @@ public partial class LiveSessionWindow : Window
     private static TreeViewItem BuildItem(FacilityTreeDto facility)
     {
         var item = new TreeViewItem { Header = $"{facility.Id} — {facility.Name}", Tag = facility };
-        foreach (var child in facility.Children)
+        foreach (FacilityTreeDto child in facility.Children)
         {
             item.Items.Add(BuildItem(child));
         }
@@ -116,14 +116,14 @@ public partial class LiveSessionWindow : Window
 
     private void PreselectLastChoice(TreeViewItem rootItem)
     {
-        var last = _preferences.LastLiveSession;
+        LiveSessionChoice? last = _preferences.LastLiveSession;
         if (last is null || _root is null)
         {
             _facilityTree.SelectedItem = rootItem;
             return;
         }
 
-        var facility = LiveSessionAirportDefaults.FindFacilityOfPosition(_root, last.PositionId);
+        FacilityTreeDto? facility = LiveSessionAirportDefaults.FindFacilityOfPosition(_root, last.PositionId);
         if (facility is null || FindItem(rootItem, facility) is not { } item)
         {
             _facilityTree.SelectedItem = rootItem;
@@ -146,7 +146,7 @@ public partial class LiveSessionWindow : Window
             return item;
         }
 
-        foreach (var child in item.Items.OfType<TreeViewItem>())
+        foreach (TreeViewItem child in item.Items.OfType<TreeViewItem>())
         {
             if (FindItem(child, facility) is { } found)
             {
@@ -164,7 +164,7 @@ public partial class LiveSessionWindow : Window
             return true;
         }
 
-        foreach (var child in item.Items.OfType<TreeViewItem>())
+        foreach (TreeViewItem child in item.Items.OfType<TreeViewItem>())
         {
             if (ExpandTo(child, target))
             {
@@ -196,7 +196,7 @@ public partial class LiveSessionWindow : Window
             return;
         }
 
-        var choice = LiveSessionAirportDefaults.Resolve(_root, entry.Position.Id);
+        LiveSessionAirportDefaults.Choice choice = LiveSessionAirportDefaults.Resolve(_root, entry.Position.Id);
         _airportBox.ItemsSource = choice.Airports;
         _airportBox.SelectedItem = choice.Default;
         UpdateStartEnabled();
@@ -204,7 +204,7 @@ public partial class LiveSessionWindow : Window
 
     private void UpdateStartEnabled()
     {
-        var startAt = ParseStartAt(_startAtBox.Text, DateTimeOffset.UtcNow, out var error);
+        DateTimeOffset? startAt = ParseStartAt(_startAtBox.Text, DateTimeOffset.UtcNow, out string? error);
         _startAtHint.Text = error ?? (startAt is { } t ? $"= {t:yyyy-MM-dd HH:mm}Z" : "");
         bool filterOk = _filterEditor.TryGetFilterText(out _, out _);
         _startButton.IsEnabled = (_positionList.SelectedItem is PositionEntry) && (_airportBox.SelectedItem is string) && (error is null) && filterOk;
@@ -227,7 +227,7 @@ public partial class LiveSessionWindow : Window
                 text.Trim(),
                 [@"h\:mm", @"hh\:mm", @"h\:mm\:ss", @"hh\:mm\:ss"],
                 System.Globalization.CultureInfo.InvariantCulture,
-                out var timeOfDay
+                out TimeSpan timeOfDay
             )
         )
         {
@@ -235,7 +235,7 @@ public partial class LiveSessionWindow : Window
             return null;
         }
 
-        var candidate = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, TimeSpan.Zero) + timeOfDay;
+        DateTimeOffset candidate = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, TimeSpan.Zero) + timeOfDay;
         if (candidate > now)
         {
             candidate = candidate.AddDays(-1);
@@ -251,7 +251,7 @@ public partial class LiveSessionWindow : Window
             return;
         }
 
-        if (!_filterEditor.TryGetFilterText(out var filter, out _))
+        if (!_filterEditor.TryGetFilterText(out string? filter, out _))
         {
             return;
         }

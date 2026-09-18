@@ -18,11 +18,11 @@ public class CommandSchemeFileTests
         var scheme = CommandScheme.Default();
         scheme.Patterns[CanonicalCommandType.FlyHeading].Aliases = ["HDG", "TURN"];
 
-        var import = CommandSchemeFile.Deserialize(CommandSchemeFile.Serialize(scheme));
+        CommandSchemeImport import = CommandSchemeFile.Deserialize(CommandSchemeFile.Serialize(scheme));
 
         Assert.Empty(import.UnknownCommands);
         Assert.Equal(scheme.Patterns.Count, import.Verbs.Count);
-        foreach (var (type, pattern) in scheme.Patterns)
+        foreach ((CanonicalCommandType type, CommandPattern? pattern) in scheme.Patterns)
         {
             Assert.Equal(pattern.Aliases, import.Verbs[type]);
         }
@@ -33,7 +33,7 @@ public class CommandSchemeFileTests
     {
         const string json = """{ "verbs": { "FlyHeading": ["HDG"], "NotACommandAtAll": ["XX"] } }""";
 
-        var import = CommandSchemeFile.Deserialize(json);
+        CommandSchemeImport import = CommandSchemeFile.Deserialize(json);
 
         Assert.Equal(["HDG"], import.Verbs[CanonicalCommandType.FlyHeading]);
         Assert.Single(import.Verbs);
@@ -47,7 +47,7 @@ public class CommandSchemeFileTests
         // so the entry is dropped and the user keeps whatever verb they already had.
         const string json = """{ "verbs": { "FlyHeading": [], "ClimbMaintain": ["  ", ""], "Speed": [" SPD ", ""] } }""";
 
-        var import = CommandSchemeFile.Deserialize(json);
+        CommandSchemeImport import = CommandSchemeFile.Deserialize(json);
 
         Assert.Empty(import.UnknownCommands);
         Assert.False(import.Verbs.ContainsKey(CanonicalCommandType.FlyHeading));

@@ -47,7 +47,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
     [Fact]
     public void NoExitInstruction_ExitsSmoothly()
     {
-        var result = RunExitTest(exitCommand: null);
+        ExitTestResult? result = RunExitTest(exitCommand: null);
         if (result is null)
         {
             return;
@@ -81,7 +81,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
     [InlineData("C3")]
     public void ExitAt_ProducesSmoothTurn(string taxiway)
     {
-        var result = RunExitTest(exitCommand: $"EXIT {taxiway}");
+        ExitTestResult? result = RunExitTest(exitCommand: $"EXIT {taxiway}");
         if (result is null)
         {
             return;
@@ -127,19 +127,19 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
 
     private ExitTestResult? RunExitTest(string? exitCommand)
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return null;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var runway28R = navDb.GetRunway("SFO", "28R");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? runway28R = navDb.GetRunway("SFO", "28R");
         Assert.NotNull(runway28R);
 
         // Spawn B738 on 1nm final for 28R
         double reciprocal = (runway28R.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(runway28R.ThresholdLatitude, runway28R.ThresholdLongitude, reciprocal, 1.0);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(runway28R.ThresholdLatitude, runway28R.ThresholdLongitude, reciprocal, 1.0);
 
         var aircraft = new AircraftState
         {
@@ -159,7 +159,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
             },
         };
 
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway28R };
@@ -169,7 +169,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         aircraft.Phases.Add(new HoldingAfterExitPhase());
         aircraft.Ground.Layout = layout;
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         engine.World.AddAircraft(aircraft);
@@ -183,13 +183,13 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         };
 
         // Send cleared to land
-        var clearResult = engine.SendCommand("TST738", "CLAND");
+        CommandResult clearResult = engine.SendCommand("TST738", "CLAND");
         Assert.True(clearResult.Success, $"CLAND failed: {clearResult.Message}");
 
         // Send exit command if specified
         if (exitCommand is not null)
         {
-            var exitResult = engine.SendCommand("TST738", exitCommand);
+            CommandResult exitResult = engine.SendCommand("TST738", exitCommand);
             Assert.True(exitResult.Success, $"{exitCommand} failed: {exitResult.Message}");
         }
 

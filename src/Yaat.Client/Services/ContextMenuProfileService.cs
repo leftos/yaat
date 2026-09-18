@@ -137,8 +137,8 @@ public static class ContextMenuProfileService
 
     private static ContextMenuProfile BuildProfile(MenuGroup[] primary, MenuGroup[] explicitSecondary, FrozenSet<MenuGroup> hidden)
     {
-        var primarySet = primary.ToHashSet();
-        var hiddenSet = hidden;
+        HashSet<MenuGroup> primarySet = primary.ToHashSet();
+        FrozenSet<MenuGroup> hiddenSet = hidden;
 
         // Secondary = all phase groups not in primary and not hidden
         List<MenuGroup> secondary;
@@ -149,7 +149,7 @@ public static class ContextMenuProfileService
         else
         {
             secondary = [];
-            foreach (var group in AllPhaseGroups)
+            foreach (MenuGroup group in AllPhaseGroups)
             {
                 if (!primarySet.Contains(group) && !hiddenSet.Contains(group))
                 {

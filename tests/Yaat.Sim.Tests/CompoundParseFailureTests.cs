@@ -28,7 +28,7 @@ public class CompoundParseFailureTests : IDisposable
     [InlineData("AT BRIXX XYZ", "XYZ")]
     public void ParseCompound_InvalidCommandAfterCondition_ReportsCorrectVerb(string input, string expectedVerb)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme, out ParseFailure? failure);
 
         Assert.Null(result);
         Assert.NotNull(failure);
@@ -42,7 +42,7 @@ public class CompoundParseFailureTests : IDisposable
     [InlineData("LV 5000 FH 090", "LV 5000 FH 090")]
     public void ParseCompound_ValidCommandAfterCondition_StillParses(string input, string expected)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme, out ParseFailure? failure);
 
         Assert.NotNull(result);
         Assert.Null(failure);

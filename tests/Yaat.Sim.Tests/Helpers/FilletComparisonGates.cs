@@ -68,9 +68,9 @@ public static class FilletComparisonGates
     {
         var errors = new List<string>();
 
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
-            if (!layout.Nodes.TryGetValue(edge.Nodes[0].Id, out var n0) || !layout.Nodes.TryGetValue(edge.Nodes[1].Id, out var n1))
+            if (!layout.Nodes.TryGetValue(edge.Nodes[0].Id, out GroundNode? n0) || !layout.Nodes.TryGetValue(edge.Nodes[1].Id, out GroundNode? n1))
             {
                 string originTag = string.IsNullOrEmpty(edge.Origin) ? "<input>" : edge.Origin;
                 errors.Add($"Edge {edge.TaxiwayName} references missing node ({edge.Nodes[0].Id} or {edge.Nodes[1].Id}) origin={originTag}");
@@ -101,7 +101,7 @@ public static class FilletComparisonGates
             }
         }
 
-        foreach (var arc in layout.Arcs)
+        foreach (GroundArc arc in layout.Arcs)
         {
             if (!layout.Nodes.ContainsKey(arc.Nodes[0].Id) || !layout.Nodes.ContainsKey(arc.Nodes[1].Id))
             {
@@ -120,7 +120,7 @@ public static class FilletComparisonGates
             }
         }
 
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (
                 (node.Type != GroundNodeType.Spot)
@@ -140,7 +140,7 @@ public static class FilletComparisonGates
     {
         var buckets = new Dictionary<CornerBucketKey, double>();
 
-        foreach (var arc in layout.Arcs)
+        foreach (GroundArc arc in layout.Arcs)
         {
             if (!TryGetCornerArcIdentity(arc, out int junctionId, out string taxiwayKey))
             {
@@ -166,7 +166,7 @@ public static class FilletComparisonGates
     )
     {
         var mismatches = new List<CornerBucketMismatch>();
-        foreach (var (key, expectedRadius) in expected)
+        foreach ((CornerBucketKey key, double expectedRadius) in expected)
         {
             if (!actual.TryGetValue(key, out double actualRadius))
             {
@@ -191,7 +191,7 @@ public static class FilletComparisonGates
     public static IReadOnlyDictionary<(int NodeIdA, int NodeIdB, string Taxiway), double> IndexRunwayEdgeBearings(AirportGroundLayout layout)
     {
         var bearings = new Dictionary<(int, int, string), double>();
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             if (!edge.IsRunwayCenterline)
             {
@@ -220,7 +220,7 @@ public static class FilletComparisonGates
         string? origin = arc.Origin;
         if (origin is not null)
         {
-            var match = CornerOriginRegex.Match(origin);
+            Match match = CornerOriginRegex.Match(origin);
             if (match.Success)
             {
                 string twyA = match.Groups["twyA"].Value;
@@ -255,7 +255,7 @@ public static class FilletComparisonGates
                 return stableIds;
             }
 
-            var reachable = BfsFrom(seeds, layout);
+            HashSet<int> reachable = BfsFrom(seeds, layout);
             reachable.IntersectWith(stableIds);
             ExpandCoincidentMergeAliases(preFillet, layout, reachable);
             return reachable;
@@ -267,7 +267,7 @@ public static class FilletComparisonGates
         /// </summary>
         private static void ExpandCoincidentMergeAliases(AirportGroundLayout preFillet, AirportGroundLayout layout, HashSet<int> reachable)
         {
-            foreach (var preKv in preFillet.Nodes)
+            foreach (KeyValuePair<int, GroundNode> preKv in preFillet.Nodes)
             {
                 if (reachable.Contains(preKv.Key))
                 {
@@ -297,7 +297,7 @@ public static class FilletComparisonGates
         {
             foreach (int id in reachable)
             {
-                if (!layout.Nodes.TryGetValue(id, out var survivor))
+                if (!layout.Nodes.TryGetValue(id, out GroundNode? survivor))
                 {
                     continue;
                 }
@@ -324,7 +324,7 @@ public static class FilletComparisonGates
                 return layout.Nodes.Values.Where(n => n.Type == GroundNodeType.Parking).Select(n => n.Id).ToHashSet();
             }
 
-            var reachableFromHoldShort = BfsFrom(holdShortIds, layout);
+            HashSet<int> reachableFromHoldShort = BfsFrom(holdShortIds, layout);
             return layout
                 .Nodes.Values.Where(n => n.Type == GroundNodeType.Parking && reachableFromHoldShort.Contains(n.Id))
                 .Select(n => n.Id)
@@ -346,12 +346,12 @@ public static class FilletComparisonGates
             while (queue.Count > 0)
             {
                 int id = queue.Dequeue();
-                if (!layout.Nodes.TryGetValue(id, out var node))
+                if (!layout.Nodes.TryGetValue(id, out GroundNode? node))
                 {
                     continue;
                 }
 
-                foreach (var edge in node.Edges)
+                foreach (IGroundEdge edge in node.Edges)
                 {
                     int otherId = edge.OtherNodeId(id);
                     if (reachable.Add(otherId))

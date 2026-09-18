@@ -10,27 +10,27 @@ public class FilletComparisonGateTests
     [Fact]
     public void RepairCountersZero_ApplyOnThreeWay_ReturnsTrue()
     {
-        var layout = BuildThreeWayLayout();
-        var stats = new FilletArcGenerator().Apply(layout);
+        AirportGroundLayout layout = BuildThreeWayLayout();
+        FilletStatistics stats = new FilletArcGenerator().Apply(layout);
         Assert.True(FilletComparisonGates.RepairCountersZero(stats));
     }
 
     [Fact]
     public void ValidateStructural_Simple90Filleted_IsValid()
     {
-        var layout = BuildSimple90Layout();
+        AirportGroundLayout layout = BuildSimple90Layout();
         new FilletArcGenerator().Apply(layout);
-        var result = FilletComparisonGates.ValidateStructural(layout);
+        StructuralValidationResult result = FilletComparisonGates.ValidateStructural(layout);
         Assert.True(result.IsValid, string.Join("; ", result.Errors));
     }
 
     [Fact]
     public void IndexCornerBuckets_90Degree_ProducesBuckets()
     {
-        var layout = BuildSimple90Layout();
+        AirportGroundLayout layout = BuildSimple90Layout();
         new FilletArcGenerator().Apply(layout);
 
-        var buckets = FilletComparisonGates.IndexCornerBuckets(layout);
+        IReadOnlyDictionary<CornerBucketKey, double> buckets = FilletComparisonGates.IndexCornerBuckets(layout);
 
         Assert.NotEmpty(buckets);
     }
@@ -48,7 +48,7 @@ public class FilletComparisonGateTests
     {
         var expected = new Dictionary<CornerBucketKey, double> { [new CornerBucketKey(1, "A/B", 0, 90)] = 75.0 };
         var actual = new Dictionary<CornerBucketKey, double> { [new CornerBucketKey(1, "A/B", 0, 90)] = 50.0 };
-        var mismatches = FilletComparisonGates.CompareCornerBuckets(expected, actual);
+        IReadOnlyList<CornerBucketMismatch> mismatches = FilletComparisonGates.CompareCornerBuckets(expected, actual);
         Assert.Single(mismatches);
     }
 
@@ -57,15 +57,15 @@ public class FilletComparisonGateTests
     [InlineData("sfo")]
     public void Evaluate_RealAirport_StructuralValid(string shortId)
     {
-        var preFillet = LoadPreFilletLayout(shortId);
+        AirportGroundLayout? preFillet = LoadPreFilletLayout(shortId);
         if (preFillet is null)
         {
             return;
         }
 
-        var layout = LayoutCloner.DeepClone(preFillet);
-        var stats = new FilletArcGenerator().Apply(layout);
-        var gates = FilletComparisonGates.Evaluate(preFillet, layout, stats);
+        AirportGroundLayout layout = LayoutCloner.DeepClone(preFillet);
+        FilletStatistics stats = new FilletArcGenerator().Apply(layout);
+        FilletGateResults gates = FilletComparisonGates.Evaluate(preFillet, layout, stats);
         Assert.True(gates.Structural.IsValid, string.Join("; ", gates.Structural.Errors.Take(3)));
     }
 
@@ -127,9 +127,9 @@ public class FilletComparisonGateTests
         layout.Nodes[0] = junction;
 
         double distNm = 800.0 / GeoMath.FeetPerNm;
-        foreach (var (id, bearing) in new[] { (1, 0.0), (2, 100.0), (3, 200.0) })
+        foreach ((int id, double bearing) in new[] { (1, 0.0), (2, 100.0), (3, 200.0) })
         {
-            var pos = GeoMath.ProjectPoint(LatLon.Zero, new TrueHeading(bearing), distNm);
+            LatLon pos = GeoMath.ProjectPoint(LatLon.Zero, new TrueHeading(bearing), distNm);
             var node = new GroundNode
             {
                 Id = id,

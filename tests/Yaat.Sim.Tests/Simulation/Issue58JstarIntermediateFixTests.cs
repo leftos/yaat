@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -20,14 +21,14 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
 {
     private static SessionRecording LoadRecording(string path)
     {
-        var json = File.ReadAllText(path);
+        string json = File.ReadAllText(path);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
     }
 
     private SimulationEngine BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         Assert.NotNull(navDb);
 
         var groundData = new TestAirportGroundData();
@@ -43,12 +44,12 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
     [Fact]
     public void Jstar_IntermediateFix_NoHeadingReversal()
     {
-        var recording = LoadRecording("TestData/issue58-jstar-intermediate-fix-recording.json");
-        var engine = BuildEngine();
+        SessionRecording recording = LoadRecording("TestData/issue58-jstar-intermediate-fix-recording.json");
+        SimulationEngine engine = BuildEngine();
 
         engine.Replay(recording, 1);
 
-        var aircraft = engine.FindAircraft("KFB7");
+        AircraftState? aircraft = engine.FindAircraft("KFB7");
         Assert.NotNull(aircraft);
 
         LogAircraftState(aircraft, "KFB7 after JARR EMZOH4 SKIZM (t=1)");
@@ -65,13 +66,13 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
     [Fact]
     public void ScenarioNavPath_StarToken_NoBackwardsRoute()
     {
-        var recording = LoadRecording("TestData/issue58-star-180-recording.json");
-        var engine = BuildEngine();
+        SessionRecording recording = LoadRecording("TestData/issue58-star-180-recording.json");
+        SimulationEngine engine = BuildEngine();
 
         // SWA797 spawns after t=1; replay to t=120 so it exists and has been flying
         engine.Replay(recording, 120);
 
-        var aircraft = engine.FindAircraft("SWA797");
+        AircraftState? aircraft = engine.FindAircraft("SWA797");
         Assert.NotNull(aircraft);
 
         LogAircraftState(aircraft, "SWA797 after scenario load (NavigationPath: SKIZM EMZOH4.30)");
@@ -79,7 +80,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
         // The route should NOT contain EMZOH as a fix after SKIZM.
         // If the STAR token was correctly handled, the route should end at SKIZM
         // (or continue with runway transition fixes), not go backwards to EMZOH.
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         int skizmIdx = -1;
         int emzohIdx = -1;
         for (int i = 0; i < route.Count; i++)
@@ -110,14 +111,14 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
 
     private void LogAircraftState(AircraftState aircraft, string header)
     {
-        var navRoute = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> navRoute = aircraft.Targets.NavigationRoute;
         var log = new StringBuilder();
         log.AppendLine($"=== {header} ===");
         log.AppendLine($"Position: {aircraft.Position.Lat:F4}, {aircraft.Position.Lon:F4}");
         log.AppendLine($"Heading: {aircraft.TrueHeading.Degrees:F1}");
         log.AppendLine($"Altitude: {aircraft.Altitude:F0}");
         log.AppendLine($"Nav route ({navRoute.Count} fixes):");
-        foreach (var fix in navRoute)
+        foreach (NavigationTarget fix in navRoute)
         {
             log.AppendLine($"  {fix.Name} ({fix.Position.Lat:F4}, {fix.Position.Lon:F4})");
         }
@@ -139,7 +140,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
 
     private void AssertFirstFixAhead(AircraftState aircraft)
     {
-        var navRoute = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> navRoute = aircraft.Targets.NavigationRoute;
         if (navRoute.Count == 0)
         {
             return;
@@ -161,7 +162,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
         for (int t = 1; t <= seconds; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(callsign);
+            AircraftState? ac = engine.FindAircraft(callsign);
             Assert.NotNull(ac);
 
             string nextFix = ac.Targets.NavigationRoute.Count > 0 ? ac.Targets.NavigationRoute[0].Name : "(none)";
@@ -179,7 +180,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
         log.AppendLine($"Max single-tick heading change: {maxDelta:F1}°");
         output.WriteLine(log.ToString());
 
-        var aircraft = engine.FindAircraft(callsign);
+        AircraftState? aircraft = engine.FindAircraft(callsign);
         Assert.NotNull(aircraft);
 
         double totalChange = NormalizeAngleDiff(aircraft.TrueHeading.Degrees - initialHeading);

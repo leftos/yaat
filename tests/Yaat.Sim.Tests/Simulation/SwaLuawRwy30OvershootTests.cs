@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -58,14 +59,14 @@ public class SwaLuawRwy30OvershootTests(ITestOutputHelper output)
     /// </summary>
     private SimulationEngine? ReplayThroughCommand(RecordingArchive archive, SessionRecording recording, int restoreSec, int throughSec)
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return null;
         }
 
         engine.Replay(recording, 0);
-        var snap = archive.ReadSnapshotAt(restoreSec);
+        TimedSnapshot? snap = archive.ReadSnapshotAt(restoreSec);
         if (snap is null)
         {
             return null;
@@ -86,7 +87,7 @@ public class SwaLuawRwy30OvershootTests(ITestOutputHelper output)
     [Fact]
     public void SWA1261_ClearedForTakeoff_LinesUpAndTakesOff_NotIntoTheBay()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null || BuildEngine() is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -95,19 +96,19 @@ public class SwaLuawRwy30OvershootTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             // CTO is at t=3046; restore from the hold short just before and replay through it.
-            var engine = ReplayThroughCommand(archive, recording, restoreSec: 3040, throughSec: 3047);
+            SimulationEngine? engine = ReplayThroughCommand(archive, recording, restoreSec: 3040, throughSec: 3047);
             Assert.NotNull(engine);
 
-            var ac = engine.FindAircraft("SWA1261");
+            AircraftState? ac = engine.FindAircraft("SWA1261");
             Assert.NotNull(ac);
             Assert.True(
                 ac.Phases?.Phases.Any(p => p is LineUpPhase or TakeoffPhase or InitialClimbPhase) == true,
                 "SWA1261 should have a lineup/takeoff chain after CTO"
             );
 
-            var startPos = ac.Position;
+            LatLon startPos = ac.Position;
             double minHeadingErr = double.MaxValue;
             double maxOffCenterlineFt = 0;
             bool airborne = false;
@@ -145,7 +146,7 @@ public class SwaLuawRwy30OvershootTests(ITestOutputHelper output)
     [Fact]
     public void SWA897_LineUpAndWait_ReachesCenterline_NotIntoTheBay()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null || BuildEngine() is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -154,12 +155,12 @@ public class SwaLuawRwy30OvershootTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             // LUAW is at t=1839; restore from the hold short just before and replay through it.
-            var engine = ReplayThroughCommand(archive, recording, restoreSec: 1835, throughSec: 1841);
+            SimulationEngine? engine = ReplayThroughCommand(archive, recording, restoreSec: 1835, throughSec: 1841);
             Assert.NotNull(engine);
 
-            var ac = engine.FindAircraft("SWA897");
+            AircraftState? ac = engine.FindAircraft("SWA897");
             Assert.NotNull(ac);
 
             double minHeadingErr = double.MaxValue;

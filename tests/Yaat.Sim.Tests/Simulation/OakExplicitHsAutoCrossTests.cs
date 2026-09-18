@@ -49,8 +49,8 @@ public class OakExplicitHsAutoCrossTests(ITestOutputHelper output)
     [Fact]
     public void ExplicitHs28R_OverridesAutoCross_HoldsOnEntrySide()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -59,26 +59,26 @@ public class OakExplicitHsAutoCrossTests(ITestOutputHelper output)
         engine.Replay(recording, SpawnDelaySeconds + 2);
         Assert.True(engine.Scenario!.AutoCrossRunway, "AutoCrossRunway must be ON for this scenario");
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
 
         // (1) Exactly one 28R hold-short — no duplicate exit-side entry.
         var holds28R = route.HoldShortPoints.Where(h => h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28R")).ToList();
 
         output.WriteLine($"28R hold-shorts: {holds28R.Count}");
-        foreach (var h in holds28R)
+        foreach (HoldShortPoint? h in holds28R)
         {
             output.WriteLine($"  node={h.NodeId} reason={h.Reason} cleared={h.IsCleared}");
         }
 
         Assert.Single(holds28R);
-        var hs28R = holds28R[0];
+        HoldShortPoint hs28R = holds28R[0];
 
         // (2) Reason is ExplicitHoldShort so auto-cross does not clear it.
         Assert.Equal(HoldShortReason.ExplicitHoldShort, hs28R.Reason);
@@ -90,10 +90,10 @@ public class OakExplicitHsAutoCrossTests(ITestOutputHelper output)
         // the segments, not the second (exit-side) one.
         int? firstEntrySideNodeId = null;
         int seen28RNodes = 0;
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             if (
-                layout.Nodes.TryGetValue(seg.ToNodeId, out var node)
+                layout.Nodes.TryGetValue(seg.ToNodeId, out GroundNode? node)
                 && node.Type == GroundNodeType.RunwayHoldShort
                 && node.RunwayId is { } rwy
                 && rwy.Contains("28R")

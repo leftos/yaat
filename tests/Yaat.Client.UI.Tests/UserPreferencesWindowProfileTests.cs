@@ -62,7 +62,7 @@ public class UserPreferencesWindowProfileTests
         writer.SaveWindowProfile(profile);
 
         var reader = new UserPreferences();
-        var reloaded = reader.GetWindowProfile("WPT-Roundtrip");
+        SavedWindowProfile? reloaded = reader.GetWindowProfile("WPT-Roundtrip");
 
         Assert.NotNull(reloaded);
         Assert.Equal("WPT-Roundtrip", reloaded.Name);
@@ -72,14 +72,14 @@ public class UserPreferencesWindowProfileTests
         Assert.False(reloaded.IsRadarViewPoppedOut);
 
         Assert.Equal(2, reloaded.WindowGeometries.Count);
-        var main = reloaded.WindowGeometries["Main"];
+        SavedWindowGeometry main = reloaded.WindowGeometries["Main"];
         Assert.Equal(100, main.X);
         Assert.Equal(200, main.Y);
         Assert.Equal(1280, main.Width);
         Assert.Equal(720, main.Height);
         Assert.False(main.IsMaximized);
 
-        var ground = reloaded.WindowGeometries["GroundView"];
+        SavedWindowGeometry ground = reloaded.WindowGeometries["GroundView"];
         Assert.True(ground.IsMaximized);
         Assert.True(ground.IsTopmost);
         Assert.Equal(1, ground.ScreenIndex);
@@ -125,7 +125,7 @@ public class UserPreferencesWindowProfileTests
         {
             new UserPreferences().SaveWindowProfile(profile);
 
-            var reloaded = new UserPreferences().GetWindowProfile("WPT-ExtraOrdinals");
+            SavedWindowProfile? reloaded = new UserPreferences().GetWindowProfile("WPT-ExtraOrdinals");
 
             Assert.NotNull(reloaded);
             // Ordinal and airport both ride the profile, so applying it reopens the same windows.
@@ -148,7 +148,7 @@ public class UserPreferencesWindowProfileTests
         {
             new UserPreferences().SaveWindowProfile(new SavedWindowProfile { Name = "WPT-NoExtras" });
 
-            var reloaded = new UserPreferences().GetWindowProfile("WPT-NoExtras");
+            SavedWindowProfile? reloaded = new UserPreferences().GetWindowProfile("WPT-NoExtras");
 
             // Empty (not null): applying such a profile closes any extra windows, since a profile is the
             // whole arrangement rather than a partial overlay.
@@ -168,7 +168,7 @@ public class UserPreferencesWindowProfileTests
         var writer = new UserPreferences();
         writer.SaveWindowProfile(new SavedWindowProfile { Name = "WPT-NullFavFlags", IsTerminalPoppedOut = true });
 
-        var reloaded = new UserPreferences().GetWindowProfile("WPT-NullFavFlags");
+        SavedWindowProfile? reloaded = new UserPreferences().GetWindowProfile("WPT-NullFavFlags");
 
         Assert.NotNull(reloaded);
         // Null = captured before the feature; applying leaves the current bar / panel state untouched.
@@ -185,12 +185,12 @@ public class UserPreferencesWindowProfileTests
 
         var original = new SavedWindowProfile { Name = "WPT-Overwrite", CreatedUtc = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) };
         prefs.SaveWindowProfile(original);
-        var originalCreated = prefs.GetWindowProfile("WPT-Overwrite")!.CreatedUtc;
+        DateTime originalCreated = prefs.GetWindowProfile("WPT-Overwrite")!.CreatedUtc;
 
         var replacement = new SavedWindowProfile { Name = "WPT-Overwrite", IsDataGridPoppedOut = true };
         prefs.SaveWindowProfile(replacement);
 
-        var reloaded = prefs.GetWindowProfile("WPT-Overwrite");
+        SavedWindowProfile? reloaded = prefs.GetWindowProfile("WPT-Overwrite");
         Assert.NotNull(reloaded);
         Assert.True(reloaded.IsDataGridPoppedOut);
         Assert.Equal(originalCreated, reloaded.CreatedUtc);
@@ -233,13 +233,13 @@ public class UserPreferencesWindowProfileTests
             }
         );
 
-        var renamed = prefs.RenameWindowProfile("WPT-OldName", "WPT-NewName");
+        bool renamed = prefs.RenameWindowProfile("WPT-OldName", "WPT-NewName");
 
         Assert.True(renamed);
         // Read back through the same instance to avoid the inter-instance Save()
         // race that can let another test class's concurrent write resurrect the
         // pre-rename state on disk.
-        var reloaded = prefs.GetWindowProfile("WPT-NewName");
+        SavedWindowProfile? reloaded = prefs.GetWindowProfile("WPT-NewName");
         Assert.NotNull(reloaded);
         Assert.True(reloaded.IsRadarViewPoppedOut);
         Assert.Equal(300, reloaded.WindowGeometries["Main"].Width);
@@ -255,7 +255,7 @@ public class UserPreferencesWindowProfileTests
         prefs.SaveWindowProfile(new SavedWindowProfile { Name = "WPT-CollideA" });
         prefs.SaveWindowProfile(new SavedWindowProfile { Name = "WPT-CollideB" });
 
-        var renamed = prefs.RenameWindowProfile("WPT-CollideA", "WPT-CollideB");
+        bool renamed = prefs.RenameWindowProfile("WPT-CollideA", "WPT-CollideB");
 
         Assert.False(renamed);
         Assert.NotNull(prefs.GetWindowProfile("WPT-CollideA"));
@@ -273,7 +273,7 @@ public class UserPreferencesWindowProfileTests
         prefs.SaveWindowProfile(new SavedWindowProfile { Name = "WPT-Sort-Alpha" });
         prefs.SaveWindowProfile(new SavedWindowProfile { Name = "WPT-Sort-Mike" });
 
-        var names = prefs.WindowProfiles.Where(p => p.Name.StartsWith("WPT-Sort-", StringComparison.Ordinal)).Select(p => p.Name).ToArray();
+        string[] names = prefs.WindowProfiles.Where(p => p.Name.StartsWith("WPT-Sort-", StringComparison.Ordinal)).Select(p => p.Name).ToArray();
 
         Assert.Equal(["WPT-Sort-Alpha", "WPT-Sort-Mike", "WPT-Sort-Zulu"], names);
 

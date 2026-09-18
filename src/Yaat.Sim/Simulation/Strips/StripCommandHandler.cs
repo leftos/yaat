@@ -87,19 +87,22 @@ internal static class StripCommandHandler
             return new CommandResult(false, "STRIP requires an aircraft selection");
         }
 
-        var accessible = ResolveAccessibleBays(engine);
+        IReadOnlyList<AccessibleBay> accessible = ResolveAccessibleBays(engine);
         if (accessible.Count == 0)
         {
             return new CommandResult(false, "No accessible strip bays for current position");
         }
 
-        var resolved = StripMutations.ResolveStripDest(dstTokens, accessible);
+        (StripBayConfig Bay, string FacilityId, int Rack, int? Index, int TokensConsumed)? resolved = StripMutations.ResolveStripDest(
+            dstTokens,
+            accessible
+        );
         if (resolved is null)
         {
             return new CommandResult(false, $"Unknown strip bay or invalid rack/index: {string.Join(' ', dstTokens)}");
         }
 
-        var (bay, facilityId, rack, indexOrNull, _) = resolved.Value;
+        (StripBayConfig? bay, string? facilityId, int rack, int? indexOrNull, int _) = resolved.Value;
         if (rack < 0 || rack >= bay.NumberOfRacks)
         {
             return new CommandResult(false, $"Rack {rack + 1} out of range (bay {bay.Name} has {bay.NumberOfRacks} racks)");
@@ -111,12 +114,12 @@ internal static class StripCommandHandler
         // whose strip is keyed ARRIVAL_{callsign} rather than STRIP_{callsign} —
         // previously synthesized an empty phantom DepartureStrip and reported
         // success, which was the source of the issue #278 "Move All to Bay" spam.
-        var stripId = explicitId ?? $"STRIP_{callsign}";
+        string stripId = explicitId ?? $"STRIP_{callsign}";
         if (!engine.Strips.Items.ContainsKey(stripId))
         {
             return new CommandResult(false, explicitId is not null ? $"No flight strip {stripId}" : $"No flight strip for {callsign}");
         }
-        var state = engine.Strips;
+        FlightStripState state = engine.Strips;
 
         // Index omitted → append to the tail of the rack (CRC bottom-up FIFO:
         // the new strip lands at the first available bottom slot). Resolved
@@ -134,10 +137,10 @@ internal static class StripCommandHandler
                 // avoid EnsureRack's side effect — a rack that doesn't exist yet
                 // means index 0. rackRows is List<string>[] so check Length, not
                 // Count (Count on an array only resolves to the LINQ extension).
-                var currentCount = 0;
+                int currentCount = 0;
                 if (
-                    state.Bays.TryGetValue(bay.Id, out var racks)
-                    && racks.TryGetValue(rack.ToString(System.Globalization.CultureInfo.InvariantCulture), out var rackRows)
+                    state.Bays.TryGetValue(bay.Id, out Dictionary<string, List<string>[]>? racks)
+                    && racks.TryGetValue(rack.ToString(System.Globalization.CultureInfo.InvariantCulture), out List<string>[]? rackRows)
                     && rackRows.Length > 0
                 )
                 {
@@ -147,8 +150,8 @@ internal static class StripCommandHandler
                 // relative to the other N-1 strips, not N (the source slot
                 // will vacate). RemoveFromAllBaysLocked runs before the insert
                 // inside MoveStripToBayRack, so subtract 1 when already present.
-                var alreadyInThisRack =
-                    state.Items.TryGetValue(stripId, out var existingRecord)
+                bool alreadyInThisRack =
+                    state.Items.TryGetValue(stripId, out StripItemRecord? existingRecord)
                     && string.Equals(existingRecord.BayId, bay.Id, StringComparison.Ordinal)
                     && existingRecord.Rack == rack;
                 index = alreadyInThisRack && currentCount > 0 ? currentCount - 1 : currentCount;
@@ -157,7 +160,7 @@ internal static class StripCommandHandler
             // Existence is guaranteed by the guard above; update the record's
             // position in place (never synthesize). The TryGetValue guards only
             // against a concurrent removal between the guard and this lock.
-            if (state.Items.TryGetValue(stripId, out var existing))
+            if (state.Items.TryGetValue(stripId, out StripItemRecord? existing))
             {
                 state.Items[stripId] = existing with { FacilityId = facilityId, BayId = bay.Id, Rack = rack, Index = index };
             }
@@ -170,8 +173,8 @@ internal static class StripCommandHandler
         // controller is staffed at a position in that facility, the pushed
         // strip has no receiver. Surface this via the command-result message
         // so the pushing client sees it in the status bar / terminal log.
-        var dest = FormatResolvedSlot(bay.Name, rack, index, indexOrNull is null);
-        var accessibleEntry = accessible.FirstOrDefault(a => a.Bay.Id == bay.Id);
+        string dest = FormatResolvedSlot(bay.Name, rack, index, indexOrNull is null);
+        AccessibleBay? accessibleEntry = accessible.FirstOrDefault(a => a.Bay.Id == bay.Id);
         if (accessibleEntry is { IsExternal: true } && !AnyControllerStaffsFacility(engine, accessibleEntry.Owner.Id))
         {
             return new CommandResult(true, $"Strip moved to {dest} — WARNING: no controller connected at {accessibleEntry.Owner.Id}");
@@ -201,32 +204,35 @@ internal static class StripCommandHandler
             return Verdict(new CommandResult(false, "SCAN requires an aircraft selection"));
         }
 
-        var accessible = ResolveAccessibleBays(engine);
+        IReadOnlyList<AccessibleBay> accessible = ResolveAccessibleBays(engine);
         if (accessible.Count == 0)
         {
             return Verdict(new CommandResult(false, "No accessible strip bays for current position"));
         }
 
-        var resolved = StripMutations.ResolveStripDest(cmd.Tokens, accessible);
+        (StripBayConfig Bay, string FacilityId, int Rack, int? Index, int TokensConsumed)? resolved = StripMutations.ResolveStripDest(
+            cmd.Tokens,
+            accessible
+        );
         if (resolved is null)
         {
             return Verdict(new CommandResult(false, $"Unknown strip bay or invalid rack/index: {string.Join(' ', cmd.Tokens)}"));
         }
 
-        var (bay, facilityId, rack, indexOrNull, _) = resolved.Value;
+        (StripBayConfig? bay, string? facilityId, int rack, int? indexOrNull, int _) = resolved.Value;
         if (rack < 0 || rack >= bay.NumberOfRacks)
         {
             return Verdict(new CommandResult(false, $"Rack {rack + 1} out of range (bay {bay.Name} has {bay.NumberOfRacks} racks)"));
         }
 
-        var accessibleEntry = accessible.FirstOrDefault(a => a.Bay.Id == bay.Id);
+        AccessibleBay? accessibleEntry = accessible.FirstOrDefault(a => a.Bay.Id == bay.Id);
         if (accessibleEntry is not { IsExternal: true })
         {
             return Verdict(new CommandResult(false, $"SCAN destination must be an external bay (use STRIP for in-facility moves)"));
         }
 
-        var sourceStripId = $"STRIP_{callsign}";
-        var state = engine.Strips;
+        string sourceStripId = $"STRIP_{callsign}";
+        FlightStripState state = engine.Strips;
 
         // A run that already holds the recorded copy — a snapshot-based restore the record is re-applied over —
         // must not stack a second one under a fresh id; the print is idempotent, like a recorded strip request's.
@@ -240,7 +246,7 @@ internal static class StripCommandHandler
         StripItemRecord copyRecord;
         lock (state.Gate)
         {
-            if (!state.Items.TryGetValue(sourceStripId, out var source))
+            if (!state.Items.TryGetValue(sourceStripId, out StripItemRecord? source))
             {
                 return Verdict(new CommandResult(false, $"No flight strip for {callsign} to scan"));
             }
@@ -254,10 +260,10 @@ internal static class StripCommandHandler
                 // Append-to-tail: read current rack count without going through
                 // EnsureRack (which mutates). The copy is always fresh, so no
                 // "already in this rack" subtraction like HandleStripMoveAsync.
-                var currentCount = 0;
+                int currentCount = 0;
                 if (
-                    state.Bays.TryGetValue(bay.Id, out var racks)
-                    && racks.TryGetValue(rack.ToString(System.Globalization.CultureInfo.InvariantCulture), out var rackRows)
+                    state.Bays.TryGetValue(bay.Id, out Dictionary<string, List<string>[]>? racks)
+                    && racks.TryGetValue(rack.ToString(System.Globalization.CultureInfo.InvariantCulture), out List<string>[]? rackRows)
                     && rackRows.Length > 0
                 )
                 {
@@ -291,7 +297,7 @@ internal static class StripCommandHandler
 
         StripMutations.MoveStripToBayRack(state, copyId, bay.Id, rack, index);
 
-        var dest = FormatResolvedSlot(bay.Name, rack, index, indexOrNull is null);
+        string dest = FormatResolvedSlot(bay.Name, rack, index, indexOrNull is null);
         if (!AnyControllerStaffsFacility(engine, accessibleEntry.Owner.Id))
         {
             return new StripApplyResult(
@@ -322,7 +328,7 @@ internal static class StripCommandHandler
     /// </summary>
     private static string FormatResolvedSlot(string bayName, int rack, int resolvedIndex, bool appended)
     {
-        var wire = $"{bayName}/{rack + 1}/{resolvedIndex + 1}";
+        string wire = $"{bayName}/{rack + 1}/{resolvedIndex + 1}";
         return appended ? $"{wire} (appended)" : wire;
     }
 
@@ -353,9 +359,9 @@ internal static class StripCommandHandler
         // Id-form: <c>AN STRIP_{id} 3 RV</c> targets a specific strip (e.g.
         // a scanned copy that shares its callsign with the original).
         // Terminal entry uses the bare <c>AN 3 RV</c> form keyed by callsign.
-        var state = engine.Strips;
+        FlightStripState state = engine.Strips;
         string stripId;
-        var isIdForm = cmd.StripId is not null;
+        bool isIdForm = cmd.StripId is not null;
         if (isIdForm)
         {
             stripId = cmd.StripId!;
@@ -373,7 +379,7 @@ internal static class StripCommandHandler
         // annotation boxes in a bay; the printer view only offers "Move to Bay". Rejecting here
         // (rather than silently mutating an unfiled strip) surfaces the "still in the printer"
         // state instead of hiding it.
-        var guardError = StripMustBeInBayError(state, stripId, callsign, isIdForm);
+        string? guardError = StripMustBeInBayError(state, stripId, callsign, isIdForm);
         if (guardError is not null)
         {
             return new CommandResult(false, guardError);
@@ -383,15 +389,15 @@ internal static class StripCommandHandler
         // per docs/crc/vstrips.md:130. Replace every '?' in the annotation text
         // with '✓' so both the inline editor UI (which sends AN with the raw
         // character) and terminal input ('AN 3 ?') get the same substitution.
-        var text = cmd.Text?.Replace('?', '✓');
+        string? text = cmd.Text?.Replace('?', '✓');
 
-        var updated = StripMutations.SetAnnotationBox(state, stripId, cmd.Box, text);
+        StripItemRecord? updated = StripMutations.SetAnnotationBox(state, stripId, cmd.Box, text);
         if (updated is null)
         {
             return new CommandResult(false, $"Invalid annotation box {cmd.Box}");
         }
 
-        var desc = string.IsNullOrEmpty(text) ? $"Box {cmd.Box} cleared" : $"Box {cmd.Box}: {text}";
+        string desc = string.IsNullOrEmpty(text) ? $"Box {cmd.Box} cleared" : $"Box {cmd.Box}: {text}";
         return new CommandResult(true, desc);
     }
 
@@ -401,7 +407,7 @@ internal static class StripCommandHandler
         // the only way to address a scanned copy <c>STRIP_{callsign}_{short}</c>
         // without removing the original. Bare <c>STRIPD</c> resolves via the
         // selected callsign (terminal entry).
-        var stripId = cmd.StripId;
+        string? stripId = cmd.StripId;
         if (stripId is null)
         {
             if (string.IsNullOrEmpty(callsign))
@@ -421,8 +427,8 @@ internal static class StripCommandHandler
 
     private static CommandResult HandleStripOffset(SimulationEngine engine, string callsign, StripOffsetCommand cmd)
     {
-        var stripId = cmd.StripId;
-        var isIdForm = stripId is not null;
+        string? stripId = cmd.StripId;
+        bool isIdForm = stripId is not null;
         if (stripId is null)
         {
             if (string.IsNullOrEmpty(callsign))
@@ -434,13 +440,13 @@ internal static class StripCommandHandler
 
         // Offset slides a strip within its rack — meaningless for a strip that isn't filed into a
         // bay yet, so reject it in the printer for the same reason as annotation (above).
-        var guardError = StripMustBeInBayError(engine.Strips, stripId, callsign, isIdForm);
+        string? guardError = StripMustBeInBayError(engine.Strips, stripId, callsign, isIdForm);
         if (guardError is not null)
         {
             return new CommandResult(false, guardError);
         }
 
-        var result = StripMutations.ToggleOffset(engine.Strips, stripId);
+        bool? result = StripMutations.ToggleOffset(engine.Strips, stripId);
         if (result is null)
         {
             return new CommandResult(false, cmd.StripId is not null ? $"No flight strip {stripId}" : $"No flight strip for {callsign}");
@@ -457,7 +463,7 @@ internal static class StripCommandHandler
     /// </summary>
     private static string? StripMustBeInBayError(FlightStripState state, string stripId, string callsign, bool isIdForm)
     {
-        if (!state.Items.TryGetValue(stripId, out var record))
+        if (!state.Items.TryGetValue(stripId, out StripItemRecord? record))
         {
             return isIdForm ? $"No flight strip {stripId}" : $"No flight strip for {callsign}";
         }
@@ -476,22 +482,22 @@ internal static class StripCommandHandler
 
     private static StripApplyResult HandleHalfStripCreate(SimulationEngine engine, string callsign, HalfStripCreateCommand cmd, string? bakedStripId)
     {
-        var resolved = ResolveBayByName(engine, cmd.FacilityId, cmd.BayName);
+        (StripBayConfig? Bay, string? OwnerFacilityId, string? Error) resolved = ResolveBayByName(engine, cmd.FacilityId, cmd.BayName);
         if (resolved.Error is not null)
         {
             return Verdict(new CommandResult(false, resolved.Error));
         }
 
-        var bay = resolved.Bay!;
-        var ownerFacilityId = resolved.OwnerFacilityId!;
-        var rack = cmd.Rack ?? 0;
+        StripBayConfig bay = resolved.Bay!;
+        string ownerFacilityId = resolved.OwnerFacilityId!;
+        int rack = cmd.Rack ?? 0;
         if (rack < 0 || rack >= bay.NumberOfRacks)
         {
             return Verdict(new CommandResult(false, $"Rack {rack + 1} out of range (bay {bay.Name} has {bay.NumberOfRacks} racks)"));
         }
 
-        var userLines = cmd.Lines ?? [];
-        var totalLines = string.IsNullOrEmpty(callsign) ? userLines.Count : userLines.Count + 1;
+        IReadOnlyList<string> userLines = cmd.Lines ?? [];
+        int totalLines = string.IsNullOrEmpty(callsign) ? userLines.Count : userLines.Count + 1;
         if (totalLines > HalfStripMaxLines)
         {
             return Verdict(new CommandResult(false, $"HSC supports at most {HalfStripMaxLines} lines (got {totalLines})"));
@@ -509,8 +515,8 @@ internal static class StripCommandHandler
         // fill the 3×2 inline cell grid afterwards. The fields array always
         // has at least one (empty) slot so the LookupKey resolution path
         // doesn't trip on a zero-length array.
-        var fields = totalLines == 0 ? new[] { string.Empty } : BuildHalfStripLines(callsign, userLines, totalLines);
-        var stripId = bakedStripId ?? StripMutations.NewHalfStripId(engine.Strips);
+        string[] fields = totalLines == 0 ? new[] { string.Empty } : BuildHalfStripLines(callsign, userLines, totalLines);
+        string stripId = bakedStripId ?? StripMutations.NewHalfStripId(engine.Strips);
         var record = new StripItemRecord(
             stripId,
             string.IsNullOrEmpty(callsign) ? null : callsign,
@@ -523,7 +529,7 @@ internal static class StripCommandHandler
             0
         );
 
-        var strips = engine.Strips;
+        FlightStripState strips = engine.Strips;
         lock (strips.Gate)
         {
             strips.Items[stripId] = record;
@@ -535,14 +541,14 @@ internal static class StripCommandHandler
 
     private static string[] BuildHalfStripLines(string callsign, IReadOnlyList<string> userLines, int totalLines)
     {
-        var fields = new string[totalLines];
-        var idx = 0;
+        string[] fields = new string[totalLines];
+        int idx = 0;
         if (!string.IsNullOrEmpty(callsign))
         {
             fields[idx++] = callsign;
         }
 
-        for (var i = 0; i < userLines.Count; i++, idx++)
+        for (int i = 0; i < userLines.Count; i++, idx++)
         {
             fields[idx] = userLines[i];
         }
@@ -552,35 +558,35 @@ internal static class StripCommandHandler
 
     private static CommandResult HandleHalfStripAmend(SimulationEngine engine, string callsign, HalfStripAmendCommand cmd)
     {
-        var scope = ResolveOptionalBayScope(engine, cmd.FacilityId, cmd.BayName);
+        (string? BayId, string Suffix, string? Error) scope = ResolveOptionalBayScope(engine, cmd.FacilityId, cmd.BayName);
         if (scope.Error is not null)
         {
             return new CommandResult(false, scope.Error);
         }
 
-        var tokens = cmd.Tokens ?? [];
-        var decisionResult = DecideAmendFields(callsign, tokens);
+        IReadOnlyList<string> tokens = cmd.Tokens ?? [];
+        (string? LookupKey, string[]? NewFields, string? Error) decisionResult = DecideAmendFields(callsign, tokens);
         if (decisionResult.Error is not null)
         {
             return new CommandResult(false, decisionResult.Error);
         }
 
-        var lookupKey = decisionResult.LookupKey!;
-        var newFields = decisionResult.NewFields!;
+        string lookupKey = decisionResult.LookupKey!;
+        string[] newFields = decisionResult.NewFields!;
 
         if (newFields.Length > HalfStripMaxLines)
         {
             return new CommandResult(false, $"HSA supports at most {HalfStripMaxLines} lines (got {newFields.Length})");
         }
 
-        var matches = FindHalfStripMatches(engine, lookupKey, scope.BayId, cmd.Rack);
-        var matchErr = SingleMatchOrError(matches, lookupKey, scope.Suffix);
+        List<StripItemRecord> matches = FindHalfStripMatches(engine, lookupKey, scope.BayId, cmd.Rack);
+        string? matchErr = SingleMatchOrError(matches, lookupKey, scope.Suffix);
         if (matchErr is not null)
         {
             return new CommandResult(false, matchErr);
         }
 
-        var updated = StripMutations.UpdateStripFields(engine.Strips, matches[0].Id, newFields);
+        StripItemRecord? updated = StripMutations.UpdateStripFields(engine.Strips, matches[0].Id, newFields);
         if (updated is null)
         {
             return new CommandResult(false, "Half-strip disappeared during amend");
@@ -598,7 +604,7 @@ internal static class StripCommandHandler
     /// </summary>
     private static (string? LookupKey, string[]? NewFields, string? Error) DecideAmendFields(string callsign, IReadOnlyList<string> tokens)
     {
-        var headIsStripId = tokens.Count > 0 && tokens[0].StartsWith("HSTRIP_", StringComparison.Ordinal);
+        bool headIsStripId = tokens.Count > 0 && tokens[0].StartsWith("HSTRIP_", StringComparison.Ordinal);
         if (string.IsNullOrEmpty(callsign) || headIsStripId)
         {
             if (tokens.Count == 0)
@@ -610,18 +616,18 @@ internal static class StripCommandHandler
                 return (null, null, "HSA needs at least one replacement line after the key");
             }
 
-            var lookup = tokens[0];
-            var fields = new string[tokens.Count - 1];
-            for (var i = 1; i < tokens.Count; i++)
+            string lookup = tokens[0];
+            string[] fields = new string[tokens.Count - 1];
+            for (int i = 1; i < tokens.Count; i++)
             {
                 fields[i - 1] = tokens[i];
             }
             return (lookup, fields, null);
         }
 
-        var scoped = new string[tokens.Count + 1];
+        string[] scoped = new string[tokens.Count + 1];
         scoped[0] = callsign;
-        for (var i = 0; i < tokens.Count; i++)
+        for (int i = 0; i < tokens.Count; i++)
         {
             scoped[i + 1] = tokens[i];
         }
@@ -630,13 +636,13 @@ internal static class StripCommandHandler
 
     private static CommandResult HandleHalfStripDelete(SimulationEngine engine, string callsign, HalfStripDeleteCommand cmd)
     {
-        var scope = ResolveOptionalBayScope(engine, cmd.FacilityId, cmd.BayName);
+        (string? BayId, string Suffix, string? Error) scope = ResolveOptionalBayScope(engine, cmd.FacilityId, cmd.BayName);
         if (scope.Error is not null)
         {
             return new CommandResult(false, scope.Error);
         }
 
-        var tokens = cmd.Tokens ?? [];
+        IReadOnlyList<string> tokens = cmd.Tokens ?? [];
         string lookupKey;
         if (string.IsNullOrEmpty(callsign))
         {
@@ -651,8 +657,8 @@ internal static class StripCommandHandler
             lookupKey = tokens.Count == 1 ? tokens[0] : callsign;
         }
 
-        var matches = FindHalfStripMatches(engine, lookupKey, scope.BayId, cmd.Rack);
-        var matchErr = SingleMatchOrError(matches, lookupKey, scope.Suffix);
+        List<StripItemRecord> matches = FindHalfStripMatches(engine, lookupKey, scope.BayId, cmd.Rack);
+        string? matchErr = SingleMatchOrError(matches, lookupKey, scope.Suffix);
         if (matchErr is not null)
         {
             return new CommandResult(false, matchErr);
@@ -671,7 +677,7 @@ internal static class StripCommandHandler
             return new CommandResult(false, "HSM requires a destination bay");
         }
 
-        var accessible = ResolveAccessibleBays(engine);
+        IReadOnlyList<AccessibleBay> accessible = ResolveAccessibleBays(engine);
         if (accessible.Count == 0)
         {
             return new CommandResult(false, "No accessible strip bays for current position");
@@ -682,13 +688,16 @@ internal static class StripCommandHandler
         // suffix that resolves as a valid bay/rack/index — this lets multi-word
         // bays like "Local 1" round-trip through whitespace tokenization.
         StripBayConfig? destBay = null;
-        var destRack = 0;
+        int destRack = 0;
         int? destIndex = null;
-        var destStartIdx = -1;
-        for (var suffixLen = 1; suffixLen <= cmd.Tokens.Count; suffixLen++)
+        int destStartIdx = -1;
+        for (int suffixLen = 1; suffixLen <= cmd.Tokens.Count; suffixLen++)
         {
             var candidate = new List<string>(cmd.Tokens.Skip(cmd.Tokens.Count - suffixLen));
-            var resolved = StripMutations.ResolveStripDest(candidate, accessible);
+            (StripBayConfig Bay, string FacilityId, int Rack, int? Index, int TokensConsumed)? resolved = StripMutations.ResolveStripDest(
+                candidate,
+                accessible
+            );
             if (resolved is not null && resolved.Value.TokensConsumed == suffixLen)
             {
                 destBay = resolved.Value.Bay;
@@ -712,7 +721,7 @@ internal static class StripCommandHandler
         // source-bay scope and the optional lookup key.
         var leading = cmd.Tokens.Take(destStartIdx).ToList();
         string? srcBayId = null;
-        var srcSuffix = "";
+        string srcSuffix = "";
         int? srcRack = null;
         string? lookupKey = null;
         if (leading.Count == 1)
@@ -725,11 +734,14 @@ internal static class StripCommandHandler
             // smallest match that leaves exactly one trailing token (the
             // lookup key) wins. Source-bay-spec must not include an explicit
             // index (it scopes the lookup, not the destination).
-            var matched = false;
-            for (var srcLen = 1; srcLen < leading.Count; srcLen++)
+            bool matched = false;
+            for (int srcLen = 1; srcLen < leading.Count; srcLen++)
             {
                 var srcCandidate = leading.Take(srcLen).ToList();
-                var srcResolved = StripMutations.ResolveStripDest(srcCandidate, accessible);
+                (StripBayConfig Bay, string FacilityId, int Rack, int? Index, int TokensConsumed)? srcResolved = StripMutations.ResolveStripDest(
+                    srcCandidate,
+                    accessible
+                );
                 if (
                     srcResolved is not null
                     && srcResolved.Value.TokensConsumed == srcLen
@@ -757,76 +769,76 @@ internal static class StripCommandHandler
             return new CommandResult(false, "HSM requires a lookup key or an aircraft selection");
         }
 
-        var matches = FindHalfStripMatches(engine, lookupKey, srcBayId, srcRack);
-        var matchErr = SingleMatchOrError(matches, lookupKey, srcSuffix);
+        List<StripItemRecord> matches = FindHalfStripMatches(engine, lookupKey, srcBayId, srcRack);
+        string? matchErr = SingleMatchOrError(matches, lookupKey, srcSuffix);
         if (matchErr is not null)
         {
             return new CommandResult(false, matchErr);
         }
 
-        var resolvedDestIndex = destIndex ?? 0;
+        int resolvedDestIndex = destIndex ?? 0;
         StripMutations.MoveStripToBayRack(engine.Strips, matches[0].Id, destBay.Id, destRack, resolvedDestIndex);
-        var strips = engine.Strips;
+        FlightStripState strips = engine.Strips;
         lock (strips.Gate)
         {
-            if (strips.Items.TryGetValue(matches[0].Id, out var existing))
+            if (strips.Items.TryGetValue(matches[0].Id, out StripItemRecord? existing))
             {
                 strips.Items[matches[0].Id] = existing with { BayId = destBay.Id, Rack = destRack, Index = resolvedDestIndex };
             }
         }
 
-        var dest = FormatResolvedSlot(destBay.Name, destRack, resolvedDestIndex, appended: destIndex is null);
+        string dest = FormatResolvedSlot(destBay.Name, destRack, resolvedDestIndex, appended: destIndex is null);
         return new CommandResult(true, $"Half-strip '{lookupKey}' moved to {dest}");
     }
 
     private static CommandResult HandleHalfStripOffset(SimulationEngine engine, string callsign, HalfStripOffsetCommand cmd)
     {
-        var scope = ResolveOptionalBayScope(engine, cmd.FacilityId, cmd.BayName);
+        (string? BayId, string Suffix, string? Error) scope = ResolveOptionalBayScope(engine, cmd.FacilityId, cmd.BayName);
         if (scope.Error is not null)
         {
             return new CommandResult(false, scope.Error);
         }
 
-        var lookupKey = cmd.LookupKey ?? (string.IsNullOrEmpty(callsign) ? null : callsign);
+        string? lookupKey = cmd.LookupKey ?? (string.IsNullOrEmpty(callsign) ? null : callsign);
         if (string.IsNullOrEmpty(lookupKey))
         {
             return new CommandResult(false, "HSO requires a lookup key or an aircraft selection");
         }
 
-        var matches = FindHalfStripMatches(engine, lookupKey, scope.BayId, cmd.Rack);
-        var matchErr = SingleMatchOrError(matches, lookupKey, scope.Suffix);
+        List<StripItemRecord> matches = FindHalfStripMatches(engine, lookupKey, scope.BayId, cmd.Rack);
+        string? matchErr = SingleMatchOrError(matches, lookupKey, scope.Suffix);
         if (matchErr is not null)
         {
             return new CommandResult(false, matchErr);
         }
 
-        var newValue = StripMutations.ToggleOffset(engine.Strips, matches[0].Id);
+        bool? newValue = StripMutations.ToggleOffset(engine.Strips, matches[0].Id);
         return new CommandResult(true, newValue == true ? $"Half-strip '{lookupKey}' offset on" : $"Half-strip '{lookupKey}' offset off");
     }
 
     private static CommandResult HandleHalfStripSlide(SimulationEngine engine, string callsign, HalfStripSlideCommand cmd)
     {
-        var scope = ResolveOptionalBayScope(engine, cmd.FacilityId, cmd.BayName);
+        (string? BayId, string Suffix, string? Error) scope = ResolveOptionalBayScope(engine, cmd.FacilityId, cmd.BayName);
         if (scope.Error is not null)
         {
             return new CommandResult(false, scope.Error);
         }
 
-        var lookupKey = cmd.LookupKey ?? (string.IsNullOrEmpty(callsign) ? null : callsign);
+        string? lookupKey = cmd.LookupKey ?? (string.IsNullOrEmpty(callsign) ? null : callsign);
         if (string.IsNullOrEmpty(lookupKey))
         {
             return new CommandResult(false, "HSS requires a lookup key or an aircraft selection");
         }
 
-        var matches = FindHalfStripMatches(engine, lookupKey, scope.BayId, cmd.Rack);
-        var matchErr = SingleMatchOrError(matches, lookupKey, scope.Suffix);
+        List<StripItemRecord> matches = FindHalfStripMatches(engine, lookupKey, scope.BayId, cmd.Rack);
+        string? matchErr = SingleMatchOrError(matches, lookupKey, scope.Suffix);
         if (matchErr is not null)
         {
             return new CommandResult(false, matchErr);
         }
 
-        var existing = matches[0];
-        var newType = existing.Type == StripMutations.HalfStripLeft ? StripMutations.HalfStripRight : StripMutations.HalfStripLeft;
+        StripItemRecord existing = matches[0];
+        int newType = existing.Type == StripMutations.HalfStripLeft ? StripMutations.HalfStripRight : StripMutations.HalfStripLeft;
         StripMutations.UpdateStripType(engine.Strips, existing.Id, newType);
         return new CommandResult(true, $"Half-strip '{lookupKey}' slid {(newType == StripMutations.HalfStripRight ? "right" : "left")}");
     }
@@ -835,15 +847,18 @@ internal static class StripCommandHandler
 
     private static StripApplyResult HandleSeparatorCreate(SimulationEngine engine, SeparatorCreateCommand cmd, string? bakedStripId)
     {
-        var tokens = cmd.Tokens ?? [];
-        var accessible = ResolveAccessibleBays(engine);
+        IReadOnlyList<string> tokens = cmd.Tokens ?? [];
+        IReadOnlyList<AccessibleBay> accessible = ResolveAccessibleBays(engine);
         if (accessible.Count == 0)
         {
             return Verdict(new CommandResult(false, "No accessible strip bays for current position"));
         }
 
         // Greedy longest-prefix bay match (like STRIP), then rack + index + optional label.
-        var (bay, facilityId, rack, indexOrNull, label, err) = ParseSeparatorPosition(tokens, accessible);
+        (StripBayConfig? bay, string? facilityId, int rack, int? indexOrNull, string? label, string? err) = ParseSeparatorPosition(
+            tokens,
+            accessible
+        );
         if (err is not null)
         {
             return Verdict(new CommandResult(false, err));
@@ -868,8 +883,8 @@ internal static class StripCommandHandler
 
         // Index omitted → append at the rack tail (visual top). Empty-rack
         // add-menu intent: stack a new separator above existing strips.
-        var index = indexOrNull ?? CurrentRackCount(engine.Strips, bay.Id, rack);
-        var stripId = bakedStripId ?? StripMutations.NewSeparatorId(engine.Strips);
+        int index = indexOrNull ?? CurrentRackCount(engine.Strips, bay.Id, rack);
+        string stripId = bakedStripId ?? StripMutations.NewSeparatorId(engine.Strips);
         var record = new StripItemRecord(
             stripId,
             null,
@@ -882,14 +897,14 @@ internal static class StripCommandHandler
             index
         );
 
-        var strips = engine.Strips;
+        FlightStripState strips = engine.Strips;
         lock (strips.Gate)
         {
             strips.Items[stripId] = record;
         }
         StripMutations.MoveStripToBayRack(strips, stripId, bay.Id, rack, index);
 
-        var loc = FormatResolvedSlot(bay.Name, rack, index, appended: false);
+        string loc = FormatResolvedSlot(bay.Name, rack, index, appended: false);
         return new StripApplyResult(
             new CommandResult(true, label is null ? $"Separator created at {loc}" : $"Separator '{label}' created at {loc}"),
             stripId
@@ -901,7 +916,10 @@ internal static class StripCommandHandler
         IReadOnlyList<AccessibleBay> accessible
     )
     {
-        var resolved = StripMutations.ResolveStripDest(tokens, accessible);
+        (StripBayConfig Bay, string FacilityId, int Rack, int? Index, int TokensConsumed)? resolved = StripMutations.ResolveStripDest(
+            tokens,
+            accessible
+        );
         if (resolved is null)
         {
             return (null, null, 0, null, null, $"Unknown strip bay or invalid position: {string.Join(' ', tokens)}");
@@ -910,15 +928,15 @@ internal static class StripCommandHandler
         // the explicit slot or the rack tail (visual top). Pulling the
         // append default into the handler keeps this static helper free of
         // FlightStripState dependencies.
-        var (bay, facilityId, rack, indexOrNull, consumed) = resolved.Value;
+        (StripBayConfig? bay, string? facilityId, int rack, int? indexOrNull, int consumed) = resolved.Value;
         var trailing = tokens.Skip(consumed).ToList();
-        var label = trailing.Count == 0 ? null : string.Join(' ', trailing);
+        string? label = trailing.Count == 0 ? null : string.Join(' ', trailing);
         return (bay, facilityId, rack, indexOrNull, label, null);
     }
 
     private static CommandResult HandleSeparatorDelete(SimulationEngine engine, SeparatorDeleteCommand cmd)
     {
-        var tokens = cmd.Tokens ?? [];
+        IReadOnlyList<string> tokens = cmd.Tokens ?? [];
         if (tokens.Count == 0)
         {
             return new CommandResult(false, "SEPD requires a locator");
@@ -928,7 +946,11 @@ internal static class StripCommandHandler
         // with the SEPE id form so the inline-edit / drag-delete UI doesn't
         // need to derive bay/rack/index for a separator it already has the
         // record for.
-        if (tokens.Count == 1 && tokens[0].StartsWith("SEP_", StringComparison.Ordinal) && engine.Strips.Items.TryGetValue(tokens[0], out var byId))
+        if (
+            tokens.Count == 1
+            && tokens[0].StartsWith("SEP_", StringComparison.Ordinal)
+            && engine.Strips.Items.TryGetValue(tokens[0], out StripItemRecord? byId)
+        )
         {
             if (!StripMutations.IsSeparator(byId.Type))
             {
@@ -938,13 +960,13 @@ internal static class StripCommandHandler
             return new CommandResult(true, "Separator deleted");
         }
 
-        var accessible = ResolveAccessibleBays(engine);
+        IReadOnlyList<AccessibleBay> accessible = ResolveAccessibleBays(engine);
         if (accessible.Count == 0)
         {
             return new CommandResult(false, "No accessible strip bays for current position");
         }
 
-        var match = FindSeparatorToDelete(engine, tokens, accessible);
+        (string? StripId, string? Error) match = FindSeparatorToDelete(engine, tokens, accessible);
         if (match.Error is not null)
         {
             return new CommandResult(false, match.Error);
@@ -963,21 +985,24 @@ internal static class StripCommandHandler
         // Wire: SEPD bay[/rack] label-or-1-based-index. Dest-spec covers the
         // leading bay/rack; everything after it is the locator (label-first,
         // 1-based index fallback for numeric-only).
-        var resolved = StripMutations.ResolveStripDest(tokens, accessible);
+        (StripBayConfig Bay, string FacilityId, int Rack, int? Index, int TokensConsumed)? resolved = StripMutations.ResolveStripDest(
+            tokens,
+            accessible
+        );
         if (resolved is null)
         {
             return (null, $"Unknown strip bay or invalid position: {string.Join(' ', tokens)}");
         }
-        var (bay, _, rack, _, consumed) = resolved.Value;
+        (StripBayConfig? bay, string _, int rack, int? _, int consumed) = resolved.Value;
         var trailing = tokens.Skip(consumed).ToList();
         if (trailing.Count == 0)
         {
             return (null, "SEPD requires a label or 1-based position after bay[/rack]");
         }
-        var locator = string.Join(' ', trailing);
+        string locator = string.Join(' ', trailing);
 
         // Label match (case-insensitive) wins over position.
-        foreach (var item in engine.Strips.Items.Values)
+        foreach (StripItemRecord item in engine.Strips.Items.Values)
         {
             if (!StripMutations.IsSeparator(item.Type))
             {
@@ -998,10 +1023,10 @@ internal static class StripCommandHandler
         }
 
         // Position fallback: numeric locator (1-based on the wire).
-        if (int.TryParse(locator, out var posWire) && posWire >= 1)
+        if (int.TryParse(locator, out int posWire) && posWire >= 1)
         {
-            var pos = posWire - 1;
-            foreach (var item in engine.Strips.Items.Values)
+            int pos = posWire - 1;
+            foreach (StripItemRecord item in engine.Strips.Items.Values)
             {
                 if (!StripMutations.IsSeparator(item.Type))
                 {
@@ -1029,12 +1054,12 @@ internal static class StripCommandHandler
     {
         lock (state.Gate)
         {
-            if (!state.Bays.TryGetValue(bayId, out var racks))
+            if (!state.Bays.TryGetValue(bayId, out Dictionary<string, List<string>[]>? racks))
             {
                 return 0;
             }
-            var key = rack.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            if (!racks.TryGetValue(key, out var rackRows) || rackRows.Length == 0)
+            string key = rack.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (!racks.TryGetValue(key, out List<string>[]? rackRows) || rackRows.Length == 0)
             {
                 return 0;
             }
@@ -1052,16 +1077,16 @@ internal static class StripCommandHandler
     {
         lock (state.Gate)
         {
-            if (!state.Bays.TryGetValue(bayId, out var racks))
+            if (!state.Bays.TryGetValue(bayId, out Dictionary<string, List<string>[]>? racks))
             {
                 return null;
             }
-            var key = rack.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            if (!racks.TryGetValue(key, out var rackRows) || rackRows.Length == 0)
+            string key = rack.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (!racks.TryGetValue(key, out List<string>[]? rackRows) || rackRows.Length == 0)
             {
                 return null;
             }
-            var row = rackRows[0];
+            List<string> row = rackRows[0];
             if (index < 0 || index >= row.Count)
             {
                 return null;
@@ -1080,7 +1105,7 @@ internal static class StripCommandHandler
     /// </summary>
     private static CommandResult HandleSeparatorEdit(SimulationEngine engine, SeparatorEditCommand cmd)
     {
-        var tokens = cmd.Tokens ?? [];
+        IReadOnlyList<string> tokens = cmd.Tokens ?? [];
         if (tokens.Count == 0)
         {
             return new CommandResult(false, "SEPE requires a locator and a new label");
@@ -1105,18 +1130,21 @@ internal static class StripCommandHandler
                 return new CommandResult(false, "SEPE requires bay/rack/index and a new label");
             }
 
-            var accessible = ResolveAccessibleBays(engine);
+            IReadOnlyList<AccessibleBay> accessible = ResolveAccessibleBays(engine);
             if (accessible.Count == 0)
             {
                 return new CommandResult(false, "No accessible strip bays for current position");
             }
 
-            var resolved = StripMutations.ResolveStripDest(tokens, accessible);
+            (StripBayConfig Bay, string FacilityId, int Rack, int? Index, int TokensConsumed)? resolved = StripMutations.ResolveStripDest(
+                tokens,
+                accessible
+            );
             if (resolved is null)
             {
                 return new CommandResult(false, $"Unknown strip bay or invalid position: {string.Join(' ', tokens)}");
             }
-            var (bay, _, rack, indexOrNull, consumed) = resolved.Value;
+            (StripBayConfig? bay, string _, int rack, int? indexOrNull, int consumed) = resolved.Value;
             if (indexOrNull is not int index)
             {
                 return new CommandResult(false, "SEPE requires an explicit slot index — use bay/rack/index");
@@ -1132,7 +1160,7 @@ internal static class StripCommandHandler
             // rack array — StripItemRecord.Index is the position the strip was
             // *created* at and goes stale the moment another strip inserts in
             // front of it. The Bays dictionary is the source of truth.
-            var resolvedStripId = ResolveStripIdAt(engine.Strips, bay.Id, rack, index);
+            string? resolvedStripId = ResolveStripIdAt(engine.Strips, bay.Id, rack, index);
             if (resolvedStripId is null)
             {
                 return new CommandResult(false, $"No separator at {bay.Name} rack {rack + 1} index {index + 1}");
@@ -1140,19 +1168,19 @@ internal static class StripCommandHandler
             stripId = resolvedStripId;
         }
 
-        if (!engine.Strips.Items.TryGetValue(stripId, out var atSlot) || !StripMutations.IsSeparator(atSlot.Type))
+        if (!engine.Strips.Items.TryGetValue(stripId, out StripItemRecord? atSlot) || !StripMutations.IsSeparator(atSlot.Type))
         {
             return new CommandResult(false, $"No separator with id '{stripId}'");
         }
 
-        var strips = engine.Strips;
+        FlightStripState strips = engine.Strips;
         lock (strips.Gate)
         {
-            if (!strips.Items.TryGetValue(stripId, out var existing))
+            if (!strips.Items.TryGetValue(stripId, out StripItemRecord? existing))
             {
                 return new CommandResult(false, "Separator disappeared during edit");
             }
-            var fields = existing.FieldValues.Length > 0 ? [.. existing.FieldValues] : new string[1];
+            string[] fields = existing.FieldValues.Length > 0 ? [.. existing.FieldValues] : new string[1];
             fields[0] = newLabel;
             strips.Items[existing.Id] = existing with { FieldValues = fields };
             // Edited here rather than through a mutation, so the edit marks its own id.
@@ -1179,7 +1207,7 @@ internal static class StripCommandHandler
         {
             return new CommandResult(false, "SEPM requires a strip id");
         }
-        if (!engine.Strips.Items.TryGetValue(cmd.StripId, out var existing))
+        if (!engine.Strips.Items.TryGetValue(cmd.StripId, out StripItemRecord? existing))
         {
             return new CommandResult(false, $"No strip with id '{cmd.StripId}'");
         }
@@ -1188,12 +1216,12 @@ internal static class StripCommandHandler
             return new CommandResult(false, $"Strip '{cmd.StripId}' is not a separator");
         }
 
-        var (bay, _, err) = ResolveBayByName(engine, cmd.DestFacilityId, cmd.DestBayName);
+        (StripBayConfig? bay, string? _, string? err) = ResolveBayByName(engine, cmd.DestFacilityId, cmd.DestBayName);
         if (err is not null)
         {
             return new CommandResult(false, err);
         }
-        var bayCfg = bay!;
+        StripBayConfig bayCfg = bay!;
         if (cmd.DestRack < 0 || cmd.DestRack >= bayCfg.NumberOfRacks)
         {
             return new CommandResult(false, $"Rack {cmd.DestRack + 1} out of range (bay {bayCfg.Name} has {bayCfg.NumberOfRacks} racks)");
@@ -1203,10 +1231,10 @@ internal static class StripCommandHandler
         // Keep the StripItemRecord's BayId in sync so other lookups don't
         // see a stale facility mismatch. Rack/Index on the record stay
         // stale-by-design — the bay rack array remains the source of truth.
-        var strips = engine.Strips;
+        FlightStripState strips = engine.Strips;
         lock (strips.Gate)
         {
-            if (strips.Items.TryGetValue(cmd.StripId, out var rec))
+            if (strips.Items.TryGetValue(cmd.StripId, out StripItemRecord? rec))
             {
                 strips.Items[cmd.StripId] = rec with { BayId = bayCfg.Id, Rack = cmd.DestRack, Index = cmd.DestIndex };
             }
@@ -1219,7 +1247,7 @@ internal static class StripCommandHandler
 
     private static StripApplyResult HandleBlankCreate(SimulationEngine engine, BlankCreateCommand cmd, string? bakedStripId)
     {
-        var tokens = cmd.Tokens ?? [];
+        IReadOnlyList<string> tokens = cmd.Tokens ?? [];
 
         // A run that already holds the recorded blank — a snapshot-based restore the record is re-applied over —
         // keeps the one it has. Without the guard the re-mint would draw the *next* counter value (the counter is
@@ -1229,12 +1257,12 @@ internal static class StripCommandHandler
             return new StripApplyResult(new CommandResult(true, "Blank strip already placed"), bakedStripId);
         }
 
-        var stripId = bakedStripId ?? StripMutations.NewBlankId(engine.Strips);
+        string stripId = bakedStripId ?? StripMutations.NewBlankId(engine.Strips);
 
         if (tokens.Count == 0)
         {
             var record = new StripItemRecord(stripId, null, StripMutations.BlankStripType, false, [], "", "", 0, 0);
-            var printerStrips = engine.Strips;
+            FlightStripState printerStrips = engine.Strips;
             lock (printerStrips.Gate)
             {
                 printerStrips.Items[stripId] = record;
@@ -1248,13 +1276,16 @@ internal static class StripCommandHandler
             return new StripApplyResult(new CommandResult(true, "Blank strip added to printer queue"), stripId);
         }
 
-        var accessible = ResolveAccessibleBays(engine);
+        IReadOnlyList<AccessibleBay> accessible = ResolveAccessibleBays(engine);
         if (accessible.Count == 0)
         {
             return Verdict(new CommandResult(false, "No accessible strip bays for current position"));
         }
 
-        var resolved = StripMutations.ResolveStripDest(tokens, accessible);
+        (StripBayConfig Bay, string FacilityId, int Rack, int? Index, int TokensConsumed)? resolved = StripMutations.ResolveStripDest(
+            tokens,
+            accessible
+        );
         if (resolved is null)
         {
             return Verdict(new CommandResult(false, $"Unknown strip bay or invalid position: {string.Join(' ', tokens)}"));
@@ -1262,15 +1293,15 @@ internal static class StripCommandHandler
 
         // Index omitted → append at the rack tail (visual top). Empty-rack
         // add-menu intent: stack a new blank above any existing strips.
-        var (bay, facilityId, rack, indexOrNull, _) = resolved.Value;
+        (StripBayConfig? bay, string? facilityId, int rack, int? indexOrNull, int _) = resolved.Value;
         if (rack < 0 || rack >= bay.NumberOfRacks)
         {
             return Verdict(new CommandResult(false, $"Rack {rack + 1} out of range (bay {bay.Name} has {bay.NumberOfRacks} racks)"));
         }
-        var index = indexOrNull ?? CurrentRackCount(engine.Strips, bay.Id, rack);
+        int index = indexOrNull ?? CurrentRackCount(engine.Strips, bay.Id, rack);
 
         var bayRecord = new StripItemRecord(stripId, null, StripMutations.BlankStripType, false, [], facilityId, bay.Id, rack, index);
-        var strips = engine.Strips;
+        FlightStripState strips = engine.Strips;
         lock (strips.Gate)
         {
             strips.Items[stripId] = bayRecord;
@@ -1287,7 +1318,7 @@ internal static class StripCommandHandler
 
     private static CommandResult HandleBlankDelete(SimulationEngine engine, BlankDeleteCommand cmd)
     {
-        var tokens = cmd.Tokens ?? [];
+        IReadOnlyList<string> tokens = cmd.Tokens ?? [];
         if (tokens.Count == 0)
         {
             return new CommandResult(false, "BLANKD requires a bay name or strip id");
@@ -1298,7 +1329,11 @@ internal static class StripCommandHandler
         // with SEPD/SEPE id forms so the printer-modal Delete button can
         // remove a blank without needing a bay locator (printer-queue blanks
         // have no bay).
-        if (tokens.Count == 1 && tokens[0].StartsWith("BLANK_", StringComparison.Ordinal) && engine.Strips.Items.TryGetValue(tokens[0], out var byId))
+        if (
+            tokens.Count == 1
+            && tokens[0].StartsWith("BLANK_", StringComparison.Ordinal)
+            && engine.Strips.Items.TryGetValue(tokens[0], out StripItemRecord? byId)
+        )
         {
             if (byId.Type != StripMutations.BlankStripType)
             {
@@ -1308,26 +1343,29 @@ internal static class StripCommandHandler
             return new CommandResult(true, "Blank strip deleted");
         }
 
-        var accessible = ResolveAccessibleBays(engine);
+        IReadOnlyList<AccessibleBay> accessible = ResolveAccessibleBays(engine);
         if (accessible.Count == 0)
         {
             return new CommandResult(false, "No accessible strip bays for current position");
         }
 
-        var resolved = StripMutations.ResolveStripDest(tokens, accessible);
+        (StripBayConfig Bay, string FacilityId, int Rack, int? Index, int TokensConsumed)? resolved = StripMutations.ResolveStripDest(
+            tokens,
+            accessible
+        );
         if (resolved is null)
         {
             return new CommandResult(false, $"Unknown strip bay: {string.Join(' ', tokens)}");
         }
 
-        var (bay, _, rack, indexOrNull, _) = resolved.Value;
+        (StripBayConfig? bay, string _, int rack, int? indexOrNull, int _) = resolved.Value;
         // BLANKD bay vs bay/rack: if the caller supplied a rack (indicated by
         // a slash in the dest-spec, which makes rack a non-zero or zero value
         // with an explicit signal), match only in that rack. The resolver
         // returns rack = 0 both for "no slash" and for explicit "/1" (→ 0),
         // so we distinguish via whether the original tokens contain a slash.
-        var hasRackArg = false;
-        foreach (var tok in tokens)
+        bool hasRackArg = false;
+        foreach (string tok in tokens)
         {
             if (tok.IndexOf('/') >= 0)
             {
@@ -1338,7 +1376,7 @@ internal static class StripCommandHandler
         _ = indexOrNull;
 
         string? targetStripId = null;
-        foreach (var item in engine.Strips.Items.Values)
+        foreach (StripItemRecord item in engine.Strips.Items.Values)
         {
             if (item.Type != StripMutations.BlankStripType)
             {
@@ -1373,7 +1411,7 @@ internal static class StripCommandHandler
     /// </summary>
     private static bool ResolveAccessibleBaysRackGiven(int tokenCount, string bayName)
     {
-        var bayWordCount = bayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        int bayWordCount = bayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
         return tokenCount > bayWordCount;
     }
 
@@ -1391,7 +1429,7 @@ internal static class StripCommandHandler
             return [];
         }
 
-        var positionCallsign = scenario.StudentPosition?.Callsign ?? "";
+        string positionCallsign = scenario.StudentPosition?.Callsign ?? "";
         return string.IsNullOrEmpty(positionCallsign) ? [] : config.GetAllCommandTargetableStripBays(positionCallsign);
     }
 
@@ -1406,13 +1444,13 @@ internal static class StripCommandHandler
             return (null, null, "No active scenario");
         }
 
-        var positionCallsign = scenario.StudentPosition?.Callsign ?? "";
+        string positionCallsign = scenario.StudentPosition?.Callsign ?? "";
         if (scenario.ArtccConfig is not { } config || string.IsNullOrEmpty(positionCallsign))
         {
             return (null, null, "No active position");
         }
 
-        var resolved = config.GetAccessibleStripBay(positionCallsign, facilityId, bayName);
+        AccessibleBay? resolved = config.GetAccessibleStripBay(positionCallsign, facilityId, bayName);
         if (resolved is null)
         {
             return (null, null, $"Unknown strip bay '{facilityId}/{bayName}'");
@@ -1428,7 +1466,7 @@ internal static class StripCommandHandler
             return (null, "", null);
         }
 
-        var resolved = ResolveBayByName(engine, facilityId, bayName);
+        (StripBayConfig? Bay, string? OwnerFacilityId, string? Error) resolved = ResolveBayByName(engine, facilityId, bayName);
         if (resolved.Error is not null)
         {
             return (null, "", resolved.Error);
@@ -1442,10 +1480,10 @@ internal static class StripCommandHandler
         // Strip-id form: empty half-strips have no first-line text, so the
         // embedded vStrips UI emits the strip's id as the lookup key. Match
         // by Id directly, mirroring SEPD/BLANKD's id-prefix handling.
-        var lookupIsStripId = lookupKey.StartsWith("HSTRIP_", StringComparison.Ordinal);
+        bool lookupIsStripId = lookupKey.StartsWith("HSTRIP_", StringComparison.Ordinal);
 
         var matches = new List<StripItemRecord>();
-        foreach (var item in engine.Strips.Items.Values)
+        foreach (StripItemRecord item in engine.Strips.Items.Values)
         {
             if (item.Type != StripMutations.HalfStripLeft && item.Type != StripMutations.HalfStripRight)
             {
@@ -1492,7 +1530,7 @@ internal static class StripCommandHandler
         }
         if (matches.Count > 1)
         {
-            var locations = string.Join(", ", matches.Select(m => $"{m.BayId}/{m.Rack}"));
+            string locations = string.Join(", ", matches.Select(m => $"{m.BayId}/{m.Rack}"));
             return $"Multiple half-strips match '{lookupKey}' — specify bay: {locations}";
         }
         return null;

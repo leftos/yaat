@@ -19,7 +19,7 @@ public class NavigatorArcSteeringTests
         // v = ω·r at the Jet ceiling (12 °/s · 75 ft ≈ 9.3 kt) is tighter, so it governs — the nose can't
         // track a 75 ft arc faster than that without exceeding the gear-limited turn rate. (For a jet the
         // yaw-rate cap governs below ~95 ft; above it the lateral-accel term takes over.)
-        var arc = MakeArc(radiusFt: 75.0, turnAngleDeg: 0.0);
+        GroundArc arc = MakeArc(radiusFt: 75.0, turnAngleDeg: 0.0);
         double expectedKts = CategoryPerformance.TurnRateLimitedSpeedKts(AircraftCategory.Jet, 75.0);
 
         Assert.Equal(expectedKts, arc.MaxSafeSpeedKts(AircraftCategory.Jet), 0.01);
@@ -30,7 +30,7 @@ public class NavigatorArcSteeringTests
     {
         // 200 ft radius gives a lateral-accel cap of ~17 kt, but a 120° turn caps the corner speed
         // lower (Jet: 11.5 kt). The angle-based ceiling must govern.
-        var arc = MakeArc(radiusFt: 200.0, turnAngleDeg: 120.0);
+        GroundArc arc = MakeArc(radiusFt: 200.0, turnAngleDeg: 120.0);
         double expectedCeiling = CategoryPerformance.CornerSpeedForAngle(AircraftCategory.Jet, 120.0);
 
         Assert.Equal(expectedCeiling, arc.MaxSafeSpeedKts(AircraftCategory.Jet), 0.01);
@@ -41,7 +41,7 @@ public class NavigatorArcSteeringTests
     {
         // A near-collapsed 3 ft radius would yield ~2.1 kt; the floor keeps it at SlowTurnSpeedKts so a
         // degenerate-bezier arc never commands a stop (the navigator can always make forward progress).
-        var arc = MakeArc(radiusFt: 3.0, turnAngleDeg: 90.0);
+        GroundArc arc = MakeArc(radiusFt: 3.0, turnAngleDeg: 90.0);
 
         Assert.Equal(CategoryPerformance.SlowTurnSpeedKts, arc.MaxSafeSpeedKts(AircraftCategory.Jet), 1e-9);
     }

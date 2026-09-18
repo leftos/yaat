@@ -74,23 +74,23 @@ public class CommandRejectionMessagesTests : IDisposable
             return;
         }
 
-        var def = CommandRegistry.Get(type);
+        CommandDefinition? def = CommandRegistry.Get(type);
         Assert.NotNull(def);
         if (def.DefaultAliases.Length == 0)
         {
             return;
         }
 
-        var input = SynthesizeCanonicalInput(def);
+        string? input = SynthesizeCanonicalInput(def);
         if (input is null)
         {
             return;
         }
 
-        var aircraft = MakeParkedAircraft();
-        var ctx = TestDispatch.Context(new Random(0), validateDctFixes: false);
+        AircraftState aircraft = MakeParkedAircraft();
+        DispatchContext ctx = TestDispatch.Context(new Random(0), validateDctFixes: false);
 
-        var parseResult = CommandParser.ParseCompound(input, aircraft.FlightPlan.Route);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound(input, aircraft.FlightPlan.Route);
         if (!parseResult.IsSuccess)
         {
             AssertDescriptiveReason(parseResult.Reason, $"parser rejected '{input}' for {type}");
@@ -151,7 +151,7 @@ public class CommandRejectionMessagesTests : IDisposable
     /// </summary>
     private static string? SynthesizeCanonicalInput(CommandDefinition def)
     {
-        var alias = def.DefaultAliases[0];
+        string alias = def.DefaultAliases[0];
 
         // Bare command — no args
         if (def.Overloads.Length == 0 || def.Overloads.All(o => o.Parameters.Length == 0))
@@ -161,11 +161,11 @@ public class CommandRejectionMessagesTests : IDisposable
 
         // Use the first overload with required params; pick placeholder values that match
         // the most common parameter shapes.
-        var overload = def.Overloads.FirstOrDefault(o => o.Parameters.Length > 0) ?? def.Overloads[0];
+        CommandOverload overload = def.Overloads.FirstOrDefault(o => o.Parameters.Length > 0) ?? def.Overloads[0];
         var args = new List<string>();
-        foreach (var param in overload.Parameters)
+        foreach (CommandParameter param in overload.Parameters)
         {
-            var placeholder = PickPlaceholder(param);
+            string? placeholder = PickPlaceholder(param);
             if (placeholder is null)
             {
                 return null;
@@ -183,7 +183,7 @@ public class CommandRejectionMessagesTests : IDisposable
             return param.Name;
         }
 
-        var name = param.Name.ToLowerInvariant();
+        string name = param.Name.ToLowerInvariant();
         return name switch
         {
             "heading" => "270",

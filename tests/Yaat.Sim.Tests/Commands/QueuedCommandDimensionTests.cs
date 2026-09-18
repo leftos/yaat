@@ -49,7 +49,7 @@ public class QueuedCommandDimensionTests
     /// </summary>
     private static AircraftState AirborneAtOakland()
     {
-        var ac = Airborne();
+        AircraftState ac = Airborne();
         ac.AirportId = "KOAK";
         return ac;
     }
@@ -59,9 +59,9 @@ public class QueuedCommandDimensionTests
 
     private static void Dispatch(string text, AircraftState ac, bool preserveConditionals)
     {
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx(preserveConditionals));
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx(preserveConditionals));
         Assert.True(result.Success, $"dispatch failed for '{text}': {result.Message}");
     }
 
@@ -102,7 +102,7 @@ public class QueuedCommandDimensionTests
     [InlineData("CA", CanonicalCommandType.CircleAirport)]
     public void FreshVector_CancelsQueuedPatternModifier(string verb, CanonicalCommandType type)
     {
-        var ac = QueueThen(verb, "FH 270");
+        AircraftState ac = QueueThen(verb, "FH 270");
         Assert.False(StillQueued(ac, type), $"the fresh FH vector should have cancelled the queued {verb}");
     }
 
@@ -111,7 +111,7 @@ public class QueuedCommandDimensionTests
     {
         // The other half of the contract: a queued lateral plan occupies ONLY the lateral axis, so an
         // altitude assignment issued on the way to the trigger must not disturb it.
-        var ac = QueueThen("EXT", "CM 7000");
+        AircraftState ac = QueueThen("EXT", "CM 7000");
         Assert.True(StillQueued(ac, CanonicalCommandType.ExtendPattern), "CM must not cancel a queued EXT — different axis");
     }
 
@@ -129,7 +129,7 @@ public class QueuedCommandDimensionTests
     [InlineData("COPT", CanonicalCommandType.ClearedForOption)]
     public void FreshVector_CancelsQueuedLandingOption(string verb, CanonicalCommandType type)
     {
-        var ac = QueueThen(verb, "FH 270");
+        AircraftState ac = QueueThen(verb, "FH 270");
         Assert.False(StillQueued(ac, type), $"the fresh FH vector should have cancelled the queued {verb}");
     }
 
@@ -147,14 +147,14 @@ public class QueuedCommandDimensionTests
     [InlineData("PUSH", CanonicalCommandType.Pushback)]
     public void DepartureHeading_LeavesQueuedSurfaceClearanceAlone(string verb, CanonicalCommandType type)
     {
-        var ac = QueueThen(verb, "FH 270");
+        AircraftState ac = QueueThen(verb, "FH 270");
         Assert.True(StillQueued(ac, type), $"a departure heading must not cancel the queued {verb} (7110.65 §5-8-2.a)");
     }
 
     [Fact]
     public void AltitudeAssignment_LeavesQueuedSurfaceClearanceAlone()
     {
-        var ac = QueueThen("HS 28R", "CM 7000");
+        AircraftState ac = QueueThen("HS 28R", "CM 7000");
         Assert.True(StillQueued(ac, CanonicalCommandType.HoldShort), "an altitude assignment must not cancel a queued hold-short");
     }
 
@@ -173,11 +173,11 @@ public class QueuedCommandDimensionTests
         // layout, and a layout-dependent test silently skips when the fixture is absent — which would hide
         // exactly this regression. The end-to-end direction is covered by
         // DepartureHeading_LeavesQueuedSurfaceClearanceAlone above.
-        var freshTaxi = CommandParser.Parse("TAXI 28R").Value!;
-        var queuedHoldShort = CommandParser.Parse("HS 28R").Value!;
-        var freshVector = CommandParser.Parse("FH 270").Value!;
+        ParsedCommand freshTaxi = CommandParser.Parse("TAXI 28R").Value!;
+        ParsedCommand queuedHoldShort = CommandParser.Parse("HS 28R").Value!;
+        ParsedCommand freshVector = CommandParser.Parse("FH 270").Value!;
 
-        var queued = CommandDescriber.GetQueuedCommandDimension(queuedHoldShort);
+        CommandDimension queued = CommandDescriber.GetQueuedCommandDimension(queuedHoldShort);
         Assert.Equal(CommandDimension.Ground, queued);
 
         // A surface clearance must still be able to displace a queued surface clearance. A ground verb fires
@@ -207,7 +207,7 @@ public class QueuedCommandDimensionTests
         // Through the compound helper, which is the production path (ActionArms dispatches every controller
         // command through DispatchCompound) and asserts the dispatch succeeded — so the queued speed surviving
         // is the outcome of an APPLIED runway assignment, not of one that was harmlessly rejected.
-        var ac = AirborneAtOakland();
+        AircraftState ac = AirborneAtOakland();
         Dispatch("AT 5000 SPD 180", ac, preserveConditionals: false);
         Dispatch("RWY 28R", ac, preserveConditionals: false);
 
@@ -221,7 +221,7 @@ public class QueuedCommandDimensionTests
         // The other half: RWY does claim the lateral axis, so a queued pattern modifier goes. This pins the
         // Lateral bit rather than catching a regression — it passed before too, back when RWY read None and
         // ClearConflictingBlocks wiped the queue wholesale.
-        var ac = AirborneAtOakland();
+        AircraftState ac = AirborneAtOakland();
         Dispatch("AT 5000 EXT", ac, preserveConditionals: false);
         Dispatch("RWY 28R", ac, preserveConditionals: false);
 
@@ -234,7 +234,7 @@ public class QueuedCommandDimensionTests
         // The production-visible half of the same bit: while it waits, a queued RWY holds the lateral axis, so
         // a fresh vector must take it out. It survived a vector before, because the block's aggregate
         // Dimensions came from GetCommandDimension and read None.
-        var ac = QueueThen(AirborneAtOakland(), "RWY 28R", "FH 270");
+        AircraftState ac = QueueThen(AirborneAtOakland(), "RWY 28R", "FH 270");
 
         Assert.False(StillQueued(ac, CanonicalCommandType.AssignRunway), "the fresh FH vector should have cancelled the queued RWY");
     }
@@ -243,7 +243,7 @@ public class QueuedCommandDimensionTests
     public void AltitudeAssignment_LeavesQueuedRunwayAssignmentAlone()
     {
         // ...and only the lateral axis: an altitude issued on the way to the trigger leaves it queued.
-        var ac = QueueThen(AirborneAtOakland(), "RWY 28R", "CM 7000");
+        AircraftState ac = QueueThen(AirborneAtOakland(), "RWY 28R", "CM 7000");
 
         Assert.True(StillQueued(ac, CanonicalCommandType.AssignRunway), "CM must not cancel a queued RWY — different axis");
     }
@@ -260,12 +260,12 @@ public class QueuedCommandDimensionTests
         // first-block failure path clears the WHOLE queue. The dry-run ground guard is what keeps the
         // rejection ahead of the clear. Asserted on DispatchCompound because that is where the dry run is;
         // CommandDispatcher.Dispatch routes ground verbs straight into it.
-        var ac = Airborne();
+        AircraftState ac = Airborne();
         Dispatch("AT 5000 SPD 180", ac, preserveConditionals: false);
 
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx(false));
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx(false));
 
         Assert.False(result.Success, $"{text} must reject an airborne aircraft, got: {result.Message}");
         Assert.True(result.NoDispatcherArm, $"the rejection must carry the no-arm flag, got: {result.Message}");
@@ -282,8 +282,8 @@ public class QueuedCommandDimensionTests
         // TAXIAUTO is a taxi clearance, so it must displace a queued surface clearance exactly as TAXI does
         // (see FreshSurfaceClearance_ReachesAQueuedSurfaceClearance for why this is asserted on the
         // classifier rather than end-to-end).
-        var freshTaxiAuto = CommandParser.Parse("TAXIAUTO 28R").Value!;
-        var queuedHoldShort = CommandParser.Parse("HS 28R").Value!;
+        ParsedCommand freshTaxiAuto = CommandParser.Parse("TAXIAUTO 28R").Value!;
+        ParsedCommand queuedHoldShort = CommandParser.Parse("HS 28R").Value!;
 
         Assert.NotEqual(
             CommandDimension.None,
@@ -304,14 +304,14 @@ public class QueuedCommandDimensionTests
     [Fact]
     public void Vector_LeavesQueuedCrossingRestrictionAlone()
     {
-        var ac = QueueThen("CFIX SUNOL 8000", "FH 270");
+        AircraftState ac = QueueThen("CFIX SUNOL 8000", "FH 270");
         Assert.True(StillQueued(ac, CanonicalCommandType.CrossFix), "a vector must not cancel a queued crossing restriction");
     }
 
     [Fact]
     public void AltitudeAssignment_CancelsQueuedCrossingRestriction()
     {
-        var ac = QueueThen("CFIX SUNOL 8000", "DM 5000");
+        AircraftState ac = QueueThen("CFIX SUNOL 8000", "DM 5000");
         Assert.False(StillQueued(ac, CanonicalCommandType.CrossFix), "a restated altitude cancels the crossing restriction (§4-2-5.b NOTE 1)");
     }
 
@@ -323,8 +323,8 @@ public class QueuedCommandDimensionTests
     [Fact]
     public void BareExpedite_OccupiesNoAxis_ButExpediteWithAltitudeIsVertical()
     {
-        var bare = CommandParser.Parse("EXP");
-        var withAltitude = CommandParser.Parse("EXP 5000");
+        ParseResult<ParsedCommand> bare = CommandParser.Parse("EXP");
+        ParseResult<ParsedCommand> withAltitude = CommandParser.Parse("EXP 5000");
         Assert.NotNull(bare.Value);
         Assert.NotNull(withAltitude.Value);
 
@@ -361,12 +361,12 @@ public class QueuedCommandDimensionTests
     [InlineData("ELD")]
     public void QueuedDimension_IsNeverBroaderThanFiredDimension(string text)
     {
-        var parsed = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
         Assert.NotNull(parsed.Value);
         Assert.IsNotType<UnsupportedCommand>(parsed.Value);
 
-        var queued = CommandDescriber.GetQueuedCommandDimension(parsed.Value!);
-        var fired = CommandDescriber.GetCommandDimension(parsed.Value!);
+        CommandDimension queued = CommandDescriber.GetQueuedCommandDimension(parsed.Value!);
+        CommandDimension fired = CommandDescriber.GetCommandDimension(parsed.Value!);
 
         Assert.Equal(CommandDimension.None, queued & ~fired);
     }
@@ -398,9 +398,9 @@ public class QueuedCommandDimensionTests
         var violators = new List<string>();
         var unconstructible = new List<string>();
 
-        foreach (var type in ParsedCommandDummies.ConcreteTypes())
+        foreach (Type type in ParsedCommandDummies.ConcreteTypes())
         {
-            var dummy = ParsedCommandDummies.Create(type);
+            ParsedCommand? dummy = ParsedCommandDummies.Create(type);
             if (dummy is UnsupportedCommand)
             {
                 continue;
@@ -414,8 +414,8 @@ public class QueuedCommandDimensionTests
                 continue;
             }
 
-            var queued = CommandDescriber.GetQueuedCommandDimension(dummy);
-            var fired = CommandDescriber.GetCommandDimension(dummy);
+            CommandDimension queued = CommandDescriber.GetQueuedCommandDimension(dummy);
+            CommandDimension fired = CommandDescriber.GetCommandDimension(dummy);
             if ((queued & ~fired) != CommandDimension.None)
             {
                 violators.Add($"{type.Name} (queued {queued}, fired {fired})");
@@ -448,7 +448,7 @@ public class QueuedCommandDimensionTests
     [InlineData("ATXI 28R")]
     public void SurfaceClearance_SeizesTheGroundAxisOnly(string text)
     {
-        var parsed = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
         Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
         Assert.Equal(CommandDimension.Ground, CommandDescriber.GetCommandDimension(parsed.Value!));
     }
@@ -459,7 +459,7 @@ public class QueuedCommandDimensionTests
     [InlineData("LAND @H1")]
     public void LandingClearance_SeizesEveryAxis(string text)
     {
-        var parsed = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
         Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
         Assert.Equal(CommandDimension.All, CommandDescriber.GetCommandDimension(parsed.Value!));
     }
@@ -499,7 +499,7 @@ public class QueuedCommandDimensionTests
     [InlineData("CTOPP 270", CommandDimension.Ground | CommandDimension.Lateral)]
     public void TakeoffFamily_FiresTheAxesItAssigns(string text, CommandDimension expected)
     {
-        var parsed = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
         Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
         Assert.Equal(expected, CommandDescriber.GetCommandDimension(parsed.Value!));
     }
@@ -538,7 +538,7 @@ public class QueuedCommandDimensionTests
     [InlineData("FOLLOW")]
     public void LateralReplan_SeizesTheLateralAxisOnly(string text)
     {
-        var parsed = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
         Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
         Assert.Equal(CommandDimension.Lateral, CommandDescriber.GetCommandDimension(parsed.Value!));
     }
@@ -561,7 +561,7 @@ public class QueuedCommandDimensionTests
     /// <summary>A jet parked at OAK NEW7 in <see cref="AtParkingPhase"/> — the state a TAXI is issued from.</summary>
     private static AircraftState ParkedAtNew7(AirportGroundLayout layout)
     {
-        var parking = layout.Nodes.Values.FirstOrDefault(n =>
+        GroundNode? parking = layout.Nodes.Values.FirstOrDefault(n =>
             (n.Type == GroundNodeType.Parking || n.Type == GroundNodeType.Spot) && string.Equals(n.Name, "NEW7", StringComparison.OrdinalIgnoreCase)
         );
         Assert.NotNull(parking);
@@ -585,23 +585,28 @@ public class QueuedCommandDimensionTests
 
     private static void DispatchOnGround(string text, AircraftState ac, AirportGroundLayout layout, bool preserveConditionals)
     {
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
-        var ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false, groundLayout: layout, preserveConditionals: preserveConditionals);
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        DispatchContext ctx = TestDispatch.Context(
+            Random.Shared,
+            validateDctFixes: false,
+            groundLayout: layout,
+            preserveConditionals: preserveConditionals
+        );
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
         Assert.True(result.Success, $"dispatch failed for '{text}': {result.Message}");
     }
 
     [Fact]
     public void ChainedTaxiClearance_LeavesQueuedAirborneBlockAlone()
     {
-        var layout = OaklandLayout();
+        AirportGroundLayout? layout = OaklandLayout();
         if (layout is null)
         {
             return;
         }
 
-        var ac = ParkedAtNew7(layout);
+        AircraftState ac = ParkedAtNew7(layout);
         DispatchOnGround("AT 5000 SPD 180", ac, layout, preserveConditionals: false);
         DispatchOnGround(TaxiChain, ac, layout, preserveConditionals: false);
 
@@ -612,20 +617,20 @@ public class QueuedCommandDimensionTests
     [Fact]
     public void ChainedTaxiClearance_LeavesUntriggeredAirborneBlockAlone_OnReactionDelayPath()
     {
-        var layout = OaklandLayout();
+        AirportGroundLayout? layout = OaklandLayout();
         if (layout is null)
         {
             return;
         }
 
-        var ac = ParkedAtNew7(layout);
+        AircraftState ac = ParkedAtNew7(layout);
         DispatchOnGround("AT 5000 SPD 180; CM 7000", ac, layout, preserveConditionals: false);
 
         // The chained second block carries no trigger of its own, so the reaction-delay path below cannot
         // spare it as a pending conditional: SimulationEngine.DeferForReaction re-dispatches with
         // PreserveConditionals: true, which skips the clear-everything fast path and leaves the per-command
         // dimension test decisive for this block.
-        var climb = ac.Queue.Blocks.FirstOrDefault(b =>
+        CommandBlock? climb = ac.Queue.Blocks.FirstOrDefault(b =>
             (b.ParsedCommands ?? []).Any(c =>
                 c is not UnsupportedCommand && CommandDescriber.ToCanonicalType(c) == CanonicalCommandType.ClimbMaintain
             )
@@ -644,13 +649,13 @@ public class QueuedCommandDimensionTests
         // The half the narrowing must not break: a taxi clearance still supersedes queued surface work.
         // This passes on both sides of the change — before, the All/None fast path wiped the whole queue;
         // after, the incoming Ground overlaps the queued hold-short's Ground and the per-block test drops it.
-        var layout = OaklandLayout();
+        AirportGroundLayout? layout = OaklandLayout();
         if (layout is null)
         {
             return;
         }
 
-        var ac = ParkedAtNew7(layout);
+        AircraftState ac = ParkedAtNew7(layout);
         DispatchOnGround("AT 5000 HS 28L", ac, layout, preserveConditionals: false);
         DispatchOnGround(TaxiChain, ac, layout, preserveConditionals: false);
 
@@ -663,13 +668,13 @@ public class QueuedCommandDimensionTests
         // Same ordering contract on the surface side: the queued climb predates the taxi compound, so it
         // must not end up behind the compound's untriggered SQ — where the regime-B conditional scan stops
         // and would never examine it for the whole taxi.
-        var layout = OaklandLayout();
+        AirportGroundLayout? layout = OaklandLayout();
         if (layout is null)
         {
             return;
         }
 
-        var ac = ParkedAtNew7(layout);
+        AircraftState ac = ParkedAtNew7(layout);
         DispatchOnGround("AT 5000 CM 7000", ac, layout, preserveConditionals: false);
         DispatchOnGround("TAXI D; SQ 1234", ac, layout, preserveConditionals: false);
 
@@ -731,7 +736,7 @@ public class QueuedCommandDimensionTests
     [Fact]
     public void ChainedTakeoffClearance_LeavesQueuedDepartureTurnAlone()
     {
-        var ac = HoldingShortOf28RAtOakland();
+        AircraftState ac = HoldingShortOf28RAtOakland();
         Dispatch("AT 2000 TL 270", ac, preserveConditionals: false);
         Assert.True(StillQueued(ac, CanonicalCommandType.TurnLeft), "setup: the departure turn should be queued behind its AT trigger");
 
@@ -751,7 +756,7 @@ public class QueuedCommandDimensionTests
         // 4-4-10.g), so the queued turn goes — while a queued speed stays: §5-7-1.d names the clearances
         // that cancel a previously assigned speed (approach, and climb via/descend via) and a takeoff
         // clearance is not among them.
-        var ac = HoldingShortOf28RAtOakland();
+        AircraftState ac = HoldingShortOf28RAtOakland();
         Dispatch("AT 2000 TL 270", ac, preserveConditionals: false);
         Dispatch("AT 2000 SPD 210", ac, preserveConditionals: false);
 
@@ -786,10 +791,10 @@ public class QueuedCommandDimensionTests
 
     private static void DispatchWithArtccConfig(string text, AircraftState ac, ArtccConfigRoot artccConfig)
     {
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
-        var ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false, artccConfig: artccConfig);
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false, artccConfig: artccConfig);
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
         Assert.True(result.Success, $"dispatch failed for '{text}': {result.Message}");
     }
 
@@ -807,7 +812,7 @@ public class QueuedCommandDimensionTests
     /// </summary>
     private static void FlyTheDepartureClimb(AircraftState ac, int seconds)
     {
-        var runway = ac.Phases!.AssignedRunway!;
+        RunwayInfo runway = ac.Phases!.AssignedRunway!;
         ac.IsOnGround = false;
         ac.Position = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), runway.TrueHeading, 0.3);
         ac.TrueHeading = runway.TrueHeading;
@@ -842,13 +847,13 @@ public class QueuedCommandDimensionTests
         // stops at the first unapplied untriggered block while a phase is active (regime B) — never examines
         // it, its 1,000 ft trigger passes unseen during the departure climb, and the controller's altitude
         // is silently stranded in the queue: worse than the wipe this dimension change replaced.
-        var artccConfig = TestArtccConfig.LoadZoa();
+        ArtccConfigRoot? artccConfig = TestArtccConfig.LoadZoa();
         if (artccConfig is null)
         {
             return;
         }
 
-        var ac = HoldingShortOf28RAtOakland();
+        AircraftState ac = HoldingShortOf28RAtOakland();
         DispatchWithArtccConfig("AT 1000 CM 5000", ac, artccConfig);
         DispatchWithArtccConfig("CTO; SQ 1234", ac, artccConfig);
 
@@ -871,13 +876,13 @@ public class QueuedCommandDimensionTests
     [Fact]
     public void QueuedClimbSurvivingTheTakeoffClearance_OutranksThePublishedSidCap()
     {
-        var artccConfig = TestArtccConfig.LoadZoa();
+        ArtccConfigRoot? artccConfig = TestArtccConfig.LoadZoa();
         if (artccConfig is null)
         {
             return;
         }
 
-        var ac = HoldingShortOf28RAtOakland();
+        AircraftState ac = HoldingShortOf28RAtOakland();
         DispatchWithArtccConfig("AT 1000 CM 5000", ac, artccConfig);
         DispatchWithArtccConfig("CTO; AT 5000 SPD 250", ac, artccConfig);
 
@@ -908,7 +913,7 @@ public class QueuedCommandDimensionTests
     [Fact]
     public void LateralReplan_LeavesUntriggeredAltitudeAlone_OnReactionDelayPath()
     {
-        var ac = Airborne();
+        AircraftState ac = Airborne();
         Dispatch("AT 5000 SPD 180; CM 7000", ac, preserveConditionals: false);
         Dispatch("APT KSFO", ac, preserveConditionals: true);
 
@@ -925,7 +930,7 @@ public class QueuedCommandDimensionTests
     [Fact]
     public void RestoredSurfaceBlock_TakesItsDimensionsFromTheLiveTable()
     {
-        var parsed = CommandParser.Parse("HS 28L");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("HS 28L");
         Assert.True(parsed.IsSuccess, $"parse failed for 'HS 28L': {parsed.Reason}");
 
         // The snapshot an older build would have written: this block's own source text, and All for the
@@ -971,13 +976,13 @@ public class QueuedCommandDimensionTests
     [Fact]
     public void PreservedConditionalEntry_IsVisibleToTheDryRunClone()
     {
-        var ac = AirborneAtOakland();
+        AircraftState ac = AirborneAtOakland();
         Dispatch("AT 5000 ERD 28R", ac, preserveConditionals: false);
         Assert.True(StillQueued(ac, CanonicalCommandType.EnterRightDownwind), "setup: the pattern entry should be queued behind its AT trigger");
 
-        var parsed = CommandParser.ParseCompound("EXT DOWNWIND; CLAND 28R");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("EXT DOWNWIND; CLAND 28R");
         Assert.True(parsed.IsSuccess, $"parse failed: {parsed.Reason}");
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx(preserveConditionals: true));
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx(preserveConditionals: true));
 
         Assert.True(result.Success, $"EXT must arm against the preserved queued entry, but got: {result.Message}");
         Assert.True(StillQueued(ac, CanonicalCommandType.EnterRightDownwind), "the queued entry must survive the modifier that targets it");

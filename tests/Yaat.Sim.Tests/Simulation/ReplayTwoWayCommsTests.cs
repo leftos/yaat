@@ -38,8 +38,8 @@ public class ReplayTwoWayCommsTests(ITestOutputHelper output)
     [Fact]
     public void ReplayedVector_EstablishesTwoWayComms_NoBoundaryHold()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine($"Skipped: {RecordingPath} or test data not present");
@@ -49,7 +49,7 @@ public class ReplayTwoWayCommsTests(ITestOutputHelper output)
         // FH 150 lands at t=26; the buggy boundary hold fired at t=55. Replay well past it.
         engine.Replay(recording, 80);
 
-        var ac = engine.FindAircraft("N436MS");
+        AircraftState? ac = engine.FindAircraft("N436MS");
         Assert.NotNull(ac);
 
         output.WriteLine(

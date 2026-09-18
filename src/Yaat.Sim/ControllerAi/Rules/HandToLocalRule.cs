@@ -1,3 +1,4 @@
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.ControllerAi.Rules;
@@ -19,10 +20,10 @@ public sealed class HandToLocalRule : IDecisionRule
 
     public void Evaluate(AiRuleScope scope)
     {
-        foreach (var aircraft in scope.Jurisdiction)
+        foreach (AircraftState aircraft in scope.Jurisdiction)
         {
-            var memo = scope.MemoFor(aircraft);
-            var layout = scope.Tick.LayoutFor(aircraft);
+            AiAircraftMemo memo = scope.MemoFor(aircraft);
+            AirportGroundLayout? layout = scope.Tick.LayoutFor(aircraft);
             if (memo.Intent == GroundIntent.HandedToLocal || TaxiRouteProgress.DistanceToDestinationBarFt(aircraft, layout) is not { } distanceFt)
             {
                 memo.ForgetObservation(Name);
@@ -40,7 +41,7 @@ public sealed class HandToLocalRule : IDecisionRule
                 continue;
             }
 
-            var airport = PilotContactRoster.SurfaceAirportOf(aircraft);
+            string? airport = PilotContactRoster.SurfaceAirportOf(aircraft);
             if (LocalCallsign(scope, airport) is not { } local)
             {
                 continue;
@@ -62,12 +63,12 @@ public sealed class HandToLocalRule : IDecisionRule
             return null;
         }
 
-        if (_localByAirport.TryGetValue(airport, out var cached))
+        if (_localByAirport.TryGetValue(airport, out string? cached))
         {
             return cached;
         }
 
-        var callsign = CabStaffing.LocalCatalog(scope, airport).FirstOrDefault()?.Callsign;
+        string? callsign = CabStaffing.LocalCatalog(scope, airport).FirstOrDefault()?.Callsign;
         _localByAirport[airport] = callsign;
         return callsign;
     }

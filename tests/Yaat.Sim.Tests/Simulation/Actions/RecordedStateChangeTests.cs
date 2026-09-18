@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Soak;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.ControllerAi;
@@ -35,8 +36,8 @@ public class RecordedStateChangeTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
         scenario.StudentTcp = TrackResolver.FindTcpByCode(scenario, "3O")!;
         return engine;
@@ -62,16 +63,18 @@ public class RecordedStateChangeTests
             return;
         }
 
-        var scenario = engine.Scenario!;
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
-        var recipient = scenario.StudentTcp!;
-        var sender = TrackResolver.FindTcpByCode(scenario, "4U")!;
+        SimScenarioState scenario = engine.Scenario!;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        Tcp recipient = scenario.StudentTcp!;
+        Tcp sender = TrackResolver.FindTcpByCode(scenario, "4U")!;
         ac.Track.Pointout = new StarsPointout(recipient, sender) { Status = StarsPointoutStatus.Accepted };
 
-        var applied = engine.Actions.ApplyRecorded(new RecordedStarsSharedStateChange(0, ac.Callsign, recipient.Id, Shared(recentlyAccepted: true)));
+        CommandResult applied = engine.Actions.ApplyRecorded(
+            new RecordedStarsSharedStateChange(0, ac.Callsign, recipient.Id, Shared(recentlyAccepted: true))
+        );
 
         Assert.True(applied.Success, applied.Message);
-        var stored = ac.Stars.SharedState[recipient.Id];
+        StarsTrackSharedState stored = ac.Stars.SharedState[recipient.Id];
         Assert.True(stored.ForceFdb);
         Assert.Equal(7, stored.LeaderDirection);
         Assert.Equal(3.5, stored.TpaSize);
@@ -92,7 +95,7 @@ public class RecordedStateChangeTests
             return;
         }
 
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Clearance.Expect = "STALE";
         var clearance = new AircraftClearanceDto
         {
@@ -101,7 +104,7 @@ public class RecordedStateChangeTests
             DepFreq = "135.1",
         };
 
-        var applied = engine.Actions.ApplyRecorded(new RecordedClearanceChange(0, ac.Callsign, clearance));
+        CommandResult applied = engine.Actions.ApplyRecorded(new RecordedClearanceChange(0, ac.Callsign, clearance));
 
         Assert.True(applied.Success, applied.Message);
         Assert.Null(ac.Clearance.Expect);
@@ -118,7 +121,7 @@ public class RecordedStateChangeTests
             return;
         }
 
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         var hold = new AircraftHoldAnnotationDto
         {
             Fix = "OAK",
@@ -152,13 +155,13 @@ public class RecordedStateChangeTests
             return;
         }
 
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
 
-        var track = engine.Actions.ApplyRecorded(new RecordedEramEntry(0, ac.Callsign, "TRACK", "3O"));
+        CommandResult track = engine.Actions.ApplyRecorded(new RecordedEramEntry(0, ac.Callsign, "TRACK", "3O"));
         Assert.True(track.Success, track.Message);
         Assert.Equal(engine.Scenario!.StudentPosition, ac.Track.Owner);
 
-        var heading = engine.Actions.ApplyRecorded(new RecordedEramEntry(1, ac.Callsign, "QS 270", null));
+        CommandResult heading = engine.Actions.ApplyRecorded(new RecordedEramEntry(1, ac.Callsign, "QS 270", null));
         Assert.True(heading.Success, heading.Message);
         Assert.Equal("H270", ac.Eram.AssignedHeading);
     }
@@ -174,7 +177,7 @@ public class RecordedStateChangeTests
         var host = new AttendanceActionHost();
         var group = new RecordedEramCrrGroup(0, "ABC", "Yellow", 37.5, -122.0);
 
-        var applied = engine.Actions.ApplyRecorded(group, host);
+        CommandResult applied = engine.Actions.ApplyRecorded(group, host);
 
         Assert.True(applied.Success, applied.Message);
         Assert.Equal("ABC", Assert.Single(engine.CrrGroups.Values).Label);
@@ -192,10 +195,10 @@ public class RecordedStateChangeTests
         var host = new AttendanceActionHost();
         var request = new RecordedStripRequest(0, AiTestFixture.Callsign, null, $"STRIP_{AiTestFixture.Callsign}");
 
-        var applied = engine.Actions.ApplyRecorded(request, host);
+        CommandResult applied = engine.Actions.ApplyRecorded(request, host);
 
         Assert.True(applied.Success, applied.Message);
-        var printed = Assert.Single(engine.Strips.Items.Values);
+        StripItemRecord printed = Assert.Single(engine.Strips.Items.Values);
         Assert.Equal($"STRIP_{AiTestFixture.Callsign}", printed.Id);
         Assert.Equal([printed.Id], engine.Strips.DeparturePrinterQueue);
     }
@@ -209,16 +212,16 @@ public class RecordedStateChangeTests
         }
 
         using var tap = new CapturingSimLogProvider(LogLevel.Warning, 100);
-        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
         SimLog.InitializeForTest(factory);
 
         var host = new AttendanceActionHost();
 
         // The aircraft is gone, so the print body refuses — the same verdict the live room reached.
-        var applied = engine.Actions.ApplyRecorded(new RecordedStripRequest(0, "NOPE1", null, "STRIP_NOPE1"), host);
+        CommandResult applied = engine.Actions.ApplyRecorded(new RecordedStripRequest(0, "NOPE1", null, "STRIP_NOPE1"), host);
 
         Assert.False(applied.Success);
-        var warning = Assert.Single(tap.Drain(), r => r.Category == "ActionRouter");
+        CapturedLogRecord warning = Assert.Single(tap.Drain(), r => r.Category == "ActionRouter");
         Assert.Contains("replay-fidelity", warning.Message);
         Assert.Contains("NOPE1", warning.Message);
     }
@@ -234,7 +237,7 @@ public class RecordedStateChangeTests
         var host = new AttendanceActionHost();
         var change = new RecordedAsdexSafetyLogicChange(0, "OAK", """{"Runways":[],"RunwayConfigurationId":"WEST"}""");
 
-        var applied = engine.Actions.ApplyRecorded(change, host);
+        CommandResult applied = engine.Actions.ApplyRecorded(change, host);
 
         Assert.True(applied.Success, applied.Message);
         Assert.Same(change, Assert.Single(host.AsdexSafetyLogicChanges));
@@ -249,13 +252,13 @@ public class RecordedStateChangeTests
         }
 
         using var tap = new CapturingSimLogProvider(LogLevel.Warning, 100);
-        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
         SimLog.InitializeForTest(factory);
 
-        var applied = engine.Actions.ApplyRecorded(new RecordedClearanceChange(0, "NOPE1", new AircraftClearanceDto()));
+        CommandResult applied = engine.Actions.ApplyRecorded(new RecordedClearanceChange(0, "NOPE1", new AircraftClearanceDto()));
 
         Assert.False(applied.Success);
-        var warning = Assert.Single(tap.Drain(), r => r.Category == "ActionRouter");
+        CapturedLogRecord warning = Assert.Single(tap.Drain(), r => r.Category == "ActionRouter");
         Assert.Contains("replay-fidelity", warning.Message);
         Assert.Contains("NOPE1", warning.Message);
     }
@@ -268,17 +271,17 @@ public class RecordedStateChangeTests
             return;
         }
 
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
-        var log = engine.Scenario!.ActionLog;
-        var before = log.Count;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        List<RecordedAction> log = engine.Scenario!.ActionLog;
+        int before = log.Count;
 
-        var refused = engine.Actions.IssueDerived(new RecordedEramEntry(0, ac.Callsign, "QS 400", null));
+        CommandResult refused = engine.Actions.IssueDerived(new RecordedEramEntry(0, ac.Callsign, "QS 400", null));
         Assert.False(refused.Success);
         Assert.Equal(before, log.Count);
 
-        var applied = engine.Actions.IssueDerived(new RecordedEramEntry(0, ac.Callsign, "QS 270", null));
+        CommandResult applied = engine.Actions.IssueDerived(new RecordedEramEntry(0, ac.Callsign, "QS 270", null));
         Assert.True(applied.Success, applied.Message);
-        var recorded = Assert.IsType<RecordedEramEntry>(log[^1]);
+        RecordedEramEntry recorded = Assert.IsType<RecordedEramEntry>(log[^1]);
         Assert.Equal("QS 270", recorded.Entry);
         Assert.Equal(before + 1, log.Count);
     }

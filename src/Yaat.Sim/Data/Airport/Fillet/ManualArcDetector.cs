@@ -10,7 +10,7 @@ public static class ManualArcDetector
     public static HashSet<int> Detect(AirportGroundLayout layout)
     {
         var excluded = new HashSet<int>();
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (IsShapePointNode(node))
             {

@@ -13,10 +13,10 @@ public class RepositionCommandParseTests
     [Fact]
     public void ParsesRposLoc()
     {
-        var result = CommandParser.Parse("RPOSLOC N123 37.5 -122.3");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("RPOSLOC N123 37.5 -122.3");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var cmd = Assert.IsType<RepositionToLocationCommand>(result.Value);
+        RepositionToLocationCommand cmd = Assert.IsType<RepositionToLocationCommand>(result.Value);
         Assert.Equal("N123", cmd.Callsign);
         Assert.Equal(37.5, cmd.Latitude, 6);
         Assert.Equal(-122.3, cmd.Longitude, 6);
@@ -25,10 +25,10 @@ public class RepositionCommandParseTests
     [Fact]
     public void ParsesRposMove()
     {
-        var result = CommandParser.Parse("RPOSMOVE N1 N2");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("RPOSMOVE N1 N2");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var cmd = Assert.IsType<RepositionMoveCommand>(result.Value);
+        RepositionMoveCommand cmd = Assert.IsType<RepositionMoveCommand>(result.Value);
         Assert.Equal("N1", cmd.FromCallsign);
         Assert.Equal("N2", cmd.ToCallsign);
     }

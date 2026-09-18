@@ -61,11 +61,11 @@ public partial class InlineTextEditPopup : UserControl
         {
             return;
         }
-        var replaced = text.Replace('?', '✓');
+        string replaced = text.Replace('?', '✓');
         // Preserve caret position across the replacement so the user keeps
         // typing at the same logical spot. '?' and '✓' are both single UTF-16
         // code units, so offsets are stable.
-        var caret = EditTextBox.CaretIndex;
+        int caret = EditTextBox.CaretIndex;
         EditTextBox.Text = replaced;
         EditTextBox.CaretIndex = Math.Min(caret, replaced.Length);
     }
@@ -88,7 +88,7 @@ public partial class InlineTextEditPopup : UserControl
 
     private void Commit()
     {
-        var value = EditTextBox.Text ?? "";
+        string value = EditTextBox.Text ?? "";
         EditPopup.IsOpen = false;
         _onCommit?.Invoke(value);
         _onCommit = null;

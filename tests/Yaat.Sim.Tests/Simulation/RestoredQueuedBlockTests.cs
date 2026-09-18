@@ -47,7 +47,7 @@ public class RestoredQueuedBlockTests(ITestOutputHelper output)
     [Fact]
     public void QueuedBlock_WithoutRestore_AppliesAtTheFix()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -58,7 +58,7 @@ public class RestoredQueuedBlockTests(ITestOutputHelper output)
 
         Assert.True(FlyUntilQueueDrains(engine, "TSR001"), "aircraft never reached VPCOL");
 
-        var ac = engine.FindAircraft("TSR001");
+        AircraftState? ac = engine.FindAircraft("TSR001");
         Assert.NotNull(ac);
         Assert.Equal(90, ac.Targets.AssignedMagneticHeading?.ToDisplayInt());
     }
@@ -71,7 +71,7 @@ public class RestoredQueuedBlockTests(ITestOutputHelper output)
     [Fact]
     public void QueuedBlock_AfterSnapshotRestore_StillAppliesAtTheFix()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -84,7 +84,7 @@ public class RestoredQueuedBlockTests(ITestOutputHelper output)
 
         Assert.True(FlyUntilQueueDrains(engine, "TSR002"), "aircraft never reached VPCOL");
 
-        var ac = engine.FindAircraft("TSR002");
+        AircraftState? ac = engine.FindAircraft("TSR002");
         Assert.NotNull(ac);
         Assert.Equal(90, ac.Targets.AssignedMagneticHeading?.ToDisplayInt());
     }
@@ -97,7 +97,7 @@ public class RestoredQueuedBlockTests(ITestOutputHelper output)
     [Fact]
     public void QueuedPatternEntry_AfterSnapshotRestore_BuildsItsCircuit()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -110,7 +110,7 @@ public class RestoredQueuedBlockTests(ITestOutputHelper output)
 
         Assert.True(FlyUntilQueueDrains(engine, "TSR003"), "aircraft never reached VPCOL");
 
-        var ac = engine.FindAircraft("TSR003");
+        AircraftState? ac = engine.FindAircraft("TSR003");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
         Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
@@ -119,7 +119,7 @@ public class RestoredQueuedBlockTests(ITestOutputHelper output)
     /// <summary>Replaces the live aircraft with a snapshot round-trip of itself, as a rewind would.</summary>
     private static void RestoreThroughSnapshot(SimulationEngine engine, string callsign)
     {
-        var live = engine.FindAircraft(callsign);
+        AircraftState? live = engine.FindAircraft(callsign);
         Assert.NotNull(live);
 
         var restored = AircraftState.FromSnapshot(live.ToSnapshot(), null);
@@ -138,7 +138,7 @@ public class RestoredQueuedBlockTests(ITestOutputHelper output)
         for (int t = 1; t <= 900; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(callsign);
+            AircraftState? ac = engine.FindAircraft(callsign);
             if (ac is null)
             {
                 return false;

@@ -14,7 +14,7 @@ public sealed class HexColorConverter : IValueConverter
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (value is string hex && Color.TryParse(hex, out var color))
+        if (value is string hex && Color.TryParse(hex, out Color color))
         {
             return color;
         }

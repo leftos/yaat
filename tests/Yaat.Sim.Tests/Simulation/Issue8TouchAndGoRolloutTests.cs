@@ -61,7 +61,7 @@ public class Issue8TouchAndGoRolloutTests(ITestOutputHelper output)
     [Fact]
     public void N342T_TouchAndGoRollout_StaysOnGroundLongEnough()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -69,8 +69,8 @@ public class Issue8TouchAndGoRolloutTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -78,7 +78,7 @@ public class Issue8TouchAndGoRolloutTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAt);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAt);
             if (snapshot is null)
             {
                 output.WriteLine($"No snapshot near t={RestoreAt} — skipping");
@@ -98,7 +98,7 @@ public class Issue8TouchAndGoRolloutTests(ITestOutputHelper output)
             {
                 engine.ReplayOneSecond();
                 int now = snapshotTime + dt;
-                var ac = engine.FindAircraft(Callsign);
+                AircraftState? ac = engine.FindAircraft(Callsign);
                 Assert.NotNull(ac);
 
                 if (ac.Phases?.CurrentPhase is TouchAndGoPhase tg)

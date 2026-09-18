@@ -35,24 +35,24 @@ public class FavoritesPanelHeaderLayoutTests
         };
         window.ShowAndRunLayout();
 
-        var columnsBox = view.GetVisualDescendants().OfType<NumericUpDown>().Single();
+        NumericUpDown columnsBox = view.GetVisualDescendants().OfType<NumericUpDown>().Single();
         return (window, view, columnsBox);
     }
 
     [AvaloniaFact]
     public void ColumnsSpinner_ButtonsFitInsideControlBounds()
     {
-        var (window, _, columnsBox) = ShowPalette();
+        (Window? window, FavoritesBarView _, NumericUpDown? columnsBox) = ShowPalette();
         try
         {
             var spinnerButtons = columnsBox.GetVisualDescendants().OfType<RepeatButton>().ToList();
             Assert.Equal(2, spinnerButtons.Count);
 
-            foreach (var button in spinnerButtons)
+            foreach (RepeatButton? button in spinnerButtons)
             {
-                var origin = button.TranslatePoint(new Point(0, 0), columnsBox);
+                Point? origin = button.TranslatePoint(new Point(0, 0), columnsBox);
                 Assert.NotNull(origin);
-                var rightEdge = origin.Value.X + button.Bounds.Width;
+                double rightEdge = origin.Value.X + button.Bounds.Width;
                 Assert.True(
                     (origin.Value.X >= -Epsilon) && (rightEdge <= columnsBox.Bounds.Width + Epsilon),
                     $"Spinner button '{button.Name}' spans x=[{origin.Value.X:F1}, {rightEdge:F1}] "
@@ -69,10 +69,10 @@ public class FavoritesPanelHeaderLayoutTests
     [AvaloniaFact]
     public void ColumnsSpinner_ValueTextIsVisible()
     {
-        var (window, _, columnsBox) = ShowPalette();
+        (Window? window, FavoritesBarView _, NumericUpDown? columnsBox) = ShowPalette();
         try
         {
-            var textBox = columnsBox.GetVisualDescendants().OfType<TextBox>().Single();
+            TextBox textBox = columnsBox.GetVisualDescendants().OfType<TextBox>().Single();
             Assert.True(textBox.Bounds.Width >= 20, $"Value TextBox is only {textBox.Bounds.Width:F1}px wide — the column count is not visible");
         }
         finally
@@ -84,17 +84,17 @@ public class FavoritesPanelHeaderLayoutTests
     [AvaloniaFact]
     public void ColumnsSpinner_HasSameGapFromBlankButtonAsOtherHeaderControls()
     {
-        var (window, view, columnsBox) = ShowPalette();
+        (Window? window, FavoritesBarView? view, NumericUpDown? columnsBox) = ShowPalette();
         try
         {
-            var blankButton = view.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == "Blank");
+            Button blankButton = view.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == "Blank");
 
-            var blankOrigin = blankButton.TranslatePoint(new Point(0, 0), view);
-            var boxOrigin = columnsBox.TranslatePoint(new Point(0, 0), view);
+            Point? blankOrigin = blankButton.TranslatePoint(new Point(0, 0), view);
+            Point? boxOrigin = columnsBox.TranslatePoint(new Point(0, 0), view);
             Assert.NotNull(blankOrigin);
             Assert.NotNull(boxOrigin);
 
-            var gap = boxOrigin.Value.X - (blankOrigin.Value.X + blankButton.Bounds.Width);
+            double gap = boxOrigin.Value.X - (blankOrigin.Value.X + blankButton.Bounds.Width);
             Assert.True(gap >= 8 - Epsilon, $"Gap between the Blank button and the Cols spinner is {gap:F1}px; header controls keep an 8px gap");
         }
         finally

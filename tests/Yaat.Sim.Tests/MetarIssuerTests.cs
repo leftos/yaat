@@ -25,7 +25,7 @@ public class MetarIssuerTests
     [Fact]
     public void Construction_ReportsBaseMetarsVerbatim()
     {
-        var w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
+        WeatherProfile w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
         var issuer = new MetarIssuer(w, Anchor, 0, NoLocator);
         Assert.Equal("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992", Assert.Single(issuer.Reports));
     }
@@ -33,7 +33,7 @@ public class MetarIssuerTests
     [Fact]
     public void Tick_BeforeRoutineMinute_NoReissue()
     {
-        var w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
+        WeatherProfile w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
         var issuer = new MetarIssuer(w, Anchor, 0, NoLocator);
         Assert.False(issuer.Tick(600, w, NoLocator)); // 18:50, unchanged
     }
@@ -41,10 +41,10 @@ public class MetarIssuerTests
     [Fact]
     public void Tick_AtRoutineMinute_ReissuesRoutineWithNewStamp()
     {
-        var w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
+        WeatherProfile w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
         var issuer = new MetarIssuer(w, Anchor, 0, NoLocator);
         Assert.True(issuer.Tick(13 * 60, w, NoLocator)); // 18:53
-        var report = Assert.Single(issuer.Reports);
+        string report = Assert.Single(issuer.Reports);
         Assert.StartsWith("METAR KOAK 011853Z", report);
         Assert.Contains("27012KT", report);
     }
@@ -52,11 +52,11 @@ public class MetarIssuerTests
     [Fact]
     public void Tick_SignificantChange_IssuesSpeci()
     {
-        var w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
+        WeatherProfile w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
         var issuer = new MetarIssuer(w, Anchor, 0, NoLocator);
-        var low = Weather("KOAK 011841Z 27012KT 2SM BR CLR 18/12 A2992"); // vis crosses 3
+        WeatherProfile low = Weather("KOAK 011841Z 27012KT 2SM BR CLR 18/12 A2992"); // vis crosses 3
         Assert.True(issuer.Tick(60, low, NoLocator)); // 18:41, before routine
-        var report = Assert.Single(issuer.Reports);
+        string report = Assert.Single(issuer.Reports);
         Assert.StartsWith("SPECI KOAK 011841Z", report);
         Assert.Contains("2SM", report);
     }
@@ -64,9 +64,9 @@ public class MetarIssuerTests
     [Fact]
     public void Tick_AfterSpeci_RebaselinesAndHolds()
     {
-        var w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
+        WeatherProfile w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
         var issuer = new MetarIssuer(w, Anchor, 0, NoLocator);
-        var low = Weather("KOAK 011841Z 27012KT 2SM BR CLR 18/12 A2992");
+        WeatherProfile low = Weather("KOAK 011841Z 27012KT 2SM BR CLR 18/12 A2992");
         Assert.True(issuer.Tick(60, low, NoLocator)); // SPECI
         Assert.False(issuer.Tick(120, low, NoLocator)); // no further change since last issued
     }
@@ -75,10 +75,10 @@ public class MetarIssuerTests
     public void Tick_PrefersPhysicsSurfaceWind_OverBaseMetarWind()
     {
         // Base METAR says 09005KT, but the physics surface layer is 270/12.
-        var w = Weather("KOAK 011840Z 09005KT 10SM CLR 18/12 A2992", dir: 270, speed: 12);
+        WeatherProfile w = Weather("KOAK 011840Z 09005KT 10SM CLR 18/12 A2992", dir: 270, speed: 12);
         var issuer = new MetarIssuer(w, Anchor, 0, NoLocator);
         Assert.True(issuer.Tick(13 * 60, w, NoLocator)); // routine
-        var report = Assert.Single(issuer.Reports);
+        string report = Assert.Single(issuer.Reports);
         Assert.Contains("27012KT", report);
         Assert.DoesNotContain("09005KT", report);
     }
@@ -109,10 +109,10 @@ public class MetarIssuerTests
     {
         // 210/15 gusting 25 with a ±35° authored spread: the observed report should carry
         // a gust group and a dddVddd group derived from the simulated field.
-        var w = GustyWeather("KOAK 011840Z 21015KT 10SM CLR 18/12 A2992", halfSpread: 35, gusts: 25);
+        WeatherProfile w = GustyWeather("KOAK 011840Z 21015KT 10SM CLR 18/12 A2992", halfSpread: 35, gusts: 25);
         var issuer = new MetarIssuer(w, Anchor, 0, NoLocator);
         Assert.True(issuer.Tick(13 * 60, w, NoLocator)); // routine at 18:53
-        var report = Assert.Single(issuer.Reports);
+        string report = Assert.Single(issuer.Reports);
         // The envelope groups are deterministic (authored gust; authored 210±35 arc → 180V250
         // after rounding); the observed 2-minute mean direction/speed legitimately wander a
         // little between reports, so only their shape is pinned.
@@ -138,7 +138,7 @@ public class MetarIssuerTests
         };
         var issuer = new MetarIssuer(w, Anchor, 0, NoLocator);
         Assert.True(issuer.Tick(13 * 60, w, NoLocator));
-        var report = Assert.Single(issuer.Reports);
+        string report = Assert.Single(issuer.Reports);
         Assert.Contains("VRB04KT", report);
     }
 
@@ -149,7 +149,7 @@ public class MetarIssuerTests
         var w = new WeatherProfile { Metars = ["KOAK 011840Z VRB15KT 10SM CLR 18/12 A2992"] };
         var issuer = new MetarIssuer(w, Anchor, 0, NoLocator);
         Assert.True(issuer.Tick(13 * 60, w, NoLocator));
-        var report = Assert.Single(issuer.Reports);
+        string report = Assert.Single(issuer.Reports);
         Assert.Contains("VRB15KT", report);
         Assert.DoesNotContain("00000KT", report);
     }
@@ -158,10 +158,10 @@ public class MetarIssuerTests
     public void Tick_SteadyLayer_NoSpuriousGroups()
     {
         // No authored variability: the observed report stays a plain wind group.
-        var w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
+        WeatherProfile w = Weather("KOAK 011840Z 27012KT 10SM CLR 18/12 A2992");
         var issuer = new MetarIssuer(w, Anchor, 0, NoLocator);
         Assert.True(issuer.Tick(13 * 60, w, NoLocator));
-        var report = Assert.Single(issuer.Reports);
+        string report = Assert.Single(issuer.Reports);
         Assert.Contains("27012KT", report);
         Assert.DoesNotContain("VRB", report);
         Assert.DoesNotContain("G", report.Split("KT")[0][^6..]); // no gust group inside the wind group
@@ -173,7 +173,7 @@ public class MetarIssuerTests
         // 60 minutes of a gusty variable wind with a static configured mean must never
         // produce an off-cycle SPECI: the 2-minute mean direction wanders, but stays well
         // inside the 45° wind-shift criterion, and gust-group changes are not SPECI-worthy.
-        var w = GustyWeather("KOAK 011753Z 21015KT 10SM CLR 18/12 A2992", halfSpread: 30, gusts: 25);
+        WeatherProfile w = GustyWeather("KOAK 011753Z 21015KT 10SM CLR 18/12 A2992", halfSpread: 30, gusts: 25);
         // Anchor just past :53 so no routine issuance lands inside the hour under test.
         var anchor = new DateTime(2026, 6, 1, 17, 54, 0, DateTimeKind.Utc);
         var issuer = new MetarIssuer(w, anchor, 0, NoLocator);
@@ -195,7 +195,7 @@ public class MetarIssuerTests
         // Built an hour into the session: the observation clock reads 18:00 (session start plus
         // elapsed), and the 17:53 routine fell inside the session, so the rebuilt issuer already
         // carries that routine and the first tick re-issues nothing.
-        var w = Weather("KOAK 011653Z 27012KT 10SM CLR 18/12 A2992");
+        WeatherProfile w = Weather("KOAK 011653Z 27012KT 10SM CLR 18/12 A2992");
         var sessionStart = new DateTime(2026, 6, 1, 17, 0, 0, DateTimeKind.Utc);
         var issuer = new MetarIssuer(w, sessionStart, 3600, NoLocator);
 
@@ -211,7 +211,7 @@ public class MetarIssuerTests
     {
         // 17:30: the most recent :53 (16:53) fell before the session started, so there is no
         // routine to carry and the rebuilt issuer reports the loaded strings verbatim.
-        var w = Weather("KOAK 011653Z 27012KT 10SM CLR 18/12 A2992");
+        WeatherProfile w = Weather("KOAK 011653Z 27012KT 10SM CLR 18/12 A2992");
         var sessionStart = new DateTime(2026, 6, 1, 17, 0, 0, DateTimeKind.Utc);
         var issuer = new MetarIssuer(w, sessionStart, 1800, NoLocator);
 
@@ -223,7 +223,7 @@ public class MetarIssuerTests
     {
         // Rebuilt at 17:53:00 exactly: the routine falling on the construction second is composed,
         // not silently marked issued — the next tick has nothing left to do.
-        var w = Weather("KOAK 011653Z 27012KT 10SM CLR 18/12 A2992");
+        WeatherProfile w = Weather("KOAK 011653Z 27012KT 10SM CLR 18/12 A2992");
         var sessionStart = new DateTime(2026, 6, 1, 17, 0, 0, DateTimeKind.Utc);
         var issuer = new MetarIssuer(w, sessionStart, 53 * 60, NoLocator);
 

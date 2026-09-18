@@ -22,7 +22,7 @@ public class PathPrimitiveBuilderTests
         // Two nodes 100 ft apart heading east from anchor (37.0, -122.0).
         const double fromLat = 37.0;
         const double fromLon = -122.0;
-        var (toLat, toLon) = GeoMath.ProjectPoint(fromLat, fromLon, new TrueHeading(90.0), 100.0 / GeoMath.FeetPerNm);
+        (double toLat, double toLon) = GeoMath.ProjectPoint(fromLat, fromLon, new TrueHeading(90.0), 100.0 / GeoMath.FeetPerNm);
 
         var fromNode = new GroundNode
         {
@@ -50,9 +50,9 @@ public class PathPrimitiveBuilderTests
         };
         var segment = new TaxiRouteSegment { Edge = directed, TaxiwayName = "A" };
 
-        var primitive = PathPrimitiveBuilder.FromSegment(segment);
+        PathPrimitive primitive = PathPrimitiveBuilder.FromSegment(segment);
 
-        var straight = Assert.IsType<PathPrimitiveStraight>(primitive);
+        PathPrimitiveStraight straight = Assert.IsType<PathPrimitiveStraight>(primitive);
         Assert.Equal(PathPrimitiveKind.Straight, straight.Kind);
         Assert.Equal(2, straight.ToNodeId);
         Assert.Equal(fromLat, straight.FromLat);
@@ -71,7 +71,7 @@ public class PathPrimitiveBuilderTests
         // from the underlying edge direction.
         const double aLat = 37.0;
         const double aLon = -122.0;
-        var (bLat, bLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 100.0 / GeoMath.FeetPerNm);
+        (double bLat, double bLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 100.0 / GeoMath.FeetPerNm);
 
         var aNode = new GroundNode
         {
@@ -100,9 +100,9 @@ public class PathPrimitiveBuilderTests
         };
         var segment = new TaxiRouteSegment { Edge = directed, TaxiwayName = "A" };
 
-        var primitive = PathPrimitiveBuilder.FromSegment(segment);
+        PathPrimitive primitive = PathPrimitiveBuilder.FromSegment(segment);
 
-        var straight = Assert.IsType<PathPrimitiveStraight>(primitive);
+        PathPrimitiveStraight straight = Assert.IsType<PathPrimitiveStraight>(primitive);
         Assert.Equal(1, straight.ToNodeId);
         // Bearing from B to A is 270° (west) since B is east of A.
         Assert.InRange(straight.BearingDeg, 269.9, 270.1);
@@ -113,18 +113,18 @@ public class PathPrimitiveBuilderTests
     [Fact]
     public void FromSegment_Arc_ProducesBezierTerminatingExactlyOnToNode()
     {
-        var segment = MakeArc90Segment(reversed: false);
+        TaxiRouteSegment segment = MakeArc90Segment(reversed: false);
 
-        var primitive = PathPrimitiveBuilder.FromSegment(segment);
+        PathPrimitive primitive = PathPrimitiveBuilder.FromSegment(segment);
 
-        var bez = Assert.IsType<PathPrimitiveBezier>(primitive);
+        PathPrimitiveBezier bez = Assert.IsType<PathPrimitiveBezier>(primitive);
         Assert.Equal(PathPrimitiveKind.Bezier, bez.Kind);
         Assert.Equal(11, bez.ToNodeId);
 
         // The curve is oriented from→to: t=0 is the from-node, t=1 is the to-node.
-        var (lat0, lon0) = bez.Curve.Evaluate(0.0);
-        var (lat1, lon1) = bez.Curve.Evaluate(1.0);
-        var seg = segment.Edge;
+        (double lat0, double lon0) = bez.Curve.Evaluate(0.0);
+        (double lat1, double lon1) = bez.Curve.Evaluate(1.0);
+        DirectionalEdge seg = segment.Edge;
         double startErrFt = GeoMath.DistanceNm(lat0, lon0, seg.FromNode.Position.Lat, seg.FromNode.Position.Lon) * GeoMath.FeetPerNm;
         double endErrFt = GeoMath.DistanceNm(lat1, lon1, seg.ToNode.Position.Lat, seg.ToNode.Position.Lon) * GeoMath.FeetPerNm;
         Assert.True(startErrFt < 0.1, $"curve start off the from-node by {startErrFt:F3}ft");
@@ -132,7 +132,7 @@ public class PathPrimitiveBuilderTests
 
         // Arc-length playback (the navigator's algorithm: step t by ds / |B'(t)|) must reach the
         // to-node, not stop short like the min-radius-circle approximation does.
-        var (endLat, endLon, traveledFt) = PlayBezier(bez);
+        (double endLat, double endLon, double traveledFt) = PlayBezier(bez);
         double playErrFt = GeoMath.DistanceNm(endLat, endLon, seg.ToNode.Position.Lat, seg.ToNode.Position.Lon) * GeoMath.FeetPerNm;
         Assert.True(playErrFt < 1.0, $"arc-length playback ended {playErrFt:F2}ft from the to-node");
         Assert.InRange(traveledFt, bez.LengthFt * 0.95, bez.LengthFt * 1.05);
@@ -141,18 +141,18 @@ public class PathPrimitiveBuilderTests
     [Fact]
     public void FromSegment_ArcReversed_OrientsCurveFromTraversalStart()
     {
-        var segment = MakeArc90Segment(reversed: true);
+        TaxiRouteSegment segment = MakeArc90Segment(reversed: true);
 
-        var bez = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegment(segment));
+        PathPrimitiveBezier bez = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegment(segment));
         Assert.Equal(10, bez.ToNodeId);
 
         // Reversed traversal: t=0 must be the traversal from-node (node 11), t=1 the to-node (node 10).
-        var (lat0, lon0) = bez.Curve.Evaluate(0.0);
-        var seg = segment.Edge;
+        (double lat0, double lon0) = bez.Curve.Evaluate(0.0);
+        DirectionalEdge seg = segment.Edge;
         double startErrFt = GeoMath.DistanceNm(lat0, lon0, seg.FromNode.Position.Lat, seg.FromNode.Position.Lon) * GeoMath.FeetPerNm;
         Assert.True(startErrFt < 0.1, $"reversed curve start off the traversal from-node by {startErrFt:F3}ft");
 
-        var (endLat, endLon, _) = PlayBezier(bez);
+        (double endLat, double endLon, double _) = PlayBezier(bez);
         double playErrFt = GeoMath.DistanceNm(endLat, endLon, seg.ToNode.Position.Lat, seg.ToNode.Position.Lon) * GeoMath.FeetPerNm;
         Assert.True(playErrFt < 1.0, $"reversed playback ended {playErrFt:F2}ft from the to-node");
     }
@@ -169,7 +169,7 @@ public class PathPrimitiveBuilderTests
             t = speedFt > 1e-6 ? Math.Min(1.0, t + (stepFt / speedFt)) : 1.0;
             traveledFt += stepFt;
         }
-        var (lat, lon) = bez.Curve.Evaluate(Math.Min(t, 1.0));
+        (double lat, double lon) = bez.Curve.Evaluate(Math.Min(t, 1.0));
         return (lat, lon, traveledFt);
     }
 
@@ -185,12 +185,12 @@ public class PathPrimitiveBuilderTests
         const double radiusFt = 70.0;
         double rNm = radiusFt / GeoMath.FeetPerNm;
 
-        var (centerLat, centerLon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(90.0), rNm);
-        var (p3Lat, p3Lon) = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(0.0), rNm);
+        (double centerLat, double centerLon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(90.0), rNm);
+        (double p3Lat, double p3Lon) = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(0.0), rNm);
 
         double kappa = (4.0 / 3.0) * Math.Tan(Math.PI / 8.0);
-        var (p1Lat, p1Lon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(0.0), kappa * rNm);
-        var (p2Lat, p2Lon) = GeoMath.ProjectPoint(p3Lat, p3Lon, new TrueHeading(270.0), kappa * rNm);
+        (double p1Lat, double p1Lon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(0.0), kappa * rNm);
+        (double p2Lat, double p2Lon) = GeoMath.ProjectPoint(p3Lat, p3Lon, new TrueHeading(270.0), kappa * rNm);
 
         var node0 = new GroundNode
         {
@@ -218,7 +218,7 @@ public class PathPrimitiveBuilderTests
             TaxiwayNames = ["A"],
         };
 
-        var directed = reversed
+        DirectionalEdge directed = reversed
             ? new DirectionalEdge
             {
                 Edge = arc,
@@ -248,7 +248,7 @@ public class PathPrimitiveBuilderTests
         const double radiusFt = 25.0;
         const double maxSpeedKts = 3.0;
 
-        var slow = PathPrimitiveBuilder.SlowTurn(
+        PathPrimitiveSlowTurn slow = PathPrimitiveBuilder.SlowTurn(
             fromLat: fromLat,
             fromLon: fromLon,
             fromHdgDeg: 0.0,
@@ -280,7 +280,7 @@ public class PathPrimitiveBuilderTests
         const double fromLat = 37.0;
         const double fromLon = -122.0;
 
-        var slow = PathPrimitiveBuilder.SlowTurn(
+        PathPrimitiveSlowTurn slow = PathPrimitiveBuilder.SlowTurn(
             fromLat: fromLat,
             fromLon: fromLon,
             fromHdgDeg: 90.0,
@@ -305,7 +305,7 @@ public class PathPrimitiveBuilderTests
         // against its short way when the route's next turn would otherwise compound with it.
         const double radiusFt = 25.0;
 
-        var directed = PathPrimitiveBuilder.SlowTurnDirected(
+        PathPrimitiveSlowTurn directed = PathPrimitiveBuilder.SlowTurnDirected(
             fromLat: 37.0,
             fromLon: -122.0,
             fromHdgDeg: 0.0,
@@ -325,7 +325,7 @@ public class PathPrimitiveBuilderTests
         Assert.InRange(directed.LengthFt, 117.5, 118.1);
 
         // The short-way overload, given the same pose, still takes the 90° right turn.
-        var shortWay = PathPrimitiveBuilder.SlowTurn(
+        PathPrimitiveSlowTurn shortWay = PathPrimitiveBuilder.SlowTurn(
             fromLat: 37.0,
             fromLon: -122.0,
             fromHdgDeg: 0.0,
@@ -346,7 +346,9 @@ public class PathPrimitiveBuilderTests
         // tighter than LineUpTurnRadiusFt for every category. The SlowTurn
         // primitive is the one callers reach for when they need a footprint
         // smaller than a normal lineup arc.
-        foreach (var cat in new[] { AircraftCategory.Jet, AircraftCategory.Turboprop, AircraftCategory.Piston, AircraftCategory.Helicopter })
+        foreach (
+            AircraftCategory cat in new[] { AircraftCategory.Jet, AircraftCategory.Turboprop, AircraftCategory.Piston, AircraftCategory.Helicopter }
+        )
         {
             double nose = CategoryPerformance.NoseWheelTurnRadiusFt(cat);
             double lineup = CategoryPerformance.LineUpTurnRadiusFt(cat);
@@ -412,7 +414,7 @@ public class PathPrimitiveBuilderTests
     [Fact]
     public void SlowTurnToPoint_ExitTangentLineRunsThroughTheTarget()
     {
-        var turn = PathPrimitiveBuilder.SlowTurnToPoint(
+        PathPrimitiveSlowTurn? turn = PathPrimitiveBuilder.SlowTurnToPoint(
             fromLat: PushedLat,
             fromLon: PushedLon,
             fromHdgDeg: PushedHeadingDeg,
@@ -425,8 +427,8 @@ public class PathPrimitiveBuilderTests
 
         Assert.NotNull(turn);
 
-        var exit = ExitPoint(turn);
-        var (abeamFt, alongFt) = OffsetFromLine(exit, turn.ExitTangentBearingDeg, new LatLon(StartNodeLat, StartNodeLon));
+        LatLon exit = ExitPoint(turn);
+        (double abeamFt, double alongFt) = OffsetFromLine(exit, turn.ExitTangentBearingDeg, new LatLon(StartNodeLat, StartNodeLon));
 
         // Node 763 lies 105 ft behind the tail: lining up on it takes an over-half turn, which is why the aim is
         // built with an explicit direction and sweep rather than through SlowTurn's short-way rotation.
@@ -442,9 +444,9 @@ public class PathPrimitiveBuilderTests
     [Fact]
     public void SlowTurnToPoint_TargetInsideTheTurningCircle_ReturnsNull()
     {
-        var inside = GeoMath.ProjectPoint(new LatLon(PushedLat, PushedLon), new TrueHeading(PushedHeadingDeg + 90.0), 10.0 / GeoMath.FeetPerNm);
+        LatLon inside = GeoMath.ProjectPoint(new LatLon(PushedLat, PushedLon), new TrueHeading(PushedHeadingDeg + 90.0), 10.0 / GeoMath.FeetPerNm);
 
-        var turn = PathPrimitiveBuilder.SlowTurnToPoint(
+        PathPrimitiveSlowTurn? turn = PathPrimitiveBuilder.SlowTurnToPoint(
             fromLat: PushedLat,
             fromLon: PushedLon,
             fromHdgDeg: PushedHeadingDeg,
@@ -463,13 +465,13 @@ public class PathPrimitiveBuilderTests
     [InlineData(-30.0, false)]
     public void SlowTurnToPoint_PicksTheDirectionWithTheSmallerSweep(double targetOffsetDeg, bool expectRightTurn)
     {
-        var target = GeoMath.ProjectPoint(
+        LatLon target = GeoMath.ProjectPoint(
             new LatLon(PushedLat, PushedLon),
             new TrueHeading(PushedHeadingDeg + targetOffsetDeg),
             100.0 / GeoMath.FeetPerNm
         );
 
-        var turn = PathPrimitiveBuilder.SlowTurnToPoint(
+        PathPrimitiveSlowTurn? turn = PathPrimitiveBuilder.SlowTurnToPoint(
             fromLat: PushedLat,
             fromLon: PushedLon,
             fromHdgDeg: PushedHeadingDeg,
@@ -484,8 +486,8 @@ public class PathPrimitiveBuilderTests
         Assert.Equal(expectRightTurn, turn.RightTurn);
         Assert.True(turn.SweepDeg < 90.0, $"a target {targetOffsetDeg:F0}° off the nose should sweep well under 90°, not {turn.SweepDeg:F1}°");
 
-        var exit = ExitPoint(turn);
-        var (abeamFt, alongFt) = OffsetFromLine(exit, turn.ExitTangentBearingDeg, target);
+        LatLon exit = ExitPoint(turn);
+        (double abeamFt, double alongFt) = OffsetFromLine(exit, turn.ExitTangentBearingDeg, target);
         Assert.True(Math.Abs(abeamFt) <= 0.1, $"the exit tangent misses the target by {abeamFt:F2} ft abeam");
         Assert.True(alongFt > 0, $"the target is {alongFt:F1} ft along the exit tangent — it must lie ahead");
     }

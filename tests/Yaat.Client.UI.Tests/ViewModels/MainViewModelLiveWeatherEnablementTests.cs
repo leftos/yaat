@@ -35,7 +35,7 @@ public class MainViewModelLiveWeatherEnablementTests
         vm.ActiveRoomId = "room1";
         Assert.False(vm.LoadLiveWeatherCommand.CanExecute(null));
 
-        var raised = 0;
+        int raised = 0;
         vm.LoadLiveWeatherCommand.CanExecuteChanged += (_, _) => raised++;
 
         vm.MarkNavDbReady();

@@ -20,10 +20,10 @@ public class GroundCommandParserBareRunwayTests
     public void RunwayBeforeParkingDestination_IsTaxiedAlong()
     {
         // The ramp is the destination; the runway is a path segment, not a takeoff assignment.
-        var result = GroundCommandParser.ParseTaxi("G 28R @B12");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("G 28R @B12");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
         Assert.Equal(["G", "28R"], taxi.Path);
         Assert.Null(taxi.DestinationRunway);
         Assert.Equal("B12", taxi.DestinationParking);
@@ -44,10 +44,10 @@ public class GroundCommandParserBareRunwayTests
     [InlineData("30")]
     public void ParseTaxi_LoneRunwayToken_IsDestination(string runway)
     {
-        var result = GroundCommandParser.ParseTaxi(runway);
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi(runway);
 
         Assert.True(result.IsSuccess, result.Reason);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
         Assert.Empty(taxi.Path);
         Assert.Equal(runway, taxi.DestinationRunway);
     }
@@ -55,10 +55,10 @@ public class GroundCommandParserBareRunwayTests
     [Fact]
     public void ParseTaxi_ExplicitRwyKeywordWithoutPath_IsDestination()
     {
-        var result = GroundCommandParser.ParseTaxi("RWY 1L");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("RWY 1L");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
         Assert.Empty(taxi.Path);
         Assert.Equal("1L", taxi.DestinationRunway);
     }
@@ -66,10 +66,10 @@ public class GroundCommandParserBareRunwayTests
     [Fact]
     public void ParseTaxi_RunwayAheadOfTaxiways_StaysTaxiAlong()
     {
-        var result = GroundCommandParser.ParseTaxi("28R G D");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("28R G D");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
         Assert.Equal(["28R", "G", "D"], taxi.Path);
         Assert.Null(taxi.DestinationRunway);
     }
@@ -77,10 +77,10 @@ public class GroundCommandParserBareRunwayTests
     [Fact]
     public void ParseTaxi_LoneTaxiwayToken_IsPath()
     {
-        var result = GroundCommandParser.ParseTaxi("B");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("B");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
         Assert.Equal(["B"], taxi.Path);
         Assert.Null(taxi.DestinationRunway);
     }

@@ -77,19 +77,19 @@ internal static class RejectedTakeoff
     /// </summary>
     public static bool TryTrigger(PhaseContext ctx, double rollElapsedSeconds)
     {
-        var dep = ctx.Aircraft;
+        AircraftState dep = ctx.Aircraft;
         if ((!ctx.AutoRejectTakeoffOnOccupiedRunway) || (ctx.ListAircraft is null) || (ctx.Category == AircraftCategory.Helicopter) || (dep.IsShadow))
         {
             return false;
         }
 
-        var runway = dep.Phases?.DepartureRunway ?? ctx.Runway;
+        RunwayInfo? runway = dep.Phases?.DepartureRunway ?? ctx.Runway;
         if (runway is null)
         {
             return false;
         }
 
-        var occupant = FindBlockingOccupant(ctx.ListAircraft(), dep, runway, ctx.GroundLayout, out double distanceFt);
+        AircraftState? occupant = FindBlockingOccupant(ctx.ListAircraft(), dep, runway, ctx.GroundLayout, out double distanceFt);
         if (occupant is null)
         {
             return false;
@@ -126,7 +126,7 @@ internal static class RejectedTakeoff
             dep.GroundSpeed
         );
         Route(ctx, Pilot.PilotResponder.BuildRejectingTakeoffTrafficOnRunway(dep));
-        var phase = Install(ctx, rollElapsedSeconds);
+        RejectedTakeoffPhase? phase = Install(ctx, rollElapsedSeconds);
         if (phase is not null)
         {
             phase.AutoTriggered = true;
@@ -166,14 +166,14 @@ internal static class RejectedTakeoff
         distanceFt = double.MaxValue;
         AircraftState? nearest = null;
 
-        foreach (var other in aircraft)
+        foreach (AircraftState other in aircraft)
         {
             if (ReferenceEquals(other, departure))
             {
                 continue;
             }
 
-            var use = RunwayOccupancy.Classify(other, runway, layout);
+            RunwayUse? use = RunwayOccupancy.Classify(other, runway, layout);
             if (use is null)
             {
                 continue;
@@ -313,7 +313,7 @@ internal static class RejectedTakeoff
             return false;
         }
 
-        var runway = departure.Phases?.DepartureRunway ?? departure.Phases?.AssignedRunway;
+        RunwayInfo? runway = departure.Phases?.DepartureRunway ?? departure.Phases?.AssignedRunway;
         if (runway is null)
         {
             return false;
@@ -338,7 +338,7 @@ internal static class RejectedTakeoff
     /// </summary>
     public static RejectedTakeoffPhase? Install(PhaseContext ctx, double rollElapsedSeconds)
     {
-        var dep = ctx.Aircraft;
+        AircraftState dep = ctx.Aircraft;
         if (dep.Phases is null)
         {
             return null;
@@ -386,7 +386,7 @@ internal static class RejectedTakeoff
             return false;
         }
 
-        var projected = GeoMath.ProjectPoint(
+        (double Lat, double Lon) projected = GeoMath.ProjectPoint(
             occupant.Position.Lat,
             occupant.Position.Lon,
             occupant.TrueHeading,

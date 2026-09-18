@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -26,7 +27,7 @@ public class Issue161PushFaceThenTaxiTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -54,8 +55,8 @@ public class Issue161PushFaceThenTaxiTests(ITestOutputHelper output)
     [Fact]
     public void SKW3404_TaxisSouthwardAfterTaxiCommand()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -65,10 +66,10 @@ public class Issue161PushFaceThenTaxiTests(ITestOutputHelper output)
         // command at t=52 is applied by Replay; the bug's loop began here.
         engine.Replay(recording, 52);
 
-        var ac = engine.FindAircraft("SKW3404");
+        AircraftState? ac = engine.FindAircraft("SKW3404");
         Assert.NotNull(ac);
 
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
 
         double prevHeading = ac.TrueHeading.Degrees;

@@ -85,11 +85,11 @@ public partial class MainViewModel
 
         try
         {
-            var controllers = await _connection.GetOnlineControllersAsync();
+            List<OnlineControllerDto> controllers = await _connection.GetOnlineControllersAsync();
             Dispatcher.UIThread.Post(() =>
             {
                 OnlineControllers.Clear();
-                foreach (var c in controllers)
+                foreach (OnlineControllerDto c in controllers)
                 {
                     OnlineControllers.Add(c);
                 }
@@ -107,7 +107,11 @@ public partial class MainViewModel
     private void RebuildControllerGroups()
     {
         ControllerGroups.Clear();
-        foreach (var group in OnlineControllers.GroupBy(c => c.FacilityId ?? "").OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        foreach (
+            IGrouping<string, OnlineControllerDto>? group in OnlineControllers
+                .GroupBy(c => c.FacilityId ?? "")
+                .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+        )
         {
             var ordered = group.OrderBy(c => c.Tcp ?? c.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
             ControllerGroups.Add(new ControllerGroupVm(group.Key, group.First().FacilityName, ordered, _collapsedControllerFacilities));

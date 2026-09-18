@@ -26,7 +26,7 @@ public sealed class AirportSidecarCatalog
 
     public AirportSidecarCatalog(IEnumerable<AirportSidecar> airports)
     {
-        foreach (var airport in airports)
+        foreach (AirportSidecar airport in airports)
         {
             if (string.IsNullOrWhiteSpace(airport.AirportId))
             {
@@ -51,14 +51,14 @@ public sealed class AirportSidecarCatalog
             return;
         }
 
-        if (!_exitDirectionsByAirport.TryGetValue(key, out var byRunway))
+        if (!_exitDirectionsByAirport.TryGetValue(key, out Dictionary<string, ExitSide>? byRunway))
         {
             byRunway = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
             _exitDirectionsByAirport[key] = byRunway;
         }
 
         // Last file wins on a per-runway clash, mirroring the loader's within-file rule.
-        foreach (var entry in overrides)
+        foreach (ExitDirectionOverride entry in overrides)
         {
             byRunway[entry.Runway] = entry.Side;
         }
@@ -71,7 +71,7 @@ public sealed class AirportSidecarCatalog
             return;
         }
 
-        if (!_adwByAirport.TryGetValue(key, out var list))
+        if (!_adwByAirport.TryGetValue(key, out List<AdwWindow>? list))
         {
             list = [];
             _adwByAirport[key] = list;
@@ -87,13 +87,13 @@ public sealed class AirportSidecarCatalog
             return;
         }
 
-        if (!_avoidByAirport.TryGetValue(key, out var set))
+        if (!_avoidByAirport.TryGetValue(key, out HashSet<string>? set))
         {
             set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             _avoidByAirport[key] = set;
         }
 
-        foreach (var entry in entries)
+        foreach (AvoidTaxiwayEntry entry in entries)
         {
             if (!string.IsNullOrWhiteSpace(entry.Name))
             {
@@ -109,7 +109,7 @@ public sealed class AirportSidecarCatalog
             return;
         }
 
-        if (!_routesByAirport.TryGetValue(key, out var list))
+        if (!_routesByAirport.TryGetValue(key, out List<TaxiRouteDefinition>? list))
         {
             list = [];
             _routesByAirport[key] = list;
@@ -125,7 +125,7 @@ public sealed class AirportSidecarCatalog
             return;
         }
 
-        if (!_connectorsByAirport.TryGetValue(key, out var list))
+        if (!_connectorsByAirport.TryGetValue(key, out List<ImplicitConnectorEntry>? list))
         {
             list = [];
             _connectorsByAirport[key] = list;
@@ -141,7 +141,7 @@ public sealed class AirportSidecarCatalog
             return;
         }
 
-        if (!_oneWayByAirport.TryGetValue(key, out var list))
+        if (!_oneWayByAirport.TryGetValue(key, out List<OneWayConstraint>? list))
         {
             list = [];
             _oneWayByAirport[key] = list;
@@ -157,7 +157,7 @@ public sealed class AirportSidecarCatalog
             return;
         }
 
-        if (!_blockedTurnsByAirport.TryGetValue(key, out var list))
+        if (!_blockedTurnsByAirport.TryGetValue(key, out List<BlockedTurn>? list))
         {
             list = [];
             _blockedTurnsByAirport[key] = list;
@@ -178,7 +178,7 @@ public sealed class AirportSidecarCatalog
         }
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
-        return _avoidByAirport.TryGetValue(key, out var set) ? set : EmptyTaxiwaySet;
+        return _avoidByAirport.TryGetValue(key, out HashSet<string>? set) ? set : EmptyTaxiwaySet;
     }
 
     /// <summary>
@@ -193,7 +193,7 @@ public sealed class AirportSidecarCatalog
         }
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
-        return _routesByAirport.TryGetValue(key, out var list) ? list : [];
+        return _routesByAirport.TryGetValue(key, out List<TaxiRouteDefinition>? list) ? list : [];
     }
 
     /// <summary>
@@ -209,7 +209,7 @@ public sealed class AirportSidecarCatalog
         }
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
-        return _connectorsByAirport.TryGetValue(key, out var list) ? list : [];
+        return _connectorsByAirport.TryGetValue(key, out List<ImplicitConnectorEntry>? list) ? list : [];
     }
 
     /// <summary>
@@ -225,7 +225,7 @@ public sealed class AirportSidecarCatalog
         }
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
-        return _oneWayByAirport.TryGetValue(key, out var list) ? list : [];
+        return _oneWayByAirport.TryGetValue(key, out List<OneWayConstraint>? list) ? list : [];
     }
 
     /// <summary>
@@ -241,7 +241,7 @@ public sealed class AirportSidecarCatalog
         }
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
-        return _blockedTurnsByAirport.TryGetValue(key, out var list) ? list : [];
+        return _blockedTurnsByAirport.TryGetValue(key, out List<BlockedTurn>? list) ? list : [];
     }
 
     /// <summary>
@@ -257,7 +257,7 @@ public sealed class AirportSidecarCatalog
         }
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
-        return _adwByAirport.TryGetValue(key, out var list) ? list : [];
+        return _adwByAirport.TryGetValue(key, out List<AdwWindow>? list) ? list : [];
     }
 
     /// <summary>
@@ -274,11 +274,11 @@ public sealed class AirportSidecarCatalog
         }
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
-        if (!_exitDirectionsByAirport.TryGetValue(key, out var byRunway))
+        if (!_exitDirectionsByAirport.TryGetValue(key, out Dictionary<string, ExitSide>? byRunway))
         {
             return null;
         }
 
-        return byRunway.TryGetValue(RunwayIdentifier.NormalizeDesignator(runwayDesignator), out var side) ? side : null;
+        return byRunway.TryGetValue(RunwayIdentifier.NormalizeDesignator(runwayDesignator), out ExitSide side) ? side : null;
     }
 }

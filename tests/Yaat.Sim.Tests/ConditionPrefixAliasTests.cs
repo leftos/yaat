@@ -40,7 +40,7 @@ public class ConditionPrefixAliasTests
     {
         Assert.Contains(prefix, CommandSchemeParser.ConditionPrefixes);
 
-        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme);
 
         Assert.NotNull(result);
         Assert.False(string.IsNullOrWhiteSpace(result.CanonicalString), $"'{input}' produced an empty canonical string");

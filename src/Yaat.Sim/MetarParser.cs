@@ -80,7 +80,7 @@ public static partial class MetarParser
             return null;
         }
 
-        var tokens = metar.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = metar.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length < 2)
         {
             return null;
@@ -89,7 +89,7 @@ public static partial class MetarParser
         // Station ID: first 4-char token starting with a letter (ICAO: KSFO, KE16, etc.)
         // Skip known prefixes: METAR, SPECI
         string? stationId = null;
-        foreach (var token in tokens)
+        foreach (string token in tokens)
         {
             if (token.Length == 4 && token[0] is >= 'A' and <= 'Z' && token.All(c => c is (>= 'A' and <= 'Z') or (>= '0' and <= '9')))
             {
@@ -108,8 +108,8 @@ public static partial class MetarParser
         }
 
         double? visibility = ParseVisibility(metar);
-        var (layers, ceiling) = ParseLayers(metar);
-        var (windDir, windSpd, windGust, windVariable, varFrom, varTo) = ParseWind(metar);
+        (IReadOnlyList<CloudLayer>? layers, int? ceiling) = ParseLayers(metar);
+        (int? windDir, int? windSpd, int? windGust, bool windVariable, int? varFrom, int? varTo) = ParseWind(metar);
         double? altimeter = ParseAltimeter(metar);
 
         return new ParsedMetar(stationId, ceiling, layers, visibility, windDir, windSpd, windGust, altimeter, windVariable, varFrom, varTo);
@@ -119,9 +119,9 @@ public static partial class MetarParser
     {
         string icao = ToIcao(airportId);
 
-        foreach (var metar in metars)
+        foreach (string metar in metars)
         {
-            var parsed = Parse(metar);
+            ParsedMetar? parsed = Parse(metar);
             if (parsed is not null && parsed.StationId.Equals(icao, StringComparison.OrdinalIgnoreCase))
             {
                 return parsed;
@@ -150,13 +150,13 @@ public static partial class MetarParser
 
     private static double? ParseVisibility(string metar)
     {
-        var match = VisibilityRegex().Match(metar);
+        Match match = VisibilityRegex().Match(metar);
         if (!match.Success)
         {
             return null;
         }
 
-        var raw = match.Groups[1].Value.Trim();
+        string raw = match.Groups[1].Value.Trim();
 
         // P-prefix (TAF-style "P6SM") means "greater than" — a right-censored
         // value like the 10SM METAR maximum, in practice only ever written as
@@ -175,7 +175,7 @@ public static partial class MetarParser
         // M1/4SM → less than 1/4 mile; parse the fraction after M
         if (raw.StartsWith('M'))
         {
-            var mRaw = raw[1..];
+            string mRaw = raw[1..];
             if (mRaw.Contains('/'))
             {
                 return TryParseFraction(mRaw, out double mVal) ? mVal : null;
@@ -186,7 +186,7 @@ public static partial class MetarParser
         // Mixed fraction: "1 1/2" → 1.5
         if (raw.Contains(' ') && raw.Contains('/'))
         {
-            var parts = raw.Split(' ');
+            string[] parts = raw.Split(' ');
             if (parts.Length == 2 && int.TryParse(parts[0], out int whole) && TryParseFraction(parts[1], out double frac))
             {
                 return whole + frac;
@@ -207,7 +207,7 @@ public static partial class MetarParser
     private static bool TryParseFraction(string s, out double result)
     {
         result = 0;
-        var parts = s.Split('/');
+        string[] parts = s.Split('/');
         if (parts.Length != 2)
         {
             return false;
@@ -233,7 +233,7 @@ public static partial class MetarParser
 
         foreach (Match match in CloudLayerRegex().Matches(metar))
         {
-            var coverage = match.Groups[1].Value;
+            string coverage = match.Groups[1].Value;
             if (!int.TryParse(match.Groups[2].Value, out int hundreds))
             {
                 continue;
@@ -266,7 +266,7 @@ public static partial class MetarParser
 
         // VV (vertical visibility / indefinite ceiling) — total obscuration; modeled as a synthetic OVC layer
         // so the multi-layer obstruction logic in VisualDetection treats it consistently with regular OVC.
-        var vvMatch = VerticalVisibilityRegex().Match(metar);
+        Match vvMatch = VerticalVisibilityRegex().Match(metar);
         if (vvMatch.Success && int.TryParse(vvMatch.Groups[1].Value, out int vvHundreds))
         {
             int vvFeet = vvHundreds * 100;
@@ -290,7 +290,7 @@ public static partial class MetarParser
     public static int? CeilingFromLayers(IReadOnlyList<CloudLayer> layers)
     {
         int? lowest = null;
-        foreach (var layer in layers)
+        foreach (CloudLayer layer in layers)
         {
             if (layer.Cover is CloudCover.Broken or CloudCover.Overcast)
             {
@@ -318,7 +318,7 @@ public static partial class MetarParser
         for (int i = 0; i < paired; i++)
         {
             int baseAlt = (int)Math.Round(from[i].BaseFeetAgl + t * (to[i].BaseFeetAgl - from[i].BaseFeetAgl));
-            var cover = t < 0.5 ? from[i].Cover : to[i].Cover;
+            CloudCover cover = t < 0.5 ? from[i].Cover : to[i].Cover;
             result.Add(new CloudLayer(cover, baseAlt));
         }
 
@@ -337,7 +337,7 @@ public static partial class MetarParser
 
     private static (int? Direction, int? Speed, int? Gust, bool Variable, int? VarFrom, int? VarTo) ParseWind(string metar)
     {
-        var match = WindRegex().Match(metar);
+        Match match = WindRegex().Match(metar);
         if (!match.Success)
         {
             return (null, null, null, false, null, null);
@@ -352,7 +352,7 @@ public static partial class MetarParser
         // stray dddVddd-shaped token elsewhere in remarks can't bind to the wind.
         int? varFrom = null;
         int? varTo = null;
-        var varMatch = WindVariabilityRegex().Match(metar, match.Index + match.Length);
+        Match varMatch = WindVariabilityRegex().Match(metar, match.Index + match.Length);
         if (varMatch.Success)
         {
             varFrom = int.Parse(varMatch.Groups[1].Value);
@@ -364,7 +364,7 @@ public static partial class MetarParser
 
     private static double? ParseAltimeter(string metar)
     {
-        var match = AltimeterRegex().Match(metar);
+        Match match = AltimeterRegex().Match(metar);
         if (!match.Success)
         {
             return null;

@@ -36,14 +36,14 @@ public sealed class LlmCudaSanityTest
             return;
         }
 
-        var service = _fixture.SharedServiceOrNull;
+        LocalLlmService? service = _fixture.SharedServiceOrNull;
         Assert.NotNull(service);
 
         // First inference — loads the weights. We time the whole thing. No grammar: this is a
         // sanity test that exercises freeform inference on the GPU/CPU path, not the constrained
         // command-mapper pipeline.
         var cold = Stopwatch.StartNew();
-        var coldResult = await service.GenerateAsync(
+        string? coldResult = await service.GenerateAsync(
             systemPrompt: "You are a helpful assistant. Answer in one short sentence.",
             userPrompt: "What is 2 + 2?",
             gbnfGrammar: null,
@@ -53,7 +53,7 @@ public sealed class LlmCudaSanityTest
 
         // Second inference — weights cached, this is pure inference time.
         var warm = Stopwatch.StartNew();
-        var warmResult = await service.GenerateAsync(
+        string? warmResult = await service.GenerateAsync(
             systemPrompt: "You are a helpful assistant. Answer in one short sentence.",
             userPrompt: "What is 10 + 5?",
             gbnfGrammar: null,

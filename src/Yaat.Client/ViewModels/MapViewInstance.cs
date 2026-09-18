@@ -76,7 +76,7 @@ public static class ViewInstanceOrdinals
     public static int NextFree(IEnumerable<int> taken)
     {
         var used = new HashSet<int>(taken);
-        var ordinal = 2;
+        int ordinal = 2;
         while (used.Contains(ordinal))
         {
             ordinal++;

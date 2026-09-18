@@ -82,7 +82,7 @@ public static class AsdexSafetyLogicDetector
         var candidates = aircraft.Where(ac => !ac.Stars.AsdexAlertsInhibited).ToList();
         var alerts = new List<AsdexSafetyAlert>();
 
-        foreach (var runway in runways)
+        foreach (AsdexRunwaySurface runway in runways)
         {
             var occupants = candidates.Where(ac => PointInPolygon(ac.Position, runway.Area)).ToList();
             if (occupants.Count == 0)
@@ -141,7 +141,7 @@ public static class AsdexSafetyLogicDetector
         List<AsdexSafetyAlert> alerts
     )
     {
-        foreach (var ac in candidates)
+        foreach (AircraftState ac in candidates)
         {
             // A taxiway landing is an arrival at low AGL whose position is over a taxiway and
             // not over any runway footprint.
@@ -156,7 +156,7 @@ public static class AsdexSafetyLogicDetector
                 continue;
             }
 
-            var taxiway = NearestTaxiwayWithin(ac.Position, taxiways, TaxiwayLandingHalfWidthNm);
+            AsdexTaxiwaySegment? taxiway = NearestTaxiwayWithin(ac.Position, taxiways, TaxiwayLandingHalfWidthNm);
             if (taxiway is not null)
             {
                 alerts.Add(
@@ -183,7 +183,7 @@ public static class AsdexSafetyLogicDetector
         // Stable id is order-independent so a pair (A,B) collapses to the same alert as (B,A)
         // across ticks; the broadcaster diffs by id, so clearing needs no explicit logic.
         var callsigns = involved.Select(ac => ac.Callsign).OrderBy(c => c, StringComparer.Ordinal).ToList();
-        var id = $"{kind}|{runway.Id}|{string.Join(",", callsigns)}";
+        string id = $"{kind}|{runway.Id}|{string.Join(",", callsigns)}";
         return new AsdexSafetyAlert(
             Id: id,
             Kind: kind,
@@ -227,7 +227,7 @@ public static class AsdexSafetyLogicDetector
     {
         headingDegrees = 0;
         int digits = 0;
-        var span = runwayId.AsSpan();
+        ReadOnlySpan<char> span = runwayId.AsSpan();
         int i = 0;
         while (i < span.Length && char.IsDigit(span[i]) && i < 2)
         {
@@ -255,7 +255,7 @@ public static class AsdexSafetyLogicDetector
     {
         AsdexTaxiwaySegment? best = null;
         double bestDistance = maxDistanceNm;
-        foreach (var taxiway in taxiways)
+        foreach (AsdexTaxiwaySegment taxiway in taxiways)
         {
             double distance = PointToSegmentNm(point, taxiway.Start, taxiway.End);
             if (distance <= bestDistance)

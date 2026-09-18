@@ -37,7 +37,7 @@ public class TakeoffDepartureTests
     /// </remarks>
     private static (double? TargetHeading, TurnDirection? TurnDir) RunTakeoff(DepartureInstruction departure, double runwayHeading = RunwayHeading)
     {
-        var runway = MakeRunway(runwayHeading);
+        RunwayInfo runway = MakeRunway(runwayHeading);
         var phase = new TakeoffPhase();
         phase.SetAssignedDeparture(departure);
 
@@ -51,7 +51,7 @@ public class TakeoffDepartureTests
             Altitude = FieldElevation,
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -84,7 +84,7 @@ public class TakeoffDepartureTests
         // the deferred turn is applied. We project 0.5 nm along the runway heading past
         // the geometric DER so AlongTrackDistanceNm reads positive regardless of the
         // synthetic threshold/end geometry.
-        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHeading), 0.5);
+        LatLon pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHeading), 0.5);
         aircraft.Position = pastDer;
         aircraft.Altitude = FieldElevation + 1500;
 
@@ -103,7 +103,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void DefaultDeparture_KeepsRunwayHeading()
     {
-        var (hdg, dir) = RunTakeoff(new DefaultDeparture());
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new DefaultDeparture());
         Assert.Equal(RunwayHeading, hdg);
         Assert.Null(dir);
     }
@@ -111,7 +111,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void RunwayHeadingDeparture_KeepsRunwayHeading()
     {
-        var (hdg, dir) = RunTakeoff(new RunwayHeadingDeparture());
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new RunwayHeadingDeparture());
         Assert.Equal(RunwayHeading, hdg);
         Assert.Null(dir);
     }
@@ -120,7 +120,7 @@ public class TakeoffDepartureTests
     public void RelativeTurnRight90_Crosswind()
     {
         // Runway 280 + 90 right = 010
-        var (hdg, dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Right));
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Right));
         Assert.Equal(10, hdg);
         Assert.Equal(TurnDirection.Right, dir);
     }
@@ -129,7 +129,7 @@ public class TakeoffDepartureTests
     public void RelativeTurnRight180_Downwind()
     {
         // Runway 280 + 180 right = 100
-        var (hdg, dir) = RunTakeoff(new RelativeTurnDeparture(180, TurnDirection.Right));
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new RelativeTurnDeparture(180, TurnDirection.Right));
         Assert.Equal(100, hdg);
         Assert.Equal(TurnDirection.Right, dir);
     }
@@ -138,7 +138,7 @@ public class TakeoffDepartureTests
     public void RelativeTurnLeft90_Crosswind()
     {
         // Runway 280 - 90 left = 190
-        var (hdg, dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Left));
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Left));
         Assert.Equal(190, hdg);
         Assert.Equal(TurnDirection.Left, dir);
     }
@@ -147,7 +147,7 @@ public class TakeoffDepartureTests
     public void RelativeTurnLeft180_Downwind()
     {
         // Runway 280 - 180 left = 100
-        var (hdg, dir) = RunTakeoff(new RelativeTurnDeparture(180, TurnDirection.Left));
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new RelativeTurnDeparture(180, TurnDirection.Left));
         Assert.Equal(100, hdg);
         Assert.Equal(TurnDirection.Left, dir);
     }
@@ -156,7 +156,7 @@ public class TakeoffDepartureTests
     public void RelativeTurnRight270()
     {
         // Runway 280 + 270 = 550 → 190
-        var (hdg, dir) = RunTakeoff(new RelativeTurnDeparture(270, TurnDirection.Right));
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new RelativeTurnDeparture(270, TurnDirection.Right));
         Assert.Equal(190, hdg);
         Assert.Equal(TurnDirection.Right, dir);
     }
@@ -164,7 +164,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void FlyHeading_NoDirection()
     {
-        var (hdg, dir) = RunTakeoff(new FlyHeadingDeparture(new MagneticHeading(270), null));
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new FlyHeadingDeparture(new MagneticHeading(270), null));
         Assert.Equal(270, hdg);
         Assert.Null(dir);
     }
@@ -172,7 +172,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void FlyHeading_RightTurn()
     {
-        var (hdg, dir) = RunTakeoff(new FlyHeadingDeparture(new MagneticHeading(090), TurnDirection.Right));
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new FlyHeadingDeparture(new MagneticHeading(090), TurnDirection.Right));
         Assert.Equal(90, hdg);
         Assert.Equal(TurnDirection.Right, dir);
     }
@@ -180,7 +180,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void FlyHeading_LeftTurn()
     {
-        var (hdg, dir) = RunTakeoff(new FlyHeadingDeparture(new MagneticHeading(180), TurnDirection.Left));
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new FlyHeadingDeparture(new MagneticHeading(180), TurnDirection.Left));
         Assert.Equal(180, hdg);
         Assert.Equal(TurnDirection.Left, dir);
     }
@@ -188,7 +188,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void OnCourseDeparture_KeepsRunwayHeading()
     {
-        var (hdg, dir) = RunTakeoff(new OnCourseDeparture());
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new OnCourseDeparture());
         Assert.Equal(RunwayHeading, hdg);
         Assert.Null(dir);
     }
@@ -196,7 +196,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void DirectFixDeparture_KeepsRunwayHeading()
     {
-        var (hdg, dir) = RunTakeoff(new DirectFixDeparture("SUNOL", 37.5, -121.8, null));
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new DirectFixDeparture("SUNOL", 37.5, -121.8, null));
         Assert.Equal(RunwayHeading, hdg);
         Assert.Null(dir);
     }
@@ -204,7 +204,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void ClosedTrafficDeparture_KeepsRunwayHeading()
     {
-        var (hdg, dir) = RunTakeoff(new ClosedTrafficDeparture(PatternDirection.Right, null, null));
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new ClosedTrafficDeparture(PatternDirection.Right, null, null));
         Assert.Equal(RunwayHeading, hdg);
         Assert.Null(dir);
     }
@@ -213,7 +213,7 @@ public class TakeoffDepartureTests
     public void RelativeTurnRight_Runway360()
     {
         // Runway 360 + 90 right = 090
-        var (hdg, dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Right), 360);
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Right), 360);
         Assert.Equal(90, hdg);
         Assert.Equal(TurnDirection.Right, dir);
     }
@@ -222,7 +222,7 @@ public class TakeoffDepartureTests
     public void RelativeTurnLeft_Runway010()
     {
         // Runway 010 - 90 left = 280
-        var (hdg, dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Left), 10);
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Left), 10);
         Assert.Equal(280, hdg);
         Assert.Equal(TurnDirection.Left, dir);
     }
@@ -233,7 +233,7 @@ public class TakeoffDepartureTests
     public void RelativeTurnRight_Runway350_Wraps()
     {
         // Runway 350 + 90 right = 440 → 80
-        var (hdg, dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Right), 350);
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Right), 350);
         Assert.Equal(80, hdg);
         Assert.Equal(TurnDirection.Right, dir);
     }
@@ -242,7 +242,7 @@ public class TakeoffDepartureTests
     public void RelativeTurnLeft_Runway020_Wraps()
     {
         // Runway 020 - 90 left = -70 → 290
-        var (hdg, dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Left), 20);
+        (double? hdg, TurnDirection? dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Left), 20);
         Assert.Equal(290, hdg);
         Assert.Equal(TurnDirection.Left, dir);
     }
@@ -280,7 +280,7 @@ public class TakeoffDepartureTests
         // to reach a fix at bearing ~200. Shortest-path would go left (280→200 = -80°),
         // but TRDCT means turn right (280→360→200 = +280°).
         double runwayHdg = 280;
-        var runway = TestRunwayFactory.Make(designator: "28R", airportId: "KOAK", heading: runwayHdg, elevationFt: FieldElevation);
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "28R", airportId: "KOAK", heading: runwayHdg, elevationFt: FieldElevation);
         // Fix positioned so bearing from threshold is ~200° (south-southwest)
         double fixLat = 37.6;
         double fixLon = -122.3;
@@ -296,7 +296,7 @@ public class TakeoffDepartureTests
         // AGL IFR turn floor so InitialClimbPhase applies the deferred departure turn
         // on its first tick. Pre-deferral this test worked at the threshold because
         // TakeoffPhase had already set the heading/direction at Vr.
-        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.5);
+        LatLon pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.5);
         var aircraft = new AircraftState
         {
             Callsign = "N436MS",
@@ -307,7 +307,7 @@ public class TakeoffDepartureTests
             IndicatedAirspeed = 90,
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -397,7 +397,7 @@ public class TakeoffDepartureTests
     public void TakeoffPhase_Airborne_AllowsClimbMaintain()
     {
         // Need to get the phase to airborne state
-        var runway = MakeRunway();
+        RunwayInfo runway = MakeRunway();
         var phase = new TakeoffPhase();
         phase.SetAssignedDeparture(new DefaultDeparture());
 
@@ -478,7 +478,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void VFR_FlyHeading_KeepsRunwayHeadingAtLiftoff()
     {
-        var runway = MakeRunway();
+        RunwayInfo runway = MakeRunway();
         var phase = new TakeoffPhase();
         phase.SetAssignedDeparture(new FlyHeadingDeparture(new MagneticHeading(060), null));
 
@@ -493,7 +493,7 @@ public class TakeoffDepartureTests
             Altitude = FieldElevation,
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -533,7 +533,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void IFR_FlyHeading_KeepsRunwayHeadingAtLiftoff()
     {
-        var runway = MakeRunway();
+        RunwayInfo runway = MakeRunway();
         var phase = new TakeoffPhase();
         phase.SetAssignedDeparture(new FlyHeadingDeparture(new MagneticHeading(060), null));
 
@@ -548,7 +548,7 @@ public class TakeoffDepartureTests
             Altitude = FieldElevation,
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -586,7 +586,7 @@ public class TakeoffDepartureTests
     public void VFR_InitialClimb_FlyHeading_DelaysUntilConditions()
     {
         double runwayHdg = 280;
-        var runway = TestRunwayFactory.Make(
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "KOAK",
             heading: runwayHdg,
@@ -609,7 +609,7 @@ public class TakeoffDepartureTests
             Altitude = FieldElevation + 400, // post-takeoff
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -640,7 +640,7 @@ public class TakeoffDepartureTests
         // Move aircraft to 700ft AGL AND past the DER
         aircraft.Altitude = FieldElevation + 700;
         // Project aircraft just past the DER along runway heading
-        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.1);
+        LatLon pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.1);
         aircraft.Position = pastDer;
 
         climbPhase.OnTick(ctx);
@@ -657,7 +657,7 @@ public class TakeoffDepartureTests
     public void VFR_InitialClimb_RequiresBothConditions()
     {
         double runwayHdg = 280;
-        var runway = TestRunwayFactory.Make(
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "KOAK",
             heading: runwayHdg,
@@ -680,7 +680,7 @@ public class TakeoffDepartureTests
             Altitude = FieldElevation + 400,
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -710,7 +710,7 @@ public class TakeoffDepartureTests
 
         // Case 2: past DER but altitude too low
         aircraft.Altitude = FieldElevation + 400;
-        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.6);
+        LatLon pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.6);
         aircraft.Position = pastDer;
         climbPhase.OnTick(ctx);
         Assert.True(
@@ -726,7 +726,7 @@ public class TakeoffDepartureTests
     public void VFR_InitialClimb_DirectFix_DelaysNavRoute()
     {
         double runwayHdg = 280;
-        var runway = TestRunwayFactory.Make(
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "KOAK",
             heading: runwayHdg,
@@ -756,7 +756,7 @@ public class TakeoffDepartureTests
             Altitude = FieldElevation + 400,
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -782,7 +782,7 @@ public class TakeoffDepartureTests
 
         // Move past DER + altitude
         aircraft.Altitude = FieldElevation + 700;
-        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.6);
+        LatLon pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.6);
         aircraft.Position = pastDer;
         climbPhase.OnTick(ctx);
 
@@ -798,7 +798,7 @@ public class TakeoffDepartureTests
     public void VFR_InitialClimb_OnCourse_DelaysNavRoute()
     {
         double runwayHdg = 280;
-        var runway = TestRunwayFactory.Make(
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "KOAK",
             heading: runwayHdg,
@@ -826,7 +826,7 @@ public class TakeoffDepartureTests
             Altitude = FieldElevation + 400,
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -852,7 +852,7 @@ public class TakeoffDepartureTests
 
         // Move past DER + altitude
         aircraft.Altitude = FieldElevation + 700;
-        var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.6);
+        LatLon pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.6);
         aircraft.Position = pastDer;
         climbPhase.OnTick(ctx);
 
@@ -884,7 +884,7 @@ public class TakeoffDepartureTests
             Altitude = 400,
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -922,10 +922,10 @@ public class TakeoffDepartureTests
     {
         double runwayHdg = 280;
         double patternAlt = 1000; // MSL (field elev 0 + 1000 AGL)
-        var runway = TestRunwayFactory.Make(designator: "28", heading: runwayHdg, elevationFt: 0);
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "28", heading: runwayHdg, elevationFt: 0);
 
         // Create waypoints with the crosswind turn point at the DER
-        var crosswindTurn = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.3);
+        LatLon crosswindTurn = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.3);
         var waypoints = new PatternWaypoints
         {
             DepartureEndLat = runway.EndLatitude,
@@ -988,7 +988,7 @@ public class TakeoffDepartureTests
     {
         double runwayHdg = 280;
         double patternAlt = 1000;
-        var runway = TestRunwayFactory.Make(designator: "28", heading: runwayHdg, elevationFt: 0);
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "28", heading: runwayHdg, elevationFt: 0);
 
         // Crosswind turn point is at the departure end of the runway (AIM 4-3-2).
         var crosswindTurn = new LatLon(runway.EndLatitude, runway.EndLongitude);
@@ -1016,7 +1016,7 @@ public class TakeoffDepartureTests
         };
 
         // Just past the departure end along the upwind heading.
-        var pastDepartureEnd = GeoMath.ProjectPoint(crosswindTurn, new TrueHeading(runwayHdg), 0.1);
+        LatLon pastDepartureEnd = GeoMath.ProjectPoint(crosswindTurn, new TrueHeading(runwayHdg), 0.1);
 
         var upwindPhase = new UpwindPhase { Waypoints = waypoints };
         var phaseList = new PhaseList { AssignedRunway = runway };
@@ -1052,7 +1052,7 @@ public class TakeoffDepartureTests
     public void InitialClimbPhase_UsesTargetsAssignedAltitude_WhenSetDuringTakeoff()
     {
         // Simulates CM 014 issued during takeoff: Targets.AssignedAltitude = 1400
-        var runway = MakeRunway();
+        RunwayInfo runway = MakeRunway();
         var phaseList = new PhaseList { AssignedRunway = runway };
         var aircraft = new AircraftState
         {
@@ -1063,7 +1063,7 @@ public class TakeoffDepartureTests
             Altitude = FieldElevation + 400, // post-takeoff
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
 
         // CM 014 was applied during takeoff — sets AssignedAltitude on targets
         targets.AssignedAltitude = 1400;

@@ -23,7 +23,7 @@ public class FlightPlanEditorAmendButtonLayoutTests
         var window = new FlightPlanEditorWindow(ac, (_, _) => { }, _ => Task.CompletedTask) { Width = 660 };
         window.ShowAndRunLayout();
 
-        var submit = window.FindControl<Button>("SubmitButton");
+        Button? submit = window.FindControl<Button>("SubmitButton");
         Assert.NotNull(submit);
 
         Assert.True(

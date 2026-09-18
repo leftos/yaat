@@ -23,7 +23,7 @@ internal static class ModuleInit
         // Same for an arc primitive writing an aircraft further than it drove in one sub-tick — a teleport.
         GroundNavigator.ThrowOnTeleport = true;
 
-        var testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
+        string testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
         Yaat.Sim.Testing.TestVnasData.SetTestDataDir(testDataDir);
 
         // CIFP is a precondition for the same reason NavData is: procedures, approaches and SIDs
@@ -34,7 +34,7 @@ internal static class ModuleInit
         // costs ~9 ms rather than ~240 ms. Downloads stay enabled by default deliberately — CIFP is
         // AIRAC-cycle-specific and the committed bundle goes stale every 28 days, so fetching the
         // current cycle when it is not cached is worth a one-off round trip.
-        var allowCifpDownload = !IsCifpDownloadSkipped();
+        bool allowCifpDownload = !IsCifpDownloadSkipped();
         RequireCifp(
             CifpPathResolver.EnsureCurrentCycle(
                 new CifpResolveOptions(
@@ -126,7 +126,7 @@ internal static class ModuleInit
 
     private static bool IsCifpDownloadSkipped()
     {
-        var v = Environment.GetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD");
+        string? v = Environment.GetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD");
         return string.Equals(v, "1", StringComparison.Ordinal) || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
     }
 }

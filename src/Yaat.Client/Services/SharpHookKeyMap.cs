@@ -31,7 +31,7 @@ internal static class SharpHookKeyMap
 
     public static Key ToAvaloniaKey(KeyCode code)
     {
-        return Map.TryGetValue(code, out var key) ? key : Key.None;
+        return Map.TryGetValue(code, out Key key) ? key : Key.None;
     }
 
     /// <summary>
@@ -43,7 +43,7 @@ internal static class SharpHookKeyMap
     /// </summary>
     public static Key ToAvaloniaKey(KeyCode code, ushort rawCode)
     {
-        var key = ToAvaloniaKey(code);
+        Key key = ToAvaloniaKey(code);
         if (!OperatingSystem.IsWindows())
         {
             return key;

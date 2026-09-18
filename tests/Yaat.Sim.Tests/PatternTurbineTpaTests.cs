@@ -38,10 +38,10 @@ public class PatternTurbineTpaTests
     {
         // OAK 28L authors 600 AGL (field elev 9). AIM 4-3-3.a.2: turbine aircraft fly
         // 500 ft above the established pattern altitude → 1,100 AGL = 1,109 MSL.
-        var rwy = TestRunwayFactory.Make(elevationFt: 9);
-        var authored = MakeAuthored(600);
+        RunwayInfo rwy = TestRunwayFactory.Make(elevationFt: 9);
+        GroundRunway authored = MakeAuthored(600);
 
-        var (_, alt) = PatternGeometry.ResolveAuthoredOverrides(rwy, authored, category, commandSizeNm: null, commandAltitudeMslFt: null);
+        (double? _, double? alt) = PatternGeometry.ResolveAuthoredOverrides(rwy, authored, category, commandSizeNm: null, commandAltitudeMslFt: null);
 
         Assert.Equal(expectedMsl, alt!.Value, 0);
     }
@@ -51,10 +51,10 @@ public class PatternTurbineTpaTests
     [InlineData(400, 409)] // authored below 500: co-altitude with the aeroplanes — accepted degenerate case (above them would be worse)
     public void AuthoredTpa_Helicopter_StaysAtOrBelow500Agl(double authoredAgl, double expectedMsl)
     {
-        var rwy = TestRunwayFactory.Make(elevationFt: 9);
-        var authored = MakeAuthored(authoredAgl);
+        RunwayInfo rwy = TestRunwayFactory.Make(elevationFt: 9);
+        GroundRunway authored = MakeAuthored(authoredAgl);
 
-        var (_, alt) = PatternGeometry.ResolveAuthoredOverrides(
+        (double? _, double? alt) = PatternGeometry.ResolveAuthoredOverrides(
             rwy,
             authored,
             AircraftCategory.Helicopter,
@@ -68,10 +68,10 @@ public class PatternTurbineTpaTests
     [Fact]
     public void AuthoredTpa_Piston_FliesEstablishedVerbatim()
     {
-        var rwy = TestRunwayFactory.Make(elevationFt: 9);
-        var authored = MakeAuthored(600);
+        RunwayInfo rwy = TestRunwayFactory.Make(elevationFt: 9);
+        GroundRunway authored = MakeAuthored(600);
 
-        var (_, alt) = PatternGeometry.ResolveAuthoredOverrides(
+        (double? _, double? alt) = PatternGeometry.ResolveAuthoredOverrides(
             rwy,
             authored,
             AircraftCategory.Piston,
@@ -86,10 +86,16 @@ public class PatternTurbineTpaTests
     public void CommandTpaOverride_WinsVerbatim_ForTurbine()
     {
         // A controller TPA instruction is flyable at any value — no category adjustment.
-        var rwy = TestRunwayFactory.Make(elevationFt: 9);
-        var authored = MakeAuthored(600);
+        RunwayInfo rwy = TestRunwayFactory.Make(elevationFt: 9);
+        GroundRunway authored = MakeAuthored(600);
 
-        var (_, alt) = PatternGeometry.ResolveAuthoredOverrides(rwy, authored, AircraftCategory.Jet, commandSizeNm: null, commandAltitudeMslFt: 800);
+        (double? _, double? alt) = PatternGeometry.ResolveAuthoredOverrides(
+            rwy,
+            authored,
+            AircraftCategory.Jet,
+            commandSizeNm: null,
+            commandAltitudeMslFt: 800
+        );
 
         Assert.Equal(800, alt);
     }
@@ -107,13 +113,23 @@ public class PatternTurbineTpaTests
     [Fact]
     public void DownwindPastAbeam_TargetsGlideslopeInterceptAtRollout_NotFractionOfTpa()
     {
-        var rwy = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 9);
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
+        RunwayInfo rwy = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 9);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
 
         // Place the aircraft on the downwind just past abeam-the-threshold, at pattern altitude.
-        var downwindHdg = wp.DownwindHeading;
+        TrueHeading downwindHdg = wp.DownwindHeading;
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
-        var pos = GeoMath.ProjectPoint(abeam.Lat, abeam.Lon, downwindHdg, 0.1);
+        (double Lat, double Lon) pos = GeoMath.ProjectPoint(abeam.Lat, abeam.Lon, downwindHdg, 0.1);
 
         var ac = new AircraftState
         {

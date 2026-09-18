@@ -17,7 +17,7 @@ public sealed record TimerItem(int Id, string? Callsign, string? Message, int Re
     {
         get
         {
-            var text = string.IsNullOrWhiteSpace(Message) ? "timer expired" : Message;
+            string text = string.IsNullOrWhiteSpace(Message) ? "timer expired" : Message;
             return string.IsNullOrEmpty(Callsign) ? text : $"{Callsign}: {text}";
         }
     }
@@ -53,7 +53,7 @@ public partial class MainViewModel
             return;
         }
 
-        foreach (var t in timers)
+        foreach (TimerDto t in timers)
         {
             ActiveTimers.Add(new TimerItem(t.Id, t.Callsign, t.Message, t.RemainingSeconds, t.TotalSeconds));
         }
@@ -67,7 +67,7 @@ public partial class MainViewModel
         }
         else
         {
-            var soonest = ActiveTimers[0];
+            TimerItem soonest = ActiveTimers[0];
             TimersSummary = ActiveTimers.Count == 1 ? $"⏱ {soonest.Remaining}" : $"⏱ {soonest.Remaining}  +{ActiveTimers.Count - 1}";
         }
     }

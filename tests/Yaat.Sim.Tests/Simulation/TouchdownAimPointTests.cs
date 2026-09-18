@@ -52,13 +52,13 @@ public class TouchdownAimPointTests(ITestOutputHelper output)
     /// </summary>
     private static double? RunToTouchdown(SimulationEngine engine, string airportId, string runwayId, string aircraftType)
     {
-        var navDb = NavigationDatabase.Instance;
-        var runway = navDb.GetRunway(airportId, runwayId);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? runway = navDb.GetRunway(airportId, runwayId);
         Assert.NotNull(runway);
 
         const double finalDistNm = 2.0;
         double reciprocal = (runway.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, finalDistNm);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, finalDistNm);
         double altAboveField = finalDistNm * 318;
 
         var aircraft = new AircraftState
@@ -79,7 +79,7 @@ public class TouchdownAimPointTests(ITestOutputHelper output)
             },
         };
 
-        var layout = new TestAirportGroundData().GetLayout(airportId);
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(airportId);
         Assert.NotNull(layout);
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
@@ -89,7 +89,7 @@ public class TouchdownAimPointTests(ITestOutputHelper output)
         aircraft.Phases.Add(new HoldingAfterExitPhase());
         aircraft.Ground.Layout = layout;
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
@@ -101,7 +101,7 @@ public class TouchdownAimPointTests(ITestOutputHelper output)
             PrimaryAirportId = airportId,
         };
 
-        var clearResult = engine.SendCommand("TSTAC", "CLAND");
+        CommandResult clearResult = engine.SendCommand("TSTAC", "CLAND");
         Assert.True(clearResult.Success, $"CLAND failed: {clearResult.Message}");
 
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);

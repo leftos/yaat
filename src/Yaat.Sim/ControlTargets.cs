@@ -200,7 +200,7 @@ public class ControlTargets
         targets.NavigationRoute.Clear();
         if (dto.NavigationRoute is not null)
         {
-            foreach (var nav in dto.NavigationRoute)
+            foreach (NavigationTargetDto nav in dto.NavigationRoute)
             {
                 targets.NavigationRoute.Add(NavigationTarget.FromSnapshot(nav));
             }

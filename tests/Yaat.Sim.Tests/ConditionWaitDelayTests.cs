@@ -35,10 +35,10 @@ public class ConditionWaitDelayTests
     [Fact]
     public void ConditionThenWait_MergesIntoSingleBlock()
     {
-        var result = CommandParser.ParseCompound("LV 050 WAIT 30 DM 110");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("LV 050 WAIT 30 DM 110");
 
         Assert.NotNull(result.Value);
-        var block = Assert.Single(result.Value!.Blocks);
+        ParsedBlock block = Assert.Single(result.Value!.Blocks);
         Assert.IsType<LevelCondition>(block.Condition);
         Assert.Equal(2, block.Commands.Count);
         Assert.Equal(30.0, Assert.IsType<WaitCommand>(block.Commands[0]).Seconds);
@@ -48,10 +48,10 @@ public class ConditionWaitDelayTests
     [Fact]
     public void ChainedWaitsAfterCondition_MergeAndPreserveOrder()
     {
-        var result = CommandParser.ParseCompound("LV 050 WAIT 5 WAIT 10 DM 110");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("LV 050 WAIT 5 WAIT 10 DM 110");
 
         Assert.NotNull(result.Value);
-        var block = Assert.Single(result.Value!.Blocks);
+        ParsedBlock block = Assert.Single(result.Value!.Blocks);
         Assert.IsType<LevelCondition>(block.Condition);
         Assert.Collection(
             block.Commands,
@@ -69,10 +69,10 @@ public class ConditionWaitDelayTests
             return;
         }
 
-        var result = CommandParser.ParseCompound("CFIX TTE 140; AT TTE WAIT 30 DM 110");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("CFIX TTE 140; AT TTE WAIT 30 DM 110");
 
         Assert.NotNull(result.Value);
-        var blocks = result.Value!.Blocks;
+        List<ParsedBlock> blocks = result.Value!.Blocks;
 
         // Exactly two blocks: the CFIX, then the merged AT-TTE wait+descend. The DM must NOT become a
         // third, independently AT-injected block (the #286 regression).
@@ -80,7 +80,7 @@ public class ConditionWaitDelayTests
         Assert.Null(blocks[0].Condition);
         Assert.IsType<CrossFixCommand>(blocks[0].Commands[0]);
 
-        var waitBlock = blocks[1];
+        ParsedBlock waitBlock = blocks[1];
         Assert.IsType<AtFixCondition>(waitBlock.Condition);
         Assert.Equal(2, waitBlock.Commands.Count);
         Assert.IsType<WaitCommand>(waitBlock.Commands[0]);
@@ -99,12 +99,12 @@ public class ConditionWaitDelayTests
         // what the server rebuilds from that canonical. The canonicalizer must keep the WAIT and its
         // descent payload in one conditioned `AT TTE` block so the queue holds the descent behind the
         // wait's countdown (issue #335 — the pre-split form orphaned the payload).
-        var canonical = CommandSchemeParser.ParseCompound("CFIX TTE 140; AT TTE WAIT 30 DM 110; RNS", CommandScheme.Default());
+        CompoundParseResult? canonical = CommandSchemeParser.ParseCompound("CFIX TTE 140; AT TTE WAIT 30 DM 110; RNS", CommandScheme.Default());
         Assert.NotNull(canonical);
 
-        var parsed = CommandParser.ParseCompound(canonical!.CanonicalString);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(canonical!.CanonicalString);
         Assert.True(parsed.IsSuccess);
-        var blocks = parsed.Value!.Blocks;
+        List<ParsedBlock> blocks = parsed.Value!.Blocks;
 
         int waitIdx = blocks.FindIndex(b => b.Commands.Exists(c => c is WaitCommand));
         int descendIdx = blocks.FindIndex(b => b.Commands.Exists(c => c is DescendMaintainCommand));
@@ -127,7 +127,7 @@ public class ConditionWaitDelayTests
     [InlineData("LV 050 WAIT 5 WAIT 10 DM 110", "LV 050 WAIT 5 WAIT 10 DM 110")]
     public void ClientCanonical_ConditionWait_StaysOneBlock(string typed, string expectedCanonical)
     {
-        var result = CommandSchemeParser.ParseCompound(typed, CommandScheme.Default());
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(typed, CommandScheme.Default());
 
         Assert.NotNull(result);
         Assert.Equal(expectedCanonical, result!.CanonicalString);
@@ -141,14 +141,14 @@ public class ConditionWaitDelayTests
             return;
         }
 
-        var canonical = CommandSchemeParser.ParseCompound("AT TTE WAIT 170 DM 110", CommandScheme.Default());
+        CompoundParseResult? canonical = CommandSchemeParser.ParseCompound("AT TTE WAIT 170 DM 110", CommandScheme.Default());
 
         Assert.NotNull(canonical);
         Assert.Equal("AT TTE WAIT 170 DM 110", canonical!.CanonicalString);
 
-        var parsed = CommandParser.ParseCompound(canonical.CanonicalString);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(canonical.CanonicalString);
         Assert.True(parsed.IsSuccess);
-        var block = Assert.Single(parsed.Value!.Blocks);
+        ParsedBlock block = Assert.Single(parsed.Value!.Blocks);
         Assert.IsType<AtFixCondition>(block.Condition);
         Assert.Equal(2, block.Commands.Count);
         Assert.Equal(170.0, Assert.IsType<WaitCommand>(block.Commands[0]).Seconds);
@@ -158,12 +158,12 @@ public class ConditionWaitDelayTests
     [Fact]
     public void ClientCanonical_ChainedWaits_RoundTripToOneConditionedBlock()
     {
-        var canonical = CommandSchemeParser.ParseCompound("LV 050 WAIT 5 WAIT 10 DM 110", CommandScheme.Default());
+        CompoundParseResult? canonical = CommandSchemeParser.ParseCompound("LV 050 WAIT 5 WAIT 10 DM 110", CommandScheme.Default());
         Assert.NotNull(canonical);
 
-        var parsed = CommandParser.ParseCompound(canonical!.CanonicalString);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(canonical!.CanonicalString);
         Assert.True(parsed.IsSuccess);
-        var block = Assert.Single(parsed.Value!.Blocks);
+        ParsedBlock block = Assert.Single(parsed.Value!.Blocks);
         Assert.IsType<LevelCondition>(block.Condition);
         Assert.Collection(
             block.Commands,
@@ -176,10 +176,10 @@ public class ConditionWaitDelayTests
     [Fact]
     public void ClientCanonical_ConditionWait_IsIdempotent()
     {
-        var first = CommandSchemeParser.ParseCompound("LV 050 WAIT 5 DM 110", CommandScheme.Default());
+        CompoundParseResult? first = CommandSchemeParser.ParseCompound("LV 050 WAIT 5 DM 110", CommandScheme.Default());
         Assert.NotNull(first);
 
-        var second = CommandSchemeParser.ParseCompound(first!.CanonicalString, CommandScheme.Default());
+        CompoundParseResult? second = CommandSchemeParser.ParseCompound(first!.CanonicalString, CommandScheme.Default());
         Assert.NotNull(second);
         Assert.Equal(first.CanonicalString, second!.CanonicalString);
     }
@@ -189,7 +189,7 @@ public class ConditionWaitDelayTests
     {
         // A payload sub-block that introduces its own condition must stay a standalone block —
         // only the unconditioned payload merges into the wait's block.
-        var canonical = CommandSchemeParser.ParseCompound("LV 050 WAIT 5 AT TTE DM 110", CommandScheme.Default());
+        CompoundParseResult? canonical = CommandSchemeParser.ParseCompound("LV 050 WAIT 5 AT TTE DM 110", CommandScheme.Default());
         Assert.NotNull(canonical);
         Assert.Equal("LV 050 WAIT 5; AT TTE DM 110", canonical!.CanonicalString);
     }
@@ -198,7 +198,7 @@ public class ConditionWaitDelayTests
     public void ClientCanonical_UnconditionedWait_StillSplits()
     {
         // Without a leading condition the top-level ExpandWait split is the correct canonical form.
-        var result = CommandSchemeParser.ParseCompound("WAIT 5 DM 110", CommandScheme.Default());
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("WAIT 5 DM 110", CommandScheme.Default());
 
         Assert.NotNull(result);
         Assert.Equal("WAIT 5; DM 110", result!.CanonicalString);
@@ -211,14 +211,14 @@ public class ConditionWaitDelayTests
     [Fact]
     public void Dispatch_ConditionWithChainedWaits_SetsSummedWaitRemainingSeconds()
     {
-        var ac = MakeAircraft();
-        var parsed = CommandParser.ParseCompound("LV 050 WAIT 5 WAIT 10 DM 110");
+        AircraftState ac = MakeAircraft();
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("LV 050 WAIT 5 WAIT 10 DM 110");
         Assert.NotNull(parsed.Value);
 
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new SerializableRandom(42)));
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success, result.Message);
-        var block = Assert.Single(ac.Queue.Blocks);
+        CommandBlock block = Assert.Single(ac.Queue.Blocks);
         Assert.True(block.IsWaitBlock);
         Assert.Equal(15, block.WaitRemainingSeconds);
     }
@@ -230,7 +230,7 @@ public class ConditionWaitDelayTests
     [Fact]
     public void TriggeredWaitBlock_HoldsPayloadUntilCountdownElapses()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         bool applied = false;
         var block = new CommandBlock
         {
@@ -273,7 +273,7 @@ public class ConditionWaitDelayTests
     [Fact]
     public void LookaheadWaitBlock_HoldsPayload_AndSequencesLaterBlockAfterWait()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         // A perpetually-incomplete Navigation block keeps the queue pinned at index 0 (mirrors the CFIX
         // arrival case), so the wait block and the trailing block only fire via the lookahead scan.
@@ -346,7 +346,7 @@ public class ConditionWaitDelayTests
     [Fact]
     public void CurrentBlockWait_HoldsPayload_AndSequencesLaterBlockAfterWait()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         // Same as the lookahead case but WITHOUT a leading perpetual Navigation block, so the wait
         // block is the queue's *current* (advancing) block (index 0) rather than reached via lookahead.

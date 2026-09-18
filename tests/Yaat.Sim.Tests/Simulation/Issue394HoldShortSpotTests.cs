@@ -61,13 +61,13 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     /// <summary>The C-side neighbor of the C/Z junction: on C, one hop short of Z.</summary>
     private static GroundNode? FindStartNodeOnCShortOfZ(AirportGroundLayout layout)
     {
-        var junction = layout.FindIntersectionNode("C", "Z");
+        GroundNode? junction = layout.FindIntersectionNode("C", "Z");
         if (junction is null)
         {
             return null;
         }
 
-        foreach (var edge in junction.Edges)
+        foreach (IGroundEdge edge in junction.Edges)
         {
             if (edge.MatchesTaxiway("C") && !edge.MatchesTaxiway("Z"))
             {
@@ -114,7 +114,7 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
 
     private static TaxiCommand ParseTaxi(string input)
     {
-        var parsed = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
         Assert.True(parsed.IsSuccess, $"'{input}' failed to parse: {parsed.Reason}");
         return Assert.IsType<TaxiCommand>(parsed.Value);
     }
@@ -127,10 +127,10 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
             return;
         }
 
-        var taxiways = route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase);
+        IEnumerable<string> taxiways = route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase);
         output.WriteLine($"[{label}] taxiways=[{string.Join(", ", taxiways)}] segments={route.Segments.Count}");
         output.WriteLine($"[{label}] warnings=[{string.Join(" | ", route.Warnings)}]");
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             output.WriteLine($"[{label}]   HS node={hs.NodeId} target={hs.TargetName} reason={hs.Reason} cleared={hs.IsCleared}");
         }
@@ -182,30 +182,30 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     [Fact]
     public void TaxiCzbm1_HsSpot17_BindsSpotNode()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var spot = layout.FindSpotNodeByName(SpotName);
+        GroundNode? spot = layout.FindSpotNodeByName(SpotName);
         Assert.NotNull(spot);
-        var start = FindStartNodeOnCShortOfZ(layout);
+        GroundNode? start = FindStartNodeOnCShortOfZ(layout);
         Assert.NotNull(start);
-        var junction = layout.FindIntersectionNode("C", "Z");
+        GroundNode? junction = layout.FindIntersectionNode("C", "Z");
         Assert.NotNull(junction);
 
-        var ac = MakeAircraftAt(start, GeoMath.BearingTo(start.Position, junction.Position));
-        var taxi = ParseTaxi("TAXI C Z B M1 1L HS $17");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
-        var route = ac.Ground.AssignedTaxiRoute;
+        AircraftState ac = MakeAircraftAt(start, GeoMath.BearingTo(start.Position, junction.Position));
+        TaxiCommand taxi = ParseTaxi("TAXI C Z B M1 1L HS $17");
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         LogRoute("HS $17", route);
         Assert.True(result.Success, $"TAXI C Z B M1 1L HS $17 failed: {result.Message}");
         Assert.NotNull(route);
 
         Assert.Null(route.DestinationSpot);
 
-        var hs = Assert.Single(route.HoldShortPoints, h => h.Reason == HoldShortReason.ExplicitHoldShort);
+        HoldShortPoint hs = Assert.Single(route.HoldShortPoints, h => h.Reason == HoldShortReason.ExplicitHoldShort);
         Assert.Equal(SpotTargetName, hs.TargetName);
         Assert.Equal(spot.Id, hs.NodeId);
         Assert.False(hs.IsCleared);
@@ -224,21 +224,21 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     [Fact]
     public void TaxiCzbm1_HsSpotOffRoute_Warns()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var start = FindStartNodeOnCShortOfZ(layout);
+        GroundNode? start = FindStartNodeOnCShortOfZ(layout);
         Assert.NotNull(start);
-        var junction = layout.FindIntersectionNode("C", "Z");
+        GroundNode? junction = layout.FindIntersectionNode("C", "Z");
         Assert.NotNull(junction);
 
-        var ac = MakeAircraftAt(start, GeoMath.BearingTo(start.Position, junction.Position));
-        var taxi = ParseTaxi("TAXI C Z B M1 1L HS $8");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
-        var route = ac.Ground.AssignedTaxiRoute;
+        AircraftState ac = MakeAircraftAt(start, GeoMath.BearingTo(start.Position, junction.Position));
+        TaxiCommand taxi = ParseTaxi("TAXI C Z B M1 1L HS $8");
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         LogRoute("HS $8", route);
         Assert.True(result.Success, $"TAXI C Z B M1 1L HS $8 failed: {result.Message}");
         Assert.NotNull(route);
@@ -251,34 +251,34 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     [Fact]
     public void PostHoc_HsSpot17_AddsHoldAtSpotNode()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var spot = layout.FindSpotNodeByName(SpotName);
+        GroundNode? spot = layout.FindSpotNodeByName(SpotName);
         Assert.NotNull(spot);
-        var start = FindStartNodeOnCShortOfZ(layout);
+        GroundNode? start = FindStartNodeOnCShortOfZ(layout);
         Assert.NotNull(start);
-        var junction = layout.FindIntersectionNode("C", "Z");
+        GroundNode? junction = layout.FindIntersectionNode("C", "Z");
         Assert.NotNull(junction);
 
-        var ac = MakeAircraftAt(start, GeoMath.BearingTo(start.Position, junction.Position));
-        var taxiResult = GroundCommandHandler.TryTaxi(ac, ParseTaxi("TAXI C Z B M1 1L"), layout);
+        AircraftState ac = MakeAircraftAt(start, GeoMath.BearingTo(start.Position, junction.Position));
+        CommandResult taxiResult = GroundCommandHandler.TryTaxi(ac, ParseTaxi("TAXI C Z B M1 1L"), layout);
         Assert.True(taxiResult.Success, $"setup taxi failed: {taxiResult.Message}");
 
-        var parsed = CommandParser.Parse("HS $17");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("HS $17");
         Assert.True(parsed.IsSuccess, $"'HS $17' failed to parse: {parsed.Reason}");
-        var hsCmd = Assert.IsType<HoldShortCommand>(parsed.Value);
+        HoldShortCommand hsCmd = Assert.IsType<HoldShortCommand>(parsed.Value);
 
-        var result = GroundCommandHandler.TryHoldShort(ac, hsCmd, layout);
-        var route = ac.Ground.AssignedTaxiRoute;
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, hsCmd, layout);
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         LogRoute("post-hoc $17", route);
         Assert.True(result.Success, $"HS $17 failed: {result.Message}");
         Assert.NotNull(route);
 
-        var hs = Assert.Single(route.HoldShortPoints, h => h.Reason == HoldShortReason.ExplicitHoldShort);
+        HoldShortPoint hs = Assert.Single(route.HoldShortPoints, h => h.Reason == HoldShortReason.ExplicitHoldShort);
         Assert.Equal(SpotTargetName, hs.TargetName);
         Assert.Equal(spot.Id, hs.NodeId);
     }
@@ -292,26 +292,26 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_HsSpot17_HoldsAtSpot_ThenResumesTo1L()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var spot = layout.FindSpotNodeByName(SpotName);
+        GroundNode? spot = layout.FindSpotNodeByName(SpotName);
         Assert.NotNull(spot);
-        var start = FindStartNodeOnCShortOfZ(layout);
+        GroundNode? start = FindStartNodeOnCShortOfZ(layout);
         Assert.NotNull(start);
-        var junction = layout.FindIntersectionNode("C", "Z");
+        GroundNode? junction = layout.FindIntersectionNode("C", "Z");
         Assert.NotNull(junction);
 
-        var ac = MakeAircraftAt(start, GeoMath.BearingTo(start.Position, junction.Position));
-        var result = GroundCommandHandler.TryTaxi(ac, ParseTaxi("TAXI C Z B M1 1L HS $17"), layout);
+        AircraftState ac = MakeAircraftAt(start, GeoMath.BearingTo(start.Position, junction.Position));
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, ParseTaxi("TAXI C Z B M1 1L HS $17"), layout);
         Assert.True(result.Success, $"taxi failed: {result.Message}");
         LogRoute("phase", ac.Ground.AssignedTaxiRoute);
-        var ctx = Context(ac, layout);
+        PhaseContext ctx = Context(ac, layout);
 
-        var holding = TickUntilHoldingShort(ac, ctx, SpotTargetName, maxSeconds: 300, spot);
+        HoldingShortPhase? holding = TickUntilHoldingShort(ac, ctx, SpotTargetName, maxSeconds: 300, spot);
         Assert.NotNull(holding);
         Assert.Equal("Holding Short spot 17", holding.Name);
         Assert.True(ac.IndicatedAirspeed < 1, $"still rolling at {ac.IndicatedAirspeed:F1} kt while holding short");
@@ -326,13 +326,13 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
         Assert.True(distToSpotFt is > 5 and < 60, $"holding {distToSpotFt:F0} ft from spot 17 — expected nose at the mark (½ length back)");
 
         // Bare RES from an explicit hold-short: the dispatcher applies any modifiers, then satisfies the hold.
-        var resume = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(ac, layout, [], []);
+        CommandResult resume = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(ac, layout, [], []);
         Assert.True(resume.Success, $"RES failed: {resume.Message}");
         holding.SatisfyClearance(ClearanceType.RunwayCrossing);
 
-        var bar1L = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "1L", "M1");
+        GroundNode? bar1L = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "1L", "M1");
         Assert.NotNull(bar1L);
-        var holding1L = TickUntilHoldingShort(ac, ctx, "1L", maxSeconds: 900, bar1L);
+        HoldingShortPhase? holding1L = TickUntilHoldingShort(ac, ctx, "1L", maxSeconds: 900, bar1L);
         Assert.NotNull(holding1L);
         Assert.Equal(HoldShortReason.DestinationRunway, holding1L.HoldShort.Reason);
     }
@@ -346,20 +346,20 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     [Fact]
     public void N619TC_Replay_HoldsShortOfSpot17()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
-        var spot = layout.FindSpotNodeByName(SpotName);
+        GroundNode? spot = layout.FindSpotNodeByName(SpotName);
         Assert.NotNull(spot);
 
         engine.Replay(recording, SpawnSeconds);
-        var aircraft = engine.FindAircraft("N619TC");
+        AircraftState? aircraft = engine.FindAircraft("N619TC");
         Assert.NotNull(aircraft);
         LogRoute("replay", aircraft.Ground.AssignedTaxiRoute);
 
@@ -403,7 +403,7 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     [InlineData("RES HS $17", "resume taxi, hold short of spot one seven")]
     public void Readback_SpotTarget_SaysSpot(string command, string expected)
     {
-        var parsed = CommandParser.Parse(command);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         Assert.Equal(expected, PhraseologyVerbalizer.Verbalize(parsed.Value!));
     }
@@ -412,7 +412,7 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     [Fact]
     public void Stt_ImplausibleSpotWord_IsRejected()
     {
-        var result = PhraseologyMapper.Map("hold short of spot harriet", MapContext.Empty);
+        MapResult? result = PhraseologyMapper.Map("hold short of spot harriet", MapContext.Empty);
         Assert.True(result is null || !result.CanonicalCommand.Contains("$HARRIET"), $"mapped to {result?.CanonicalCommand}");
     }
 
@@ -425,8 +425,11 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     [InlineData("hold short of spot nine nine", null)]
     public void Stt_SpotHoldShort_ValidatesAgainstLayoutSpots(string transcript, string? expectedCanonical)
     {
-        var ctx = MapContext.Empty with { DestinationNames = new HashSet<string>(["17", "7A", "8", "SIG3"], StringComparer.OrdinalIgnoreCase) };
-        var result = PhraseologyMapper.Map(transcript, ctx);
+        MapContext ctx = MapContext.Empty with
+        {
+            DestinationNames = new HashSet<string>(["17", "7A", "8", "SIG3"], StringComparer.OrdinalIgnoreCase),
+        };
+        MapResult? result = PhraseologyMapper.Map(transcript, ctx);
         if (expectedCanonical is null)
         {
             Assert.True(result is null || !result.CanonicalCommand.Contains("$99"), $"mapped to {result?.CanonicalCommand}");
@@ -443,8 +446,8 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     [InlineData("taxi via charlie zulu hold short of spot one seven", "TAXI C Z HS $17")]
     public void Stt_SpotHoldShort_MapsToCanonical(string transcript, string expectedCanonical)
     {
-        var ctx = MapContext.Empty with { TaxiwayNames = new HashSet<string>(["C", "Z", "B", "M1"], StringComparer.OrdinalIgnoreCase) };
-        var result = PhraseologyMapper.Map(transcript, ctx);
+        MapContext ctx = MapContext.Empty with { TaxiwayNames = new HashSet<string>(["C", "Z", "B", "M1"], StringComparer.OrdinalIgnoreCase) };
+        MapResult? result = PhraseologyMapper.Map(transcript, ctx);
         Assert.NotNull(result);
         Assert.Equal(expectedCanonical, result.CanonicalCommand);
     }

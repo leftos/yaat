@@ -41,7 +41,7 @@ public static class CifpParser
         int approachRecords = 0;
         int waypointRecords = 0;
 
-        foreach (var line in File.ReadLines(cifpFilePath))
+        foreach (string line in File.ReadLines(cifpFilePath))
         {
             if (line.Length < 50)
             {
@@ -71,14 +71,14 @@ public static class CifpParser
         // preferring higher-priority approach types
         var fafFixes = new Dictionary<(string Airport, string Runway), string>();
 
-        foreach (var (_, candidate) in fafByApproach)
+        foreach ((string _, FafCandidate? candidate) in fafByApproach)
         {
-            var key = (candidate.Airport, candidate.Runway);
+            (string Airport, string Runway) key = (candidate.Airport, candidate.Runway);
 
             if (fafFixes.ContainsKey(key))
             {
                 // Only replace if this approach has higher priority
-                var existingKey = fafByApproach.Values.FirstOrDefault(c =>
+                FafCandidate? existingKey = fafByApproach.Values.FirstOrDefault(c =>
                     c.Airport == candidate.Airport && c.Runway == candidate.Runway && c.FafFix == fafFixes[key]
                 );
                 if (existingKey is not null && candidate.Priority < existingKey.Priority)
@@ -142,7 +142,7 @@ public static class CifpParser
         string normalizedIcao = airportIcao.ToUpperInvariant().PadRight(4);
         var waypoints = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var line in CifpAirportIndex.ReadAirportLines(cifpFilePath, normalizedIcao))
+        foreach (string line in CifpAirportIndex.ReadAirportLines(cifpFilePath, normalizedIcao))
         {
             if (line.Length < 50)
             {
@@ -181,7 +181,7 @@ public static class CifpParser
         // Each leg tagged with route type and transition name
         var approachLegs = new Dictionary<string, List<RawApproachLeg>>(StringComparer.Ordinal);
 
-        foreach (var line in CifpAirportIndex.ReadAirportLines(cifpFilePath, normalizedIcao))
+        foreach (string line in CifpAirportIndex.ReadAirportLines(cifpFilePath, normalizedIcao))
         {
             if (line.Length < 100)
             {
@@ -206,13 +206,13 @@ public static class CifpParser
                 continue;
             }
 
-            var leg = ParseApproachLeg(line);
+            RawApproachLeg? leg = ParseApproachLeg(line);
             if (leg is null)
             {
                 continue;
             }
 
-            if (!approachLegs.TryGetValue(leg.ApproachId, out var list))
+            if (!approachLegs.TryGetValue(leg.ApproachId, out List<RawApproachLeg>? list))
             {
                 list = [];
                 approachLegs[leg.ApproachId] = list;
@@ -222,7 +222,7 @@ public static class CifpParser
         }
 
         // Load terminal waypoints for resolving RF arc center fixes
-        var terminalWaypoints = ParseTerminalWaypoints(cifpFilePath, airportIcao);
+        IReadOnlyDictionary<string, (double Lat, double Lon)> terminalWaypoints = ParseTerminalWaypoints(cifpFilePath, airportIcao);
 
         var results = new List<CifpApproachProcedure>(approachLegs.Count);
         string faaAirport = normalizedIcao.Trim();
@@ -231,9 +231,9 @@ public static class CifpParser
             faaAirport = faaAirport[1..];
         }
 
-        foreach (var (approachId, rawLegs) in approachLegs)
+        foreach ((string? approachId, List<RawApproachLeg>? rawLegs) in approachLegs)
         {
-            var procedure = BuildApproachProcedure(faaAirport, approachId, rawLegs, terminalWaypoints);
+            CifpApproachProcedure? procedure = BuildApproachProcedure(faaAirport, approachId, rawLegs, terminalWaypoints);
             if (procedure is not null)
             {
                 results.Add(procedure);
@@ -270,7 +270,7 @@ public static class CifpParser
 
         var legsByProcedure = new Dictionary<string, List<RawProcedureLeg>>(StringComparer.Ordinal);
 
-        foreach (var line in CifpAirportIndex.ReadAirportLines(cifpFilePath, normalizedIcao))
+        foreach (string line in CifpAirportIndex.ReadAirportLines(cifpFilePath, normalizedIcao))
         {
             if (line.Length < 100)
             {
@@ -293,13 +293,13 @@ public static class CifpParser
                 continue;
             }
 
-            var leg = ParseProcedureLeg(line);
+            RawProcedureLeg? leg = ParseProcedureLeg(line);
             if (leg is null)
             {
                 continue;
             }
 
-            if (!legsByProcedure.TryGetValue(leg.ProcedureId, out var list))
+            if (!legsByProcedure.TryGetValue(leg.ProcedureId, out List<RawProcedureLeg>? list))
             {
                 list = [];
                 legsByProcedure[leg.ProcedureId] = list;
@@ -309,7 +309,7 @@ public static class CifpParser
         }
 
         // Load terminal waypoints for resolving RF arc center fixes
-        var terminalWaypoints = ParseTerminalWaypoints(cifpFilePath, airportIcao);
+        IReadOnlyDictionary<string, (double Lat, double Lon)> terminalWaypoints = ParseTerminalWaypoints(cifpFilePath, airportIcao);
 
         string faaAirport = normalizedIcao.Trim();
         if (faaAirport.StartsWith('K'))
@@ -318,9 +318,9 @@ public static class CifpParser
         }
 
         var results = new List<T>(legsByProcedure.Count);
-        foreach (var (procedureId, rawLegs) in legsByProcedure)
+        foreach ((string? procedureId, List<RawProcedureLeg>? rawLegs) in legsByProcedure)
         {
-            var procedure = builder(faaAirport, procedureId, rawLegs, terminalWaypoints);
+            T? procedure = builder(faaAirport, procedureId, rawLegs, terminalWaypoints);
             if (procedure is not null)
             {
                 results.Add(procedure);
@@ -355,9 +355,9 @@ public static class CifpParser
         var runwayLegs = new Dictionary<string, List<CifpLeg>>(StringComparer.Ordinal);
         var enrouteLegs = new Dictionary<string, List<CifpLeg>>(StringComparer.Ordinal);
 
-        foreach (var raw in rawLegs)
+        foreach (RawProcedureLeg raw in rawLegs)
         {
-            var leg = BuildCifpLeg(raw, terminalWaypoints);
+            CifpLeg leg = BuildCifpLeg(raw, terminalWaypoints);
 
             string transName = raw.TransitionName;
 
@@ -367,7 +367,7 @@ public static class CifpParser
             }
             else if (transName.StartsWith("RW", StringComparison.OrdinalIgnoreCase))
             {
-                if (!runwayLegs.TryGetValue(transName, out var list))
+                if (!runwayLegs.TryGetValue(transName, out List<CifpLeg>? list))
                 {
                     list = [];
                     runwayLegs[transName] = list;
@@ -377,7 +377,7 @@ public static class CifpParser
             }
             else
             {
-                if (!enrouteLegs.TryGetValue(transName, out var list))
+                if (!enrouteLegs.TryGetValue(transName, out List<CifpLeg>? list))
                 {
                     list = [];
                     enrouteLegs[transName] = list;
@@ -388,13 +388,13 @@ public static class CifpParser
         }
 
         var runwayTransitions = new Dictionary<string, CifpTransition>(runwayLegs.Count, StringComparer.Ordinal);
-        foreach (var (name, legs) in runwayLegs)
+        foreach ((string? name, List<CifpLeg>? legs) in runwayLegs)
         {
             runwayTransitions[name] = new CifpTransition(name, legs);
         }
 
         var enrouteTransitions = new Dictionary<string, CifpTransition>(enrouteLegs.Count, StringComparer.Ordinal);
-        foreach (var (name, legs) in enrouteLegs)
+        foreach ((string? name, List<CifpLeg>? legs) in enrouteLegs)
         {
             enrouteTransitions[name] = new CifpTransition(name, legs);
         }
@@ -414,7 +414,10 @@ public static class CifpParser
             return null;
         }
 
-        var (common, runway, enroute) = ClassifySidStarLegs(rawLegs, terminalWaypoints);
+        (List<CifpLeg>? common, Dictionary<string, CifpTransition>? runway, Dictionary<string, CifpTransition>? enroute) = ClassifySidStarLegs(
+            rawLegs,
+            terminalWaypoints
+        );
         return new CifpSidProcedure(airport, procedureId, common, runway, enroute);
     }
 
@@ -430,7 +433,10 @@ public static class CifpParser
             return null;
         }
 
-        var (common, runway, enroute) = ClassifySidStarLegs(rawLegs, terminalWaypoints);
+        (List<CifpLeg>? common, Dictionary<string, CifpTransition>? runway, Dictionary<string, CifpTransition>? enroute) = ClassifySidStarLegs(
+            rawLegs,
+            terminalWaypoints
+        );
         return new CifpStarProcedure(airport, procedureId, common, enroute, runway);
     }
 
@@ -508,7 +514,7 @@ public static class CifpParser
         // Altitude 2 at chars 89-93
         string alt2Str = line.Length > 93 ? line[89..94] : "";
 
-        var altitude = ParseAltitudeRestriction(altDesc, alt1Str, alt2Str);
+        CifpAltitudeRestriction? altitude = ParseAltitudeRestriction(altDesc, alt1Str, alt2Str);
 
         // Speed limit at chars 99-101; ARINC 424 §5.261 speed-limit description at char 117.
         string speedStr = line.Length > 101 ? line[99..102] : "";
@@ -601,7 +607,7 @@ public static class CifpParser
 
     private static RawApproachLeg? ParseApproachLeg(string line)
     {
-        var raw = ParseProcedureLeg(line);
+        RawProcedureLeg? raw = ParseProcedureLeg(line);
         if (raw is null)
         {
             return null;
@@ -666,14 +672,14 @@ public static class CifpParser
             }
         );
 
-        foreach (var raw in rawLegs)
+        foreach (RawApproachLeg raw in rawLegs)
         {
-            var leg = BuildCifpLegFromApproach(raw, terminalWaypoints);
+            CifpLeg leg = BuildCifpLegFromApproach(raw, terminalWaypoints);
 
             if (raw.RouteType == 'A')
             {
                 // Transition leg
-                if (!transitionLegs.TryGetValue(raw.TransitionName, out var tList))
+                if (!transitionLegs.TryGetValue(raw.TransitionName, out List<CifpLeg>? tList))
                 {
                     tList = [];
                     transitionLegs[raw.TransitionName] = tList;
@@ -729,7 +735,7 @@ public static class CifpParser
         }
 
         var transitions = new Dictionary<string, CifpTransition>(transitionLegs.Count, StringComparer.Ordinal);
-        foreach (var (name, legs) in transitionLegs)
+        foreach ((string? name, List<CifpLeg>? legs) in transitionLegs)
         {
             transitions[name] = new CifpTransition(name, legs);
         }
@@ -754,7 +760,7 @@ public static class CifpParser
         double? arcCenterLat = null;
         double? arcCenterLon = null;
 
-        if (raw.CenterFixId is not null && terminalWaypoints.TryGetValue(raw.CenterFixId, out var centerPos))
+        if (raw.CenterFixId is not null && terminalWaypoints.TryGetValue(raw.CenterFixId, out (double Lat, double Lon) centerPos))
         {
             arcCenterLat = centerPos.Lat;
             arcCenterLon = centerPos.Lon;
@@ -763,7 +769,7 @@ public static class CifpParser
         double? fixLat = null;
         double? fixLon = null;
 
-        if (!string.IsNullOrEmpty(raw.FixIdentifier) && terminalWaypoints.TryGetValue(raw.FixIdentifier, out var fixPos))
+        if (!string.IsNullOrEmpty(raw.FixIdentifier) && terminalWaypoints.TryGetValue(raw.FixIdentifier, out (double Lat, double Lon) fixPos))
         {
             fixLat = fixPos.Lat;
             fixLon = fixPos.Lon;
@@ -797,7 +803,7 @@ public static class CifpParser
         double? arcCenterLat = null;
         double? arcCenterLon = null;
 
-        if (raw.CenterFixId is not null && terminalWaypoints.TryGetValue(raw.CenterFixId, out var centerPos))
+        if (raw.CenterFixId is not null && terminalWaypoints.TryGetValue(raw.CenterFixId, out (double Lat, double Lon) centerPos))
         {
             arcCenterLat = centerPos.Lat;
             arcCenterLon = centerPos.Lon;
@@ -806,7 +812,7 @@ public static class CifpParser
         double? fixLat = null;
         double? fixLon = null;
 
-        if (!string.IsNullOrEmpty(raw.FixIdentifier) && terminalWaypoints.TryGetValue(raw.FixIdentifier, out var fixPos))
+        if (!string.IsNullOrEmpty(raw.FixIdentifier) && terminalWaypoints.TryGetValue(raw.FixIdentifier, out (double Lat, double Lon) fixPos))
         {
             fixLat = fixPos.Lat;
             fixLon = fixPos.Lon;
@@ -876,7 +882,7 @@ public static class CifpParser
             return null;
         }
 
-        var type = description switch
+        CifpAltitudeRestrictionType type = description switch
         {
             '+' or 'H' => CifpAltitudeRestrictionType.AtOrAbove,
             '-' => CifpAltitudeRestrictionType.AtOrBelow,
@@ -900,7 +906,7 @@ public static class CifpParser
             return null;
         }
 
-        var type = description switch
+        CifpSpeedRestrictionType type = description switch
         {
             '+' => CifpSpeedRestrictionType.AtOrAbove,
             '-' => CifpSpeedRestrictionType.AtOrBelow,
@@ -1018,7 +1024,7 @@ public static class CifpParser
         string key = $"{airport}:{approachId}";
 
         // Keep the last FAF in each approach (highest sequence wins)
-        if (!fafByApproach.TryGetValue(key, out var existing) || existing.Priority > priority)
+        if (!fafByApproach.TryGetValue(key, out FafCandidate? existing) || existing.Priority > priority)
         {
             fafByApproach[key] = new FafCandidate(airport, runway, fixId, priority);
         }
@@ -1050,8 +1056,8 @@ public static class CifpParser
             return;
         }
 
-        var lat = ParseArinc424Latitude(line.AsSpan(latStart, 9));
-        var lon = ParseArinc424Longitude(line.AsSpan(latStart + 9, 10));
+        double? lat = ParseArinc424Latitude(line.AsSpan(latStart, 9));
+        double? lon = ParseArinc424Longitude(line.AsSpan(latStart + 9, 10));
 
         if (lat is not null && lon is not null)
         {
@@ -1079,7 +1085,7 @@ public static class CifpParser
     {
         var elevations = new Dictionary<(string, string), double>();
 
-        foreach (var line in File.ReadLines(cifpFilePath))
+        foreach (string line in File.ReadLines(cifpFilePath))
         {
             if (line.Length < 71 || line[0] != 'S' || line[4] != 'P' || line[12] != 'G')
             {
@@ -1127,7 +1133,7 @@ public static class CifpParser
     {
         var navaids = new Dictionary<string, (double Lat, double Lon, string Name, string Type)>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var line in File.ReadLines(cifpFilePath))
+        foreach (string line in File.ReadLines(cifpFilePath))
         {
             if (line.Length < 50)
             {
@@ -1163,15 +1169,15 @@ public static class CifpParser
                 continue;
             }
 
-            var lat = ParseArinc424Latitude(line.AsSpan(latStart, 9));
-            var lon = ParseArinc424Longitude(line.AsSpan(latStart + 9, 10));
+            double? lat = ParseArinc424Latitude(line.AsSpan(latStart, 9));
+            double? lon = ParseArinc424Longitude(line.AsSpan(latStart + 9, 10));
 
             if (lat is not null && lon is not null)
             {
                 string name = line.Length >= 123 ? line[93..123].Trim() : "";
                 // Navaid class (ARINC 424 field 5.35) lives at fixed columns 27–32; sub_code at
                 // column 5 ('B' = NDB section DB). Used to spell the facility type in pilot speech.
-                var navClass = line.Length >= 32 ? line.AsSpan(27, 5) : default;
+                ReadOnlySpan<char> navClass = line.Length >= 32 ? line.AsSpan(27, 5) : default;
                 string type = ClassifyNavaid(line[5], navClass);
                 navaids[ident] = (lat.Value, lon.Value, name, type);
             }
@@ -1227,7 +1233,7 @@ public static class CifpParser
     {
         string normalizedIcao = airportIcao.ToUpperInvariant().PadRight(4);
 
-        foreach (var line in CifpAirportIndex.ReadAirportLines(cifpFilePath, normalizedIcao))
+        foreach (string line in CifpAirportIndex.ReadAirportLines(cifpFilePath, normalizedIcao))
         {
             // PA = airport reference point (subsection A). These records are shorter than the
             // ~130-char procedure records, so they don't share the approach parser's length gate.

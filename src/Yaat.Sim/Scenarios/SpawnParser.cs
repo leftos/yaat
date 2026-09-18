@@ -7,28 +7,28 @@ public static class SpawnParser
 {
     public static (SpawnRequest? Request, string? Error) Parse(string args)
     {
-        var tokens = args.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = args.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length < 4)
         {
             return (null, "Not enough arguments. Usage: ADD {rules} {weight} {engine} {position...}");
         }
 
-        if (!TryParseRules(tokens[0], out var rules))
+        if (!TryParseRules(tokens[0], out FlightRulesKind rules))
         {
             return (null, $"Invalid flight rules '{tokens[0]}'. Use I/IFR or V/VFR");
         }
 
-        if (!TryParseWeight(tokens[1], out var weight))
+        if (!TryParseWeight(tokens[1], out WeightClass weight))
         {
             return (null, $"Invalid weight class '{tokens[1]}'. Use S (small), S+ (smallplus), L (large), or H (heavy)");
         }
 
-        if (!TryParseEngine(tokens[2], out var engine))
+        if (!TryParseEngine(tokens[2], out EngineKind engine))
         {
             return (null, $"Invalid engine type '{tokens[2]}'. Use P (piston), T (turboprop), J (jet), or H (helicopter)");
         }
 
-        var comboError = ValidateCombo(weight, engine);
+        string? comboError = ValidateCombo(weight, engine);
         if (comboError is not null)
         {
             return (null, comboError);
@@ -68,7 +68,7 @@ public static class SpawnParser
             }
         }
 
-        var posTokens = tokens[3..positionEndIndex];
+        string[] posTokens = tokens[3..positionEndIndex];
         if (posTokens.Length == 0)
         {
             return (null, "Missing position arguments after engine type");
@@ -107,9 +107,9 @@ public static class SpawnParser
     {
         // A pasted radar-scope "Copy FRD" string (e.g. "-AAAME093002" or "- AAAME093002") lands
         // here because of the '-' prefix; redirect to the at-fix variant instead of a generic error.
-        foreach (var token in posTokens)
+        foreach (string token in posTokens)
         {
-            var candidate = token.TrimStart('-');
+            string candidate = token.TrimStart('-');
             if (FrdResolver.IsFrdIdentifier(candidate))
             {
                 return (null, FrdRedirectError(candidate));
@@ -126,17 +126,17 @@ public static class SpawnParser
             return (null, "Too many position arguments for bearing variant");
         }
 
-        if (!double.TryParse(posTokens[0][1..], out var bearing) || bearing < 0 || bearing > 360)
+        if (!double.TryParse(posTokens[0][1..], out double bearing) || bearing < 0 || bearing > 360)
         {
             return (null, $"Invalid bearing '{posTokens[0]}'. Use -{{0-360}}");
         }
 
-        if (!double.TryParse(posTokens[1], out var dist) || dist <= 0)
+        if (!double.TryParse(posTokens[1], out double dist) || dist <= 0)
         {
             return (null, $"Invalid distance '{posTokens[1]}'. Must be a positive number (nm)");
         }
 
-        var alt = AltitudeResolver.Resolve(posTokens[2]);
+        int? alt = AltitudeResolver.Resolve(posTokens[2]);
         if (alt is null)
         {
             return (null, $"Invalid altitude '{posTokens[2]}'. Use hundreds of feet ('035'), full feet ('3500'), or AGL ('KOAK+010')");
@@ -178,13 +178,13 @@ public static class SpawnParser
             return (null, "Too many position arguments for fix variant");
         }
 
-        var fixId = posTokens[0][1..]; // strip '@' prefix
+        string fixId = posTokens[0][1..]; // strip '@' prefix
         if (string.IsNullOrEmpty(fixId))
         {
             return (null, "Missing fix name after '@'");
         }
 
-        var alt = AltitudeResolver.Resolve(posTokens[1]);
+        int? alt = AltitudeResolver.Resolve(posTokens[1]);
         if (alt is null)
         {
             return (null, $"Invalid altitude '{posTokens[1]}'. Use hundreds of feet ('035'), full feet ('3500'), or AGL ('KOAK+010')");
@@ -215,7 +215,7 @@ public static class SpawnParser
         string? explicitAirline
     )
     {
-        var parkingName = posTokens[0][1..]; // strip '@' prefix
+        string parkingName = posTokens[0][1..]; // strip '@' prefix
         if (string.IsNullOrEmpty(parkingName))
         {
             return (null, "Missing parking/helipad name after '@'");
@@ -259,7 +259,7 @@ public static class SpawnParser
             return (null, FrdRedirectError(posTokens[0]));
         }
 
-        var runwayId = posTokens[0].ToUpperInvariant();
+        string runwayId = posTokens[0].ToUpperInvariant();
 
         if (posTokens.Length == 1)
         {
@@ -283,7 +283,7 @@ public static class SpawnParser
         {
             // A numeric second token is an on-final distance; a non-numeric token is a dot-joined
             // departure route (e.g. "NIMI6.OAK.SAU"), spawning a departure lined up on the runway.
-            if (double.TryParse(posTokens[1], out var finalDist))
+            if (double.TryParse(posTokens[1], out double finalDist))
             {
                 if (finalDist <= 0)
                 {
@@ -337,7 +337,7 @@ public static class SpawnParser
             return (null, "Arrival-on-STAR spawn requires IFR (descend-via and STARs are IFR procedures)");
         }
 
-        var routeParts = posTokens[0].Split('.');
+        string[] routeParts = posTokens[0].Split('.');
         if (
             routeParts.Length is < 2 or > 3
             || string.IsNullOrEmpty(routeParts[0])
@@ -348,8 +348,8 @@ public static class SpawnParser
             return (null, $"Invalid arrival route '{posTokens[0]}'. Use WAYPOINT.STAR[.RUNWAY] (e.g. TBARR.TBARR4.34R)");
         }
 
-        var entryFix = routeParts[0].ToUpperInvariant();
-        var starId = routeParts[1].ToUpperInvariant();
+        string entryFix = routeParts[0].ToUpperInvariant();
+        string starId = routeParts[1].ToUpperInvariant();
         string? runway = routeParts.Length == 3 ? routeParts[2].ToUpperInvariant() : null;
 
         bool descendVia = true;
@@ -361,8 +361,8 @@ public static class SpawnParser
 
         for (int i = 1; i < posTokens.Length; i++)
         {
-            var token = posTokens[i];
-            var upper = token.ToUpperInvariant();
+            string token = posTokens[i];
+            string upper = token.ToUpperInvariant();
 
             if (upper == "LVL")
             {
@@ -388,7 +388,7 @@ public static class SpawnParser
                     return (null, $"Unexpected numeric token '{token}' (use SP### for a speed override)");
                 }
 
-                var resolved = AltitudeResolver.Resolve(token);
+                int? resolved = AltitudeResolver.Resolve(token);
                 if (resolved is null)
                 {
                     return (null, $"Invalid altitude '{token}'");
@@ -440,7 +440,7 @@ public static class SpawnParser
     private static bool TryParseRules(string token, out FlightRulesKind rules)
     {
         rules = default;
-        var upper = token.ToUpperInvariant();
+        string upper = token.ToUpperInvariant();
         if (upper is "I" or "IFR")
         {
             rules = FlightRulesKind.Ifr;
@@ -457,7 +457,7 @@ public static class SpawnParser
     private static bool TryParseWeight(string token, out WeightClass weight)
     {
         weight = default;
-        var upper = token.ToUpperInvariant();
+        string upper = token.ToUpperInvariant();
         if (upper == "S")
         {
             weight = WeightClass.Small;
@@ -484,7 +484,7 @@ public static class SpawnParser
     private static bool TryParseEngine(string token, out EngineKind engine)
     {
         engine = default;
-        var upper = token.ToUpperInvariant();
+        string upper = token.ToUpperInvariant();
         if (upper == "P")
         {
             engine = EngineKind.Piston;

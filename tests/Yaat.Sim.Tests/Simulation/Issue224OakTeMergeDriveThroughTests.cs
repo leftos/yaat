@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -67,8 +68,8 @@ public class Issue224OakTeMergeDriveThroughTests(ITestOutputHelper output)
     [Fact]
     public void Follower_DoesNotDriveThroughLead_BeforeBreak()
     {
-        var engine = BuildEngine();
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (engine is null || archive is null)
         {
             return;
@@ -93,7 +94,7 @@ public class Issue224OakTeMergeDriveThroughTests(ITestOutputHelper output)
     private bool RestoreWindowStart(SimulationEngine engine, RecordingArchive archive)
     {
         engine.Replay(archive.ToBaseSessionRecording(), 0);
-        var snapshot = archive.ReadSnapshotAt(WindowStart);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(WindowStart);
         if (snapshot is null)
         {
             output.WriteLine($"No snapshot at or before t={WindowStart} — skipping");
@@ -101,8 +102,8 @@ public class Issue224OakTeMergeDriveThroughTests(ITestOutputHelper output)
         }
 
         engine.RestoreFromSnapshot(snapshot.State);
-        var lead = engine.FindAircraft(Lead);
-        var follower = engine.FindAircraft(Follower);
+        AircraftState? lead = engine.FindAircraft(Lead);
+        AircraftState? follower = engine.FindAircraft(Follower);
         Assert.NotNull(lead);
         Assert.NotNull(follower);
 
@@ -128,13 +129,13 @@ public class Issue224OakTeMergeDriveThroughTests(ITestOutputHelper output)
         int minGapTick = -1;
         bool conflictEngaged = false;
         double leadDistanceTravelledFt = 0;
-        var prevLeadPos = engine.FindAircraft(Lead)?.Position;
+        LatLon? prevLeadPos = engine.FindAircraft(Lead)?.Position;
 
         for (int t = WindowStart; t <= PreBreakEnd; t++)
         {
             engine.ReplayOneSecond();
-            var lead = engine.FindAircraft(Lead);
-            var follower = engine.FindAircraft(Follower);
+            AircraftState? lead = engine.FindAircraft(Lead);
+            AircraftState? follower = engine.FindAircraft(Follower);
             if (lead is null || follower is null)
             {
                 continue;

@@ -8,8 +8,8 @@ public sealed class WakeDirectiveLoaderTests
     [Fact]
     public void LoadAll_LoadsArtccScopedWakeDirectiveRules()
     {
-        var root = Path.Combine(Path.GetTempPath(), "yaat-wake-directive-tests", Guid.NewGuid().ToString("N"));
-        var category = Path.Combine(root, "ZOA", "WakeDirectives");
+        string root = Path.Combine(Path.GetTempPath(), "yaat-wake-directive-tests", Guid.NewGuid().ToString("N"));
+        string category = Path.Combine(root, "ZOA", "WakeDirectives");
         Directory.CreateDirectory(category);
         File.WriteAllText(
             Path.Combine(category, "oak.json"),
@@ -34,11 +34,11 @@ public sealed class WakeDirectiveLoaderTests
 
         try
         {
-            var result = WakeDirectiveLoader.LoadAll(root);
+            WakeDirectiveLoadResult result = WakeDirectiveLoader.LoadAll(root);
             var catalog = new WakeDirectiveCatalog(result.Rules);
 
             Assert.Empty(result.Warnings);
-            var rule = Assert.Single(result.Rules);
+            WakeDirectiveRule rule = Assert.Single(result.Rules);
             Assert.Equal("ZOA", rule.ArtccId);
             Assert.Equal("OAK", rule.AirportId);
             Assert.Contains(WakeDirectiveEffect.SuppressWakeInterval, rule.Effects);
@@ -69,8 +69,8 @@ public sealed class WakeDirectiveLoaderTests
     [Fact]
     public void LoadAll_RejectsInvalidWakeDirectiveRules()
     {
-        var root = Path.Combine(Path.GetTempPath(), "yaat-wake-directive-tests", Guid.NewGuid().ToString("N"));
-        var category = Path.Combine(root, "ZOA", "WakeDirectives");
+        string root = Path.Combine(Path.GetTempPath(), "yaat-wake-directive-tests", Guid.NewGuid().ToString("N"));
+        string category = Path.Combine(root, "ZOA", "WakeDirectives");
         Directory.CreateDirectory(category);
         File.WriteAllText(
             Path.Combine(category, "bad.json"),
@@ -93,7 +93,7 @@ public sealed class WakeDirectiveLoaderTests
 
         try
         {
-            var result = WakeDirectiveLoader.LoadAll(root);
+            WakeDirectiveLoadResult result = WakeDirectiveLoader.LoadAll(root);
 
             Assert.Empty(result.Rules);
             Assert.Contains(result.Warnings, warning => warning.Contains("invalid effect", StringComparison.OrdinalIgnoreCase));

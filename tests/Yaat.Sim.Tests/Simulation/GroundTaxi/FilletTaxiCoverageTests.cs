@@ -33,10 +33,10 @@ public class FilletTaxiCoverageTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(pair.AirportId);
+        AirportGroundLayout? layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(pair.AirportId);
         Assert.NotNull(layout);
 
-        var destination = TaxiCoverageRunner.ResolveNode(
+        GroundNode? destination = TaxiCoverageRunner.ResolveNode(
             layout,
             pair.DestinationName,
             pair.DestinationKind,
@@ -51,7 +51,7 @@ public class FilletTaxiCoverageTests(ITestOutputHelper output)
             return;
         }
 
-        var origin = TaxiCoverageRunner.ResolveNode(
+        GroundNode? origin = TaxiCoverageRunner.ResolveNode(
             layout,
             pair.OriginName,
             pair.OriginKind,

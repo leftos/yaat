@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -27,14 +28,14 @@ public class IssueSfoR10lOffsetApproachTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 
         return new SimulationEngine(groundData);
@@ -48,8 +49,8 @@ public class IssueSfoR10lOffsetApproachTests(ITestOutputHelper output)
         // fallback. The discriminating assertion is that the FAC is not bit-equal to the
         // runway true heading — for R10L the published course is computed from fix-to-fix
         // bearings on TF legs and is within a few degrees of (but not equal to) runway 10L.
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -57,11 +58,11 @@ public class IssueSfoR10lOffsetApproachTests(ITestOutputHelper output)
 
         engine.Replay(recording, CappTime + 5);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
-        var clearance = aircraft.Phases?.ActiveApproach;
-        var assignedRunway = aircraft.Phases?.AssignedRunway;
+        ApproachClearance? clearance = aircraft.Phases?.ActiveApproach;
+        RunwayInfo? assignedRunway = aircraft.Phases?.AssignedRunway;
         Assert.NotNull(clearance);
         Assert.NotNull(assignedRunway);
         Assert.Equal("R10L", clearance.ApproachId);
@@ -84,8 +85,8 @@ public class IssueSfoR10lOffsetApproachTests(ITestOutputHelper output)
         // runway heading; if that bug regressed, the cross-track measured against the FAC
         // would NOT converge to zero (the aircraft would track a different line offset by
         // the FAC-vs-runway angle).
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -100,16 +101,16 @@ public class IssueSfoR10lOffsetApproachTests(ITestOutputHelper output)
         for (int t = 1; t <= 240; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
-            var running = ac.Phases?.Phases.FirstOrDefault(p => p.Status == PhaseStatus.Active);
+            Phase? running = ac.Phases?.Phases.FirstOrDefault(p => p.Status == PhaseStatus.Active);
             if (running?.Name != "FinalApproach")
             {
                 continue;
             }
 
-            var clearance = ac.Phases?.ActiveApproach;
+            ApproachClearance? clearance = ac.Phases?.ActiveApproach;
             Assert.NotNull(clearance);
 
             double anchorLat = clearance.FinalApproachAnchorLat ?? GetThreshold(ac).Lat;
@@ -149,13 +150,13 @@ public class IssueSfoR10lOffsetApproachTests(ITestOutputHelper output)
 
     private static (double Lat, double Lon) GetThreshold(AircraftState aircraft)
     {
-        var rwy = aircraft.Phases?.AssignedRunway;
+        RunwayInfo? rwy = aircraft.Phases?.AssignedRunway;
         return rwy is null ? (0.0, 0.0) : (rwy.ThresholdLatitude, rwy.ThresholdLongitude);
     }
 
     private static TrueHeading GetRunwayHeading(AircraftState aircraft)
     {
-        var rwy = aircraft.Phases?.AssignedRunway;
+        RunwayInfo? rwy = aircraft.Phases?.AssignedRunway;
         return rwy?.TrueHeading ?? new TrueHeading(0);
     }
 }

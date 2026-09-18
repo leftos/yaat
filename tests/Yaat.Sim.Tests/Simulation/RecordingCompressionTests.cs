@@ -21,7 +21,7 @@ public class RecordingCompressionTests
     [InlineData("plain non-json text with no brackets")]
     public void Decompress_RoundTripsBrotli(string content)
     {
-        var compressed = RecordingCompression.Compress(Encoding.UTF8.GetBytes(content));
+        byte[] compressed = RecordingCompression.Compress(Encoding.UTF8.GetBytes(content));
         Assert.Equal(content, RecordingCompression.Decompress(compressed));
     }
 
@@ -30,14 +30,14 @@ public class RecordingCompressionTests
     {
         // Plain JSON is not a valid Brotli stream, so it falls through to the UTF-8 path even though it
         // starts with '{'. (This is the branch that must keep legacy .json recordings loadable.)
-        var bytes = Encoding.UTF8.GetBytes("{\"Version\":1,\"ScenarioJson\":\"{}\"}");
+        byte[] bytes = Encoding.UTF8.GetBytes("{\"Version\":1,\"ScenarioJson\":\"{}\"}");
         Assert.Equal("{\"Version\":1,\"ScenarioJson\":\"{}\"}", RecordingCompression.Decompress(bytes));
     }
 
     [Fact]
     public void Decompress_PlainJsonArray_ReturnedAsIs()
     {
-        var bytes = Encoding.UTF8.GetBytes("[{\"a\":1},{\"b\":2}]");
+        byte[] bytes = Encoding.UTF8.GetBytes("[{\"a\":1},{\"b\":2}]");
         Assert.Equal("[{\"a\":1},{\"b\":2}]", RecordingCompression.Decompress(bytes));
     }
 }

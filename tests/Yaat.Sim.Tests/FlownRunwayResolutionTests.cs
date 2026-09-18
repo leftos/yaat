@@ -40,14 +40,14 @@ public class FlownRunwayResolutionTests
             return;
         }
 
-        var runway = NavigationDatabase.Instance.GetRunway(airportId, designator);
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway(airportId, designator);
         if (runway is null)
         {
             return;
         }
 
-        var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-        var waypoints = PatternGeometry.Compute(
+        IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
             "DA42",
@@ -59,7 +59,7 @@ public class FlownRunwayResolutionTests
             authoredRunway: null
         );
 
-        var resolved = PatternCommandHandler.ResolveFlownRunway(waypoints, airportRunways);
+        RunwayInfo? resolved = PatternCommandHandler.ResolveFlownRunway(waypoints, airportRunways);
 
         Assert.NotNull(resolved);
         Assert.Equal(RunwayIdentifier.NormalizeDesignator(designator), resolved.Designator);
@@ -79,14 +79,14 @@ public class FlownRunwayResolutionTests
             return;
         }
 
-        var rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R");
+        RunwayInfo? rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R");
         if (rwy28R is null)
         {
             return;
         }
 
-        var airportRunways = NavigationDatabase.Instance.GetRunways(rwy28R.AirportId);
-        var waypoints = PatternGeometry.Compute(
+        IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(rwy28R.AirportId);
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             rwy28R,
             AircraftCategory.Piston,
             "DA42",
@@ -98,7 +98,7 @@ public class FlownRunwayResolutionTests
             authoredRunway: null
         );
 
-        var resolved = PatternCommandHandler.ResolveFlownRunway(waypoints, airportRunways);
+        RunwayInfo? resolved = PatternCommandHandler.ResolveFlownRunway(waypoints, airportRunways);
 
         Assert.NotNull(resolved);
         Assert.NotEqual("28L", resolved.Designator);

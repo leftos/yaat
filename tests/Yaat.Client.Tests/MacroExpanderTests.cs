@@ -16,7 +16,7 @@ public class MacroExpanderTests
     [Fact]
     public void NoHash_ReturnsNull()
     {
-        var result = MacroExpander.TryExpand("FH 270", Macros, out var error);
+        string? result = MacroExpander.TryExpand("FH 270", Macros, out string? error);
         Assert.Null(result);
         Assert.Null(error);
     }
@@ -24,7 +24,7 @@ public class MacroExpanderTests
     [Fact]
     public void SimpleNoParamMacro_Expands()
     {
-        var result = MacroExpander.TryExpand("!BAYTOUR", Macros, out var error);
+        string? result = MacroExpander.TryExpand("!BAYTOUR", Macros, out string? error);
         Assert.Null(error);
         Assert.Equal("DCT VPCOL VPCHA VPMID", result);
     }
@@ -32,7 +32,7 @@ public class MacroExpanderTests
     [Fact]
     public void PositionalParams_Substituted()
     {
-        var result = MacroExpander.TryExpand("!HC 270 5000", Macros, out var error);
+        string? result = MacroExpander.TryExpand("!HC 270 5000", Macros, out string? error);
         Assert.Null(error);
         Assert.Equal("FH 270, CM 5000", result);
     }
@@ -40,7 +40,7 @@ public class MacroExpanderTests
     [Fact]
     public void NamedParams_Substituted()
     {
-        var result = MacroExpander.TryExpand("!FC 270 5000", Macros, out var error);
+        string? result = MacroExpander.TryExpand("!FC 270 5000", Macros, out string? error);
         Assert.Null(error);
         Assert.Equal("FH 270, CM 5000", result);
     }
@@ -48,7 +48,7 @@ public class MacroExpanderTests
     [Fact]
     public void MissingParams_ReturnsError()
     {
-        var result = MacroExpander.TryExpand("!HC 270", Macros, out var error);
+        string? result = MacroExpander.TryExpand("!HC 270", Macros, out string? error);
         Assert.Null(result);
         Assert.NotNull(error);
         Assert.Contains("expects 2", error);
@@ -57,7 +57,7 @@ public class MacroExpanderTests
     [Fact]
     public void MissingNamedParams_ErrorShowsNames()
     {
-        var result = MacroExpander.TryExpand("!FC 270", Macros, out var error);
+        string? result = MacroExpander.TryExpand("!FC 270", Macros, out string? error);
         Assert.Null(result);
         Assert.NotNull(error);
         Assert.Contains("&hdg", error);
@@ -67,7 +67,7 @@ public class MacroExpanderTests
     [Fact]
     public void UnknownMacro_ReturnsError()
     {
-        var result = MacroExpander.TryExpand("!UNKNOWN", Macros, out var error);
+        string? result = MacroExpander.TryExpand("!UNKNOWN", Macros, out string? error);
         Assert.Null(result);
         Assert.NotNull(error);
         Assert.Contains("Unknown macro", error);
@@ -76,7 +76,7 @@ public class MacroExpanderTests
     [Fact]
     public void CaseInsensitiveLookup()
     {
-        var result = MacroExpander.TryExpand("!baytour", Macros, out var error);
+        string? result = MacroExpander.TryExpand("!baytour", Macros, out string? error);
         Assert.Null(error);
         Assert.Equal("DCT VPCOL VPCHA VPMID", result);
     }
@@ -84,7 +84,7 @@ public class MacroExpanderTests
     [Fact]
     public void MacroWithinCompound_ExpandsOnlyMacro()
     {
-        var result = MacroExpander.TryExpand("FH 270; !BAYTOUR", Macros, out var error);
+        string? result = MacroExpander.TryExpand("FH 270; !BAYTOUR", Macros, out string? error);
         Assert.Null(error);
         Assert.Equal("FH 270; DCT VPCOL VPCHA VPMID", result);
     }
@@ -92,7 +92,7 @@ public class MacroExpanderTests
     [Fact]
     public void MacroBeforeCompound_ExpandsCorrectly()
     {
-        var result = MacroExpander.TryExpand("!HC 270 5000; DCT SUNOL", Macros, out var error);
+        string? result = MacroExpander.TryExpand("!HC 270 5000; DCT SUNOL", Macros, out string? error);
         Assert.Null(error);
         Assert.Equal("FH 270, CM 5000; DCT SUNOL", result);
     }
@@ -100,7 +100,7 @@ public class MacroExpanderTests
     [Fact]
     public void HighParamNumbers_NoClash()
     {
-        var result = MacroExpander.TryExpand("!BIG A B C D E F G H I J", Macros, out var error);
+        string? result = MacroExpander.TryExpand("!BIG A B C D E F G H I J", Macros, out string? error);
         Assert.Null(error);
         Assert.Equal("FH A, CM B, SPD C, SQ D, DCT E, TL F, TR G, DM H, RL I, RR J", result);
     }
@@ -108,7 +108,7 @@ public class MacroExpanderTests
     [Fact]
     public void MacroAfterComma_Expands()
     {
-        var result = MacroExpander.TryExpand("FH 270,!BAYTOUR", Macros, out var error);
+        string? result = MacroExpander.TryExpand("FH 270,!BAYTOUR", Macros, out string? error);
         Assert.Null(error);
         Assert.Equal("FH 270,DCT VPCOL VPCHA VPMID", result);
     }
@@ -117,7 +117,7 @@ public class MacroExpanderTests
     public void BangInMiddleOfWord_NotTreatedAsMacro()
     {
         // ! not preceded by boundary — should not expand
-        var result = MacroExpander.TryExpand("ABC!BAYTOUR", Macros, out var error);
+        string? result = MacroExpander.TryExpand("ABC!BAYTOUR", Macros, out string? error);
         Assert.Null(result);
         Assert.Null(error);
     }
@@ -130,7 +130,7 @@ public class MacroExpanderTests
             new() { Name = "INNER", Expansion = "FH 270, CM 5000" },
             new() { Name = "OUTER", Expansion = "!INNER; DCT SUNOL" },
         };
-        var result = MacroExpander.TryExpand("!OUTER", macros, out var error);
+        string? result = MacroExpander.TryExpand("!OUTER", macros, out string? error);
         Assert.Null(error);
         Assert.Equal("FH 270, CM 5000; DCT SUNOL", result);
     }
@@ -144,7 +144,7 @@ public class MacroExpanderTests
             new() { Name = "B", Expansion = "!A, CM 5000" },
             new() { Name = "C", Expansion = "!B; DCT SUNOL" },
         };
-        var result = MacroExpander.TryExpand("!C", macros, out var error);
+        string? result = MacroExpander.TryExpand("!C", macros, out string? error);
         Assert.Null(error);
         Assert.Equal("FH 270, CM 5000; DCT SUNOL", result);
     }
@@ -157,7 +157,7 @@ public class MacroExpanderTests
         {
             new() { Name = "SELF", Expansion = "!SELF" },
         };
-        var result = MacroExpander.TryExpand("!SELF", macros, out var error);
+        string? result = MacroExpander.TryExpand("!SELF", macros, out string? error);
         // First pass: "!SELF" → "!SELF" (same string) → no effective change → returns null
         Assert.Null(error);
         Assert.Null(result);
@@ -171,7 +171,7 @@ public class MacroExpanderTests
             new() { Name = "HDG", Expansion = "FH &1" },
             new() { Name = "HCLI", Expansion = "!HDG &1, CM &2" },
         };
-        var result = MacroExpander.TryExpand("!HCLI 270 5000", macros, out var error);
+        string? result = MacroExpander.TryExpand("!HCLI 270 5000", macros, out string? error);
         Assert.Null(error);
         Assert.Equal("FH 270, CM 5000", result);
     }
@@ -184,7 +184,7 @@ public class MacroExpanderTests
         {
             new() { Name = "HC &alt &hdg", Expansion = "FH &hdg, CM &alt" },
         };
-        var result = MacroExpander.TryExpand("!HC 5000 270", macros, out var error);
+        string? result = MacroExpander.TryExpand("!HC 5000 270", macros, out string? error);
         Assert.Null(error);
         Assert.Equal("FH 270, CM 5000", result);
     }
@@ -197,7 +197,7 @@ public class MacroExpanderTests
         {
             new() { Name = "HC &hdg &alt", Expansion = "FH &hdg, CM &alt" },
         };
-        var result = MacroExpander.TryExpand("!HC 270 5000", macros, out var error);
+        string? result = MacroExpander.TryExpand("!HC 270 5000", macros, out string? error);
         Assert.Null(error);
         Assert.Equal("FH 270, CM 5000", result);
     }
@@ -210,7 +210,7 @@ public class MacroExpanderTests
         {
             new() { Name = "HC &hdg &alt", Expansion = "FH &hgd, CM &alt" },
         };
-        var result = MacroExpander.TryExpand("!HC 270 5000", macros, out var error);
+        string? result = MacroExpander.TryExpand("!HC 270 5000", macros, out string? error);
         Assert.Null(result);
         Assert.NotNull(error);
         Assert.Contains("&hdg", error);
@@ -319,7 +319,7 @@ public class MacroDefinitionTests
     public void Validate_ExplicitParamNotInExpansion_ReturnsError()
     {
         var def = new MacroDefinition { Name = "HC &hdg &alt", Expansion = "FH &hgd, CM &alt" };
-        var error = def.Validate();
+        string? error = def.Validate();
         Assert.NotNull(error);
         Assert.Contains("&hdg", error);
     }

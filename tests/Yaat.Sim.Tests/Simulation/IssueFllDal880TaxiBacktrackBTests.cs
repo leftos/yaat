@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -41,7 +42,7 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -72,14 +73,14 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
     [Fact]
     public void DAL880_TaxiTT4BB1HS10L_RouteHasNoUTurn()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("FLL");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("FLL");
         if (layout is null)
         {
             output.WriteLine("fll.geojson not found — skipping");
@@ -89,16 +90,16 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
         // TAXI command fires at t=232; replay slightly past so the route is assigned.
         engine.Replay(recording, 235);
 
-        var dal = engine.FindAircraft("DAL880");
+        AircraftState? dal = engine.FindAircraft("DAL880");
         Assert.NotNull(dal);
 
-        var route = dal.Ground?.AssignedTaxiRoute;
+        TaxiRoute? route = dal.Ground?.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine($"DAL880 taxi route: {route.Segments.Count} segments");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
-            string from = layout.Nodes.TryGetValue(seg.FromNodeId, out var fn) ? $"({fn.Position.Lat:F6}, {fn.Position.Lon:F6})" : "?";
-            string to = layout.Nodes.TryGetValue(seg.ToNodeId, out var tn) ? $"({tn.Position.Lat:F6}, {tn.Position.Lon:F6})" : "?";
+            string from = layout.Nodes.TryGetValue(seg.FromNodeId, out GroundNode? fn) ? $"({fn.Position.Lat:F6}, {fn.Position.Lon:F6})" : "?";
+            string to = layout.Nodes.TryGetValue(seg.ToNodeId, out GroundNode? tn) ? $"({tn.Position.Lat:F6}, {tn.Position.Lon:F6})" : "?";
             output.WriteLine($"  {seg.TaxiwayName, -6} #{seg.FromNodeId} {from} → #{seg.ToNodeId} {to}");
         }
 
@@ -112,13 +113,13 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
     {
         for (int i = 1; i < route.Segments.Count; i++)
         {
-            var prev = route.Segments[i - 1];
-            var curr = route.Segments[i];
+            TaxiRouteSegment prev = route.Segments[i - 1];
+            TaxiRouteSegment curr = route.Segments[i];
             if (
-                !layout.Nodes.TryGetValue(prev.FromNodeId, out var pFrom)
-                || !layout.Nodes.TryGetValue(prev.ToNodeId, out var pTo)
-                || !layout.Nodes.TryGetValue(curr.FromNodeId, out var cFrom)
-                || !layout.Nodes.TryGetValue(curr.ToNodeId, out var cTo)
+                !layout.Nodes.TryGetValue(prev.FromNodeId, out GroundNode? pFrom)
+                || !layout.Nodes.TryGetValue(prev.ToNodeId, out GroundNode? pTo)
+                || !layout.Nodes.TryGetValue(curr.FromNodeId, out GroundNode? cFrom)
+                || !layout.Nodes.TryGetValue(curr.ToNodeId, out GroundNode? cTo)
             )
             {
                 continue;
@@ -163,7 +164,7 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
     [Fact]
     public void ResolveExplicitPath_TT4BB1_FromDal880Parking_RouteHasNoUTurn()
     {
-        var layout = new TestAirportGroundData().GetLayout("FLL");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("FLL");
         if (layout is null)
         {
             output.WriteLine("fll.geojson not found — skipping");
@@ -174,7 +175,7 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
         const double ParkLat = 26.073763899148627;
         const double ParkLon = -80.14425458893693;
 
-        var startNode = layout.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(ParkLat, ParkLon, n.Position.Lat, n.Position.Lon)).First();
+        GroundNode startNode = layout.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(ParkLat, ParkLon, n.Position.Lat, n.Position.Lon)).First();
 
         output.WriteLine(
             $"Start: nearest node to ({ParkLat:F6}, {ParkLon:F6}) is #{startNode.Id} at "
@@ -182,7 +183,7 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
                 + $"edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}]"
         );
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode.Id,
             ["T", "T4", "B", "B1"],
@@ -201,10 +202,10 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
         Assert.Null(failReason);
 
         output.WriteLine($"\nRoute: {route.Segments.Count} segments");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
-            string fromLon = layout.Nodes.TryGetValue(seg.FromNodeId, out var fn) ? $"{fn.Position.Lon:F6}" : "?";
-            string toLon = layout.Nodes.TryGetValue(seg.ToNodeId, out var tn) ? $"{tn.Position.Lon:F6}" : "?";
+            string fromLon = layout.Nodes.TryGetValue(seg.FromNodeId, out GroundNode? fn) ? $"{fn.Position.Lon:F6}" : "?";
+            string toLon = layout.Nodes.TryGetValue(seg.ToNodeId, out GroundNode? tn) ? $"{tn.Position.Lon:F6}" : "?";
             output.WriteLine($"  {seg.TaxiwayName, -6} #{seg.FromNodeId} (lon {fromLon}) → #{seg.ToNodeId} (lon {toLon})");
         }
 

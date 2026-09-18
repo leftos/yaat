@@ -6,6 +6,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -54,7 +55,7 @@ public class ClandfGoAroundReversalE2ETests(ITestOutputHelper output)
     [Fact]
     public void Clandf_DuringGoAround_CancelsGoAroundAndLandsOn28L()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -62,8 +63,8 @@ public class ClandfGoAroundReversalE2ETests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -71,7 +72,7 @@ public class ClandfGoAroundReversalE2ETests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(GoAroundTime);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(GoAroundTime);
             if (snapshot is null)
             {
                 return;
@@ -79,17 +80,17 @@ public class ClandfGoAroundReversalE2ETests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
 
             // Sanity: N500M is mid-go-around with 28L still assigned — the bug state.
-            var pre = engine.FindAircraft(Callsign);
+            AircraftState? pre = engine.FindAircraft(Callsign);
             Assert.NotNull(pre);
             Assert.IsType<GoAroundPhase>(pre.Phases?.CurrentPhase);
             Assert.Equal("28L", pre.Phases?.AssignedRunway?.Designator);
 
             // Force landing: rejected before the fix ("no approach or pattern to land from").
-            var result = engine.SendCommand(Callsign, "CLANDF");
+            CommandResult result = engine.SendCommand(Callsign, "CLANDF");
             output.WriteLine($"CLANDF -> Success={result.Success} Message='{result.Message}'");
             Assert.True(result.Success, result.Message);
 
-            var runway = NavigationDatabase.Instance.GetRunway("OAK", "28L");
+            RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "28L");
             Assert.NotNull(runway);
             var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
 
@@ -99,7 +100,7 @@ public class ClandfGoAroundReversalE2ETests(ITestOutputHelper output)
             for (int t = 1; t <= 180; t++)
             {
                 engine.TickOneSecond();
-                var cur = engine.FindAircraft(Callsign);
+                AircraftState? cur = engine.FindAircraft(Callsign);
                 if (cur is null)
                 {
                     break;

@@ -584,7 +584,7 @@ public sealed class GroundRenderer : IDisposable
     public void SetBrightness(float brightness)
     {
         brightness = Math.Clamp(brightness, 0.1f, 1f);
-        foreach (var (paint, baseAlpha) in _infrastructurePaints)
+        foreach ((SKPaint? paint, byte baseAlpha) in _infrastructurePaints)
         {
             paint.Color = paint.Color.WithAlpha((byte)(baseAlpha * brightness));
         }
@@ -727,10 +727,10 @@ public sealed class GroundRenderer : IDisposable
     private static void DrawBackgroundImage(SKCanvas canvas, MapViewport vp, TowerCabImage image, int brightness)
     {
         // Project all 4 corners through the viewport (handles rotation)
-        var (blX, blY) = vp.LatLonToScreen(image.BottomLeftLat, image.BottomLeftLon);
-        var (trX, trY) = vp.LatLonToScreen(image.TopRightLat, image.TopRightLon);
-        var (brX, brY) = vp.LatLonToScreen(image.BottomLeftLat, image.TopRightLon);
-        var (tlX, tlY) = vp.LatLonToScreen(image.TopRightLat, image.BottomLeftLon);
+        (float blX, float blY) = vp.LatLonToScreen(image.BottomLeftLat, image.BottomLeftLon);
+        (float trX, float trY) = vp.LatLonToScreen(image.TopRightLat, image.TopRightLon);
+        (float brX, float brY) = vp.LatLonToScreen(image.BottomLeftLat, image.TopRightLon);
+        (float tlX, float tlY) = vp.LatLonToScreen(image.TopRightLat, image.BottomLeftLon);
 
         // Source: image rectangle
         var srcRect = new SKRect(0, 0, image.Image.Width, image.Image.Height);
@@ -738,7 +738,7 @@ public sealed class GroundRenderer : IDisposable
         // Destination: the 4 projected screen corners
         // Image top-left → screen top-left, top-right → screen top-right, etc.
         // Note: image Y=0 is top, geo top-right lat is the "top" of the image
-        var matrix = ComputeBitmapTransform(srcRect, new SKPoint(tlX, tlY), new SKPoint(trX, trY), new SKPoint(brX, brY), new SKPoint(blX, blY));
+        SKMatrix matrix = ComputeBitmapTransform(srcRect, new SKPoint(tlX, tlY), new SKPoint(trX, trY), new SKPoint(brX, brY), new SKPoint(blX, blY));
 
         byte alpha = (byte)Math.Clamp(brightness * 255 / 100, 0, 255);
         // Linear filtering with a linear mipmap chain. Mipmaps let Skia build a downscale chain on
@@ -804,7 +804,7 @@ public sealed class GroundRenderer : IDisposable
         byte alpha = (byte)Math.Clamp(brightness * 255 / 100, 0, 255);
 
         // Draw filled polygons
-        foreach (var poly in mapData.Polygons)
+        foreach (TowerCabPolygon poly in mapData.Polygons)
         {
             if (poly.Points.Count < 3)
             {
@@ -812,12 +812,12 @@ public sealed class GroundRenderer : IDisposable
             }
 
             using var path = new SKPath();
-            var (firstX, firstY) = vp.LatLonToScreen(poly.Points[0].Lat, poly.Points[0].Lon);
+            (float firstX, float firstY) = vp.LatLonToScreen(poly.Points[0].Lat, poly.Points[0].Lon);
             path.MoveTo(firstX, firstY);
 
             for (int i = 1; i < poly.Points.Count; i++)
             {
-                var (px, py) = vp.LatLonToScreen(poly.Points[i].Lat, poly.Points[i].Lon);
+                (float px, float py) = vp.LatLonToScreen(poly.Points[i].Lat, poly.Points[i].Lon);
                 path.LineTo(px, py);
             }
 
@@ -833,7 +833,7 @@ public sealed class GroundRenderer : IDisposable
         }
 
         // Draw lines
-        foreach (var line in mapData.Lines)
+        foreach (TowerCabLine line in mapData.Lines)
         {
             if (line.Points.Count < 2)
             {
@@ -841,12 +841,12 @@ public sealed class GroundRenderer : IDisposable
             }
 
             using var path = new SKPath();
-            var (firstX, firstY) = vp.LatLonToScreen(line.Points[0].Lat, line.Points[0].Lon);
+            (float firstX, float firstY) = vp.LatLonToScreen(line.Points[0].Lat, line.Points[0].Lon);
             path.MoveTo(firstX, firstY);
 
             for (int i = 1; i < line.Points.Count; i++)
             {
-                var (px, py) = vp.LatLonToScreen(line.Points[i].Lat, line.Points[i].Lon);
+                (float px, float py) = vp.LatLonToScreen(line.Points[i].Lat, line.Points[i].Lon);
                 path.LineTo(px, py);
             }
 
@@ -864,7 +864,7 @@ public sealed class GroundRenderer : IDisposable
     private static void DrawWeatherOverlay(SKCanvas canvas, WeatherDisplayInfo info)
     {
         using var paint = new SKPaint { Color = new SKColor(0xCC, 0xCC, 0xCC), IsAntialias = true }; // light gray
-        using var font = PlatformHelper.MonospaceFont(14);
+        using SKFont font = PlatformHelper.MonospaceFont(14);
 
         canvas.DrawText(info.ToDisplayString(), 10, 20, SKTextAlign.Left, font, paint);
     }
@@ -872,44 +872,50 @@ public sealed class GroundRenderer : IDisposable
     private void DrawDebugOverlay(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
     {
         var nodeScreenPos = new Dictionary<int, (float X, float Y)>(layout.Nodes.Count);
-        foreach (var node in layout.Nodes)
+        foreach (GroundNodeDto node in layout.Nodes)
         {
             nodeScreenPos[node.Id] = vp.LatLonToScreen(node.Latitude, node.Longitude);
         }
 
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdgeDto edge in layout.Edges)
         {
-            if (!nodeScreenPos.TryGetValue(edge.FromNodeId, out var from) || !nodeScreenPos.TryGetValue(edge.ToNodeId, out var to))
+            if (
+                !nodeScreenPos.TryGetValue(edge.FromNodeId, out (float X, float Y) from)
+                || !nodeScreenPos.TryGetValue(edge.ToNodeId, out (float X, float Y) to)
+            )
             {
                 continue;
             }
 
-            var mx = (from.X + to.X) / 2f;
-            var my = (from.Y + to.Y) / 2f;
+            float mx = (from.X + to.X) / 2f;
+            float my = (from.Y + to.Y) / 2f;
             string debugLabel = $"{edge.TaxiwayName} {edge.FromNodeId}-{edge.ToNodeId}";
             canvas.DrawText(debugLabel, mx + 2, my + 4, SKTextAlign.Left, _debugEdgeLabelFont, _debugEdgeLabelPaint);
         }
 
         if (layout.Arcs is not null)
         {
-            foreach (var arc in layout.Arcs)
+            foreach (GroundArcDto arc in layout.Arcs)
             {
-                if (!nodeScreenPos.TryGetValue(arc.FromNodeId, out var from) || !nodeScreenPos.TryGetValue(arc.ToNodeId, out var to))
+                if (
+                    !nodeScreenPos.TryGetValue(arc.FromNodeId, out (float X, float Y) from)
+                    || !nodeScreenPos.TryGetValue(arc.ToNodeId, out (float X, float Y) to)
+                )
                 {
                     continue;
                 }
 
-                var mx = (from.X + to.X) / 2f;
-                var my = (from.Y + to.Y) / 2f;
+                float mx = (from.X + to.X) / 2f;
+                float my = (from.Y + to.Y) / 2f;
                 string arcName = arc.TaxiwayNames.Length == 1 ? arc.TaxiwayNames[0] : string.Join(" · ", arc.TaxiwayNames);
                 string debugLabel = $"⌒{arcName} {arc.FromNodeId}-{arc.ToNodeId}";
                 canvas.DrawText(debugLabel, mx + 2, my + 4, SKTextAlign.Left, _debugEdgeLabelFont, _debugEdgeLabelPaint);
             }
         }
 
-        foreach (var node in layout.Nodes)
+        foreach (GroundNodeDto node in layout.Nodes)
         {
-            var (sx, sy) = nodeScreenPos[node.Id];
+            (float sx, float sy) = nodeScreenPos[node.Id];
             string debugLabel = node.Name is not null ? $"{node.Id} {node.Name} ({node.Type})" : $"{node.Id} ({node.Type})";
             canvas.DrawText(debugLabel, sx + 5, sy - 3, SKTextAlign.Left, _debugLabelFont, _debugLabelPaint);
         }
@@ -929,15 +935,15 @@ public sealed class GroundRenderer : IDisposable
             return;
         }
 
-        foreach (var rwy in layout.Runways)
+        foreach (GroundRunwayDto rwy in layout.Runways)
         {
             if (rwy.Coordinates.Count < 2)
             {
                 continue;
             }
 
-            var first = rwy.Coordinates[0];
-            var last = rwy.Coordinates[^1];
+            double[] first = rwy.Coordinates[0];
+            double[] last = rwy.Coordinates[^1];
             if (first.Length < 2 || last.Length < 2)
             {
                 continue;
@@ -952,10 +958,10 @@ public sealed class GroundRenderer : IDisposable
             double dLon = halfWidthNm / 60.0 * Math.Sin(perpRad) / Math.Cos(first[0] * Math.PI / 180.0);
 
             // Build the 4 corners of the runway rectangle
-            var (x1, y1) = vp.LatLonToScreen(first[0] + dLat, first[1] + dLon);
-            var (x2, y2) = vp.LatLonToScreen(first[0] - dLat, first[1] - dLon);
-            var (x3, y3) = vp.LatLonToScreen(last[0] - dLat, last[1] - dLon);
-            var (x4, y4) = vp.LatLonToScreen(last[0] + dLat, last[1] + dLon);
+            (float x1, float y1) = vp.LatLonToScreen(first[0] + dLat, first[1] + dLon);
+            (float x2, float y2) = vp.LatLonToScreen(first[0] - dLat, first[1] - dLon);
+            (float x3, float y3) = vp.LatLonToScreen(last[0] - dLat, last[1] - dLon);
+            (float x4, float y4) = vp.LatLonToScreen(last[0] + dLat, last[1] + dLon);
 
             using var path = new SKPath();
             path.MoveTo(x1, y1);
@@ -968,14 +974,14 @@ public sealed class GroundRenderer : IDisposable
             canvas.DrawPath(path, _runwayOutlinePaint);
 
             // Draw centerline dashed
-            var (cx1, cy1) = vp.LatLonToScreen(first[0], first[1]);
-            var (cx2, cy2) = vp.LatLonToScreen(last[0], last[1]);
+            (float cx1, float cy1) = vp.LatLonToScreen(first[0], first[1]);
+            (float cx2, float cy2) = vp.LatLonToScreen(last[0], last[1]);
             canvas.DrawLine(cx1, cy1, cx2, cy2, _runwayPaint);
 
             // Runway label at midpoint
             double midLat = (first[0] + last[0]) / 2.0;
             double midLon = (first[1] + last[1]) / 2.0;
-            var (mx, my) = vp.LatLonToScreen(midLat, midLon);
+            (float mx, float my) = vp.LatLonToScreen(midLat, midLon);
 
             if (showLabels)
             {
@@ -1060,13 +1066,13 @@ public sealed class GroundRenderer : IDisposable
             return;
         }
 
-        var pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
+        float pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
         _adwMarkPaint.StrokeWidth = MathF.Max(AdwMarkStrokeWidthFt * pxPerFt, MinAdwMarkStrokePx);
 
-        foreach (var mark in layout.AdwMarks)
+        foreach (GroundAdwMarkDto mark in layout.AdwMarks)
         {
-            var (x1, y1) = vp.LatLonToScreen(mark.Lat1, mark.Lon1);
-            var (x2, y2) = vp.LatLonToScreen(mark.Lat2, mark.Lon2);
+            (float x1, float y1) = vp.LatLonToScreen(mark.Lat1, mark.Lon1);
+            (float x2, float y2) = vp.LatLonToScreen(mark.Lat2, mark.Lon2);
             canvas.DrawLine(x1, y1, x2, y2, _adwMarkPaint);
         }
     }
@@ -1082,7 +1088,7 @@ public sealed class GroundRenderer : IDisposable
     {
         var nodeScreenPos = new Dictionary<int, (float X, float Y)>(layout.Nodes.Count);
         var nodeLatLon = new Dictionary<int, LatLon>(layout.Nodes.Count);
-        foreach (var node in layout.Nodes)
+        foreach (GroundNodeDto node in layout.Nodes)
         {
             nodeScreenPos[node.Id] = vp.LatLonToScreen(node.Latitude, node.Longitude);
             nodeLatLon[node.Id] = new LatLon(node.Latitude, node.Longitude);
@@ -1091,9 +1097,12 @@ public sealed class GroundRenderer : IDisposable
         // Track placed taxiway label positions for deduplication
         var taxiLabelPositions = new Dictionary<string, List<(float X, float Y)>>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdgeDto edge in layout.Edges)
         {
-            if (!nodeScreenPos.TryGetValue(edge.FromNodeId, out var from) || !nodeScreenPos.TryGetValue(edge.ToNodeId, out var to))
+            if (
+                !nodeScreenPos.TryGetValue(edge.FromNodeId, out (float X, float Y) from)
+                || !nodeScreenPos.TryGetValue(edge.ToNodeId, out (float X, float Y) to)
+            )
             {
                 continue;
             }
@@ -1127,11 +1136,11 @@ public sealed class GroundRenderer : IDisposable
             {
                 using var path = new SKPath();
                 path.MoveTo(from.X, from.Y);
-                foreach (var pt in edge.IntermediatePoints)
+                foreach (double[] pt in edge.IntermediatePoints)
                 {
                     if (pt.Length >= 2)
                     {
-                        var (sx, sy) = vp.LatLonToScreen(pt[0], pt[1]);
+                        (float sx, float sy) = vp.LatLonToScreen(pt[0], pt[1]);
                         path.LineTo(sx, sy);
                     }
                 }
@@ -1146,8 +1155,8 @@ public sealed class GroundRenderer : IDisposable
 
             if (!showDebugInfo && !isRunway && !isRamp && showTaxiwayLabels)
             {
-                var mx = (from.X + to.X) / 2f;
-                var my = (from.Y + to.Y) / 2f;
+                float mx = (from.X + to.X) / 2f;
+                float my = (from.Y + to.Y) / 2f;
 
                 // Skip if too close to an existing label for the same taxiway
                 if (IsTaxiLabelTooClose(taxiLabelPositions, edge.TaxiwayName, mx, my))
@@ -1155,7 +1164,7 @@ public sealed class GroundRenderer : IDisposable
                     continue;
                 }
 
-                if (!taxiLabelPositions.TryGetValue(edge.TaxiwayName, out var positions))
+                if (!taxiLabelPositions.TryGetValue(edge.TaxiwayName, out List<(float X, float Y)>? positions))
                 {
                     positions = [];
                     taxiLabelPositions[edge.TaxiwayName] = positions;
@@ -1179,13 +1188,13 @@ public sealed class GroundRenderer : IDisposable
         // Draw arcs (bezier curves from fillet generation)
         if (layout.Arcs is not null)
         {
-            foreach (var arcDto in layout.Arcs)
+            foreach (GroundArcDto arcDto in layout.Arcs)
             {
                 if (
-                    !nodeScreenPos.TryGetValue(arcDto.FromNodeId, out var from)
-                    || !nodeScreenPos.TryGetValue(arcDto.ToNodeId, out var to)
-                    || !nodeLatLon.TryGetValue(arcDto.FromNodeId, out var fromLL)
-                    || !nodeLatLon.TryGetValue(arcDto.ToNodeId, out var toLL)
+                    !nodeScreenPos.TryGetValue(arcDto.FromNodeId, out (float X, float Y) from)
+                    || !nodeScreenPos.TryGetValue(arcDto.ToNodeId, out (float X, float Y) to)
+                    || !nodeLatLon.TryGetValue(arcDto.FromNodeId, out LatLon fromLL)
+                    || !nodeLatLon.TryGetValue(arcDto.ToNodeId, out LatLon toLL)
                 )
                 {
                     continue;
@@ -1214,8 +1223,8 @@ public sealed class GroundRenderer : IDisposable
                 for (int s = 1; s < steps; s++)
                 {
                     double t = (double)s / steps;
-                    var (lat, lon) = bezier.Evaluate(t);
-                    var (sx, sy) = vp.LatLonToScreen(lat, lon);
+                    (double lat, double lon) = bezier.Evaluate(t);
+                    (float sx, float sy) = vp.LatLonToScreen(lat, lon);
                     path.LineTo(sx, sy);
                 }
 
@@ -1229,12 +1238,12 @@ public sealed class GroundRenderer : IDisposable
     {
         const float minDistSq = 100f * 100f;
 
-        if (!positions.TryGetValue(name, out var existing))
+        if (!positions.TryGetValue(name, out List<(float X, float Y)>? existing))
         {
             return false;
         }
 
-        foreach (var (ex, ey) in existing)
+        foreach ((float ex, float ey) in existing)
         {
             float dx = x - ex;
             float dy = y - ey;
@@ -1249,7 +1258,7 @@ public sealed class GroundRenderer : IDisposable
 
     private static void DrawArcSegment(SKCanvas canvas, MapViewport vp, GroundArc arc, (float X, float Y) from, (float X, float Y) to, SKPaint paint)
     {
-        var bezier = arc.ToBezier();
+        CubicBezier bezier = arc.ToBezier();
         const int steps = 16;
         using var path = new SKPath();
         path.MoveTo(from.X, from.Y);
@@ -1257,8 +1266,8 @@ public sealed class GroundRenderer : IDisposable
         for (int s = 1; s < steps; s++)
         {
             double t = (double)s / steps;
-            var (lat, lon) = bezier.Evaluate(t);
-            var (sx, sy) = vp.LatLonToScreen(lat, lon);
+            (double lat, double lon) = bezier.Evaluate(t);
+            (float sx, float sy) = vp.LatLonToScreen(lat, lon);
             path.LineTo(sx, sy);
         }
 
@@ -1283,7 +1292,7 @@ public sealed class GroundRenderer : IDisposable
             return;
         }
 
-        foreach (var entry in entries)
+        foreach (ShownTaxiRouteEntry entry in entries)
         {
             int colorIdx = Array.IndexOf(TaxiRouteColorValues, entry.Color);
             if (colorIdx < 0)
@@ -1310,14 +1319,14 @@ public sealed class GroundRenderer : IDisposable
         }
 
         var nodePositions = new Dictionary<int, (float X, float Y)>();
-        foreach (var node in layout.Nodes)
+        foreach (GroundNodeDto node in layout.Nodes)
         {
             nodePositions[node.Id] = vp.LatLonToScreen(node.Latitude, node.Longitude);
         }
 
         for (int i = 0; i < waypoints.Count; i++)
         {
-            if (!nodePositions.TryGetValue(waypoints[i], out var pos))
+            if (!nodePositions.TryGetValue(waypoints[i], out (float X, float Y) pos))
             {
                 continue;
             }
@@ -1342,7 +1351,7 @@ public sealed class GroundRenderer : IDisposable
             return;
         }
 
-        foreach (var trace in plan.Moves)
+        foreach (TugMoveTrace trace in plan.Moves)
         {
             if (trace.Samples.Count == 0)
             {
@@ -1350,12 +1359,12 @@ public sealed class GroundRenderer : IDisposable
             }
 
             var screen = new List<(float X, float Y)>(trace.Samples.Count);
-            foreach (var sample in trace.Samples)
+            foreach (TugPose sample in trace.Samples)
             {
                 screen.Add(vp.LatLonToScreen(sample.Position.Lat, sample.Position.Lon));
             }
 
-            var paint = trace.Move.Kind == PushbackLegKind.Push ? pushPaint : pullPaint;
+            SKPaint paint = trace.Move.Kind == PushbackLegKind.Push ? pushPaint : pullPaint;
             using var path = new SKPath();
             path.MoveTo(screen[0].X, screen[0].Y);
             for (int i = 1; i < screen.Count; i++)
@@ -1384,7 +1393,7 @@ public sealed class GroundRenderer : IDisposable
     {
         const float minAnchorPx = 12f;
 
-        var end = screen[^1];
+        (float X, float Y) end = screen[^1];
         for (int i = screen.Count - 2; i >= 0; i--)
         {
             float dx = end.X - screen[i].X;
@@ -1427,15 +1436,15 @@ public sealed class GroundRenderer : IDisposable
         }
 
         var nodeScreenPos = new Dictionary<int, (float X, float Y)>();
-        foreach (var node in layout.Nodes)
+        foreach (GroundNodeDto node in layout.Nodes)
         {
             nodeScreenPos[node.Id] = vp.LatLonToScreen(node.Latitude, node.Longitude);
         }
 
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
-            var from = RouteSegmentEndpoint(vp, nodeScreenPos, seg.FromNodeId, seg.Edge.FromNode);
-            var to = RouteSegmentEndpoint(vp, nodeScreenPos, seg.ToNodeId, seg.Edge.ToNode);
+            (float X, float Y) from = RouteSegmentEndpoint(vp, nodeScreenPos, seg.FromNodeId, seg.Edge.FromNode);
+            (float X, float Y) to = RouteSegmentEndpoint(vp, nodeScreenPos, seg.ToNodeId, seg.Edge.ToNode);
 
             if (seg.Edge.Edge is GroundArc arc)
             {
@@ -1445,9 +1454,9 @@ public sealed class GroundRenderer : IDisposable
             {
                 using var path = new SKPath();
                 path.MoveTo(from.X, from.Y);
-                foreach (var (lat, lon) in straight.IntermediatePoints)
+                foreach ((double lat, double lon) in straight.IntermediatePoints)
                 {
-                    var (sx, sy) = vp.LatLonToScreen(lat, lon);
+                    (float sx, float sy) = vp.LatLonToScreen(lat, lon);
                     path.LineTo(sx, sy);
                 }
 
@@ -1475,7 +1484,7 @@ public sealed class GroundRenderer : IDisposable
         GroundNode node
     )
     {
-        return nodeScreenPos.TryGetValue(nodeId, out var pos) ? pos : vp.LatLonToScreen(node.Position.Lat, node.Position.Lon);
+        return nodeScreenPos.TryGetValue(nodeId, out (float X, float Y) pos) ? pos : vp.LatLonToScreen(node.Position.Lat, node.Position.Lon);
     }
 
     private void DrawNodes(
@@ -1493,7 +1502,7 @@ public sealed class GroundRenderer : IDisposable
         var holdShortAngles = new Dictionary<int, float>();
         if (showHoldShort != GroundFilterMode.Off)
         {
-            foreach (var edge in layout.Edges)
+            foreach (GroundEdgeDto edge in layout.Edges)
             {
                 ComputeHoldShortAngle(holdShortAngles, vp, layout, edge, edge.FromNodeId);
                 ComputeHoldShortAngle(holdShortAngles, vp, layout, edge, edge.ToNodeId);
@@ -1502,7 +1511,7 @@ public sealed class GroundRenderer : IDisposable
 
         // Pre-build node→connected taxiway names for hover tooltips
         var nodeEdgeNames = new Dictionary<int, List<string>>();
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdgeDto edge in layout.Edges)
         {
             if (edge.IsRunway || edge.IsRamp)
             {
@@ -1515,7 +1524,7 @@ public sealed class GroundRenderer : IDisposable
 
         if (layout.Arcs is not null)
         {
-            foreach (var arc in layout.Arcs)
+            foreach (GroundArcDto arc in layout.Arcs)
             {
                 foreach (string name in arc.TaxiwayNames)
                 {
@@ -1530,11 +1539,11 @@ public sealed class GroundRenderer : IDisposable
             }
         }
 
-        var pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
+        float pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
 
-        foreach (var node in layout.Nodes)
+        foreach (GroundNodeDto node in layout.Nodes)
         {
-            var (sx, sy) = vp.LatLonToScreen(node.Latitude, node.Longitude);
+            (float sx, float sy) = vp.LatLonToScreen(node.Latitude, node.Longitude);
             bool isHovered = hoveredNodeId == node.Id;
 
             if (node.Type == "RunwayHoldShort")
@@ -1549,7 +1558,7 @@ public sealed class GroundRenderer : IDisposable
                 {
                     if (isHovered)
                     {
-                        var twyNames = ResolveNearbyTaxiwayNames(node.Id, layout, nodeEdgeNames);
+                        List<string> twyNames = ResolveNearbyTaxiwayNames(node.Id, layout, nodeEdgeNames);
                         string hsLabel = $"HS {RunwayIdentifier.ToDisplayDesignator(node.RunwayId)}";
                         string[] lines = twyNames.Count > 0 ? [hsLabel, string.Join("/", twyNames)] : [hsLabel];
                         _labelCandidates.Add(
@@ -1582,7 +1591,7 @@ public sealed class GroundRenderer : IDisposable
             }
             else if (node.Type is "Parking" or "Helipad" or "Spot")
             {
-                var mode = node.Type == "Spot" ? showSpot : showParking;
+                GroundFilterMode mode = node.Type == "Spot" ? showSpot : showParking;
                 bool drawIcon = mode != GroundFilterMode.Off || isHovered;
 
                 if (drawIcon)
@@ -1617,7 +1626,7 @@ public sealed class GroundRenderer : IDisposable
                         // Lead the hover tooltip with the token that references this node in a command —
                         // $spot / @parking (the prefixes TAXI/PUSH/WARPG accept) — so a controller can
                         // read straight off the map how to route or warp to it.
-                        var lines = BuildHoverLines(CommandTokenFor(node.Type, node.Name), node.Id, nodeEdgeNames);
+                        string[] lines = BuildHoverLines(CommandTokenFor(node.Type, node.Name), node.Id, nodeEdgeNames);
                         _labelCandidates.Add(
                             new LabelCandidate(
                                 lines,
@@ -1652,7 +1661,7 @@ public sealed class GroundRenderer : IDisposable
                 _nodePaint.Color = NodeIntersection;
                 canvas.DrawCircle(sx, sy, 2.5f, _nodePaint);
 
-                if (isHovered && nodeEdgeNames.TryGetValue(node.Id, out var twyNames) && twyNames.Count > 0)
+                if (isHovered && nodeEdgeNames.TryGetValue(node.Id, out List<string>? twyNames) && twyNames.Count > 0)
                 {
                     _labelCandidates.Add(
                         new LabelCandidate(
@@ -1677,7 +1686,7 @@ public sealed class GroundRenderer : IDisposable
 
     private static void AddEdgeName(Dictionary<int, List<string>> map, int nodeId, string name)
     {
-        if (!map.TryGetValue(nodeId, out var list))
+        if (!map.TryGetValue(nodeId, out List<string>? list))
         {
             list = [];
             map[nodeId] = list;
@@ -1696,14 +1705,14 @@ public sealed class GroundRenderer : IDisposable
     private static List<string> ResolveNearbyTaxiwayNames(int nodeId, GroundLayoutDto layout, Dictionary<int, List<string>> nodeEdgeNames)
     {
         // Direct taxiway edges on this node
-        if (nodeEdgeNames.TryGetValue(nodeId, out var direct) && direct.Count > 0)
+        if (nodeEdgeNames.TryGetValue(nodeId, out List<string>? direct) && direct.Count > 0)
         {
             return direct;
         }
 
         // One hop: find neighbors via any edge or arc, then check their taxiway names
         var result = new List<string>();
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdgeDto edge in layout.Edges)
         {
             int neighborId;
             if (edge.FromNodeId == nodeId)
@@ -1724,7 +1733,7 @@ public sealed class GroundRenderer : IDisposable
 
         if (layout.Arcs is not null)
         {
-            foreach (var arc in layout.Arcs)
+            foreach (GroundArcDto arc in layout.Arcs)
             {
                 int neighborId;
                 if (arc.FromNodeId == nodeId)
@@ -1749,9 +1758,9 @@ public sealed class GroundRenderer : IDisposable
 
     private static void AddNeighborNames(List<string> result, int neighborId, Dictionary<int, List<string>> nodeEdgeNames)
     {
-        if (nodeEdgeNames.TryGetValue(neighborId, out var neighborNames))
+        if (nodeEdgeNames.TryGetValue(neighborId, out List<string>? neighborNames))
         {
-            foreach (var name in neighborNames)
+            foreach (string name in neighborNames)
             {
                 if (!result.Contains(name))
                 {
@@ -1763,7 +1772,7 @@ public sealed class GroundRenderer : IDisposable
 
     private static string[] BuildHoverLines(string primaryLabel, int nodeId, Dictionary<int, List<string>> nodeEdgeNames)
     {
-        if (!nodeEdgeNames.TryGetValue(nodeId, out var twyNames) || twyNames.Count == 0)
+        if (!nodeEdgeNames.TryGetValue(nodeId, out List<string>? twyNames) || twyNames.Count == 0)
         {
             return [primaryLabel];
         }
@@ -1795,21 +1804,21 @@ public sealed class GroundRenderer : IDisposable
             return;
         }
 
-        var node = layout.Nodes.Find(n => n.Id == nodeId);
+        GroundNodeDto? node = layout.Nodes.Find(n => n.Id == nodeId);
         if (node is null || node.Type != "RunwayHoldShort")
         {
             return;
         }
 
         int otherId = edge.FromNodeId == nodeId ? edge.ToNodeId : edge.FromNodeId;
-        var other = layout.Nodes.Find(n => n.Id == otherId);
+        GroundNodeDto? other = layout.Nodes.Find(n => n.Id == otherId);
         if (other is null)
         {
             return;
         }
 
-        var (nx, ny) = vp.LatLonToScreen(node.Latitude, node.Longitude);
-        var (ox, oy) = vp.LatLonToScreen(other.Latitude, other.Longitude);
+        (float nx, float ny) = vp.LatLonToScreen(node.Latitude, node.Longitude);
+        (float ox, float oy) = vp.LatLonToScreen(other.Latitude, other.Longitude);
         float angle = MathF.Atan2(oy - ny, ox - nx);
         angles[nodeId] = angle;
     }
@@ -1863,20 +1872,20 @@ public sealed class GroundRenderer : IDisposable
     public void DrawAircraft(SKCanvas canvas, MapViewport vp, IReadOnlyList<AircraftModel> aircraft, AircraftModel? selectedAircraft)
     {
         // Pixels per foot at current zoom (latitude direction, no cosine correction needed for small areas)
-        var pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
+        float pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
 
-        foreach (var ac in aircraft)
+        foreach (AircraftModel ac in aircraft)
         {
-            var (sx, sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+            (float sx, float sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             bool isSelected = ac == selectedAircraft;
             bool isAirborne = !ac.IsOnGround;
 
-            var paint = ac.IsLiveTraffic ? _shadowAircraftPaint : _aircraftPaint;
+            SKPaint paint = ac.IsLiveTraffic ? _shadowAircraftPaint : _aircraftPaint;
             paint.Color = ac.LiveTrafficStale ? _aircraftColor.WithAlpha(TargetRenderer.StaleAlpha) : _aircraftColor;
 
             // One FAA lookup per aircraft: the silhouette, the rotor and the tug all read the same record.
-            var record = FaaAircraftDatabase.Get(ac.AircraftType);
-            var (lengthPx, widthPx) = ComputeAircraftPixelSize(record, pxPerFt);
+            FaaAircraftRecord? record = FaaAircraftDatabase.Get(ac.AircraftType);
+            (float lengthPx, float widthPx) = ComputeAircraftPixelSize(record, pxPerFt);
             if (isSelected)
             {
                 lengthPx *= SelectedScaleFactor;
@@ -2087,7 +2096,7 @@ public sealed class GroundRenderer : IDisposable
         float hitchX = noseX + (cosT * TowbarLengthFt * pose.PxPerFt);
         float hitchY = noseY + (sinT * TowbarLengthFt * pose.PxPerFt);
 
-        using var towbarPaint = paint.Clone();
+        using SKPaint towbarPaint = paint.Clone();
         towbarPaint.Style = SKPaintStyle.Stroke;
         towbarPaint.StrokeWidth = MathF.Max(MinTowbarStrokePx, TowbarStrokeWidthFt * pose.PxPerFt);
         canvas.DrawLine(noseX, noseY, hitchX, hitchY, towbarPaint);
@@ -2179,7 +2188,7 @@ public sealed class GroundRenderer : IDisposable
         float rotorCy = cy + sinH * rotorCenterOffset;
         float effectiveRotorR = MathF.Max(rotorRadius, MinAircraftPx);
 
-        using var rotorPaint = paint.Clone();
+        using SKPaint rotorPaint = paint.Clone();
         rotorPaint.Style = SKPaintStyle.Stroke;
         rotorPaint.StrokeWidth = MathF.Max(1f, halfLength * 0.03f);
         canvas.DrawCircle(rotorCx, rotorCy, effectiveRotorR, rotorPaint);
@@ -2266,9 +2275,9 @@ public sealed class GroundRenderer : IDisposable
         // List allocated only when bubbles are enabled.
         _lastBubbleRects.Clear();
         List<AircraftModel>? deferred = null;
-        var now = ShowSpeechBubbles ? DateTime.UtcNow : default;
+        DateTime now = ShowSpeechBubbles ? DateTime.UtcNow : default;
 
-        foreach (var ac in aircraft)
+        foreach (AircraftModel ac in aircraft)
         {
             if (ShowSpeechBubbles && IsBubbleActive(ac.SpeechBubble, now))
             {
@@ -2291,7 +2300,7 @@ public sealed class GroundRenderer : IDisposable
 
         if (deferred is not null)
         {
-            foreach (var ac in deferred)
+            foreach (AircraftModel ac in deferred)
             {
                 DrawOneDataBlock(
                     canvas,
@@ -2330,15 +2339,15 @@ public sealed class GroundRenderer : IDisposable
             return;
         }
 
-        var (sx, sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        (float sx, float sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
 
         // Manual drag wins; otherwise the deconfliction result, if any; otherwise the default offset.
         SKPoint offset = DataBlockLayout.DefaultOffset;
-        if (dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
+        if (dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out SKPoint customOffset))
         {
             offset = customOffset;
         }
-        else if (deconflictOffsets is not null && deconflictOffsets.TryGetValue(ac.Callsign, out var resolvedOffset))
+        else if (deconflictOffsets is not null && deconflictOffsets.TryGetValue(ac.Callsign, out SKPoint resolvedOffset))
         {
             offset = resolvedOffset;
         }
@@ -2346,7 +2355,7 @@ public sealed class GroundRenderer : IDisposable
         var layout = DataBlockLayout.Compute(ac, sx, sy, offset, DataBlockStyle, isAirborne);
 
         bool isHighlighted = highlightedCallsigns is not null && highlightedCallsigns.Contains(ac.Callsign);
-        var dbColor =
+        SKColor dbColor =
             isHighlighted ? SKColors.Cyan
             : isSelected ? _aircraftColor
             : _datablockTextColor;
@@ -2360,7 +2369,7 @@ public sealed class GroundRenderer : IDisposable
             canvas.DrawRect(layout.Rect, _dataBlockLeaderPaint);
         }
 
-        var leaderEnd = ClampToBlockEdge(sx, sy, layout.Rect);
+        SKPoint leaderEnd = ClampToBlockEdge(sx, sy, layout.Rect);
         _dataBlockLeaderPaint.Color = dbColor;
         canvas.DrawLine(sx, sy, leaderEnd.X, leaderEnd.Y, _dataBlockLeaderPaint);
 
@@ -2425,7 +2434,7 @@ public sealed class GroundRenderer : IDisposable
 
         if (drawBubble && ac.SpeechBubble is { } bubble)
         {
-            var bubbleRect = DrawSpeechBubble(canvas, layout.Rect, bubble.Text, bubble.Severity);
+            SKRect? bubbleRect = DrawSpeechBubble(canvas, layout.Rect, bubble.Text, bubble.Severity);
             if (bubbleRect is { } r)
             {
                 _lastBubbleRects[ac.Callsign] = r;
@@ -2443,7 +2452,7 @@ public sealed class GroundRenderer : IDisposable
             return null;
         }
 
-        var lines = WrapBubbleText(text);
+        List<string> lines = WrapBubbleText(text);
         if (lines.Count == 0)
         {
             return null;
@@ -2451,7 +2460,7 @@ public sealed class GroundRenderer : IDisposable
 
         float lineH = _bubbleTextFont.Size + 2;
         float maxLineWidth = 0;
-        foreach (var line in lines)
+        foreach (string line in lines)
         {
             float w = _bubbleTextFont.MeasureText(line);
             if (w > maxLineWidth)
@@ -2468,8 +2477,8 @@ public sealed class GroundRenderer : IDisposable
         float bottom = top + lines.Count * lineH + 2 * pad - 2;
         var rect = new SKRect(left, top, right, bottom);
 
-        var fillPaint = severity == SpeechBubbleSeverity.Warning ? _bubbleFillPaintWarning : _bubbleFillPaint;
-        var borderPaint = severity == SpeechBubbleSeverity.Warning ? _bubbleBorderPaintWarning : _bubbleBorderPaint;
+        SKPaint fillPaint = severity == SpeechBubbleSeverity.Warning ? _bubbleFillPaintWarning : _bubbleFillPaint;
+        SKPaint borderPaint = severity == SpeechBubbleSeverity.Warning ? _bubbleBorderPaintWarning : _bubbleBorderPaint;
         canvas.DrawRoundRect(rect, 3f, 3f, fillPaint);
         canvas.DrawRoundRect(rect, 3f, 3f, borderPaint);
 
@@ -2486,9 +2495,9 @@ public sealed class GroundRenderer : IDisposable
     private static List<string> WrapBubbleText(string text)
     {
         var lines = new List<string>();
-        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var current = new System.Text.StringBuilder();
-        foreach (var word in words)
+        foreach (string word in words)
         {
             if (word.Length >= SpeechBubbleMaxLineChars)
             {
@@ -2535,7 +2544,7 @@ public sealed class GroundRenderer : IDisposable
             int totalUsed = lines.Sum(l => l.Length) + (lines.Count - 1);
             if (totalUsed < text.Length)
             {
-                var last = lines[^1];
+                string last = lines[^1];
                 if (last.Length >= SpeechBubbleMaxLineChars - 1)
                 {
                     last = last[..(SpeechBubbleMaxLineChars - 1)];
@@ -2571,7 +2580,7 @@ public sealed class GroundRenderer : IDisposable
     /// </summary>
     public static double ResolveAirborneMaxAglFt(WeatherDisplayInfo? weatherInfo)
     {
-        var ceiling = weatherInfo?.CeilingFeetAgl;
+        int? ceiling = weatherInfo?.CeilingFeetAgl;
         return ceiling.HasValue ? Math.Min(ceiling.Value, AirborneMaxAglFt) : AirborneMaxAglFt;
     }
 
@@ -2591,7 +2600,7 @@ public sealed class GroundRenderer : IDisposable
 
         var placedRects = new List<SKRect>(_labelCandidates.Count);
 
-        foreach (var label in _labelCandidates)
+        foreach (LabelCandidate label in _labelCandidates)
         {
             bool isHovered = label.Priority == LabelPriority.Hovered;
             if (hoveredOnly != isHovered)
@@ -2599,13 +2608,13 @@ public sealed class GroundRenderer : IDisposable
                 continue;
             }
 
-            var style = label.Style;
+            TextStyle style = label.Style;
             float textHeight = style.Size;
             float lineSpacing = style.LineHeight;
             int lineCount = label.Lines.Length;
 
             float maxWidth = 0;
-            foreach (var line in label.Lines)
+            foreach (string line in label.Lines)
             {
                 float w = style.Measure(line);
                 if (w > maxWidth)
@@ -2619,7 +2628,7 @@ public sealed class GroundRenderer : IDisposable
             var rect = new SKRect(left, label.Y - textHeight - 1, left + maxWidth + 4, label.Y + (totalHeight - textHeight) + 1);
 
             bool overlaps = false;
-            foreach (var placed in placedRects)
+            foreach (SKRect placed in placedRects)
             {
                 if (rect.IntersectsWith(placed))
                 {
@@ -2643,7 +2652,7 @@ public sealed class GroundRenderer : IDisposable
             }
 
             float y = label.Y;
-            foreach (var line in label.Lines)
+            foreach (string line in label.Lines)
             {
                 canvas.DrawText(line, label.X, y, label.Align, style.Font, style.Paint);
                 y += lineSpacing;
@@ -2664,7 +2673,7 @@ public sealed class GroundRenderer : IDisposable
     {
         _rangeBearingRenderer.Dispose();
 
-        foreach (var paint in _shownTaxiRoutePaints)
+        foreach (SKPaint paint in _shownTaxiRoutePaints)
         {
             paint.Dispose();
         }

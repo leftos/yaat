@@ -16,15 +16,15 @@ public static class LiveTrafficOwnerResolver
 {
     public static void Apply(AircraftState ac, LiveTrafficSample sample, SimScenarioState scenario)
     {
-        var track = ac.Track;
+        AircraftTrack track = ac.Track;
         if ((track.Owner is not null) && !track.OwnerFromLiveFeed)
         {
             return;
         }
 
-        var owner = Resolve(scenario, sample.OwnerFacility, sample.OwnerSector);
+        TrackOwner? owner = Resolve(scenario, sample.OwnerFacility, sample.OwnerSector);
         track.SetOwnerFromLiveFeed(owner);
-        var pending = (owner is null) ? null : Resolve(scenario, sample.PendingOwnerFacility, sample.PendingOwnerSector);
+        TrackOwner? pending = (owner is null) ? null : Resolve(scenario, sample.PendingOwnerFacility, sample.PendingOwnerSector);
         if (pending is not null)
         {
             track.HandoffPeer = pending;
@@ -85,7 +85,7 @@ public static class LiveTrafficOwnerResolver
     /// </summary>
     private static void ApplyPointouts(AircraftState ac, IReadOnlyList<LiveTrafficPointout> pointouts)
     {
-        var eram = ac.Eram.Pointouts;
+        List<EramPointoutState> eram = ac.Eram.Pointouts;
         lock (eram)
         {
             bool unchanged =
@@ -103,7 +103,7 @@ public static class LiveTrafficOwnerResolver
             }
 
             eram.Clear();
-            foreach (var p in pointouts)
+            foreach (LiveTrafficPointout p in pointouts)
             {
                 eram.Add(
                     new EramPointoutState
@@ -138,9 +138,9 @@ public static class LiveTrafficOwnerResolver
             || ((facility.Length == 3) && (facility[0] == 'Z'));
         if (eram)
         {
-            var centre = facility ?? scenario.ArtccId ?? "";
-            var node = FindFacility(scenario.ArtccConfig?.Facility, centre) ?? scenario.ArtccConfig?.Facility;
-            var position = node?.Positions.FirstOrDefault(p =>
+            string centre = facility ?? scenario.ArtccId ?? "";
+            FacilityConfig? node = FindFacility(scenario.ArtccConfig?.Facility, centre) ?? scenario.ArtccConfig?.Facility;
+            PositionConfig? position = node?.Positions.FirstOrDefault(p =>
                 string.Equals(p.EramConfiguration?.SectorId, sector, StringComparison.OrdinalIgnoreCase)
             );
             return new TrackOwner(position?.Callsign ?? $"{centre}_{sector}", centre, null, sector, TrackOwnerType.Eram);
@@ -152,13 +152,13 @@ public static class LiveTrafficOwnerResolver
         }
 
         int subset = sector[0] - '0';
-        var sectorId = sector[1..];
-        var starsNode = FindFacility(scenario.ArtccConfig?.Facility, facility!);
-        var tcp = starsNode?.StarsConfiguration?.Tcps.FirstOrDefault(t =>
+        string sectorId = sector[1..];
+        FacilityConfig? starsNode = FindFacility(scenario.ArtccConfig?.Facility, facility!);
+        TcpConfig? tcp = starsNode?.StarsConfiguration?.Tcps.FirstOrDefault(t =>
             (t.Subset == subset) && string.Equals(t.SectorId, sectorId, StringComparison.OrdinalIgnoreCase)
         );
         // A TCP's position can live below the STARS facility itself (a tower position holds its TRACON's TCP).
-        var starsPosition = (tcp is null) ? null : FindPositionByTcp(starsNode!, tcp.Id);
+        PositionConfig? starsPosition = (tcp is null) ? null : FindPositionByTcp(starsNode!, tcp.Id);
         return new TrackOwner(starsPosition?.Callsign ?? $"{facility}_{sector}", facility, subset, sectorId, TrackOwnerType.Stars);
     }
 
@@ -169,7 +169,7 @@ public static class LiveTrafficOwnerResolver
             return own;
         }
 
-        foreach (var child in node.ChildFacilities)
+        foreach (FacilityConfig child in node.ChildFacilities)
         {
             if (FindPositionByTcp(child, tcpId) is { } found)
             {
@@ -192,7 +192,7 @@ public static class LiveTrafficOwnerResolver
             return node;
         }
 
-        foreach (var child in node.ChildFacilities)
+        foreach (FacilityConfig child in node.ChildFacilities)
         {
             if (FindFacility(child, id) is { } found)
             {

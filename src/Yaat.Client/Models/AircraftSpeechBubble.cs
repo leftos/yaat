@@ -36,9 +36,9 @@ public sealed record AircraftSpeechBubble(string Text, DateTime ExpiresAt, Speec
     /// </summary>
     public static TimeSpan ComputeDuration(string text, double multiplier)
     {
-        var length = text?.Length ?? 0;
-        var seconds = Math.Clamp(2.0 + length / 12.0, 4.0, 12.0);
-        var scale = multiplier > 0 ? multiplier : 1.0;
+        int length = text?.Length ?? 0;
+        double seconds = Math.Clamp(2.0 + length / 12.0, 4.0, 12.0);
+        double scale = multiplier > 0 ? multiplier : 1.0;
         return TimeSpan.FromSeconds(seconds * scale);
     }
 
@@ -96,7 +96,7 @@ public sealed record AircraftSpeechBubble(string Text, DateTime ExpiresAt, Speec
                 return null;
         }
 
-        var expiresAt = stayUntilClicked ? DateTime.MaxValue : nowUtc + ComputeDuration(message, durationMultiplier);
+        DateTime expiresAt = stayUntilClicked ? DateTime.MaxValue : nowUtc + ComputeDuration(message, durationMultiplier);
         return new AircraftSpeechBubble(message, expiresAt, severity);
     }
 }

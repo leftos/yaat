@@ -10,14 +10,14 @@ public static class ScenarioValidator
 
     public static ScenarioValidationResult Validate(Scenario scenario)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         var failures = new List<PresetParseFailure>();
         int totalPresets = 0;
         int parsedOk = 0;
 
-        foreach (var ac in scenario.Aircraft)
+        foreach (ScenarioAircraft ac in scenario.Aircraft)
         {
-            foreach (var preset in ac.PresetCommands)
+            foreach (PresetCommand preset in ac.PresetCommands)
             {
                 if (string.IsNullOrWhiteSpace(preset.Command))
                 {
@@ -25,7 +25,7 @@ public static class ScenarioValidator
                 }
 
                 totalPresets++;
-                var result = CommandParser.ParseCompound(preset.Command, ac.FlightPlan?.Route);
+                ParseResult<CompoundCommand> result = CommandParser.ParseCompound(preset.Command, ac.FlightPlan?.Route);
                 if (!result.IsSuccess)
                 {
                     failures.Add(new PresetParseFailure(ac.AircraftId, preset.Command, result.Reason));
@@ -37,7 +37,7 @@ public static class ScenarioValidator
             }
         }
 
-        var (procedureIssues, transitionFixSubs) = ValidateProcedures(scenario);
+        (List<ProcedureIssue>? procedureIssues, List<TransitionFixSubstitution>? transitionFixSubs) = ValidateProcedures(scenario);
 
         return new ScenarioValidationResult(
             scenario.Id,
@@ -82,9 +82,9 @@ public static class ScenarioValidator
     {
         var mismatches = new List<AircraftTypeMismatch>();
 
-        foreach (var ac in scenario.Aircraft)
+        foreach (ScenarioAircraft ac in scenario.Aircraft)
         {
-            var filed = ac.FlightPlan?.AircraftType;
+            string? filed = ac.FlightPlan?.AircraftType;
             if (string.IsNullOrWhiteSpace(filed) || string.IsNullOrWhiteSpace(ac.AircraftType))
             {
                 continue;
@@ -101,22 +101,22 @@ public static class ScenarioValidator
 
     private static (List<ProcedureIssue>, List<TransitionFixSubstitution>) ValidateProcedures(Scenario scenario)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         var issues = new List<ProcedureIssue>();
         var substitutions = new List<TransitionFixSubstitution>();
 
-        foreach (var ac in scenario.Aircraft)
+        foreach (ScenarioAircraft ac in scenario.Aircraft)
         {
-            var navPath = ac.StartingConditions.NavigationPath;
+            string? navPath = ac.StartingConditions.NavigationPath;
             if (string.IsNullOrWhiteSpace(navPath))
             {
                 continue;
             }
 
-            var tokens = navPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            string[] tokens = navPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             for (int i = 0; i < tokens.Length; i++)
             {
-                var rawName = tokens[i].Split('.')[0];
+                string rawName = tokens[i].Split('.')[0];
                 string baseName = NavigationDatabase.StripTrailingDigits(rawName);
                 if (baseName == rawName)
                 {
@@ -132,7 +132,7 @@ public static class ScenarioValidator
                 }
 
                 // Token has a single trailing digit — check if it's a SID or STAR
-                var resolvedSid = navDb.ResolveSidId(rawName);
+                string? resolvedSid = navDb.ResolveSidId(rawName);
                 if (resolvedSid is not null)
                 {
                     if (!resolvedSid.Equals(rawName, StringComparison.OrdinalIgnoreCase))
@@ -144,7 +144,7 @@ public static class ScenarioValidator
                     continue;
                 }
 
-                var resolvedStar = navDb.ResolveStarId(rawName);
+                string? resolvedStar = navDb.ResolveStarId(rawName);
                 if (resolvedStar is not null)
                 {
                     if (!resolvedStar.Equals(rawName, StringComparison.OrdinalIgnoreCase))
@@ -184,7 +184,7 @@ public static class ScenarioValidator
             return;
         }
 
-        var nextFixName = tokens[nextIdx].Split('.')[0];
+        string nextFixName = tokens[nextIdx].Split('.')[0];
 
         // Only flag if the fix doesn't appear anywhere on the new SID (body, enroute
         // transitions, or CIFP runway transition legs). Fixes that are still on the
@@ -194,13 +194,13 @@ public static class ScenarioValidator
             return;
         }
 
-        var transitions = navDb.GetSidTransitions(resolvedSidId);
+        IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? transitions = navDb.GetSidTransitions(resolvedSidId);
         if (transitions is null || transitions.Count == 0)
         {
             return;
         }
 
-        var closest = ScenarioLoader.FindClosestTransitionFix(nextFixName, transitions, navDb);
+        string? closest = ScenarioLoader.FindClosestTransitionFix(nextFixName, transitions, navDb);
 
         // Fallback: old fix not in navdb — use the fix after it as geographic reference
         if (closest is null)
@@ -208,7 +208,7 @@ public static class ScenarioValidator
             int beyondIdx = FindNextNonNumericTokenIndex(tokens, nextIdx + 1);
             if (beyondIdx >= 0)
             {
-                var beyondPos = ScenarioLoader.ResolveTokenPosition(tokens[beyondIdx], navDb);
+                (double Lat, double Lon)? beyondPos = ScenarioLoader.ResolveTokenPosition(tokens[beyondIdx], navDb);
                 if (beyondPos is not null)
                 {
                     closest = ScenarioLoader.FindClosestTransitionFixToPosition(beyondPos.Value, transitions, navDb);
@@ -235,7 +235,7 @@ public static class ScenarioValidator
             return;
         }
 
-        var prevFixName = tokens[prevIdx].Split('.')[0];
+        string prevFixName = tokens[prevIdx].Split('.')[0];
 
         // Only flag if the fix doesn't appear anywhere on the new STAR (body, enroute
         // transitions, or CIFP runway transition legs). Fixes that are still on the
@@ -245,13 +245,13 @@ public static class ScenarioValidator
             return;
         }
 
-        var transitions = navDb.GetStarTransitions(resolvedStarId);
+        IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? transitions = navDb.GetStarTransitions(resolvedStarId);
         if (transitions is null || transitions.Count == 0)
         {
             return;
         }
 
-        var closest = ScenarioLoader.FindClosestTransitionFix(prevFixName, transitions, navDb);
+        string? closest = ScenarioLoader.FindClosestTransitionFix(prevFixName, transitions, navDb);
 
         // Fallback: old fix not in navdb — use the fix before it as geographic reference
         if (closest is null)
@@ -259,7 +259,7 @@ public static class ScenarioValidator
             int beforeIdx = FindPrecedingNonNumericTokenIndex(tokens, prevIdx - 1);
             if (beforeIdx >= 0)
             {
-                var beforePos = ScenarioLoader.ResolveTokenPosition(tokens[beforeIdx], navDb);
+                (double Lat, double Lon)? beforePos = ScenarioLoader.ResolveTokenPosition(tokens[beforeIdx], navDb);
                 if (beforePos is not null)
                 {
                     closest = ScenarioLoader.FindClosestTransitionFixToPosition(beforePos.Value, transitions, navDb);

@@ -1,4 +1,6 @@
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -23,7 +25,7 @@ public class ExitKOvershootTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -43,8 +45,8 @@ public class ExitKOvershootTests(ITestOutputHelper output)
     [Fact]
     public void DAL2581_ExitsAtK_NoHeadingReversal()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -53,11 +55,11 @@ public class ExitKOvershootTests(ITestOutputHelper output)
         // Replay to t=782 — just before the EXIT K command at t=783
         engine.Replay(recording, 782);
 
-        var ac = engine.FindAircraft("DAL2581");
+        AircraftState? ac = engine.FindAircraft("DAL2581");
         Assert.NotNull(ac);
 
         // Send EXIT K manually to ensure the current code's dispatch handles it
-        var result = engine.SendCommand("DAL2581", "EXIT K");
+        CommandResult result = engine.SendCommand("DAL2581", "EXIT K");
         output.WriteLine($"EXIT K result: success={result.Success}, message={result.Message}");
         Assert.True(result.Success, $"EXIT K command failed: {result.Message}");
 

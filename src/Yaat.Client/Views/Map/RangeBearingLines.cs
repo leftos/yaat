@@ -94,7 +94,7 @@ public sealed class RangeBearingLineStore
     {
         get
         {
-            foreach (var slot in _slots)
+            foreach (RangeBearingLine? slot in _slots)
             {
                 if (slot is not null)
                 {
@@ -112,7 +112,7 @@ public sealed class RangeBearingLineStore
         get
         {
             var result = new List<RangeBearingLine>(MaxLines);
-            foreach (var slot in _slots)
+            foreach (RangeBearingLine? slot in _slots)
             {
                 if (slot is not null)
                 {
@@ -183,13 +183,13 @@ public sealed class RangeBearingLineStore
             return null;
         }
 
-        var index = LowestFreeSlotIndex();
+        int index = LowestFreeSlotIndex();
         if (index < 0)
         {
             return null;
         }
 
-        var slot = index + 1;
+        int slot = index + 1;
         _slots[index] = new RangeBearingLine(slot, anchor.Endpoint, end, anchor.View);
         IsArmed = false;
         PendingAnchor = null;
@@ -203,13 +203,13 @@ public sealed class RangeBearingLineStore
     /// </summary>
     public int? Add(RblEndpoint a, RblEndpoint b, RblView view)
     {
-        var index = LowestFreeSlotIndex();
+        int index = LowestFreeSlotIndex();
         if (index < 0)
         {
             return null;
         }
 
-        var slot = index + 1;
+        int slot = index + 1;
         _slots[index] = new RangeBearingLine(slot, a, b, view);
         IsArmed = false;
         PendingAnchor = null;
@@ -220,7 +220,7 @@ public sealed class RangeBearingLineStore
     /// <summary>Removes the line in <paramref name="slot" /> (1-based). Returns false if it was empty.</summary>
     public bool Remove(int slot)
     {
-        var index = slot - 1;
+        int index = slot - 1;
         if (index < 0 || index >= MaxLines || _slots[index] is null)
         {
             return false;
@@ -234,8 +234,8 @@ public sealed class RangeBearingLineStore
     /// <summary>Removes every line and cancels any pending pick.</summary>
     public void Clear()
     {
-        var changed = IsArmed || PendingAnchor is not null;
-        for (var i = 0; i < MaxLines; i++)
+        bool changed = IsArmed || PendingAnchor is not null;
+        for (int i = 0; i < MaxLines; i++)
         {
             if (_slots[i] is not null)
             {
@@ -258,8 +258,8 @@ public sealed class RangeBearingLineStore
     /// </summary>
     public void PruneMissing(Func<string, bool> aircraftExists)
     {
-        var changed = false;
-        for (var i = 0; i < MaxLines; i++)
+        bool changed = false;
+        for (int i = 0; i < MaxLines; i++)
         {
             if (_slots[i] is not { } line)
             {
@@ -290,7 +290,7 @@ public sealed class RangeBearingLineStore
 
     private int LowestFreeSlotIndex()
     {
-        for (var i = 0; i < MaxLines; i++)
+        for (int i = 0; i < MaxLines; i++)
         {
             if (_slots[i] is null)
             {
@@ -330,10 +330,10 @@ public static class RangeBearingLineFormatter
     /// <param name="units">Which units this view labels distance in.</param>
     public static string Format(double distanceNm, double magneticBearing, int? minutesToGo, int? slot, RblUnits units)
     {
-        var bearing = FormatBearing(magneticBearing);
-        var distance = FormatDistance(distanceNm, units);
+        string bearing = FormatBearing(magneticBearing);
+        string distance = FormatDistance(distanceNm, units);
 
-        var label = $"{bearing}/{distance}";
+        string label = $"{bearing}/{distance}";
         if (minutesToGo is { } minutes)
         {
             label += $"/{(minutes > MaxDisplayMinutes ? "##" : minutes.ToString("0"))}";
@@ -350,8 +350,8 @@ public static class RangeBearingLineFormatter
     /// <summary>Rounds to whole degrees and renders zero as 360, as bearings are read aloud.</summary>
     private static string FormatBearing(double magneticBearing)
     {
-        var normalized = ((magneticBearing % 360.0) + 360.0) % 360.0;
-        var rounded = (int)Math.Round(normalized, MidpointRounding.AwayFromZero);
+        double normalized = ((magneticBearing % 360.0) + 360.0) % 360.0;
+        int rounded = (int)Math.Round(normalized, MidpointRounding.AwayFromZero);
         if (rounded <= 0 || rounded > 360)
         {
             rounded = rounded <= 0 ? rounded + 360 : rounded - 360;
@@ -364,11 +364,11 @@ public static class RangeBearingLineFormatter
     {
         if (units == RblUnits.FeetThenNauticalMiles && distanceNm < 1.0)
         {
-            var feet = (int)Math.Round(distanceNm * GeoMath.FeetPerNm, MidpointRounding.AwayFromZero);
+            int feet = (int)Math.Round(distanceNm * GeoMath.FeetPerNm, MidpointRounding.AwayFromZero);
             return $"{feet:N0} ft";
         }
 
-        var nm = distanceNm > MaxDisplayNm ? "###.##" : distanceNm.ToString("0.00");
+        string nm = distanceNm > MaxDisplayNm ? "###.##" : distanceNm.ToString("0.00");
         return units == RblUnits.FeetThenNauticalMiles ? $"{nm} NM" : nm;
     }
 
@@ -378,7 +378,7 @@ public static class RangeBearingLineFormatter
     /// </summary>
     public static int? MinutesToGo(RblTrack? a, RblTrack? b, double distanceNm)
     {
-        var mover = (a, b) switch
+        RblTrack? mover = (a, b) switch
         {
             ({ } track, null) => track,
             (null, { } track) => track,
@@ -409,7 +409,7 @@ public static class RangeBearingLineResolver
     public static List<ResolvedRbl> Resolve(IReadOnlyList<RangeBearingLine> lines, RblTrackLookup lookup, RblUnits units, RblView view)
     {
         var result = new List<ResolvedRbl>(lines.Count);
-        foreach (var line in lines)
+        foreach (RangeBearingLine line in lines)
         {
             if (line.View != view)
             {
@@ -421,7 +421,7 @@ public static class RangeBearingLineResolver
                 continue;
             }
 
-            var label = BuildLabel(a, b, line.Slot, units);
+            string label = BuildLabel(a, b, line.Slot, units);
             result.Add(new ResolvedRbl(line.Slot, a.Position, b.Position, label, line.A.IsLatched, line.B.IsLatched));
         }
 
@@ -439,19 +439,19 @@ public static class RangeBearingLineResolver
             return null;
         }
 
-        var b = (Position: cursor, Track: (RblTrack?)null);
+        (LatLon Position, RblTrack? Track) b = (Position: cursor, Track: (RblTrack?)null);
         return new ResolvedRbl(0, a.Position, cursor, BuildLabel(a, b, null, units), endpoint.IsLatched, false);
     }
 
     private static string BuildLabel((LatLon Position, RblTrack? Track) a, (LatLon Position, RblTrack? Track) b, int? slot, RblUnits units)
     {
-        var distanceNm = GeoMath.DistanceNm(a.Position, b.Position);
-        var trueBearing = GeoMath.BearingTo(a.Position, b.Position);
+        double distanceNm = GeoMath.DistanceNm(a.Position, b.Position);
+        double trueBearing = GeoMath.BearingTo(a.Position, b.Position);
 
         // Both views are magnetic-north-up, so the bearing is read as magnetic. Declination is taken at
         // the origin end, which is where a controller would be reading the bearing from.
-        var magnetic = MagneticDeclination.TrueToMagnetic(trueBearing, a.Position);
-        var minutes = RangeBearingLineFormatter.MinutesToGo(a.Track, b.Track, distanceNm);
+        double magnetic = MagneticDeclination.TrueToMagnetic(trueBearing, a.Position);
+        int? minutes = RangeBearingLineFormatter.MinutesToGo(a.Track, b.Track, distanceNm);
         return RangeBearingLineFormatter.Format(distanceNm, magnetic, minutes, slot, units);
     }
 
@@ -502,8 +502,8 @@ public static class RblLabelPlacement
             return (bx + OffsetX, by + OffsetY);
         }
 
-        var anchorX = bx;
-        var anchorY = by;
+        float anchorX = bx;
+        float anchorY = by;
         if (!IsInside(bx, by, viewWidth, viewHeight))
         {
             if (ExitPointNearestB(ax, ay, bx, by, viewWidth, viewHeight) is not { } exit)
@@ -514,8 +514,8 @@ public static class RblLabelPlacement
             (anchorX, anchorY) = exit;
         }
 
-        var x = Math.Clamp(anchorX + OffsetX, EdgePad, Math.Max(EdgePad, viewWidth - labelWidth - EdgePad));
-        var y = Math.Clamp(anchorY + OffsetY, labelHeight + EdgePad, Math.Max(labelHeight + EdgePad, viewHeight - EdgePad));
+        float x = Math.Clamp(anchorX + OffsetX, EdgePad, Math.Max(EdgePad, viewWidth - labelWidth - EdgePad));
+        float y = Math.Clamp(anchorY + OffsetY, labelHeight + EdgePad, Math.Max(labelHeight + EdgePad, viewHeight - EdgePad));
         return (x, y);
     }
 
@@ -528,14 +528,14 @@ public static class RblLabelPlacement
     /// </summary>
     private static (float X, float Y)? ExitPointNearestB(float ax, float ay, float bx, float by, float width, float height)
     {
-        var dx = bx - ax;
-        var dy = by - ay;
-        var t0 = 0f;
-        var t1 = 1f;
+        float dx = bx - ax;
+        float dy = by - ay;
+        float t0 = 0f;
+        float t1 = 1f;
 
         Span<float> p = [-dx, dx, -dy, dy];
         Span<float> q = [ax, width - ax, ay, height - ay];
-        for (var i = 0; i < 4; i++)
+        for (int i = 0; i < 4; i++)
         {
             if (Math.Abs(p[i]) < 1e-9f)
             {
@@ -547,7 +547,7 @@ public static class RblLabelPlacement
                 continue;
             }
 
-            var t = q[i] / p[i];
+            float t = q[i] / p[i];
             if (p[i] < 0f)
             {
                 t0 = Math.Max(t0, t);
@@ -577,13 +577,13 @@ public static class RangeBearingHitTest
     public static int? NearestSlot(IReadOnlyList<ResolvedRbl> lines, MapViewport viewport, float x, float y, float maxPixels)
     {
         int? best = null;
-        var bestDistance = maxPixels;
+        float bestDistance = maxPixels;
 
-        foreach (var line in lines)
+        foreach (ResolvedRbl line in lines)
         {
-            var (ax, ay) = viewport.LatLonToScreen(line.A.Lat, line.A.Lon);
-            var (bx, by) = viewport.LatLonToScreen(line.B.Lat, line.B.Lon);
-            var distance = DistanceToSegment(x, y, ax, ay, bx, by);
+            (float ax, float ay) = viewport.LatLonToScreen(line.A.Lat, line.A.Lon);
+            (float bx, float by) = viewport.LatLonToScreen(line.B.Lat, line.B.Lon);
+            float distance = DistanceToSegment(x, y, ax, ay, bx, by);
             if (distance <= bestDistance)
             {
                 bestDistance = distance;
@@ -596,17 +596,17 @@ public static class RangeBearingHitTest
 
     private static float DistanceToSegment(float px, float py, float ax, float ay, float bx, float by)
     {
-        var dx = bx - ax;
-        var dy = by - ay;
-        var lengthSquared = (dx * dx) + (dy * dy);
+        float dx = bx - ax;
+        float dy = by - ay;
+        float lengthSquared = (dx * dx) + (dy * dy);
         if (lengthSquared < 1e-6f)
         {
             return MathF.Sqrt(((px - ax) * (px - ax)) + ((py - ay) * (py - ay)));
         }
 
-        var t = Math.Clamp((((px - ax) * dx) + ((py - ay) * dy)) / lengthSquared, 0f, 1f);
-        var cx = ax + (t * dx);
-        var cy = ay + (t * dy);
+        float t = Math.Clamp((((px - ax) * dx) + ((py - ay) * dy)) / lengthSquared, 0f, 1f);
+        float cx = ax + (t * dx);
+        float cy = ay + (t * dy);
         return MathF.Sqrt(((px - cx) * (px - cx)) + ((py - cy) * (py - cy)));
     }
 }

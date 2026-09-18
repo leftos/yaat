@@ -10,7 +10,7 @@ public class CommandSchemeParserAliasTests
     [Fact]
     public void SayForceAlias_WithComma_PreservesLiteralText()
     {
-        var result = CommandSchemeParser.ParseCompound("SAYF HELLO, WORLD", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("SAYF HELLO, WORLD", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("SAY HELLO, WORLD", result.CanonicalString);
@@ -80,7 +80,7 @@ public class CommandSchemeParserAliasTests
     [InlineData("OTG CM 020", "OTG CM 020")]
     public void SchemeParser_OtgCondition_Canonicalizes(string input, string expected)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme);
 
         Assert.NotNull(result);
         Assert.Equal(expected, result.CanonicalString);
@@ -121,8 +121,8 @@ public class CommandSchemeParserAliasTests
     [Fact]
     public void ParseCompound_AndAlias_ProducesSameCanonicalAsComma()
     {
-        var withAnd = CommandSchemeParser.ParseCompound("H180 AND D250", Scheme);
-        var withComma = CommandSchemeParser.ParseCompound("H180, D250", Scheme);
+        CompoundParseResult? withAnd = CommandSchemeParser.ParseCompound("H180 AND D250", Scheme);
+        CompoundParseResult? withComma = CommandSchemeParser.ParseCompound("H180, D250", Scheme);
 
         Assert.NotNull(withAnd);
         Assert.NotNull(withComma);
@@ -132,8 +132,8 @@ public class CommandSchemeParserAliasTests
     [Fact]
     public void ParseCompound_ThenAlias_ProducesSameCanonicalAsSemicolon()
     {
-        var withThen = CommandSchemeParser.ParseCompound("H180 THEN D250", Scheme);
-        var withSemi = CommandSchemeParser.ParseCompound("H180; D250", Scheme);
+        CompoundParseResult? withThen = CommandSchemeParser.ParseCompound("H180 THEN D250", Scheme);
+        CompoundParseResult? withSemi = CommandSchemeParser.ParseCompound("H180; D250", Scheme);
 
         Assert.NotNull(withThen);
         Assert.NotNull(withSemi);
@@ -143,8 +143,8 @@ public class CommandSchemeParserAliasTests
     [Fact]
     public void ParseCompound_MixedAndThen_ProducesSameCanonicalAsPunctuation()
     {
-        var withAliases = CommandSchemeParser.ParseCompound("H180 AND D250 THEN CTO 28R", Scheme);
-        var withPunct = CommandSchemeParser.ParseCompound("H180, D250; CTO 28R", Scheme);
+        CompoundParseResult? withAliases = CommandSchemeParser.ParseCompound("H180 AND D250 THEN CTO 28R", Scheme);
+        CompoundParseResult? withPunct = CommandSchemeParser.ParseCompound("H180, D250; CTO 28R", Scheme);
 
         Assert.NotNull(withAliases);
         Assert.NotNull(withPunct);
@@ -154,7 +154,7 @@ public class CommandSchemeParserAliasTests
     [Fact]
     public void ParseCompound_SayfWithAndInLiteral_PreservesText()
     {
-        var result = CommandSchemeParser.ParseCompound("SAYF READING YOU LOUD AND CLEAR", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("SAYF READING YOU LOUD AND CLEAR", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("SAY READING YOU LOUD AND CLEAR", result.CanonicalString);
@@ -163,7 +163,7 @@ public class CommandSchemeParserAliasTests
     [Fact]
     public void ParseCompound_WaitSayWithAndThen_PreservesMessageInCanonical()
     {
-        var result = CommandSchemeParser.ParseCompound("WAIT 1 SAY FOO AND THEN, BAR", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("WAIT 1 SAY FOO AND THEN, BAR", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("WAIT 1; SAY FOO AND THEN, BAR", result.CanonicalString);
@@ -175,7 +175,7 @@ public class CommandSchemeParserAliasTests
     [InlineData("SLN 80")]
     public void ParseCompound_ForceSpeedAliases_ProduceCanonicalSpdn(string input)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("SPDN 80", result.CanonicalString);
@@ -202,7 +202,7 @@ public class CommandSchemeParserAliasTests
     [InlineData("TG 28R MLT 28L 15", "TG 28R MLT 28L 15")]
     public void ParseCompound_PatternModifierArguments_RoundTripThroughTheCanonicalizer(string input, string expected)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme);
 
         Assert.NotNull(result);
         Assert.Equal(expected, result.CanonicalString);

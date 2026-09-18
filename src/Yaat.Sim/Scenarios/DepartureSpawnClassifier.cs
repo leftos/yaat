@@ -1,3 +1,4 @@
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Scenarios;
@@ -20,13 +21,13 @@ public static class DepartureSpawnClassifier
     /// </summary>
     public static bool IsHeldSpawnCandidate(LoadedAircraft loaded)
     {
-        var state = loaded.State;
+        AircraftState state = loaded.State;
         if (state.FlightPlan.IsVfr)
         {
             return false;
         }
 
-        var phase = state.Phases?.CurrentPhase;
+        Phase? phase = state.Phases?.CurrentPhase;
 
         // Lined up on the runway, ready to roll.
         if (phase is LinedUpAndWaitingPhase)

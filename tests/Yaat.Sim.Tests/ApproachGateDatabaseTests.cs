@@ -27,10 +27,10 @@ public class ApproachGateDatabaseTests
     {
         // FAF at 6nm from threshold → gate = max(6+1, 5) = 7nm →
         // min intercept = 7 + 2 = 9nm
-        var fafLat = 37.8;
-        var fafLon = -122.2;
-        var thresholdLat = 37.72;
-        var thresholdLon = -122.22;
+        double fafLat = 37.8;
+        double fafLon = -122.2;
+        double thresholdLat = 37.72;
+        double thresholdLon = -122.22;
 
         double fafDist = GeoMath.DistanceNm(fafLat, fafLon, thresholdLat, thresholdLon);
         double expectedGate = Math.Max(fafDist + 1.0, 5.0);
@@ -41,7 +41,7 @@ public class ApproachGateDatabaseTests
             new Dictionary<string, (double Lat, double Lon)> { ["TSTFX"] = (fafLat, fafLon) }
         );
 
-        var navDb = TestNavDbFactory.WithRunways(
+        NavigationDatabase navDb = TestNavDbFactory.WithRunways(
             TestRunwayFactory.Make(
                 designator: "28L",
                 airportId: "TST",
@@ -53,7 +53,7 @@ public class ApproachGateDatabaseTests
                 elevationFt: 10
             )
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         ApproachGateDatabase.Initialize(cifpData, []);
 
@@ -76,7 +76,7 @@ public class ApproachGateDatabaseTests
             }
         );
 
-        var navDb = TestNavDbFactory.WithRunways(
+        NavigationDatabase navDb = TestNavDbFactory.WithRunways(
             TestRunwayFactory.Make(
                 designator: "10R",
                 airportId: "KTST",
@@ -88,7 +88,7 @@ public class ApproachGateDatabaseTests
                 elevationFt: 10
             )
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         ApproachGateDatabase.Initialize(cifpData, []);
 
@@ -114,7 +114,7 @@ public class ApproachGateDatabaseTests
             new Dictionary<string, (double Lat, double Lon)> { ["TSTFX"] = (37.8, -122.2) }
         );
 
-        var navDb = TestNavDbFactory.WithRunways(
+        NavigationDatabase navDb = TestNavDbFactory.WithRunways(
             TestRunwayFactory.Make(
                 designator: "28L",
                 airportId: "TST",
@@ -126,7 +126,7 @@ public class ApproachGateDatabaseTests
                 elevationFt: 10
             )
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         ApproachGateDatabase.Initialize(cifpData, []);
 
@@ -149,7 +149,7 @@ public class ApproachGateDatabaseTests
             new Dictionary<string, (double Lat, double Lon)> { ["CLOSF"] = (37.753, -122.22) }
         );
 
-        var navDb = TestNavDbFactory.WithRunways(
+        NavigationDatabase navDb = TestNavDbFactory.WithRunways(
             TestRunwayFactory.Make(
                 designator: "36",
                 airportId: "CLO",
@@ -162,7 +162,7 @@ public class ApproachGateDatabaseTests
                 widthFt: 100
             )
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         ApproachGateDatabase.Initialize(cifpData, []);
 
@@ -183,18 +183,18 @@ public class ApproachGateDatabaseTests
     {
         // FAF at 2nm from threshold → gate = max(2+1, 5) = 5nm →
         // min intercept = 5 + 2 = 7nm
-        var thresholdLat = 37.72;
-        var thresholdLon = -122.22;
+        double thresholdLat = 37.72;
+        double thresholdLon = -122.22;
         // ~2nm north of threshold
-        var fafLat = 37.753;
-        var fafLon = -122.22;
+        double fafLat = 37.753;
+        double fafLon = -122.22;
 
         var cifpData = new CifpParseResult(
             new Dictionary<(string Airport, string Runway), string> { [("CLO", "36")] = "CLOSF" },
             new Dictionary<string, (double Lat, double Lon)> { ["CLOSF"] = (fafLat, fafLon) }
         );
 
-        var navDb = TestNavDbFactory.WithRunways(
+        NavigationDatabase navDb = TestNavDbFactory.WithRunways(
             TestRunwayFactory.Make(
                 designator: "36",
                 airportId: "CLO",
@@ -207,7 +207,7 @@ public class ApproachGateDatabaseTests
                 widthFt: 100
             )
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         ApproachGateDatabase.Initialize(cifpData, []);
 

@@ -56,8 +56,8 @@ public class ProgrammedFixesTests
 
     private static NavigationDatabase MakeApproachDb()
     {
-        var procedure = MakeApproachProcedure();
-        var runway = TestRunwayFactory.Make(
+        CifpApproachProcedure procedure = MakeApproachProcedure();
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "OAK",
             thresholdLat: 37.72,
@@ -73,10 +73,10 @@ public class ProgrammedFixesTests
     [Fact]
     public void GetProgrammedFixes_RouteOnly_ReturnsRouteFixes()
     {
-        var aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
-        using var _ = UseNavDb(EmptyNavDb);
+        AircraftState aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
+        using IDisposable _ = UseNavDb(EmptyNavDb);
 
-        var fixes = aircraft.GetProgrammedFixes();
+        HashSet<string> fixes = aircraft.GetProgrammedFixes();
 
         Assert.Contains("SUNOL", fixes);
         Assert.Contains("MODESTO", fixes);
@@ -87,10 +87,10 @@ public class ProgrammedFixesTests
     [Fact]
     public void GetProgrammedFixes_RouteWithAirwaySuffix_StripsCorrectly()
     {
-        var aircraft = MakeAircraft(route: "SUNOL.V25 MODESTO");
-        using var _ = UseNavDb(EmptyNavDb);
+        AircraftState aircraft = MakeAircraft(route: "SUNOL.V25 MODESTO");
+        using IDisposable _ = UseNavDb(EmptyNavDb);
 
-        var fixes = aircraft.GetProgrammedFixes();
+        HashSet<string> fixes = aircraft.GetProgrammedFixes();
 
         Assert.Contains("SUNOL", fixes);
         Assert.Contains("MODESTO", fixes);
@@ -101,10 +101,10 @@ public class ProgrammedFixesTests
     [Fact]
     public void GetProgrammedFixes_ExpectedApproachOnly_ReturnsApproachFixes()
     {
-        var aircraft = MakeAircraft(expectedApproach: "I28R");
-        using var _ = UseNavDb(MakeApproachDb());
+        AircraftState aircraft = MakeAircraft(expectedApproach: "I28R");
+        using IDisposable _ = UseNavDb(MakeApproachDb());
 
-        var fixes = aircraft.GetProgrammedFixes();
+        HashSet<string> fixes = aircraft.GetProgrammedFixes();
 
         Assert.Contains("GROVE", fixes);
         Assert.Contains("FITKI", fixes);
@@ -116,8 +116,8 @@ public class ProgrammedFixesTests
     [Fact]
     public void GetProgrammedFixes_ActiveApproachOnly_ReturnsApproachFixes()
     {
-        var aircraft = MakeAircraft();
-        var procedure = MakeApproachProcedure();
+        AircraftState aircraft = MakeAircraft();
+        CifpApproachProcedure procedure = MakeApproachProcedure();
 
         // Simulate active approach via PhaseList
         aircraft.Phases = new PhaseList
@@ -132,8 +132,8 @@ public class ProgrammedFixesTests
             },
         };
 
-        using var _ = UseNavDb(EmptyNavDb);
-        var fixes = aircraft.GetProgrammedFixes();
+        using IDisposable _ = UseNavDb(EmptyNavDb);
+        HashSet<string> fixes = aircraft.GetProgrammedFixes();
 
         Assert.Contains("GROVE", fixes);
         Assert.Contains("FITKI", fixes);
@@ -144,10 +144,10 @@ public class ProgrammedFixesTests
     [Fact]
     public void GetProgrammedFixes_Combined_ReturnsUnion()
     {
-        var aircraft = MakeAircraft(route: "SUNOL MODESTO", expectedApproach: "I28R");
-        using var _ = UseNavDb(MakeApproachDb());
+        AircraftState aircraft = MakeAircraft(route: "SUNOL MODESTO", expectedApproach: "I28R");
+        using IDisposable _ = UseNavDb(MakeApproachDb());
 
-        var fixes = aircraft.GetProgrammedFixes();
+        HashSet<string> fixes = aircraft.GetProgrammedFixes();
 
         Assert.Contains("SUNOL", fixes);
         Assert.Contains("MODESTO", fixes);
@@ -160,10 +160,10 @@ public class ProgrammedFixesTests
     [Fact]
     public void GetProgrammedFixes_EmptyState_ReturnsEmpty()
     {
-        var aircraft = MakeAircraft(route: "", destination: null);
-        using var _ = UseNavDb(EmptyNavDb);
+        AircraftState aircraft = MakeAircraft(route: "", destination: null);
+        using IDisposable _ = UseNavDb(EmptyNavDb);
 
-        var fixes = aircraft.GetProgrammedFixes();
+        HashSet<string> fixes = aircraft.GetProgrammedFixes();
 
         Assert.Empty(fixes);
     }
@@ -171,10 +171,10 @@ public class ProgrammedFixesTests
     [Fact]
     public void GetProgrammedFixes_CaseInsensitive()
     {
-        var aircraft = MakeAircraft(route: "sunol MODESTO");
-        using var _ = UseNavDb(EmptyNavDb);
+        AircraftState aircraft = MakeAircraft(route: "sunol MODESTO");
+        using IDisposable _ = UseNavDb(EmptyNavDb);
 
-        var fixes = aircraft.GetProgrammedFixes();
+        HashSet<string> fixes = aircraft.GetProgrammedFixes();
 
         Assert.Contains("sunol", fixes);
         Assert.Contains("SUNOL", fixes);
@@ -185,12 +185,12 @@ public class ProgrammedFixesTests
     [Fact]
     public void Dct_ToProgrammedFix_Accepted()
     {
-        var aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
-        var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
     }
@@ -198,12 +198,12 @@ public class ProgrammedFixesTests
     [Fact]
     public void Dct_ToNonProgrammedFix_Rejected()
     {
-        var aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
-        var navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("not programmed", result.Message);
@@ -213,13 +213,13 @@ public class ProgrammedFixesTests
     [Fact]
     public void Dct_ToExpectedApproachFix_Accepted()
     {
-        var aircraft = MakeAircraft(expectedApproach: "I28R");
+        AircraftState aircraft = MakeAircraft(expectedApproach: "I28R");
         // MakeApproachDb() has the approach for OAK I28R with GROVE as IAF; pass it as both approach lookup and fix navDb
-        var navDb = MakeApproachDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeApproachDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("GROVE", 37.78, -122.35)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
     }
@@ -227,12 +227,12 @@ public class ProgrammedFixesTests
     [Fact]
     public void Dctf_ToNonProgrammedFix_Accepted()
     {
-        var aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
-        var navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new ForceDirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
     }
@@ -240,12 +240,12 @@ public class ProgrammedFixesTests
     [Fact]
     public void Adct_ToNonProgrammedFix_Rejected()
     {
-        var aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
-        var navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("not programmed", result.Message);
@@ -255,12 +255,12 @@ public class ProgrammedFixesTests
     public void Dct_EmptyProgrammedSet_AllowsAnyFix()
     {
         // Aircraft with no route, no expected approach = empty programmed set → backward compat
-        var aircraft = MakeAircraft(route: "");
-        var navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(route: "");
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
     }
@@ -268,12 +268,12 @@ public class ProgrammedFixesTests
     [Fact]
     public void Dct_ValidationDisabled_AllowsNonProgrammedFix()
     {
-        var aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
-        var navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared, validateDctFixes: false));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared, validateDctFixes: false));
 
         Assert.True(result.Success);
     }
@@ -281,12 +281,12 @@ public class ProgrammedFixesTests
     [Fact]
     public void Dct_MultipleFixes_RejectsIfAnyNonProgrammed()
     {
-        var aircraft = MakeAircraft(route: "SUNOL MODESTO");
-        var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("RANDOM", 37.0, -121.0));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(route: "SUNOL MODESTO");
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("RANDOM", 37.0, -121.0));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8), new ResolvedFix("RANDOM", 37.0, -121.0)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("RANDOM", result.Message);

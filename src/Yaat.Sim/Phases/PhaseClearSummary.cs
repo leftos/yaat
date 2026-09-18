@@ -22,7 +22,7 @@ public static class PhaseClearSummary
     /// </summary>
     public static string? Build(PhaseList phases)
     {
-        var current = phases.CurrentPhase;
+        Phase? current = phases.CurrentPhase;
         if (current is null)
         {
             return null;
@@ -44,7 +44,7 @@ public static class PhaseClearSummary
         bool hasCircuitLeg = false;
         for (int i = phases.CurrentIndex; i < phases.Phases.Count; i++)
         {
-            var p = phases.Phases[i];
+            Phase p = phases.Phases[i];
             if (p.Status is not (PhaseStatus.Active or PhaseStatus.Pending))
             {
                 continue;
@@ -65,13 +65,13 @@ public static class PhaseClearSummary
         bool isVfrPattern = hasCircuitLeg || phases.TrafficDirection is not null;
         if (patternFamilyCount >= 2 && patternFamilyCount == totalRemaining && isVfrPattern)
         {
-            var runwayId = phases.AssignedRunway?.Designator;
+            string? runwayId = phases.AssignedRunway?.Designator;
             return runwayId is not null ? $"pattern to RWY {RunwayIdentifier.ToDisplayDesignator(runwayId)}" : "pattern";
         }
 
         if (current is FinalApproachPhase or InterceptCoursePhase or ApproachNavigationPhase or ProcedureTurnPhase or HoldingPatternPhase)
         {
-            var runwayId = phases.AssignedRunway?.Designator ?? phases.ActiveApproach?.RunwayId;
+            string? runwayId = phases.AssignedRunway?.Designator ?? phases.ActiveApproach?.RunwayId;
             return runwayId is not null ? $"approach to RWY {RunwayIdentifier.ToDisplayDesignator(runwayId)}" : "approach";
         }
 

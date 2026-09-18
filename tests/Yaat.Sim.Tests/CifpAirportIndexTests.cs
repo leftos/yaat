@@ -17,7 +17,7 @@ public sealed class CifpAirportIndexTests
     [InlineData("kabq")] // case-insensitive
     public void ReadAirportLines_MatchesFullScan(string icao)
     {
-        var path = CifpPathResolver.CachedPath;
+        string? path = CifpPathResolver.CachedPath;
         if (path is null || !File.Exists(path))
         {
             return;
@@ -37,7 +37,7 @@ public sealed class CifpAirportIndexTests
     [Fact]
     public void ReadAirportLines_UnknownAirport_IsEmpty()
     {
-        var path = CifpPathResolver.CachedPath;
+        string? path = CifpPathResolver.CachedPath;
         if (path is null || !File.Exists(path))
         {
             return;
@@ -49,7 +49,7 @@ public sealed class CifpAirportIndexTests
     [Fact]
     public void ReadAirportLines_ShortSyntheticRecords_AreIndexed()
     {
-        var tmpFile = Path.GetTempFileName();
+        string tmpFile = Path.GetTempFileName();
         try
         {
             File.WriteAllLines(tmpFile, ["SUSAP KABQK2CCFPTK short record", "SUSAP KOAKK2CCFOAK short record", "SUSAP KABQK2CCFDXH short record"]);

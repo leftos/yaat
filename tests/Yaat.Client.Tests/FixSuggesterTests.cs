@@ -51,7 +51,7 @@ public class FixSuggesterTests
     {
         var aircraft = new AircraftModel { Departure = "OAK", Destination = "LAX" };
 
-        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
+        List<string> fixes = FixSuggester.CollectRouteFixNames(aircraft);
 
         Assert.Contains("OAK", fixes);
         Assert.Contains("LAX", fixes);
@@ -64,7 +64,7 @@ public class FixSuggesterTests
         // destination should always sort ahead of the departure in fix suggestions.
         var aircraft = new AircraftModel { Departure = "OAK", Destination = "LAX" };
 
-        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
+        List<string> fixes = FixSuggester.CollectRouteFixNames(aircraft);
 
         Assert.Equal(["LAX", "OAK"], fixes);
     }
@@ -74,7 +74,7 @@ public class FixSuggesterTests
     {
         var aircraft = new AircraftModel();
 
-        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
+        List<string> fixes = FixSuggester.CollectRouteFixNames(aircraft);
 
         Assert.Empty(fixes);
     }
@@ -84,7 +84,7 @@ public class FixSuggesterTests
     {
         var aircraft = new AircraftModel { Departure = "", Destination = "  " };
 
-        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
+        List<string> fixes = FixSuggester.CollectRouteFixNames(aircraft);
 
         Assert.Empty(fixes);
     }
@@ -94,7 +94,7 @@ public class FixSuggesterTests
     {
         var aircraft = new AircraftModel { Departure = "OAK", Destination = "OAK" };
 
-        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
+        List<string> fixes = FixSuggester.CollectRouteFixNames(aircraft);
 
         Assert.Single(fixes);
         Assert.Contains("OAK", fixes);
@@ -110,7 +110,7 @@ public class FixSuggesterTests
             NavigationRoute = ["BDEGA", "CORKK", "BRIXX"],
         };
 
-        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
+        List<string> fixes = FixSuggester.CollectRouteFixNames(aircraft);
 
         Assert.Equal(["BDEGA", "CORKK", "BRIXX", "LAX", "OAK"], fixes);
     }
@@ -125,7 +125,7 @@ public class FixSuggesterTests
             NavigationRoute = ["OAK", "BDEGA", "CORKK"],
         };
 
-        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
+        List<string> fixes = FixSuggester.CollectRouteFixNames(aircraft);
 
         Assert.Equal(["OAK", "BDEGA", "CORKK", "LAX"], fixes);
     }
@@ -139,10 +139,10 @@ public class FixSuggesterTests
     {
         var suggestions = new ObservableCollection<SuggestionItem>();
         var scheme = new CommandScheme { Patterns = new Dictionary<CanonicalCommandType, CommandPattern>() };
-        var parsed = CommandInputController.ParseCommandInput("DCT SUN", "DCT SUN".Length, CommandScheme.Default());
+        CommandInputParseResult? parsed = CommandInputController.ParseCommandInput("DCT SUN", "DCT SUN".Length, CommandScheme.Default());
         Assert.NotNull(parsed);
 
-        var result = FixSuggester.TryAddFixSuggestions(parsed, "DCT SUN", null, scheme, suggestions, 10);
+        bool result = FixSuggester.TryAddFixSuggestions(parsed, "DCT SUN", null, scheme, suggestions, 10);
 
         Assert.False(result);
     }
@@ -152,10 +152,10 @@ public class FixSuggesterTests
     {
         var suggestions = new ObservableCollection<SuggestionItem>();
         var scheme = CommandScheme.Default();
-        var parsed = CommandInputController.ParseCommandInput("FH 180", "FH 180".Length, scheme);
+        CommandInputParseResult? parsed = CommandInputController.ParseCommandInput("FH 180", "FH 180".Length, scheme);
         Assert.NotNull(parsed);
 
-        var result = FixSuggester.TryAddFixSuggestions(parsed, "FH 180", null, scheme, suggestions, 10);
+        bool result = FixSuggester.TryAddFixSuggestions(parsed, "FH 180", null, scheme, suggestions, 10);
 
         Assert.False(result);
     }

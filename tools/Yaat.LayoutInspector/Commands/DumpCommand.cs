@@ -11,8 +11,8 @@ public sealed class DumpCommand : ICommand
 {
     public int Execute(LayoutAnalyzer analyzer, CliOptions options)
     {
-        var dump = analyzer.GetFullDump();
-        var json = JsonSerializer.Serialize(dump, new JsonSerializerOptions { WriteIndented = true });
+        FullDumpResult dump = analyzer.GetFullDump();
+        string json = JsonSerializer.Serialize(dump, new JsonSerializerOptions { WriteIndented = true });
         Console.Write(json);
         return 0;
     }

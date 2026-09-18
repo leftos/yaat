@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
@@ -35,19 +36,19 @@ public class PatternFlyabilityFloorTests
     [Fact]
     public void Turboprop_AuthoredHalfMilePattern_WidenedToFloor()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
         Assert.NotNull(rwy28L);
 
         // OAK authors 28L at 0.5 nm (sized for light GA). Category-speed turboprop floor:
         // r(150) + r(130) at 4°/s ≈ 1.11 nm — the authored width must lose.
         double floor = PatternGeometry.MinFlyablePatternSizeNm("", AircraftCategory.Turboprop, 0);
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             rwy28L,
             AircraftCategory.Turboprop,
             "",
@@ -67,13 +68,13 @@ public class PatternFlyabilityFloorTests
     [Fact]
     public void Piston_DefaultPattern_NotWidened()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28R = navDb.GetRunway("KOAK", "28R");
+        RunwayInfo? rwy28R = navDb.GetRunway("KOAK", "28R");
         Assert.NotNull(rwy28R);
 
         // Piston default 0.75 nm already exceeds the category floor (r(90) + r(80) at 5°/s
@@ -83,7 +84,7 @@ public class PatternFlyabilityFloorTests
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
         Assert.True(floor < defaultSize, $"Piston floor {floor:F3} should be below the default {defaultSize:F3}");
 
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             rwy28R,
             AircraftCategory.Piston,
             "",
@@ -101,20 +102,20 @@ public class PatternFlyabilityFloorTests
     [Fact]
     public void FloorWinsOverRunwayDeconfliction()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
         Assert.NotNull(rwy28L);
 
         // Left traffic 28L deconflicts against runway 30 (~1.04 nm south) down to ~0.89 nm —
         // below the category-jet floor (~1.96 nm). Overshooting the final onto the 28R
         // parallel is strictly worse than a downwind overlying 30, so the floor wins.
         double floor = PatternGeometry.MinFlyablePatternSizeNm("", AircraftCategory.Jet, 0);
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             rwy28L,
             AircraftCategory.Jet,
             "",
@@ -143,20 +144,20 @@ public class PatternFlyabilityFloorTests
     [Fact]
     public void BaseExtensionScalesWithFlooredSize()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
         Assert.NotNull(rwy28L);
 
         // The floor must be applied BEFORE the base-extension scaling: a 0.5 nm request
         // floored to ~1.11 nm keeps sizeRatio ≈ 1.11, so the base extension (and with it
         // the final-approach length) grows with the pattern instead of staying at the
         // too-short 0.5-ratio value that rolled out at ~240 ft AGL.
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             rwy28L,
             AircraftCategory.Turboprop,
             "",

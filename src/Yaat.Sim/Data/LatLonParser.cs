@@ -24,21 +24,21 @@ public static class LatLonParser
             return null;
         }
 
-        var m = CoordRegex.Match(s.Trim());
+        Match m = CoordRegex.Match(s.Trim());
         if (!m.Success)
         {
             return null;
         }
 
-        var latMin = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
-        var lonMin = int.Parse(m.Groups[5].Value, CultureInfo.InvariantCulture);
+        int latMin = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+        int lonMin = int.Parse(m.Groups[5].Value, CultureInfo.InvariantCulture);
         if (latMin >= 60 || lonMin >= 60)
         {
             return null;
         }
 
-        var lat = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) + (latMin / 60.0);
-        var lon = int.Parse(m.Groups[4].Value, CultureInfo.InvariantCulture) + (lonMin / 60.0);
+        double lat = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) + (latMin / 60.0);
+        double lon = int.Parse(m.Groups[4].Value, CultureInfo.InvariantCulture) + (lonMin / 60.0);
         if (m.Groups[3].Value.Equals("S", StringComparison.OrdinalIgnoreCase))
         {
             lat = -lat;

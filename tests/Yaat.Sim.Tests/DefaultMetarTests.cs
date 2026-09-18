@@ -23,7 +23,7 @@ public class DefaultMetarTests
     {
         // Proves the radar/ground per-airport overlay renders the calm/standard default
         // (e.g. "SFO 29.92 00000") and the METAR panel parses a valid station.
-        var parsed = MetarParser.Parse(DefaultMetar.Build("SFO", Obs));
+        MetarParser.ParsedMetar? parsed = MetarParser.Parse(DefaultMetar.Build("SFO", Obs));
 
         Assert.NotNull(parsed);
         Assert.Equal("KSFO", parsed!.StationId);

@@ -57,7 +57,7 @@ public sealed class RangeBearingRenderer : IDisposable
     {
         if (lines is not null)
         {
-            foreach (var line in lines)
+            foreach (ResolvedRbl line in lines)
             {
                 Draw(canvas, viewport, line, _linePaint);
             }
@@ -71,8 +71,8 @@ public sealed class RangeBearingRenderer : IDisposable
 
     private void Draw(SKCanvas canvas, MapViewport viewport, ResolvedRbl line, SKPaint linePaint)
     {
-        var (ax, ay) = viewport.LatLonToScreen(line.A.Lat, line.A.Lon);
-        var (bx, by) = viewport.LatLonToScreen(line.B.Lat, line.B.Lon);
+        (float ax, float ay) = viewport.LatLonToScreen(line.A.Lat, line.A.Lon);
+        (float bx, float by) = viewport.LatLonToScreen(line.B.Lat, line.B.Lon);
 
         canvas.DrawLine(ax, ay, bx, by, linePaint);
 
@@ -90,7 +90,7 @@ public sealed class RangeBearingRenderer : IDisposable
         // Label at the far end, matching CRC's placement — but clamped into the viewport when that end
         // is off-screen, so a partially visible line still shows its reading where the line exits the
         // screen. The shadow keeps it readable over video maps.
-        var labelWidth = _labelFont.MeasureText(line.Label);
+        float labelWidth = _labelFont.MeasureText(line.Label);
         if (RblLabelPlacement.Compute(ax, ay, bx, by, labelWidth, _labelFont.Size, viewport.PixelWidth, viewport.PixelHeight) is { } label)
         {
             canvas.DrawText(line.Label, label.X + 1, label.Y + 1, SKTextAlign.Left, _labelFont, _labelShadowPaint);

@@ -23,13 +23,13 @@ public class FilletDegenerateEdgeDiagnosticTests
             return;
         }
 
-        var pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
-        var layout = LayoutCloner.DeepClone(pre);
+        AirportGroundLayout pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
+        AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         _ = new FilletArcGenerator().Apply(layout);
 
         var sb = new StringBuilder();
         sb.AppendLine($"=== {shortId} degenerate / near-degenerate edges ===");
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             int id0 = edge.Nodes[0].Id;
             int id1 = edge.Nodes[1].Id;
@@ -54,14 +54,14 @@ public class FilletDegenerateEdgeDiagnosticTests
             return;
         }
 
-        var pre = GeoJsonParser.Parse("oak", File.ReadAllText(path), null, FilletMode.None);
-        var layout = LayoutCloner.DeepClone(pre);
+        AirportGroundLayout pre = GeoJsonParser.Parse("oak", File.ReadAllText(path), null, FilletMode.None);
+        AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         _ = new FilletArcGenerator().Apply(layout);
 
         const int nodeId = 753;
         var sb = new StringBuilder();
         sb.AppendLine($"=== OAK edges touching node {nodeId} ===");
-        if (layout.Nodes.TryGetValue(nodeId, out var node))
+        if (layout.Nodes.TryGetValue(nodeId, out GroundNode? node))
         {
             sb.AppendLine($"node type={node.Type} origin={node.Origin ?? "(null)"} pos={node.Position}");
         }
@@ -70,7 +70,7 @@ public class FilletDegenerateEdgeDiagnosticTests
             sb.AppendLine("(node not in layout)");
         }
 
-        foreach (var edge in layout.Edges.Where(e => (e.Nodes[0].Id == nodeId) || (e.Nodes[1].Id == nodeId)))
+        foreach (GroundEdge? edge in layout.Edges.Where(e => (e.Nodes[0].Id == nodeId) || (e.Nodes[1].Id == nodeId)))
         {
             int other = edge.Nodes[0].Id == nodeId ? edge.Nodes[1].Id : edge.Nodes[0].Id;
             double distFt = edge.DistanceNm * GeoMath.FeetPerNm;

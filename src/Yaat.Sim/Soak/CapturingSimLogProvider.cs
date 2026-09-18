@@ -38,7 +38,7 @@ public sealed class CapturingSimLogProvider(LogLevel minimumLevel, int capacity)
     {
         lock (_lock)
         {
-            var drained = _records.ToArray();
+            CapturedLogRecord[] drained = _records.ToArray();
             _records.Clear();
             return drained;
         }

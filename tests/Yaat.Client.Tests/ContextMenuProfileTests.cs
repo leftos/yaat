@@ -50,10 +50,10 @@ public class ContextMenuProfileTests
             "S-Turns",
         ];
 
-        foreach (var phase in phases)
+        foreach (string phase in phases)
         {
-            var profile = ContextMenuProfileService.GetProfile(phase, false);
-            foreach (var group in AlwaysVisibleGroups)
+            ContextMenuProfile profile = ContextMenuProfileService.GetProfile(phase, false);
+            foreach (MenuGroup group in AlwaysVisibleGroups)
             {
                 Assert.DoesNotContain(group, profile.HiddenGroups);
             }
@@ -65,7 +65,7 @@ public class ContextMenuProfileTests
     [InlineData("")]
     public void FreeFlight_ShowsAllFlightCommands(string? phase)
     {
-        var profile = ContextMenuProfileService.GetProfile(phase, false);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile(phase, false);
 
         Assert.Contains(MenuGroup.Heading, profile.PrimaryGroups);
         Assert.Contains(MenuGroup.Altitude, profile.PrimaryGroups);
@@ -91,7 +91,7 @@ public class ContextMenuProfileTests
     [InlineData("LinedUpAndWaiting")]
     public void GroundPhases_HideFlightCommands(string phase)
     {
-        var profile = ContextMenuProfileService.GetProfile(phase, true);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile(phase, true);
 
         Assert.Contains(MenuGroup.Tower, profile.PrimaryGroups);
         Assert.Contains(MenuGroup.Heading, profile.HiddenGroups);
@@ -104,7 +104,7 @@ public class ContextMenuProfileTests
     [Fact]
     public void Takeoff_OnGround_HidesFlightCommands()
     {
-        var profile = ContextMenuProfileService.GetProfile("Takeoff", true);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile("Takeoff", true);
 
         Assert.Contains(MenuGroup.Tower, profile.PrimaryGroups);
         Assert.Contains(MenuGroup.Heading, profile.HiddenGroups);
@@ -113,7 +113,7 @@ public class ContextMenuProfileTests
     [Fact]
     public void Takeoff_Airborne_ShowsFlightCommands()
     {
-        var profile = ContextMenuProfileService.GetProfile("Takeoff", false);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile("Takeoff", false);
 
         Assert.Contains(MenuGroup.Heading, profile.PrimaryGroups);
         Assert.Contains(MenuGroup.Altitude, profile.PrimaryGroups);
@@ -129,7 +129,7 @@ public class ContextMenuProfileTests
     [InlineData("MidfieldCrossing")]
     public void PatternPhases_ShowTowerAndPattern(string phase)
     {
-        var profile = ContextMenuProfileService.GetProfile(phase, false);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile(phase, false);
 
         Assert.Contains(MenuGroup.Tower, profile.PrimaryGroups);
         Assert.Contains(MenuGroup.Pattern, profile.PrimaryGroups);
@@ -139,7 +139,7 @@ public class ContextMenuProfileTests
     [Fact]
     public void FinalApproach_ShowsTower()
     {
-        var profile = ContextMenuProfileService.GetProfile("FinalApproach", false);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile("FinalApproach", false);
 
         Assert.Contains(MenuGroup.Tower, profile.PrimaryGroups);
         Assert.True(profile.HiddenGroups.Count == 0, "Expected no hidden groups");
@@ -150,7 +150,7 @@ public class ContextMenuProfileTests
     [InlineData("InterceptCourse")]
     public void ApproachNavPhases_ShowSpeedAltitudeTower(string phase)
     {
-        var profile = ContextMenuProfileService.GetProfile(phase, false);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile(phase, false);
 
         Assert.Contains(MenuGroup.Speed, profile.PrimaryGroups);
         Assert.Contains(MenuGroup.Altitude, profile.PrimaryGroups);
@@ -166,7 +166,7 @@ public class ContextMenuProfileTests
     [InlineData("ProceedToFix")]
     public void HoldingPhases_ShowFlightCommands(string phase)
     {
-        var profile = ContextMenuProfileService.GetProfile(phase, false);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile(phase, false);
 
         Assert.Contains(MenuGroup.Heading, profile.PrimaryGroups);
         Assert.Contains(MenuGroup.Navigation, profile.PrimaryGroups);
@@ -178,7 +178,7 @@ public class ContextMenuProfileTests
     [InlineData("Landing-H")]
     public void LandingPhases_HideFlightCommands(string phase)
     {
-        var profile = ContextMenuProfileService.GetProfile(phase, true);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile(phase, true);
 
         Assert.Contains(MenuGroup.Tower, profile.PrimaryGroups);
         Assert.Contains(MenuGroup.Heading, profile.HiddenGroups);
@@ -187,7 +187,7 @@ public class ContextMenuProfileTests
     [Fact]
     public void GoAround_ShowsTowerAndFlight()
     {
-        var profile = ContextMenuProfileService.GetProfile("GoAround", false);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile("GoAround", false);
 
         Assert.Contains(MenuGroup.Tower, profile.PrimaryGroups);
         Assert.Contains(MenuGroup.Heading, profile.PrimaryGroups);
@@ -201,7 +201,7 @@ public class ContextMenuProfileTests
     [InlineData("S-Turns")]
     public void TurnPhases_ShowHeadingAltitudeSpeed(string phase)
     {
-        var profile = ContextMenuProfileService.GetProfile(phase, false);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile(phase, false);
 
         Assert.Contains(MenuGroup.Heading, profile.PrimaryGroups);
         Assert.Contains(MenuGroup.Altitude, profile.PrimaryGroups);
@@ -216,19 +216,19 @@ public class ContextMenuProfileTests
     [InlineData("HoldingPattern", false)]
     public void PrimaryPlusSecondary_CoversAllNonHiddenPhaseGroups(string? phase, bool onGround)
     {
-        var profile = ContextMenuProfileService.GetProfile(phase, onGround);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile(phase, onGround);
 
         var allPresent = new HashSet<MenuGroup>(profile.PrimaryGroups);
-        foreach (var g in profile.SecondaryGroups)
+        foreach (MenuGroup g in profile.SecondaryGroups)
         {
             allPresent.Add(g);
         }
-        foreach (var g in profile.HiddenGroups)
+        foreach (MenuGroup g in profile.HiddenGroups)
         {
             allPresent.Add(g);
         }
 
-        foreach (var group in PhaseGroups)
+        foreach (MenuGroup group in PhaseGroups)
         {
             Assert.Contains(group, allPresent);
         }

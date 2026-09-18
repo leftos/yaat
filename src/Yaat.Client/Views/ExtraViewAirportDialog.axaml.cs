@@ -26,10 +26,10 @@ public partial class ExtraViewAirportDialog : Window
         _isKnownAirport = isKnownAirport;
         Title = title;
 
-        var list = this.FindControl<ListBox>("AirportList");
-        var airportBox = this.FindControl<TextBox>("AirportTextBox");
-        var okBtn = this.FindControl<Button>("OkButton");
-        var cancelBtn = this.FindControl<Button>("CancelButton");
+        ListBox? list = this.FindControl<ListBox>("AirportList");
+        TextBox? airportBox = this.FindControl<TextBox>("AirportTextBox");
+        Button? okBtn = this.FindControl<Button>("OkButton");
+        Button? cancelBtn = this.FindControl<Button>("CancelButton");
 
         if (list is not null)
         {
@@ -69,10 +69,10 @@ public partial class ExtraViewAirportDialog : Window
 
     private void UpdateStatus(string? text)
     {
-        var status = this.FindControl<TextBlock>("StatusText");
-        var okBtn = this.FindControl<Button>("OkButton");
-        var trimmed = (text ?? "").Trim();
-        var known = !string.IsNullOrEmpty(trimmed) && _isKnownAirport(trimmed);
+        TextBlock? status = this.FindControl<TextBlock>("StatusText");
+        Button? okBtn = this.FindControl<Button>("OkButton");
+        string trimmed = (text ?? "").Trim();
+        bool known = !string.IsNullOrEmpty(trimmed) && _isKnownAirport(trimmed);
 
         if (status is not null)
         {
@@ -87,8 +87,8 @@ public partial class ExtraViewAirportDialog : Window
 
     private void OnOkClick(object? sender, RoutedEventArgs e)
     {
-        var airportBox = this.FindControl<TextBox>("AirportTextBox");
-        var entered = (airportBox?.Text ?? "").Trim();
+        TextBox? airportBox = this.FindControl<TextBox>("AirportTextBox");
+        string entered = (airportBox?.Text ?? "").Trim();
         if (string.IsNullOrEmpty(entered) || !_isKnownAirport(entered))
         {
             return;

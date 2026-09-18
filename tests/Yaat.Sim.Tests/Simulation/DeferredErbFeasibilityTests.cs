@@ -1,5 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -44,14 +47,14 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 
         return new SimulationEngine(groundData);
@@ -64,8 +67,8 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
     [Fact]
     public void Diagnostic_LogN2bpStateAtReplayStart()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -73,7 +76,7 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
 
         engine.Replay(recording, ReplayStartSeconds);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
         output.WriteLine(
@@ -92,8 +95,8 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
     [Fact]
     public void DctThenErb_Compound_Accepts()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -101,10 +104,10 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
 
         engine.Replay(recording, ReplayStartSeconds);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
-        var result = engine.SendCommand(Callsign, "DCT VPCBT; ERB 28R");
+        CommandResult result = engine.SendCommand(Callsign, "DCT VPCBT; ERB 28R");
 
         output.WriteLine($"Result: Success={result.Success}, Message={result.Message}");
         Assert.True(result.Success, $"Expected DCT VPCBT; ERB 28R to accept, got: {result.Message}");
@@ -112,7 +115,7 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
         // The DCT block applies immediately (no trigger). The ERB block sits in
         // the queue behind it, unapplied, waiting for the navigation route to
         // empty when the aircraft reaches VPCBT.
-        var queue = aircraft.Queue.Blocks;
+        List<CommandBlock> queue = aircraft.Queue.Blocks;
         Assert.Contains(queue, b => !b.IsApplied && b.Description.Contains("ERB", StringComparison.OrdinalIgnoreCase));
 
         // The aircraft's navigation route is set to VPCBT by the immediately-applied DCT.
@@ -128,8 +131,8 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
     [Fact]
     public void AtVpcbtErb_Conditional_Accepts()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -137,16 +140,16 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
 
         engine.Replay(recording, ReplayStartSeconds);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
-        var result = engine.SendCommand(Callsign, "AT VPCBT ERB 28R");
+        CommandResult result = engine.SendCommand(Callsign, "AT VPCBT ERB 28R");
 
         output.WriteLine($"Result: Success={result.Success}, Message={result.Message}");
         Assert.True(result.Success, $"Expected AT VPCBT ERB 28R to accept, got: {result.Message}");
 
         // Find the queued ERB block and confirm its trigger is ReachFix(VPCBT).
-        var erbBlock = aircraft.Queue.Blocks.FirstOrDefault(b => b.Description.Contains("ERB", StringComparison.OrdinalIgnoreCase));
+        CommandBlock? erbBlock = aircraft.Queue.Blocks.FirstOrDefault(b => b.Description.Contains("ERB", StringComparison.OrdinalIgnoreCase));
         Assert.NotNull(erbBlock);
         Assert.NotNull(erbBlock.Trigger);
         Assert.Equal(BlockTriggerType.ReachFix, erbBlock.Trigger.Type);
@@ -163,8 +166,8 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
     [Fact]
     public void DctThenErb_FiresAtVpcbt_InstallsBasePatternFor28R()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -172,7 +175,7 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
 
         engine.Replay(recording, ReplayStartSeconds);
 
-        var sendResult = engine.SendCommand(Callsign, "DCT VPCBT; ERB 28R");
+        CommandResult sendResult = engine.SendCommand(Callsign, "DCT VPCBT; ERB 28R");
         Assert.True(sendResult.Success, $"Send failed: {sendResult.Message}");
 
         // Tick forward, watching for ERB to fire (pattern phase installed).
@@ -181,7 +184,7 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
         for (int t = 1; t <= 600; t++)
         {
             engine.TickOneSecond();
-            var aircraft = engine.FindAircraft(Callsign);
+            AircraftState? aircraft = engine.FindAircraft(Callsign);
             if (aircraft is null)
             {
                 break;
@@ -190,7 +193,7 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
             // ERB triggers when the aircraft sequences VPCBT — at that point
             // TryEnterPattern installs PatternEntryPhase + BasePhase + tail
             // for the 28R pattern.
-            var currentPhase = aircraft.Phases?.CurrentPhase;
+            Phase? currentPhase = aircraft.Phases?.CurrentPhase;
             bool patternInstalled = currentPhase is PatternEntryPhase or BasePhase;
             if (patternInstalled)
             {
@@ -224,8 +227,8 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
     [Fact]
     public void DeferredErbInfeasibleAtTrigger_SurfacesPendingWarning()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -233,7 +236,7 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
 
         engine.Replay(recording, ReplayStartSeconds);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
         output.WriteLine($"Aircraft alt={aircraft.Altitude:F0} ias={aircraft.IndicatedAirspeed:F0} tgtAlt={aircraft.Targets.TargetAltitude}");
@@ -245,7 +248,7 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
         // so it will pass through this within ~10s. Aircraft is abeam OAK 28R threshold,
         // so ERB will reject "too close for base" at fire time.
         int triggerAlt = (int)(Math.Floor(aircraft.Altitude / 100.0) * 100) - 100;
-        var dispatchResult = engine.SendCommand(Callsign, $"LV {triggerAlt} ERB 28R");
+        CommandResult dispatchResult = engine.SendCommand(Callsign, $"LV {triggerAlt} ERB 28R");
         output.WriteLine($"Send LV {triggerAlt} ERB 28R: Success={dispatchResult.Success}, Message={dispatchResult.Message}");
         Assert.True(dispatchResult.Success, $"LV ... ERB compound should accept (deferred); got: {dispatchResult.Message}");
 
@@ -253,7 +256,7 @@ public class DeferredErbFeasibilityTests(ITestOutputHelper output)
         {
             engine.TickOneSecond();
 
-            var match = capturedWarnings.FirstOrDefault(p =>
+            (string Callsign, string Warning) match = capturedWarnings.FirstOrDefault(p =>
                 p.Callsign == Callsign
                 && (
                     p.Warning.Contains("too close for base", StringComparison.OrdinalIgnoreCase)

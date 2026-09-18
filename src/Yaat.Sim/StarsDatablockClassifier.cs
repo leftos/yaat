@@ -54,10 +54,10 @@ public static class StarsDatablockClassifier
             return new StarsScopeView(StarsDatablockColor.Unowned, StarsDatablockLevel.Full, DefaultLeaderDirection);
         }
 
-        var track = aircraft.Track;
+        AircraftTrack track = aircraft.Track;
         // SharedState is keyed by Tcp.Id (the ULID) — matching every writer (CRC handler,
         // TickProcessor). ToString() yields the "{Subset}{SectorId}" code, which never matches.
-        aircraft.Stars.SharedState.TryGetValue(studentTcp.Id, out var shared);
+        aircraft.Stars.SharedState.TryGetValue(studentTcp.Id, out StarsTrackSharedState? shared);
 
         bool isOwnedByStudent = track.Owner is not null && studentPosition.MatchesPosition(track.Owner);
         bool isHandoffIn =

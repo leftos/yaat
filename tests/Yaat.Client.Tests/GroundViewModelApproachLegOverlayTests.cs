@@ -31,13 +31,13 @@ public class GroundViewModelApproachLegOverlayTests
     [Fact]
     public void PushedOntoTheApron_OverlayStartsWithTheApproachLegFromTheAircraft()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return; // test data absent — skip
         }
 
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetDomainLayoutForTesting(layout);
 
         var position = new LatLon(37.710217680439534, -122.21728593336832);
@@ -53,7 +53,7 @@ public class GroundViewModelApproachLegOverlayTests
             HasActiveTaxiRoute = true,
         };
 
-        var route = vm.ResolveRemainingRoute(ac);
+        TaxiRoute? route = vm.ResolveRemainingRoute(ac);
 
         Assert.NotNull(route);
         Assert.True(route!.Segments[0].FromNodeId < 0, "the overlay must start with the free-space leg from the aircraft");
@@ -61,7 +61,7 @@ public class GroundViewModelApproachLegOverlayTests
         double legStartFt = GeoMath.DistanceNm(position, route.Segments[0].Edge.FromNode.Position) * GeoMath.FeetPerNm;
         Assert.True(legStartFt < 1.0, $"the leg must start at the aircraft, but starts {legStartFt:F1} ft away");
 
-        var startNode = layout.FindNearestNode(position);
+        GroundNode? startNode = layout.FindNearestNode(position);
         Assert.NotNull(startNode);
         Assert.Equal(startNode!.Id, route.Segments[0].ToNodeId);
     }

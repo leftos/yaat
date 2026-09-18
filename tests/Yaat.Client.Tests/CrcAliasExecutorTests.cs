@@ -12,7 +12,7 @@ public class CrcAliasExecutorTests
     [Fact]
     public void Echo_PrintsItsBody()
     {
-        var execution = Plan(".echo DESIGNATOR: C172 | RECAT: I");
+        CrcAliasExecution execution = Plan(".echo DESIGNATOR: C172 | RECAT: I");
 
         Assert.Equal(CrcAliasAction.Echo, execution.Action);
         Assert.Equal(["DESIGNATOR: C172 | RECAT: I"], execution.EchoLines);
@@ -25,7 +25,7 @@ public class CrcAliasExecutorTests
     [Fact]
     public void Echo_ExpandsEscapesIntoSeparateLines()
     {
-        var execution = Plan(@".echo TITLE\n\s\sindented\n\ttabbed");
+        CrcAliasExecution execution = Plan(@".echo TITLE\n\s\sindented\n\ttabbed");
 
         Assert.Equal(["TITLE", "  indented", "    tabbed"], execution.EchoLines);
     }
@@ -44,7 +44,7 @@ public class CrcAliasExecutorTests
     [InlineData(".nomarkers")]
     public void MarkerVerbs_RouteToTheScopeMarkerHandler(string verb)
     {
-        var execution = Plan($"{verb} SUNOL ALTAM");
+        CrcAliasExecution execution = Plan($"{verb} SUNOL ALTAM");
 
         Assert.Equal(CrcAliasAction.ScopeMarkers, execution.Action);
         Assert.Equal($"{verb} SUNOL ALTAM", execution.CommandText);
@@ -53,7 +53,7 @@ public class CrcAliasExecutorTests
     [Fact]
     public void OpenUrl_ReturnsTheUrl()
     {
-        var execution = Plan(".openurl https://reference.oakartcc.org");
+        CrcAliasExecution execution = Plan(".openurl https://reference.oakartcc.org");
 
         Assert.Equal(CrcAliasAction.OpenUrl, execution.Action);
         Assert.Equal("https://reference.oakartcc.org/", execution.Url);
@@ -62,7 +62,7 @@ public class CrcAliasExecutorTests
     [Fact]
     public void OpenUrl_SubstitutesFlightPlanVariables()
     {
-        var execution = Plan(".openurl https://reference.oakartcc.org/routes?dep=$dep&dest=$arr");
+        CrcAliasExecution execution = Plan(".openurl https://reference.oakartcc.org/routes?dep=$dep&dest=$arr");
 
         Assert.Equal(CrcAliasAction.OpenUrl, execution.Action);
         Assert.Contains("dep=KOAK&dest=KJFK", execution.Url, StringComparison.Ordinal);
@@ -75,7 +75,7 @@ public class CrcAliasExecutorTests
     [Fact]
     public void OpenUrl_KeepsPercentEncodingFromUrlEscape()
     {
-        var execution = Plan(".openurl https://skyvector.com/?fpl=$urlescape($fullroute)");
+        CrcAliasExecution execution = Plan(".openurl https://skyvector.com/?fpl=$urlescape($fullroute)");
 
         Assert.Equal(CrcAliasAction.OpenUrl, execution.Action);
         Assert.Equal("https://skyvector.com/?fpl=KOAK%20SUNOL%20Q126%20ALTAM%20KJFK", execution.Url);
@@ -106,7 +106,7 @@ public class CrcAliasExecutorTests
     [InlineData(".wallop pilot is unresponsive")]
     public void VerbsWithoutAYaatEquivalent_AreReportedAsUnsupported(string expanded)
     {
-        var execution = Plan(expanded);
+        CrcAliasExecution execution = Plan(expanded);
 
         Assert.Equal(CrcAliasAction.Unsupported, execution.Action);
         Assert.Contains("not supported", execution.Message, StringComparison.OrdinalIgnoreCase);
@@ -116,7 +116,7 @@ public class CrcAliasExecutorTests
     [Fact]
     public void ProseBody_IsReportedAsUnsupported()
     {
-        var execution = Plan("Hold for release, remain this frequency");
+        CrcAliasExecution execution = Plan("Hold for release, remain this frequency");
 
         Assert.Equal(CrcAliasAction.Unsupported, execution.Action);
         Assert.Contains("radio transmission", execution.Message, StringComparison.OrdinalIgnoreCase);

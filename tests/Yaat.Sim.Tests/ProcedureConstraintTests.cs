@@ -33,11 +33,11 @@ public class ProcedureConstraintTests
     [Fact]
     public void SidViaMode_AtOrAbove_ClimbsToRestriction()
     {
-        var aircraft = CreateAircraft(altitude: 3000);
+        AircraftState aircraft = CreateAircraft(altitude: 3000);
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
 
-        var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000));
+        NavigationTarget target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         Assert.Equal(5000, aircraft.Targets.TargetAltitude);
@@ -46,11 +46,11 @@ public class ProcedureConstraintTests
     [Fact]
     public void SidViaMode_AtOrAbove_AlreadyAbove_NoChange()
     {
-        var aircraft = CreateAircraft(altitude: 7000);
+        AircraftState aircraft = CreateAircraft(altitude: 7000);
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
 
-        var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000));
+        NavigationTarget target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         Assert.Null(aircraft.Targets.TargetAltitude);
@@ -59,12 +59,12 @@ public class ProcedureConstraintTests
     [Fact]
     public void SidViaMode_WithCeiling_CapsAltitude()
     {
-        var aircraft = CreateAircraft(altitude: 3000);
+        AircraftState aircraft = CreateAircraft(altitude: 3000);
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
         aircraft.Procedure.SidViaCeiling = 10000;
 
-        var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 15000));
+        NavigationTarget target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 15000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         Assert.Equal(10000, aircraft.Targets.TargetAltitude);
@@ -73,11 +73,11 @@ public class ProcedureConstraintTests
     [Fact]
     public void StarViaMode_AtOrBelow_DescendsToRestriction()
     {
-        var aircraft = CreateAircraft(altitude: 15000);
+        AircraftState aircraft = CreateAircraft(altitude: 15000);
         aircraft.Procedure.StarViaMode = true;
         aircraft.Procedure.ActiveStarId = "BDEGA3";
 
-        var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 12000));
+        NavigationTarget target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 12000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         Assert.Equal(12000, aircraft.Targets.TargetAltitude);
@@ -86,11 +86,11 @@ public class ProcedureConstraintTests
     [Fact]
     public void StarViaMode_AtOrBelow_AlreadyBelow_NoChange()
     {
-        var aircraft = CreateAircraft(altitude: 10000);
+        AircraftState aircraft = CreateAircraft(altitude: 10000);
         aircraft.Procedure.StarViaMode = true;
         aircraft.Procedure.ActiveStarId = "BDEGA3";
 
-        var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 12000));
+        NavigationTarget target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 12000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         Assert.Null(aircraft.Targets.TargetAltitude);
@@ -99,11 +99,11 @@ public class ProcedureConstraintTests
     [Fact]
     public void StarViaMode_AtOrAbove_DescendsToRestriction()
     {
-        var aircraft = CreateAircraft(altitude: 9000);
+        AircraftState aircraft = CreateAircraft(altitude: 9000);
         aircraft.Procedure.StarViaMode = true;
         aircraft.Procedure.ActiveStarId = "BDEGA3";
 
-        var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000));
+        NavigationTarget target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         // STAR via mode: AtOrAbove 5000 means "descend to 5000" (the depicted altitude)
@@ -113,12 +113,12 @@ public class ProcedureConstraintTests
     [Fact]
     public void StarViaMode_WithFloor_PreventsOverDescent()
     {
-        var aircraft = CreateAircraft(altitude: 15000);
+        AircraftState aircraft = CreateAircraft(altitude: 15000);
         aircraft.Procedure.StarViaMode = true;
         aircraft.Procedure.ActiveStarId = "BDEGA3";
         aircraft.Procedure.StarViaFloor = 10000;
 
-        var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000));
+        NavigationTarget target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         Assert.Equal(10000, aircraft.Targets.TargetAltitude);
@@ -127,11 +127,11 @@ public class ProcedureConstraintTests
     [Fact]
     public void ViaMode_AtRestriction_SetsExactAltitude()
     {
-        var aircraft = CreateAircraft(altitude: 5000);
+        AircraftState aircraft = CreateAircraft(altitude: 5000);
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
 
-        var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000));
+        NavigationTarget target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         Assert.Equal(8000, aircraft.Targets.TargetAltitude);
@@ -140,11 +140,11 @@ public class ProcedureConstraintTests
     [Fact]
     public void ViaMode_BetweenRestriction_TooHigh_DescendsToLower()
     {
-        var aircraft = CreateAircraft(altitude: 15000);
+        AircraftState aircraft = CreateAircraft(altitude: 15000);
         aircraft.Procedure.StarViaMode = true;
         aircraft.Procedure.ActiveStarId = "BDEGA3";
 
-        var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 12000, 10000));
+        NavigationTarget target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 12000, 10000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         // STAR via: always target lower bound — upper is permissiveness
@@ -154,11 +154,11 @@ public class ProcedureConstraintTests
     [Fact]
     public void ViaMode_BetweenRestriction_TooLow_ClimbsToUpper()
     {
-        var aircraft = CreateAircraft(altitude: 8000);
+        AircraftState aircraft = CreateAircraft(altitude: 8000);
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
 
-        var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 12000, 10000));
+        NavigationTarget target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 12000, 10000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         // SID via: target upper bound — pilots want to get high fast
@@ -168,11 +168,11 @@ public class ProcedureConstraintTests
     [Fact]
     public void ViaMode_BetweenRestriction_WithinRange_DescendsToLowerBound()
     {
-        var aircraft = CreateAircraft(altitude: 11000);
+        AircraftState aircraft = CreateAircraft(altitude: 11000);
         aircraft.Procedure.StarViaMode = true;
         aircraft.Procedure.ActiveStarId = "BDEGA3";
 
-        var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 12000, 10000));
+        NavigationTarget target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 12000, 10000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         // STAR via mode: when within range, target the lower bound to continue descent
@@ -182,11 +182,11 @@ public class ProcedureConstraintTests
     [Fact]
     public void SpeedRestriction_Applied()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
 
-        var target = MakeTarget(spd: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
+        NavigationTarget target = MakeTarget(spd: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         Assert.Equal(210, aircraft.Targets.TargetSpeed);
@@ -195,10 +195,10 @@ public class ProcedureConstraintTests
     [Fact]
     public void NoViaMode_ConstraintsStillApplied()
     {
-        var aircraft = CreateAircraft(altitude: 3000);
+        AircraftState aircraft = CreateAircraft(altitude: 3000);
         // No via mode set — constraints now apply universally for CFIX/drawn routes
 
-        var target = MakeTarget(
+        NavigationTarget target = MakeTarget(
             alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000),
             spd: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow)
         );
@@ -213,7 +213,7 @@ public class ProcedureConstraintTests
     [Fact]
     public void UpdateSpeed_Below10000_CapsAt250()
     {
-        var aircraft = CreateAircraft(altitude: 5000, ias: 250);
+        AircraftState aircraft = CreateAircraft(altitude: 5000, ias: 250);
         aircraft.Targets.TargetSpeed = 300;
 
         FlightPhysics.Update(aircraft, 1.0);
@@ -225,7 +225,7 @@ public class ProcedureConstraintTests
     [Fact]
     public void UpdateSpeed_Above10000_NoSpeedCap()
     {
-        var aircraft = CreateAircraft(altitude: 12000, ias: 280);
+        AircraftState aircraft = CreateAircraft(altitude: 12000, ias: 280);
         aircraft.Targets.TargetSpeed = 300;
 
         FlightPhysics.Update(aircraft, 1.0);
@@ -237,7 +237,7 @@ public class ProcedureConstraintTests
     [Fact]
     public void UpdateSpeed_OnGround_NoSpeedCap()
     {
-        var aircraft = CreateAircraft(altitude: 100, ias: 30);
+        AircraftState aircraft = CreateAircraft(altitude: 100, ias: 30);
         aircraft.IsOnGround = true;
         aircraft.Targets.TargetSpeed = 300;
 
@@ -250,11 +250,11 @@ public class ProcedureConstraintTests
     [Fact]
     public void ApplyFixConstraints_SpeedRestrictionCappedBelow10000()
     {
-        var aircraft = CreateAircraft(altitude: 5000);
+        AircraftState aircraft = CreateAircraft(altitude: 5000);
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
 
-        var target = MakeTarget(spd: new CifpSpeedRestriction(280, CifpSpeedRestrictionType.AtOrBelow));
+        NavigationTarget target = MakeTarget(spd: new CifpSpeedRestriction(280, CifpSpeedRestrictionType.AtOrBelow));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         // Speed restriction of 280 should be capped to 250 below 10,000 ft
@@ -264,11 +264,11 @@ public class ProcedureConstraintTests
     [Fact]
     public void ApplyFixConstraints_SpeedRestrictionNotCappedAbove10000()
     {
-        var aircraft = CreateAircraft(altitude: 12000);
+        AircraftState aircraft = CreateAircraft(altitude: 12000);
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
 
-        var target = MakeTarget(spd: new CifpSpeedRestriction(280, CifpSpeedRestrictionType.AtOrBelow));
+        NavigationTarget target = MakeTarget(spd: new CifpSpeedRestriction(280, CifpSpeedRestrictionType.AtOrBelow));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         // Above 10,000 ft — no cap
@@ -278,7 +278,7 @@ public class ProcedureConstraintTests
     [Fact]
     public void ProcedureState_ClearedOnRouteCompletion()
     {
-        var aircraft = CreateAircraft(altitude: 5000);
+        AircraftState aircraft = CreateAircraft(altitude: 5000);
         aircraft.Procedure.ActiveSidId = "PORTE3";
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.SidViaCeiling = 10000;
@@ -305,7 +305,7 @@ public class ProcedureConstraintTests
     [Fact]
     public void ConstraintsApplied_WhenAdvancingToNextFix()
     {
-        var aircraft = CreateAircraft(altitude: 3000);
+        AircraftState aircraft = CreateAircraft(altitude: 3000);
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
 

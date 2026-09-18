@@ -53,8 +53,12 @@ public class GeneratorConfigParityTests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(ScenarioJson(generatorFields), rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
-        foreach (var w in warnings)
+        List<string> warnings = engine.LoadScenario(
+            ScenarioJson(generatorFields),
+            rngSeed: 42,
+            sessionStartUtc: MagneticDeclination.EvaluationDateUtc
+        );
+        foreach (string w in warnings)
         {
             output.WriteLine($"[load-warn] {w}");
         }
@@ -64,7 +68,7 @@ public class GeneratorConfigParityTests(ITestOutputHelper output)
     [Fact]
     public void MaxTimeOmitted_DeserializesToNull()
     {
-        var engine = BuildLoadedEngine(""" "maxDistance": 50, "intervalDistance": 5, "intervalTime": 120 """);
+        SimulationEngine? engine = BuildLoadedEngine(""" "maxDistance": 50, "intervalDistance": 5, "intervalTime": 120 """);
         if (engine?.Scenario is null)
         {
             return;
@@ -76,7 +80,7 @@ public class GeneratorConfigParityTests(ITestOutputHelper output)
     [Fact]
     public void MaxTimePresent_DeserializesToValue()
     {
-        var engine = BuildLoadedEngine(""" "maxDistance": 50, "intervalDistance": 5, "intervalTime": 120, "maxTime": 1200 """);
+        SimulationEngine? engine = BuildLoadedEngine(""" "maxDistance": 50, "intervalDistance": 5, "intervalTime": 120, "maxTime": 1200 """);
         if (engine?.Scenario is null)
         {
             return;
@@ -88,7 +92,7 @@ public class GeneratorConfigParityTests(ITestOutputHelper output)
     [Fact]
     public void IntervalDistanceOmitted_DeserializesToZero_NoPhantomFloor()
     {
-        var engine = BuildLoadedEngine(""" "maxDistance": 50, "intervalTime": 120 """);
+        SimulationEngine? engine = BuildLoadedEngine(""" "maxDistance": 50, "intervalTime": 120 """);
         if (engine?.Scenario is null)
         {
             return;
@@ -102,7 +106,7 @@ public class GeneratorConfigParityTests(ITestOutputHelper output)
     [Fact]
     public void MaxTimeOmitted_GeneratorDoesNotExhaustPastOldDefault()
     {
-        var engine = BuildLoadedEngine(""" "maxDistance": 50, "intervalDistance": 5, "intervalTime": 120 """);
+        SimulationEngine? engine = BuildLoadedEngine(""" "maxDistance": 50, "intervalDistance": 5, "intervalTime": 120 """);
         if (engine?.Scenario is null)
         {
             return;
@@ -118,7 +122,7 @@ public class GeneratorConfigParityTests(ITestOutputHelper output)
     [Fact]
     public void MaxTimePresent_GeneratorExhaustsPastMaxTime()
     {
-        var engine = BuildLoadedEngine(""" "maxDistance": 50, "intervalDistance": 5, "intervalTime": 120, "maxTime": 1000 """);
+        SimulationEngine? engine = BuildLoadedEngine(""" "maxDistance": 50, "intervalDistance": 5, "intervalTime": 120, "maxTime": 1000 """);
         if (engine?.Scenario is null)
         {
             return;
@@ -135,7 +139,7 @@ public class GeneratorConfigParityTests(ITestOutputHelper output)
     {
         // Short interval packs the stream so each new arrival is placed behind a leader. With no author
         // distance floor, the binding gap is the 3 NM terminal radar floor (or wake), never the old 5 NM.
-        var engine = BuildLoadedEngine(""" "maxDistance": 50, "intervalTime": 20 """);
+        SimulationEngine? engine = BuildLoadedEngine(""" "maxDistance": 50, "intervalTime": 20 """);
         if (engine?.Scenario is null)
         {
             return;
@@ -147,7 +151,7 @@ public class GeneratorConfigParityTests(ITestOutputHelper output)
         }
 
         var behindLeader = engine.GeneratorSpawnLog.Where(s => s.RearmostAtSpawnNm is not null).ToList();
-        foreach (var s in behindLeader.OrderBy(s => s.ElapsedSeconds))
+        foreach (GeneratorSpawnRecord s in behindLeader.OrderBy(s => s.ElapsedSeconds))
         {
             output.WriteLine($"t={s.ElapsedSeconds} d={s.SpawnDistanceNm:F1} rearmost={s.RearmostAtSpawnNm:F1} gap={s.RequiredGapNm:F2}");
         }

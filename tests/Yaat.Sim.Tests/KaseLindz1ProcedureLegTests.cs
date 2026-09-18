@@ -18,13 +18,13 @@ public class KaseLindz1ProcedureLegTests
     [Fact]
     public void Resolve_Lindz1Rw33_PreservesHeadingAndCourseLegs()
     {
-        var sid = NavigationDatabase.Instance.GetSid("KASE", "LINDZ1");
-        if (sid is null || !sid.RunwayTransitions.TryGetValue("RW33", out var rw33))
+        CifpSidProcedure? sid = NavigationDatabase.Instance.GetSid("KASE", "LINDZ1");
+        if (sid is null || !sid.RunwayTransitions.TryGetValue("RW33", out CifpTransition? rw33))
         {
             return; // LINDZ1 not present in the bundled CIFP cycle — skip offline.
         }
 
-        var legs = ProcedureLegResolver.Resolve(rw33.Legs);
+        List<ProcedureLeg> legs = ProcedureLegResolver.Resolve(rw33.Legs);
 
         Assert.Equal(3, legs.Count);
 

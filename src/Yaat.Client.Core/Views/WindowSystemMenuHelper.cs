@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Avalonia.Controls;
+using Avalonia.Platform;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.Views;
@@ -108,7 +109,7 @@ public sealed class WindowSystemMenuHelper
 
     private void InstallMenu()
     {
-        var handle = _window.TryGetPlatformHandle();
+        IPlatformHandle? handle = _window.TryGetPlatformHandle();
         if (handle is null || handle.Handle == IntPtr.Zero)
         {
             return;
@@ -141,7 +142,7 @@ public sealed class WindowSystemMenuHelper
         if (uMsg == WM_SYSCOMMAND)
         {
             // Low 4 bits of wParam are reserved by the system; mask them off when comparing.
-            var cmd = (uint)wParam.ToUInt64() & 0xFFF0;
+            uint cmd = (uint)wParam.ToUInt64() & 0xFFF0;
             if (cmd == SC_ALWAYS_ON_TOP)
             {
                 _geometryHelper.ToggleTopmost();

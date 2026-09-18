@@ -46,10 +46,10 @@ public sealed class DivergenceAccumulator(string leftLabel, string rightLabel)
 
         FirstDivergentSecond ??= elapsedSeconds;
 
-        foreach (var divergence in divergences)
+        foreach (SnapshotDivergence divergence in divergences)
         {
             string normalized = DivergencePath.Normalize(divergence.Path);
-            if (!_byPath.TryGetValue(normalized, out var entry))
+            if (!_byPath.TryGetValue(normalized, out Entry? entry))
             {
                 entry = new Entry(elapsedSeconds);
                 _byPath[normalized] = entry;

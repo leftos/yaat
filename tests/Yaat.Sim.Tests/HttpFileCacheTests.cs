@@ -59,7 +59,7 @@ public class HttpFileCacheTests
         }
         finally
         {
-            var dir = Path.GetDirectoryName(cachePath);
+            string? dir = Path.GetDirectoryName(cachePath);
             if (dir is not null && Directory.Exists(dir))
             {
                 Directory.Delete(dir, recursive: true);
@@ -70,12 +70,12 @@ public class HttpFileCacheTests
     [Fact]
     public async Task AlwaysRefetch_PicksUpContentChange_WithoutHead()
     {
-        var cachePath = NewCacheFile();
+        string cachePath = NewCacheFile();
         await WithCache(
             cachePath,
             async () =>
             {
-                var body = "v1";
+                string body = "v1";
                 var handler = new FakeHandler { Responder = _ => Ok(body) };
                 using var http = new HttpClient(handler);
 
@@ -92,19 +92,19 @@ public class HttpFileCacheTests
     [Fact]
     public async Task AlwaysRefetch_NetworkFailure_FallsBackToCachedCopy()
     {
-        var cachePath = NewCacheFile();
+        string cachePath = NewCacheFile();
         await WithCache(
             cachePath,
             async () =>
             {
-                var fail = false;
+                bool fail = false;
                 var handler = new FakeHandler { Responder = _ => fail ? throw new HttpRequestException("offline") : Ok("cached") };
                 using var http = new HttpClient(handler);
 
                 Assert.Equal("cached", (await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch)).Content);
 
                 fail = true;
-                var result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
+                HttpCacheResult result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
                 Assert.Equal("cached", result.Content);
                 // A network failure is not a 404 — callers must not negative-cache it.
                 Assert.False(result.NotFound);
@@ -115,7 +115,7 @@ public class HttpFileCacheTests
     [Fact]
     public async Task AlwaysRefetch_404_NoCache_ReturnsNull_AndReportsNotFound()
     {
-        var cachePath = NewCacheFile();
+        string cachePath = NewCacheFile();
         await WithCache(
             cachePath,
             async () =>
@@ -123,7 +123,7 @@ public class HttpFileCacheTests
                 var handler = new FakeHandler { Responder = _ => new HttpResponseMessage(HttpStatusCode.NotFound) };
                 using var http = new HttpClient(handler);
 
-                var result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
+                HttpCacheResult result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
                 Assert.Null(result.Content);
                 Assert.True(result.NotFound);
             }
@@ -133,12 +133,12 @@ public class HttpFileCacheTests
     [Fact]
     public async Task AlwaysRefetch_404_WithCache_ServesCache_AndReportsNotFound()
     {
-        var cachePath = NewCacheFile();
+        string cachePath = NewCacheFile();
         await WithCache(
             cachePath,
             async () =>
             {
-                var notFound = false;
+                bool notFound = false;
                 var handler = new FakeHandler { Responder = _ => notFound ? new HttpResponseMessage(HttpStatusCode.NotFound) : Ok("cached") };
                 using var http = new HttpClient(handler);
 
@@ -147,7 +147,7 @@ public class HttpFileCacheTests
                 // Origin starts 404ing (map unpublished): the cache is kept and served, and the 404
                 // is still reported so callers can decide their own policy.
                 notFound = true;
-                var result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
+                HttpCacheResult result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
                 Assert.Equal("cached", result.Content);
                 Assert.True(result.NotFound);
             }
@@ -157,7 +157,7 @@ public class HttpFileCacheTests
     [Fact]
     public async Task DiskTtl_SkipsNetwork_WhileFresh()
     {
-        var cachePath = NewCacheFile();
+        string cachePath = NewCacheFile();
         await WithCache(
             cachePath,
             async () =>
@@ -167,7 +167,7 @@ public class HttpFileCacheTests
                 var ttl = TimeSpan.FromHours(6);
 
                 Assert.Equal("body", (await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch, ttl)).Content);
-                var afterFirst = handler.GetCount;
+                int afterFirst = handler.GetCount;
 
                 // Second call within the TTL window must serve disk without another GET.
                 Assert.Equal("body", (await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch, ttl)).Content);
@@ -179,13 +179,13 @@ public class HttpFileCacheTests
     [Fact]
     public async Task HeadLastModified_ServesCache_WhenServerNotNewer()
     {
-        var cachePath = NewCacheFile();
+        string cachePath = NewCacheFile();
         await WithCache(
             cachePath,
             async () =>
             {
-                var lastModified = DateTimeOffset.UtcNow.AddDays(-1);
-                var body = "map-v1";
+                DateTimeOffset lastModified = DateTimeOffset.UtcNow.AddDays(-1);
+                string body = "map-v1";
                 var handler = new FakeHandler
                 {
                     Responder = req => req.Method == HttpMethod.Head ? Ok(string.Empty, lastModified) : Ok(body, lastModified),
@@ -193,7 +193,7 @@ public class HttpFileCacheTests
                 using var http = new HttpClient(handler);
 
                 Assert.Equal("map-v1", (await Fetch(http, cachePath, HttpCacheFreshness.HeadLastModified)).Content);
-                var getsAfterFirst = handler.GetCount;
+                int getsAfterFirst = handler.GetCount;
 
                 // Server Last-Modified is unchanged (older than our stamped mtime) → HEAD only, no re-GET.
                 body = "map-v2-should-not-be-served";
@@ -207,13 +207,13 @@ public class HttpFileCacheTests
     [Fact]
     public async Task HeadLastModified_ReDownloads_WhenServerNewer()
     {
-        var cachePath = NewCacheFile();
+        string cachePath = NewCacheFile();
         await WithCache(
             cachePath,
             async () =>
             {
-                var lastModified = DateTimeOffset.UtcNow.AddDays(-2);
-                var body = "map-v1";
+                DateTimeOffset lastModified = DateTimeOffset.UtcNow.AddDays(-2);
+                string body = "map-v1";
                 var handler = new FakeHandler
                 {
                     Responder = req => req.Method == HttpMethod.Head ? Ok(string.Empty, lastModified) : Ok(body, lastModified),

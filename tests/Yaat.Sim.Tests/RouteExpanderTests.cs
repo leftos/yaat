@@ -20,9 +20,9 @@ public class RouteExpanderTests
             fixes: Fixes("LEJAY", "CNDEL", "PORTE"),
             sidBodies: new Dictionary<string, IReadOnlyList<string>> { ["CNDEL5"] = ["LEJAY", "CNDEL", "PORTE"] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = RouteExpander.Expand("CNDEL5");
+        List<string> result = RouteExpander.Expand("CNDEL5");
 
         Assert.Equal(["LEJAY", "CNDEL", "PORTE"], result);
     }
@@ -42,9 +42,9 @@ public class RouteExpanderTests
                 ],
             }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = RouteExpander.Expand("CNDEL5 PORTE FFOIL");
+        List<string> result = RouteExpander.Expand("CNDEL5 PORTE FFOIL");
 
         // Should pick the PORTE transition, not GROVE
         Assert.Equal(["LEJAY", "CNDEL", "PORTE", "FFOIL"], result);
@@ -65,10 +65,10 @@ public class RouteExpanderTests
                 ],
             }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // No next token at all — should emit all transition fixes
-        var result = RouteExpander.Expand("CNDEL5");
+        List<string> result = RouteExpander.Expand("CNDEL5");
 
         Assert.Contains("LEJAY", result);
         Assert.Contains("CNDEL", result);
@@ -84,9 +84,9 @@ public class RouteExpanderTests
             fixes: Fixes("LEJAY", "CNDEL"),
             sidBodies: new Dictionary<string, IReadOnlyList<string>> { ["CNDEL6"] = ["LEJAY", "CNDEL"] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = RouteExpander.Expand("CNDEL5");
+        List<string> result = RouteExpander.Expand("CNDEL5");
 
         Assert.Equal(["LEJAY", "CNDEL"], result);
     }
@@ -100,9 +100,9 @@ public class RouteExpanderTests
             fixes: Fixes("BDEGA", "CORKK", "BRIXX"),
             starBodies: new Dictionary<string, IReadOnlyList<string>> { ["BDEGA4"] = ["BDEGA", "CORKK", "BRIXX"] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = RouteExpander.Expand("BDEGA4");
+        List<string> result = RouteExpander.Expand("BDEGA4");
 
         Assert.Equal(["BDEGA", "CORKK", "BRIXX"], result);
     }
@@ -114,10 +114,10 @@ public class RouteExpanderTests
             fixes: Fixes("SUNOL", "BDEGA", "CORKK", "BRIXX"),
             starBodies: new Dictionary<string, IReadOnlyList<string>> { ["BDEGA4"] = ["BDEGA", "CORKK", "BRIXX"] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // BDEGA is already in the route before the STAR — should start from CORKK
-        var result = RouteExpander.Expand("SUNOL BDEGA BDEGA4");
+        List<string> result = RouteExpander.Expand("SUNOL BDEGA BDEGA4");
 
         Assert.Equal(["SUNOL", "BDEGA", "CORKK", "BRIXX"], result);
     }
@@ -133,10 +133,10 @@ public class RouteExpanderTests
                 ["BDEGA4"] = [(Name: "FAITH", Fixes: (IReadOnlyList<string>)["FAITH", "AMNTS"])],
             }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // FAITH is in a transition — should emit remaining transition fixes (AMNTS) then body
-        var result = RouteExpander.Expand("FAITH BDEGA4");
+        List<string> result = RouteExpander.Expand("FAITH BDEGA4");
 
         Assert.Equal(["FAITH", "AMNTS", "CORKK", "BRIXX"], result);
     }
@@ -150,9 +150,9 @@ public class RouteExpanderTests
             fixes: Fixes("FIX_A", "FIX_B", "FIX_C", "FIX_D"),
             airways: new Dictionary<string, IReadOnlyList<string>> { ["V108"] = ["FIX_A", "FIX_B", "FIX_C", "FIX_D"] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = RouteExpander.Expand("FIX_A V108 FIX_C");
+        List<string> result = RouteExpander.Expand("FIX_A V108 FIX_C");
 
         Assert.Equal(["FIX_A", "FIX_B", "FIX_C"], result);
     }
@@ -164,9 +164,9 @@ public class RouteExpanderTests
             fixes: Fixes("PORTE", "MID", "CNDEL"),
             airways: new Dictionary<string, IReadOnlyList<string>> { ["V25"] = ["PORTE", "MID", "CNDEL"] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = RouteExpander.Expand("PORTE.V25 CNDEL");
+        List<string> result = RouteExpander.Expand("PORTE.V25 CNDEL");
 
         Assert.Equal(["PORTE", "MID", "CNDEL"], result);
     }
@@ -178,9 +178,9 @@ public class RouteExpanderTests
             fixes: Fixes("FIX_B"),
             airways: new Dictionary<string, IReadOnlyList<string>> { ["V108"] = ["FIX_A", "FIX_B"] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = RouteExpander.Expand("V108 FIX_B");
+        List<string> result = RouteExpander.Expand("V108 FIX_B");
 
         // V108 is first token — no from fix, so airway is skipped; FIX_B still emitted
         Assert.Contains("FIX_B", result);
@@ -191,9 +191,9 @@ public class RouteExpanderTests
     [Fact]
     public void Fix_WithTrailingDigits_EmittedExactly()
     {
-        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting(fixes: Fixes("C83")));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting(fixes: Fixes("C83")));
 
-        var result = RouteExpander.Expand("C83");
+        List<string> result = RouteExpander.Expand("C83");
 
         Assert.Equal(["C83"], result);
     }
@@ -202,9 +202,9 @@ public class RouteExpanderTests
     public void Fix_UnknownProcedureName_EmittedAsIs()
     {
         // "BDEGA4" is not a SID/STAR in navDb — emitted verbatim, no digit stripping
-        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting(fixes: Fixes("BDEGA")));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting(fixes: Fixes("BDEGA")));
 
-        var result = RouteExpander.Expand("BDEGA4");
+        List<string> result = RouteExpander.Expand("BDEGA4");
 
         Assert.Equal(["BDEGA4"], result);
     }
@@ -212,9 +212,9 @@ public class RouteExpanderTests
     [Fact]
     public void Fix_Q136_EmittedExactly()
     {
-        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting(fixes: Fixes("Q136")));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting(fixes: Fixes("Q136")));
 
-        var result = RouteExpander.Expand("Q136");
+        List<string> result = RouteExpander.Expand("Q136");
 
         Assert.Equal(["Q136"], result);
     }
@@ -228,11 +228,11 @@ public class RouteExpanderTests
             fixes: Fixes("SUNOL", "BRIXX"),
             starBodies: new Dictionary<string, IReadOnlyList<string>> { ["BDEGA4"] = ["SUNOL", "BRIXX"] }
         );
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // SUNOL appears before the STAR, and STAR body starts with SUNOL
         // After join-point logic, SUNOL should not be duplicated
-        var result = RouteExpander.Expand("SUNOL BDEGA4");
+        List<string> result = RouteExpander.Expand("SUNOL BDEGA4");
 
         Assert.Equal(["SUNOL", "BRIXX"], result);
     }
@@ -242,9 +242,9 @@ public class RouteExpanderTests
     [Fact]
     public void NumericTokens_Skipped()
     {
-        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting(fixes: Fixes("SUNOL")));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting(fixes: Fixes("SUNOL")));
 
-        var result = RouteExpander.Expand("SUNOL 050");
+        List<string> result = RouteExpander.Expand("SUNOL 050");
 
         Assert.Equal(["SUNOL"], result);
     }
@@ -254,7 +254,7 @@ public class RouteExpanderTests
     [Fact]
     public void EmptyRoute_ReturnsEmpty()
     {
-        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
 
         Assert.Empty(RouteExpander.Expand(""));
         Assert.Empty(RouteExpander.Expand("  "));
@@ -265,9 +265,9 @@ public class RouteExpanderTests
     [Fact]
     public void UnknownFix_EmittedAsIs()
     {
-        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
 
-        var result = RouteExpander.Expand("XYZZY");
+        List<string> result = RouteExpander.Expand("XYZZY");
 
         Assert.Equal(["XYZZY"], result);
     }
@@ -278,7 +278,7 @@ public class RouteExpanderTests
     {
         var dict = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
         double lat = 37.0;
-        foreach (var name in names)
+        foreach (string name in names)
         {
             dict[name] = (lat, -122.0);
             lat += 0.1;

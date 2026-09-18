@@ -41,15 +41,15 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = ground.Layout;
+        AirportGroundLayout layout = ground.Layout;
         if (FindBarReachableFromTheRunway(layout) is not var (onRunway, bar))
         {
             output.WriteLine("SKIP: SFO layout has no 1R hold-short bar within the detection window of a 1R centerline node");
             return;
         }
 
-        var runway1R = SfoGroundHarness.Runway("1R");
-        var aircraft = PlaceFollower(ground, onRunway.Position, GeoMath.BearingTo(onRunway.Position, bar.Position), "28L");
+        RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
+        AircraftState aircraft = PlaceFollower(ground, onRunway.Position, GeoMath.BearingTo(onRunway.Position, bar.Position), "28L");
 
         Assert.True(
             RunwayOccupancy.IsOnPavement(aircraft, runway1R),
@@ -90,8 +90,8 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = ground.Layout;
-        var bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "1R", "F1");
+        AirportGroundLayout layout = ground.Layout;
+        List<GroundNode> bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "1R", "F1");
         if (bars.Count == 0)
         {
             output.WriteLine("SKIP: SFO layout has no runway 1R hold-short on taxiway F1");
@@ -100,10 +100,10 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
 
         // Short of the bar on the taxiway, nose toward the runway: off the pavement, so the "already on it"
         // skip cannot fire and the bar is genuinely one this aircraft would be crossing.
-        var bar = bars[0];
-        var awayFromRunway = TaxiCoverageRunner.TaxiwayDepartureHeading(bar);
-        var position = GeoMath.ProjectPoint(bar.Position, awayFromRunway, ApproachFt / FeetPerNm);
-        var aircraft = PlaceFollower(ground, position, GeoMath.BearingTo(position, bar.Position), destinationRunway);
+        GroundNode bar = bars[0];
+        TrueHeading awayFromRunway = TaxiCoverageRunner.TaxiwayDepartureHeading(bar);
+        LatLon position = GeoMath.ProjectPoint(bar.Position, awayFromRunway, ApproachFt / FeetPerNm);
+        AircraftState aircraft = PlaceFollower(ground, position, GeoMath.BearingTo(position, bar.Position), destinationRunway);
 
         if (RunwayOccupancy.IsOnPavement(aircraft, SfoGroundHarness.Runway("1R")))
         {
@@ -113,14 +113,14 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
 
         Tick(aircraft, layout);
 
-        var hold = Assert.Single(aircraft.Phases!.Phases.OfType<HoldingShortPhase>());
+        HoldingShortPhase hold = Assert.Single(aircraft.Phases!.Phases.OfType<HoldingShortPhase>());
         output.WriteLine($"held at node {hold.HoldShort.NodeId} target={hold.HoldShort.TargetName} reason={hold.HoldShort.Reason}");
         Assert.Equal(expected, hold.HoldShort.Reason);
     }
 
     private SfoGround? Build()
     {
-        var built = SfoGroundHarness.Build(output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCross: false);
         if (built is null)
         {
             output.WriteLine("SKIP: SFO layout or navdata unavailable");
@@ -173,7 +173,7 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
     /// </summary>
     private static void Tick(AircraftState aircraft, AirportGroundLayout layout)
     {
-        var phase = Assert.IsType<FollowingPhase>(aircraft.Phases!.CurrentPhase);
+        FollowingPhase phase = Assert.IsType<FollowingPhase>(aircraft.Phases!.CurrentPhase);
         Assert.True(aircraft.GroundSpeed > 0, "precondition: the bar check only runs on a moving aircraft");
         phase.OnTick(CommandDispatcher.BuildMinimalContext(aircraft, layout));
     }
@@ -186,14 +186,14 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
     private static (GroundNode OnRunway, GroundNode Bar)? FindBarReachableFromTheRunway(AirportGroundLayout layout)
     {
         var bars = layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId?.Contains("1R") ?? false)).ToList();
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (!node.Edges.Any(e => e.IsRunwayCenterline && e.MatchesRunway("1R")))
             {
                 continue;
             }
 
-            foreach (var bar in bars)
+            foreach (GroundNode? bar in bars)
             {
                 if (GeoMath.DistanceNm(node.Position, bar.Position) <= DetectionNm)
                 {

@@ -9,7 +9,7 @@ public class CommandRegistryTests
     [Fact]
     public void Registry_CoversAllCommandTypes()
     {
-        foreach (var type in Enum.GetValues<CanonicalCommandType>())
+        foreach (CanonicalCommandType type in Enum.GetValues<CanonicalCommandType>())
         {
             Assert.True(CommandRegistry.All.ContainsKey(type), $"CommandRegistry is missing CanonicalCommandType.{type}");
         }
@@ -18,11 +18,11 @@ public class CommandRegistryTests
     [Fact]
     public void AllEntries_HaveAtLeastOneAlias()
     {
-        foreach (var (type, def) in CommandRegistry.All)
+        foreach ((CanonicalCommandType type, CommandDefinition? def) in CommandRegistry.All)
         {
             Assert.True(def.DefaultAliases.Length > 0, $"{type} has no default aliases");
 
-            foreach (var alias in def.DefaultAliases)
+            foreach (string alias in def.DefaultAliases)
             {
                 Assert.False(string.IsNullOrWhiteSpace(alias), $"{type} has empty/whitespace alias");
             }
@@ -32,7 +32,7 @@ public class CommandRegistryTests
     [Fact]
     public void AllEntries_HaveAtLeastOneOverload()
     {
-        foreach (var (type, def) in CommandRegistry.All)
+        foreach ((CanonicalCommandType type, CommandDefinition? def) in CommandRegistry.All)
         {
             Assert.True(def.Overloads.Length > 0, $"{type} has no overloads");
         }
@@ -41,7 +41,7 @@ public class CommandRegistryTests
     [Fact]
     public void AllEntries_HaveNonEmptyLabel()
     {
-        foreach (var (type, def) in CommandRegistry.All)
+        foreach ((CanonicalCommandType type, CommandDefinition? def) in CommandRegistry.All)
         {
             Assert.False(string.IsNullOrWhiteSpace(def.Label), $"{type} has empty label");
         }
@@ -50,7 +50,7 @@ public class CommandRegistryTests
     [Fact]
     public void AllEntries_HaveNonEmptyCategory()
     {
-        foreach (var (type, def) in CommandRegistry.All)
+        foreach ((CanonicalCommandType type, CommandDefinition? def) in CommandRegistry.All)
         {
             Assert.False(string.IsNullOrWhiteSpace(def.Category), $"{type} has empty category");
         }
@@ -59,7 +59,7 @@ public class CommandRegistryTests
     [Fact]
     public void ClearedForTakeoff_HasMultipleOverloads()
     {
-        var def = CommandRegistry.Get(CanonicalCommandType.ClearedForTakeoff);
+        CommandDefinition? def = CommandRegistry.Get(CanonicalCommandType.ClearedForTakeoff);
         Assert.NotNull(def);
         Assert.True(def.Overloads.Length > 5, $"CTO should have many overloads, got {def.Overloads.Length}");
     }
@@ -67,7 +67,7 @@ public class CommandRegistryTests
     [Fact]
     public void GoAround_HasSevenOverloads()
     {
-        var def = CommandRegistry.Get(CanonicalCommandType.GoAround);
+        CommandDefinition? def = CommandRegistry.Get(CanonicalCommandType.GoAround);
         Assert.NotNull(def);
         // Base (0), Heading (1), Heading+Alt (2), MLT (1), MRT (1), MLT+Alt (2), MRT+Alt (2)
         Assert.Equal(7, def.Overloads.Length);
@@ -104,7 +104,7 @@ public class CommandRegistryTests
     [Fact]
     public void FromDefinition_ProducesCorrectSignatureSet()
     {
-        var def = CommandRegistry.Get(CanonicalCommandType.FlyHeading)!;
+        CommandDefinition def = CommandRegistry.Get(CanonicalCommandType.FlyHeading)!;
         var sigSet = CommandSignatureSet.FromDefinition(def, ["FH", "H"]);
 
         Assert.Single(sigSet.Signatures);
@@ -118,7 +118,7 @@ public class CommandRegistryTests
     [Fact]
     public void FromDefinition_MultiOverload_IncludesVariantInLabel()
     {
-        var def = CommandRegistry.Get(CanonicalCommandType.ClearedForTakeoff)!;
+        CommandDefinition def = CommandRegistry.Get(CanonicalCommandType.ClearedForTakeoff)!;
         var sigSet = CommandSignatureSet.FromDefinition(def, ["CTO"]);
 
         // First overload has no variant label
@@ -131,7 +131,7 @@ public class CommandRegistryTests
     [Fact]
     public void CompoundModifiers_PresentOnTaxi()
     {
-        var def = CommandRegistry.Get(CanonicalCommandType.Taxi);
+        CommandDefinition? def = CommandRegistry.Get(CanonicalCommandType.Taxi);
         Assert.NotNull(def);
         Assert.NotNull(def.CompoundModifiers);
         Assert.True(def.CompoundModifiers.Length > 0);
@@ -146,7 +146,7 @@ public class CommandRegistryTests
     [InlineData(CanonicalCommandType.ExitTaxiway)]
     public void CompoundModifiers_ExpAndNoDelPresentOnExits(CanonicalCommandType type)
     {
-        var def = CommandRegistry.Get(type);
+        CommandDefinition? def = CommandRegistry.Get(type);
         Assert.NotNull(def);
         Assert.NotNull(def.CompoundModifiers);
         Assert.Contains(def.CompoundModifiers, m => m.Keyword == "NODEL" && m.ArgHint is null);
@@ -159,7 +159,7 @@ public class CommandRegistryTests
         var scheme = CommandScheme.Default();
         Assert.Equal(CommandRegistry.All.Count, scheme.Patterns.Count);
 
-        foreach (var type in Enum.GetValues<CanonicalCommandType>())
+        foreach (CanonicalCommandType type in Enum.GetValues<CanonicalCommandType>())
         {
             Assert.True(scheme.Patterns.ContainsKey(type), $"Default scheme is missing {type}");
         }

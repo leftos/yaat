@@ -23,7 +23,7 @@ public static class FlightPlanNormalization
             return (raw, null);
         }
 
-        var slash = raw.IndexOf('/');
+        int slash = raw.IndexOf('/');
         if (slash < 0)
         {
             return (raw, "A");
@@ -42,8 +42,8 @@ public static class FlightPlanNormalization
     /// </summary>
     public static (string? Type, string? Suffix) ResolveTypeAndSuffix(string? equipment, string? faaEquipmentSuffix)
     {
-        var (typeFromEquipment, suffixFromEquipment) = SplitTypeAndSuffix(equipment);
-        var preferredSuffix = !string.IsNullOrEmpty(faaEquipmentSuffix) ? faaEquipmentSuffix : suffixFromEquipment;
+        (string? typeFromEquipment, string? suffixFromEquipment) = SplitTypeAndSuffix(equipment);
+        string? preferredSuffix = !string.IsNullOrEmpty(faaEquipmentSuffix) ? faaEquipmentSuffix : suffixFromEquipment;
         return (typeFromEquipment, preferredSuffix);
     }
 
@@ -62,7 +62,7 @@ public static class FlightPlanNormalization
             return null;
         }
 
-        return NavigationDatabase.Instance.TryResolveAirport(input, out var resolved) ? resolved : input.Trim().ToUpperInvariant();
+        return NavigationDatabase.Instance.TryResolveAirport(input, out string? resolved) ? resolved : input.Trim().ToUpperInvariant();
     }
 
     /// <summary>
@@ -86,7 +86,7 @@ public static class FlightPlanNormalization
     /// </summary>
     public static (string? Departure, string? Destination, string? Middle) SplitRoute(string? route)
     {
-        var routeParts = (route ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] routeParts = (route ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
         string? departureRaw = routeParts.Length >= 2 ? routeParts[0] : null;
         string? destinationRaw =
             routeParts.Length >= 2 ? routeParts[^1]
@@ -103,9 +103,9 @@ public static class FlightPlanNormalization
     /// </summary>
     public static FlightPlanAmendment FromCreateCommand(CreateFlightPlanCommand command)
     {
-        var (departure, destination, middleRoute) = SplitRoute(command.Route);
-        var (acType, equipSuffix) = SplitTypeAndSuffix(command.AircraftType);
-        var filedAltitude = FlightPlanAltitude.FromRulesAndFeet(command.FlightRules, command.CruiseAltitude);
+        (string? departure, string? destination, string? middleRoute) = SplitRoute(command.Route);
+        (string? acType, string? equipSuffix) = SplitTypeAndSuffix(command.AircraftType);
+        PlannedAltitude filedAltitude = FlightPlanAltitude.FromRulesAndFeet(command.FlightRules, command.CruiseAltitude);
         return new FlightPlanAmendment(
             AircraftType: acType,
             EquipmentSuffix: equipSuffix,
@@ -120,8 +120,8 @@ public static class FlightPlanNormalization
     /// <summary>The amendment a typed <c>DA</c> files: type/suffix, the filed altitude with its rules, scratchpads and beacon.</summary>
     public static FlightPlanAmendment FromCreateAbbreviatedCommand(CreateAbbreviatedFlightPlanCommand command)
     {
-        var (acType, equipSuffix) = SplitTypeAndSuffix(command.AircraftType);
-        var filedAltitude = FlightPlanAltitude.FromRulesAndFeet(command.FlightRules, command.CruiseAltitude);
+        (string? acType, string? equipSuffix) = SplitTypeAndSuffix(command.AircraftType);
+        PlannedAltitude filedAltitude = FlightPlanAltitude.FromRulesAndFeet(command.FlightRules, command.CruiseAltitude);
         return new FlightPlanAmendment(
             AircraftType: acType,
             EquipmentSuffix: equipSuffix,

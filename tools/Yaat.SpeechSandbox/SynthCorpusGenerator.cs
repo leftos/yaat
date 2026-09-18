@@ -75,11 +75,11 @@ internal static class SynthCorpusGenerator
             return 1;
         }
 
-        var outDir = args[0];
-        var cases = 30;
-        var seed = 20260730;
+        string outDir = args[0];
+        int cases = 30;
+        int seed = 20260730;
         string? voiceDir = null;
-        for (var i = 1; i < args.Length; i++)
+        for (int i = 1; i < args.Length; i++)
         {
             if (args[i] == "--cases" && i + 1 < args.Length)
             {
@@ -111,24 +111,24 @@ internal static class SynthCorpusGenerator
         using var piper = new PiperSynthesizer(voiceDir);
         var rng = new Random(seed);
         var ruleMapper = new PhraseologyCommandMapper();
-        var written = 0;
+        int written = 0;
 
-        for (var i = 0; i < cases; i++)
+        for (int i = 0; i < cases; i++)
         {
-            var template = Templates[i % Templates.Length];
-            var callsign = CallsignPool[rng.Next(CallsignPool.Length)];
-            var (spokenBody, canonical, fix) = RenderTemplate(template, rng);
-            var spokenCallsign = CallsignParser.IcaoToSpoken(callsign);
-            var transcript = $"{spokenCallsign} {spokenBody}";
-            var activeCallsigns = BuildActiveCallsigns(callsign, rng);
-            var programmedFixes = fix is null ? new List<string>() : [fix];
+            Template template = Templates[i % Templates.Length];
+            string callsign = CallsignPool[rng.Next(CallsignPool.Length)];
+            (string? spokenBody, string? canonical, string? fix) = RenderTemplate(template, rng);
+            string spokenCallsign = CallsignParser.IcaoToSpoken(callsign);
+            string transcript = $"{spokenCallsign} {spokenBody}";
+            List<string> activeCallsigns = BuildActiveCallsigns(callsign, rng);
+            List<string> programmedFixes = fix is null ? new List<string>() : [fix];
 
             // Label verification: the exact transcript must map to the exact canonical +
             // callsign through the production text pipeline (rule mapper only — deterministic,
             // no models needed). A mismatch means the template or slot rendering is wrong;
             // abort loudly rather than emit a mislabeled case.
             var ctx = new SpeechContext(activeCallsigns, programmedFixes, WhisperBiasingPrompt.Default);
-            var mapped = await SpeechRecognitionService
+            TranscriptMapResult mapped = await SpeechRecognitionService
                 .MapTranscriptAsync(transcript, ctx, ruleMapper, llmMapper: null, callsignResolver: null, CancellationToken.None)
                 .ConfigureAwait(false);
             if (
@@ -143,15 +143,15 @@ internal static class SynthCorpusGenerator
                 return 3;
             }
 
-            var speaker = SpeakerPool[rng.Next(SpeakerPool.Length)];
-            var speed = SpeedPool[rng.Next(SpeedPool.Length)];
-            var synth = piper.Synthesize(transcript, speaker, speed);
-            var resampled = PiperSynthesizer.Resample(synth.Samples, synth.SampleRate, AudioCaptureService.SampleRate);
-            var samples = PiperSynthesizer.PadWithSilence(resampled, AudioCaptureService.SampleRate, LeadingSilenceMs, TrailingSilenceMs);
+            int speaker = SpeakerPool[rng.Next(SpeakerPool.Length)];
+            float speed = SpeedPool[rng.Next(SpeedPool.Length)];
+            PiperSynthesizer.SynthResult synth = piper.Synthesize(transcript, speaker, speed);
+            float[] resampled = PiperSynthesizer.Resample(synth.Samples, synth.SampleRate, AudioCaptureService.SampleRate);
+            float[] samples = PiperSynthesizer.PadWithSilence(resampled, AudioCaptureService.SampleRate, LeadingSilenceMs, TrailingSilenceMs);
 
-            var caseDir = Path.Combine(outDir, $"synth-{seed}-{i:D3}-{template.Key}");
+            string caseDir = Path.Combine(outDir, $"synth-{seed}-{i:D3}-{template.Key}");
             Directory.CreateDirectory(caseDir);
-            var wavStream = WavHeader.WritePcm16(samples, AudioCaptureService.SampleRate);
+            MemoryStream wavStream = WavHeader.WritePcm16(samples, AudioCaptureService.SampleRate);
             await File.WriteAllBytesAsync(Path.Combine(caseDir, "audio.wav"), wavStream.ToArray()).ConfigureAwait(false);
 
             var expected = new Dictionary<string, object?>
@@ -180,42 +180,42 @@ internal static class SynthCorpusGenerator
     /// <summary>Renders a template's spoken + canonical sides with one set of sampled slot values.</summary>
     private static (string Spoken, string Canonical, string? Fix) RenderTemplate(Template template, Random rng)
     {
-        var spoken = template.SpokenPattern;
-        var canonical = template.CanonicalPattern;
+        string spoken = template.SpokenPattern;
+        string canonical = template.CanonicalPattern;
         string? fix = null;
 
         if (spoken.Contains("{hdg}", StringComparison.Ordinal))
         {
-            var hdg = (rng.Next(1, 37) * 10) % 360;
+            int hdg = (rng.Next(1, 37) * 10) % 360;
             hdg = hdg == 0 ? 360 : hdg;
-            var digits = hdg.ToString("D3");
+            string digits = hdg.ToString("D3");
             spoken = spoken.Replace("{hdg}", SpeakDigits(digits), StringComparison.Ordinal);
             canonical = canonical.Replace("{hdg}", digits, StringComparison.Ordinal);
         }
         if (spoken.Contains("{alt}", StringComparison.Ordinal))
         {
-            var thousands = rng.Next(2, 17);
-            var alt = thousands * 1000;
-            var spokenAlt =
+            int thousands = rng.Next(2, 17);
+            int alt = thousands * 1000;
+            string spokenAlt =
                 thousands <= 9 ? $"{DigitWords[thousands]} thousand" : $"{SpeakDigits(thousands.ToString(CultureInfo.InvariantCulture))} thousand";
             spoken = spoken.Replace("{alt}", spokenAlt, StringComparison.Ordinal);
             canonical = canonical.Replace("{alt}", alt.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
         }
         if (spoken.Contains("{spd}", StringComparison.Ordinal))
         {
-            var spd = rng.Next(15, 26) * 10;
+            int spd = rng.Next(15, 26) * 10;
             spoken = spoken.Replace("{spd}", SpeakDigits(spd.ToString(CultureInfo.InvariantCulture)), StringComparison.Ordinal);
             canonical = canonical.Replace("{spd}", spd.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
         }
         if (spoken.Contains("{rwy}", StringComparison.Ordinal))
         {
-            var rwy = RunwayPool[rng.Next(RunwayPool.Length)];
+            string rwy = RunwayPool[rng.Next(RunwayPool.Length)];
             spoken = spoken.Replace("{rwy}", SpeakRunway(rwy), StringComparison.Ordinal);
             canonical = canonical.Replace("{rwy}", rwy, StringComparison.Ordinal);
         }
         if (spoken.Contains("{sq}", StringComparison.Ordinal))
         {
-            var code = string.Concat(Enumerable.Range(0, 4).Select(_ => rng.Next(0, 8).ToString(CultureInfo.InvariantCulture)));
+            string code = string.Concat(Enumerable.Range(0, 4).Select(_ => rng.Next(0, 8).ToString(CultureInfo.InvariantCulture)));
             spoken = spoken.Replace("{sq}", SpeakDigits(code), StringComparison.Ordinal);
             canonical = canonical.Replace("{sq}", code, StringComparison.Ordinal);
         }
@@ -234,8 +234,8 @@ internal static class SynthCorpusGenerator
     /// <summary>"28R" → "two eight right"; bare numbers speak digit-by-digit ("30" → "three zero").</summary>
     private static string SpeakRunway(string runway)
     {
-        var digits = new string(runway.TakeWhile(char.IsDigit).ToArray());
-        var suffix = runway[digits.Length..] switch
+        string digits = new string(runway.TakeWhile(char.IsDigit).ToArray());
+        string suffix = runway[digits.Length..] switch
         {
             "L" => " left",
             "R" => " right",
@@ -243,7 +243,7 @@ internal static class SynthCorpusGenerator
             _ => "",
         };
         // Zero-padded designators are spoken without the leading zero ("09" → "niner").
-        var spokenDigits = digits.TrimStart('0');
+        string spokenDigits = digits.TrimStart('0');
         spokenDigits = spokenDigits.Length == 0 ? "0" : spokenDigits;
         return SpeakDigits(spokenDigits) + suffix;
     }
@@ -253,7 +253,7 @@ internal static class SynthCorpusGenerator
         var list = new List<string> { callsign };
         while (list.Count < 3)
         {
-            var decoy = CallsignPool[rng.Next(CallsignPool.Length)];
+            string decoy = CallsignPool[rng.Next(CallsignPool.Length)];
             if (!list.Contains(decoy))
             {
                 list.Add(decoy);

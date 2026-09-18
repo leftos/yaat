@@ -26,9 +26,9 @@ public class AiStaffedPositionsTests
             return;
         }
 
-        var scenario = NewScenario();
+        SimScenarioState scenario = NewScenario();
         scenario.SetAiStaffedPositions([TestAiPositions.OakGround(_zoa)]);
-        var version = scenario.AiStaffingVersion;
+        int version = scenario.AiStaffingVersion;
 
         scenario.SetAiStaffedPositions([TestAiPositions.OakGround(_zoa)]);
 
@@ -43,9 +43,9 @@ public class AiStaffedPositionsTests
             return;
         }
 
-        var scenario = NewScenario();
+        SimScenarioState scenario = NewScenario();
         scenario.SetAiStaffedPositions([TestAiPositions.OakGround(_zoa)]);
-        var version = scenario.AiStaffingVersion;
+        int version = scenario.AiStaffingVersion;
         Assert.Equal("Oakland Ground", scenario.PilotContacts.Positions[0].RadioName);
 
         scenario.SetAiStaffedPositions([TestAiPositions.OakGround(_zoa) with { RadioName = "Metro Ground" }]);
@@ -62,9 +62,9 @@ public class AiStaffedPositionsTests
             return;
         }
 
-        var scenario = NewScenario();
+        SimScenarioState scenario = NewScenario();
         scenario.SetAiStaffedPositions([TestAiPositions.OakGround(_zoa)]);
-        var version = scenario.AiStaffingVersion;
+        int version = scenario.AiStaffingVersion;
 
         scenario.SetAiStaffedPositions([TestAiPositions.OakGround(_zoa) with { AirportIds = ["OAK", "HWD"] }]);
 

@@ -243,8 +243,8 @@ public sealed class SpeechRecognitionService : IDisposable
         var sw = Stopwatch.StartNew();
         try
         {
-            var whisperTask = _stt.PrewarmAsync(ct);
-            var llmTask = _llmService?.PrewarmAsync(ct) ?? Task.CompletedTask;
+            Task whisperTask = _stt.PrewarmAsync(ct);
+            Task llmTask = _llmService?.PrewarmAsync(ct) ?? Task.CompletedTask;
             await Task.WhenAll(whisperTask, llmTask).ConfigureAwait(false);
             sw.Stop();
             Log.LogInformation("Speech pipeline pre-warmed in {Ms} ms", sw.ElapsedMilliseconds);
@@ -286,7 +286,7 @@ public sealed class SpeechRecognitionService : IDisposable
 
         // Warming is treated as start-legal — the engine locks already serialize a user PTT
         // against an in-flight prewarm, which matches the previous lazy-load behavior exactly.
-        var current = Status;
+        SpeechStatus current = Status;
         if (current != SpeechStatus.Idle && current != SpeechStatus.Warming)
         {
             return false;
@@ -314,7 +314,7 @@ public sealed class SpeechRecognitionService : IDisposable
             return;
         }
 
-        var samples = _audio.StopCapture();
+        float[] samples = _audio.StopCapture();
         if (samples.Length == 0)
         {
             Log.LogInformation("PTT ended with zero samples; resetting to idle");
@@ -324,7 +324,7 @@ public sealed class SpeechRecognitionService : IDisposable
 
         _pendingCts?.Cancel();
         _pendingCts = new CancellationTokenSource();
-        var ct = _pendingCts.Token;
+        CancellationToken ct = _pendingCts.Token;
 
         // Fire-and-forget — the rest of the pipeline is async and we don't want to block the
         // key-up handler on Whisper inference. Errors are logged and surfaced via the Error status.
@@ -349,25 +349,25 @@ public sealed class SpeechRecognitionService : IDisposable
     private async Task ProcessPipelineAsync(float[] samples, CancellationToken ct)
     {
         var totalSw = Stopwatch.StartNew();
-        var transcribeMs = 0L;
-        var mapMs = 0L;
-        var transcript = string.Empty;
+        long transcribeMs = 0L;
+        long mapMs = 0L;
+        string transcript = string.Empty;
         string? canonical = null;
         string? callsign = null;
-        var usedLlmFallback = false;
-        var outcome = SpeechSessionOutcome.Error;
+        bool usedLlmFallback = false;
+        SpeechSessionOutcome outcome = SpeechSessionOutcome.Error;
         string? errorMessage = null;
         SpeechSessionTrace? trace = null;
 
-        var audioDurationSec = (double)samples.Length / AudioCaptureService.SampleRate;
+        double audioDurationSec = (double)samples.Length / AudioCaptureService.SampleRate;
 
         try
         {
             SetStatus(SpeechStatus.Transcribing);
-            var ctx = _contextProvider();
+            SpeechContext ctx = _contextProvider();
 
             var transcribeSw = Stopwatch.StartNew();
-            var raw = await _stt.TranscribeAsync(samples, ctx.WhisperInitialPrompt, ct).ConfigureAwait(false);
+            string? raw = await _stt.TranscribeAsync(samples, ctx.WhisperInitialPrompt, ct).ConfigureAwait(false);
             transcribeSw.Stop();
             transcribeMs = transcribeSw.ElapsedMilliseconds;
 
@@ -395,7 +395,7 @@ public sealed class SpeechRecognitionService : IDisposable
 
                 SetStatus(SpeechStatus.Mapping);
                 var mapSw = Stopwatch.StartNew();
-                var (mapping, ruleTrace, llmTrace) = await MapTranscriptWithTraceAsync(
+                (TranscriptMapResult? mapping, RuleMapperTrace? ruleTrace, LlmMapperTrace? llmTrace) = await MapTranscriptWithTraceAsync(
                         transcript,
                         ctx,
                         _ruleMapper,
@@ -512,7 +512,15 @@ public sealed class SpeechRecognitionService : IDisposable
         CancellationToken ct
     )
     {
-        var (result, _, _) = await MapTranscriptWithTraceAsync(transcript, ctx, ruleMapper, llmMapper, callsignResolver, ct).ConfigureAwait(false);
+        (TranscriptMapResult? result, RuleMapperTrace _, LlmMapperTrace? _) = await MapTranscriptWithTraceAsync(
+                transcript,
+                ctx,
+                ruleMapper,
+                llmMapper,
+                callsignResolver,
+                ct
+            )
+            .ConfigureAwait(false);
         return result;
     }
 
@@ -542,7 +550,7 @@ public sealed class SpeechRecognitionService : IDisposable
         // rule-matches lost the callsign when the command didn't parse, and (b) the LLM saw the
         // full noisy transcript plus an "Active callsigns:" line that distracted it into echoing
         // callsigns as output.
-        var (commandText, callsign) = ExtractAndStripCallsign(transcript, ctx.ActiveCallsigns);
+        (string? commandText, string? callsign) = ExtractAndStripCallsign(transcript, ctx.ActiveCallsigns);
 
         var mapContext = new MapContext(ctx.ActiveCallsigns, ctx.ProgrammedFixes)
         {
@@ -555,7 +563,7 @@ public sealed class SpeechRecognitionService : IDisposable
         };
 
         string? canonical = null;
-        var usedLlmFallback = false;
+        bool usedLlmFallback = false;
         RuleMapperTrace ruleTrace;
         LlmMapperTrace? llmTrace = null;
 
@@ -654,24 +662,24 @@ public sealed class SpeechRecognitionService : IDisposable
 
         // Normalize digit words ("three" → "3") once so downstream mappers see consistent input.
         // NormalizeDigits returns a space-joined, lowercased, punctuation-free string.
-        var normalized = AtcNumberParser.NormalizeDigits(transcript);
-        var tokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string normalized = AtcNumberParser.NormalizeDigits(transcript);
+        string[] tokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return (normalized, null);
         }
 
-        var leading = CallsignParser.TryParseLeading(normalized, activeCallsigns);
+        CallsignParser.ParsedCallsign? leading = CallsignParser.TryParseLeading(normalized, activeCallsigns);
         if (leading is not null && leading.TokensConsumed > 0 && leading.TokensConsumed <= tokens.Length)
         {
-            var stripped = string.Join(' ', tokens.Skip(leading.TokensConsumed));
+            string stripped = string.Join(' ', tokens.Skip(leading.TokensConsumed));
             return (stripped, leading.IcaoCallsign);
         }
 
-        var trailing = CallsignParser.TryParseTrailing(normalized, activeCallsigns);
+        CallsignParser.ParsedCallsign? trailing = CallsignParser.TryParseTrailing(normalized, activeCallsigns);
         if (trailing is not null && trailing.TokensConsumed > 0 && trailing.TokensConsumed <= tokens.Length)
         {
-            var stripped = string.Join(' ', tokens.Take(tokens.Length - trailing.TokensConsumed));
+            string stripped = string.Join(' ', tokens.Take(tokens.Length - trailing.TokensConsumed));
             return (stripped, trailing.IcaoCallsign);
         }
 
@@ -716,7 +724,7 @@ public sealed class SpeechRecognitionService : IDisposable
         // in-memory entry with the on-disk WAV for playback / export.
         if (trace is not null && _sampleStore is not null && _preferences.SpeechSampleCaptureEnabled && audioSamples.Length > 0)
         {
-            var sampleId = _sampleStore.Add(session, audioSamples);
+            string? sampleId = _sampleStore.Add(session, audioSamples);
             if (sampleId is not null)
             {
                 session = session with { SampleId = sampleId };

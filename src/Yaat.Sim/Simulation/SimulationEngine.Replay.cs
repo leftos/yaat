@@ -120,7 +120,7 @@ public sealed partial class SimulationEngine
         }
         var sb = new StringBuilder();
         sb.AppendLine("Tick timings (bucket: count, totalMs, avgMs):");
-        foreach (var kvp in timings.OrderByDescending(k => k.Value.Ms))
+        foreach (KeyValuePair<string, (int Count, double Ms)> kvp in timings.OrderByDescending(k => k.Value.Ms))
         {
             double avg = kvp.Value.Ms / Math.Max(1, kvp.Value.Count);
             sb.AppendLine($"  {kvp.Key}: n={kvp.Value.Count}, total={kvp.Value.Ms:F1}ms, avg={avg:F3}ms");
@@ -158,7 +158,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void ArmReplay(List<RecordedAction> actions)
     {
-        var scenario = Scenario ?? throw new InvalidOperationException("ArmReplay requires a loaded scenario");
+        SimScenarioState scenario = Scenario ?? throw new InvalidOperationException("ArmReplay requires a loaded scenario");
         _replay.Arm(actions, (int)scenario.ElapsedSeconds);
     }
 

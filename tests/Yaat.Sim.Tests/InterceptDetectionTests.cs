@@ -26,7 +26,7 @@ public class InterceptDetectionTests
         // Approach gate database not initialized → uses 7nm default
         // Place aircraft 5nm from threshold, slightly off course so InterceptCoursePhase captures.
         // (5nm < 7nm default → should warn at capture)
-        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 275);
+        (AircraftState? aircraft, PhaseList? phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 275);
 
         var phase = new InterceptCoursePhase
         {
@@ -39,7 +39,7 @@ public class InterceptDetectionTests
         phaseList.Add(phase);
         phaseList.Add(new FinalApproachPhase());
         phaseList.Add(new LandingPhase());
-        var ctx = CreateContext(aircraft);
+        PhaseContext ctx = CreateContext(aircraft);
 
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
@@ -54,7 +54,7 @@ public class InterceptDetectionTests
     public void InterceptFarEnough_NoWarning()
     {
         // Place aircraft 8nm from threshold (8 > 7nm default → no warning)
-        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 8.0, heading: 275);
+        (AircraftState? aircraft, PhaseList? phaseList) = CreateAircraftOnFinal(distanceNm: 8.0, heading: 275);
 
         var phase = new InterceptCoursePhase
         {
@@ -67,7 +67,7 @@ public class InterceptDetectionTests
         phaseList.Add(phase);
         phaseList.Add(new FinalApproachPhase());
         phaseList.Add(new LandingPhase());
-        var ctx = CreateContext(aircraft);
+        PhaseContext ctx = CreateContext(aircraft);
 
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
@@ -80,7 +80,7 @@ public class InterceptDetectionTests
     public void PatternTraffic_ExemptFromWarning()
     {
         // Pattern traffic (TrafficDirection set) should never warn
-        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 3.0, heading: 275);
+        (AircraftState? aircraft, PhaseList? phaseList) = CreateAircraftOnFinal(distanceNm: 3.0, heading: 275);
         phaseList.TrafficDirection = PatternDirection.Left;
 
         var phase = new InterceptCoursePhase
@@ -94,7 +94,7 @@ public class InterceptDetectionTests
         phaseList.Add(phase);
         phaseList.Add(new FinalApproachPhase());
         phaseList.Add(new LandingPhase());
-        var ctx = CreateContext(aircraft);
+        PhaseContext ctx = CreateContext(aircraft);
 
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
@@ -107,7 +107,7 @@ public class InterceptDetectionTests
     public void InterceptCheck_FiresOnlyOnce()
     {
         // Capture fires once → warning fires once. After capture, phase completes.
-        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 275);
+        (AircraftState? aircraft, PhaseList? phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 275);
 
         var phase = new InterceptCoursePhase
         {
@@ -120,7 +120,7 @@ public class InterceptDetectionTests
         phaseList.Add(phase);
         phaseList.Add(new FinalApproachPhase());
         phaseList.Add(new LandingPhase());
-        var ctx = CreateContext(aircraft);
+        PhaseContext ctx = CreateContext(aircraft);
 
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
@@ -136,7 +136,7 @@ public class InterceptDetectionTests
     {
         // Aircraft at 5nm but heading 45° off runway heading →
         // not aligned → InterceptCoursePhase does not capture
-        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 325); // 280 + 45
+        (AircraftState? aircraft, PhaseList? phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 325); // 280 + 45
 
         var phase = new InterceptCoursePhase
         {
@@ -149,7 +149,7 @@ public class InterceptDetectionTests
         phaseList.Add(phase);
         phaseList.Add(new FinalApproachPhase());
         phaseList.Add(new LandingPhase());
-        var ctx = CreateContext(aircraft);
+        PhaseContext ctx = CreateContext(aircraft);
 
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
@@ -164,11 +164,11 @@ public class InterceptDetectionTests
     {
         // Aircraft directly on final at 8nm — no InterceptCoursePhase involved.
         // FinalApproachPhase scores distance as legal but no warning (warnings are at capture).
-        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 8.0, heading: 280);
+        (AircraftState? aircraft, PhaseList? phaseList) = CreateAircraftOnFinal(distanceNm: 8.0, heading: 280);
 
         var phase = new FinalApproachPhase();
         phaseList.Add(phase);
-        var ctx = CreateContext(aircraft);
+        PhaseContext ctx = CreateContext(aircraft);
 
         phase.OnStart(ctx);
         phase.OnTick(ctx);
@@ -181,7 +181,7 @@ public class InterceptDetectionTests
     private static (AircraftState Aircraft, PhaseList PhaseList) CreateAircraftOnFinal(double distanceNm, double heading)
     {
         // Project aircraft position along reciprocal of runway heading
-        var (lat, lon) = GeoMath.ProjectPoint(
+        (double lat, double lon) = GeoMath.ProjectPoint(
             TestRunway.ThresholdLatitude,
             TestRunway.ThresholdLongitude,
             TestRunway.TrueHeading.ToReciprocal(),

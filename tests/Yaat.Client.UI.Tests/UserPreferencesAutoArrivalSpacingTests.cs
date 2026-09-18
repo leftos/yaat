@@ -67,7 +67,7 @@ public class UserPreferencesAutoArrivalSpacingTests
                 var prefs = new UserPreferences();
 
                 Assert.False(prefs.AutoArrivalSpacingOnOccupiedRunwayTwr);
-                var rewritten = JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject();
+                JsonObject rewritten = JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject();
                 Assert.Equal(1, rewritten["preferencesVersion"]!.GetValue<int>());
                 Assert.False(rewritten["autoArrivalSpacingOnOccupiedRunwayTwr"]!.GetValue<bool>());
             }
@@ -135,7 +135,7 @@ public class UserPreferencesAutoArrivalSpacingTests
                 var prefs = new UserPreferences();
 
                 Assert.False(prefs.AutoArrivalSpacingOnOccupiedRunwayTwr);
-                var rewritten = JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject();
+                JsonObject rewritten = JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject();
                 Assert.Equal(1, rewritten["preferencesVersion"]!.GetValue<int>());
                 Assert.False(rewritten["autoArrivalSpacingOnOccupiedRunwayTwr"]!.GetValue<bool>());
                 Assert.True(File.Exists(BackupPath), "field-by-field recovery did not back up the original file");

@@ -66,7 +66,7 @@ public class GroundMovementMenuTests
     /// </summary>
     private static ContextMenu BuildGroundMenu(string phase, bool held)
     {
-        var ac = GroundAircraft("UAL100", phase, held);
+        AircraftModel ac = GroundAircraft("UAL100", phase, held);
         var mainVm = new MainViewModel(new FakeFilePickerService());
         mainVm.Aircraft.Add(ac);
         mainVm.Aircraft.Add(GroundAircraft("SWA200", "Taxiing", held: false));
@@ -83,7 +83,7 @@ public class GroundMovementMenuTests
 
     private static ContextMenu BuildAircraftListMenu(string phase, bool held)
     {
-        var ac = GroundAircraft("UAL100", phase, held);
+        AircraftModel ac = GroundAircraft("UAL100", phase, held);
         var vm = new MainViewModel(new FakeFilePickerService());
         var menu = new ContextMenu();
         DataGridView.AddPhaseAwareItems(menu, ac, vm, ac.Callsign, "AB");
@@ -137,7 +137,7 @@ public class GroundMovementMenuTests
     [AvaloniaFact]
     public void AircraftListMenu_AfterPushback_OrdersPushBackBeforeResumeTaxi()
     {
-        var headers = Headers(BuildAircraftListMenu("Holding After Pushback", held: true));
+        List<string> headers = Headers(BuildAircraftListMenu("Holding After Pushback", held: true));
         Assert.True(headers.IndexOf("Push back") >= 0 && headers.IndexOf("Push back") < headers.IndexOf("Resume taxi"), string.Join(" | ", headers));
     }
 
@@ -396,7 +396,7 @@ public class GroundMovementMenuTests
     [Fact]
     public void GroundMovementPredicates_RejectLiveTrafficShadows()
     {
-        var shadow = GroundAircraft("SKW42", "At Parking", held: true);
+        AircraftModel shadow = GroundAircraft("SKW42", "At Parking", held: true);
         shadow.IsLiveTraffic = true;
         Assert.False(AircraftCommandApplicability.CanPushBack(shadow));
 

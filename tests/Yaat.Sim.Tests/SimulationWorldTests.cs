@@ -21,7 +21,7 @@ public class SimulationWorldTests
     public void AddAircraft_GeneratesCid_WhenEmpty()
     {
         var world = new SimulationWorld();
-        var ac = MakeAircraft("AAL100");
+        AircraftState ac = MakeAircraft("AAL100");
 
         world.AddAircraft(ac);
 
@@ -33,7 +33,7 @@ public class SimulationWorldTests
     public void AddAircraft_PreservesCid_WhenProvided()
     {
         var world = new SimulationWorld();
-        var ac = MakeAircraft("AAL100", cid: "500");
+        AircraftState ac = MakeAircraft("AAL100", cid: "500");
 
         world.AddAircraft(ac);
 
@@ -46,7 +46,7 @@ public class SimulationWorldTests
         var world = new SimulationWorld();
         world.AddAircraft(MakeAircraft("AAL100"));
 
-        var snapshot = world.GetSnapshot();
+        List<AircraftState> snapshot = world.GetSnapshot();
         snapshot.Add(MakeAircraft("EXTRA1"));
         snapshot.RemoveAt(0);
 
@@ -90,12 +90,12 @@ public class SimulationWorldTests
     public void DrainAllWarnings_ReturnsAndClears()
     {
         var world = new SimulationWorld();
-        var ac = MakeAircraft("AAL100");
+        AircraftState ac = MakeAircraft("AAL100");
         ac.PendingWarnings.Add("test warning");
         world.AddAircraft(ac);
 
-        var first = world.DrainAllWarnings();
-        var second = world.DrainAllWarnings();
+        List<(string Callsign, string Warning)> first = world.DrainAllWarnings();
+        List<(string Callsign, string Warning)> second = world.DrainAllWarnings();
 
         Assert.Single(first);
         Assert.Equal(("AAL100", "test warning"), first[0]);
@@ -106,12 +106,12 @@ public class SimulationWorldTests
     public void DrainAllNotifications_ReturnsAndClears()
     {
         var world = new SimulationWorld();
-        var ac = MakeAircraft("UAL200");
+        AircraftState ac = MakeAircraft("UAL200");
         ac.PendingNotifications.Add("test notification");
         world.AddAircraft(ac);
 
-        var first = world.DrainAllNotifications();
-        var second = world.DrainAllNotifications();
+        List<(string Callsign, string Notification)> first = world.DrainAllNotifications();
+        List<(string Callsign, string Notification)> second = world.DrainAllNotifications();
 
         Assert.Single(first);
         Assert.Equal(("UAL200", "test notification"), first[0]);
@@ -122,7 +122,7 @@ public class SimulationWorldTests
     public void DrainAllApproachScores_ReturnsAndClears()
     {
         var world = new SimulationWorld();
-        var ac = MakeAircraft("DAL300");
+        AircraftState ac = MakeAircraft("DAL300");
         ac.PendingApproachScores.Add(
             new ApproachScore
             {
@@ -135,8 +135,8 @@ public class SimulationWorldTests
         );
         world.AddAircraft(ac);
 
-        var first = world.DrainAllApproachScores();
-        var second = world.DrainAllApproachScores();
+        List<ApproachScore> first = world.DrainAllApproachScores();
+        List<ApproachScore> second = world.DrainAllApproachScores();
 
         Assert.Single(first);
         Assert.Equal("DAL300", first[0].Callsign);

@@ -131,7 +131,7 @@ public sealed record AircraftProfileOverride
     {
         var fields = new HashSet<string>(StringComparer.Ordinal);
 
-        var merged = baseProfile with
+        AircraftProfile merged = baseProfile with
         {
             IsProp = ResolveBool(IsProp, baseProfile.IsProp, nameof(AircraftProfile.IsProp), fields),
             IsHelo = ResolveBool(IsHelo, baseProfile.IsHelo, nameof(AircraftProfile.IsHelo), fields),

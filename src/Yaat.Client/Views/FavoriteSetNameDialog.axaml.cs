@@ -24,9 +24,9 @@ public partial class FavoriteSetNameDialog : Window
         InitializeComponent();
         _existingNames = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
 
-        var nameBox = this.FindControl<TextBox>("NameTextBox");
-        var okBtn = this.FindControl<Button>("OkButton");
-        var cancelBtn = this.FindControl<Button>("CancelButton");
+        TextBox? nameBox = this.FindControl<TextBox>("NameTextBox");
+        Button? okBtn = this.FindControl<Button>("OkButton");
+        Button? cancelBtn = this.FindControl<Button>("CancelButton");
 
         if (nameBox is not null)
         {
@@ -49,10 +49,10 @@ public partial class FavoriteSetNameDialog : Window
 
     private void UpdateStatus(string? text)
     {
-        var status = this.FindControl<TextBlock>("StatusText");
-        var okBtn = this.FindControl<Button>("OkButton");
-        var trimmed = (text ?? "").Trim();
-        var collides = !string.IsNullOrEmpty(trimmed) && _existingNames.Contains(trimmed);
+        TextBlock? status = this.FindControl<TextBlock>("StatusText");
+        Button? okBtn = this.FindControl<Button>("OkButton");
+        string trimmed = (text ?? "").Trim();
+        bool collides = !string.IsNullOrEmpty(trimmed) && _existingNames.Contains(trimmed);
 
         if (status is not null)
         {
@@ -67,8 +67,8 @@ public partial class FavoriteSetNameDialog : Window
 
     private void OnOkClick(object? sender, RoutedEventArgs e)
     {
-        var nameBox = this.FindControl<TextBox>("NameTextBox");
-        var entered = (nameBox?.Text ?? "").Trim();
+        TextBox? nameBox = this.FindControl<TextBox>("NameTextBox");
+        string entered = (nameBox?.Text ?? "").Trim();
         if (string.IsNullOrEmpty(entered) || _existingNames.Contains(entered))
         {
             return;

@@ -1,4 +1,5 @@
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
@@ -28,7 +29,7 @@ public static partial class TrackEngine
     /// </summary>
     public static GhostTrackOutcome CreateGhostTrack(GhostTrackCommand ghost, SimulationWorld world, SimScenarioState scenario, TrackOwner identity)
     {
-        var callsign = ghost.Callsign;
+        string callsign = ghost.Callsign;
         double lat;
         double lon;
         string? ghostAirportId = ghost.AirportCode;
@@ -41,14 +42,14 @@ public static partial class TrackEngine
         }
         else if (ghostRunwayId is not null)
         {
-            var airportCode = ghostAirportId ?? scenario.PrimaryAirportId;
+            string? airportCode = ghostAirportId ?? scenario.PrimaryAirportId;
             if (string.IsNullOrWhiteSpace(airportCode))
             {
                 return GhostTrackOutcome.Refused("No airport specified and no primary airport in scenario");
             }
 
             ghostAirportId = airportCode;
-            var runway = NavigationDatabase.Instance.GetRunway(airportCode, ghostRunwayId);
+            RunwayInfo? runway = NavigationDatabase.Instance.GetRunway(airportCode, ghostRunwayId);
             if (runway is null)
             {
                 return GhostTrackOutcome.Refused($"Runway {ghostRunwayId} not found at {airportCode}");
@@ -69,7 +70,7 @@ public static partial class TrackEngine
             return GhostTrackOutcome.Refused("GHOST requires runway or lat/lon");
         }
 
-        var existing = world.FindAircraft(callsign);
+        AircraftState? existing = world.FindAircraft(callsign);
         if (existing is not null)
         {
             // A ghost overlay is a display action; it must not steal a track owned by another position. Reject when
@@ -125,7 +126,7 @@ public static partial class TrackEngine
     /// </summary>
     public static CommandResult RepositionToLocation(RepositionToLocationCommand cmd, SimulationWorld world, TrackOwner identity)
     {
-        var ac = world.FindAircraft(cmd.Callsign);
+        AircraftState? ac = world.FindAircraft(cmd.Callsign);
         if (ac is null)
         {
             return new CommandResult(false, "NO TRK");
@@ -142,7 +143,7 @@ public static partial class TrackEngine
             return new CommandResult(false, "ILL TRK");
         }
 
-        var owner = ac.Track.Owner;
+        TrackOwner owner = ac.Track.Owner;
         ac.DataBlock.Binding = DataBlockBinding.Parked;
         ac.DataBlock.Latitude = cmd.Latitude;
         ac.DataBlock.Longitude = cmd.Longitude;
@@ -166,7 +167,7 @@ public static partial class TrackEngine
     /// </summary>
     public static CommandResult RepositionMove(RepositionMoveCommand cmd, SimulationWorld world, TrackOwner identity)
     {
-        var source = world.FindAircraft(cmd.FromCallsign);
+        AircraftState? source = world.FindAircraft(cmd.FromCallsign);
         if (source is null)
         {
             return new CommandResult(false, "NO TRK");

@@ -37,16 +37,16 @@ public class RfisSoftFailLookingTests
     public void Rfis_FieldBehind_ReturnsSuccess_PilotSaysLooking_ObservationStored()
     {
         // Aircraft north of KOAK heading north → field behind ownship.
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success, $"Expected soft-fail success but got: {result.Message}");
         Assert.False(ac.Approach.HasReportedFieldInSight);
         Assert.Contains("looking", ac.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
 
-        var obs = Assert.Single(ac.PendingObservations);
+        PilotObservation obs = Assert.Single(ac.PendingObservations);
         Assert.IsType<FieldAcquisitionObservation>(obs);
     }
 
@@ -59,10 +59,10 @@ public class RfisSoftFailLookingTests
     [Fact]
     public void Rfis_SoftFail_Behind_CommandMessageHintsHemisphere()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.Contains("Looking for the field", result.Message);
@@ -76,11 +76,11 @@ public class RfisSoftFailLookingTests
     public void Rfis_SoftFail_OutOfRange_CommandMessageHintsDistance()
     {
         // 1 SM visibility → ~0.87 nm max range; aircraft 3+ nm north.
-        var ac = MakeAircraft(37.76, -122.221, heading: 180, altitude: 3000);
+        AircraftState ac = MakeAircraft(37.76, -122.221, heading: 180, altitude: 3000);
         var weather = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 1SM BR SCT005 20/12 A2992"] };
-        var ctx = TestDispatch.Context(Random.Shared, weather: weather);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, weather: weather);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.Contains("Looking for the field", result.Message);
@@ -90,11 +90,11 @@ public class RfisSoftFailLookingTests
     [Fact]
     public void Rfis_SoftFail_AboveCeiling_CommandMessageNamesLayer()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 4000);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 4000);
         var weather = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 10SM OVC020 20/12 A2992"] };
-        var ctx = TestDispatch.Context(Random.Shared, weather: weather);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, weather: weather);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.Contains("Looking for the field", result.Message);
@@ -107,10 +107,10 @@ public class RfisSoftFailLookingTests
     [Fact]
     public void Rfis_SoftFail_InClassA_CommandMessageNamesClassA()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 19000);
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 19000);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         // RPO sees the Class A diagnostic.
@@ -126,11 +126,11 @@ public class RfisSoftFailLookingTests
     {
         // Aircraft south of KOAK, heading east, airport northwest (left side).
         // Right bank 25° → high wing left → airport occluded.
-        var ac = MakeAircraft(37.71, -122.30, heading: 90, altitude: 3000);
+        AircraftState ac = MakeAircraft(37.71, -122.30, heading: 90, altitude: 3000);
         ac.BankAngle = 25.0;
-        var ctx = TestDispatch.Context(Random.Shared);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.Contains("bank", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -144,10 +144,10 @@ public class RfisSoftFailLookingTests
     [Fact]
     public void Rfis_NoDestination_StillHardFails_NoObservation()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "");
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.False(result.Success);
         Assert.Empty(ac.PendingObservations);
@@ -156,10 +156,10 @@ public class RfisSoftFailLookingTests
     [Fact]
     public void Rfis_DestinationNotInNavDb_StillHardFails_NoObservation()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "ZZZZ");
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "ZZZZ");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.False(result.Success);
         Assert.Empty(ac.PendingObservations);
@@ -175,8 +175,8 @@ public class RfisSoftFailLookingTests
     {
         // Heading north so field is behind. Soft-fail → observation stored.
         // Flip heading; one tick of PilotObservationUpdater should resolve it.
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
         CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
         Assert.Single(ac.PendingObservations);
@@ -196,8 +196,8 @@ public class RfisSoftFailLookingTests
     [Fact]
     public void LookingObservation_StaysPending_WhenFieldStillNotAcquirable()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
         CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
         ac.PendingPilotReadbacks.Clear();
@@ -218,21 +218,21 @@ public class RfisSoftFailLookingTests
     [Fact]
     public void SecondRfis_ReplacesPriorObservation_StillSingleEntry()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
         CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
         CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
-        var obs = Assert.Single(ac.PendingObservations);
+        PilotObservation obs = Assert.Single(ac.PendingObservations);
         Assert.IsType<FieldAcquisitionObservation>(obs);
     }
 
     [Fact]
     public void Observation_SilentlyClears_WhenDestinationCleared()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
         CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
         Assert.Single(ac.PendingObservations);
@@ -251,8 +251,8 @@ public class RfisSoftFailLookingTests
     [Fact]
     public void Observation_SilentlyClears_WhenDestinationLeavesNavDb()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
         CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
         Assert.Single(ac.PendingObservations);
@@ -272,10 +272,10 @@ public class RfisSoftFailLookingTests
     [Fact]
     public void Rfisf_SetsFlagImmediately_NoObservation()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightForcedCommand(), ac, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightForcedCommand(), ac, ctx);
 
         Assert.True(result.Success);
         Assert.True(ac.Approach.HasReportedFieldInSight);
@@ -286,8 +286,8 @@ public class RfisSoftFailLookingTests
     [Fact]
     public void Rfisf_ClearsPriorLookingObservation()
     {
-        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
         CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
         Assert.Single(ac.PendingObservations);

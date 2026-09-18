@@ -44,7 +44,7 @@ public static class RecordingCompression
         // bytes plain JSON starts with — so a first-byte "looks like JSON" test misfires on such
         // streams. Decode as Brotli and fall back to plain UTF-8 JSON only when Brotli genuinely
         // can't read it (real JSON is not a valid Brotli stream).
-        if (TryDecompressBrotli(bytes, out var brotliText))
+        if (TryDecompressBrotli(bytes, out string? brotliText))
         {
             return brotliText;
         }

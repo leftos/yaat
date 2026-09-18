@@ -154,7 +154,7 @@ public sealed record TickOracleComparison(
         if (Added.Count > 0)
         {
             message.AppendLine().AppendLine($"{Added.Count} NEW divergence path(s) — a step was added to one path and not the other:");
-            foreach (var path in Added)
+            foreach (string path in Added)
             {
                 message.AppendLine($"  + {path}");
             }
@@ -169,7 +169,7 @@ public sealed record TickOracleComparison(
                         + "likeliest cause is that one path lost the step that produced the divergence, and banking that would "
                         + "make the lost step the new expected state. Name what retired each one before re-baselining:"
                 );
-            foreach (var path in Removed)
+            foreach (string path in Removed)
             {
                 message.AppendLine($"  - {path}");
             }

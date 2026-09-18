@@ -592,16 +592,16 @@ public sealed class GroundNavigator
 
     public void SetupSegment(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
-        var seg = route.CurrentSegment;
+        TaxiRouteSegment? seg = route.CurrentSegment;
         if (seg is null)
         {
             return;
         }
 
-        var segmentPrimitive = PathPrimitiveBuilder.FromSegment(seg);
+        PathPrimitive segmentPrimitive = PathPrimitiveBuilder.FromSegment(seg);
 
-        var from = seg.Edge.FromNode;
-        var to = seg.Edge.ToNode;
+        GroundNode from = seg.Edge.FromNode;
+        GroundNode to = seg.Edge.ToNode;
         TargetNodeId = seg.ToNodeId;
         TargetLat = to.Position.Lat;
         TargetLon = to.Position.Lon;
@@ -646,7 +646,7 @@ public sealed class GroundNavigator
 
         if (headingDelta > entryAlignmentThreshold)
         {
-            var (alignmentArc, aim, reversalFlip) = BuildEntryAlignmentArc(route, seg, ctx, headingDelta);
+            (PathPrimitiveSlowTurn? alignmentArc, string? aim, bool reversalFlip) = BuildEntryAlignmentArc(route, seg, ctx, headingDelta);
             _pendingSegmentPrimitive = segmentPrimitive;
             _currentPrimitive = alignmentArc;
             BeginPrimitive(alignmentArc);
@@ -706,8 +706,8 @@ public sealed class GroundNavigator
     /// </summary>
     private void LogSegmentSetup(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx)
     {
-        var from = seg.Edge.FromNode;
-        var to = seg.Edge.ToNode;
+        GroundNode from = seg.Edge.FromNode;
+        GroundNode to = seg.Edge.ToNode;
         double segDepartureBearing = seg.Edge.DepartureBearing;
         Log.LogDebug(
             "[Nav] SetupSegment seg={SegIdx}/{Total} target={NodeId} kind={Kind} dist={Dist:F4}nm "
@@ -771,7 +771,7 @@ public sealed class GroundNavigator
             double freeSpaceRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
             if (FindAimNode(route, ctx, 2.0 * freeSpaceRadiusFt) is { } aimNode)
             {
-                var aimed = PathPrimitiveBuilder.SlowTurnToPoint(
+                PathPrimitiveSlowTurn? aimed = PathPrimitiveBuilder.SlowTurnToPoint(
                     fromLat: ctx.Aircraft.Position.Lat,
                     fromLon: ctx.Aircraft.Position.Lon,
                     fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
@@ -813,7 +813,7 @@ public sealed class GroundNavigator
         // centerline, only parallel to it a diameter away.
         if (Math.Abs(dthetaDeg) >= ReversalEntryThresholdDeg && FindAimNode(route, ctx, 2.0 * roundingRadiusFt) is { } reversalAim)
         {
-            var aimedReversal = PathPrimitiveBuilder.SlowTurnToPointDirected(
+            PathPrimitiveSlowTurn? aimedReversal = PathPrimitiveBuilder.SlowTurnToPointDirected(
                 fromLat: ctx.Aircraft.Position.Lat,
                 fromLon: ctx.Aircraft.Position.Lon,
                 fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
@@ -835,7 +835,7 @@ public sealed class GroundNavigator
             }
         }
 
-        var arc = PathPrimitiveBuilder.SlowTurnDirected(
+        PathPrimitiveSlowTurn arc = PathPrimitiveBuilder.SlowTurnDirected(
             fromLat: ctx.Aircraft.Position.Lat,
             fromLon: ctx.Aircraft.Position.Lon,
             fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
@@ -878,8 +878,8 @@ public sealed class GroundNavigator
     {
         for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
         {
-            var segment = route.Segments[i];
-            var to = segment.Edge.ToNode;
+            TaxiRouteSegment segment = route.Segments[i];
+            GroundNode to = segment.Edge.ToNode;
             double distFt = GeoMath.DistanceNm(ctx.Aircraft.Position, to.Position) * GeoMath.FeetPerNm;
             if ((distFt >= minDistanceFt) || IsBarNode(route, ctx, segment.ToNodeId))
             {
@@ -898,7 +898,11 @@ public sealed class GroundNavigator
     /// </summary>
     private static bool IsBarNode(TaxiRoute route, PhaseContext ctx, int nodeId) =>
         (route.GetHoldShortAt(nodeId) is not null)
-        || ((ctx.GroundLayout is { } layout) && layout.Nodes.TryGetValue(nodeId, out var node) && (node.Type == GroundNodeType.RunwayHoldShort));
+        || (
+            (ctx.GroundLayout is { } layout)
+            && layout.Nodes.TryGetValue(nodeId, out GroundNode? node)
+            && (node.Type == GroundNodeType.RunwayHoldShort)
+        );
 
     /// <summary>
     /// The signed turn (deg, right positive) the route makes immediately after the aircraft has aligned with
@@ -1023,7 +1027,7 @@ public sealed class GroundNavigator
     /// </summary>
     private void CaptureSlowTurnEntry(PhaseContext ctx, PathPrimitiveSlowTurn prim)
     {
-        var entry = GeoMath.ProjectPoint(new LatLon(prim.CenterLat, prim.CenterLon), new TrueHeading(_arcBearingFromCenterDeg), prim.RadiusNm);
+        LatLon entry = GeoMath.ProjectPoint(new LatLon(prim.CenterLat, prim.CenterLon), new TrueHeading(_arcBearingFromCenterDeg), prim.RadiusNm);
         _arcEntryTravelledFt = 0.0;
         CaptureArcEntryOffset(ctx, entry.Lat, entry.Lon, prim.Kind, prim.LengthFt);
     }
@@ -1062,7 +1066,7 @@ public sealed class GroundNavigator
 
         _arcEntryTravelledFt = 0.0;
         _bezierLeadInRemainingFt = LeadInShortfallFt(ctx.Aircraft.Position, bezier);
-        var (lat, lon, _) = BezierPlaybackPose(bezier);
+        (double lat, double lon, double _) = BezierPlaybackPose(bezier);
         double remainingArcLengthFt = _bezierLeadInRemainingFt + Math.Max(0.0, bezier.LengthFt - _bezierTraveledFt);
         CaptureArcEntryOffset(ctx, lat, lon, bezier.Kind, remainingArcLengthFt);
 
@@ -1087,7 +1091,7 @@ public sealed class GroundNavigator
     /// </summary>
     private double LeadInShortfallFt(LatLon position, PathPrimitiveBezier bezier)
     {
-        var playbackStart = bezier.Curve.Evaluate(_bezierT);
+        (double Lat, double Lon) playbackStart = bezier.Curve.Evaluate(_bezierT);
         var curveStart = new LatLon(bezier.Curve.P0Lat, bezier.Curve.P0Lon);
         double fromPlaybackStartFt = GeoMath.DistanceNm(new LatLon(playbackStart.Lat, playbackStart.Lon), curveStart) * GeoMath.FeetPerNm;
         if (fromPlaybackStartFt > AirportGroundLayout.AtNodeToleranceFt)
@@ -1178,7 +1182,7 @@ public sealed class GroundNavigator
     {
         double headingBeforeDeg = ctx.Aircraft.TrueHeading.Degrees;
 
-        var result = _currentPrimitive switch
+        NavigatorResult result = _currentPrimitive switch
         {
             PathPrimitiveStraight s => TickStraight(ctx, s, isLastSegment, isHoldShortCleared),
             PathPrimitiveBezier b => TickBezier(ctx, b, isHoldShortCleared),
@@ -1225,7 +1229,7 @@ public sealed class GroundNavigator
                 return NavigatorResult.Navigating;
             }
 
-            var seg = _pendingSegmentPrimitive;
+            PathPrimitive seg = _pendingSegmentPrimitive;
             _pendingSegmentPrimitive = null;
             _currentPrimitive = seg;
             ReleaseHeadingHold(ctx, seg);
@@ -1350,7 +1354,7 @@ public sealed class GroundNavigator
         double crossTrackOffsetFt = 0.0;
         if (edgeLengthNm >= 1e-9)
         {
-            var (foot, along, _) = GeoMath.FootOfPerpendicular(
+            (LatLon foot, double along, bool _) = GeoMath.FootOfPerpendicular(
                 ctx.Aircraft.Position,
                 new LatLon(_segmentFromLat, _segmentFromLon),
                 new LatLon(TargetLat, TargetLon)
@@ -1485,7 +1489,11 @@ public sealed class GroundNavigator
             }
             else
             {
-                var (lookLat, lookLon) = GeoMath.ProjectPointRaw(new LatLon(_segmentFromLat, _segmentFromLon), segBearingDeg, lookAheadAlongNm);
+                (double lookLat, double lookLon) = GeoMath.ProjectPointRaw(
+                    new LatLon(_segmentFromLat, _segmentFromLon),
+                    segBearingDeg,
+                    lookAheadAlongNm
+                );
                 bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(lookLat, lookLon));
             }
         }
@@ -1597,7 +1605,7 @@ public sealed class GroundNavigator
     /// </summary>
     private NavigatorResult TickBezier(PhaseContext ctx, PathPrimitiveBezier prim, Func<int, bool> isHoldShortCleared)
     {
-        var positionBefore = ctx.Aircraft.Position;
+        LatLon positionBefore = ctx.Aircraft.Position;
 
         // First tick of this primitive: resolve where along the curve the aircraft stands and capture the
         // entry offset from its live position — after the physics step the install could not see.
@@ -1628,7 +1636,7 @@ public sealed class GroundNavigator
         // Write position + heading directly from the playback state (invariant I2), plus what is left of the
         // entry offset — the aircraft converges onto the painted curve over ArcEntryBlendFt of travel
         // instead of being written onto it in one sub-tick.
-        var (lat, lon, tangentDeg) = BezierPlaybackPose(prim);
+        (double lat, double lon, double tangentDeg) = BezierPlaybackPose(prim);
         double entryBlend = ArcEntryBlendFactor(_arcEntryTravelledFt);
         ctx.Aircraft.Position = new LatLon(lat + (_arcEntryOffsetLatDeg * entryBlend), lon + (_arcEntryOffsetLonDeg * entryBlend));
         ctx.Aircraft.TrueHeading = new TrueHeading(tangentDeg);
@@ -1706,12 +1714,12 @@ public sealed class GroundNavigator
     {
         if (_bezierLeadInRemainingFt <= 0.0)
         {
-            var (curveLat, curveLon) = prim.Curve.Evaluate(_bezierT);
+            (double curveLat, double curveLon) = prim.Curve.Evaluate(_bezierT);
             return (curveLat, curveLon, prim.Curve.TangentBearing(_bezierT));
         }
 
         double entryTangentDeg = prim.Curve.TangentBearing(0.0);
-        var lead = GeoMath.ProjectPoint(
+        LatLon lead = GeoMath.ProjectPoint(
             new LatLon(prim.Curve.P0Lat, prim.Curve.P0Lon),
             new TrueHeading((entryTangentDeg + 180.0) % 360.0),
             _bezierLeadInRemainingFt / GeoMath.FeetPerNm
@@ -1734,7 +1742,7 @@ public sealed class GroundNavigator
 
     private NavigatorResult TickSlowTurn(PhaseContext ctx, PathPrimitiveSlowTurn prim)
     {
-        var positionBefore = ctx.Aircraft.Position;
+        LatLon positionBefore = ctx.Aircraft.Position;
 
         // First tick of this primitive: capture the entry offset from the live position (see TickBezier).
         if (_arcEntryPending)
@@ -1768,7 +1776,11 @@ public sealed class GroundNavigator
 
         // Write position + heading directly from playback state (invariant I2), plus what is left of the
         // entry offset (zero for an arc built from the aircraft's own pose, which is the common case).
-        var (lat, lon) = GeoMath.ProjectPoint(new LatLon(prim.CenterLat, prim.CenterLon), new TrueHeading(_arcBearingFromCenterDeg), prim.RadiusNm);
+        (double lat, double lon) = GeoMath.ProjectPoint(
+            new LatLon(prim.CenterLat, prim.CenterLon),
+            new TrueHeading(_arcBearingFromCenterDeg),
+            prim.RadiusNm
+        );
         _arcEntryTravelledFt += dAngleDeg * (Math.PI / 180.0) * prim.RadiusFt;
         double entryBlend = ArcEntryBlendFactor(_arcEntryTravelledFt);
         double tangentDeg = CurrentSlowTurnTangentDeg(prim);
@@ -1808,7 +1820,7 @@ public sealed class GroundNavigator
         double brakingLimit = Math.Sqrt(_currentNodeRequiredSpeed * _currentNodeRequiredSpeed + 2.0 * decelRate * distToEndpointNm * 3600.0);
 
         // Apply each future constraint.
-        foreach (var (pathDist, reqSpeed, nodeId) in _speedConstraints)
+        foreach ((double pathDist, double reqSpeed, int nodeId) in _speedConstraints)
         {
             if (reqSpeed == 0 && isHoldShortCleared(nodeId))
             {
@@ -1939,7 +1951,7 @@ public sealed class GroundNavigator
     /// </summary>
     private static IReadOnlyList<GroundArc.SpeedSample> OrientedProfile(GroundArc arc, DirectionalEdge edge, AircraftCategory category)
     {
-        var stored = arc.SpeedProfile(category);
+        IReadOnlyList<GroundArc.SpeedSample> stored = arc.SpeedProfile(category);
         if (edge.FromNodeId == arc.Nodes[0].Id)
         {
             return stored;
@@ -1949,7 +1961,7 @@ public sealed class GroundNavigator
         var reversed = new GroundArc.SpeedSample[stored.Count];
         for (int i = 0; i < stored.Count; i++)
         {
-            var mirror = stored[stored.Count - 1 - i];
+            GroundArc.SpeedSample mirror = stored[stored.Count - 1 - i];
             reversed[i] = new GroundArc.SpeedSample(totalFt - mirror.LengthFt, mirror.SpeedKts);
         }
 
@@ -2039,7 +2051,7 @@ public sealed class GroundNavigator
                 return null;
             }
 
-            var neighbor = route.Segments[next];
+            TaxiRouteSegment neighbor = route.Segments[next];
             if (neighbor.Edge.Edge is GroundArc arc)
             {
                 return arc.MaxSafeSpeedKts(ctx.Category);
@@ -2078,7 +2090,7 @@ public sealed class GroundNavigator
     {
         _speedConstraints.Clear();
 
-        var seg = route.CurrentSegment;
+        TaxiRouteSegment? seg = route.CurrentSegment;
         if (seg is null)
         {
             return;
@@ -2104,7 +2116,7 @@ public sealed class GroundNavigator
         else if (!isLastSegment)
         {
             int nextIdx = route.CurrentSegmentIndex + 1;
-            var nextSeg = route.Segments[nextIdx];
+            TaxiRouteSegment nextSeg = route.Segments[nextIdx];
             double turnAngle = SingleCornerTurnAngle(route, route.CurrentSegmentIndex);
             _currentNodeRequiredSpeed = CornerSpeed(ctx.Category, turnAngle, seg.Edge.DistanceNm, nextSeg.Edge.DistanceNm);
             _nextSegmentBearing = nextSeg.Edge.DepartureBearing;
@@ -2137,7 +2149,7 @@ public sealed class GroundNavigator
         double cumulativeDistNm = 0;
         for (int i = route.CurrentSegmentIndex + 1; i < route.Segments.Count; i++)
         {
-            var futureSeg = route.Segments[i];
+            TaxiRouteSegment futureSeg = route.Segments[i];
             cumulativeDistNm += futureSeg.Edge.DistanceNm;
 
             if (futureSeg.Edge.Edge is GroundArc futureArc)
@@ -2145,7 +2157,7 @@ public sealed class GroundNavigator
                 // One constraint per profile sample, so the braking curve targets the arc's local cornering
                 // speed where the curve is actually tight rather than its tightest point at the entry.
                 double arcStartDist = cumulativeDistNm - futureSeg.Edge.DistanceNm;
-                foreach (var sample in OrientedProfile(futureArc, futureSeg.Edge, ctx.Category))
+                foreach (GroundArc.SpeedSample sample in OrientedProfile(futureArc, futureSeg.Edge, ctx.Category))
                 {
                     if (sample.SpeedKts < MaxSpeedKts)
                     {
@@ -2182,8 +2194,8 @@ public sealed class GroundNavigator
         double decelRate = DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
         for (int i = _speedConstraints.Count - 2; i >= 0; i--)
         {
-            var (dist, speed, nodeId) = _speedConstraints[i];
-            var (nextDist, nextSpeed, _) = _speedConstraints[i + 1];
+            (double dist, double speed, int nodeId) = _speedConstraints[i];
+            (double nextDist, double nextSpeed, int _) = _speedConstraints[i + 1];
             double legDist = nextDist - dist;
             double backProp = Math.Sqrt(nextSpeed * nextSpeed + 2.0 * decelRate * legDist * 3600.0);
             if (backProp < speed)
@@ -2195,7 +2207,7 @@ public sealed class GroundNavigator
         // Propagate the first future constraint back into the current node's required speed.
         if (_speedConstraints.Count > 0)
         {
-            var (firstDist, firstSpeed, _) = _speedConstraints[0];
+            (double firstDist, double firstSpeed, int _) = _speedConstraints[0];
             double backProp = Math.Sqrt(firstSpeed * firstSpeed + 2.0 * decelRate * firstDist * 3600.0);
             if (backProp < _currentNodeRequiredSpeed)
             {
@@ -2301,8 +2313,8 @@ public sealed class GroundNavigator
             return 0;
         }
 
-        var thisSeg = route.Segments[turnNodeSegIdx];
-        var nextSeg = route.Segments[nextIdx];
+        TaxiRouteSegment thisSeg = route.Segments[turnNodeSegIdx];
+        TaxiRouteSegment nextSeg = route.Segments[nextIdx];
         return GeoMath.AbsBearingDifference(thisSeg.Edge.ArrivalBearing, nextSeg.Edge.DepartureBearing);
     }
 

@@ -15,9 +15,9 @@ public static class FacilityShortname
             return positionCallsign;
         }
 
-        var trimmed = positionCallsign.Trim();
-        var lastUnderscore = trimmed.LastIndexOf('_');
-        var suffix = lastUnderscore >= 0 ? trimmed[(lastUnderscore + 1)..] : trimmed;
+        string trimmed = positionCallsign.Trim();
+        int lastUnderscore = trimmed.LastIndexOf('_');
+        string suffix = lastUnderscore >= 0 ? trimmed[(lastUnderscore + 1)..] : trimmed;
         return suffix.ToUpperInvariant() switch
         {
             "TWR" or "ATCT" => "Tower",

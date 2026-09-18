@@ -193,10 +193,10 @@ public class TowerListTrackerTests
     [Fact]
     public void TwoFacilitiesSharingAListId_KeepSeparateEntries_AndSettle()
     {
-        var (tracker, oakLat, oakLon, fatLat, fatLon) = BuildTwoFacilityTracker();
+        (TowerListTracker? tracker, double oakLat, double oakLon, double fatLat, double fatLon) = BuildTwoFacilityTracker();
 
-        var overOak = MakeAircraft("AAL100", oakLat, oakLon);
-        var overFat = MakeAircraft("DAL200", fatLat, fatLon);
+        AircraftState overOak = MakeAircraft("AAL100", oakLat, oakLon);
+        AircraftState overFat = MakeAircraft("DAL200", fatLat, fatLon);
 
         Assert.True(tracker.Update([overOak, overFat], 10.0));
 
@@ -217,12 +217,12 @@ public class TowerListTrackerTests
     [Fact]
     public void TwoAircraftEnteringInTheSameSecond_ReadBackInOneFixedOrder()
     {
-        var (first, oakLat, oakLon, _, _) = BuildTwoFacilityTracker();
-        var (second, _, _, _, _) = BuildTwoFacilityTracker();
+        (TowerListTracker? first, double oakLat, double oakLon, double _, double _) = BuildTwoFacilityTracker();
+        (TowerListTracker? second, double _, double _, double _, double _) = BuildTwoFacilityTracker();
 
-        var a = MakeAircraft("AAL100", oakLat, oakLon);
-        var b = MakeAircraft("UAL200", oakLat + 0.01, oakLon);
-        var c = MakeAircraft("SWA300", oakLat, oakLon + 0.01);
+        AircraftState a = MakeAircraft("AAL100", oakLat, oakLon);
+        AircraftState b = MakeAircraft("UAL200", oakLat + 0.01, oakLon);
+        AircraftState c = MakeAircraft("SWA300", oakLat, oakLon + 0.01);
 
         first.Update([a, b, c], 10.0);
         second.Update([c, b, a], 10.0);
@@ -235,26 +235,26 @@ public class TowerListTrackerTests
     [Fact]
     public void Update_NoAircraft_ReturnsFalse()
     {
-        var (tracker, _, _) = BuildTracker();
+        (TowerListTracker? tracker, double _, double _) = BuildTracker();
         Assert.False(tracker.Update([], 0));
     }
 
     [Fact]
     public void Update_AircraftEntersRange_ReturnsTrue()
     {
-        var (tracker, aptLat, aptLon) = BuildTracker();
+        (TowerListTracker? tracker, double aptLat, double aptLon) = BuildTracker();
 
         // Aircraft 10nm from airport (within 30nm range)
-        var ac = MakeAircraft("AAL100", aptLat + 0.15, aptLon);
+        AircraftState ac = MakeAircraft("AAL100", aptLat + 0.15, aptLon);
         Assert.True(tracker.Update([ac], 10.0));
     }
 
     [Fact]
     public void Update_SameAircraftStillInRange_ReturnsFalse()
     {
-        var (tracker, aptLat, aptLon) = BuildTracker();
+        (TowerListTracker? tracker, double aptLat, double aptLon) = BuildTracker();
 
-        var ac = MakeAircraft("AAL100", aptLat + 0.15, aptLon);
+        AircraftState ac = MakeAircraft("AAL100", aptLat + 0.15, aptLon);
         tracker.Update([ac], 10.0); // enters
 
         // Same aircraft, same range — no change
@@ -264,9 +264,9 @@ public class TowerListTrackerTests
     [Fact]
     public void Update_AircraftLeavesRange_ReturnsTrue()
     {
-        var (tracker, aptLat, aptLon) = BuildTracker();
+        (TowerListTracker? tracker, double aptLat, double aptLon) = BuildTracker();
 
-        var ac = MakeAircraft("AAL100", aptLat + 0.15, aptLon);
+        AircraftState ac = MakeAircraft("AAL100", aptLat + 0.15, aptLon);
         tracker.Update([ac], 10.0); // enters
 
         // Move far away (>30nm)
@@ -277,9 +277,9 @@ public class TowerListTrackerTests
     [Fact]
     public void Update_AircraftDeleted_ReturnsTrue()
     {
-        var (tracker, aptLat, aptLon) = BuildTracker();
+        (TowerListTracker? tracker, double aptLat, double aptLon) = BuildTracker();
 
-        var ac = MakeAircraft("AAL100", aptLat + 0.15, aptLon);
+        AircraftState ac = MakeAircraft("AAL100", aptLat + 0.15, aptLon);
         tracker.Update([ac], 10.0);
 
         // Aircraft disappears from snapshot
@@ -289,28 +289,28 @@ public class TowerListTrackerTests
     [Fact]
     public void Update_SecondAircraftEnters_ReturnsTrue()
     {
-        var (tracker, aptLat, aptLon) = BuildTracker();
+        (TowerListTracker? tracker, double aptLat, double aptLon) = BuildTracker();
 
-        var ac1 = MakeAircraft("AAL100", aptLat + 0.15, aptLon);
+        AircraftState ac1 = MakeAircraft("AAL100", aptLat + 0.15, aptLon);
         tracker.Update([ac1], 10.0);
         tracker.Update([ac1], 11.0); // stable
 
-        var ac2 = MakeAircraft("UAL200", aptLat + 0.10, aptLon);
+        AircraftState ac2 = MakeAircraft("UAL200", aptLat + 0.10, aptLon);
         Assert.True(tracker.Update([ac1, ac2], 12.0));
     }
 
     [Fact]
     public void GetEntries_SortedByEntryTime()
     {
-        var (tracker, aptLat, aptLon) = BuildTracker();
+        (TowerListTracker? tracker, double aptLat, double aptLon) = BuildTracker();
 
-        var ac1 = MakeAircraft("AAL100", aptLat + 0.15, aptLon);
+        AircraftState ac1 = MakeAircraft("AAL100", aptLat + 0.15, aptLon);
         tracker.Update([ac1], 10.0);
 
-        var ac2 = MakeAircraft("UAL200", aptLat + 0.10, aptLon);
+        AircraftState ac2 = MakeAircraft("UAL200", aptLat + 0.10, aptLon);
         tracker.Update([ac1, ac2], 20.0);
 
-        var entries = tracker.GetEntries(new TowerListKey("NCT", "P1"));
+        List<(string Callsign, double EnteredAtSeconds)> entries = tracker.GetEntries(new TowerListKey("NCT", "P1"));
         Assert.Equal(2, entries.Count);
         Assert.Equal("AAL100", entries[0].Callsign);
         Assert.Equal(10.0, entries[0].EnteredAtSeconds);

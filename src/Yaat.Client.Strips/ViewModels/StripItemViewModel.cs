@@ -80,7 +80,7 @@ public partial class StripItemViewModel : ObservableObject, IFindableItem
     {
         get
         {
-            var raw = Field(5);
+            string raw = Field(5);
             return string.IsNullOrEmpty(raw) ? "" : "P" + raw;
         }
     }
@@ -105,8 +105,8 @@ public partial class StripItemViewModel : ObservableObject, IFindableItem
     {
         get
         {
-            var raw = Field(9);
-            var nl = raw.IndexOf('\n');
+            string raw = Field(9);
+            int nl = raw.IndexOf('\n');
             return nl < 0 ? raw : raw[..nl];
         }
     }
@@ -114,8 +114,8 @@ public partial class StripItemViewModel : ObservableObject, IFindableItem
     {
         get
         {
-            var raw = Field(9);
-            var nl = raw.IndexOf('\n');
+            string raw = Field(9);
+            int nl = raw.IndexOf('\n');
             return nl < 0 ? "" : raw[(nl + 1)..];
         }
     }

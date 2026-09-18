@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -72,8 +73,8 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
     private static IReadOnlyList<StateSnapshotDto> CaptureBand(bool luaw)
     {
         var band = new List<StateSnapshotDto>();
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return band;
@@ -111,8 +112,8 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
     /// <summary>Load the scenario into a second engine and hand it the snapshot's world.</summary>
     private static SimulationEngine? RestoreInFreshEngine(StateSnapshotDto snapshot)
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return null;
@@ -131,20 +132,20 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
         for (int second = 1; second <= budgetSeconds; second++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             if (ac is null)
             {
                 break;
             }
 
-            var phase = ac.Phases?.CurrentPhase;
+            Phase? phase = ac.Phases?.CurrentPhase;
             if (phase is not LineUpPhase)
             {
                 return new RunResult(true, second, ac.Position, ac.GroundSpeed, phase?.GetType().Name ?? "(none)");
             }
         }
 
-        var last = engine.FindAircraft(Callsign);
+        AircraftState? last = engine.FindAircraft(Callsign);
         return new RunResult(
             false,
             budgetSeconds,
@@ -184,13 +185,13 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
             {
                 engine.RunPhysicsSubTick(subDelta, sub);
 
-                var ac = engine.FindAircraft(Callsign);
+                AircraftState? ac = engine.FindAircraft(Callsign);
                 if (ac is null)
                 {
                     break;
                 }
 
-                var phase = ac.Phases?.CurrentPhase;
+                Phase? phase = ac.Phases?.CurrentPhase;
                 if (phase is LineUpPhase)
                 {
                     continue;
@@ -214,7 +215,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
             }
         }
 
-        var last = engine.FindAircraft(Callsign);
+        AircraftState? last = engine.FindAircraft(Callsign);
         return new RunResult(
             false,
             budgetSeconds,
@@ -226,7 +227,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
 
     private static RunwayInfo Runway28R()
     {
-        var runway = TestVnasData.NavigationDb!.GetRunway("KOAK", "28R");
+        RunwayInfo? runway = TestVnasData.NavigationDb!.GetRunway("KOAK", "28R");
         Assert.NotNull(runway);
         return runway;
     }
@@ -244,14 +245,14 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
     /// <summary>Restore one band snapshot and run it out, logging the pose it started from.</summary>
     private RunResult RestoreAndRun(StateSnapshotDto snapshot, int offsetSeconds)
     {
-        var engine = RestoreInFreshEngine(snapshot);
+        SimulationEngine? engine = RestoreInFreshEngine(snapshot);
         Assert.NotNull(engine);
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.IsType<LineUpPhase>(ac.Phases?.CurrentPhase);
 
-        var (crossFt, headingOffDeg) = PoseAgainstRunway(ac, Runway28R());
-        var run = RunUntilLineUpEnds(engine, BudgetSeconds);
+        (double crossFt, double headingOffDeg) = PoseAgainstRunway(ac, Runway28R());
+        RunResult run = RunUntilLineUpEnds(engine, BudgetSeconds);
         output.WriteLine(
             $"+{offsetSeconds}s: restored at cross={crossFt:F1}ft hdgOff={headingOffDeg:F1}° gs={ac.GroundSpeed:F1}kt "
                 + $"-> {run.EndPhase} at +{run.Seconds}s gs={run.GroundSpeedKts:F1}kt"
@@ -306,7 +307,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
     [InlineData(24)]
     public void RollingCto_RestoredAtEachSecondOfTheLineUp_ReachesTakeoff(int offsetSeconds)
     {
-        var band = RollingBand.Value;
+        IReadOnlyList<StateSnapshotDto> band = RollingBand.Value;
         if (band.Count == 0)
         {
             output.WriteLine("SKIP: recording or navdata not available");
@@ -319,7 +320,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
             return;
         }
 
-        var run = RestoreAndRun(band[offsetSeconds - 1], offsetSeconds);
+        RunResult run = RestoreAndRun(band[offsetSeconds - 1], offsetSeconds);
         Assert.Equal("TakeoffPhase", run.EndPhase);
     }
 
@@ -354,7 +355,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
     [InlineData(24)]
     public void Luaw_RestoredAtEachSecondOfTheLineUp_HoldsInPositionOnTheCentreline(int offsetSeconds)
     {
-        var band = LuawBand.Value;
+        IReadOnlyList<StateSnapshotDto> band = LuawBand.Value;
         if (band.Count == 0)
         {
             output.WriteLine("SKIP: recording or navdata not available");
@@ -367,16 +368,16 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
             return;
         }
 
-        var engine = RestoreInFreshEngine(band[offsetSeconds - 1]);
+        SimulationEngine? engine = RestoreInFreshEngine(band[offsetSeconds - 1]);
         Assert.NotNull(engine);
-        var restored = engine.FindAircraft(Callsign);
+        AircraftState? restored = engine.FindAircraft(Callsign);
         Assert.NotNull(restored);
-        var restoredPhase = Assert.IsType<LineUpPhase>(restored.Phases?.CurrentPhase);
+        LineUpPhase restoredPhase = Assert.IsType<LineUpPhase>(restored.Phases?.CurrentPhase);
         Assert.False(restoredPhase.RollingMode, "fixture check: a LUAW line-up is not rolling");
 
-        var runway = Runway28R();
-        var (crossFt, headingOffDeg) = PoseAgainstRunway(restored, runway);
-        var run = RunUntilLineUpEnds(engine, BudgetSeconds);
+        RunwayInfo runway = Runway28R();
+        (double crossFt, double headingOffDeg) = PoseAgainstRunway(restored, runway);
+        RunResult run = RunUntilLineUpEnds(engine, BudgetSeconds);
         output.WriteLine($"+{offsetSeconds}s: restored at cross={crossFt:F1}ft hdgOff={headingOffDeg:F1}° -> {run.EndPhase} at +{run.Seconds}s");
 
         Assert.Equal("LinedUpAndWaitingPhase", run.EndPhase);
@@ -393,11 +394,11 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
             engine.TickOneSecond();
         }
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.IsType<LinedUpAndWaitingPhase>(ac.Phases?.CurrentPhase);
 
-        var (endCrossFt, endHeadingOffDeg) = PoseAgainstRunway(ac, runway);
+        (double endCrossFt, double endHeadingOffDeg) = PoseAgainstRunway(ac, runway);
         output.WriteLine($"+{offsetSeconds}s: settled at cross={endCrossFt:F1}ft hdgOff={endHeadingOffDeg:F1}° gs={ac.GroundSpeed:F2}kt");
 
         Assert.True(RunwayOccupancy.IsWithinPavement(ac.Position, runway), $"holding off the pavement ({endCrossFt:F1}ft from centerline)");
@@ -419,8 +420,8 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
     [Fact]
     public void RollingCto_RestoredMidLineUp_ReachesTakeoffLikeTheUnrestoredTwin()
     {
-        var recording = LoadRecording();
-        var twin = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? twin = BuildEngine();
         if (recording is null || twin is null)
         {
             output.WriteLine("SKIP: recording or navdata not available");
@@ -442,20 +443,20 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
             twin.TickOneSecond();
         }
 
-        var live = twin.FindAircraft(Callsign);
+        AircraftState? live = twin.FindAircraft(Callsign);
         Assert.NotNull(live);
-        var livePhase = Assert.IsType<LineUpPhase>(live.Phases?.CurrentPhase);
+        LineUpPhase livePhase = Assert.IsType<LineUpPhase>(live.Phases?.CurrentPhase);
         Assert.True(livePhase.RollingMode, "fixture check: the recorded CTO must put the line-up in rolling mode");
 
-        var restoredEngine = RestoreInFreshEngine(twin.CaptureSnapshot(0));
+        SimulationEngine? restoredEngine = RestoreInFreshEngine(twin.CaptureSnapshot(0));
         Assert.NotNull(restoredEngine);
-        var restoredAc = restoredEngine.FindAircraft(Callsign);
+        AircraftState? restoredAc = restoredEngine.FindAircraft(Callsign);
         Assert.NotNull(restoredAc);
-        var restoredPhase = Assert.IsType<LineUpPhase>(restoredAc.Phases?.CurrentPhase);
+        LineUpPhase restoredPhase = Assert.IsType<LineUpPhase>(restoredAc.Phases?.CurrentPhase);
         Assert.True(restoredPhase.RollingMode, "RollingMode must survive the snapshot round trip");
 
-        var twinRun = RunUntilLineUpEnds(twin, BudgetSeconds);
-        var restoredRun = RunUntilLineUpEnds(restoredEngine, BudgetSeconds);
+        RunResult twinRun = RunUntilLineUpEnds(twin, BudgetSeconds);
+        RunResult restoredRun = RunUntilLineUpEnds(restoredEngine, BudgetSeconds);
 
         output.WriteLine($"twin:     +{twinRun.Seconds}s -> {twinRun.EndPhase} gs={twinRun.GroundSpeedKts:F1}kt");
         output.WriteLine($"restored: +{restoredRun.Seconds}s -> {restoredRun.EndPhase} gs={restoredRun.GroundSpeedKts:F1}kt");
@@ -487,29 +488,29 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
     [Fact]
     public void RestoredLuaw_CtoBeforeTheFirstTick_UpgradesToRollingAndTakesOff()
     {
-        var band = LuawBand.Value;
+        IReadOnlyList<StateSnapshotDto> band = LuawBand.Value;
         if (band.Count == 0)
         {
             output.WriteLine("SKIP: recording or navdata not available");
             return;
         }
 
-        var engine = RestoreInFreshEngine(band[band.Count / 2]);
+        SimulationEngine? engine = RestoreInFreshEngine(band[band.Count / 2]);
         Assert.NotNull(engine);
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
-        var phase = Assert.IsType<LineUpPhase>(ac.Phases?.CurrentPhase);
+        LineUpPhase phase = Assert.IsType<LineUpPhase>(ac.Phases?.CurrentPhase);
         Assert.False(phase.RollingMode);
         Assert.True(
             ac.IndicatedAirspeed > LineUpPhase.RollingUpgradeMinSpeedKts,
             $"fixture check: the upgrade gate needs the aircraft still moving, ias={ac.IndicatedAirspeed:F1}kt"
         );
 
-        var result = engine.SendCommand(Callsign, "CTO");
+        CommandResult result = engine.SendCommand(Callsign, "CTO");
         Assert.True(result.Success, $"CTO refused: {result.Message}");
         Assert.True(phase.RollingMode, "CTO on a restored, not-yet-rebuilt line-up must upgrade it to rolling");
 
-        var run = RunUntilLineUpSettles(engine, BudgetSeconds);
+        RunResult run = RunUntilLineUpSettles(engine, BudgetSeconds);
         output.WriteLine($"restored LUAW + CTO: -> {run.EndPhase} at +{run.Seconds}s gs={run.GroundSpeedKts:F1}kt");
         Assert.Equal("TakeoffPhase", run.EndPhase);
     }
@@ -525,8 +526,8 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
         const double rwyHeadingDeg = 280.0;
         const double threshLat = 37.0;
         const double threshLon = -122.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(threshLat, threshLon, new TrueHeading(rwyHeadingDeg), 2.0);
-        var runway = TestRunwayFactory.Make(
+        (double endLat, double endLon) = GeoMath.ProjectPoint(threshLat, threshLon, new TrueHeading(rwyHeadingDeg), 2.0);
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             thresholdLat: threshLat,
             thresholdLon: threshLon,
@@ -536,7 +537,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
         );
 
         // On the centerline 500 ft downfield, on runway heading: the pose a rolling line-up ends in.
-        var (acLat, acLon) = GeoMath.ProjectPoint(threshLat, threshLon, new TrueHeading(rwyHeadingDeg), 500.0 / GeoMath.FeetPerNm);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(threshLat, threshLon, new TrueHeading(rwyHeadingDeg), 500.0 / GeoMath.FeetPerNm);
         var aircraft = new AircraftState
         {
             Callsign = "LUTEST",
@@ -567,7 +568,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
         phase.Status = PhaseStatus.Active;
         Assert.True(phase.RollingMode, "fixture check: a TakeoffPhase next in the list means rolling mode");
 
-        var dto = Assert.IsType<LineUpPhaseDto>(phase.ToSnapshot());
+        LineUpPhaseDto dto = Assert.IsType<LineUpPhaseDto>(phase.ToSnapshot());
         var restored = LineUpPhase.FromSnapshot(dto);
 
         Assert.True(restored.RollingMode, "RollingMode must survive the snapshot round trip");

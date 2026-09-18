@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -25,7 +26,7 @@ public sealed class QueryCommand : ICommand
             if (warnings.Count > 0)
             {
                 Console.Error.WriteLine($"VALIDATION: {warnings.Count} warning(s):");
-                foreach (var w in warnings)
+                foreach (ValidationWarning w in warnings)
                 {
                     Console.Error.WriteLine($"  [{w.Code}] {w.Message}{(w.Origin is not null ? $" (origin: {w.Origin})" : "")}");
                 }
@@ -59,10 +60,10 @@ public sealed class QueryCommand : ICommand
             formatter.WriteRunway(analyzer.GetRunwayDetail(runway));
         }
 
-        var nodeIdsToPrint = ExpandNodeIds(analyzer, options.NodeIds, options.NodeDepth);
+        List<int> nodeIdsToPrint = ExpandNodeIds(analyzer, options.NodeIds, options.NodeDepth);
         foreach (int nodeId in nodeIdsToPrint)
         {
-            var node = analyzer.GetNodeDetail(nodeId);
+            NodeInfo? node = analyzer.GetNodeDetail(nodeId);
             if (node is null)
             {
                 Console.Error.WriteLine($"Node {nodeId} not found");
@@ -73,7 +74,7 @@ public sealed class QueryCommand : ICommand
 
             if (options.NodeAngles)
             {
-                var angles = analyzer.GetNodeAngles(nodeId);
+                NodeAnglesResult? angles = analyzer.GetNodeAngles(nodeId);
                 if (angles is not null)
                 {
                     formatter.WriteNodeAngles(angles);
@@ -95,7 +96,7 @@ public sealed class QueryCommand : ICommand
             formatter.WriteExits(analyzer.GetExits(exitsRunway));
         }
 
-        foreach (var (qRwy, qTwy, qSide) in options.ExitQueries)
+        foreach ((string? qRwy, string? qTwy, string? qSide) in options.ExitQueries)
         {
             ExitSide? parsedSide = qSide?.ToLowerInvariant() switch
             {
@@ -168,7 +169,7 @@ public sealed class QueryCommand : ICommand
                 );
             }
 
-            var pfRoute = TaxiPathfinder.ResolveExplicitPath(
+            TaxiRoute? pfRoute = TaxiPathfinder.ResolveExplicitPath(
                 analyzer.Layout,
                 options.PathfinderNodeId.Value,
                 options.PathfinderTaxiways,
@@ -189,15 +190,13 @@ public sealed class QueryCommand : ICommand
             // If a destination hint is set but the explicit walk didn't reach it,
             // run FindRoute to extend — same as GroundCommandHandler.ResolveParkingRoute.
             // This lets us observe the full combined route (with any reversals) from the CLI.
-            List<PathfinderSegment>? combinedSegments = pfRoute
-                ?.Segments.Select(s => new PathfinderSegment(s.TaxiwayName, s.FromNodeId, s.ToNodeId))
-                .ToList();
+            var combinedSegments = pfRoute?.Segments.Select(s => new PathfinderSegment(s.TaxiwayName, s.FromNodeId, s.ToNodeId)).ToList();
             if (destHintNode is not null && pfRoute is not null && pfRoute.Segments.Count > 0)
             {
                 int explicitEndNodeId = pfRoute.Segments[^1].ToNodeId;
                 if (explicitEndNodeId != destHintNode.Id)
                 {
-                    var extension = TaxiPathfinder.FindRoute(analyzer.Layout, explicitEndNodeId, destHintNode.Id, AircraftCategory.Jet);
+                    TaxiRoute? extension = TaxiPathfinder.FindRoute(analyzer.Layout, explicitEndNodeId, destHintNode.Id, AircraftCategory.Jet);
                     if (extension is not null)
                     {
                         diagLog.Add($"[LI] Extension via FindRoute({explicitEndNodeId} → {destHintNode.Id}): {extension.Segments.Count} segment(s)");
@@ -254,7 +253,7 @@ public sealed class QueryCommand : ICommand
 
         if (options.DistanceFromNodeId is not null && options.DistanceToNodeId is not null)
         {
-            var distance = analyzer.GetNodeDistance(options.DistanceFromNodeId.Value, options.DistanceToNodeId.Value);
+            NodeDistanceResult? distance = analyzer.GetNodeDistance(options.DistanceFromNodeId.Value, options.DistanceToNodeId.Value);
             if (distance is null)
             {
                 Console.Error.WriteLine(
@@ -268,7 +267,7 @@ public sealed class QueryCommand : ICommand
 
         if (options.PathDistanceNodes.Count > 0)
         {
-            var pathDistance = analyzer.GetPathDistance(options.PathDistanceNodes);
+            PathDistanceResult? pathDistance = analyzer.GetPathDistance(options.PathDistanceNodes);
             if (pathDistance is null)
             {
                 Console.Error.WriteLine(
@@ -319,14 +318,14 @@ public sealed class QueryCommand : ICommand
             var next = new List<int>();
             foreach (int id in frontier)
             {
-                if (!analyzer.Layout.Nodes.TryGetValue(id, out var node))
+                if (!analyzer.Layout.Nodes.TryGetValue(id, out GroundNode? node))
                 {
                     continue;
                 }
 
-                foreach (var edge in node.Edges)
+                foreach (IGroundEdge edge in node.Edges)
                 {
-                    foreach (var nb in edge.Nodes)
+                    foreach (GroundNode nb in edge.Nodes)
                     {
                         if (visited.Add(nb.Id))
                         {
@@ -355,20 +354,20 @@ public sealed class QueryCommand : ICommand
     {
         Console.WriteLine($"=== auto-route from #{startNodeId} to RWY {runwayId} ===");
 
-        if (!analyzer.Layout.Nodes.TryGetValue(startNodeId, out var startNode))
+        if (!analyzer.Layout.Nodes.TryGetValue(startNodeId, out GroundNode? startNode))
         {
             Console.Error.WriteLine($"Node {startNodeId} not found");
             return;
         }
 
-        var holdShortNodes = analyzer.Layout.GetRunwayHoldShortNodes(runwayId);
+        List<GroundNode> holdShortNodes = analyzer.Layout.GetRunwayHoldShortNodes(runwayId);
         if (holdShortNodes.Count == 0)
         {
             Console.Error.WriteLine($"No hold-short nodes for runway {runwayId}");
             return;
         }
 
-        var targetHs = TaxiPathfinder.FindFullLengthLineupHoldShort(analyzer.Layout, startNode, runwayId, holdShortNodes);
+        GroundNode targetHs = TaxiPathfinder.FindFullLengthLineupHoldShort(analyzer.Layout, startNode, runwayId, holdShortNodes);
 
         Console.WriteLine(
             $"start:       #{startNode.Id} {startNode.Type} {startNode.Name ?? ""} ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})"
@@ -377,7 +376,7 @@ public sealed class QueryCommand : ICommand
             $"target HS:   #{targetHs.Id} RunwayHoldShort rwy={targetHs.RunwayId} ({targetHs.Position.Lat:F6}, {targetHs.Position.Lon:F6})"
         );
         Console.WriteLine($"hold-short candidates considered: {holdShortNodes.Count}");
-        foreach (var node in holdShortNodes)
+        foreach (GroundNode node in holdShortNodes)
         {
             string marker = node.Id == targetHs.Id ? " ← chosen (full-length lineup)" : "";
             string twyEdges = string.Join(",", node.Edges.Select(e => e.TaxiwayName).Distinct().Where(t => t != "RAMP"));
@@ -385,7 +384,7 @@ public sealed class QueryCommand : ICommand
         }
         Console.WriteLine();
 
-        var route = TaxiPathfinder.FindRoute(analyzer.Layout, startNode.Id, targetHs.Id, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(analyzer.Layout, startNode.Id, targetHs.Id, AircraftCategory.Jet);
         if (route is null)
         {
             Console.Error.WriteLine($"No A* route from #{startNodeId} to #{targetHs.Id}");
@@ -395,7 +394,7 @@ public sealed class QueryCommand : ICommand
         double totalNm = 0;
         var taxiwaySequence = new List<string>();
         string? prevTwy = null;
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             totalNm += seg.Edge.DistanceNm;
             if (!string.Equals(seg.TaxiwayName, prevTwy, StringComparison.OrdinalIgnoreCase))
@@ -410,9 +409,9 @@ public sealed class QueryCommand : ICommand
         Console.WriteLine($"total:       {totalNm:F4} nm ({totalNm * GeoMath.FeetPerNm:F0} ft)");
 
         int crossings = 0;
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
-            if (analyzer.Layout.Nodes.TryGetValue(seg.ToNodeId, out var toNode) && toNode.Type == GroundNodeType.RunwayHoldShort)
+            if (analyzer.Layout.Nodes.TryGetValue(seg.ToNodeId, out GroundNode? toNode) && toNode.Type == GroundNodeType.RunwayHoldShort)
             {
                 if (toNode.Id != targetHs.Id)
                 {
@@ -429,7 +428,7 @@ public sealed class QueryCommand : ICommand
         Console.WriteLine();
         Console.WriteLine("segments:");
         int idx = 0;
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             string label = $"#{seg.FromNodeId} → #{seg.ToNodeId}";
             Console.WriteLine($"  [{idx, 3}] {seg.TaxiwayName, -8} {label, -22} {seg.Edge.DistanceNm * GeoMath.FeetPerNm, 7:F0} ft");
@@ -454,7 +453,7 @@ public sealed class QueryCommand : ICommand
         }
 
         var diag = new List<string>();
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             analyzer.Layout,
             nodeId,
             [taxiway],
@@ -473,7 +472,7 @@ public sealed class QueryCommand : ICommand
             Console.WriteLine($"  result: {route.Segments.Count} segment(s)");
             for (int i = 0; i < route.Segments.Count; i++)
             {
-                var s = route.Segments[i];
+                TaxiRouteSegment s = route.Segments[i];
                 Console.WriteLine($"    [{i, 3}] {s.FromNodeId, 5} -> {s.ToNodeId, 5} ({s.TaxiwayName})");
             }
         }
@@ -514,7 +513,7 @@ public sealed class QueryCommand : ICommand
         );
         foreach (string line in diagLog)
         {
-            var m = cachedRe.Match(line);
+            Match m = cachedRe.Match(line);
             if (m.Success && int.TryParse(m.Groups[1].Value, out int n))
             {
                 extensionCount += n;
@@ -541,8 +540,8 @@ public sealed class QueryCommand : ICommand
     {
         for (int i = 0; i + 1 < segments.Count; i++)
         {
-            var a = segments[i];
-            var b = segments[i + 1];
+            PathfinderSegment a = segments[i];
+            PathfinderSegment b = segments[i + 1];
             if (a.FromNodeId == b.ToNodeId && a.ToNodeId == b.FromNodeId)
             {
                 diagLog.Add($"[LI] REVERSAL at index {i}: ({a.FromNodeId}→{a.ToNodeId}) then ({b.FromNodeId}→{b.ToNodeId})");
@@ -581,7 +580,7 @@ public sealed class QueryCommand : ICommand
 
         for (int i = 0; i < segments.Count; i++)
         {
-            if (TryGetSegmentArc(analyzer, segments[i], out var arc))
+            if (TryGetSegmentArc(analyzer, segments[i], out GroundArc? arc))
             {
                 double maxSafe = arc.MaxSafeSpeedKts(AircraftCategory.Jet);
                 if (maxSafe < TightArcMaxSafeKts)
@@ -598,12 +597,12 @@ public sealed class QueryCommand : ICommand
     private static bool TryGetSegmentArc(LayoutAnalyzer analyzer, PathfinderSegment seg, out GroundArc arc)
     {
         arc = null!;
-        if (!analyzer.Layout.Nodes.TryGetValue(seg.FromNodeId, out var fromNode))
+        if (!analyzer.Layout.Nodes.TryGetValue(seg.FromNodeId, out GroundNode? fromNode))
         {
             return false;
         }
 
-        foreach (var edge in fromNode.Edges)
+        foreach (IGroundEdge edge in fromNode.Edges)
         {
             if (
                 edge is GroundArc candidate

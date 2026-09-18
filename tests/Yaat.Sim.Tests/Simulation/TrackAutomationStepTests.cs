@@ -36,8 +36,8 @@ public class TrackAutomationStepTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = Student;
         scenario.StudentTcp = TrackResolver.FindTcpByCode(scenario, "2B")!;
 
@@ -72,7 +72,7 @@ public class TrackAutomationStepTests
 
     private static AircraftState Owned(SimulationEngine engine, TrackOwner owner)
     {
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         aircraft.Track.Owner = owner;
         return aircraft;
     }
@@ -85,9 +85,9 @@ public class TrackAutomationStepTests
             return;
         }
 
-        var scenario = engine.Scenario!;
-        var aircraft = Owned(engine, Student);
-        var lines = CaptureTerminal(engine);
+        SimScenarioState scenario = engine.Scenario!;
+        AircraftState aircraft = Owned(engine, Student);
+        List<string> lines = CaptureTerminal(engine);
         scenario.DelayedHandoffQueue.Add(
             new DelayedHandoff
             {
@@ -119,8 +119,8 @@ public class TrackAutomationStepTests
             return;
         }
 
-        var scenario = engine.Scenario!;
-        var aircraft = Owned(engine, Student);
+        SimScenarioState scenario = engine.Scenario!;
+        AircraftState aircraft = Owned(engine, Student);
         AttendanceTestSupport.Attend(engine, "4U");
         scenario.DelayedHandoffQueue.Add(
             new DelayedHandoff
@@ -154,10 +154,10 @@ public class TrackAutomationStepTests
             return;
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
-        var aircraft = Owned(engine, Student);
-        var lines = CaptureTerminal(engine);
+        AircraftState aircraft = Owned(engine, Student);
+        List<string> lines = CaptureTerminal(engine);
         aircraft.Track.HandoffPeer = Nct4U;
         aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
 
@@ -186,10 +186,10 @@ public class TrackAutomationStepTests
             return;
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
         AttendanceTestSupport.Attend(engine, "4U");
-        var aircraft = Owned(engine, Student);
+        AircraftState aircraft = Owned(engine, Student);
         aircraft.Track.HandoffPeer = Nct4U;
         aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
 
@@ -207,10 +207,10 @@ public class TrackAutomationStepTests
             return;
         }
 
-        var studentScenario = toStudent.Scenario!;
+        SimScenarioState studentScenario = toStudent.Scenario!;
         studentScenario.SoloTrainingMode = true;
         studentScenario.AutoAcceptDelay = TimeSpan.Zero;
-        var handedToStudent = Owned(toStudent, Nct4U);
+        AircraftState handedToStudent = Owned(toStudent, Nct4U);
         handedToStudent.Track.HandoffPeer = Student;
         handedToStudent.Track.HandoffInitiatedAt = studentScenario.ElapsedSeconds;
 
@@ -219,11 +219,11 @@ public class TrackAutomationStepTests
         Assert.NotNull(handedToStudent.Track.HandoffPeer);
         Assert.True(handedToStudent.Track.Owner!.MatchesPosition(Nct4U));
 
-        var toAi = Engine()!;
-        var aiScenario = toAi.Scenario!;
+        SimulationEngine toAi = Engine()!;
+        SimScenarioState aiScenario = toAi.Scenario!;
         aiScenario.SoloTrainingMode = true;
         aiScenario.AutoAcceptDelay = TimeSpan.Zero;
-        var handedToAi = Owned(toAi, Student);
+        AircraftState handedToAi = Owned(toAi, Student);
         handedToAi.Track.HandoffPeer = Nct4U;
         handedToAi.Track.HandoffInitiatedAt = aiScenario.ElapsedSeconds;
 
@@ -245,9 +245,9 @@ public class TrackAutomationStepTests
             return;
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.AutoAcceptDelay = TimeSpan.Zero;
-        var aircraft = Owned(engine, Student);
+        AircraftState aircraft = Owned(engine, Student);
         aircraft.Track.HandoffPeer = Nct4U;
         aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
 
@@ -265,9 +265,9 @@ public class TrackAutomationStepTests
             return;
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         aircraft.Track.SetOwnerFromLiveFeed(Student);
         aircraft.Track.HandoffPeer = Nct4U;
         aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
@@ -290,11 +290,11 @@ public class TrackAutomationStepTests
             return;
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
-        var aircraft = Owned(engine, Student);
-        var lines = CaptureTerminal(engine);
-        var recipient = TrackResolver.FindTcpByCode(scenario, "4U")!;
+        AircraftState aircraft = Owned(engine, Student);
+        List<string> lines = CaptureTerminal(engine);
+        Tcp recipient = TrackResolver.FindTcpByCode(scenario, "4U")!;
         aircraft.Track.Pointout = new StarsPointout(recipient, scenario.StudentTcp!) { InitiatedAt = scenario.ElapsedSeconds };
 
         AiTestFixture.Tick(engine, 29);
@@ -317,11 +317,11 @@ public class TrackAutomationStepTests
             return;
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
         AttendanceTestSupport.Attend(engine, "4U");
-        var aircraft = Owned(engine, Student);
-        var recipient = TrackResolver.FindTcpByCode(scenario, "4U")!;
+        AircraftState aircraft = Owned(engine, Student);
+        Tcp recipient = TrackResolver.FindTcpByCode(scenario, "4U")!;
         aircraft.Track.Pointout = new StarsPointout(recipient, scenario.StudentTcp!) { InitiatedAt = scenario.ElapsedSeconds };
 
         AiTestFixture.Tick(engine, 40);
@@ -339,10 +339,10 @@ public class TrackAutomationStepTests
 
         // The student is the receiving controller of §5-4-7.b: they answer a point-out addressed to their own sector
         // by hand, exactly as they accept their own handoff, and nothing withdraws it out from under them.
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.SoloTrainingMode = true;
         scenario.AutoAcceptDelay = TimeSpan.Zero;
-        var aircraft = Owned(engine, Nct4U);
+        AircraftState aircraft = Owned(engine, Nct4U);
         aircraft.Track.Pointout = new StarsPointout(scenario.StudentTcp!, TrackResolver.FindTcpByCode(scenario, "4U")!)
         {
             InitiatedAt = scenario.ElapsedSeconds,
@@ -365,13 +365,13 @@ public class TrackAutomationStepTests
             return;
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.SoloTrainingMode = true;
         scenario.AutoAcceptDelay = TimeSpan.Zero;
-        var studentTcp = scenario.StudentTcp!;
-        var sender = TrackResolver.FindTcpByCode(scenario, "4U")!;
+        Tcp studentTcp = scenario.StudentTcp!;
+        Tcp sender = TrackResolver.FindTcpByCode(scenario, "4U")!;
         scenario.StudentTcp = null;
-        var aircraft = Owned(engine, Nct4U);
+        AircraftState aircraft = Owned(engine, Nct4U);
         aircraft.Track.Pointout = new StarsPointout(studentTcp, sender) { InitiatedAt = scenario.ElapsedSeconds };
 
         AiTestFixture.Tick(engine, 40);
@@ -387,10 +387,10 @@ public class TrackAutomationStepTests
             return;
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.SoloTrainingMode = true;
         scenario.AutoAcceptDelay = TimeSpan.Zero;
-        var aircraft = Owned(engine, Student);
+        AircraftState aircraft = Owned(engine, Student);
         aircraft.Track.Pointout = new StarsPointout(TrackResolver.FindTcpByCode(scenario, "4U")!, scenario.StudentTcp!)
         {
             InitiatedAt = scenario.ElapsedSeconds,
@@ -417,9 +417,9 @@ public class TrackAutomationStepTests
             return;
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.AutoAcceptDelay = TimeSpan.Zero;
-        var aircraft = Owned(engine, Student);
+        AircraftState aircraft = Owned(engine, Student);
         aircraft.Track.Pointout = new StarsPointout(TrackResolver.FindTcpByCode(scenario, "4U")!, scenario.StudentTcp!)
         {
             InitiatedAt = scenario.ElapsedSeconds,

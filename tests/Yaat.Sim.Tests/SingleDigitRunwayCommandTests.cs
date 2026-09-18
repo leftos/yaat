@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
@@ -57,12 +58,12 @@ public class SingleDigitRunwayCommandTests
     [Fact]
     public void Capp_SingleDigit8R_ResolvesCanonicalApproach()
     {
-        var aircraft = MakeArrival();
-        using var _ = NavigationDatabase.ScopedOverride(MakeMiaNavDb());
+        AircraftState aircraft = MakeArrival();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(MakeMiaNavDb());
 
         // Controller types the FAA form "ILS8R"; the approach resolves to the canonical "I08R".
         var cmd = new ClearedApproachCommand("ILS8R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -76,13 +77,13 @@ public class SingleDigitRunwayCommandTests
     [Fact]
     public void Pt_SingleDigit8R_ResolvesRunway()
     {
-        var aircraft = MakeArrival();
+        AircraftState aircraft = MakeArrival();
         aircraft.Altitude = 1500;
         aircraft.Phases = new PhaseList();
-        using var _ = NavigationDatabase.ScopedOverride(MakeMiaNavDb());
+        using IDisposable _ = NavigationDatabase.ScopedOverride(MakeMiaNavDb());
 
         // PT with the FAA form "8R" must resolve the 08R runway.
-        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, "8R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, "8R", null);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases?.AssignedRunway);
@@ -93,13 +94,13 @@ public class SingleDigitRunwayCommandTests
     [Fact]
     public void AirTaxi_PaddedSingleDigitRunway_ResolvesNamedEndNotOpposite()
     {
-        var layout = new TestAirportGroundData().GetLayout("MIA");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("MIA");
         if (layout is null)
         {
             return;
         }
 
-        var rwy = layout.Runways.First(r => r.Name == "9 - 27");
+        GroundRunway rwy = layout.Runways.First(r => r.Name == "9 - 27");
         var end9 = new LatLon(rwy.Coordinates[0].Lat, rwy.Coordinates[0].Lon);
         var end27 = new LatLon(rwy.Coordinates[^1].Lat, rwy.Coordinates[^1].Lon);
 
@@ -107,14 +108,14 @@ public class SingleDigitRunwayCommandTests
         // designator resolves to the full-length bar of the end the controller named. The zero-padded identity
         // "09" must pick the rwy-9 end (first-named), not silently fall through to the opposite "27" end —
         // FindRunway matches single-digit padded designators, so the end-selection compare must normalize too.
-        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, "09", out var bar09));
+        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, "09", out GroundCommandHandler.AirTaxiDestination? bar09));
         Assert.Equal(GroundCommandHandler.AirTaxiDestinationKind.Runway, bar09.Kind);
         Assert.True(
             GeoMath.DistanceNm(bar09.Target, end9) < GeoMath.DistanceNm(bar09.Target, end27),
             "ATXI 09 must hold short at the runway 9 end, not the 27 end"
         );
 
-        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, "27", out var bar27));
+        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, "27", out GroundCommandHandler.AirTaxiDestination? bar27));
         Assert.Equal(GroundCommandHandler.AirTaxiDestinationKind.Runway, bar27.Kind);
         Assert.True(
             GeoMath.DistanceNm(bar27.Target, end27) < GeoMath.DistanceNm(bar27.Target, end9),
@@ -141,7 +142,7 @@ public class SingleDigitRunwayCommandTests
         Assert.Equal("air taxi to runway 9 at T", PhraseologyVerbalizer.VerbalizeTerminal(new AirTaxiCommand("09@T")));
         Assert.Equal("air taxi to runway nine", PhraseologyVerbalizer.Verbalize(new AirTaxiCommand("09")));
 
-        var layout = new TestAirportGroundData().GetLayout("MIA");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("MIA");
         if (layout is null)
         {
             return;
@@ -161,11 +162,11 @@ public class SingleDigitRunwayCommandTests
         heli.Ground.Layout = layout;
         heli.Phases = new PhaseList();
 
-        var result = GroundCommandHandler.TryAirTaxi(heli, "9", layout);
+        CommandResult result = GroundCommandHandler.TryAirTaxi(heli, "9", layout);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("Air taxi to runway 9, holding short", result.Message);
-        var effective = Assert.IsType<AirTaxiCommand>(result.EffectiveCommand);
+        AirTaxiCommand effective = Assert.IsType<AirTaxiCommand>(result.EffectiveCommand);
         Assert.Equal("09", effective.Destination);
         Assert.Equal("air taxi to runway nine", PhraseologyVerbalizer.Verbalize(effective));
     }

@@ -44,15 +44,15 @@ public sealed class VideoMapRenderer : IDisposable
     {
         RadarLineStyle.Apply(_strokePaints, RadarLineStyle.GetScale(canvas));
 
-        foreach (var map in maps)
+        foreach (VideoMapData map in maps)
         {
-            var category = brightnessLookup.GetValueOrDefault(map.MapId, "A");
-            var paint = category == "B" ? _mapPaintB : _mapPaintA;
+            string category = brightnessLookup.GetValueOrDefault(map.MapId, "A");
+            SKPaint paint = category == "B" ? _mapPaintB : _mapPaintA;
 
-            var brightness = category == "B" ? BrightnessB : BrightnessA;
+            float brightness = category == "B" ? BrightnessB : BrightnessA;
             paint.Color = BaseMapColor.WithAlpha((byte)(brightness * 255));
 
-            foreach (var line in map.Lines)
+            foreach (VideoMapLine line in map.Lines)
             {
                 if (line.Points.Count < 2)
                 {
@@ -60,7 +60,7 @@ public sealed class VideoMapRenderer : IDisposable
                 }
 
                 using var path = new SKPath();
-                var (sx, sy) = vp.LatLonToScreen(line.Points[0].Lat, line.Points[0].Lon);
+                (float sx, float sy) = vp.LatLonToScreen(line.Points[0].Lat, line.Points[0].Lon);
                 path.MoveTo(sx, sy);
 
                 for (int i = 1; i < line.Points.Count; i++)

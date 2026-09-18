@@ -34,31 +34,31 @@ public class ActionRouterIdentityIsolationTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
-        var scenario = engine.Scenario!;
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        SimScenarioState scenario = engine.Scenario!;
 
         // A student on OAK Tower, so "AS 3T" resolves to an owner that is not the AI ground position.
         var student = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "T");
         scenario.StudentPosition = student;
         scenario.StudentTcp = new Tcp(3, "T", "tcp-oak-twr", null);
 
-        var aiConnectionId = AiConnectionId.Format(ground.PositionId);
-        var aiOwner = _zoa.ResolvePosition(ground.PositionId);
+        string aiConnectionId = AiConnectionId.Format(ground.PositionId);
+        TrackOwner? aiOwner = _zoa.ResolvePosition(ground.PositionId);
         Assert.NotNull(aiOwner);
         Assert.NotEqual(student, aiOwner);
 
         // A recorded active-position selection carrying the AI's connection id, replayed into this engine.
         engine.Actions.Apply(new RecordedCommand(0, AiTestFixture.Callsign, "AS 3T", "XX", aiConnectionId));
 
-        var result = engine.DispatchAiCommand(ground, AiTestFixture.Callsign, "TRACK");
+        CommandResult result = engine.DispatchAiCommand(ground, AiTestFixture.Callsign, "TRACK");
 
         Assert.True(result.Success, result.Message);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.Equal(aiOwner, aircraft.Track.Owner);
 
         // The recorded selection landed in the engine's one map, under the AI connection id, and stayed there.
-        Assert.True(engine.PositionSelections.TryGet(aiConnectionId, out var selected));
+        Assert.True(engine.PositionSelections.TryGet(aiConnectionId, out TrackOwner? selected));
         Assert.Equal(student, selected);
     }
 
@@ -70,8 +70,8 @@ public class ActionRouterIdentityIsolationTests
             return;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         var dep = TrackOwner.CreateStars("SFO_DEP", "NCT", 4, "U");
         engine.PositionSelections.Select("conn-1", dep);
 
@@ -97,8 +97,8 @@ public class ActionRouterIdentityIsolationTests
             return;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var snapshot = engine.CaptureSnapshot(0);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot(0);
         var withoutSelections = new StateSnapshotDto
         {
             SchemaVersion = snapshot.SchemaVersion,

@@ -9,11 +9,11 @@ public class DispatchOriginTests
     [Fact]
     public void Format_AndParse_RoundTrip()
     {
-        var id = AiConnectionId.Format("01GEAMCGAZ0000000000000000");
+        string id = AiConnectionId.Format("01GEAMCGAZ0000000000000000");
 
         Assert.Equal("AI:01GEAMCGAZ0000000000000000", id);
         Assert.True(AiConnectionId.IsAi(id));
-        Assert.True(AiConnectionId.TryParse(id, out var positionId));
+        Assert.True(AiConnectionId.TryParse(id, out string? positionId));
         Assert.Equal("01GEAMCGAZ0000000000000000", positionId);
         Assert.Equal(DispatchOrigin.ControllerAi, AiConnectionId.OriginOf(id));
     }

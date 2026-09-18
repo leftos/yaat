@@ -65,7 +65,7 @@ public class WakeTurbulenceDataTests
     [InlineData("C172", 2.7)] // Small GA
     public void TrafficDetectionRangeNm_PhysicalDimensions(string type, double expected)
     {
-        var actual = WakeTurbulenceData.TrafficDetectionRangeNm(type, AircraftCategory.Jet);
+        double actual = WakeTurbulenceData.TrafficDetectionRangeNm(type, AircraftCategory.Jet);
         Assert.InRange(actual, expected - 0.5, expected + 0.5);
     }
 
@@ -106,7 +106,7 @@ public class WakeTurbulenceDataTests
     [InlineData("CRJ7", "C172", 0.0)] // G -> I  (regional leader imposes no wake minimum)
     public void OnApproachWakeSeparation_UsesCwtMatrix(string lead, string follow, double expected)
     {
-        var nm = WakeTurbulenceData.OnApproachWakeSeparationNm(
+        double nm = WakeTurbulenceData.OnApproachWakeSeparationNm(
             lead,
             AircraftCategorization.Categorize(lead),
             follow,
@@ -120,13 +120,13 @@ public class WakeTurbulenceDataTests
     {
         // B763 (CWT C) ahead of B738 (CWT F): the precise CWT minimum is 3.5 NM, where the coarse
         // Heavy->Large bucket would demand 5 NM. CWT closes the stream up.
-        var cwt = WakeTurbulenceData.OnApproachWakeSeparationNm(
+        double cwt = WakeTurbulenceData.OnApproachWakeSeparationNm(
             "B763",
             AircraftCategorization.Categorize("B763"),
             "B738",
             AircraftCategorization.Categorize("B738")
         );
-        var coarse = WakeTurbulenceData.OnApproachWakeSeparationNm(WakeTurbulenceData.WakeClass.Heavy, WakeTurbulenceData.WakeClass.Large);
+        double coarse = WakeTurbulenceData.OnApproachWakeSeparationNm(WakeTurbulenceData.WakeClass.Heavy, WakeTurbulenceData.WakeClass.Large);
 
         Assert.Equal(3.5, cwt, precision: 1);
         Assert.Equal(5.0, coarse, precision: 1);
@@ -138,7 +138,7 @@ public class WakeTurbulenceDataTests
     {
         // "ZZZZ" has no CWT, so the pair drops to the coarse weight-class minima: an unknown jet maps to
         // the Large class, which imposes no wake minimum on a following small aircraft.
-        var nm = WakeTurbulenceData.OnApproachWakeSeparationNm("ZZZZ", AircraftCategory.Jet, "C172", AircraftCategorization.Categorize("C172"));
+        double nm = WakeTurbulenceData.OnApproachWakeSeparationNm("ZZZZ", AircraftCategory.Jet, "C172", AircraftCategorization.Categorize("C172"));
         Assert.Equal(0.0, nm, precision: 1);
     }
 
@@ -148,7 +148,7 @@ public class WakeTurbulenceDataTests
         // B744 is CWT D = HEAVY. When the follower has no CWT code the pair drops to the coarse weight
         // class, which must still treat the D leader as Heavy (not Large) so a heavy widebody ahead of an
         // unknown jet keeps the Heavy->Large 5 NM wake floor instead of collapsing to no requirement.
-        var nm = WakeTurbulenceData.OnApproachWakeSeparationNm("B744", AircraftCategorization.Categorize("B744"), "ZZZZ", AircraftCategory.Jet);
+        double nm = WakeTurbulenceData.OnApproachWakeSeparationNm("B744", AircraftCategorization.Categorize("B744"), "ZZZZ", AircraftCategory.Jet);
         Assert.Equal(5.0, nm, precision: 1);
     }
 

@@ -54,8 +54,8 @@ public static class LmKitLicense
     /// </summary>
     public static LmKitLicenseInitResult Initialize()
     {
-        var (key, source) = ResolveKey();
-        var tier = string.IsNullOrEmpty(key) ? LmKitLicenseTier.Community : LmKitLicenseTier.Licensed;
+        (string? key, LmKitLicenseSource source) = ResolveKey();
+        LmKitLicenseTier tier = string.IsNullOrEmpty(key) ? LmKitLicenseTier.Community : LmKitLicenseTier.Licensed;
         try
         {
             LicenseManager.SetLicenseKey(key ?? string.Empty);
@@ -69,19 +69,19 @@ public static class LmKitLicense
 
     private static (string? Key, LmKitLicenseSource Source) ResolveKey()
     {
-        var envVar = Environment.GetEnvironmentVariable(EnvVarName);
+        string? envVar = Environment.GetEnvironmentVariable(EnvVarName);
         if (!string.IsNullOrWhiteSpace(envVar))
         {
             return (envVar.Trim(), LmKitLicenseSource.EnvironmentVariable);
         }
 
-        var dotEnvValue = ReadFromDotEnv(EnvVarName);
+        string? dotEnvValue = ReadFromDotEnv(EnvVarName);
         if (!string.IsNullOrWhiteSpace(dotEnvValue))
         {
             return (dotEnvValue, LmKitLicenseSource.EnvFile);
         }
 
-        var embedded = ReadFromAssemblyMetadata();
+        string? embedded = ReadFromAssemblyMetadata();
         if (!string.IsNullOrWhiteSpace(embedded))
         {
             return (embedded, LmKitLicenseSource.AssemblyMetadata);
@@ -92,8 +92,8 @@ public static class LmKitLicense
 
     private static string? ReadFromAssemblyMetadata()
     {
-        var assembly = typeof(LmKitLicense).Assembly;
-        foreach (var attr in assembly.GetCustomAttributes<AssemblyMetadataAttribute>())
+        Assembly assembly = typeof(LmKitLicense).Assembly;
+        foreach (AssemblyMetadataAttribute attr in assembly.GetCustomAttributes<AssemblyMetadataAttribute>())
         {
             if (string.Equals(attr.Key, AssemblyMetadataKey, StringComparison.Ordinal))
             {
@@ -108,7 +108,7 @@ public static class LmKitLicense
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, EnvFileName);
+            string candidate = Path.Combine(dir.FullName, EnvFileName);
             if (File.Exists(candidate))
             {
                 return TryExtract(candidate, key);
@@ -132,24 +132,24 @@ public static class LmKitLicense
             return null;
         }
 
-        foreach (var raw in lines)
+        foreach (string raw in lines)
         {
-            var line = raw.Trim();
+            string line = raw.Trim();
             if (line.Length == 0 || line.StartsWith('#'))
             {
                 continue;
             }
-            var eq = line.IndexOf('=');
+            int eq = line.IndexOf('=');
             if (eq <= 0)
             {
                 continue;
             }
-            var k = line[..eq].Trim();
+            string k = line[..eq].Trim();
             if (!string.Equals(k, key, StringComparison.Ordinal))
             {
                 continue;
             }
-            var v = line[(eq + 1)..].Trim();
+            string v = line[(eq + 1)..].Trim();
             // Strip matching outer quotes so `LMKIT_LICENSE_KEY="abc"` and `LMKIT_LICENSE_KEY=abc`
             // both resolve to `abc`. Matches the dotenv convention used by Node tooling elsewhere
             // in the repo (tools/discord-bot) so a single .env file works for both stacks.

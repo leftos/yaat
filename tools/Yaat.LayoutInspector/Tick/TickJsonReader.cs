@@ -16,13 +16,13 @@ public static class TickJsonReader
     /// </summary>
     public static TickRecording? Read(string path)
     {
-        var json = File.ReadAllText(path);
+        string json = File.ReadAllText(path);
         if (string.IsNullOrWhiteSpace(json))
         {
             return null;
         }
 
-        var recording = JsonSerializer.Deserialize<TickRecording>(json, Options);
+        TickRecording? recording = JsonSerializer.Deserialize<TickRecording>(json, Options);
         if (recording is null)
         {
             return null;

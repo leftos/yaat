@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -49,15 +51,15 @@ public class HelicopterLandSpotFromDistanceTests(ITestOutputHelper output)
 
     private static LatLon? SpotPosition()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
-        var node = layout?.FindSpotByName(Spot);
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        GroundNode? node = layout?.FindSpotByName(Spot);
         return node?.Position;
     }
 
     [Fact]
     public void N20662_LandAtSig1FromNineMiles_HoldsAltitudeUntilFinal()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -65,16 +67,16 @@ public class HelicopterLandSpotFromDistanceTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
-            var spot = SpotPosition();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
+            LatLon? spot = SpotPosition();
             if (engine is null || spot is null)
             {
                 return;
             }
 
             engine.Replay(recording, 0);
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 output.WriteLine($"No snapshot near t={RestoreAtSeconds} — skipping");
@@ -84,7 +86,7 @@ public class HelicopterLandSpotFromDistanceTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             int t0 = (int)snapshot.ElapsedSeconds;
 
-            var pre = engine.FindAircraft(Callsign);
+            AircraftState? pre = engine.FindAircraft(Callsign);
             Assert.NotNull(pre);
             Assert.IsType<VfrHoldPhase>(pre.Phases?.CurrentPhase);
             double startAltitude = pre.Altitude;
@@ -95,7 +97,7 @@ public class HelicopterLandSpotFromDistanceTests(ITestOutputHelper output)
                 engine.ReplayOneSecond();
             }
 
-            var afterLand = engine.FindAircraft(Callsign);
+            AircraftState? afterLand = engine.FindAircraft(Callsign);
             Assert.NotNull(afterLand);
             Assert.IsType<HelicopterApproachPhase>(afterLand.Phases?.CurrentPhase);
 
@@ -109,7 +111,7 @@ public class HelicopterLandSpotFromDistanceTests(ITestOutputHelper output)
             for (int t = ReplayStopSeconds + 1; t <= ReplayStopSeconds + 900; t++)
             {
                 engine.TickOneSecond();
-                var ac = engine.FindAircraft(Callsign);
+                AircraftState? ac = engine.FindAircraft(Callsign);
                 if (ac is null)
                 {
                     break;

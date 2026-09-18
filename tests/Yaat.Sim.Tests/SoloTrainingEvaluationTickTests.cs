@@ -26,14 +26,14 @@ public class SoloTrainingEvaluationTickTests
     public void TickSoloTrainingEvaluation_SoloModeIfrPairInsideThreeMiles_ReturnsSeparationEvent()
     {
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 100) };
-        var a = IfrAircraft("AAL1", new LatLon(37.6213, -122.3790));
-        var b = IfrAircraft("UAL2", GeoMath.ProjectPoint(a.Position, new TrueHeading(90), 2.5));
+        AircraftState a = IfrAircraft("AAL1", new LatLon(37.6213, -122.3790));
+        AircraftState b = IfrAircraft("UAL2", GeoMath.ProjectPoint(a.Position, new TrueHeading(90), 2.5));
         engine.World.AddAircraft(a);
         engine.World.AddAircraft(b);
 
-        var events = engine.TickSoloTrainingEvaluation();
+        IReadOnlyList<SoloTrainingEvent> events = engine.TickSoloTrainingEvaluation();
 
-        var separation = Assert.Single(events, e => e.Category == SoloTrainingEventCategory.Separation);
+        SoloTrainingEvent separation = Assert.Single(events, e => e.Category == SoloTrainingEventCategory.Separation);
         Assert.Equal(SoloTrainingEventSeverity.Safety, separation.Severity);
     }
 

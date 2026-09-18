@@ -46,8 +46,8 @@ public class ScratchpadOverlengthReplayTests(ITestOutputHelper output)
     [Fact]
     public void OverlengthScratchpad_IsRejected_NotStored()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -55,7 +55,7 @@ public class ScratchpadOverlengthReplayTests(ITestOutputHelper output)
 
         engine.Replay(recording, AssertElapsedS);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
         // The 5-character "N346G" must never have been stored as the primary scratchpad.

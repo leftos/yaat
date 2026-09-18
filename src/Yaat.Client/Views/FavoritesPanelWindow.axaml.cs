@@ -27,7 +27,7 @@ public partial class FavoritesPanelWindow : Window, IAlwaysOnTopToggle
     /// <summary>Closes the panel window for this view model, if one is open.</summary>
     public static void Close(MainViewModel vm)
     {
-        if (OpenWindows.TryGetValue(vm, out var existing))
+        if (OpenWindows.TryGetValue(vm, out FavoritesPanelWindow? existing))
         {
             existing.Close();
         }
@@ -35,7 +35,7 @@ public partial class FavoritesPanelWindow : Window, IAlwaysOnTopToggle
 
     public static FavoritesPanelWindow ShowOrActivate(MainViewModel vm)
     {
-        if (OpenWindows.TryGetValue(vm, out var existing))
+        if (OpenWindows.TryGetValue(vm, out FavoritesPanelWindow? existing))
         {
             existing.RestoreAndActivate();
             return existing;

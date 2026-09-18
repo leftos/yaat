@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -36,7 +37,7 @@ public class Kpo83Hussh2TurnbackTests(ITestOutputHelper output)
     [Fact]
     public void KPO83_AfterCto_DoesNotTurnBackThroughOakVor()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null || BuildEngine() is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -45,12 +46,12 @@ public class Kpo83Hussh2TurnbackTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             Assert.NotNull(engine);
 
             engine.Replay(recording, 0);
-            var snap = archive.ReadSnapshotAt(2335); // just before CTO at t=2339
+            TimedSnapshot? snap = archive.ReadSnapshotAt(2335); // just before CTO at t=2339
             Assert.NotNull(snap);
 
             engine.RestoreFromSnapshot(snap.State);
@@ -73,7 +74,7 @@ public class Kpo83Hussh2TurnbackTests(ITestOutputHelper output)
                     engine.TickOneSecond();
                 }
 
-                var acLoop = engine.FindAircraft("KPO83");
+                AircraftState? acLoop = engine.FindAircraft("KPO83");
                 if (acLoop is not null && acLoop.Targets.NavigationRoute.Count > 0)
                 {
                     route = acLoop.Targets.NavigationRoute;

@@ -1,5 +1,6 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -29,7 +30,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyHeading(FlyHeadingCommand cmd, AircraftState aircraft)
     {
-        var prev = PreviousLateralGuidance(aircraft);
+        string prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
@@ -40,7 +41,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyTurnLeft(TurnLeftCommand cmd, AircraftState aircraft)
     {
-        var prev = PreviousLateralGuidance(aircraft);
+        string prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
@@ -51,7 +52,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyTurnRight(TurnRightCommand cmd, AircraftState aircraft)
     {
-        var prev = PreviousLateralGuidance(aircraft);
+        string prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
@@ -62,7 +63,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyLeftTurn(LeftTurnCommand cmd, AircraftState aircraft)
     {
-        var prev = PreviousLateralGuidance(aircraft);
+        string prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading - cmd.Degrees;
@@ -74,7 +75,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyRightTurn(RightTurnCommand cmd, AircraftState aircraft)
     {
-        var prev = PreviousLateralGuidance(aircraft);
+        string prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading + cmd.Degrees;
@@ -86,7 +87,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyFlyPresentHeading(AircraftState aircraft)
     {
-        var prev = PreviousLateralGuidance(aircraft);
+        string prev = PreviousLateralGuidance(aircraft);
         int hdg = aircraft.MagneticHeading.ToDisplayInt();
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
@@ -115,7 +116,7 @@ internal static class FlightCommandHandler
             return ApplyVfrAltitudeRestriction(cmd, aircraft);
         }
 
-        var prev = PreviousAltitude(aircraft, cmd.Altitude);
+        string prev = PreviousAltitude(aircraft, cmd.Altitude);
         aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.SidViaCeiling = null;
         aircraft.Procedure.IsExpediting = false;
@@ -162,7 +163,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyDescendMaintain(DescendMaintainCommand cmd, AircraftState aircraft)
     {
-        var prev = PreviousAltitude(aircraft, cmd.Altitude);
+        string prev = PreviousAltitude(aircraft, cmd.Altitude);
         aircraft.Procedure.StarViaMode = false;
         aircraft.Procedure.StarViaFloor = null;
         aircraft.Procedure.IsExpediting = false;
@@ -236,7 +237,7 @@ internal static class FlightCommandHandler
         // ATC can't assign a helicopter below the radar-speed minimum; floor a plain SPD to it.
         // Only airborne — ground taxi speed is governed separately. Forced assignments
         // (SPEEDF here, or SPEEDN -> ApplyForceSpeed) bypass this and may command any speed.
-        var spdCat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory spdCat = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool flooredForHeli =
             !cmd.Force && spdCat == AircraftCategory.Helicopter && !aircraft.IsOnGround && cmd.Speed > 0 && cmd.Speed < HelicopterMinRadarSpeedKts;
         int effectiveSpeed = flooredForHeli ? HelicopterMinRadarSpeedKts : cmd.Speed;
@@ -286,7 +287,7 @@ internal static class FlightCommandHandler
     /// </summary>
     private static CommandResult ApplyTaxiSpeed(SpeedCommand cmd, AircraftState aircraft)
     {
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         double defaultSpeed = CategoryPerformance.TaxiSpeed(cat);
         double clamped = Math.Clamp((double)cmd.Speed, CategoryPerformance.MinCommandedTaxiSpeedKts, CategoryPerformance.MaxCommandedTaxiSpeed(cat));
 
@@ -326,7 +327,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyReduceToFinalApproachSpeed(AircraftState aircraft, DispatchContext ctx)
     {
-        var rfasCat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory rfasCat = AircraftCategorization.Categorize(aircraft.AircraftType);
         double approachSpeed = AircraftPerformance.ApproachSpeed(aircraft.AircraftType, rfasCat);
         aircraft.Targets.TargetSpeed = approachSpeed;
         aircraft.Targets.AssignedSpeed = approachSpeed;
@@ -366,7 +367,7 @@ internal static class FlightCommandHandler
             // Drop any cached exit candidate so LandingPhase re-resolves at the
             // higher braking limit and can take an earlier exit. (The
             // ER/EL/EXIT EXP form re-resolves via the preference-change path.)
-            foreach (var phase in aircraft.Phases!.Phases)
+            foreach (Phase phase in aircraft.Phases!.Phases)
             {
                 if (phase is LandingPhase landing)
                 {
@@ -432,7 +433,7 @@ internal static class FlightCommandHandler
         }
 
         bool climb = assigned > aircraft.Altitude;
-        var assignment = climb
+        CommandResult assignment = climb
             ? ApplyClimbMaintain(new ClimbMaintainCommand(assigned), aircraft)
             : ApplyDescendMaintain(new DescendMaintainCommand(assigned), aircraft);
 
@@ -543,19 +544,19 @@ internal static class FlightCommandHandler
     /// </summary>
     internal static CommandResult? RejectBackwardsMilitaryRouteDirect(IReadOnlyList<ResolvedFix> fixes, AircraftState aircraft)
     {
-        var state = aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = aircraft.MilitaryRoute;
         if (!state.IsActive || state.Designator is null || state.CurrentSegmentIndex < 0)
         {
             return null;
         }
 
-        var route = Data.NavigationDatabase.Instance.GetMilitaryRoute(state.Designator);
+        MilitaryRoute? route = Data.NavigationDatabase.Instance.GetMilitaryRoute(state.Designator);
         if (route is null)
         {
             return null;
         }
 
-        foreach (var fix in fixes)
+        foreach (ResolvedFix fix in fixes)
         {
             int index = IndexOfRoutePoint(route, fix.Name);
             if (index >= 0 && index < state.CurrentSegmentIndex)
@@ -585,19 +586,19 @@ internal static class FlightCommandHandler
     {
         if (validateDctFixes)
         {
-            var programmed = aircraft.GetProgrammedFixes();
+            HashSet<string> programmed = aircraft.GetProgrammedFixes();
             if (programmed.Count > 0)
             {
                 var unprogrammed = cmd.Fixes.Where(f => !programmed.Contains(f.Name)).ToList();
                 if (unprogrammed.Count > 0)
                 {
-                    var names = FixListCommas(unprogrammed);
+                    string names = FixListCommas(unprogrammed);
                     return new CommandResult(false, $"Fix {names} not programmed — use DCTF to override");
                 }
             }
         }
 
-        var fixNames = FixListSpaced(cmd.Fixes);
+        string fixNames = FixListSpaced(cmd.Fixes);
 
         // A plain direct-to turns the shortest way to the fix. Clear any forced turn
         // direction left over from a preceding relative turn (RELR/RELL/RT/LT) so the
@@ -617,7 +618,7 @@ internal static class FlightCommandHandler
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
         RouteChainer.AppendRouteRemainder(resolved, aircraft.FlightPlan.Route);
-        foreach (var fix in resolved)
+        foreach (ResolvedFix? fix in resolved)
         {
             aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
         }
@@ -637,20 +638,20 @@ internal static class FlightCommandHandler
     {
         if (validateDctFixes)
         {
-            var programmed = aircraft.GetProgrammedFixes();
+            HashSet<string> programmed = aircraft.GetProgrammedFixes();
             if (programmed.Count > 0)
             {
                 var unprogrammed = fixes.Where(f => !programmed.Contains(f.Name)).ToList();
                 if (unprogrammed.Count > 0)
                 {
-                    var names = FixListCommas(unprogrammed);
+                    string names = FixListCommas(unprogrammed);
                     return new CommandResult(false, $"Fix {names} not programmed — use DCTF to override");
                 }
             }
         }
 
-        var dirLabel = direction == TurnDirection.Left ? "Turn left, direct" : "Turn right, direct";
-        var fixNames = FixListSpaced(fixes);
+        string dirLabel = direction == TurnDirection.Left ? "Turn left, direct" : "Turn right, direct";
+        string fixNames = FixListSpaced(fixes);
 
         if (fixes.Count == 1 && TryPreserveProcedure(aircraft, fixes[0].Name))
         {
@@ -666,7 +667,7 @@ internal static class FlightCommandHandler
         var resolved = fixes.ToList();
         int originalCount = resolved.Count;
         RouteChainer.AppendRouteRemainder(resolved, aircraft.FlightPlan.Route);
-        foreach (var fix in resolved)
+        foreach (ResolvedFix? fix in resolved)
         {
             aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
         }
@@ -676,7 +677,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyForceDirectTo(ForceDirectToCommand cmd, AircraftState aircraft)
     {
-        var fixNames = FixListSpaced(cmd.Fixes);
+        string fixNames = FixListSpaced(cmd.Fixes);
 
         // Clear any forced turn direction left over from a preceding relative turn so a
         // plain direct-to turns the shortest way to the fix (see ApplyDirectTo).
@@ -694,7 +695,7 @@ internal static class FlightCommandHandler
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
         RouteChainer.AppendRouteRemainder(resolved, aircraft.FlightPlan.Route);
-        foreach (var fix in resolved)
+        foreach (ResolvedFix? fix in resolved)
         {
             aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
         }
@@ -720,7 +721,7 @@ internal static class FlightCommandHandler
 
         // Find the last index that has an altitude constraint (for revert)
         int lastConstrainedIdx = -1;
-        foreach (var (idx, _) in cmd.AltitudeConstraints)
+        foreach ((int idx, ConstrainedFixAltitude _) in cmd.AltitudeConstraints)
         {
             if (idx > lastConstrainedIdx)
             {
@@ -730,7 +731,7 @@ internal static class FlightCommandHandler
 
         for (int i = 0; i < cmd.Fixes.Count; i++)
         {
-            var fix = cmd.Fixes[i];
+            ResolvedFix fix = cmd.Fixes[i];
             CifpAltitudeRestriction? altRestriction = null;
             CifpSpeedRestriction? speedRestriction = null;
             double? revertAlt = null;
@@ -738,9 +739,9 @@ internal static class FlightCommandHandler
             double? revertSpeed = null;
             double? revertAssignedSpeed = null;
 
-            if (cmd.AltitudeConstraints.TryGetValue(i, out var alt))
+            if (cmd.AltitudeConstraints.TryGetValue(i, out ConstrainedFixAltitude? alt))
             {
-                var restrictionType = alt.AltType switch
+                CifpAltitudeRestrictionType restrictionType = alt.AltType switch
                 {
                     CrossFixAltitudeType.AtOrAbove => CifpAltitudeRestrictionType.AtOrAbove,
                     CrossFixAltitudeType.AtOrBelow => CifpAltitudeRestrictionType.AtOrBelow,
@@ -756,7 +757,7 @@ internal static class FlightCommandHandler
                 }
             }
 
-            if (cmd.SpeedConstraints is not null && cmd.SpeedConstraints.TryGetValue(i, out var spd))
+            if (cmd.SpeedConstraints is not null && cmd.SpeedConstraints.TryGetValue(i, out int spd))
             {
                 speedRestriction = new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow);
                 if (i == lastConstrainedIdx)
@@ -781,7 +782,7 @@ internal static class FlightCommandHandler
             );
         }
 
-        var fixNames = FixListSpaced(cmd.Fixes);
+        string fixNames = FixListSpaced(cmd.Fixes);
         return CommandDispatcher.Ok($"Proceed direct {fixNames}");
     }
 
@@ -789,13 +790,13 @@ internal static class FlightCommandHandler
     {
         if (validateDctFixes)
         {
-            var programmed = aircraft.GetProgrammedFixes();
+            HashSet<string> programmed = aircraft.GetProgrammedFixes();
             if (programmed.Count > 0)
             {
                 var unprogrammed = cmd.Fixes.Where(f => !programmed.Contains(f.Name)).ToList();
                 if (unprogrammed.Count > 0)
                 {
-                    var badNames = FixListCommas(unprogrammed);
+                    string badNames = FixListCommas(unprogrammed);
                     return new CommandResult(false, $"Fix {badNames} not programmed — use DCTF to override");
                 }
             }
@@ -806,22 +807,22 @@ internal static class FlightCommandHandler
         RouteChainer.AppendRouteRemainder(resolved, aircraft.FlightPlan.Route);
         if (aircraft.Targets.NavigationRoute.Count == 0)
         {
-            foreach (var fix in resolved)
+            foreach (ResolvedFix? fix in resolved)
             {
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
-            var names = FixListSpaced(cmd.Fixes);
+            string names = FixListSpaced(cmd.Fixes);
             return resolved.Count > originalCount
                 ? CommandDispatcher.Ok($"Proceed direct {names}, then filed route")
                 : CommandDispatcher.Ok($"Proceed direct {names}");
         }
         else
         {
-            foreach (var fix in resolved)
+            foreach (ResolvedFix? fix in resolved)
             {
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
-            var appended = FixListSpaced(cmd.Fixes);
+            string appended = FixListSpaced(cmd.Fixes);
             return resolved.Count > originalCount
                 ? CommandDispatcher.Ok($"Then direct {appended}, then filed route")
                 : CommandDispatcher.Ok($"Then direct {appended}");
@@ -835,22 +836,22 @@ internal static class FlightCommandHandler
         RouteChainer.AppendRouteRemainder(resolved, aircraft.FlightPlan.Route);
         if (aircraft.Targets.NavigationRoute.Count == 0)
         {
-            foreach (var fix in resolved)
+            foreach (ResolvedFix? fix in resolved)
             {
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
-            var names = FixListSpaced(cmd.Fixes);
+            string names = FixListSpaced(cmd.Fixes);
             return resolved.Count > originalCount
                 ? CommandDispatcher.Ok($"Proceed direct {names}, then filed route")
                 : CommandDispatcher.Ok($"Proceed direct {names}");
         }
         else
         {
-            foreach (var fix in resolved)
+            foreach (ResolvedFix? fix in resolved)
             {
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
-            var appended = FixListSpaced(cmd.Fixes);
+            string appended = FixListSpaced(cmd.Fixes);
             return resolved.Count > originalCount
                 ? CommandDispatcher.Ok($"Then direct {appended}, then filed route")
                 : CommandDispatcher.Ok($"Then direct {appended}");
@@ -873,15 +874,15 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyWarp(WarpCommand cmd, AircraftState aircraft)
     {
-        var heading = cmd.MagneticHeading ?? aircraft.MagneticHeading;
-        var altitude = cmd.Altitude ?? (int)Math.Round(aircraft.Altitude);
-        var speed = cmd.Speed ?? (int)Math.Round(aircraft.IndicatedAirspeed);
+        MagneticHeading heading = cmd.MagneticHeading ?? aircraft.MagneticHeading;
+        int altitude = cmd.Altitude ?? (int)Math.Round(aircraft.Altitude);
+        int speed = cmd.Speed ?? (int)Math.Round(aircraft.IndicatedAirspeed);
 
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         if (aircraft.Phases is not null)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
             aircraft.Phases = null;
         }
@@ -912,7 +913,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyWarpGround(WarpGroundCommand cmd, AircraftState aircraft)
     {
-        var layout = aircraft.Ground.Layout;
+        AirportGroundLayout? layout = aircraft.Ground.Layout;
         if (layout is null)
         {
             return new CommandResult(false, "No airport layout loaded for this aircraft");
@@ -960,7 +961,7 @@ internal static class FlightCommandHandler
         // Clear stale state from prior operations
         if (aircraft.Phases is not null)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
             aircraft.Phases = null;
         }
@@ -1017,7 +1018,7 @@ internal static class FlightCommandHandler
             return false;
         }
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         int matchIndex = -1;
         for (int i = 0; i < route.Count; i++)
         {
@@ -1051,8 +1052,8 @@ internal static class FlightCommandHandler
             && !string.IsNullOrEmpty(aircraft.FlightPlan.Destination)
         )
         {
-            var star = NavigationDatabase.Instance.GetStar(aircraft.FlightPlan.Destination, starId);
-            var transition = star is not null ? NavigationCommandHandler.LookupRunwayTransition(star.RunwayTransitions, destRwy) : null;
+            CifpStarProcedure? star = NavigationDatabase.Instance.GetStar(aircraft.FlightPlan.Destination, starId);
+            CifpTransition? transition = star is not null ? NavigationCommandHandler.LookupRunwayTransition(star.RunwayTransitions, destRwy) : null;
             if (star is not null && transition is not null)
             {
                 NavigationCommandHandler.RemoveStaleStarRunwayTransitionFixes(aircraft, star, transition);
@@ -1119,7 +1120,7 @@ internal static class FlightCommandHandler
         TrueHeading best = currentHeading;
         double bestDelta = 360;
 
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             var bearing = new TrueHeading(EdgeBearing(layout, node, edge));
             double delta = currentHeading.AbsAngleTo(bearing);
@@ -1139,18 +1140,18 @@ internal static class FlightCommandHandler
         {
             if ((straight.Nodes[0] == node) && straight.IntermediatePoints.Count > 0)
             {
-                var pt = straight.IntermediatePoints[0];
+                (double Lat, double Lon) pt = straight.IntermediatePoints[0];
                 return GeoMath.BearingTo(node.Position, new LatLon(pt.Lat, pt.Lon));
             }
 
             if ((straight.Nodes[1] == node) && straight.IntermediatePoints.Count > 0)
             {
-                var pt = straight.IntermediatePoints[^1];
+                (double Lat, double Lon) pt = straight.IntermediatePoints[^1];
                 return GeoMath.BearingTo(node.Position, new LatLon(pt.Lat, pt.Lon));
             }
         }
 
-        var otherNode = edge.OtherNode(node);
+        GroundNode otherNode = edge.OtherNode(node);
         return GeoMath.BearingTo(node.Position, otherNode.Position);
     }
 }

@@ -118,14 +118,14 @@ public static class SnapshotTreeDiff
 
     private static void WalkObject(string path, JsonObject left, JsonObject right, List<SnapshotDivergence> sink)
     {
-        foreach (var key in UnionOrdered(left.Select(p => p.Key), right.Select(p => p.Key)))
+        foreach (string key in UnionOrdered(left.Select(p => p.Key), right.Select(p => p.Key)))
         {
             // JsonNode represents a JSON null as a C# null reference, so a property that is absent and one written as
             // null are indistinguishable by value — only the lookup's own result separates them. Handling the null
             // cases here rather than in Walk is what keeps "absent on one side, null on the other" from comparing
             // equal, which would be a silent miss in the one instrument whose whole purpose is not to miss.
-            bool leftHas = left.TryGetPropertyValue(key, out var leftChild);
-            bool rightHas = right.TryGetPropertyValue(key, out var rightChild);
+            bool leftHas = left.TryGetPropertyValue(key, out JsonNode? leftChild);
+            bool rightHas = right.TryGetPropertyValue(key, out JsonNode? rightChild);
 
             if (leftChild is null || rightChild is null)
             {
@@ -171,13 +171,13 @@ public static class SnapshotTreeDiff
 
     private static void WalkAircraftArray(string path, JsonArray left, JsonArray right, List<SnapshotDivergence> sink)
     {
-        var leftByCallsign = IndexByCallsign(left);
-        var rightByCallsign = IndexByCallsign(right);
+        Dictionary<string, JsonNode?> leftByCallsign = IndexByCallsign(left);
+        Dictionary<string, JsonNode?> rightByCallsign = IndexByCallsign(right);
 
-        foreach (var callsign in UnionOrdered(leftByCallsign.Keys, rightByCallsign.Keys))
+        foreach (string callsign in UnionOrdered(leftByCallsign.Keys, rightByCallsign.Keys))
         {
-            leftByCallsign.TryGetValue(callsign, out var leftChild);
-            rightByCallsign.TryGetValue(callsign, out var rightChild);
+            leftByCallsign.TryGetValue(callsign, out JsonNode? leftChild);
+            rightByCallsign.TryGetValue(callsign, out JsonNode? rightChild);
             Walk($"{path}[{callsign}]", null, leftChild, rightChild, sink);
         }
     }
@@ -207,8 +207,8 @@ public static class SnapshotTreeDiff
         {
             // Only recurse when both sides parse. If one holds something that is not JSON, the string comparison
             // below is the honest report — recursing would render the unparsed side as absent and hide its value.
-            var leftInner = TryParseEmbedded(left, propertyName);
-            var rightInner = TryParseEmbedded(right, propertyName);
+            JsonNode? leftInner = TryParseEmbedded(left, propertyName);
+            JsonNode? rightInner = TryParseEmbedded(right, propertyName);
             if (leftInner is not null && rightInner is not null)
             {
                 Walk(path, null, leftInner, rightInner, sink);

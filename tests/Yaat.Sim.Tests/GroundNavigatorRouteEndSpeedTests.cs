@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -82,12 +83,12 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
     [Fact]
     public void RouteEndSpeedZero_ArrivesStopped()
     {
-        if (!TryBuildApproachRoute(out var route))
+        if (!TryBuildApproachRoute(out TaxiRoute? route))
         {
             return;
         }
 
-        var arrival = DriveRoute(route, routeEndSpeedKts: 0);
+        RouteEndArrival? arrival = DriveRoute(route, routeEndSpeedKts: 0);
 
         Assert.NotNull(arrival);
         Assert.True(arrival.IasKts < FlowingIasKts, $"the aircraft arrived at {arrival.IasKts:F2} kt — the route end must be a stop");
@@ -108,13 +109,13 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
     [Fact]
     public void RouteEndSpeedNonZero_PassesTheTerminalNodeRolling()
     {
-        if (!TryBuildApproachRoute(out var route))
+        if (!TryBuildApproachRoute(out TaxiRoute? route))
         {
             return;
         }
 
         double routeEnd = CategoryPerformance.TaxiCornerSpeed(AircraftCategory.Piston);
-        var arrival = DriveRoute(route, routeEndSpeedKts: routeEnd);
+        RouteEndArrival? arrival = DriveRoute(route, routeEndSpeedKts: routeEnd);
 
         Assert.NotNull(arrival);
         Assert.True(
@@ -131,22 +132,22 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
         route = null!;
 
         TestVnasData.EnsureInitialized();
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         if (layout is null)
         {
             output.WriteLine("SKIP: SFO ground layout not available");
             return false;
         }
 
-        var start = NearestNode(layout, RouteStartPose);
-        var bar = NearestNode(layout, BarPose);
+        GroundNode? start = NearestNode(layout, RouteStartPose);
+        GroundNode? bar = NearestNode(layout, BarPose);
         if (start is null || bar is null || start.Id == bar.Id)
         {
             output.WriteLine("SKIP: SFO layout has no taxiway E nodes at the expected positions");
             return false;
         }
 
-        var found = TaxiPathfinder.FindRoute(layout, start.Id, bar.Id, AircraftCategory.Piston);
+        TaxiRoute? found = TaxiPathfinder.FindRoute(layout, start.Id, bar.Id, AircraftCategory.Piston);
         if (found is null || found.Segments.Count < 2)
         {
             output.WriteLine($"SKIP: no multi-segment route from node {start.Id} to node {bar.Id} ({found?.Segments.Count ?? 0} segments)");
@@ -165,7 +166,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
     {
         GroundNode? best = null;
         double bestNm = double.MaxValue;
-        foreach (var n in layout.Nodes.Values)
+        foreach (GroundNode n in layout.Nodes.Values)
         {
             double d = GeoMath.DistanceNm(pos, n.Position);
             if (d < bestNm)
@@ -194,7 +195,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
     /// </summary>
     private RouteEndArrival? DriveRoute(TaxiRoute route, double routeEndSpeedKts)
     {
-        var first = route.Segments[0];
+        TaxiRouteSegment first = route.Segments[0];
         var aircraft = new AircraftState
         {
             Callsign = "NAVEND",
@@ -260,13 +261,13 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
     [Fact]
     public void TaxiingPhase_WithStoredTakeoffClearance_ReachesTheBarRolling()
     {
-        var run = RunTaxiToBar(new TaxiRunSpec(AircraftType: "BE36", ClearForTakeoff: true, CancelAtDistToBarFt: null, MaxSeconds: 60));
+        TaxiRun? run = RunTaxiToBar(new TaxiRunSpec(AircraftType: "BE36", ClearForTakeoff: true, CancelAtDistToBarFt: null, MaxSeconds: 60));
         if (run is null)
         {
             return;
         }
 
-        var arrival = run.LastTaxiing;
+        TaxiSample? arrival = run.LastTaxiing;
         Assert.NotNull(arrival);
         Assert.True(
             arrival.IasKts > FlowingIasKts,
@@ -282,13 +283,13 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
     [Fact]
     public void TaxiingPhase_WithoutClearance_StopsAtTheBar()
     {
-        var run = RunTaxiToBar(new TaxiRunSpec(AircraftType: "BE36", ClearForTakeoff: false, CancelAtDistToBarFt: null, MaxSeconds: 45));
+        TaxiRun? run = RunTaxiToBar(new TaxiRunSpec(AircraftType: "BE36", ClearForTakeoff: false, CancelAtDistToBarFt: null, MaxSeconds: 45));
         if (run is null)
         {
             return;
         }
 
-        var final = run.Samples[^1];
+        TaxiSample final = run.Samples[^1];
         Assert.True(
             final.IasKts < 0.5,
             $"the aircraft was still doing {final.IasKts:F2} kt at the 28R bar ({final.DistToBarFt:F0} ft out, "
@@ -318,7 +319,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
             $"{HeavyType} must be Heavy for this test to mean anything (7110.65 §3-9-6.c)"
         );
 
-        var run = RunTaxiToBar(new TaxiRunSpec(AircraftType: HeavyType, ClearForTakeoff: true, CancelAtDistToBarFt: null, MaxSeconds: 180));
+        TaxiRun? run = RunTaxiToBar(new TaxiRunSpec(AircraftType: HeavyType, ClearForTakeoff: true, CancelAtDistToBarFt: null, MaxSeconds: 180));
         if (run is null)
         {
             return;
@@ -327,7 +328,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
         int takeoffIdx = run.Samples.FindIndex(s => s.Phase == TakeoffPhaseName);
         Assert.True(takeoffIdx >= 0, $"{HeavyType} never reached the takeoff roll (last phase={run.Samples[^1].Phase})");
 
-        var rollStart = run.Samples[takeoffIdx];
+        TaxiSample rollStart = run.Samples[takeoffIdx];
         output.WriteLine(
             $"{HeavyType} entered the takeoff roll at t={rollStart.Second}s doing {rollStart.IasKts:F2} kt "
                 + $"(the second before: {run.Samples[takeoffIdx - 1].IasKts:F2} kt, phase={run.Samples[takeoffIdx - 1].Phase})"
@@ -351,7 +352,9 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
     [Fact]
     public void TaxiingPhase_TakeoffClearanceCancelledApproachingTheBar_DoesNotCrossTheHoldingPosition()
     {
-        var run = RunTaxiToBar(new TaxiRunSpec(AircraftType: "BE36", ClearForTakeoff: true, CancelAtDistToBarFt: LateCancelDistFt, MaxSeconds: 60));
+        TaxiRun? run = RunTaxiToBar(
+            new TaxiRunSpec(AircraftType: "BE36", ClearForTakeoff: true, CancelAtDistToBarFt: LateCancelDistFt, MaxSeconds: 60)
+        );
         if (run is null)
         {
             return;
@@ -359,7 +362,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
 
         Assert.NotNull(run.CancelledAtDistToBarFt);
         double deepestCrossFt = run.Samples.Min(s => s.CrossFt);
-        var final = run.Samples[^1];
+        TaxiSample final = run.Samples[^1];
 
         output.WriteLine(
             $"CTOC at {run.CancelledAtDistToBarFt:F0} ft from the bar; deepest cross-track {deepestCrossFt:F1} ft "
@@ -423,7 +426,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
             return null;
         }
 
-        var runway = TestVnasData.NavigationDb.GetRunway("KSFO", "28R");
+        RunwayInfo? runway = TestVnasData.NavigationDb.GetRunway("KSFO", "28R");
         if (runway is null)
         {
             output.WriteLine("SKIP: KSFO 28R not in navdata");
@@ -455,7 +458,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
         for (int t = 1; t <= spec.MaxSeconds; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft("TEST1");
+            AircraftState? ac = engine.FindAircraft("TEST1");
             if (ac is null)
             {
                 break;
@@ -480,7 +483,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
                 && (ac.IndicatedAirspeed > FlowingIasKts)
             )
             {
-                var cancel = engine.SendCommand("TEST1", "CTOC");
+                CommandResult cancel = engine.SendCommand("TEST1", "CTOC");
                 output.WriteLine($"[t={t}] CTOC at {distFt:F0}ft out, {ac.IndicatedAirspeed:F2}kt: success={cancel.Success} {cancel.Message}");
                 Assert.True(cancel.Success, $"CTOC approaching the bar should succeed: {cancel.Message}");
                 cancelledAtFt = distFt;
@@ -502,13 +505,13 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
     /// </summary>
     private bool ClearForTakeoff(SimulationEngine engine, AircraftState ac, int second)
     {
-        var result = engine.SendCommand("TEST1", "CTO");
+        CommandResult result = engine.SendCommand("TEST1", "CTO");
         output.WriteLine($"[t={second}] CTO: success={result.Success} {result.Message}");
         Assert.True(result.Success, $"CTO during the taxi should succeed: {result.Message}");
 
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
-        var lastHs = route.HoldShortPoints.Count > 0 ? route.HoldShortPoints[^1] : null;
+        HoldShortPoint? lastHs = route.HoldShortPoints.Count > 0 ? route.HoldShortPoints[^1] : null;
         Assert.NotNull(lastHs);
         Assert.Equal(HoldShortReason.DestinationRunway, lastHs.Reason);
         Assert.Equal(route.Segments[^1].ToNodeId, lastHs.NodeId);

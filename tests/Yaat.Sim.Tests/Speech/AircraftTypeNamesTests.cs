@@ -30,14 +30,14 @@ public class AircraftTypeNamesTests
     [InlineData("DHC6", "havilland")]
     public void TryGetManufacturer_KnownType_ReturnsExpected(string icao, string expected)
     {
-        Assert.True(AircraftTypeNames.TryGetManufacturer(icao, out var mfr));
+        Assert.True(AircraftTypeNames.TryGetManufacturer(icao, out string? mfr));
         Assert.Equal(expected, mfr);
     }
 
     [Fact]
     public void TryGetManufacturer_CaseInsensitive()
     {
-        Assert.True(AircraftTypeNames.TryGetManufacturer("c172", out var mfr));
+        Assert.True(AircraftTypeNames.TryGetManufacturer("c172", out string? mfr));
         Assert.Equal("cessna", mfr);
     }
 
@@ -83,7 +83,7 @@ public class AircraftTypeNamesTests
     [InlineData("DHC6", "twin otter")]
     public void TryGetFamily_KnownType_ReturnsExpected(string icao, string expected)
     {
-        Assert.True(AircraftTypeNames.TryGetFamily(icao, out var fam), $"Expected family for {icao}");
+        Assert.True(AircraftTypeNames.TryGetFamily(icao, out string? fam), $"Expected family for {icao}");
         Assert.Equal(expected, fam);
     }
 
@@ -98,7 +98,7 @@ public class AircraftTypeNamesTests
     [Fact]
     public void GetSpokenNames_C172_ReturnsFamilyThenManufacturer()
     {
-        var names = AircraftTypeNames.GetSpokenNames("C172");
+        IReadOnlyList<string> names = AircraftTypeNames.GetSpokenNames("C172");
         Assert.Equal(2, names.Count);
         Assert.Equal("skyhawk", names[0]); // family first
         Assert.Equal("cessna", names[1]);
@@ -107,7 +107,7 @@ public class AircraftTypeNamesTests
     [Fact]
     public void GetSpokenNames_BE20_ReturnsKingAirBigram()
     {
-        var names = AircraftTypeNames.GetSpokenNames("BE20");
+        IReadOnlyList<string> names = AircraftTypeNames.GetSpokenNames("BE20");
         Assert.Contains("king air", names);
         Assert.Contains("beech", names);
     }
@@ -115,7 +115,7 @@ public class AircraftTypeNamesTests
     [Fact]
     public void GetSpokenNames_C25C_ReturnsCitationAndCessna()
     {
-        var names = AircraftTypeNames.GetSpokenNames("C25C");
+        IReadOnlyList<string> names = AircraftTypeNames.GetSpokenNames("C25C");
         Assert.Equal(2, names.Count);
         Assert.Equal("citation", names[0]);
         Assert.Equal("cessna", names[1]);

@@ -3,6 +3,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -50,7 +51,7 @@ public class Issue239Lineup33CornerCutTests(ITestOutputHelper output)
     [Fact]
     public void N104NT_LineUp33FromC_FollowsTaxiwayArc_DoesNotCutCorner()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null || BuildEngine() is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -59,13 +60,13 @@ public class Issue239Lineup33CornerCutTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine()!;
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine engine = BuildEngine()!;
 
             // Restore the hold-short snapshot just before CTO, replay through the
             // clearance, then leave the maneuver to run live.
             engine.Replay(recording, 0);
-            var snap = archive.ReadSnapshotAt(1950);
+            TimedSnapshot? snap = archive.ReadSnapshotAt(1950);
             Assert.NotNull(snap);
             engine.RestoreFromSnapshot(snap!.State);
             int t = (int)snap.ElapsedSeconds;
@@ -77,21 +78,21 @@ public class Issue239Lineup33CornerCutTests(ITestOutputHelper output)
                 t++;
             }
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
-            var runway = TestVnasData.NavigationDb!.GetRunway("KOAK", "33");
+            RunwayInfo? runway = TestVnasData.NavigationDb!.GetRunway("KOAK", "33");
             Assert.NotNull(runway);
-            var rwyHdg = runway!.TrueHeading;
+            TrueHeading rwyHdg = runway!.TrueHeading;
             double threshLat = runway.ThresholdLatitude;
             double threshLon = runway.ThresholdLongitude;
 
-            var layout = engine.ResolveGroundLayout(ac!);
+            AirportGroundLayout? layout = engine.ResolveGroundLayout(ac!);
             Assert.NotNull(layout);
 
             // The taxiway-C junction node the fillet arc onto the RWY 33 centerline
             // departs from. ArcFollow passes through it; the corner-cut skips it.
-            var junctionNode = FindRunwayJunctionNode(layout!, ac!, runway, rwyHdg);
+            GroundNode? junctionNode = FindRunwayJunctionNode(layout!, ac!, runway, rwyHdg);
             Assert.NotNull(junctionNode);
             output.WriteLine($"junction node = {junctionNode!.Id} @ {junctionNode.Position.Lat:F6},{junctionNode.Position.Lon:F6}");
 
@@ -110,7 +111,7 @@ public class Issue239Lineup33CornerCutTests(ITestOutputHelper output)
                     break;
                 }
 
-                var phase = ac.Phases?.CurrentPhase;
+                Phase? phase = ac.Phases?.CurrentPhase;
                 if (phase is LineUpPhase)
                 {
                     sawLineUp = true;
@@ -161,9 +162,9 @@ public class Issue239Lineup33CornerCutTests(ITestOutputHelper output)
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(n.Position.Lat, n.Position.Lon, runway.ThresholdLatitude, runway.ThresholdLongitude, rwyHdg))
             * GeoMath.FeetPerNm;
 
-        var start = layout.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(ac.Position, n.Position)).First();
+        GroundNode start = layout.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(ac.Position, n.Position)).First();
         var visited = new HashSet<int> { start.Id };
-        var cur = start;
+        GroundNode cur = start;
 
         for (int hop = 0; hop < 8; hop++)
         {
@@ -176,14 +177,14 @@ public class Issue239Lineup33CornerCutTests(ITestOutputHelper output)
             }
 
             GroundNode? next = null;
-            foreach (var e in cur.Edges)
+            foreach (IGroundEdge e in cur.Edges)
             {
                 if (e.IsRunwayCenterline)
                 {
                     continue;
                 }
 
-                var o = e.OtherNode(cur);
+                GroundNode o = e.OtherNode(cur);
                 if (!visited.Contains(o.Id) && Cross(o) < Cross(cur) && (next is null || Cross(o) < Cross(next)))
                 {
                     next = o;

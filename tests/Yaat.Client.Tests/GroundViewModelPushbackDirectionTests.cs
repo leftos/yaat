@@ -21,13 +21,13 @@ public class GroundViewModelPushbackDirectionTests
     [Fact]
     public async Task GetPushbackDirections_DueEastEdge_SendsFaceCardinalNotNumericHeading()
     {
-        var (vm, sent) = MakeViewModel();
+        (GroundViewModel? vm, List<string>? sent) = MakeViewModel();
         vm.SetLayoutForTesting(SpokeLayout(("T", 90.0)));
-        var ac = MakeAircraft();
+        AircraftModel ac = MakeAircraft();
 
-        var directions = vm.GetPushbackDirections(ac);
+        List<(string Label, string Cardinal)> directions = vm.GetPushbackDirections(ac);
 
-        var only = Assert.Single(directions);
+        (string Label, string Cardinal) only = Assert.Single(directions);
         Assert.Equal("face T", only.Label);
         Assert.Equal("E", only.Cardinal);
 
@@ -38,13 +38,13 @@ public class GroundViewModelPushbackDirectionTests
     [Fact]
     public void GetPushbackDirections_BearingsStraddlingBucketBoundary_RoundToNearerCardinal()
     {
-        var (vm, _) = MakeViewModel();
+        (GroundViewModel? vm, List<string> _) = MakeViewModel();
         // The E/SE bucket boundary sits at magnetic 112.5. With ~13 degrees east variation in the
         // Bay Area these two true bearings land either side of it.
         vm.SetLayoutForTesting(SpokeLayout(("A", 118.0), ("B", 135.0)));
-        var ac = MakeAircraft();
+        AircraftModel ac = MakeAircraft();
 
-        var directions = vm.GetPushbackDirections(ac);
+        List<(string Label, string Cardinal)> directions = vm.GetPushbackDirections(ac);
 
         Assert.Equal(2, directions.Count);
         Assert.Equal("E", CardinalFor(directions, "face A"));
@@ -54,13 +54,13 @@ public class GroundViewModelPushbackDirectionTests
     [Fact]
     public void GetPushbackDirections_ConvertsTrueBearingToMagneticBeforeSnapping()
     {
-        var (vm, _) = MakeViewModel();
+        (GroundViewModel? vm, List<string> _) = MakeViewModel();
         // True 072 snaps to E (bucket midpoint 090) if taken as-is, but east variation pulls the
         // magnetic bearing below the NE/E boundary at 67.5, so the correct answer is NE.
         vm.SetLayoutForTesting(SpokeLayout(("C", 72.0)));
-        var ac = MakeAircraft();
+        AircraftModel ac = MakeAircraft();
 
-        var directions = vm.GetPushbackDirections(ac);
+        List<(string Label, string Cardinal)> directions = vm.GetPushbackDirections(ac);
 
         Assert.Equal("NE", CardinalFor(directions, "face C"));
     }
@@ -68,20 +68,20 @@ public class GroundViewModelPushbackDirectionTests
     [Fact]
     public void GetPushbackDirections_RampEdge_ProducesNoEntry()
     {
-        var (vm, _) = MakeViewModel();
+        (GroundViewModel? vm, List<string> _) = MakeViewModel();
         vm.SetLayoutForTesting(SpokeLayout(("RAMP", 0.0), ("T", 90.0)));
-        var ac = MakeAircraft();
+        AircraftModel ac = MakeAircraft();
 
-        var directions = vm.GetPushbackDirections(ac);
+        List<(string Label, string Cardinal)> directions = vm.GetPushbackDirections(ac);
 
-        var only = Assert.Single(directions);
+        (string Label, string Cardinal) only = Assert.Single(directions);
         Assert.Equal("face T", only.Label);
         Assert.DoesNotContain(directions, d => d.Label.Contains("RAMP", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string CardinalFor(List<(string Label, string Cardinal)> directions, string label)
     {
-        var match = directions.Find(d => d.Label == label);
+        (string Label, string Cardinal) match = directions.Find(d => d.Label == label);
         Assert.Equal(label, match.Label);
         return match.Cardinal;
     }
@@ -109,9 +109,9 @@ public class GroundViewModelPushbackDirectionTests
         var nodes = new List<GroundNodeDto> { new(1, Center.Lat, Center.Lon, "Parking", "A1", null, null) };
         var edges = new List<GroundEdgeDto>();
         int nextId = 2;
-        foreach (var (taxiway, trueBearing) in spokes)
+        foreach ((string? taxiway, double trueBearing) in spokes)
         {
-            var end = GeoMath.ProjectPoint(Center, new TrueHeading(trueBearing), SpokeLengthNm);
+            LatLon end = GeoMath.ProjectPoint(Center, new TrueHeading(trueBearing), SpokeLengthNm);
             nodes.Add(new GroundNodeDto(nextId, end.Lat, end.Lon, "TaxiwayIntersection", null, null, null));
             edges.Add(new GroundEdgeDto(1, nextId, taxiway, SpokeLengthNm, null));
             nextId++;

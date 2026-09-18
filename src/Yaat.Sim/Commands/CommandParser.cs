@@ -17,8 +17,10 @@ public static class CommandParser
     /// </summary>
     public static ParseResult<CompoundCommand> ParseCompound(string input, string? aircraftRoute = null, TextWriter? debugLog = null)
     {
-        var aliasNormalized = CommandSchemeParser.SplitTrailingGiveWay(CommandSchemeParser.NormalizeSeparatorAliases(input.Trim()));
-        var trimmed = CommandSchemeParser.ExpandMultiCommand(CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(aliasNormalized)));
+        string aliasNormalized = CommandSchemeParser.SplitTrailingGiveWay(CommandSchemeParser.NormalizeSeparatorAliases(input.Trim()));
+        string trimmed = CommandSchemeParser.ExpandMultiCommand(
+            CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(aliasNormalized))
+        );
         debugLog?.WriteLine($"[ParseCompound] input=\"{input.Trim()}\" expanded=\"{trimmed}\"");
         if (string.IsNullOrEmpty(trimmed))
         {
@@ -32,7 +34,7 @@ public static class CommandParser
         if (!isCompound)
         {
             // Check for standalone LV/AT conditions (makes it compound even without ; or ,)
-            var upperCheck = trimmed.ToUpperInvariant();
+            string upperCheck = trimmed.ToUpperInvariant();
             isCompound =
                 upperCheck.StartsWith("LV ")
                 || upperCheck.StartsWith("AT ")
@@ -44,7 +46,7 @@ public static class CommandParser
             // GIVEWAY/BEHIND/GW are compound only when followed by callsign + a known ground command verb
             if (!isCompound && (upperCheck.StartsWith("GIVEWAY ") || upperCheck.StartsWith("BEHIND ") || upperCheck.StartsWith("GW ")))
             {
-                var tokens = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                string[] tokens = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 isCompound = tokens.Length >= 4 && IsGiveWayConditionVerb(tokens[2]);
             }
         }
@@ -54,7 +56,7 @@ public static class CommandParser
         if (!isCompound)
         {
             // Single command — wrap in a compound structure
-            var single = Parse(trimmed, aircraftRoute);
+            PR single = Parse(trimmed, aircraftRoute);
             debugLog?.WriteLine($"[ParseCompound] single Parse => {(single.IsSuccess ? single.Value!.GetType().Name : $"FAIL: {single.Reason}")}");
             if (!single.IsSuccess)
             {
@@ -64,14 +66,14 @@ public static class CommandParser
             return ParseResult<CompoundCommand>.Ok(new CompoundCommand([new ParsedBlock(null, [single.Value!])]) { SourceText = trimmed });
         }
 
-        var blockStrings = trimmed.Split(';');
+        string[] blockStrings = trimmed.Split(';');
         var blocks = new List<ParsedBlock>();
 
         for (int i = 0; i < blockStrings.Length; i++)
         {
-            var blockTrimmed = blockStrings[i].Trim();
+            string blockTrimmed = blockStrings[i].Trim();
             debugLog?.WriteLine($"[ParseCompound] block[{i}]=\"{blockTrimmed}\"");
-            var parsed = ParseBlock(blockTrimmed, aircraftRoute, debugLog);
+            List<ParsedBlock>? parsed = ParseBlock(blockTrimmed, aircraftRoute, debugLog);
             if (parsed is null)
             {
                 debugLog?.WriteLine($"[ParseCompound] block[{i}] => FAILED");
@@ -107,7 +109,7 @@ public static class CommandParser
             return;
         }
 
-        var firstCmd = blocks[0].Commands.FirstOrDefault();
+        ParsedCommand? firstCmd = blocks[0].Commands.FirstOrDefault();
         if (firstCmd is not CrossFixCommand cfix)
         {
             return;
@@ -139,13 +141,13 @@ public static class CommandParser
         }
 
         BlockCondition? condition = null;
-        var remaining = blockStr;
+        string remaining = blockStr;
 
         // Check for LV or AT condition prefix
-        var upper = remaining.ToUpperInvariant();
+        string upper = remaining.ToUpperInvariant();
         if (upper.StartsWith("LV "))
         {
-            var condResult = ParseLvCondition(remaining);
+            (BlockCondition Condition, string Remainder)? condResult = ParseLvCondition(remaining);
             if (condResult is null)
             {
                 debugLog?.WriteLine($"  [ParseBlock] LV condition parse failed for \"{blockStr}\"");
@@ -157,7 +159,7 @@ public static class CommandParser
         }
         else if (upper.StartsWith("AT "))
         {
-            var condResult = ParseAtCondition(remaining);
+            (BlockCondition Condition, string Remainder)? condResult = ParseAtCondition(remaining);
             if (condResult is null)
             {
                 debugLog?.WriteLine($"  [ParseBlock] AT condition parse failed for \"{blockStr}\"");
@@ -169,7 +171,7 @@ public static class CommandParser
         }
         else if (upper.StartsWith("ATFN "))
         {
-            var condResult = ParseAtfnCondition(remaining);
+            (BlockCondition Condition, string Remainder)? condResult = ParseAtfnCondition(remaining);
             if (condResult is null)
             {
                 debugLog?.WriteLine($"  [ParseBlock] ATFN condition parse failed for \"{blockStr}\"");
@@ -183,7 +185,7 @@ public static class CommandParser
         {
             // GW is a condition only when followed by callsign + a known ground command verb.
             // "GW JBU987 TAXI T U" → condition. "GW JBU987 N" → standalone command with location.
-            var gwTokens = remaining.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            string[] gwTokens = remaining.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (gwTokens.Length < 3 || !IsGiveWayConditionVerb(gwTokens[2]))
             {
                 // Not a condition form — fall through to command list parsing
@@ -191,7 +193,7 @@ public static class CommandParser
             }
             else
             {
-                var condResult = ParseGiveWayCondition(remaining);
+                (BlockCondition Condition, string Remainder)? condResult = ParseGiveWayCondition(remaining);
                 if (condResult is null)
                 {
                     debugLog?.WriteLine($"  [ParseBlock] GW condition parse failed for \"{blockStr}\"");
@@ -207,7 +209,7 @@ public static class CommandParser
         }
         else if (upper.StartsWith("ONHO ") || upper.StartsWith("ONH "))
         {
-            var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            string[] tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 2)
             {
                 _lastBlockFailure = "ONHO requires a command";
@@ -215,13 +217,13 @@ public static class CommandParser
             }
 
             remaining = tokens[1];
-            var remainingUpper = remaining.ToUpperInvariant();
+            string remainingUpper = remaining.ToUpperInvariant();
 
             // ONHO followed by another condition (AT/LV/ATFN) → two sequential blocks:
             // block 1 = ONHO (no commands), block 2 = inner condition + commands
             if (remainingUpper.StartsWith("AT ") || remainingUpper.StartsWith("LV ") || remainingUpper.StartsWith("ATFN "))
             {
-                var innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
+                List<ParsedBlock>? innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
                 if (innerBlocks is null)
                 {
                     return null;
@@ -235,7 +237,7 @@ public static class CommandParser
         }
         else if (upper.StartsWith("ONHS "))
         {
-            var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            string[] tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 2)
             {
                 _lastBlockFailure = "ONHS requires a command";
@@ -243,12 +245,12 @@ public static class CommandParser
             }
 
             remaining = tokens[1];
-            var remainingUpper = remaining.ToUpperInvariant();
+            string remainingUpper = remaining.ToUpperInvariant();
 
             // ONHS followed by another condition (AT/LV/ATFN) → two sequential blocks
             if (remainingUpper.StartsWith("AT ") || remainingUpper.StartsWith("LV ") || remainingUpper.StartsWith("ATFN "))
             {
-                var innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
+                List<ParsedBlock>? innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
                 if (innerBlocks is null)
                 {
                     return null;
@@ -262,7 +264,7 @@ public static class CommandParser
         }
         else if (upper.StartsWith("OTG "))
         {
-            var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            string[] tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 2)
             {
                 _lastBlockFailure = "OTG requires a command";
@@ -270,12 +272,12 @@ public static class CommandParser
             }
 
             remaining = tokens[1];
-            var remainingUpper = remaining.ToUpperInvariant();
+            string remainingUpper = remaining.ToUpperInvariant();
 
             // OTG followed by another condition (AT/LV/ATFN) → two sequential blocks
             if (remainingUpper.StartsWith("AT ") || remainingUpper.StartsWith("LV ") || remainingUpper.StartsWith("ATFN "))
             {
-                var innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
+                List<ParsedBlock>? innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
                 if (innerBlocks is null)
                 {
                     return null;
@@ -293,10 +295,10 @@ public static class CommandParser
             debugLog?.WriteLine($"  [ParseBlock] condition={condition.GetType().Name}, remainder=\"{remaining}\"");
 
             // Chained conditions: remainder starts with another AT/LV/ATFN → split into sequential blocks
-            var remUpper = remaining.ToUpperInvariant();
+            string remUpper = remaining.ToUpperInvariant();
             if (remUpper.StartsWith("AT ") || remUpper.StartsWith("LV ") || remUpper.StartsWith("ATFN "))
             {
-                var innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
+                List<ParsedBlock>? innerBlocks = ParseBlock(remaining, aircraftRoute, debugLog);
                 if (innerBlocks is null)
                 {
                     return null;
@@ -320,7 +322,7 @@ public static class CommandParser
         }
 
         // After condition extraction, apply expansions to the remainder
-        var expanded = CommandSchemeParser.ExpandMultiCommand(CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(remaining)));
+        string expanded = CommandSchemeParser.ExpandMultiCommand(CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(remaining)));
         if (expanded != remaining)
         {
             debugLog?.WriteLine($"  [ParseBlock] remainder expanded: \"{remaining}\" => \"{expanded}\"");
@@ -331,9 +333,9 @@ public static class CommandParser
             // Expansion produced additional blocks — first gets this block's condition,
             // subsequent become standalone blocks
             var subBlocks = new List<string>();
-            foreach (var raw in expanded.Split(';'))
+            foreach (string raw in expanded.Split(';'))
             {
-                var s = raw.Trim();
+                string s = raw.Trim();
                 if (s.Length > 0)
                 {
                     subBlocks.Add(s);
@@ -345,7 +347,7 @@ public static class CommandParser
 
             if (subBlocks.Count > 0)
             {
-                var firstCmds = ParseCommandList(subBlocks[0], aircraftRoute, debugLog);
+                List<ParsedCommand>? firstCmds = ParseCommandList(subBlocks[0], aircraftRoute, debugLog);
                 if (firstCmds is null)
                 {
                     return null;
@@ -362,7 +364,7 @@ public static class CommandParser
                     index = 1;
                     while (index < subBlocks.Count)
                     {
-                        var nextParsed = ParseBlock(subBlocks[index], aircraftRoute, debugLog);
+                        List<ParsedBlock>? nextParsed = ParseBlock(subBlocks[index], aircraftRoute, debugLog);
                         if (nextParsed is null)
                         {
                             return null;
@@ -391,7 +393,7 @@ public static class CommandParser
             for (; index < subBlocks.Count; index++)
             {
                 // Recursive call for subsequent blocks (they may have their own conditions)
-                var subParsed = ParseBlock(subBlocks[index], aircraftRoute, debugLog);
+                List<ParsedBlock>? subParsed = ParseBlock(subBlocks[index], aircraftRoute, debugLog);
                 if (subParsed is null)
                 {
                     return null;
@@ -406,7 +408,7 @@ public static class CommandParser
         remaining = expanded;
 
         // Split remaining by ',' for parallel commands
-        var commands = ParseCommandList(remaining, aircraftRoute, debugLog);
+        List<ParsedCommand>? commands = ParseCommandList(remaining, aircraftRoute, debugLog);
         if (commands is null)
         {
             return null;
@@ -418,14 +420,14 @@ public static class CommandParser
     private static List<ParsedCommand>? ParseCommandList(string input, string? aircraftRoute, TextWriter? debugLog = null)
     {
         // SAY, TIMER and BM consume their entire remainder as literal text — don't split on comma
-        var trimmedInput = input.TrimStart();
+        string trimmedInput = input.TrimStart();
         if (
             StartsWithRegisteredAlias(trimmedInput, Say)
             || StartsWithRegisteredAlias(trimmedInput, CanonicalCommandType.Timer)
             || StartsWithRegisteredAlias(trimmedInput, CanonicalCommandType.Bookmark)
         )
         {
-            var cmd = Parse(input.Trim(), aircraftRoute);
+            PR cmd = Parse(input.Trim(), aircraftRoute);
             if (!cmd.IsSuccess)
             {
                 _lastBlockFailure = cmd.Reason;
@@ -435,13 +437,13 @@ public static class CommandParser
             return [cmd.Value!];
         }
 
-        var commandStrings = input.Split(',');
+        string[] commandStrings = input.Split(',');
         var commands = new List<ParsedCommand>();
 
-        foreach (var cmdStr in commandStrings)
+        foreach (string cmdStr in commandStrings)
         {
-            var trimmedCmd = cmdStr.Trim();
-            var cmd = Parse(trimmedCmd, aircraftRoute);
+            string trimmedCmd = cmdStr.Trim();
+            PR cmd = Parse(trimmedCmd, aircraftRoute);
             if (cmd.IsSuccess)
             {
                 debugLog?.WriteLine($"    [ParseCommandList] \"{trimmedCmd}\" => {cmd.Value!.GetType().Name}");
@@ -450,7 +452,7 @@ public static class CommandParser
             }
 
             // Try expanding concatenated commands: "FH 270 CM 5000" → "FH 270, CM 5000"
-            var expanded = CommandSchemeParser.ExpandMultiCommand(trimmedCmd);
+            string expanded = CommandSchemeParser.ExpandMultiCommand(trimmedCmd);
             if (expanded == trimmedCmd)
             {
                 debugLog?.WriteLine($"    [ParseCommandList] \"{trimmedCmd}\" => FAILED (no expansion available)");
@@ -459,9 +461,9 @@ public static class CommandParser
             }
 
             debugLog?.WriteLine($"    [ParseCommandList] \"{trimmedCmd}\" expanded to \"{expanded}\"");
-            foreach (var subCmd in expanded.Split(','))
+            foreach (string subCmd in expanded.Split(','))
             {
-                var parsed = Parse(subCmd.Trim(), aircraftRoute);
+                PR parsed = Parse(subCmd.Trim(), aircraftRoute);
                 if (!parsed.IsSuccess)
                 {
                     debugLog?.WriteLine($"    [ParseCommandList] sub \"{subCmd.Trim()}\" => FAILED");
@@ -479,7 +481,7 @@ public static class CommandParser
 
     private static bool StartsWithRegisteredAlias(string input, CanonicalCommandType type)
     {
-        foreach (var alias in CommandRegistry.AliasesFor(type))
+        foreach (string alias in CommandRegistry.AliasesFor(type))
         {
             if (input.Length <= alias.Length)
             {
@@ -498,7 +500,7 @@ public static class CommandParser
     private static (BlockCondition Condition, string Remainder)? ParseLvCondition(string input)
     {
         // "LV 050 FH 090" → condition=LevelCondition(5000), remainder="FH 090"
-        var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 3)
         {
             _lastBlockFailure = "LV requires altitude and a command";
@@ -513,7 +515,7 @@ public static class CommandParser
             return null;
         }
 
-        var remainder = string.Join(' ', parts.Skip(2));
+        string remainder = string.Join(' ', parts.Skip(2));
         return (new LevelCondition(altitude.Value), remainder);
     }
 
@@ -526,20 +528,20 @@ public static class CommandParser
         // "AT @TERM2 ..."   → AtGroundEntityCondition(Parking, "TERM2")
         // "AT A/B ..."      → AtGroundEntityCondition(Intersection, "A", "B")
         // "AT A ..."        → bare token, falls through to taxiway after fix lookup misses
-        var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 2)
         {
             _lastBlockFailure = "AT requires a fix name, ground entity, or altitude";
             return null;
         }
 
-        var token = parts[1].ToUpperInvariant();
-        var remainder = parts.Length >= 3 ? string.Join(' ', parts.Skip(2)) : "";
+        string token = parts[1].ToUpperInvariant();
+        string remainder = parts.Length >= 3 ? string.Join(' ', parts.Skip(2)) : "";
 
         // Sigil-prefixed ground entities — resolved layout-side in CommandDispatcher.
         if (token.StartsWith('$'))
         {
-            var name = token[1..];
+            string name = token[1..];
             if (name.Length == 0)
             {
                 _lastBlockFailure = "AT $ requires a spot name";
@@ -550,7 +552,7 @@ public static class CommandParser
 
         if (token.StartsWith('@'))
         {
-            var name = token[1..];
+            string name = token[1..];
             if (name.Length == 0)
             {
                 _lastBlockFailure = "AT @ requires a parking name";
@@ -561,7 +563,7 @@ public static class CommandParser
 
         if (token.Contains('/'))
         {
-            var pair = token.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            string[] pair = token.Split('/', StringSplitOptions.RemoveEmptyEntries);
             if (pair.Length != 2 || pair[0].Length == 0 || pair[1].Length == 0)
             {
                 _lastBlockFailure = $"AT intersection requires two taxiway names separated by '/' (got '{token}')";
@@ -585,19 +587,19 @@ public static class CommandParser
 
         // Try direct airborne-fix lookup. Wins over taxiway on collision so all existing
         // AT <fix> behavior is preserved unchanged.
-        var navDb = NavigationDatabase.Instance;
-        var pos = navDb.GetFixPosition(token);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(token);
         if (pos is not null)
         {
             return (new AtFixCondition(token, pos.Value.Lat, pos.Value.Lon), remainder);
         }
 
         // Try FRD parse — only succeeds if the embedded fix name resolves.
-        var parsed = FrdResolver.ParseFrd(token);
+        (string Fix, int? Radial, int? Distance)? parsed = FrdResolver.ParseFrd(token);
         if (parsed is { Radial: not null } frdWithRadial)
         {
-            var (fixName, radial, distance) = frdWithRadial;
-            var fixPos = navDb.GetFixPosition(fixName);
+            (string? fixName, int? radial, int? distance) = frdWithRadial;
+            (double Lat, double Lon)? fixPos = navDb.GetFixPosition(fixName);
             if (fixPos is not null)
             {
                 return (new AtFixCondition(fixName, fixPos.Value.Lat, fixPos.Value.Lon, radial, distance), remainder);
@@ -623,15 +625,15 @@ public static class CommandParser
     private static (BlockCondition Condition, string Remainder)? ParseGiveWayCondition(string input)
     {
         // "GIVEWAY SWA5456 TAXI T U W" → condition=GiveWayCondition(SWA5456), remainder="TAXI T U W"
-        var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 3)
         {
             _lastBlockFailure = "GIVEWAY requires callsign and a command";
             return null;
         }
 
-        var targetCallsign = parts[1].ToUpperInvariant();
-        var remainder = string.Join(' ', parts.Skip(2));
+        string targetCallsign = parts[1].ToUpperInvariant();
+        string remainder = string.Join(' ', parts.Skip(2));
         return (new GiveWayCondition(targetCallsign), remainder);
     }
 
@@ -640,22 +642,22 @@ public static class CommandParser
     /// </summary>
     public static PR Parse(string input, string? aircraftRoute = null)
     {
-        var trimmed = input.Trim();
+        string trimmed = input.Trim();
         if (string.IsNullOrEmpty(trimmed))
         {
             return PR.Fail("empty command");
         }
 
         // T{n}L/T{n}R concatenated relative turns (e.g. T30L → LeftTurnCommand(30))
-        var upper = trimmed.ToUpperInvariant();
-        if (upper.Length >= 3 && upper[0] == 'T' && char.IsDigit(upper[1]) && upper[^1] is 'L' or 'R' && int.TryParse(upper[1..^1], out var relDeg))
+        string upper = trimmed.ToUpperInvariant();
+        if (upper.Length >= 3 && upper[0] == 'T' && char.IsDigit(upper[1]) && upper[^1] is 'L' or 'R' && int.TryParse(upper[1..^1], out int relDeg))
         {
             return PR.Ok(upper[^1] == 'L' ? new LeftTurnCommand(relDeg) : new RightTurnCommand(relDeg));
         }
 
-        var parts = trimmed.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        var verb = parts[0].ToUpperInvariant();
-        var arg = parts.Length > 1 ? parts[1].Trim() : null;
+        string[] parts = trimmed.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        string verb = parts[0].ToUpperInvariant();
+        string? arg = parts.Length > 1 ? parts[1].Trim() : null;
 
         // Legacy merged forms not in registry
         switch (verb)
@@ -677,7 +679,7 @@ public static class CommandParser
         // RWY {runway} [TAXI] {path} → rewrite to Taxi command
         if (verb == "RWY" && arg is not null)
         {
-            var rewritten = RewriteRwyToTaxiArg(arg);
+            string? rewritten = RewriteRwyToTaxiArg(arg);
             if (rewritten is not null)
             {
                 return ParseByType(Taxi, rewritten, aircraftRoute, trimmed);
@@ -685,15 +687,15 @@ public static class CommandParser
         }
 
         // Resolve alias → CanonicalCommandType via registry
-        if (!CommandRegistry.AliasToCanonicType.TryGetValue(verb, out var type))
+        if (!CommandRegistry.AliasToCanonicType.TryGetValue(verb, out CanonicalCommandType type))
         {
             return TryConcatenation(upper);
         }
 
-        var result = ParseByType(type, arg, aircraftRoute, trimmed);
+        PR result = ParseByType(type, arg, aircraftRoute, trimmed);
         if (!result.IsSuccess)
         {
-            var expected = CommandRegistry.RenderSignature(type);
+            string expected = CommandRegistry.RenderSignature(type);
             return PR.Fail($"\"{verb}\" {result.Reason} — expected: {expected}");
         }
         return result;
@@ -923,7 +925,7 @@ public static class CommandParser
             ),
             InhibitDuplicateBeacon when arg is null => PR.Ok(new InhibitDuplicateBeaconCommand()),
             PilotReportedAltitude => ParseAltitudeHundreds(arg, h => new PilotReportedAltitudeCommand(h)),
-            LeaderDirection when arg is not null && int.TryParse(arg.Trim(), out var ldr) && ldr >= 1 && ldr <= 9 => PR.Ok(
+            LeaderDirection when arg is not null && int.TryParse(arg.Trim(), out int ldr) && ldr >= 1 && ldr <= 9 => PR.Ok(
                 new LeaderDirectionCommand(ldr)
             ),
             LeaderDirection => PR.Fail("leader direction must be 1-9"),
@@ -981,7 +983,7 @@ public static class CommandParser
             AsdexInhibitAlerts when arg is null => PR.Ok(new AsdexVerbCommand(AsdexVerb.InhibitAlerts)),
             AsdexEnableAllAlerts when arg is null => PR.Ok(new AsdexEnableAllAlertsCommand()),
             TemporaryAltitude when arg is null => PR.Ok(new TemporaryAltitudeCommand(0)),
-            TemporaryAltitude when int.TryParse(arg, out var taVal) && taVal == 0 => PR.Ok(new TemporaryAltitudeCommand(0)),
+            TemporaryAltitude when int.TryParse(arg, out int taVal) && taVal == 0 => PR.Ok(new TemporaryAltitudeCommand(0)),
             TemporaryAltitude => ParseAltitudeHundreds(arg, h => new TemporaryAltitudeCommand(h)),
             Cruise => ParseAltitudeHundreds(arg, h => new CruiseCommand(h)),
             OnHandoff when arg is null => PR.Ok(new OnHandoffCommand()),
@@ -996,7 +998,7 @@ public static class CommandParser
             SayPosition when arg is null => PR.Ok(new SayPositionCommand()),
             // Queue
             DeleteQueuedCommands when arg is null => PR.Ok(new DeleteQueuedCommand()),
-            DeleteQueuedCommands => int.TryParse(arg, out var delAtBlock)
+            DeleteQueuedCommands => int.TryParse(arg, out int delAtBlock)
                 ? PR.Ok(new DeleteQueuedCommand(delAtBlock))
                 : PR.Fail($"invalid block number '{arg}'"),
             ShowQueuedCommands when arg is null => PR.Ok(new ShowQueuedCommand()),
@@ -1055,14 +1057,14 @@ public static class CommandParser
     /// </summary>
     private static PR TryConcatenation(string upperInput)
     {
-        foreach (var (alias, type) in ConcatenationCandidates.Value)
+        foreach ((string? alias, CanonicalCommandType type) in ConcatenationCandidates.Value)
         {
             if (!upperInput.StartsWith(alias, StringComparison.Ordinal))
             {
                 continue;
             }
 
-            var remainder = upperInput[alias.Length..];
+            string remainder = upperInput[alias.Length..];
             if (remainder.Length == 0)
             {
                 continue;
@@ -1087,7 +1089,7 @@ public static class CommandParser
     private static List<(string Alias, CanonicalCommandType Type)> BuildConcatenationCandidates()
     {
         var candidates = new List<(string Alias, CanonicalCommandType Type)>();
-        foreach (var def in CommandRegistry.All.Values)
+        foreach (CommandDefinition def in CommandRegistry.All.Values)
         {
             if (def.ArgMode == ArgMode.None)
             {
@@ -1099,7 +1101,7 @@ public static class CommandParser
                 continue;
             }
 
-            foreach (var alias in def.DefaultAliases)
+            foreach (string alias in def.DefaultAliases)
             {
                 candidates.Add((alias.ToUpperInvariant(), def.Type));
             }
@@ -1148,7 +1150,7 @@ public static class CommandParser
             return true;
         }
 
-        var plusIndex = arg.IndexOf('+');
+        int plusIndex = arg.IndexOf('+');
         if (plusIndex <= 0 || plusIndex == arg.Length - 1)
         {
             return false;
@@ -1162,13 +1164,13 @@ public static class CommandParser
     /// </summary>
     internal static string? RewriteRwyToTaxiArg(string arg)
     {
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length < 2)
         {
             return null;
         }
 
-        var runway = tokens[0].ToUpperInvariant();
+        string runway = tokens[0].ToUpperInvariant();
         int startIdx = 1;
 
         if (startIdx < tokens.Length && tokens[startIdx].Equals("TAXI", StringComparison.OrdinalIgnoreCase))
@@ -1181,7 +1183,7 @@ public static class CommandParser
             return null;
         }
 
-        var remaining = string.Join(" ", tokens[startIdx..]);
+        string remaining = string.Join(" ", tokens[startIdx..]);
         return $"{remaining} RWY {runway}";
     }
 
@@ -1195,14 +1197,14 @@ public static class CommandParser
             return new CoordinationHoldCommand(null, null);
         }
 
-        var parts = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
         {
             return new CoordinationHoldCommand(null, null);
         }
 
-        var listId = parts[0].Trim().ToUpperInvariant();
-        var text = parts.Length > 1 ? parts[1].Trim() : null;
+        string listId = parts[0].Trim().ToUpperInvariant();
+        string? text = parts.Length > 1 ? parts[1].Trim() : null;
         return new CoordinationHoldCommand(listId, text);
     }
 
@@ -1212,7 +1214,7 @@ public static class CommandParser
     /// </summary>
     private static PR ParseModifyArgs(string? arg)
     {
-        var tokens = (arg ?? "").Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = (arg ?? "").Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         string? listId = null;
         if ((tokens.Length > 0) && tokens[0].StartsWith('/') && (tokens[0].Length > 1))
         {
@@ -1235,7 +1237,7 @@ public static class CommandParser
             return PR.Fail("RDAUTO requires a coordination channel");
         }
 
-        var tokens = arg.Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = arg.Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return tokens switch
         {
             [var listId] => PR.Ok(new CoordinationAutoAckCommand(listId, null)),
@@ -1247,11 +1249,11 @@ public static class CommandParser
 
     private static PR ParseReorderArgs(string? arg)
     {
-        var tokens = (arg ?? "").Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = (arg ?? "").Trim().ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return tokens switch
         {
-            [var pos] when int.TryParse(pos, out var n) && n >= 1 => PR.Ok(new CoordinationReorderCommand(null, n)),
-            [var listId, var pos] when int.TryParse(pos, out var n) && n >= 1 => PR.Ok(new CoordinationReorderCommand(listId, n)),
+            [var pos] when int.TryParse(pos, out int n) && n >= 1 => PR.Ok(new CoordinationReorderCommand(null, n)),
+            [var listId, var pos] when int.TryParse(pos, out int n) && n >= 1 => PR.Ok(new CoordinationReorderCommand(listId, n)),
             _ => PR.Fail("RDPOS requires [channel] and a line number"),
         };
     }
@@ -1284,13 +1286,13 @@ public static class CommandParser
         }
 
         // Strip ERAM-style P prefix (e.g., P110 → 110)
-        var cleaned = arg;
+        string cleaned = arg;
         if (cleaned.Length > 1 && cleaned[0] is 'P' or 'p' && char.IsDigit(cleaned[1]))
         {
             cleaned = cleaned[1..];
         }
 
-        if (!int.TryParse(cleaned, out var value) || value <= 0)
+        if (!int.TryParse(cleaned, out int value) || value <= 0)
         {
             return PR.Fail($"invalid altitude '{arg}'");
         }
@@ -1299,7 +1301,7 @@ public static class CommandParser
         // input. Spoken phraseology produces "5000" after AtcNumberParser normalization, while
         // typed STARS-style commands use the hundreds shorthand — both should round-trip to the
         // same canonical altitude. Same convention as ParseCfixAltitudeToken / AltitudeResolver.
-        var hundreds = value < 1000 ? value : value / 100;
+        int hundreds = value < 1000 ? value : value / 100;
         return PR.Ok(factory(hundreds));
     }
 
@@ -1309,7 +1311,7 @@ public static class CommandParser
 
     private static PR ParseTpaSize(string? arg, Func<double, ParsedCommand> factory)
     {
-        if (arg is null || !double.TryParse(arg.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var size))
+        if (arg is null || !double.TryParse(arg.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double size))
         {
             return PR.Fail("TPA size must be a number");
         }
@@ -1324,13 +1326,13 @@ public static class CommandParser
 
     private static PR ParseGhostTrackArg(string arg)
     {
-        var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         // GHOST callsign lat lon — exact position (CRC replay)
         if (
             parts.Length == 3
-            && double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lat)
-            && double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lon)
+            && double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double lat)
+            && double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double lon)
         )
         {
             return PR.Ok(new GhostTrackCommand(parts[0].ToUpperInvariant(), null, null, lat, lon));
@@ -1348,12 +1350,12 @@ public static class CommandParser
 
     private static PR ParseRepositionToLocationArg(string arg)
     {
-        var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         if (
             parts.Length == 3
-            && double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lat)
-            && double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lon)
+            && double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double lat)
+            && double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double lon)
         )
         {
             return PR.Ok(new RepositionToLocationCommand(parts[0].ToUpperInvariant(), lat, lon));
@@ -1364,7 +1366,7 @@ public static class CommandParser
 
     private static PR ParseRepositionMoveArg(string arg)
     {
-        var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         if (parts.Length == 2)
         {
@@ -1380,18 +1382,18 @@ public static class CommandParser
     /// </summary>
     private static (List<ResolvedFix>? Fixes, string? FailReason) ResolveAllFixes(string[] fixNames)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         var resolved = new List<ResolvedFix>();
-        foreach (var name in fixNames)
+        foreach (string name in fixNames)
         {
-            var pos = navDb.GetFixPosition(name);
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(name);
             if (pos is not null)
             {
                 resolved.Add(new ResolvedFix(name.ToUpperInvariant(), pos.Value.Lat, pos.Value.Lon));
                 continue;
             }
 
-            var frd = FrdResolver.Resolve(name, navDb);
+            LatLon? frd = FrdResolver.Resolve(name, navDb);
             if (frd is not null)
             {
                 resolved.Add(new ResolvedFix(name.ToUpperInvariant(), frd.Value.Lat, frd.Value.Lon));
@@ -1413,13 +1415,13 @@ public static class CommandParser
             return PR.Fail("DCT requires at least one fix name");
         }
 
-        var fixNames = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] fixNames = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (fixNames.Length == 0)
         {
             return PR.Fail("DCT requires at least one fix name");
         }
 
-        var (resolved, fail) = ResolveAllFixes(fixNames);
+        (List<ResolvedFix>? resolved, string? fail) = ResolveAllFixes(fixNames);
         if (resolved is null)
         {
             return PR.Fail(fail!);
@@ -1440,13 +1442,13 @@ public static class CommandParser
             return PR.Fail("ADCT requires at least one fix name");
         }
 
-        var fixNames = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] fixNames = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (fixNames.Length == 0)
         {
             return PR.Fail("ADCT requires at least one fix name");
         }
 
-        var (resolved, fail) = ResolveAllFixes(fixNames);
+        (List<ResolvedFix>? resolved, string? fail) = ResolveAllFixes(fixNames);
         if (resolved is null)
         {
             return PR.Fail(fail!);
@@ -1467,13 +1469,13 @@ public static class CommandParser
             return PR.Fail("AFDCT requires at least one fix name");
         }
 
-        var fixNames = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] fixNames = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (fixNames.Length == 0)
         {
             return PR.Fail("AFDCT requires at least one fix name");
         }
 
-        var (resolved, fail) = ResolveAllFixes(fixNames);
+        (List<ResolvedFix>? resolved, string? fail) = ResolveAllFixes(fixNames);
         if (resolved is null)
         {
             return PR.Fail(fail!);
@@ -1494,18 +1496,18 @@ public static class CommandParser
             return PR.Fail("FDCT requires at least one fix name");
         }
 
-        var fixNames = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] fixNames = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (fixNames.Length == 0)
         {
             return PR.Fail("FDCT requires at least one fix name");
         }
 
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         var resolved = new List<ResolvedFix>();
         var altConstraints = new Dictionary<int, ConstrainedFixAltitude>();
         bool hasConstraints = false;
 
-        foreach (var token in fixNames)
+        foreach (string token in fixNames)
         {
             // Check for inline altitude constraint: FIXNAME/altToken
             string name;
@@ -1521,7 +1523,7 @@ public static class CommandParser
                 name = token;
             }
 
-            var pos = navDb.GetFixPosition(name);
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(name);
             if (pos is not null)
             {
                 int fixIndex = resolved.Count;
@@ -1529,7 +1531,7 @@ public static class CommandParser
 
                 if (altToken is not null)
                 {
-                    var (altitude, altType) = ApproachCommandParser.ParseCfixAltitudeToken(altToken);
+                    (int? altitude, CrossFixAltitudeType altType) = ApproachCommandParser.ParseCfixAltitudeToken(altToken);
                     if (altitude is not null)
                     {
                         altConstraints[fixIndex] = new ConstrainedFixAltitude(altitude.Value, altType);
@@ -1540,7 +1542,7 @@ public static class CommandParser
                 continue;
             }
 
-            var frd = FrdResolver.Resolve(name, navDb);
+            LatLon? frd = FrdResolver.Resolve(name, navDb);
             if (frd is not null)
             {
                 int fixIndex = resolved.Count;
@@ -1548,7 +1550,7 @@ public static class CommandParser
 
                 if (altToken is not null)
                 {
-                    var (altitude, altType) = ApproachCommandParser.ParseCfixAltitudeToken(altToken);
+                    (int? altitude, CrossFixAltitudeType altType) = ApproachCommandParser.ParseCfixAltitudeToken(altToken);
                     if (altitude is not null)
                     {
                         altConstraints[fixIndex] = new ConstrainedFixAltitude(altitude.Value, altType);
@@ -1582,19 +1584,19 @@ public static class CommandParser
 
     private static PR ParseTurnDirectTo(string? arg, string? aircraftRoute, TurnDirection direction)
     {
-        var label = direction == TurnDirection.Left ? "TLDCT" : "TRDCT";
+        string label = direction == TurnDirection.Left ? "TLDCT" : "TRDCT";
         if (arg is null)
         {
             return PR.Fail($"{label} requires at least one fix name");
         }
 
-        var fixNames = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] fixNames = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (fixNames.Length == 0)
         {
             return PR.Fail($"{label} requires at least one fix name");
         }
 
-        var (resolved, fail) = ResolveAllFixes(fixNames);
+        (List<ResolvedFix>? resolved, string? fail) = ResolveAllFixes(fixNames);
         if (resolved is null)
         {
             return PR.Fail(fail!);
@@ -1615,14 +1617,14 @@ public static class CommandParser
             return PR.Fail("requires an approach ID");
         }
 
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return PR.Fail("requires an approach ID");
         }
 
-        var approachId = tokens[0].ToUpperInvariant();
-        var airportCode = tokens.Length > 1 ? tokens[1].ToUpperInvariant() : null;
+        string approachId = tokens[0].ToUpperInvariant();
+        string? airportCode = tokens.Length > 1 ? tokens[1].ToUpperInvariant() : null;
         return PR.Ok(new ExpectApproachCommand(approachId, airportCode));
     }
 
@@ -1652,7 +1654,7 @@ public static class CommandParser
     /// </summary>
     private static PR ParseTouchAndGo(string? arg)
     {
-        var tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        string[] tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
         if (tokens.Length == 0)
         {
             return PR.Ok(new TouchAndGoCommand(null, null, null, null));
@@ -1676,7 +1678,7 @@ public static class CommandParser
     /// </summary>
     private static PR ParseOptionWithDirection(string? arg, string verb, Func<PatternDirection?, string?, int?, string?, ParsedCommand> factory)
     {
-        var tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        string[] tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
         return ParseOptionModifier(tokens, 0, verb, factory);
     }
 
@@ -1698,13 +1700,13 @@ public static class CommandParser
             return PR.Ok(factory(null, null, null, null));
         }
 
-        var dir = ParsePatternDir(tokens[start]);
+        PatternDirection? dir = ParsePatternDir(tokens[start]);
         if (dir is null)
         {
             return PR.Fail($"unexpected argument '{tokens[start]}' (expected MLT or MRT)");
         }
 
-        var args = DepartureCommandParser.ParsePatternModifierArgs(tokens, start + 1);
+        DepartureCommandParser.PatternModifierArgs args = DepartureCommandParser.ParsePatternModifierArgs(tokens, start + 1);
         if (args.Failure is { } failure)
         {
             return PR.Fail($"{verb} {tokens[start].ToUpperInvariant()} {failure}");
@@ -1721,8 +1723,8 @@ public static class CommandParser
     /// </summary>
     private static PR ParseMakeTraffic(string? arg, PatternDirection direction)
     {
-        var tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
-        var args = DepartureCommandParser.ParsePatternModifierArgs(tokens, 0);
+        string[] tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        DepartureCommandParser.PatternModifierArgs args = DepartureCommandParser.ParsePatternModifierArgs(tokens, 0);
         string verb = direction == PatternDirection.Left ? "MLT" : "MRT";
         if (args.Failure is { } failure)
         {
@@ -1775,12 +1777,12 @@ public static class CommandParser
             return PR.Ok(new GoAroundCommand(null, null, null));
         }
 
-        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         // GA MRT [altitude] or GA MLT [altitude]
         if (parts[0].Equals("MRT", StringComparison.OrdinalIgnoreCase) || parts[0].Equals("MLT", StringComparison.OrdinalIgnoreCase))
         {
-            var dir = parts[0].Equals("MLT", StringComparison.OrdinalIgnoreCase) ? PatternDirection.Left : PatternDirection.Right;
+            PatternDirection dir = parts[0].Equals("MLT", StringComparison.OrdinalIgnoreCase) ? PatternDirection.Left : PatternDirection.Right;
             int? patternAlt = parts.Length > 1 ? AltitudeResolver.Resolve(parts[1]) : null;
             if (parts.Length > 1 && patternAlt is null)
             {
@@ -1798,7 +1800,7 @@ public static class CommandParser
         int? heading = null;
         if (!parts[0].Equals("RH", StringComparison.OrdinalIgnoreCase))
         {
-            if (!int.TryParse(parts[0], out var h) || h < 1 || h > 360)
+            if (!int.TryParse(parts[0], out int h) || h < 1 || h > 360)
             {
                 return PR.Fail($"invalid go-around heading '{parts[0]}' (expected 1-360 or RH)");
             }
@@ -1826,12 +1828,12 @@ public static class CommandParser
             return PR.Fail("hold at fix requires a fix name");
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var fixName = arg.Trim().ToUpperInvariant();
-        var pos = navDb.GetFixPosition(fixName);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string fixName = arg.Trim().ToUpperInvariant();
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
-            var frd = FrdResolver.Resolve(fixName, navDb);
+            LatLon? frd = FrdResolver.Resolve(fixName, navDb);
             if (frd is null)
             {
                 return PR.Fail($"fix '{fixName}' not found");
@@ -1849,12 +1851,12 @@ public static class CommandParser
             return PR.Fail("hold at fix hover requires a fix name");
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var fixName = arg.Trim().ToUpperInvariant();
-        var pos = navDb.GetFixPosition(fixName);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string fixName = arg.Trim().ToUpperInvariant();
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
-            var frd = FrdResolver.Resolve(fixName, navDb);
+            LatLon? frd = FrdResolver.Resolve(fixName, navDb);
             if (frd is null)
             {
                 return PR.Fail($"fix '{fixName}' not found");
@@ -1867,18 +1869,18 @@ public static class CommandParser
 
     private static PR ParseLand(string arg)
     {
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return PR.Fail("LAND requires a taxiway or @spot");
         }
 
-        if (!TryParseNoDeleteFlag(tokens, "LAND", out var noDelete, out var error))
+        if (!TryParseNoDeleteFlag(tokens, "LAND", out bool noDelete, out string? error))
         {
             return PR.Fail(error);
         }
 
-        var raw = tokens[0];
+        string raw = tokens[0];
 
         // @prefix = parking/helipad spot (strip @), no prefix = taxiway name
         if (raw.StartsWith('@'))
@@ -1905,7 +1907,7 @@ public static class CommandParser
             return null;
         }
 
-        var trimmed = arg.Trim();
+        string trimmed = arg.Trim();
         bool sigilled = trimmed.Length > 1 && (trimmed[0] == '@' || trimmed[0] == '$');
         if (sigilled)
         {
@@ -1933,7 +1935,7 @@ public static class CommandParser
             return PR.Ok(new FollowCommand(null, force));
         }
 
-        var callsign = arg.Trim();
+        string callsign = arg.Trim();
         if (callsign.Length == 0)
         {
             return PR.Ok(new FollowCommand(null, force));
@@ -1944,7 +1946,7 @@ public static class CommandParser
 
     private static PR ParseWaitSeconds(string? arg)
     {
-        if (arg is null || !int.TryParse(arg, out var seconds) || seconds < 0)
+        if (arg is null || !int.TryParse(arg, out int seconds) || seconds < 0)
         {
             return PR.Fail($"invalid wait seconds '{arg}'");
         }
@@ -1954,7 +1956,7 @@ public static class CommandParser
 
     private static PR ParseWaitDistance(string? arg)
     {
-        if (arg is null || !double.TryParse(arg, out var distNm) || distNm <= 0)
+        if (arg is null || !double.TryParse(arg, out double distNm) || distNm <= 0)
         {
             return PR.Fail($"invalid wait distance '{arg}'");
         }
@@ -1964,7 +1966,7 @@ public static class CommandParser
 
     private static PR ParseHeading(string? arg, Func<int, ParsedCommand> factory)
     {
-        if (arg is null || !int.TryParse(arg, out var heading))
+        if (arg is null || !int.TryParse(arg, out int heading))
         {
             return PR.Fail($"invalid heading '{arg}' (expected 001-360)");
         }
@@ -1983,8 +1985,8 @@ public static class CommandParser
     /// </summary>
     private static PR ParseTurnWithDirection(string arg)
     {
-        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length != 2 || !int.TryParse(parts[0], out var degrees))
+        string[] parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2 || !int.TryParse(parts[0], out int degrees))
         {
             return PR.Fail($"invalid turn format '{arg}' (expected degrees direction)");
         }
@@ -2004,7 +2006,7 @@ public static class CommandParser
 
     private static PR ParseDegrees(string? arg, Func<int, ParsedCommand> factory)
     {
-        if (arg is null || !int.TryParse(arg, out var degrees))
+        if (arg is null || !int.TryParse(arg, out int degrees))
         {
             return PR.Fail($"invalid turn degrees '{arg}' (expected 1-359)");
         }
@@ -2030,11 +2032,11 @@ public static class CommandParser
             return PR.Ok(new ClearedToLandCommand());
         }
 
-        var tokens = SplitTokens(arg);
+        string[] tokens = SplitTokens(arg);
         bool noDelete = false;
         bool cautionWakeTurbulence = false;
         string? runwayId = null;
-        foreach (var token in tokens)
+        foreach (string token in tokens)
         {
             if (token.Equals("NODEL", StringComparison.OrdinalIgnoreCase) && !noDelete)
             {
@@ -2069,7 +2071,7 @@ public static class CommandParser
             return PR.Ok(new ReportFieldInSightCommand());
         }
 
-        var tokens = SplitTokens(arg);
+        string[] tokens = SplitTokens(arg);
         if (tokens.Length != 2)
         {
             return PR.Fail("RFIS requires either no arguments or <clock> <miles>");
@@ -2090,7 +2092,7 @@ public static class CommandParser
             return PR.Ok(new ReportTrafficInSightCommand(null));
         }
 
-        var tokens = SplitTokens(arg);
+        string[] tokens = SplitTokens(arg);
         if (tokens.Length == 0)
         {
             return PR.Ok(new ReportTrafficInSightCommand(null));
@@ -2110,7 +2112,7 @@ public static class CommandParser
         {
             return ParseTrafficLandmarkForm(tokens);
         }
-        if (TryParseRtisPatternLeg(head, out var leg))
+        if (TryParseRtisPatternLeg(head, out PatternEntryLeg leg))
         {
             return ParseTrafficPatternForm(tokens, leg);
         }
@@ -2188,7 +2190,7 @@ public static class CommandParser
             return PR.Fail("RTIS pattern form requires <leg> <L|R> <miles> <runway> <type> (e.g. RTIS BASE R 2 28R C172)");
         }
 
-        var side = tokens[1].ToUpperInvariant() switch
+        PatternDirection? side = tokens[1].ToUpperInvariant() switch
         {
             "L" => (PatternDirection?)PatternDirection.Left,
             "R" => PatternDirection.Right,
@@ -2262,7 +2264,7 @@ public static class CommandParser
             return PR.Fail("SAFAL requires <clock> <miles> [L|R] [C|D]");
         }
 
-        var tokens = SplitTokens(arg);
+        string[] tokens = SplitTokens(arg);
         if (tokens.Length < 2 || tokens.Length > 4)
         {
             return PR.Fail("SAFAL requires <clock> <miles> [L|R] [C|D]");
@@ -2306,14 +2308,14 @@ public static class CommandParser
             return PR.Fail("REPORT requires a target (e.g. REPORT BASE, REPORT 5 FINAL, REPORT MENLO, REPORT OFF)");
         }
 
-        var tokens = SplitTokens(arg).Select(t => t.ToUpperInvariant()).ToArray();
+        string[] tokens = SplitTokens(arg).Select(t => t.ToUpperInvariant()).ToArray();
 
         // Cancel forms: any token is a cancel keyword. An accompanying leg keyword scopes the
         // cancel to that single leg; otherwise cancel all standing reports.
         if (tokens.Any(IsReportCancelKeyword))
         {
             ReportTrigger? target = null;
-            foreach (var token in tokens)
+            foreach (string? token in tokens)
             {
                 if (TryParseReportLeg(token) is { } leg)
                 {
@@ -2328,9 +2330,9 @@ public static class CommandParser
         // N-mile final: a positive integer plus the FINAL keyword (either order).
         bool hasFinalKeyword = tokens.Any(t => t == "FINAL");
         int? miles = null;
-        foreach (var token in tokens)
+        foreach (string? token in tokens)
         {
-            if (int.TryParse(token, out var n))
+            if (int.TryParse(token, out int n))
             {
                 miles = n;
             }
@@ -2408,10 +2410,12 @@ public static class CommandParser
             return PR.Fail("requires an altitude argument");
         }
 
-        var trimmed = arg.Trim();
+        string trimmed = arg.Trim();
         if (trimmed.Length > 1 && trimmed[0] is 'A' or 'a' or 'B' or 'b')
         {
-            var modifier = trimmed[0] is 'A' or 'a' ? AltitudeAssignmentModifier.AtOrAbove : AltitudeAssignmentModifier.AtOrBelow;
+            AltitudeAssignmentModifier modifier = trimmed[0] is 'A' or 'a'
+                ? AltitudeAssignmentModifier.AtOrAbove
+                : AltitudeAssignmentModifier.AtOrBelow;
             int? restrictedAltitude = AltitudeResolver.Resolve(trimmed[1..]);
             return restrictedAltitude is null
                 ? PR.Fail($"invalid altitude '{arg}'")
@@ -2434,19 +2438,19 @@ public static class CommandParser
             return PR.Fail("WARP requires a fix");
         }
 
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
 
-        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length is < 1 or > 4)
         {
             return PR.Fail($"invalid warp format '{arg}' (expected fix [heading] [altitude] [speed])");
         }
 
-        var posToken = parts[0].ToUpperInvariant();
+        string posToken = parts[0].ToUpperInvariant();
 
         double lat,
             lon;
-        var fixPos = navDb.GetFixPosition(posToken);
+        (double Lat, double Lon)? fixPos = navDb.GetFixPosition(posToken);
         if (fixPos is not null)
         {
             lat = fixPos.Value.Lat;
@@ -2454,7 +2458,7 @@ public static class CommandParser
         }
         else
         {
-            var frd = FrdResolver.Resolve(posToken, navDb);
+            LatLon? frd = FrdResolver.Resolve(posToken, navDb);
             if (frd is null)
             {
                 return PR.Fail($"fix '{posToken}' not found");
@@ -2467,17 +2471,17 @@ public static class CommandParser
         int? heading = null;
         int? altitude = null;
         int? speed = null;
-        var headingOpen = true;
-        var altitudeOpen = true;
-        var speedOpen = true;
+        bool headingOpen = true;
+        bool altitudeOpen = true;
+        bool speedOpen = true;
 
-        for (var i = 1; i < parts.Length; i++)
+        for (int i = 1; i < parts.Length; i++)
         {
-            var token = parts[i];
+            string token = parts[i];
 
             if (headingOpen)
             {
-                if (int.TryParse(token, out var h) && (h >= 1) && (h <= 360))
+                if (int.TryParse(token, out int h) && (h >= 1) && (h <= 360))
                 {
                     heading = h;
                     headingOpen = false;
@@ -2488,7 +2492,7 @@ public static class CommandParser
 
             if (altitudeOpen)
             {
-                var alt = AltitudeResolver.Resolve(token);
+                int? alt = AltitudeResolver.Resolve(token);
                 if (alt is not null)
                 {
                     altitude = alt;
@@ -2500,7 +2504,7 @@ public static class CommandParser
 
             if (speedOpen)
             {
-                if (int.TryParse(token, out var s) && (s > 0))
+                if (int.TryParse(token, out int s) && (s > 0))
                 {
                     speed = s;
                     speedOpen = false;
@@ -2521,7 +2525,7 @@ public static class CommandParser
         // WARPG @<parking>   — e.g., WARPG @B12
         // WARPG $<spot>      — e.g., WARPG $9
         // WARPG <tw1> <tw2>  — e.g., WARPG C B
-        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 1 && NodeRefToken.IsNodeReference(parts[0]))
         {
             return PR.Ok(new WarpGroundCommand("", "", NodeRefToken.ParseNodeId(parts[0])));
@@ -2547,7 +2551,7 @@ public static class CommandParser
 
     private static PR ParseForceSpeed(string? arg)
     {
-        if (arg is null || !int.TryParse(arg, out var speed))
+        if (arg is null || !int.TryParse(arg, out int speed))
         {
             return PR.Fail($"invalid force speed '{arg}'");
         }
@@ -2563,12 +2567,12 @@ public static class CommandParser
         }
 
         // Check for trailing +/- modifier
-        if (arg.EndsWith('+') && int.TryParse(arg[..^1], out var floorSpeed))
+        if (arg.EndsWith('+') && int.TryParse(arg[..^1], out int floorSpeed))
         {
             return PR.Ok(new SpeedCommand(floorSpeed, SpeedModifier.Floor, force));
         }
 
-        if (arg.EndsWith('-') && int.TryParse(arg[..^1], out var ceilSpeed))
+        if (arg.EndsWith('-') && int.TryParse(arg[..^1], out int ceilSpeed))
         {
             return PR.Ok(new SpeedCommand(ceilSpeed, SpeedModifier.Ceiling, force));
         }
@@ -2580,8 +2584,8 @@ public static class CommandParser
         }
 
         // SPD {speed} {termination_fix} — speed until waypoint, then resume normal
-        var speedParts = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        if (!int.TryParse(speedParts[0], out var speed))
+        string[] speedParts = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        if (!int.TryParse(speedParts[0], out int speed))
         {
             return PR.Fail($"invalid speed '{arg}'");
         }
@@ -2604,7 +2608,7 @@ public static class CommandParser
         }
 
         // Second token must not be a known command verb — if it is, it belongs to the next command.
-        var secondUpper = speedParts[1].ToUpperInvariant();
+        string secondUpper = speedParts[1].ToUpperInvariant();
         if (CommandRegistry.AliasToCanonicType.ContainsKey(secondUpper))
         {
             return PR.Fail($"'{secondUpper}' is a command, not a waypoint");
@@ -2671,7 +2675,7 @@ public static class CommandParser
     private static PR ParseMach(string arg)
     {
         // Accept ".82", "0.82", or "82" (hundredths)
-        var trimmed = arg.Trim();
+        string trimmed = arg.Trim();
 
         if (trimmed.StartsWith('.'))
         {
@@ -2715,13 +2719,13 @@ public static class CommandParser
             return PR.Ok(new ExtendPatternCommand());
         }
 
-        var token = arg.Trim();
+        string token = arg.Trim();
         if (token.Length == 0)
         {
             return PR.Ok(new ExtendPatternCommand());
         }
 
-        var leg = ParsePatternLegToken(token);
+        PatternEntryLeg? leg = ParsePatternLegToken(token);
         if (leg is null)
         {
             return PR.Fail($"unknown leg '{arg}', expected UPWIND/UW, CROSSWIND/CW, or DOWNWIND/DW");
@@ -2774,20 +2778,20 @@ public static class CommandParser
     private static (BlockCondition Condition, string Remainder)? ParseAtfnCondition(string input)
     {
         // "ATFN 10 SPD 180" → condition=DistanceFinalCondition(10), remainder="SPD 180"
-        var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 3)
         {
             _lastBlockFailure = "ATFN requires distance and a command";
             return null;
         }
 
-        if (!double.TryParse(parts[1], out var distNm) || distNm <= 0)
+        if (!double.TryParse(parts[1], out double distNm) || distNm <= 0)
         {
             _lastBlockFailure = $"invalid ATFN distance '{parts[1]}'";
             return null;
         }
 
-        var remainder = string.Join(' ', parts.Skip(2));
+        string remainder = string.Join(' ', parts.Skip(2));
         return (new DistanceFinalCondition(distNm), remainder);
     }
 
@@ -2816,7 +2820,7 @@ public static class CommandParser
 
     private static PR ParseInt(string? arg, Func<int, ParsedCommand> factory)
     {
-        if (arg is null || !int.TryParse(arg, out var value))
+        if (arg is null || !int.TryParse(arg, out int value))
         {
             return PR.Fail($"invalid number '{arg}'");
         }
@@ -2831,15 +2835,15 @@ public static class CommandParser
             return PR.Fail("REL requires an airport or callsign");
         }
 
-        var tokens = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var target = tokens[0].ToUpperInvariant();
+        string[] tokens = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string target = tokens[0].ToUpperInvariant();
 
         if (tokens.Length == 1)
         {
             return PR.Ok(new ReleaseDepartureCommand(target));
         }
 
-        if (tokens.Length == 2 && int.TryParse(tokens[1], out var minutes) && minutes > 0)
+        if (tokens.Length == 2 && int.TryParse(tokens[1], out int minutes) && minutes > 0)
         {
             return PR.Ok(new ReleaseDepartureCommand(target, minutes * 60));
         }
@@ -2859,7 +2863,7 @@ public static class CommandParser
             return PR.Ok(new CfrDepartureCommand(null, CfrAction.Set));
         }
 
-        var token = arg.Trim().ToUpperInvariant();
+        string token = arg.Trim().ToUpperInvariant();
         if (token is "OFF" or "CANCEL")
         {
             return PR.Ok(new CfrDepartureCommand(null, CfrAction.Clear));
@@ -2870,7 +2874,7 @@ public static class CommandParser
             return PR.Ok(new CfrDepartureCommand(null, CfrAction.Check));
         }
 
-        if (token.Length is 3 or 4 && int.TryParse(token, out var hhmm) && hhmm is >= 0 and <= 2359 && hhmm % 100 < 60)
+        if (token.Length is 3 or 4 && int.TryParse(token, out int hhmm) && hhmm is >= 0 and <= 2359 && hhmm % 100 < 60)
         {
             return PR.Ok(new CfrDepartureCommand(hhmm, CfrAction.Set));
         }
@@ -2890,10 +2894,10 @@ public static class CommandParser
             return PR.Fail("TIMER requires a duration (mm:ss or seconds) or CANCEL");
         }
 
-        var trimmed = arg.Trim();
-        var firstSpace = trimmed.IndexOf(' ');
-        var firstToken = firstSpace < 0 ? trimmed : trimmed[..firstSpace];
-        var rest = firstSpace < 0 ? "" : trimmed[(firstSpace + 1)..].Trim();
+        string trimmed = arg.Trim();
+        int firstSpace = trimmed.IndexOf(' ');
+        string firstToken = firstSpace < 0 ? trimmed : trimmed[..firstSpace];
+        string rest = firstSpace < 0 ? "" : trimmed[(firstSpace + 1)..].Trim();
 
         if (firstToken.Equals("CANCEL", StringComparison.OrdinalIgnoreCase))
         {
@@ -2902,7 +2906,7 @@ public static class CommandParser
                 return PR.Ok(new TimerCommand(null, null, IsCancel: true, CancelId: null, CancelAll: true));
             }
 
-            if (int.TryParse(rest, out var id) && id >= 0)
+            if (int.TryParse(rest, out int id) && id >= 0)
             {
                 return PR.Ok(new TimerCommand(null, null, IsCancel: true, CancelId: id, CancelAll: false));
             }
@@ -2910,12 +2914,12 @@ public static class CommandParser
             return PR.Fail("TIMER CANCEL requires a timer id or ALL");
         }
 
-        if (!TryParseDuration(firstToken, out var seconds))
+        if (!TryParseDuration(firstToken, out int seconds))
         {
             return PR.Fail($"invalid timer duration '{firstToken}' (expected mm:ss or seconds)");
         }
 
-        var message = rest.Length > 0 ? rest : null;
+        string? message = rest.Length > 0 ? rest : null;
         return PR.Ok(new TimerCommand(seconds, message, IsCancel: false, CancelId: null, CancelAll: false));
     }
 
@@ -2926,15 +2930,15 @@ public static class CommandParser
     /// </summary>
     private static PR ParseBookmark(string? arg)
     {
-        var trimmed = (arg ?? "").Trim();
+        string trimmed = (arg ?? "").Trim();
         if (trimmed.Length == 0)
         {
             return PR.Ok(new BookmarkCommand(BookmarkAction.Add, null, null));
         }
 
-        var firstSpace = trimmed.IndexOf(' ');
-        var verb = (firstSpace < 0 ? trimmed : trimmed[..firstSpace]).ToUpperInvariant();
-        var rest = firstSpace < 0 ? "" : trimmed[(firstSpace + 1)..].Trim();
+        int firstSpace = trimmed.IndexOf(' ');
+        string verb = (firstSpace < 0 ? trimmed : trimmed[..firstSpace]).ToUpperInvariant();
+        string rest = firstSpace < 0 ? "" : trimmed[(firstSpace + 1)..].Trim();
 
         return verb switch
         {
@@ -2944,7 +2948,7 @@ public static class CommandParser
             "PREV" => PR.Ok(new BookmarkCommand(BookmarkAction.Prev, null, null)),
             "DEL" or "DELETE" => ParseBookmarkDelete(rest),
             "REN" or "RENAME" => ParseBookmarkRename(rest),
-            "GO" or "GOTO" => TimelineBookmark.TryNormalizeId(rest, out var goId)
+            "GO" or "GOTO" => TimelineBookmark.TryNormalizeId(rest, out string? goId)
                 ? PR.Ok(new BookmarkCommand(BookmarkAction.Goto, goId, null))
                 : PR.Fail("BM GO requires a bookmark id"),
             _ => PR.Ok(new BookmarkCommand(BookmarkAction.Add, null, trimmed)),
@@ -2958,17 +2962,17 @@ public static class CommandParser
             return PR.Ok(new BookmarkCommand(BookmarkAction.DeleteAll, null, null));
         }
 
-        return TimelineBookmark.TryNormalizeId(rest, out var id)
+        return TimelineBookmark.TryNormalizeId(rest, out string? id)
             ? PR.Ok(new BookmarkCommand(BookmarkAction.Delete, id, null))
             : PR.Fail("BM DEL requires a bookmark id or ALL");
     }
 
     private static PR ParseBookmarkRename(string rest)
     {
-        var space = rest.IndexOf(' ');
-        var idToken = space < 0 ? rest : rest[..space];
-        var name = space < 0 ? "" : rest[(space + 1)..].Trim();
-        return TimelineBookmark.TryNormalizeId(idToken, out var id)
+        int space = rest.IndexOf(' ');
+        string idToken = space < 0 ? rest : rest[..space];
+        string name = space < 0 ? "" : rest[(space + 1)..].Trim();
+        return TimelineBookmark.TryNormalizeId(idToken, out string? id)
             ? PR.Ok(new BookmarkCommand(BookmarkAction.Rename, id, NullIfEmpty(name)))
             : PR.Fail("BM REN requires a bookmark id");
     }
@@ -2979,12 +2983,12 @@ public static class CommandParser
     internal static bool TryParseDuration(string token, out int seconds)
     {
         seconds = 0;
-        var colon = token.IndexOf(':');
+        int colon = token.IndexOf(':');
         if (colon >= 0)
         {
-            var minPart = token[..colon];
-            var secPart = token[(colon + 1)..];
-            if (!int.TryParse(minPart, out var mins) || !int.TryParse(secPart, out var secs) || mins < 0 || secs < 0 || secs >= 60)
+            string minPart = token[..colon];
+            string secPart = token[(colon + 1)..];
+            if (!int.TryParse(minPart, out int mins) || !int.TryParse(secPart, out int secs) || mins < 0 || secs < 0 || secs >= 60)
             {
                 return false;
             }
@@ -2993,7 +2997,7 @@ public static class CommandParser
             return seconds > 0;
         }
 
-        if (int.TryParse(token, out var bare) && bare > 0)
+        if (int.TryParse(token, out int bare) && bare > 0)
         {
             seconds = bare;
             return true;
@@ -3009,7 +3013,7 @@ public static class CommandParser
             return PR.Fail("consolidate requires two TCP codes");
         }
 
-        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length != 2)
         {
             return PR.Fail("consolidate requires exactly two TCP codes");
@@ -3045,24 +3049,24 @@ public static class CommandParser
             return PR.Fail("create flight plan requires type altitude route");
         }
 
-        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 3)
         {
             return PR.Fail("create flight plan requires type altitude route");
         }
 
-        var aircraftType = parts[0].ToUpperInvariant();
+        string aircraftType = parts[0].ToUpperInvariant();
 
         // An IFR plan's altitude may carry the VFR-on-top notation (OTP/NNN, hundreds) — an IFR flight with the OTP
         // altitude; the parsed command's rules become "OTP" so the notation survives to the filed altitude.
-        var altitudeText = parts[1].ToUpperInvariant();
+        string altitudeText = parts[1].ToUpperInvariant();
         if ((flightRules == "IFR") && altitudeText.StartsWith("OTP/", StringComparison.Ordinal))
         {
             flightRules = "OTP";
             altitudeText = altitudeText[4..];
         }
 
-        if (!int.TryParse(altitudeText, out var altRaw))
+        if (!int.TryParse(altitudeText, out int altRaw))
         {
             return PR.Fail($"invalid altitude '{parts[1]}'");
         }
@@ -3070,7 +3074,7 @@ public static class CommandParser
         // IFR altitude in hundreds (≤999 → multiply by 100), VFR is absolute
         int cruiseAltitude = flightRules != "VFR" && altRaw <= 999 ? altRaw * 100 : altRaw;
 
-        var route = string.Join(" ", parts.Skip(2).Select(p => p.ToUpperInvariant()));
+        string route = string.Join(" ", parts.Skip(2).Select(p => p.ToUpperInvariant()));
         return PR.Ok(new CreateFlightPlanCommand(flightRules, aircraftType, cruiseAltitude, route));
     }
 
@@ -3094,10 +3098,10 @@ public static class CommandParser
             return PR.Ok(new CreateAbbreviatedFlightPlanCommand(null, null, null, null, null, flightRules));
         }
 
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        foreach (var token in tokens)
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        foreach (string token in tokens)
         {
-            var upper = token.ToUpperInvariant();
+            string upper = token.ToUpperInvariant();
 
             if ((upper == ".V") || (upper == ".P") || (upper == ".E"))
             {
@@ -3164,7 +3168,7 @@ public static class CommandParser
         {
             return PR.Ok(new StripDeleteCommand());
         }
-        var trimmed = arg.Trim();
+        string trimmed = arg.Trim();
         if (IsFullStripIdToken(trimmed) && !trimmed.Contains(' '))
         {
             return PR.Ok(new StripDeleteCommand(trimmed));
@@ -3178,7 +3182,7 @@ public static class CommandParser
         {
             return PR.Ok(new StripOffsetCommand());
         }
-        var trimmed = arg.Trim();
+        string trimmed = arg.Trim();
         if (IsFullStripIdToken(trimmed) && !trimmed.Contains(' '))
         {
             return PR.Ok(new StripOffsetCommand(trimmed));
@@ -3188,7 +3192,7 @@ public static class CommandParser
 
     private static PR ParseStripAnnotate(string arg)
     {
-        var parts = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
         {
             return PR.Fail($"invalid strip annotation box '{arg}'");
@@ -3213,7 +3217,7 @@ public static class CommandParser
             }
         }
 
-        var boxToken = parts[0].ToLowerInvariant();
+        string boxToken = parts[0].ToLowerInvariant();
 
         // Canonicalize the three accepted forms into the three-character set
         // {"1".."9", "8a", "8b"}. "1".."9" pass through; "10".."18" alias to
@@ -3223,7 +3227,7 @@ public static class CommandParser
         {
             canonical = boxToken;
         }
-        else if (int.TryParse(boxToken, out var box))
+        else if (int.TryParse(boxToken, out int box))
         {
             if (box >= 10 && box <= 18)
             {
@@ -3240,7 +3244,7 @@ public static class CommandParser
             return PR.Fail($"invalid strip annotation box '{parts[0]}' (expected 1-9, 10-18, 8a, or 8b)");
         }
 
-        var text = parts.Length > 1 ? parts[1].Trim() : null;
+        string? text = parts.Length > 1 ? parts[1].Trim() : null;
         return PR.Ok(new StripAnnotateCommand(canonical, text, stripId));
     }
 
@@ -3266,7 +3270,7 @@ public static class CommandParser
         bay = default;
         error = null;
 
-        var segments = spec.Split('/');
+        string[] segments = spec.Split('/');
         if (segments.Length < 2)
         {
             error = $"bay '{spec.Trim()}' must name its facility — use FACILITY/BAY[/rack] (e.g. OAK/Ground 1/2)";
@@ -3278,8 +3282,8 @@ public static class CommandParser
             return false;
         }
 
-        var facilityId = segments[0].Trim().ToUpperInvariant();
-        var bayName = segments[1].Trim().ToUpperInvariant();
+        string facilityId = segments[0].Trim().ToUpperInvariant();
+        string bayName = segments[1].Trim().ToUpperInvariant();
         if (facilityId.Length == 0 || bayName.Length == 0)
         {
             error = $"invalid bay spec '{spec.Trim()}' (expected FACILITY/BAY[/rack])";
@@ -3292,7 +3296,7 @@ public static class CommandParser
             return true;
         }
 
-        if (!int.TryParse(segments[2], out var rackWire) || rackWire < 1)
+        if (!int.TryParse(segments[2], out int rackWire) || rackWire < 1)
         {
             error = $"invalid rack index '{segments[2]}' (expected 1-based positive integer)";
             return false;
@@ -3304,7 +3308,7 @@ public static class CommandParser
 
     private static PR ParseHalfStripCreate(string arg)
     {
-        var trimmed = arg.Trim();
+        string trimmed = arg.Trim();
         if (trimmed.Length == 0)
         {
             return PR.Fail("HS requires a bay name");
@@ -3318,9 +3322,9 @@ public static class CommandParser
         // `HSC LCL VFR pattern\Touch and go` where "LCL" is the bay and "VFR
         // pattern" is line content. The first token that contains a `\` (line
         // separator) caps the search for a rack-suffix.
-        var headTokens = SplitWhitespace(trimmed);
-        var lineStartIdx = -1;
-        for (var i = 0; i < headTokens.Count; i++)
+        List<string> headTokens = SplitWhitespace(trimmed);
+        int lineStartIdx = -1;
+        for (int i = 0; i < headTokens.Count; i++)
         {
             if (headTokens[i].Contains('\\', StringComparison.Ordinal))
             {
@@ -3329,9 +3333,9 @@ public static class CommandParser
             }
         }
 
-        var rackTokIdx = -1;
-        var searchEnd = lineStartIdx < 0 ? headTokens.Count : lineStartIdx;
-        for (var i = 0; i < searchEnd; i++)
+        int rackTokIdx = -1;
+        int searchEnd = lineStartIdx < 0 ? headTokens.Count : lineStartIdx;
+        for (int i = 0; i < searchEnd; i++)
         {
             if (LooksLikeRackSuffix(headTokens[i]))
             {
@@ -3350,21 +3354,21 @@ public static class CommandParser
             bayEnd = 1;
         }
 
-        var headPart = string.Join(' ', headTokens.Take(bayEnd));
+        string headPart = string.Join(' ', headTokens.Take(bayEnd));
         if (headPart.Length == 0)
         {
             return PR.Fail("HS requires a bay name");
         }
 
-        if (!TryParseBaySpec(headPart, out var bay, out var bayError))
+        if (!TryParseBaySpec(headPart, out BaySpec bay, out string? bayError))
         {
             return PR.Fail(bayError!);
         }
 
-        var lines = Array.Empty<string>();
+        string[] lines = Array.Empty<string>();
         if (bayEnd < headTokens.Count)
         {
-            var linesPart = string.Join(' ', headTokens.Skip(bayEnd));
+            string linesPart = string.Join(' ', headTokens.Skip(bayEnd));
             lines = linesPart.Split('\\', StringSplitOptions.TrimEntries);
         }
 
@@ -3387,17 +3391,17 @@ public static class CommandParser
     {
         // Last slash, not first: the facility qualifier adds a leading segment, so
         // "OAK/Local1/2" must still read as a rack suffix while "OAK/Local" must not.
-        var slashIdx = token.LastIndexOf('/');
+        int slashIdx = token.LastIndexOf('/');
         if (slashIdx < 0)
         {
             return false;
         }
-        var after = token[(slashIdx + 1)..];
+        string after = token[(slashIdx + 1)..];
         if (after.Length == 0)
         {
             return false;
         }
-        foreach (var c in after)
+        foreach (char c in after)
         {
             if (c is < '0' or > '9')
             {
@@ -3417,7 +3421,7 @@ public static class CommandParser
     /// </summary>
     private static bool HeadIsBaySpec(string trimmed, int spaceIdx)
     {
-        var head = spaceIdx > 0 ? trimmed.AsSpan(0, spaceIdx) : trimmed.AsSpan();
+        ReadOnlySpan<char> head = spaceIdx > 0 ? trimmed.AsSpan(0, spaceIdx) : trimmed.AsSpan();
         return head.Contains('/') && !head.Contains('\\');
     }
 
@@ -3428,7 +3432,7 @@ public static class CommandParser
     /// </summary>
     private static PR ParseHalfStripMutate(string arg, bool isDelete)
     {
-        var trimmed = arg.Trim();
+        string trimmed = arg.Trim();
         string? facilityId = null;
         string? bayName = null;
         int? rack = null;
@@ -3440,27 +3444,27 @@ public static class CommandParser
         }
         else
         {
-            var spaceIdx = trimmed.IndexOf(' ');
+            int spaceIdx = trimmed.IndexOf(' ');
             // First-token bay-spec peel does not apply when the head is an
             // HSTRIP_<guid> strip id — the strips UI and the CRC translator
             // always address half-strips by id (empty ones have no first-line
             // text). Mirrors SEP_/BLANK_ id-prefix handling in SEPD/BLANKD.
-            var headIsStripId = spaceIdx > 0 && trimmed.AsSpan(0, spaceIdx).StartsWith("HSTRIP_");
+            bool headIsStripId = spaceIdx > 0 && trimmed.AsSpan(0, spaceIdx).StartsWith("HSTRIP_");
             if (headIsStripId)
             {
                 // HSTRIP_id [line0\line1\...] — id is its own token, the rest
                 // is backslash-separated payload with empty entries preserved
                 // so the inline cell grid can clear a single cell (HSA only;
                 // HSD's cap rejects any payload below).
-                var head = trimmed[..spaceIdx];
-                var rest = trimmed[(spaceIdx + 1)..].TrimStart();
+                string head = trimmed[..spaceIdx];
+                string rest = trimmed[(spaceIdx + 1)..].TrimStart();
                 tokens = rest.Length == 0 ? [head] : [head, .. rest.Split('\\', StringSplitOptions.TrimEntries)];
             }
             else if (HeadIsBaySpec(trimmed, spaceIdx))
             {
-                var head = spaceIdx > 0 ? trimmed[..spaceIdx] : trimmed;
-                var rest = spaceIdx > 0 ? trimmed[(spaceIdx + 1)..].TrimStart() : "";
-                if (!TryParseBaySpec(head, out var parsedBay, out var bayError))
+                string head = spaceIdx > 0 ? trimmed[..spaceIdx] : trimmed;
+                string rest = spaceIdx > 0 ? trimmed[(spaceIdx + 1)..].TrimStart() : "";
+                if (!TryParseBaySpec(head, out BaySpec parsedBay, out string? bayError))
                 {
                     return PR.Fail(bayError!);
                 }
@@ -3499,7 +3503,7 @@ public static class CommandParser
 
     private static PR ParseStripMove(string arg)
     {
-        var tokens = SplitWhitespace(arg);
+        List<string> tokens = SplitWhitespace(arg);
         if (tokens.Count == 0)
         {
             return PR.Fail("STRIP requires a bay name");
@@ -3512,7 +3516,7 @@ public static class CommandParser
 
     private static PR ParseStripScan(string arg)
     {
-        var tokens = SplitWhitespace(arg);
+        List<string> tokens = SplitWhitespace(arg);
         if (tokens.Count == 0)
         {
             return PR.Fail("SCAN requires a bay name");
@@ -3530,15 +3534,15 @@ public static class CommandParser
     /// </summary>
     private static PR ParseTdlsOpsConfig(string arg)
     {
-        var trimmed = arg.Trim();
-        var split = trimmed.IndexOf(' ');
+        string trimmed = arg.Trim();
+        int split = trimmed.IndexOf(' ');
         if (split <= 0)
         {
             return PR.Fail("TDLSOPS requires a facility and a configuration, e.g. TDLSOPS OAK OAKE");
         }
 
-        var facility = trimmed[..split].Trim().ToUpperInvariant();
-        var config = trimmed[(split + 1)..].Trim();
+        string facility = trimmed[..split].Trim().ToUpperInvariant();
+        string config = trimmed[(split + 1)..].Trim();
         if (config.Length == 0)
         {
             return PR.Fail("TDLSOPS requires a configuration name or id");
@@ -3556,7 +3560,7 @@ public static class CommandParser
     /// </summary>
     private static PR ParseTdlsSend(string arg)
     {
-        var fields = arg.Split('|');
+        string[] fields = arg.Split('|');
         if (fields.Length != 9)
         {
             return PR.Fail($"TDLSS requires nine '|'-separated fields, got {fields.Length}");
@@ -3576,7 +3580,7 @@ public static class CommandParser
     /// </summary>
     private static PR ParseHalfStripMove(string arg)
     {
-        var tokens = SplitWhitespace(arg);
+        List<string> tokens = SplitWhitespace(arg);
         if (tokens.Count == 0)
         {
             return PR.Fail("HSM requires a destination bay");
@@ -3587,8 +3591,8 @@ public static class CommandParser
 
     private static PR ParseHalfStripOffsetOrSlide(string arg, bool isSlide)
     {
-        var verb = isSlide ? "HSS" : "HSO";
-        var trimmed = arg.Trim();
+        string verb = isSlide ? "HSS" : "HSO";
+        string trimmed = arg.Trim();
         string? facilityId = null;
         string? bayName = null;
         int? rack = null;
@@ -3596,7 +3600,7 @@ public static class CommandParser
 
         if (trimmed.Length > 0)
         {
-            var parts = SplitWhitespace(trimmed);
+            List<string> parts = SplitWhitespace(trimmed);
             if (parts.Count == 1)
             {
                 // Single token = lookup key (aircraft-scoped form omits it entirely).
@@ -3604,7 +3608,7 @@ public static class CommandParser
             }
             else if (parts.Count == 2)
             {
-                if (!TryParseBaySpec(parts[0], out var parsedBay, out var bayError))
+                if (!TryParseBaySpec(parts[0], out BaySpec parsedBay, out string? bayError))
                 {
                     return PR.Fail(bayError!);
                 }
@@ -3629,13 +3633,13 @@ public static class CommandParser
 
     private static PR ParseSeparatorCreate(string arg)
     {
-        var tokens = SplitWhitespace(arg);
+        List<string> tokens = SplitWhitespace(arg);
         if (tokens.Count == 0)
         {
             return PR.Fail("SEP requires a style (H, W, R, or G) followed by a bay");
         }
 
-        if (!TryParseSeparatorStyle(tokens[0], out var style))
+        if (!TryParseSeparatorStyle(tokens[0], out SeparatorStyle style))
         {
             return PR.Fail($"invalid separator style '{tokens[0]}' (expected H, W, R, or G)");
         }
@@ -3647,7 +3651,7 @@ public static class CommandParser
 
         // Tokens[0] was the style; pass the rest as the positional args.
         var rest = new List<string>(tokens.Count - 1);
-        for (var i = 1; i < tokens.Count; i++)
+        for (int i = 1; i < tokens.Count; i++)
         {
             rest.Add(tokens[i]);
         }
@@ -3657,7 +3661,7 @@ public static class CommandParser
 
     private static PR ParseSeparatorDelete(string arg)
     {
-        var tokens = SplitWhitespace(arg);
+        List<string> tokens = SplitWhitespace(arg);
         if (tokens.Count == 0)
         {
             return PR.Fail("SEPD requires a bay name");
@@ -3672,23 +3676,23 @@ public static class CommandParser
     /// </summary>
     private static PR ParseSeparatorMove(string arg)
     {
-        var trimmed = arg.Trim();
+        string trimmed = arg.Trim();
         if (trimmed.Length == 0)
         {
             return PR.Fail("SEPM requires a strip id and destination");
         }
-        var spaceIdx = trimmed.IndexOf(' ');
+        int spaceIdx = trimmed.IndexOf(' ');
         if (spaceIdx < 0)
         {
             return PR.Fail("SEPM requires a destination (bay/rack/index)");
         }
-        var stripId = trimmed[..spaceIdx];
-        var destSpec = trimmed[(spaceIdx + 1)..].Trim();
+        string stripId = trimmed[..spaceIdx];
+        string destSpec = trimmed[(spaceIdx + 1)..].Trim();
         if (stripId.Length == 0)
         {
             return PR.Fail("SEPM requires a strip id");
         }
-        if (!TryParseStripDest(destSpec, out var facilityId, out var bayName, out var rack, out var index, out var error))
+        if (!TryParseStripDest(destSpec, out string? facilityId, out string? bayName, out int? rack, out int? index, out string? error))
         {
             return PR.Fail(error!);
         }
@@ -3701,7 +3705,7 @@ public static class CommandParser
 
     private static PR ParseSeparatorEdit(string arg)
     {
-        var tokens = SplitWhitespace(arg);
+        List<string> tokens = SplitWhitespace(arg);
         if (tokens.Count < 2)
         {
             return PR.Fail("SEPE requires a locator (bay/rack/index or stripId) and a new label");
@@ -3740,7 +3744,7 @@ public static class CommandParser
 
     private static PR ParseBlankDelete(string arg)
     {
-        var tokens = SplitWhitespace(arg);
+        List<string> tokens = SplitWhitespace(arg);
         if (tokens.Count == 0)
         {
             return PR.Fail("BLANKD requires a bay name");
@@ -3769,7 +3773,7 @@ public static class CommandParser
         index = null;
         error = null;
 
-        var parts = token.Split('/');
+        string[] parts = token.Split('/');
         if (parts.Length > 4)
         {
             error = "destination accepts at most facility/bay[/rack[/index]]";
@@ -3786,7 +3790,7 @@ public static class CommandParser
 
         if (parts.Length >= 3)
         {
-            if (!int.TryParse(parts[2], out var r) || r < 1)
+            if (!int.TryParse(parts[2], out int r) || r < 1)
             {
                 error = $"invalid destination rack '{parts[2]}' (expected 1-based positive integer)";
                 return false;
@@ -3797,7 +3801,7 @@ public static class CommandParser
 
         if (parts.Length >= 4)
         {
-            if (!int.TryParse(parts[3], out var i) || i < 1)
+            if (!int.TryParse(parts[3], out int i) || i < 1)
             {
                 error = $"invalid destination index '{parts[3]}' (expected 1-based positive integer)";
                 return false;
@@ -3811,7 +3815,7 @@ public static class CommandParser
 
     private static List<string> SplitWhitespace(string arg)
     {
-        var trimmed = arg.Trim();
+        string trimmed = arg.Trim();
         if (trimmed.Length == 0)
         {
             return new List<string>();
@@ -3827,7 +3831,7 @@ public static class CommandParser
             return PR.Ok(new SquawkResetCommand());
         }
 
-        if (!uint.TryParse(arg, out var code))
+        if (!uint.TryParse(arg, out uint code))
         {
             return PR.Fail($"invalid squawk code '{arg}'");
         }
@@ -3838,7 +3842,7 @@ public static class CommandParser
         }
 
         // Validate each digit is 0-7 (octal)
-        var temp = code;
+        uint temp = code;
         for (int i = 0; i < 4; i++)
         {
             if (temp % 10 > 7)

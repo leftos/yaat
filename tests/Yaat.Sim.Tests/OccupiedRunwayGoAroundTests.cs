@@ -29,7 +29,7 @@ public class OccupiedRunwayGoAroundTests
     private static RunwayInfo MakeRunway()
     {
         var threshold = new LatLon(37.0, -122.0);
-        var end = GeoMath.ProjectPoint(threshold, new TrueHeading(280), 10_000 / GeoMath.FeetPerNm);
+        LatLon end = GeoMath.ProjectPoint(threshold, new TrueHeading(280), 10_000 / GeoMath.FeetPerNm);
         return TestRunwayFactory.Make(
             designator: "28",
             thresholdLat: threshold.Lat,
@@ -114,7 +114,7 @@ public class OccupiedRunwayGoAroundTests
 
     private static bool GoesAround(AircraftState arrival, AircraftState occupant, bool setting)
     {
-        var ctx = Ctx(arrival, [arrival, occupant], setting);
+        PhaseContext ctx = Ctx(arrival, [arrival, occupant], setting);
         arrival.Phases!.Start(ctx);
         arrival.Phases.CurrentPhase!.OnTick(ctx);
         return arrival.Phases.CurrentPhase is GoAroundPhase;
@@ -123,8 +123,8 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void LinedUpOccupant_TriggersGoAroundWithSpokenReason()
     {
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant("B738", OnRunway(300), 0, new LinedUpAndWaitingPhase(), onGround: true);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant("B738", OnRunway(300), 0, new LinedUpAndWaitingPhase(), onGround: true);
 
         Assert.True(GoesAround(arrival, occupant, setting: true));
         Assert.Contains(arrival.PendingWarnings, w => w.Contains("going around, traffic on the runway", StringComparison.Ordinal));
@@ -133,8 +133,8 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void SettingOff_NoGoAround()
     {
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant("B738", OnRunway(300), 0, new LinedUpAndWaitingPhase(), onGround: true);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant("B738", OnRunway(300), 0, new LinedUpAndWaitingPhase(), onGround: true);
 
         Assert.False(GoesAround(arrival, occupant, setting: false));
     }
@@ -142,9 +142,9 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void ForcedLanding_NoGoAround()
     {
-        var arrival = Arrival("B738", 0.6, 150);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
         arrival.Phases!.ForceLanding = true;
-        var occupant = Occupant("B738", OnRunway(300), 0, new LinedUpAndWaitingPhase(), onGround: true);
+        AircraftState occupant = Occupant("B738", OnRunway(300), 0, new LinedUpAndWaitingPhase(), onGround: true);
 
         Assert.False(GoesAround(arrival, occupant, setting: true));
     }
@@ -152,8 +152,8 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void ArrivalStillOutsideThirtySeconds_NoGoAround()
     {
-        var arrival = Arrival("B738", 2.0, 600);
-        var occupant = Occupant("B738", OnRunway(300), 0, new LinedUpAndWaitingPhase(), onGround: true);
+        AircraftState arrival = Arrival("B738", 2.0, 600);
+        AircraftState occupant = Occupant("B738", OnRunway(300), 0, new LinedUpAndWaitingPhase(), onGround: true);
 
         Assert.False(GoesAround(arrival, occupant, setting: true));
     }
@@ -162,8 +162,8 @@ public class OccupiedRunwayGoAroundTests
     public void BelowThresholdCrossingHeight_NoGoAround()
     {
         // Under 50 ft AGL the aircraft is landing; there is no balked landing from the flare for traffic.
-        var arrival = Arrival("B738", 0.1, 30);
-        var occupant = Occupant("B738", OnRunway(300), 0, new LinedUpAndWaitingPhase(), onGround: true);
+        AircraftState arrival = Arrival("B738", 0.1, 30);
+        AircraftState occupant = Occupant("B738", OnRunway(300), 0, new LinedUpAndWaitingPhase(), onGround: true);
 
         Assert.False(GoesAround(arrival, occupant, setting: true));
     }
@@ -171,8 +171,8 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void HelicopterArrival_NoGoAround()
     {
-        var arrival = Arrival("EC35", 0.4, 120);
-        var occupant = Occupant("B738", OnRunway(300), 0, new LinedUpAndWaitingPhase(), onGround: true);
+        AircraftState arrival = Arrival("EC35", 0.4, 120);
+        AircraftState occupant = Occupant("B738", OnRunway(300), 0, new LinedUpAndWaitingPhase(), onGround: true);
 
         Assert.False(GoesAround(arrival, occupant, setting: true));
     }
@@ -182,8 +182,8 @@ public class OccupiedRunwayGoAroundTests
     {
         // §3-10-3.a.1: a Category I arrival may cross the threshold with a landed Category I still
         // rolling 3,000 ft down the runway.
-        var arrival = Arrival("C172", 0.4, 120);
-        var occupant = Occupant("C172", OnRunway(3500), 40, new LandingPhase(), onGround: true);
+        AircraftState arrival = Arrival("C172", 0.4, 120);
+        AircraftState occupant = Occupant("C172", OnRunway(3500), 40, new LandingPhase(), onGround: true);
 
         Assert.False(GoesAround(arrival, occupant, setting: true));
     }
@@ -193,10 +193,10 @@ public class OccupiedRunwayGoAroundTests
     {
         // §3-10-3 is judged when the arrival crosses the threshold: a rollout still moving at 40 kt
         // 2,000 ft down the runway will be past 3,000 ft by then; one that has stopped there will not.
-        var rolling = Arrival("C172", 0.4, 120);
-        var rollingOccupant = Occupant("C172", OnRunway(2000), 40, new LandingPhase(), onGround: true);
-        var stopped = Arrival("C172", 0.4, 120);
-        var stoppedOccupant = Occupant("C172", OnRunway(2000), 0, new LandingPhase(), onGround: true);
+        AircraftState rolling = Arrival("C172", 0.4, 120);
+        AircraftState rollingOccupant = Occupant("C172", OnRunway(2000), 40, new LandingPhase(), onGround: true);
+        AircraftState stopped = Arrival("C172", 0.4, 120);
+        AircraftState stoppedOccupant = Occupant("C172", OnRunway(2000), 0, new LandingPhase(), onGround: true);
 
         Assert.False(GoesAround(rolling, rollingOccupant, setting: true));
         Assert.True(GoesAround(stopped, stoppedOccupant, setting: true));
@@ -206,8 +206,8 @@ public class OccupiedRunwayGoAroundTests
     public void StopAndGoStoppedBeyondLandmark_NoGoAround()
     {
         // §3-10-3.a.1 has no motion requirement: a landed Category I stopped 3,500 ft down is legal to land behind.
-        var arrival = Arrival("C172", 0.4, 120);
-        var occupant = Occupant("C172", OnRunway(3500), 0, new StopAndGoPhase(), onGround: true);
+        AircraftState arrival = Arrival("C172", 0.4, 120);
+        AircraftState occupant = Occupant("C172", OnRunway(3500), 0, new StopAndGoPhase(), onGround: true);
 
         Assert.False(GoesAround(arrival, occupant, setting: true));
     }
@@ -216,8 +216,8 @@ public class OccupiedRunwayGoAroundTests
     public void ExitingOffTheCenterlineInsidePavement_UsesTheLandingLandmark()
     {
         // A light twin still inside the pavement rectangle while turning off at 5,000 ft: a.1 (4,500 ft) is met.
-        var arrival = Arrival("C172", 0.4, 120);
-        var occupant = Occupant("BE58", OnRunway(5000), 15, new RunwayExitPhase(), onGround: true);
+        AircraftState arrival = Arrival("C172", 0.4, 120);
+        AircraftState occupant = Occupant("BE58", OnRunway(5000), 15, new RunwayExitPhase(), onGround: true);
         occupant.TrueHeading = new TrueHeading(250);
         occupant.TrueTrack = new TrueHeading(250);
 
@@ -228,8 +228,8 @@ public class OccupiedRunwayGoAroundTests
     public void CategoryIIIArrivalBehindLandedAircraft_GoesAround()
     {
         // No landmark exception when either aircraft is Category III: the runway must be clear.
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant("B738", OnRunway(5000), 60, new LandingPhase(), onGround: true);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant("B738", OnRunway(5000), 60, new LandingPhase(), onGround: true);
 
         Assert.True(GoesAround(arrival, occupant, setting: true));
     }
@@ -241,8 +241,8 @@ public class OccupiedRunwayGoAroundTests
         // runway by then — but a rollout with no exit resolved (no ground layout, or the planner has not committed)
         // is an unknown, and an unknown must read as "not clear". Category III either side means no landmark
         // exception, so the arrival still goes around.
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant("B738", OnRunway(5000), 90, new LandingPhase(), onGround: true);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant("B738", OnRunway(5000), 90, new LandingPhase(), onGround: true);
 
         Assert.True(GoesAround(arrival, occupant, setting: true));
     }
@@ -304,8 +304,8 @@ public class OccupiedRunwayGoAroundTests
         // 20 kt turn-off it covers that at the 47 kt mean (3.8 s), then 200 ft of exit plus its tail across the bar
         // at 20 kt (7.8 s) — clear in ~12 s, inside the crossing. Category III either side, so nothing but the
         // vacate prediction can save it.
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant(
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant(
             "B738",
             OnRunway(5000),
             74,
@@ -323,8 +323,8 @@ public class OccupiedRunwayGoAroundTests
         // 7.8 s of exit and tail clearance is ~20 s, past the arrival's 16.5 s crossing. Flying that rollout at the
         // leader's present 74 kt (8.0 s) or stopping "clear" at the hold-short bar instead of a fuselage past it
         // (5.9 s) both report it clear in time — this arm is what catches either regressing.
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant(
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant(
             "B738",
             OnRunway(5000),
             74,
@@ -340,8 +340,8 @@ public class OccupiedRunwayGoAroundTests
     {
         // The pilot's transmission stays generic (a pilot does not read out the blocker's callsign); the instructor
         // gets a separate terminal line saying which aircraft it was and what it was doing.
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant("B738", OnRunway(5000), 60, new LandingPhase(), onGround: true);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant("B738", OnRunway(5000), 60, new LandingPhase(), onGround: true);
 
         Assert.True(GoesAround(arrival, occupant, setting: true));
         Assert.Contains(
@@ -357,8 +357,8 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void CrossingOccupant_TerminalEntrySaysCrossing()
     {
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant("B738", OnRunway(6000), 15, new TaxiingPhase(), onGround: true);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant("B738", OnRunway(6000), 15, new TaxiingPhase(), onGround: true);
         occupant.TrueHeading = new TrueHeading(10);
         occupant.TrueTrack = new TrueHeading(10);
 
@@ -369,8 +369,8 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void StoppedOccupantBeyondLandmark_GoesAround()
     {
-        var arrival = Arrival("C172", 0.4, 120);
-        var occupant = Occupant("C172", OnRunway(4000), 0, new HoldingInPositionPhase(), onGround: true);
+        AircraftState arrival = Arrival("C172", 0.4, 120);
+        AircraftState occupant = Occupant("C172", OnRunway(4000), 0, new HoldingInPositionPhase(), onGround: true);
 
         Assert.True(GoesAround(arrival, occupant, setting: true));
     }
@@ -380,11 +380,11 @@ public class OccupiedRunwayGoAroundTests
     {
         // §3-10-3.a.2: an airborne departure need not have crossed the runway end when it is 6,000 ft
         // (either aircraft Category III) from the landing threshold — projected to the arrival's crossing.
-        var near = Arrival("B738", 0.6, 150);
-        var nearOccupant = Occupant("B738", OnRunway(1000), 150, new TakeoffPhase(), onGround: false);
+        AircraftState near = Arrival("B738", 0.6, 150);
+        AircraftState nearOccupant = Occupant("B738", OnRunway(1000), 150, new TakeoffPhase(), onGround: false);
         nearOccupant.Altitude = ElevationFt + 100;
-        var far = Arrival("B738", 0.6, 150);
-        var farOccupant = Occupant("B738", OnRunway(4000), 150, new TakeoffPhase(), onGround: false);
+        AircraftState far = Arrival("B738", 0.6, 150);
+        AircraftState farOccupant = Occupant("B738", OnRunway(4000), 150, new TakeoffPhase(), onGround: false);
         farOccupant.Altitude = ElevationFt + 300;
 
         Assert.True(GoesAround(near, nearOccupant, setting: true));
@@ -394,8 +394,8 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void RollingDeparture_ProjectedPastTheLandmark_NoGoAround()
     {
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant("B738", OnRunway(5000), 100, new TakeoffPhase(), onGround: true);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant("B738", OnRunway(5000), 100, new TakeoffPhase(), onGround: true);
 
         Assert.False(GoesAround(arrival, occupant, setting: true));
     }
@@ -405,11 +405,11 @@ public class OccupiedRunwayGoAroundTests
     {
         // A live departure that aborted at 80 kt is still doing 60 kt 500 ft down the runway. Projected at constant
         // speed it would sit past the 3,000 ft landmark when the arrival crosses — but it is stopping, not flying.
-        var arrival = Arrival("B738", 1.0, 250);
+        AircraftState arrival = Arrival("B738", 1.0, 250);
         AircraftState? rto = null;
-        foreach (var (t, gs) in new[] { (0.0, 80.0), (1.0, 75.0), (2.0, 70.0), (3.0, 65.0), (4.0, 60.0) })
+        foreach ((double t, double gs) in new[] { (0.0, 80.0), (1.0, 75.0), (2.0, 70.0), (3.0, 65.0), (4.0, 60.0) })
         {
-            var pos = OnRunway(500);
+            LatLon pos = OnRunway(500);
             var sample = new LiveTrafficSample(t, pos.Lat, pos.Lon, ElevationFt, gs, Runway.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex, 4521);
             if (rto is null)
             {
@@ -428,8 +428,8 @@ public class OccupiedRunwayGoAroundTests
     public void DepartureLinedUpAndStopped_GoesAround()
     {
         // Neither landed nor departed: no exception at any distance.
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant("B738", OnRunway(4000), 0, new TakeoffPhase(), onGround: true);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant("B738", OnRunway(4000), 0, new TakeoffPhase(), onGround: true);
 
         Assert.True(GoesAround(arrival, occupant, setting: true));
     }
@@ -437,8 +437,8 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void CrossingOccupant_GoesAround()
     {
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant("B738", OnRunway(6000), 15, new TaxiingPhase(), onGround: true);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant("B738", OnRunway(6000), 15, new TaxiingPhase(), onGround: true);
         occupant.TrueHeading = new TrueHeading(10);
         occupant.TrueTrack = new TrueHeading(10);
 
@@ -448,9 +448,9 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void OccupantOffThePavement_NoGoAround()
     {
-        var beside = GeoMath.ProjectPoint(OnRunway(2000), Runway.TrueHeading + 90, 400 / GeoMath.FeetPerNm);
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant("B738", beside, 15, new TaxiingPhase(), onGround: true);
+        LatLon beside = GeoMath.ProjectPoint(OnRunway(2000), Runway.TrueHeading + 90, 400 / GeoMath.FeetPerNm);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant("B738", beside, 15, new TaxiingPhase(), onGround: true);
 
         Assert.False(GoesAround(arrival, occupant, setting: true));
     }
@@ -460,8 +460,8 @@ public class OccupiedRunwayGoAroundTests
     {
         // A preceding rotorcraft has no §3-10-3 exception: it has not landed (a.1) and never rolled (a.2), and the
         // landmark categories are fixed-wing classes — 4,000 ft down the runway it still blocks.
-        var arrival = Arrival("C172", 0.4, 120);
-        var hovering = Occupant("EC35", OnRunway(4000), 5, phase: null, onGround: false);
+        AircraftState arrival = Arrival("C172", 0.4, 120);
+        AircraftState hovering = Occupant("EC35", OnRunway(4000), 5, phase: null, onGround: false);
         hovering.Altitude = ElevationFt + 40;
         hovering.VerticalSpeed = -200;
 
@@ -471,8 +471,8 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void PhaselessOccupantParkedOnThePavement_GoesAround()
     {
-        var arrival = Arrival("B738", 0.6, 150);
-        var occupant = Occupant("B738", OnRunway(1500), 0, phase: null, onGround: true);
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant("B738", OnRunway(1500), 0, phase: null, onGround: true);
 
         Assert.True(GoesAround(arrival, occupant, setting: true));
     }

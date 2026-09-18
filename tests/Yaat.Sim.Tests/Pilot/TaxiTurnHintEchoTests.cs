@@ -42,7 +42,7 @@ public class TaxiTurnHintEchoTests(ITestOutputHelper output)
 
     private static AircraftState SpawnOnJ(AirportGroundLayout layout)
     {
-        var start = layout.Nodes[JApproachNode];
+        GroundNode start = layout.Nodes[JApproachNode];
         var aircraft = new AircraftState
         {
             Callsign = "N70CS",
@@ -70,16 +70,16 @@ public class TaxiTurnHintEchoTests(ITestOutputHelper output)
     [Fact]
     public void Rsp_TaxiWithRightTurnHint_EchoesRightOnTaxiway()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
 
-        var aircraft = SpawnOnJ(layout);
+        AircraftState aircraft = SpawnOnJ(layout);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
         {
@@ -90,7 +90,7 @@ public class TaxiTurnHintEchoTests(ITestOutputHelper output)
             PrimaryAirportId = "OAK",
         };
 
-        var result = engine.SendCommand("N70CS", "TAXI >J HS 28R");
+        CommandResult result = engine.SendCommand("N70CS", "TAXI >J HS 28R");
         Assert.True(result.Success, result.Message);
         output.WriteLine($"RSP: {result.Message}");
 
@@ -100,16 +100,16 @@ public class TaxiTurnHintEchoTests(ITestOutputHelper output)
     [Fact]
     public void Rsp_TaxiWithLeftTurnHint_EchoesLeftOnTaxiway()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
 
-        var aircraft = SpawnOnJ(layout);
+        AircraftState aircraft = SpawnOnJ(layout);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
         {
@@ -120,7 +120,7 @@ public class TaxiTurnHintEchoTests(ITestOutputHelper output)
             PrimaryAirportId = "OAK",
         };
 
-        var result = engine.SendCommand("N70CS", "TAXI <J HS 28R");
+        CommandResult result = engine.SendCommand("N70CS", "TAXI <J HS 28R");
         Assert.True(result.Success, result.Message);
         output.WriteLine($"RSP: {result.Message}");
 
@@ -130,16 +130,16 @@ public class TaxiTurnHintEchoTests(ITestOutputHelper output)
     [Fact]
     public void Rsp_TaxiWithoutTurnHint_NoTurnWording()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
 
-        var aircraft = SpawnOnJ(layout);
+        AircraftState aircraft = SpawnOnJ(layout);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
         {
@@ -150,7 +150,7 @@ public class TaxiTurnHintEchoTests(ITestOutputHelper output)
             PrimaryAirportId = "OAK",
         };
 
-        var result = engine.SendCommand("N70CS", "TAXI J HS 28R");
+        CommandResult result = engine.SendCommand("N70CS", "TAXI J HS 28R");
         Assert.True(result.Success, result.Message);
 
         Assert.DoesNotContain(" on J", result.Message);
@@ -164,11 +164,11 @@ public class TaxiTurnHintEchoTests(ITestOutputHelper output)
 
         // Full dispatch-parse round trip: the canonical "TAXI >J HS 28R" must parse the ">J" glyph into
         // PathTurnHints so the verbalizer-driven readback voices the turn.
-        var parsed = CommandParser.ParseCompound("TAXI >J HS 28R", "");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("TAXI >J HS 28R", "");
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
         var ac = new AircraftState { Callsign = "N70CS", AircraftType = "C25C" };
-        var tts = PilotResponder.BuildReadback(parsed.Value!, ac)?.Tts;
+        string? tts = PilotResponder.BuildReadback(parsed.Value!, ac)?.Tts;
         output.WriteLine($"TTS: {tts}");
 
         Assert.NotNull(tts);

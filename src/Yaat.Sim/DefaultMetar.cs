@@ -17,8 +17,8 @@ public static class DefaultMetar
     /// </summary>
     public static string Build(string airportId, DateTime observationUtc)
     {
-        var icao = MetarParser.ToIcao(airportId);
-        var stamp = observationUtc.ToString("ddHHmm", CultureInfo.InvariantCulture) + "Z";
+        string icao = MetarParser.ToIcao(airportId);
+        string stamp = observationUtc.ToString("ddHHmm", CultureInfo.InvariantCulture) + "Z";
         return $"{icao} {stamp} AUTO 00000KT 10SM CLR A2992";
     }
 }

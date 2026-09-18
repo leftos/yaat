@@ -43,7 +43,7 @@ public class RouteMaterialiserTests
     private static AirportGroundLayout Layout(params GroundNode[] nodes)
     {
         var layout = new AirportGroundLayout { AirportId = "TEST" };
-        foreach (var n in nodes)
+        foreach (GroundNode n in nodes)
         {
             layout.Nodes[n.Id] = n;
         }
@@ -80,11 +80,11 @@ public class RouteMaterialiserTests
     [Fact]
     public void EmptyEdges_ProducesEmptyRoute()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var layout = Layout(n0);
-        var ctx = Context(layout);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        AirportGroundLayout layout = Layout(n0);
+        SearchContext ctx = Context(layout);
 
-        var route = RouteMaterialiser.Materialise([], ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise([], ctx, []);
 
         Assert.Empty(route.Segments);
         Assert.Empty(route.HoldShortPoints);
@@ -98,14 +98,14 @@ public class RouteMaterialiserTests
     [Fact]
     public void SingleStraightEdge_ProducesOneSegment_NoHoldShorts()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var layout = Layout(n0, n1);
-        var e = Edge(n0, n1, "A");
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1);
+        GroundEdge e = Edge(n0, n1, "A");
 
-        var ctx = Context(layout);
+        SearchContext ctx = Context(layout);
         var edges = new List<DirectionalEdge> { Directed(e, n0, n1) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Single(route.Segments);
         Assert.Equal("A", route.Segments[0].TaxiwayName);
@@ -119,17 +119,17 @@ public class RouteMaterialiserTests
     [Fact]
     public void RunwayHoldShortNode_AnnotatedAsRunwayCrossing()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
         n1.RunwayId = new RunwayIdentifier("28R", "10L");
-        var n2 = Node(2, 37.702, -122.200);
-        var layout = Layout(n0, n1, n2);
-        var e01 = Edge(n0, n1, "A");
-        var e12 = Edge(n1, n2, "A");
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1, n2);
+        GroundEdge e01 = Edge(n0, n1, "A");
+        GroundEdge e12 = Edge(n1, n2, "A");
 
-        var ctx = Context(layout);
+        SearchContext ctx = Context(layout);
         var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, n2) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Single(route.HoldShortPoints);
         Assert.Equal(n1.Id, route.HoldShortPoints[0].NodeId);
@@ -143,21 +143,21 @@ public class RouteMaterialiserTests
     [Fact]
     public void ExplicitHoldShort_ConfiguredInContext_TaggedCorrectly()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
         n1.RunwayId = new RunwayIdentifier("28R", "10L");
-        var n2 = Node(2, 37.702, -122.200);
-        var layout = Layout(n0, n1, n2);
-        var e01 = Edge(n0, n1, "A");
-        var e12 = Edge(n1, n2, "A");
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1, n2);
+        GroundEdge e01 = Edge(n0, n1, "A");
+        GroundEdge e12 = Edge(n1, n2, "A");
 
         // A controller says "hold short 28R" — a single designator, never the combined "28R/10L".
         // Reciprocal matching must tag the 28R/10L bar as the explicit hold.
         var holdShortSet = new HashSet<HoldShortTarget> { HoldShortTarget.Parse("28R") };
-        var ctx = Context(layout, holdShorts: holdShortSet);
+        SearchContext ctx = Context(layout, holdShorts: holdShortSet);
 
         var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, n2) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Single(route.HoldShortPoints);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, route.HoldShortPoints[0].Reason);
@@ -167,21 +167,21 @@ public class RouteMaterialiserTests
     public void LocatedRunwayHoldShort_MatchingLocation_PromotedToExplicit()
     {
         // HS 28R@J — the bar sits at the A/J junction, so the located target promotes it.
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
         n1.RunwayId = new RunwayIdentifier("28R", "10L");
-        var n2 = Node(2, 37.702, -122.200);
-        var nJ = Node(3, 37.701, -122.201);
-        var layout = Layout(n0, n1, n2, nJ);
-        var e01 = Edge(n0, n1, "A");
-        var e12 = Edge(n1, n2, "A");
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        GroundNode nJ = Node(3, 37.701, -122.201);
+        AirportGroundLayout layout = Layout(n0, n1, n2, nJ);
+        GroundEdge e01 = Edge(n0, n1, "A");
+        GroundEdge e12 = Edge(n1, n2, "A");
         Edge(n1, nJ, "J");
 
-        var ctx = Context(layout, holdShorts: new HashSet<HoldShortTarget> { HoldShortTarget.Parse("28R@J") });
+        SearchContext ctx = Context(layout, holdShorts: new HashSet<HoldShortTarget> { HoldShortTarget.Parse("28R@J") });
         var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, n2) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
-        var hs = Assert.Single(route.HoldShortPoints);
+        HoldShortPoint hs = Assert.Single(route.HoldShortPoints);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, hs.Reason);
         Assert.DoesNotContain(route.Warnings, w => w.Contains("not applied", StringComparison.OrdinalIgnoreCase));
     }
@@ -192,19 +192,19 @@ public class RouteMaterialiserTests
         // HS 28R@Z — the route crosses 28R, but not at a node on Z. The crossing must stay a plain
         // RunwayCrossing (eligible for AutoCross), and the controller must be told the located
         // hold-short bound nothing — a bare name match would silently swallow it (issue #358 review).
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
         n1.RunwayId = new RunwayIdentifier("28R", "10L");
-        var n2 = Node(2, 37.702, -122.200);
-        var layout = Layout(n0, n1, n2);
-        var e01 = Edge(n0, n1, "A");
-        var e12 = Edge(n1, n2, "A");
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1, n2);
+        GroundEdge e01 = Edge(n0, n1, "A");
+        GroundEdge e12 = Edge(n1, n2, "A");
 
-        var ctx = Context(layout, holdShorts: new HashSet<HoldShortTarget> { HoldShortTarget.Parse("28R@Z") });
+        SearchContext ctx = Context(layout, holdShorts: new HashSet<HoldShortTarget> { HoldShortTarget.Parse("28R@Z") });
         var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, n2) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
-        var hs = Assert.Single(route.HoldShortPoints);
+        HoldShortPoint hs = Assert.Single(route.HoldShortPoints);
         Assert.Equal(HoldShortReason.RunwayCrossing, hs.Reason);
         Assert.Contains(route.Warnings, w => w.Contains("HS 28R@Z not applied", StringComparison.OrdinalIgnoreCase));
     }
@@ -218,27 +218,27 @@ public class RouteMaterialiserTests
     {
         // Taxiing to runway 28R: the en-route 01L/19R bar is a crossing; the terminal 28R/10L bar
         // is the destination runway (held short for departure, never auto-crossed onto).
-        var n0 = Node(0, 37.700, -122.200);
-        var nCross = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode nCross = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
         nCross.RunwayId = new RunwayIdentifier("01L", "19R");
-        var n2 = Node(2, 37.702, -122.200);
-        var nDest = Node(3, 37.703, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        GroundNode nDest = Node(3, 37.703, -122.200, GroundNodeType.RunwayHoldShort);
         nDest.RunwayId = new RunwayIdentifier("28R", "10L");
-        var layout = Layout(n0, nCross, n2, nDest);
-        var e01 = Edge(n0, nCross, "A");
-        var e12 = Edge(nCross, n2, "A");
-        var e23 = Edge(n2, nDest, "A");
+        AirportGroundLayout layout = Layout(n0, nCross, n2, nDest);
+        GroundEdge e01 = Edge(n0, nCross, "A");
+        GroundEdge e12 = Edge(nCross, n2, "A");
+        GroundEdge e23 = Edge(n2, nDest, "A");
 
         var dest = new DestinationDescriptor(null, "28R", null, null, DestinationKind.Runway);
-        var ctx = Context(layout, dest);
+        SearchContext ctx = Context(layout, dest);
 
         var edges = new List<DirectionalEdge> { Directed(e01, n0, nCross), Directed(e12, nCross, n2), Directed(e23, n2, nDest) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
-        var crossHs = route.HoldShortPoints.Single(h => h.NodeId == nCross.Id);
+        HoldShortPoint crossHs = route.HoldShortPoints.Single(h => h.NodeId == nCross.Id);
         Assert.Equal(HoldShortReason.RunwayCrossing, crossHs.Reason);
 
-        var destHs = route.HoldShortPoints.Single(h => h.NodeId == nDest.Id);
+        HoldShortPoint destHs = route.HoldShortPoints.Single(h => h.NodeId == nDest.Id);
         Assert.Equal(HoldShortReason.DestinationRunway, destHs.Reason);
         Assert.Equal("28R", destHs.TargetName);
     }
@@ -250,21 +250,21 @@ public class RouteMaterialiserTests
         // segment past it (onto the runway on-ramp), the materialiser must truncate AT the hold-short —
         // proceeding onto the runway is clearance-gated by the LineUp / Crossing phases, not baked into
         // the taxi route. (Unlike a node destination, a runway destination gets no "one past" buffer.)
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var hs = Node(2, 37.702, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode hs = Node(2, 37.702, -122.200, GroundNodeType.RunwayHoldShort);
         hs.RunwayId = new RunwayIdentifier("28R", "10L");
-        var past = Node(3, 37.703, -122.200); // past the hold-short, toward the runway
-        var layout = Layout(n0, n1, hs, past);
-        var e01 = Edge(n0, n1, "B");
-        var e1hs = Edge(n1, hs, "B");
-        var ehspast = Edge(hs, past, "B");
+        GroundNode past = Node(3, 37.703, -122.200); // past the hold-short, toward the runway
+        AirportGroundLayout layout = Layout(n0, n1, hs, past);
+        GroundEdge e01 = Edge(n0, n1, "B");
+        GroundEdge e1hs = Edge(n1, hs, "B");
+        GroundEdge ehspast = Edge(hs, past, "B");
 
         var dest = new DestinationDescriptor(null, "28R", null, null, DestinationKind.Runway);
-        var ctx = Context(layout, dest);
+        SearchContext ctx = Context(layout, dest);
 
         var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e1hs, n1, hs), Directed(ehspast, hs, past) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Equal(hs.Id, route.Segments[^1].ToNodeId);
         Assert.DoesNotContain(route.Segments, s => s.ToNodeId == past.Id);
@@ -276,21 +276,21 @@ public class RouteMaterialiserTests
         // Codex HIGH #1: the DestinationRunway hold-short reason is what makes TaxiRoute.ToSummary()
         // surface the "RWY <id>" semantics downstream code/tests rely on. A runway-destination route
         // must emit that reason AND produce a summary containing "RWY 28R".
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var nDest = Node(2, 37.702, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode nDest = Node(2, 37.702, -122.200, GroundNodeType.RunwayHoldShort);
         nDest.RunwayId = new RunwayIdentifier("28R", "10L");
-        var layout = Layout(n0, n1, nDest);
-        var e01 = Edge(n0, n1, "A");
-        var e12 = Edge(n1, nDest, "A");
+        AirportGroundLayout layout = Layout(n0, n1, nDest);
+        GroundEdge e01 = Edge(n0, n1, "A");
+        GroundEdge e12 = Edge(n1, nDest, "A");
 
         var dest = new DestinationDescriptor(null, "28R", null, null, DestinationKind.Runway);
-        var ctx = Context(layout, dest);
+        SearchContext ctx = Context(layout, dest);
 
         var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, nDest) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
-        var destHs = route.HoldShortPoints.Single(h => h.NodeId == nDest.Id);
+        HoldShortPoint destHs = route.HoldShortPoints.Single(h => h.NodeId == nDest.Id);
         Assert.Equal(HoldShortReason.DestinationRunway, destHs.Reason);
 
         // The summary loses the RWY semantics if the reason is dropped (the exact Codex regression).
@@ -304,22 +304,22 @@ public class RouteMaterialiserTests
     [Fact]
     public void Truncation_RouteWithEdgesPastDestination_TruncatesToOnePastDestination()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.702, -122.200);
-        var n3 = Node(3, 37.703, -122.200);
-        var layout = Layout(n0, n1, n2, n3);
-        var e01 = Edge(n0, n1, "A");
-        var e12 = Edge(n1, n2, "A");
-        var e23 = Edge(n2, n3, "A");
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        GroundNode n3 = Node(3, 37.703, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1, n2, n3);
+        GroundEdge e01 = Edge(n0, n1, "A");
+        GroundEdge e12 = Edge(n1, n2, "A");
+        GroundEdge e23 = Edge(n2, n3, "A");
 
         // Destination is n1 — route should be truncated to two segments (n0→n1→n2, one past dest).
         var dest = new DestinationDescriptor(n1.Id, null, null, null, DestinationKind.Node);
-        var ctx = Context(layout, dest);
+        SearchContext ctx = Context(layout, dest);
 
         var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, n2), Directed(e23, n2, n3) };
 
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Equal(2, route.Segments.Count);
         Assert.Equal(n2.Id, route.Segments[1].ToNodeId);
@@ -336,21 +336,21 @@ public class RouteMaterialiserTests
         // and continues. The hold-short is an en-route restriction, not the terminus: the route must
         // extend THROUGH the crossing to the far-side bar so a later CROSS leaves the aircraft just
         // clear on the far side — not truncated one segment past the near bar, stranded on the runway.
-        var n0 = Node(0, 37.700, -122.200);
-        var nearHs = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode nearHs = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
         nearHs.RunwayId = new RunwayIdentifier("28R", "10L");
-        var mid = Node(2, 37.702, -122.200); // on the runway surface, between the bars
-        var farHs = Node(3, 37.703, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode mid = Node(2, 37.702, -122.200); // on the runway surface, between the bars
+        GroundNode farHs = Node(3, 37.703, -122.200, GroundNodeType.RunwayHoldShort);
         farHs.RunwayId = new RunwayIdentifier("28R", "10L");
-        var beyond = Node(4, 37.704, -122.200);
-        var layout = Layout(n0, nearHs, mid, farHs, beyond);
-        var e01 = Edge(n0, nearHs, "A");
-        var e12 = Edge(nearHs, mid, "A");
-        var e23 = Edge(mid, farHs, "A");
-        var e34 = Edge(farHs, beyond, "A");
+        GroundNode beyond = Node(4, 37.704, -122.200);
+        AirportGroundLayout layout = Layout(n0, nearHs, mid, farHs, beyond);
+        GroundEdge e01 = Edge(n0, nearHs, "A");
+        GroundEdge e12 = Edge(nearHs, mid, "A");
+        GroundEdge e23 = Edge(mid, farHs, "A");
+        GroundEdge e34 = Edge(farHs, beyond, "A");
 
         var holdShorts = new HashSet<HoldShortTarget> { HoldShortTarget.Parse("28R") };
-        var ctx = Context(layout, holdShorts: holdShorts, waypointSequence: ["A"]);
+        SearchContext ctx = Context(layout, holdShorts: holdShorts, waypointSequence: ["A"]);
 
         var edges = new List<DirectionalEdge>
         {
@@ -359,14 +359,14 @@ public class RouteMaterialiserTests
             Directed(e23, mid, farHs),
             Directed(e34, farHs, beyond),
         };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         // Route extends through the crossing and ends AT the far-side bar (just clear), not at the
         // mid-runway node one segment past the near bar.
         Assert.Equal(farHs.Id, route.Segments[^1].ToNodeId);
 
         // The near-side bar is the explicit hold-short; the far-side bar is the dropped exit pair.
-        var hs = Assert.Single(route.HoldShortPoints);
+        HoldShortPoint hs = Assert.Single(route.HoldShortPoints);
         Assert.Equal(nearHs.Id, hs.NodeId);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, hs.Reason);
     }
@@ -376,21 +376,21 @@ public class RouteMaterialiserTests
     {
         // Same shape but the taxiway DEAD-ENDS at the runway (no far-side bar of the same runway).
         // The hold-short is genuinely the terminus, so the route still stops one segment past it.
-        var n0 = Node(0, 37.700, -122.200);
-        var nearHs = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode nearHs = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
         nearHs.RunwayId = new RunwayIdentifier("28R", "10L");
-        var past = Node(2, 37.702, -122.200);
-        var beyond = Node(3, 37.703, -122.200);
-        var layout = Layout(n0, nearHs, past, beyond);
-        var e01 = Edge(n0, nearHs, "A");
-        var e12 = Edge(nearHs, past, "A");
-        var e23 = Edge(past, beyond, "A");
+        GroundNode past = Node(2, 37.702, -122.200);
+        GroundNode beyond = Node(3, 37.703, -122.200);
+        AirportGroundLayout layout = Layout(n0, nearHs, past, beyond);
+        GroundEdge e01 = Edge(n0, nearHs, "A");
+        GroundEdge e12 = Edge(nearHs, past, "A");
+        GroundEdge e23 = Edge(past, beyond, "A");
 
         var holdShorts = new HashSet<HoldShortTarget> { HoldShortTarget.Parse("28R") };
-        var ctx = Context(layout, holdShorts: holdShorts, waypointSequence: ["A"]);
+        SearchContext ctx = Context(layout, holdShorts: holdShorts, waypointSequence: ["A"]);
 
         var edges = new List<DirectionalEdge> { Directed(e01, n0, nearHs), Directed(e12, nearHs, past), Directed(e23, past, beyond) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Equal(2, route.Segments.Count);
         Assert.Equal(past.Id, route.Segments[^1].ToNodeId);
@@ -403,16 +403,16 @@ public class RouteMaterialiserTests
     [Fact]
     public void ParkingDestination_DestinationParkingPopulated()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200, GroundNodeType.Parking, "D8");
-        var layout = Layout(n0, n1);
-        var e = Edge(n0, n1, "A");
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200, GroundNodeType.Parking, "D8");
+        AirportGroundLayout layout = Layout(n0, n1);
+        GroundEdge e = Edge(n0, n1, "A");
 
         var dest = new DestinationDescriptor(n1.Id, null, "D8", null, DestinationKind.Parking);
-        var ctx = Context(layout, dest);
+        SearchContext ctx = Context(layout, dest);
 
         var edges = new List<DirectionalEdge> { Directed(e, n0, n1) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Equal("D8", route.DestinationParking);
         Assert.Null(route.DestinationSpot);
@@ -425,16 +425,16 @@ public class RouteMaterialiserTests
     [Fact]
     public void SpotDestination_DestinationSpotPopulated()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200, GroundNodeType.Spot, "32");
-        var layout = Layout(n0, n1);
-        var e = Edge(n0, n1, "A");
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200, GroundNodeType.Spot, "32");
+        AirportGroundLayout layout = Layout(n0, n1);
+        GroundEdge e = Edge(n0, n1, "A");
 
         var dest = new DestinationDescriptor(n1.Id, null, null, "32", DestinationKind.Spot);
-        var ctx = Context(layout, dest);
+        SearchContext ctx = Context(layout, dest);
 
         var edges = new List<DirectionalEdge> { Directed(e, n0, n1) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Null(route.DestinationParking);
         Assert.Equal("32", route.DestinationSpot);
@@ -447,16 +447,16 @@ public class RouteMaterialiserTests
     [Fact]
     public void UnauthorizedLetterTaxiway_EmitsWarning()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var layout = Layout(n0, n1);
-        var e = Edge(n0, n1, "X");
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1);
+        GroundEdge e = Edge(n0, n1, "X");
 
         var authorized = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "A" };
-        var ctx = Context(layout, authorized: authorized);
+        SearchContext ctx = Context(layout, authorized: authorized);
 
         var edges = new List<DirectionalEdge> { Directed(e, n0, n1) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Single(route.Warnings);
         Assert.Contains("X", route.Warnings[0]);
@@ -465,16 +465,16 @@ public class RouteMaterialiserTests
     [Fact]
     public void AuthorizedTaxiway_NoWarning()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var layout = Layout(n0, n1);
-        var e = Edge(n0, n1, "A");
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1);
+        GroundEdge e = Edge(n0, n1, "A");
 
         var authorized = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "A" };
-        var ctx = Context(layout, authorized: authorized);
+        SearchContext ctx = Context(layout, authorized: authorized);
 
         var edges = new List<DirectionalEdge> { Directed(e, n0, n1) };
-        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Empty(route.Warnings);
     }
@@ -486,22 +486,22 @@ public class RouteMaterialiserTests
     [Fact]
     public void FindFullLengthLineupHoldShort_EmptyList_ReturnsStartNode()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var layout = Layout(n0);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        AirportGroundLayout layout = Layout(n0);
 
-        var result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, n0, "28R", []);
+        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, n0, "28R", []);
         Assert.Equal(n0.Id, result.Id);
     }
 
     [Fact]
     public void FindFullLengthLineupHoldShort_SingleCandidate_ReturnsThatNode()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
         n1.RunwayId = new RunwayIdentifier("28R", "10L");
-        var layout = Layout(n0, n1);
+        AirportGroundLayout layout = Layout(n0, n1);
 
-        var result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, n0, "28R", [n1]);
+        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, n0, "28R", [n1]);
         Assert.Equal(n1.Id, result.Id);
     }
 
@@ -512,12 +512,12 @@ public class RouteMaterialiserTests
         // end. The full-length lineup bar is the hold-short nearest that designator's threshold — nEast.
         // The aircraft starts to the WEST (nearer the wrong bar), so a nearest-start or wrong-end
         // heuristic would pick nWest; only the authoritative per-designator threshold picks nEast.
-        var n0 = Node(0, 37.700, -122.210); // start node, west of both bars
-        var nWest = Node(1, 37.700, -122.208, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = Node(0, 37.700, -122.210); // start node, west of both bars
+        GroundNode nWest = Node(1, 37.700, -122.208, GroundNodeType.RunwayHoldShort);
         nWest.RunwayId = new RunwayIdentifier("28R", "10L");
-        var nEast = Node(2, 37.700, -122.202, GroundNodeType.RunwayHoldShort);
+        GroundNode nEast = Node(2, 37.700, -122.202, GroundNodeType.RunwayHoldShort);
         nEast.RunwayId = new RunwayIdentifier("28R", "10L");
-        var layout = Layout(n0, nWest, nEast);
+        AirportGroundLayout layout = Layout(n0, nWest, nEast);
 
         // End1 = 28R threshold at the EAST end; End2 = 10L threshold at the WEST end.
         var runway = new RunwayInfo
@@ -535,9 +535,9 @@ public class RouteMaterialiserTests
             TrueHeading2 = new TrueHeading(100),
             WidthFt = 150,
         };
-        using var scope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        using IDisposable scope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, n0, "28R", [nWest, nEast]);
+        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, n0, "28R", [nWest, nEast]);
         Assert.Equal(nEast.Id, result.Id);
     }
 }

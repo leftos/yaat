@@ -23,9 +23,9 @@ public class VisualAcquisitionTests
     [Fact]
     public void TryAcquireTraffic_NoDestination_UsesNearestStationWeather()
     {
-        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
-        var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 8000, destination: null);
-        var result = VisualAcquisition.TryAcquireTraffic(own, tgt, OakBkn060());
+        AircraftState own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
+        AircraftState tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 8000, destination: null);
+        VisualAcquisitionResult result = VisualAcquisition.TryAcquireTraffic(own, tgt, OakBkn060());
         Assert.False(result.Acquired, "Overflight near KOAK must be blocked by the local BKN060 deck despite having no destination");
         Assert.Equal(VisualAcquisitionFailure.MixedCeiling, result.Reason);
     }
@@ -35,9 +35,9 @@ public class VisualAcquisitionTests
     {
         // Destination LAX is ~300 nm from the aircraft's position near KOAK; the
         // only reporting station is KOAK. The local deck must still block.
-        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: "LAX");
-        var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 8000, destination: "LAX");
-        var result = VisualAcquisition.TryAcquireTraffic(own, tgt, OakBkn060());
+        AircraftState own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: "LAX");
+        AircraftState tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 8000, destination: "LAX");
+        VisualAcquisitionResult result = VisualAcquisition.TryAcquireTraffic(own, tgt, OakBkn060());
         Assert.False(result.Acquired, "Local KOAK deck must block even though the flight plan ends at LAX");
         Assert.Equal(VisualAcquisitionFailure.MixedCeiling, result.Reason);
     }
@@ -47,18 +47,18 @@ public class VisualAcquisitionTests
     {
         // Aircraft over the Pacific, far outside the 50 nm station-association
         // range: no local weather is known, so the acquisition is not blocked.
-        var own = MakeAircraft(35.0, -130.0, heading: 180, altitude: 5000, destination: null);
-        var tgt = MakeAircraft(34.97, -130.0, heading: 180, altitude: 8000, destination: null);
-        var result = VisualAcquisition.TryAcquireTraffic(own, tgt, OakBkn060());
+        AircraftState own = MakeAircraft(35.0, -130.0, heading: 180, altitude: 5000, destination: null);
+        AircraftState tgt = MakeAircraft(34.97, -130.0, heading: 180, altitude: 8000, destination: null);
+        VisualAcquisitionResult result = VisualAcquisition.TryAcquireTraffic(own, tgt, OakBkn060());
         Assert.True(result.Acquired);
     }
 
     [Fact]
     public void TryMaintainTrafficContact_NoDestination_UsesNearestStationWeather()
     {
-        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
-        var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 8000, destination: null);
-        var result = VisualAcquisition.TryMaintainTrafficContact(own, tgt, OakBkn060());
+        AircraftState own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
+        AircraftState tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 8000, destination: null);
+        VisualAcquisitionResult result = VisualAcquisition.TryMaintainTrafficContact(own, tgt, OakBkn060());
         Assert.False(result.Acquired);
         Assert.Equal(VisualAcquisitionFailure.MixedCeiling, result.Reason);
     }
@@ -72,9 +72,9 @@ public class VisualAcquisitionTests
     [Fact]
     public void TryMaintainTrafficContact_VisibilityBelowGap_LosesContact()
     {
-        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
-        var tgt = MakeAircraft(37.667, -122.221, heading: 180, altitude: 5000, destination: null);
-        var result = VisualAcquisition.TryMaintainTrafficContact(own, tgt, Oak3SmClear());
+        AircraftState own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
+        AircraftState tgt = MakeAircraft(37.667, -122.221, heading: 180, altitude: 5000, destination: null);
+        VisualAcquisitionResult result = VisualAcquisition.TryMaintainTrafficContact(own, tgt, Oak3SmClear());
         Assert.False(result.Acquired, "A 5 nm gap in 3SM visibility must break maintained contact");
         Assert.Equal(VisualAcquisitionFailure.OutOfRange, result.Reason);
     }
@@ -86,18 +86,18 @@ public class VisualAcquisitionTests
         // carries a 1.25× tracking tolerance (≈3.26 nm) so threshold chatter between
         // two continuously-varying quantities cannot irreversibly cancel a follow.
         // 0.05° of latitude = 3.0 nm — beyond acquisition, inside the maintain band.
-        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
-        var tgt = MakeAircraft(37.70, -122.221, heading: 180, altitude: 5000, destination: null);
-        var result = VisualAcquisition.TryMaintainTrafficContact(own, tgt, Oak3SmClear());
+        AircraftState own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
+        AircraftState tgt = MakeAircraft(37.70, -122.221, heading: 180, altitude: 5000, destination: null);
+        VisualAcquisitionResult result = VisualAcquisition.TryMaintainTrafficContact(own, tgt, Oak3SmClear());
         Assert.True(result.Acquired, "A gap inside the 1.25× maintain tolerance must keep contact");
     }
 
     [Fact]
     public void TryMaintainTrafficContact_GapWithinVisibility_KeepsContact()
     {
-        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
-        var tgt = MakeAircraft(37.717, -122.221, heading: 180, altitude: 5000, destination: null);
-        var result = VisualAcquisition.TryMaintainTrafficContact(own, tgt, Oak3SmClear());
+        AircraftState own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 5000, destination: null);
+        AircraftState tgt = MakeAircraft(37.717, -122.221, heading: 180, altitude: 5000, destination: null);
+        VisualAcquisitionResult result = VisualAcquisition.TryMaintainTrafficContact(own, tgt, Oak3SmClear());
         Assert.True(result.Acquired, "A ~2 nm gap in 3SM visibility stays within the flight-visibility range");
     }
 

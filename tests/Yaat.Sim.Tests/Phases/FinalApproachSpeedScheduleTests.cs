@@ -56,7 +56,7 @@ public class FinalApproachSpeedScheduleTests
     [Fact]
     public void ApproachFlapReachGate_JetsAndTurbopropsHaveVariety_PistonsHaveNoStage()
     {
-        var callsigns = new[] { "UAL1", "DAL2", "SWA3", "AAL4", "JBU5", "ASA6", "SKW7", "QXE8", "N123AB", "N9225L" };
+        string[] callsigns = new[] { "UAL1", "DAL2", "SWA3", "AAL4", "JBU5", "ASA6", "SKW7", "QXE8", "N123AB", "N9225L" };
         var jetGates = callsigns.Select(cs => FinalApproachSpeedSchedule.ApproachFlapReachGateNm(AircraftCategory.Jet, cs)!.Value).ToList();
         Assert.All(jetGates, g => Assert.InRange(g, 7.5, 10.5));
         Assert.True(jetGates.Max() - jetGates.Min() > 1.0, "jet flap gates should spread across callsigns");

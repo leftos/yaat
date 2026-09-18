@@ -48,7 +48,7 @@ internal static class FavoritesSceneData
         var vm = new MainViewModel(new NoopFilePickerService());
         vm.DisplayFavorites.Clear();
 
-        foreach (var favorite in CreateFavorites())
+        foreach (FavoriteCommand favorite in CreateFavorites())
         {
             vm.DisplayFavorites.Add(new FavoriteDisplayEntry(favorite, vm.FavoriteStore.GlobalSet.Id));
         }

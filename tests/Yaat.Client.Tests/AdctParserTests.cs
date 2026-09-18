@@ -17,7 +17,7 @@ public class AdctParserTests
     [Fact]
     public void Parse_AdctWithFix_ReturnsAppendDirectTo()
     {
-        var result = CommandSchemeParser.Parse("ADCT SUNOL", Scheme);
+        ParsedInput? result = CommandSchemeParser.Parse("ADCT SUNOL", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal(CanonicalCommandType.AppendDirectTo, result.Type);
@@ -27,7 +27,7 @@ public class AdctParserTests
     [Fact]
     public void Parse_AdctLowercase_ReturnsAppendDirectTo()
     {
-        var result = CommandSchemeParser.Parse("adct sunol", Scheme);
+        ParsedInput? result = CommandSchemeParser.Parse("adct sunol", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal(CanonicalCommandType.AppendDirectTo, result.Type);
@@ -37,7 +37,7 @@ public class AdctParserTests
     [Fact]
     public void Parse_AdctMultipleFixes_ReturnsFullArgument()
     {
-        var result = CommandSchemeParser.Parse("ADCT SUNOL MODESTO", Scheme);
+        ParsedInput? result = CommandSchemeParser.Parse("ADCT SUNOL MODESTO", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal(CanonicalCommandType.AppendDirectTo, result.Type);
@@ -47,7 +47,7 @@ public class AdctParserTests
     [Fact]
     public void Parse_AdctNoArg_ReturnsNull()
     {
-        var result = CommandSchemeParser.Parse("ADCT", Scheme);
+        ParsedInput? result = CommandSchemeParser.Parse("ADCT", Scheme);
 
         Assert.Null(result);
     }
@@ -56,7 +56,7 @@ public class AdctParserTests
     public void Parse_AdctConcatenated_DoesNotMatch()
     {
         // ADCTSUNOL should NOT be parsed (concatenation excluded)
-        var result = CommandSchemeParser.Parse("ADCTSUNOL", Scheme);
+        ParsedInput? result = CommandSchemeParser.Parse("ADCTSUNOL", Scheme);
 
         Assert.Null(result);
     }
@@ -64,7 +64,7 @@ public class AdctParserTests
     [Fact]
     public void ParseCompound_AdctInSequence_Succeeds()
     {
-        var result = CommandSchemeParser.ParseCompound("CM 150; ADCT SUNOL", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("CM 150; ADCT SUNOL", Scheme);
 
         Assert.NotNull(result);
         Assert.Equal("CM 150; ADCT SUNOL", result.CanonicalString);
@@ -73,7 +73,7 @@ public class AdctParserTests
     [Fact]
     public void ToCanonical_AppendDirectTo_ProducesAdct()
     {
-        var canonical = CommandSchemeParser.ToCanonical(CanonicalCommandType.AppendDirectTo, "SUNOL");
+        string canonical = CommandSchemeParser.ToCanonical(CanonicalCommandType.AppendDirectTo, "SUNOL");
 
         Assert.Equal("ADCT SUNOL", canonical);
     }

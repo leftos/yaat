@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
@@ -46,16 +47,16 @@ public sealed class VatsimAuthClient
     /// </summary>
     public async Task<VatsimIdentity?> EnsureSignedInAsync(string serverUrl, string? devArtcc, CancellationToken ct)
     {
-        var key = NormalizeServer(serverUrl);
+        string key = NormalizeServer(serverUrl);
 
         // Reuse a stored session if its refresh token still mints an access token.
-        if (TryGetSession(key, out var existing) && await RefreshAsync(key, existing.RefreshToken, ct) is { } refreshed)
+        if (TryGetSession(key, out StoredSession? existing) && await RefreshAsync(key, existing.RefreshToken, ct) is { } refreshed)
         {
             return ToIdentity(refreshed);
         }
 
-        var required = await IsAuthRequiredAsync(key, ct);
-        var session = required ? await BrowserLoginAsync(key, ct) : await DevLoginAsync(key, devArtcc, ct);
+        bool required = await IsAuthRequiredAsync(key, ct);
+        StoredSession? session = required ? await BrowserLoginAsync(key, ct) : await DevLoginAsync(key, devArtcc, ct);
         if (session is null)
         {
             return null;
@@ -71,8 +72,8 @@ public sealed class VatsimAuthClient
     /// </summary>
     public async Task<string?> GetValidAccessTokenAsync(string serverUrl)
     {
-        var key = NormalizeServer(serverUrl);
-        if (!TryGetSession(key, out var session))
+        string key = NormalizeServer(serverUrl);
+        if (!TryGetSession(key, out StoredSession? session))
         {
             return null;
         }
@@ -82,22 +83,22 @@ public sealed class VatsimAuthClient
             return session.AccessToken;
         }
 
-        var refreshed = await RefreshAsync(key, session.RefreshToken, CancellationToken.None);
+        StoredSession? refreshed = await RefreshAsync(key, session.RefreshToken, CancellationToken.None);
         return refreshed?.AccessToken;
     }
 
     public VatsimIdentity? GetIdentity(string serverUrl)
     {
-        return TryGetSession(NormalizeServer(serverUrl), out var session) ? ToIdentity(session) : null;
+        return TryGetSession(NormalizeServer(serverUrl), out StoredSession? session) ? ToIdentity(session) : null;
     }
 
     public void SignOut(string serverUrl)
     {
-        var key = NormalizeServer(serverUrl);
+        string key = NormalizeServer(serverUrl);
         string? refreshToken = null;
         lock (_gate)
         {
-            if (_sessions.TryGetValue(key, out var session))
+            if (_sessions.TryGetValue(key, out StoredSession? session))
             {
                 refreshToken = session.RefreshToken;
             }
@@ -119,7 +120,7 @@ public sealed class VatsimAuthClient
         try
         {
             using var content = new FormUrlEncodedContent(new Dictionary<string, string> { ["refreshToken"] = refreshToken });
-            using var response = await _http.PostAsync($"{serverUrl}/auth/logout", content, CancellationToken.None);
+            using HttpResponseMessage response = await _http.PostAsync($"{serverUrl}/auth/logout", content, CancellationToken.None);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
@@ -131,8 +132,8 @@ public sealed class VatsimAuthClient
     {
         try
         {
-            using var doc = await GetJsonAsync($"{serverUrl}/auth/required", ct);
-            return doc is not null && doc.RootElement.TryGetProperty("required", out var r) && r.ValueKind == JsonValueKind.True;
+            using JsonDocument? doc = await GetJsonAsync($"{serverUrl}/auth/required", ct);
+            return doc is not null && doc.RootElement.TryGetProperty("required", out JsonElement r) && r.ValueKind == JsonValueKind.True;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
@@ -144,14 +145,14 @@ public sealed class VatsimAuthClient
 
     private async Task<StoredSession?> BrowserLoginAsync(string serverUrl, CancellationToken ct)
     {
-        var port = PickFreeLoopbackPort();
-        var returnUrl = $"http://127.0.0.1:{port}/cb";
+        int port = PickFreeLoopbackPort();
+        string returnUrl = $"http://127.0.0.1:{port}/cb";
 
         using var listener = new HttpListener();
         listener.Prefixes.Add($"http://127.0.0.1:{port}/");
         listener.Start();
 
-        var startUrl = $"{serverUrl}/auth/vatsim/start?return={Uri.EscapeDataString(returnUrl)}";
+        string startUrl = $"{serverUrl}/auth/vatsim/start?return={Uri.EscapeDataString(returnUrl)}";
         _log.LogInformation("Opening VATSIM login for {Server}", serverUrl);
         Process.Start(new ProcessStartInfo { FileName = startUrl, UseShellExecute = true });
 
@@ -160,17 +161,17 @@ public sealed class VatsimAuthClient
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeoutCts.CancelAfter(TimeSpan.FromMinutes(5));
 
-            var contextTask = listener.GetContextAsync();
-            var completed = await Task.WhenAny(contextTask, Task.Delay(Timeout.Infinite, timeoutCts.Token));
+            Task<HttpListenerContext> contextTask = listener.GetContextAsync();
+            Task completed = await Task.WhenAny(contextTask, Task.Delay(Timeout.Infinite, timeoutCts.Token));
             if (completed != contextTask)
             {
                 _log.LogWarning("VATSIM login timed out or was cancelled for {Server}", serverUrl);
                 return null;
             }
 
-            var context = await contextTask;
-            var query = context.Request.QueryString;
-            var code = query["code"];
+            HttpListenerContext context = await contextTask;
+            NameValueCollection query = context.Request.QueryString;
+            string? code = query["code"];
             await RespondAndCloseAsync(context, !string.IsNullOrEmpty(code));
 
             if (query["error"] is { } error)
@@ -200,15 +201,15 @@ public sealed class VatsimAuthClient
         try
         {
             using var content = new FormUrlEncodedContent(new Dictionary<string, string> { ["code"] = code });
-            using var response = await _http.PostAsync($"{serverUrl}/auth/exchange", content, ct);
+            using HttpResponseMessage response = await _http.PostAsync($"{serverUrl}/auth/exchange", content, ct);
             if (!response.IsSuccessStatusCode)
             {
                 _log.LogWarning("Token exchange failed with status {Status} for {Server}", (int)response.StatusCode, serverUrl);
                 return null;
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(ct);
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            await using Stream stream = await response.Content.ReadAsStreamAsync(ct);
+            using JsonDocument doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
             return SessionFromJson(doc.RootElement);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
@@ -222,22 +223,22 @@ public sealed class VatsimAuthClient
     {
         try
         {
-            var url = $"{serverUrl}/auth/dev";
+            string url = $"{serverUrl}/auth/dev";
             if (!string.IsNullOrWhiteSpace(devArtcc))
             {
                 url += $"?artcc={Uri.EscapeDataString(devArtcc)}";
             }
 
             using var content = new StringContent("");
-            using var response = await _http.PostAsync(url, content, ct);
+            using HttpResponseMessage response = await _http.PostAsync(url, content, ct);
             if (!response.IsSuccessStatusCode)
             {
                 _log.LogWarning("Dev token request failed with status {Status} for {Server}", (int)response.StatusCode, serverUrl);
                 return null;
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(ct);
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            await using Stream stream = await response.Content.ReadAsStreamAsync(ct);
+            using JsonDocument doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
             return SessionFromJson(doc.RootElement);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
@@ -257,30 +258,32 @@ public sealed class VatsimAuthClient
         try
         {
             using var content = new FormUrlEncodedContent(new Dictionary<string, string> { ["refreshToken"] = refreshToken });
-            using var response = await _http.PostAsync($"{serverUrl}/auth/refresh", content, ct);
+            using HttpResponseMessage response = await _http.PostAsync($"{serverUrl}/auth/refresh", content, ct);
             if (!response.IsSuccessStatusCode)
             {
                 return null;
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(ct);
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-            if (!doc.RootElement.TryGetProperty("accessToken", out var at) || at.ValueKind != JsonValueKind.String)
+            await using Stream stream = await response.Content.ReadAsStreamAsync(ct);
+            using JsonDocument doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            if (!doc.RootElement.TryGetProperty("accessToken", out JsonElement at) || at.ValueKind != JsonValueKind.String)
             {
                 return null;
             }
 
-            var accessToken = at.GetString()!;
+            string accessToken = at.GetString()!;
 
             // The server rotates the refresh token on each refresh and revokes the one just used, so we must
             // store the new refresh token or the next refresh will be rejected.
-            var newRefreshToken =
-                doc.RootElement.TryGetProperty("refreshToken", out var rt) && rt.ValueKind == JsonValueKind.String ? rt.GetString()! : refreshToken;
+            string newRefreshToken =
+                doc.RootElement.TryGetProperty("refreshToken", out JsonElement rt) && rt.ValueKind == JsonValueKind.String
+                    ? rt.GetString()!
+                    : refreshToken;
 
             StoredSession? updated = null;
             lock (_gate)
             {
-                if (_sessions.TryGetValue(serverUrl, out var session))
+                if (_sessions.TryGetValue(serverUrl, out StoredSession? session))
                 {
                     updated = session with { AccessToken = accessToken, AccessExpiresUtc = ReadExpiry(accessToken), RefreshToken = newRefreshToken };
                     _sessions[serverUrl] = updated;
@@ -299,9 +302,9 @@ public sealed class VatsimAuthClient
 
     private static StoredSession? SessionFromJson(JsonElement root)
     {
-        var accessToken = ReadString(root, "accessToken");
-        var refreshToken = ReadString(root, "refreshToken");
-        var cid = ReadString(root, "cid");
+        string? accessToken = ReadString(root, "accessToken");
+        string? refreshToken = ReadString(root, "refreshToken");
+        string? cid = ReadString(root, "cid");
         if (accessToken is null || refreshToken is null || cid is null)
         {
             return null;
@@ -315,17 +318,17 @@ public sealed class VatsimAuthClient
             ReadString(root, "name") ?? "",
             ReadString(root, "rating") ?? "",
             ReadString(root, "subdivision"),
-            root.TryGetProperty("isMentor", out var m) && m.ValueKind == JsonValueKind.True,
+            root.TryGetProperty("isMentor", out JsonElement m) && m.ValueKind == JsonValueKind.True,
             ReadString(root, "artcc")
         );
     }
 
     private static async Task RespondAndCloseAsync(HttpListenerContext context, bool success)
     {
-        var body = success
+        string body = success
             ? "<html><body style='font-family:sans-serif;background:#252529;color:#ddd'><h2>YAAT sign-in complete</h2><p>You can close this tab and return to YAAT.</p></body></html>"
             : "<html><body style='font-family:sans-serif;background:#252529;color:#ddd'><h2>YAAT sign-in failed</h2><p>Return to YAAT and try again.</p></body></html>";
-        var bytes = Encoding.UTF8.GetBytes(body);
+        byte[] bytes = Encoding.UTF8.GetBytes(body);
         context.Response.ContentType = "text/html";
         context.Response.ContentLength64 = bytes.Length;
         await context.Response.OutputStream.WriteAsync(bytes);
@@ -334,13 +337,13 @@ public sealed class VatsimAuthClient
 
     private async Task<JsonDocument?> GetJsonAsync(string url, CancellationToken ct)
     {
-        using var response = await _http.GetAsync(url, ct);
+        using HttpResponseMessage response = await _http.GetAsync(url, ct);
         if (!response.IsSuccessStatusCode)
         {
             return null;
         }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        await using Stream stream = await response.Content.ReadAsStreamAsync(ct);
         return await JsonDocument.ParseAsync(stream, cancellationToken: ct);
     }
 
@@ -350,13 +353,13 @@ public sealed class VatsimAuthClient
     {
         try
         {
-            var parts = jwt.Split('.');
+            string[] parts = jwt.Split('.');
             if (parts.Length < 2)
             {
                 return DateTime.UtcNow;
             }
 
-            var payload = parts[1].Replace('-', '+').Replace('_', '/');
+            string payload = parts[1].Replace('-', '+').Replace('_', '/');
             payload = (payload.Length % 4) switch
             {
                 2 => payload + "==",
@@ -365,7 +368,7 @@ public sealed class VatsimAuthClient
             };
 
             using var doc = JsonDocument.Parse(Convert.FromBase64String(payload));
-            if (doc.RootElement.TryGetProperty("exp", out var exp) && exp.TryGetInt64(out var seconds))
+            if (doc.RootElement.TryGetProperty("exp", out JsonElement exp) && exp.TryGetInt64(out long seconds))
             {
                 return DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime;
             }
@@ -419,8 +422,8 @@ public sealed class VatsimAuthClient
         {
             if (File.Exists(_sessionFilePath))
             {
-                var json = Encoding.UTF8.GetString(Unprotect(File.ReadAllBytes(_sessionFilePath)));
-                var loaded = JsonSerializer.Deserialize<Dictionary<string, StoredSession>>(json);
+                string json = Encoding.UTF8.GetString(Unprotect(File.ReadAllBytes(_sessionFilePath)));
+                Dictionary<string, StoredSession>? loaded = JsonSerializer.Deserialize<Dictionary<string, StoredSession>>(json);
                 if (loaded is not null)
                 {
                     return new Dictionary<string, StoredSession>(loaded, StringComparer.OrdinalIgnoreCase);
@@ -458,7 +461,7 @@ public sealed class VatsimAuthClient
         OperatingSystem.IsWindows() ? ProtectedData.Unprotect(stored, optionalEntropy: null, DataProtectionScope.CurrentUser) : stored;
 
     private static string? ReadString(JsonElement obj, string name) =>
-        obj.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        obj.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     private sealed record StoredSession(
         string AccessToken,

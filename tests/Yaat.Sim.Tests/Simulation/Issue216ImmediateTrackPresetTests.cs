@@ -29,7 +29,7 @@ public class Issue216ImmediateTrackPresetTests
     {
         var engine = new SimulationEngine(new TestAirportGroundData());
 
-        var target = Stars("SFO_B_APP", 2, "W");
+        TrackOwner target = Stars("SFO_B_APP", 2, "W");
         engine.Scenario = new SimScenarioState
         {
             ScenarioId = "s",

@@ -31,12 +31,12 @@ public class TrackEngineInferenceTests
     [Fact]
     public void HandleAccept_AcceptsHandoffPeer_WithoutIdentity()
     {
-        var ac = Aircraft();
-        var peer = Owner("OAK_G_APP", 3, "G");
+        AircraftState ac = Aircraft();
+        TrackOwner peer = Owner("OAK_G_APP", 3, "G");
         ac.Track.Owner = Owner("OAK_TWR", 3, "O");
         ac.Track.HandoffPeer = peer;
 
-        var result = TrackEngine.HandleAccept(ac, Scenario(Owner("OAK_TWR", 3, "O")));
+        CommandResult result = TrackEngine.HandleAccept(ac, Scenario(Owner("OAK_TWR", 3, "O")));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(peer, ac.Track.Owner);
@@ -47,10 +47,10 @@ public class TrackEngineInferenceTests
     [Fact]
     public void HandleAccept_NoPendingHandoff_ReturnsError()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = Owner("OAK_TWR", 3, "O");
 
-        var result = TrackEngine.HandleAccept(ac, Scenario(Owner("OAK_TWR", 3, "O")));
+        CommandResult result = TrackEngine.HandleAccept(ac, Scenario(Owner("OAK_TWR", 3, "O")));
 
         Assert.False(result.Success);
         Assert.Contains("No pending handoff", result.Message ?? "");
@@ -59,11 +59,11 @@ public class TrackEngineInferenceTests
     [Fact]
     public void ApplyHandoff_InfersOwner_HandsToStudent()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = Owner("OAK_DEP", 4, "R");
-        var scenario = Scenario(Owner("OAK_TWR", 3, "O"), elapsedSeconds: 42);
+        SimScenarioState scenario = Scenario(Owner("OAK_TWR", 3, "O"), elapsedSeconds: 42);
 
-        var result = TrackEngine.ApplyHandoff(ac, scenario, identity: null, tcpCode: null, redirect: null);
+        CommandResult result = TrackEngine.ApplyHandoff(ac, scenario, identity: null, tcpCode: null, redirect: null);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(ac.Track.HandoffPeer);
@@ -74,10 +74,10 @@ public class TrackEngineInferenceTests
     [Fact]
     public void ApplyHandoff_Untracked_ReturnsNotTracked()
     {
-        var ac = Aircraft();
-        var scenario = Scenario(Owner("OAK_TWR", 3, "O"));
+        AircraftState ac = Aircraft();
+        SimScenarioState scenario = Scenario(Owner("OAK_TWR", 3, "O"));
 
-        var result = TrackEngine.ApplyHandoff(ac, scenario, identity: null, tcpCode: null, redirect: null);
+        CommandResult result = TrackEngine.ApplyHandoff(ac, scenario, identity: null, tcpCode: null, redirect: null);
 
         Assert.False(result.Success);
         Assert.Contains("not tracked", result.Message ?? "");
@@ -86,11 +86,11 @@ public class TrackEngineInferenceTests
     [Fact]
     public void Dispatch_InitiateHandoff_SucceedsWithNullIdentity()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = Owner("OAK_DEP", 4, "R");
-        var scenario = Scenario(Owner("OAK_TWR", 3, "O"), elapsedSeconds: 10);
+        SimScenarioState scenario = Scenario(Owner("OAK_TWR", 3, "O"), elapsedSeconds: 10);
 
-        var result = TrackEngine.Dispatch(
+        CommandResult? result = TrackEngine.Dispatch(
             new InitiateHandoffCommand(null),
             ac,
             new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())
@@ -105,12 +105,12 @@ public class TrackEngineInferenceTests
     [Fact]
     public void Dispatch_Accept_SucceedsWithNullIdentity()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = Owner("OAK_TWR", 3, "O");
         ac.Track.HandoffPeer = Owner("SFO_DEP", 4, "U");
-        var scenario = Scenario(Owner("OAK_TWR", 3, "O"));
+        SimScenarioState scenario = Scenario(Owner("OAK_TWR", 3, "O"));
 
-        var result = TrackEngine.Dispatch(
+        CommandResult? result = TrackEngine.Dispatch(
             new AcceptHandoffCommand(),
             ac,
             new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())
@@ -124,14 +124,14 @@ public class TrackEngineInferenceTests
     [Fact]
     public void HandleTrack_FrozenUnownedTrack_UnfreezesAndTracks()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Eram.IsFrozen = true;
         ac.Eram.FrozenLat = 37.6;
         ac.Eram.FrozenLon = -122.0;
         ac.Eram.FrozenAltitude = 350;
         var identity = TrackOwner.CreateEram("ZOA_36", "ZOA", "36");
 
-        var result = TrackEngine.HandleTrack(ac, identity);
+        CommandResult result = TrackEngine.HandleTrack(ac, identity);
 
         Assert.True(result.Success, result.Message);
         Assert.False(ac.Eram.IsFrozen);
@@ -144,7 +144,7 @@ public class TrackEngineInferenceTests
     [Fact]
     public void HandleTrack_FrozenTrackOwnedBySelf_Unfreezes()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         var identity = TrackOwner.CreateEram("ZOA_36", "ZOA", "36");
         ac.Track.Owner = identity;
         ac.Eram.IsFrozen = true;
@@ -152,7 +152,7 @@ public class TrackEngineInferenceTests
         ac.Eram.FrozenLon = -122.0;
         ac.Eram.FrozenAltitude = 350;
 
-        var result = TrackEngine.HandleTrack(ac, identity);
+        CommandResult result = TrackEngine.HandleTrack(ac, identity);
 
         Assert.True(result.Success, result.Message);
         Assert.False(ac.Eram.IsFrozen);
@@ -162,13 +162,13 @@ public class TrackEngineInferenceTests
     [Fact]
     public void HandleTrack_FrozenTrackOwnedByOther_RejectedAndStaysFrozen()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = TrackOwner.CreateEram("ZOA_36", "ZOA", "36");
         ac.Eram.IsFrozen = true;
         ac.Eram.FrozenLat = 37.6;
         var other = TrackOwner.CreateEram("ZOA_40", "ZOA", "40");
 
-        var result = TrackEngine.HandleTrack(ac, other);
+        CommandResult result = TrackEngine.HandleTrack(ac, other);
 
         Assert.False(result.Success);
         Assert.True(ac.Eram.IsFrozen);

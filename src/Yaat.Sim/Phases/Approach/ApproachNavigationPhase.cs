@@ -56,7 +56,7 @@ public sealed class ApproachNavigationPhase : Phase
 
         ApplyContinuousDescentTarget(ctx);
 
-        var fix = Fixes[_currentFixIndex];
+        ApproachFix fix = Fixes[_currentFixIndex];
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(fix.Latitude, fix.Longitude));
 
         // Determine sequencing threshold: fly-by fixes with a following fix use anticipation
@@ -66,7 +66,7 @@ public sealed class ApproachNavigationPhase : Phase
 
         if (hasNextFix && !fix.IsFlyOver)
         {
-            var nextFix = Fixes[_currentFixIndex + 1];
+            ApproachFix nextFix = Fixes[_currentFixIndex + 1];
             double currentBearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(fix.Latitude, fix.Longitude));
             double nextBearing = GeoMath.BearingTo(new LatLon(fix.Latitude, fix.Longitude), new LatLon(nextFix.Latitude, nextFix.Longitude));
             double turnRate =
@@ -81,7 +81,7 @@ public sealed class ApproachNavigationPhase : Phase
         bool shouldSequence;
         if (inAnticipationZone)
         {
-            var nextFix = Fixes[_currentFixIndex + 1];
+            ApproachFix nextFix = Fixes[_currentFixIndex + 1];
             double nextBearing = GeoMath.BearingTo(new LatLon(fix.Latitude, fix.Longitude), new LatLon(nextFix.Latitude, nextFix.Longitude));
             double alongTrack = GeoMath.AlongTrackDistanceNmRaw(ctx.Aircraft.Position, new LatLon(fix.Latitude, fix.Longitude), nextBearing);
             shouldSequence = alongTrack >= 0;
@@ -121,7 +121,7 @@ public sealed class ApproachNavigationPhase : Phase
 
     private void NavigateToCurrentFix(PhaseContext ctx)
     {
-        var fix = Fixes[_currentFixIndex];
+        ApproachFix fix = Fixes[_currentFixIndex];
 
         ctx.Targets.NavigationRoute.Clear();
         ctx.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Latitude, fix.Longitude) });
@@ -130,7 +130,7 @@ public sealed class ApproachNavigationPhase : Phase
         // Only SpeedRestriction is set — the phase handles altitude constraints itself.
         for (int i = _currentFixIndex + 1; i < Fixes.Count; i++)
         {
-            var future = Fixes[i];
+            ApproachFix future = Fixes[i];
             ctx.Targets.NavigationRoute.Add(
                 new NavigationTarget
                 {

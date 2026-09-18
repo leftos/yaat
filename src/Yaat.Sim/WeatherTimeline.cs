@@ -41,7 +41,7 @@ public class WeatherTimeline
             }
         }
 
-        var activePeriod = Periods[activeIndex];
+        WeatherPeriod activePeriod = Periods[activeIndex];
 
         // If this is the first period or transition is instant, return the active period directly
         if (activeIndex == 0 || activePeriod.TransitionMinutes <= 0)
@@ -68,12 +68,12 @@ public class WeatherTimeline
         }
 
         // We're within the transition window — interpolate wind from previous period
-        var previousPeriod = Periods[activeIndex - 1];
+        WeatherPeriod previousPeriod = Periods[activeIndex - 1];
         double t = (elapsedSeconds - transitionStart) / (transitionEnd - transitionStart);
         t = Math.Clamp(t, 0.0, 1.0);
 
-        var interpolatedLayers = InterpolateWindLayers(previousPeriod.WindLayers, activePeriod.WindLayers, t);
-        var metarOverrides = InterpolateMetars(previousPeriod.Metars, activePeriod.Metars, t);
+        List<WindLayer> interpolatedLayers = InterpolateWindLayers(previousPeriod.WindLayers, activePeriod.WindLayers, t);
+        Dictionary<string, MetarParser.ParsedMetar>? metarOverrides = InterpolateMetars(previousPeriod.Metars, activePeriod.Metars, t);
 
         return new WeatherProfile
         {
@@ -97,8 +97,8 @@ public class WeatherTimeline
         var result = new List<WindLayer>(from.Count);
         for (int i = 0; i < from.Count; i++)
         {
-            var a = from[i];
-            var b = to[i];
+            WindLayer a = from[i];
+            WindLayer b = to[i];
 
             // Interpolate speed linearly
             double speed = a.Speed + t * (b.Speed - a.Speed);
@@ -162,8 +162,8 @@ public class WeatherTimeline
             return null;
         }
 
-        var fromParsed = ParseMetarsByStation(fromMetars);
-        var toParsed = ParseMetarsByStation(toMetars);
+        Dictionary<string, MetarParser.ParsedMetar> fromParsed = ParseMetarsByStation(fromMetars);
+        Dictionary<string, MetarParser.ParsedMetar> toParsed = ParseMetarsByStation(toMetars);
 
         if (fromParsed.Count == 0 || toParsed.Count == 0)
         {
@@ -172,14 +172,14 @@ public class WeatherTimeline
 
         var overrides = new Dictionary<string, MetarParser.ParsedMetar>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (stationId, toMetar) in toParsed)
+        foreach ((string? stationId, MetarParser.ParsedMetar? toMetar) in toParsed)
         {
-            if (!fromParsed.TryGetValue(stationId, out var fromMetar))
+            if (!fromParsed.TryGetValue(stationId, out MetarParser.ParsedMetar? fromMetar))
             {
                 continue;
             }
 
-            var interpolatedLayers = MetarParser.InterpolateLayers(fromMetar.Layers, toMetar.Layers, t);
+            IReadOnlyList<MetarParser.CloudLayer> interpolatedLayers = MetarParser.InterpolateLayers(fromMetar.Layers, toMetar.Layers, t);
             int? ceiling = MetarParser.CeilingFromLayers(interpolatedLayers);
             double? visibility = LerpNullableDouble(fromMetar.VisibilityStatuteMiles, toMetar.VisibilityStatuteMiles, t);
             double? altimeter = LerpNullableDouble(fromMetar.AltimeterInHg, toMetar.AltimeterInHg, t);
@@ -193,9 +193,9 @@ public class WeatherTimeline
     private static Dictionary<string, MetarParser.ParsedMetar> ParseMetarsByStation(List<string> metars)
     {
         var result = new Dictionary<string, MetarParser.ParsedMetar>(StringComparer.OrdinalIgnoreCase);
-        foreach (var metarStr in metars)
+        foreach (string metarStr in metars)
         {
-            var parsed = MetarParser.Parse(metarStr);
+            MetarParser.ParsedMetar? parsed = MetarParser.Parse(metarStr);
             if (parsed is not null)
             {
                 result[parsed.StationId] = parsed;

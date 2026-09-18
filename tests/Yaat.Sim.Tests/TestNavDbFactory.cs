@@ -24,7 +24,7 @@ internal static class TestNavDbFactory
     internal static NavigationDatabase WithElevations(params (string Code, double ElevationFt)[] elevations)
     {
         var dict = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (code, elev) in elevations)
+        foreach ((string? code, double elev) in elevations)
         {
             dict[code] = elev;
         }
@@ -40,7 +40,7 @@ internal static class TestNavDbFactory
     internal static NavigationDatabase WithFixNames(params string[] names)
     {
         var dict = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var name in names)
+        foreach (string name in names)
         {
             dict[name] = (37.0, -122.0);
         }
@@ -52,7 +52,7 @@ internal static class TestNavDbFactory
     internal static NavigationDatabase WithFixes(params (string Name, double Lat, double Lon)[] fixes)
     {
         var dict = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (name, lat, lon) in fixes)
+        foreach ((string? name, double lat, double lon) in fixes)
         {
             dict[name] = (lat, lon);
         }
@@ -70,7 +70,7 @@ internal static class TestNavDbFactory
     internal static NavigationDatabase WithFixesAndRunways(IReadOnlyList<(string Name, double Lat, double Lon)> fixes, params RunwayInfo[] runways)
     {
         var dict = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (name, lat, lon) in fixes)
+        foreach ((string? name, double lat, double lon) in fixes)
         {
             dict[name] = (lat, lon);
         }
@@ -159,7 +159,7 @@ internal static class TestNavDbFactory
     )
     {
         var dict = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (name, lat, lon) in fixes)
+        foreach ((string? name, double lat, double lon) in fixes)
         {
             dict[name] = (lat, lon);
         }

@@ -1,4 +1,5 @@
 ﻿using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -24,7 +25,7 @@ public class GroundConflictConvergenceTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -44,8 +45,8 @@ public class GroundConflictConvergenceTests(ITestOutputHelper output)
     [Fact]
     public void UAL194_And_THY9WC_MaintainSeparation()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -63,8 +64,8 @@ public class GroundConflictConvergenceTests(ITestOutputHelper output)
         {
             engine.ReplayOneSecond();
 
-            var ual = engine.FindAircraft("UAL194");
-            var thy = engine.FindAircraft("THY9WC");
+            AircraftState? ual = engine.FindAircraft("UAL194");
+            AircraftState? thy = engine.FindAircraft("THY9WC");
             if (ual is null || thy is null)
             {
                 continue;

@@ -67,7 +67,7 @@ internal static class HoldShortAnnotator
     )
     {
         bool traversedRunway = false;
-        foreach (var seg in segments)
+        foreach (TaxiRouteSegment seg in segments)
         {
             if (seg.ToNodeId == startNodeId)
             {
@@ -76,7 +76,7 @@ internal static class HoldShortAnnotator
 
             traversedRunway = traversedRunway || SegmentRunsAlongRunway(seg, startRwyId);
 
-            if (!layout.Nodes.TryGetValue(seg.ToNodeId, out var node))
+            if (!layout.Nodes.TryGetValue(seg.ToNodeId, out GroundNode? node))
             {
                 continue;
             }
@@ -138,7 +138,7 @@ internal static class HoldShortAnnotator
         {
             int startNodeId = segments[0].FromNodeId;
             if (
-                layout.Nodes.TryGetValue(startNodeId, out var startNode)
+                layout.Nodes.TryGetValue(startNodeId, out GroundNode? startNode)
                 && startNode.Type == GroundNodeType.RunwayHoldShort
                 && startNode.RunwayId is { } startRwyId
             )
@@ -164,10 +164,10 @@ internal static class HoldShortAnnotator
             }
         }
 
-        foreach (var seg in segments)
+        foreach (TaxiRouteSegment seg in segments)
         {
             if (
-                !layout.Nodes.TryGetValue(seg.ToNodeId, out var node)
+                !layout.Nodes.TryGetValue(seg.ToNodeId, out GroundNode? node)
                 || node.Type != GroundNodeType.RunwayHoldShort
                 || node.RunwayId is not { } rwyId
             )
@@ -256,7 +256,7 @@ internal static class HoldShortAnnotator
                 return new ExplicitHoldShortPlan { Outcome = ExplicitHoldShortOutcome.AlreadyEntered };
             }
 
-            var nearest = ahead[0];
+            HoldShortPoint nearest = ahead[0];
 
             // A destination-runway hold already stops the aircraft short of that runway, and its
             // reason gates the LUAW/CTO departure flow. Re-arming it as a plain ExplicitHoldShort
@@ -279,7 +279,7 @@ internal static class HoldShortAnnotator
         // skips nodes off its location taxiway.
         for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
         {
-            if (!layout.Nodes.TryGetValue(route.Segments[i].ToNodeId, out var node))
+            if (!layout.Nodes.TryGetValue(route.Segments[i].ToNodeId, out GroundNode? node))
             {
                 continue;
             }
@@ -315,7 +315,7 @@ internal static class HoldShortAnnotator
                 };
             }
 
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway(target.Target))
                 {
@@ -346,7 +346,7 @@ internal static class HoldShortAnnotator
             return true;
         }
 
-        return layout is not null && layout.Nodes.TryGetValue(nodeId, out var node) && node.Edges.Any(e => e.MatchesTaxiway(onTaxiway));
+        return layout is not null && layout.Nodes.TryGetValue(nodeId, out GroundNode? node) && node.Edges.Any(e => e.MatchesTaxiway(onTaxiway));
     }
 
     /// <summary>
@@ -451,9 +451,9 @@ internal static class HoldShortAnnotator
         double taxiwayOffsetNm = (aircraftLengthFt + bufferFt) / GeoMath.FeetPerNm;
         double runwayHalfLengthNm = (aircraftLengthFt / 2.0) / GeoMath.FeetPerNm;
 
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
-            if (!layout.Nodes.TryGetValue(hs.NodeId, out var hsNode))
+            if (!layout.Nodes.TryGetValue(hs.NodeId, out GroundNode? hsNode))
             {
                 continue;
             }
@@ -465,7 +465,7 @@ internal static class HoldShortAnnotator
                 || (hsNode.Type is GroundNodeType.RunwayHoldShort or GroundNodeType.Spot)
             )
             {
-                var vn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, runwayHalfLengthNm, stopAtRunwayHoldShort: false);
+                GroundNode vn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, runwayHalfLengthNm, stopAtRunwayHoldShort: false);
                 hs.Latitude = vn.Position.Lat;
                 hs.Longitude = vn.Position.Lon;
                 continue;
@@ -479,10 +479,10 @@ internal static class HoldShortAnnotator
             // runway it just crossed (issue #172 W1). When the gap is shorter than the whole
             // fuselage the aircraft also cannot fully clear the runway: tag the overhung runway
             // hold-short node and warn the controller at issuance (W2/W3).
-            var crossedRunway = FindCrossedRunwayHoldShort(layout, route, hs.NodeId, taxiwayOffsetNm);
+            (int RunwayNodeId, double GapNm)? crossedRunway = FindCrossedRunwayHoldShort(layout, route, hs.NodeId, taxiwayOffsetNm);
             bool justPastRunway = crossedRunway is not null;
             double twyOffsetNm = justPastRunway ? runwayHalfLengthNm : taxiwayOffsetNm;
-            var twyVn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, twyOffsetNm, stopAtRunwayHoldShort: justPastRunway);
+            GroundNode twyVn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, twyOffsetNm, stopAtRunwayHoldShort: justPastRunway);
             hs.Latitude = twyVn.Position.Lat;
             hs.Longitude = twyVn.Position.Lon;
 
@@ -490,7 +490,9 @@ internal static class HoldShortAnnotator
             {
                 hs.TailOverRunwayNodeId = cr.RunwayNodeId;
                 string rwy =
-                    layout.Nodes.TryGetValue(cr.RunwayNodeId, out var rwyNode) && rwyNode.RunwayId is { } rid ? rid.ToDisplayString() : "the runway";
+                    layout.Nodes.TryGetValue(cr.RunwayNodeId, out GroundNode? rwyNode) && rwyNode.RunwayId is { } rid
+                        ? rid.ToDisplayString()
+                        : "the runway";
                 string warning =
                     $"holding short of {HoldShortTarget.Describe(hs.TargetName ?? "")} leaves the tail over RWY {rwy} — unable to clear the runway";
                 if (!route.Warnings.Contains(warning))
@@ -531,7 +533,7 @@ internal static class HoldShortAnnotator
         for (int guard = 0; guard <= route.Segments.Count; guard++)
         {
             int approachId = -1;
-            foreach (var seg in route.Segments)
+            foreach (TaxiRouteSegment seg in route.Segments)
             {
                 if (seg.ToNodeId == currentId)
                 {
@@ -542,8 +544,8 @@ internal static class HoldShortAnnotator
 
             if (
                 approachId < 0
-                || !layout.Nodes.TryGetValue(approachId, out var approachNode)
-                || !layout.Nodes.TryGetValue(currentId, out var curNode)
+                || !layout.Nodes.TryGetValue(approachId, out GroundNode? approachNode)
+                || !layout.Nodes.TryGetValue(currentId, out GroundNode? curNode)
             )
             {
                 break;
@@ -571,7 +573,7 @@ internal static class HoldShortAnnotator
     /// </summary>
     internal static double CwtFallbackLengthFt(string? aircraftType)
     {
-        var cwt = WakeTurbulenceData.GetCwt(aircraftType ?? "");
+        string? cwt = WakeTurbulenceData.GetCwt(aircraftType ?? "");
         return cwt switch
         {
             "A" => 250.0, // Super (A388)
@@ -589,7 +591,7 @@ internal static class HoldShortAnnotator
 
     internal static bool HoldShortExists(List<HoldShortPoint> holdShorts, int nodeId)
     {
-        foreach (var hs in holdShorts)
+        foreach (HoldShortPoint hs in holdShorts)
         {
             if (hs.NodeId == nodeId)
             {

@@ -24,9 +24,9 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void ClimbMaintain_NoPriorAltitude_NoSuffix()
     {
-        var ac = CreateAircraft(altitude: 5000);
+        AircraftState ac = CreateAircraft(altitude: 5000);
 
-        var result = CommandDispatcher.Dispatch(new ClimbMaintainCommand(19000), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ClimbMaintainCommand(19000), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Climb and maintain 19000", result.Message);
@@ -35,10 +35,10 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void ClimbMaintain_WithPriorAltitude_ShowsPrevious()
     {
-        var ac = CreateAircraft(altitude: 5000);
+        AircraftState ac = CreateAircraft(altitude: 5000);
         ac.Targets.AssignedAltitude = 5000;
 
-        var result = CommandDispatcher.Dispatch(new ClimbMaintainCommand(19000), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ClimbMaintainCommand(19000), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Climb and maintain 19000 (was 5000)", result.Message);
@@ -47,10 +47,10 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void ClimbMaintain_SameAltitude_NoSuffix()
     {
-        var ac = CreateAircraft(altitude: 5000);
+        AircraftState ac = CreateAircraft(altitude: 5000);
         ac.Targets.AssignedAltitude = 19000;
 
-        var result = CommandDispatcher.Dispatch(new ClimbMaintainCommand(19000), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ClimbMaintainCommand(19000), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Climb and maintain 19000", result.Message);
@@ -59,10 +59,10 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void DescendMaintain_WithPriorAltitude_ShowsPrevious()
     {
-        var ac = CreateAircraft(altitude: 19000);
+        AircraftState ac = CreateAircraft(altitude: 19000);
         ac.Targets.AssignedAltitude = 19000;
 
-        var result = CommandDispatcher.Dispatch(new DescendMaintainCommand(5000), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new DescendMaintainCommand(5000), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Descend and maintain 5000 (was 19000)", result.Message);
@@ -73,9 +73,9 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void FlyHeading_NoPriorGuidance_NoSuffix()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
 
-        var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Fly heading 200", result.Message);
@@ -84,10 +84,10 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void FlyHeading_WithPriorHeading_ShowsPrevious()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.AssignedMagneticHeading = new MagneticHeading(180);
 
-        var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Fly heading 200 (was heading 180)", result.Message);
@@ -96,10 +96,10 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void TurnLeft_WithPriorHeading_ShowsPrevious()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.AssignedMagneticHeading = new MagneticHeading(180);
 
-        var result = CommandDispatcher.Dispatch(new TurnLeftCommand(new MagneticHeading(090)), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new TurnLeftCommand(new MagneticHeading(090)), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Turn left heading 090 (was heading 180)", result.Message);
@@ -108,10 +108,10 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void TurnRight_WithPriorHeading_ShowsPrevious()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.AssignedMagneticHeading = new MagneticHeading(180);
 
-        var result = CommandDispatcher.Dispatch(new TurnRightCommand(new MagneticHeading(270)), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new TurnRightCommand(new MagneticHeading(270)), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Turn right heading 270 (was heading 180)", result.Message);
@@ -122,10 +122,10 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void FlyHeading_WithPriorDct_ShowsPrevious()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SUNOL", Position = new LatLon(37.5, -121.9) });
 
-        var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Fly heading 200 (was DCT SUNOL)", result.Message);
@@ -136,10 +136,10 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void FlyHeading_WithPriorSid_ShowsPrevious()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Procedure.ActiveSidId = "OFFSH2";
 
-        var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Fly heading 200 (was SID OFFSH2)", result.Message);
@@ -148,10 +148,10 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void FlyHeading_WithPriorStar_ShowsPrevious()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Procedure.ActiveStarId = "BDEGA2";
 
-        var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Fly heading 200 (was STAR BDEGA2)", result.Message);
@@ -162,11 +162,11 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void FlyHeading_HeadingTakesPriorityOverDct()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.AssignedMagneticHeading = new MagneticHeading(180);
         ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SUNOL", Position = new LatLon(37.5, -121.9) });
 
-        var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Fly heading 200 (was heading 180)", result.Message);
@@ -177,9 +177,9 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void FlyPresentHeading_ShowsActualHeading()
     {
-        var ac = CreateAircraft(heading: 180);
+        AircraftState ac = CreateAircraft(heading: 180);
 
-        var result = CommandDispatcher.Dispatch(new FlyPresentHeadingCommand(), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FlyPresentHeadingCommand(), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Fly present heading 180", result.Message);
@@ -188,10 +188,10 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void FlyPresentHeading_WithPriorDct_ShowsBoth()
     {
-        var ac = CreateAircraft(heading: 180);
+        AircraftState ac = CreateAircraft(heading: 180);
         ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SUNOL", Position = new LatLon(37.5, -121.9) });
 
-        var result = CommandDispatcher.Dispatch(new FlyPresentHeadingCommand(), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FlyPresentHeadingCommand(), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Fly present heading 180 (was DCT SUNOL)", result.Message);
@@ -202,10 +202,10 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void LeftTurn_WithPriorHeading_ShowsPrevious()
     {
-        var ac = CreateAircraft(heading: 180);
+        AircraftState ac = CreateAircraft(heading: 180);
         ac.Targets.AssignedMagneticHeading = new MagneticHeading(180);
 
-        var result = CommandDispatcher.Dispatch(new LeftTurnCommand(30), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new LeftTurnCommand(30), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Turn 30 degrees left, heading 150 (was heading 180)", result.Message);
@@ -214,10 +214,10 @@ public class FlightCommandFeedbackTests
     [Fact]
     public void RightTurn_WithPriorDct_ShowsPrevious()
     {
-        var ac = CreateAircraft(heading: 180);
+        AircraftState ac = CreateAircraft(heading: 180);
         ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SUNOL", Position = new LatLon(37.5, -121.9) });
 
-        var result = CommandDispatcher.Dispatch(new RightTurnCommand(30), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new RightTurnCommand(30), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("Turn 30 degrees right, heading 210 (was DCT SUNOL)", result.Message);

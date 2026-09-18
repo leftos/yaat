@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -63,7 +64,7 @@ public class FollowDownwindLeadHeldTests(ITestOutputHelper output)
     [Fact]
     public void Follower_DoesNotTurnBaseAheadOf_HeldDownwindLead()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -71,8 +72,8 @@ public class FollowDownwindLeadHeldTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -83,7 +84,7 @@ public class FollowDownwindLeadHeldTests(ITestOutputHelper output)
             // Pin the state the user actually saw just before N2BP would turn base:
             // both aircraft on the 28R downwind, N2BP following N172SP, N172SP held
             // out past its base turn with IsExtended already cleared (t=1145).
-            var snapshot = archive.ReadSnapshotAt(1150);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(1150);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=1150 — skipping");
@@ -94,8 +95,8 @@ public class FollowDownwindLeadHeldTests(ITestOutputHelper output)
             output.WriteLine($"Restored snapshot at t={snapshotTime}");
 
             // Sanity: the exact bug setup.
-            var preFollower = engine.FindAircraft(Follower);
-            var preLead = engine.FindAircraft(Lead);
+            AircraftState? preFollower = engine.FindAircraft(Follower);
+            AircraftState? preLead = engine.FindAircraft(Lead);
             Assert.NotNull(preFollower);
             Assert.NotNull(preLead);
             Assert.IsType<DownwindPhase>(preFollower.Phases?.CurrentPhase);
@@ -119,14 +120,14 @@ public class FollowDownwindLeadHeldTests(ITestOutputHelper output)
                 engine.TickOneSecond();
                 int now = snapshotTime + dt;
 
-                var lead = engine.FindAircraft(Lead);
+                AircraftState? lead = engine.FindAircraft(Lead);
                 if (leadBaseAt is null && IsBaseOrLater(lead))
                 {
                     leadBaseAt = now;
                     output.WriteLine($"t={now}: {Lead} turned base");
                 }
 
-                var follower = engine.FindAircraft(Follower);
+                AircraftState? follower = engine.FindAircraft(Follower);
                 if (followerBaseAt is null && IsBaseOrLater(follower))
                 {
                     followerBaseAt = now;

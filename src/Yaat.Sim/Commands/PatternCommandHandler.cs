@@ -43,7 +43,7 @@ internal static class PatternCommandHandler
     // a flight plan filed nor a runway assignment yet.
     private static string ResolveAirportContext(AircraftState aircraft)
     {
-        var assigned = aircraft.Phases?.AssignedRunway?.AirportId;
+        string? assigned = aircraft.Phases?.AssignedRunway?.AirportId;
         if (!string.IsNullOrEmpty(assigned))
         {
             return assigned;
@@ -79,20 +79,20 @@ internal static class PatternCommandHandler
 
         // Capture state before the runway-resolution block mutates it, so the
         // parallel-runway sidestep detection below can compare current vs target.
-        var previousAssignedRunway = aircraft.Phases?.AssignedRunway;
-        var previousActivePhase = aircraft.Phases?.CurrentPhase;
-        var previousClearedRunwayId = aircraft.Phases?.ClearedRunwayId;
+        RunwayInfo? previousAssignedRunway = aircraft.Phases?.AssignedRunway;
+        Phase? previousActivePhase = aircraft.Phases?.CurrentPhase;
+        string? previousClearedRunwayId = aircraft.Phases?.ClearedRunwayId;
 
         // Resolve runway from argument if provided
         if (runwayId is not null)
         {
-            var airportId = ResolveAirportContext(aircraft);
+            string airportId = ResolveAirportContext(aircraft);
             if (string.IsNullOrEmpty(airportId))
             {
                 return new CommandResult(false, "No airport context to resolve runway");
             }
 
-            var resolved = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
+            RunwayInfo? resolved = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
             if (resolved is null)
             {
                 return new CommandResult(false, $"Runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} not found at {airportId}");
@@ -108,8 +108,8 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "No assigned runway for pattern entry");
         }
 
-        var runway = aircraft.Phases.AssignedRunway;
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        RunwayInfo runway = aircraft.Phases.AssignedRunway;
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         // A landing clearance names a runway (7110.65 §3-10-5), so a pattern entry that reassigns
         // the aircraft to a different runway voids it — the controller must clear it again for the
@@ -123,8 +123,8 @@ internal static class PatternCommandHandler
             && previousClearedRunwayId is not null
             && !string.Equals(previousClearedRunwayId, runway.Designator, StringComparison.OrdinalIgnoreCase);
 
-        var standingClearance = voidsLandingClearance ? null : aircraft.Phases.LandingClearance;
-        var standingClearedRunwayId = voidsLandingClearance ? null : aircraft.Phases.ClearedRunwayId;
+        ClearanceType? standingClearance = voidsLandingClearance ? null : aircraft.Phases.LandingClearance;
+        string? standingClearedRunwayId = voidsLandingClearance ? null : aircraft.Phases.ClearedRunwayId;
 
         // A clearance pre-issued while this entry was still queued (CLAND/TG/SG/LA/COPT behind
         // "DCT VPCOL; ERD 28R") is the standing clearance for the circuit this entry builds. Resolved
@@ -132,7 +132,7 @@ internal static class PatternCommandHandler
         // the slot is consumed at the build site, past every reject path, so an entry rejected with
         // "unable, too close for base" doesn't silently eat the controller's clearance. A live
         // clearance still wins: this only fills a gap, it never overrides.
-        var prearmedClearance = standingClearance is null ? PeekPendingLandingClearance(aircraft, runway) : null;
+        PendingLandingClearance? prearmedClearance = standingClearance is null ? PeekPendingLandingClearance(aircraft, runway) : null;
         if (prearmedClearance is not null)
         {
             standingClearance = prearmedClearance.Clearance;
@@ -244,8 +244,8 @@ internal static class PatternCommandHandler
 
             if (isOnWrongSide)
             {
-                var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-                var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+                IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+                (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(
                     runway,
                     (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                     category,
@@ -278,8 +278,8 @@ internal static class PatternCommandHandler
         double closeInAlongTrack = 0.0;
         if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final && finalDistanceNm is null)
         {
-            var airportRunwaysCi = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-            var (sizeOvCi, altOvCi) = PatternGeometry.ResolveAuthoredOverrides(
+            IReadOnlyList<RunwayInfo> airportRunwaysCi = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+            (double? sizeOvCi, double? altOvCi) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
                 (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                 category,
@@ -368,8 +368,8 @@ internal static class PatternCommandHandler
         bool straightInTooHigh = false;
         if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final && finalDistanceNm is null && !isCloseInFinal)
         {
-            var airportRunwaysAa = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-            var (sizeOvAa, altOvAa) = PatternGeometry.ResolveAuthoredOverrides(
+            IReadOnlyList<RunwayInfo> airportRunwaysAa = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+            (double? sizeOvAa, double? altOvAa) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
                 (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                 category,
@@ -449,7 +449,7 @@ internal static class PatternCommandHandler
             && !alreadyOnFinalForRequestedRunway
         )
         {
-            var gate = EvaluatePatternRetarget(aircraft, runway, category, direction, groundLayout, ref waypoints);
+            PatternRetargetGate gate = EvaluatePatternRetarget(aircraft, runway, category, direction, groundLayout, ref waypoints);
             if (gate.IsRetarget)
             {
                 isPatternRetarget = true;
@@ -471,8 +471,8 @@ internal static class PatternCommandHandler
         // point and then reverse again to align with final. That's a loop.
         if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final && !isCloseInFinal && finalEntryDistanceNm is null && !isPatternRetarget)
         {
-            var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-            var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+            IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+            (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
                 (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                 category,
@@ -490,7 +490,7 @@ internal static class PatternCommandHandler
                 airportRunways,
                 AuthoredRunway(aircraft, groundLayout, runway)
             );
-            var (eLat, eLon) = GetEntryPoint(waypoints, PatternEntryLeg.Final, finalDistanceNm, category);
+            (double eLat, double eLon) = GetEntryPoint(waypoints, PatternEntryLeg.Final, finalDistanceNm, category);
 
             double bearingToEntry = GeoMath.BearingTo(aircraft.Position, new LatLon(eLat, eLon));
             double turnToEntry = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearingToEntry));
@@ -667,8 +667,8 @@ internal static class PatternCommandHandler
 
         // Compute waypoints for the entry point check
         {
-            var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-            var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+            IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+            (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
                 (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                 category,
@@ -697,7 +697,7 @@ internal static class PatternCommandHandler
         // a diagonal leg). Setting useAircraftPositionAsEntry skips PatternEntryPhase
         // below so BasePhase starts immediately from the aircraft's current position.
         bool useAircraftPositionAsEntry = isCloseInFinal || isPatternRetarget;
-        var baseDescentFeasibility = BaseDescentFeasibility.Feasible;
+        BaseDescentFeasibility baseDescentFeasibility = BaseDescentFeasibility.Feasible;
         if (!aircraft.IsOnGround && !isOnWrongSide && effectiveEntryLeg == PatternEntryLeg.Base && effectiveFinalDistanceNm is null)
         {
             TrueHeading reciprocal = waypoints.FinalHeading.ToReciprocal();
@@ -738,17 +738,17 @@ internal static class PatternCommandHandler
         // aircraft flying straight ahead with no phase at all — the command must be a no-op when
         // it fails. The same reasoning is why the close-in and retarget gates above fall through
         // rather than rejecting from inside their own blocks.
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Clear(ctx);
 
-        var (circuitSizeOv, circuitAltOv) = PatternGeometry.ResolveAuthoredOverrides(
+        (double? circuitSizeOv, double? circuitAltOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
             category,
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
-        var circuitPhases = PatternBuilder.BuildCircuit(
+        List<Phase> circuitPhases = PatternBuilder.BuildCircuit(
             runway,
             category,
             aircraft.AircraftType,
@@ -779,7 +779,7 @@ internal static class PatternCommandHandler
         // downwind heading before reaching the abeam point.
         if (!aircraft.IsOnGround && !isOnWrongSide)
         {
-            var (entryLat, entryLon) = useAircraftPositionAsEntry
+            (double entryLat, double entryLon) = useAircraftPositionAsEntry
                 ? (aircraft.Position.Lat, aircraft.Position.Lon)
                 : GetEntryPoint(waypoints, effectiveEntryLeg, effectiveFinalDistanceNm ?? finalEntryDistanceNm, category);
             double distToEntry = GeoMath.DistanceNm(aircraft.Position, new LatLon(entryLat, entryLon));
@@ -815,7 +815,7 @@ internal static class PatternCommandHandler
                 // the field).
                 if (effectiveEntryLeg == PatternEntryLeg.Downwind)
                 {
-                    var leadIn = ChooseDownwindLeadIn(aircraft, runway, direction, category, waypoints, entryLat, entryLon);
+                    (double Lat, double Lon) leadIn = ChooseDownwindLeadIn(aircraft, runway, direction, category, waypoints, entryLat, entryLon);
                     leadInLat = leadIn.Lat;
                     leadInLon = leadIn.Lon;
                 }
@@ -829,7 +829,7 @@ internal static class PatternCommandHandler
                     entryAltitude = GlideSlopeGeometry.AltitudeAtDistance(entryDist, runway.ElevationFt, category);
                 }
 
-                var kind = ClassifyEntryKind(aircraft, runway, direction, effectiveEntryLeg);
+                PatternEntryKind kind = ClassifyEntryKind(aircraft, runway, direction, effectiveEntryLeg);
                 phases.Add(
                     new PatternEntryPhase
                     {
@@ -847,7 +847,7 @@ internal static class PatternCommandHandler
         if (isOnWrongSide)
         {
             foreach (
-                var joinPhase in PatternBuilder.BuildFieldCrossingPrefix(
+                Phase joinPhase in PatternBuilder.BuildFieldCrossingPrefix(
                     new MidfieldCrossingPhase { Waypoints = waypoints },
                     waypoints,
                     category,
@@ -860,7 +860,7 @@ internal static class PatternCommandHandler
             }
         }
 
-        foreach (var phase in circuitPhases)
+        foreach (Phase phase in circuitPhases)
         {
             phases.Add(phase);
         }
@@ -898,12 +898,12 @@ internal static class PatternCommandHandler
             );
         }
 
-        var legDesc =
+        string legDesc =
             entryLeg == PatternEntryLeg.Final
                 ? "final"
                 : $"{(direction == PatternDirection.Left ? "left" : "right")} {entryLeg.ToString().ToLowerInvariant()}";
-        var distStr = finalDistanceNm is not null ? $", {finalDistanceNm:G}nm final" : "";
-        var sideStr = isOnWrongSide ? " (crossing midfield)" : "";
+        string distStr = finalDistanceNm is not null ? $", {finalDistanceNm:G}nm final" : "";
+        string sideStr = isOnWrongSide ? " (crossing midfield)" : "";
         return CommandDispatcher.Ok($"Enter {legDesc}{CommandDispatcher.RunwayLabel(aircraft)}{distStr}{sideStr}");
     }
 
@@ -918,19 +918,19 @@ internal static class PatternCommandHandler
         // Captured before the resolution below overwrites them: the runway and direction the aircraft
         // was flying decide whether this is a runway switch and, for a crossover, where its current
         // leg runs.
-        var previousAssignedRunway = aircraft.Phases?.AssignedRunway;
-        var previousDirection = aircraft.Phases?.TrafficDirection ?? CurrentLegWaypoints(aircraft.Phases?.CurrentPhase)?.Direction;
+        RunwayInfo? previousAssignedRunway = aircraft.Phases?.AssignedRunway;
+        PatternDirection? previousDirection = aircraft.Phases?.TrafficDirection ?? CurrentLegWaypoints(aircraft.Phases?.CurrentPhase)?.Direction;
 
         // Resolve runway from argument if provided
         if (runwayId is not null)
         {
-            var airportId = ResolveAirportContext(aircraft);
+            string airportId = ResolveAirportContext(aircraft);
             if (string.IsNullOrEmpty(airportId))
             {
                 return new CommandResult(false, "No airport context to resolve runway");
             }
 
-            var resolved = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
+            RunwayInfo? resolved = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
             if (resolved is null)
             {
                 return new CommandResult(false, $"Runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} not found at {airportId}");
@@ -969,17 +969,17 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "No assigned runway");
         }
 
-        var runway = aircraft.Phases.AssignedRunway;
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-        var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+        RunwayInfo runway = aircraft.Phases.AssignedRunway;
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+        (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
             category,
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             category,
             aircraft.AircraftType,
@@ -1007,7 +1007,7 @@ internal static class PatternCommandHandler
         // clears the stale landing clearance, none of which a circuit spliced in here would do.
         if (!aircraft.IsOnGround && aircraft.Phases.CurrentPhase is GoAroundPhase activeGoAround)
         {
-            var goAroundCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
+            PhaseContext goAroundCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
             activeGoAround.RetargetForPatternClimbOut(goAroundCtx, (int)(waypoints.PatternAltitude - GoAroundHelper.PatternHandoffMarginFt));
             aircraft.Phases.ReplaceUpcoming([]);
 
@@ -1018,7 +1018,7 @@ internal static class PatternCommandHandler
                 runway.Designator
             );
 
-            var dirStrGoAround = newDirection == PatternDirection.Left ? "left" : "right";
+            string dirStrGoAround = newDirection == PatternDirection.Left ? "left" : "right";
             return CommandDispatcher.Ok($"Make {dirStrGoAround} traffic{CommandDispatcher.RunwayLabel(aircraft)}");
         }
 
@@ -1033,13 +1033,14 @@ internal static class PatternCommandHandler
         // PatternEntry / MidfieldCrossing) — those keep the existing
         // UpdateWaypoints path so a later still-Pending leg picks up the new
         // waypoints in its own OnStart.
-        var currentLeg = GetCurrentPatternLeg(aircraft.Phases.CurrentPhase);
+        PatternEntryLeg? currentLeg = GetCurrentPatternLeg(aircraft.Phases.CurrentPhase);
         if (!aircraft.IsOnGround && currentLeg is { } activeLeg)
         {
             // The runway the aircraft is really flying comes from the active leg's own geometry, not
             // from the PhaseList metadata: an auto-cycle can leave AssignedRunway naming one runway
             // while the circuit it built belongs to another.
-            var previousRunway = ResolveFlownRunway(CurrentLegWaypoints(aircraft.Phases.CurrentPhase), airportRunways) ?? previousAssignedRunway;
+            RunwayInfo? previousRunway =
+                ResolveFlownRunway(CurrentLegWaypoints(aircraft.Phases.CurrentPhase), airportRunways) ?? previousAssignedRunway;
             var legSwitch = new PatternLegSwitch(
                 activeLeg,
                 previousRunway,
@@ -1048,7 +1049,7 @@ internal static class PatternCommandHandler
                 IsOnWrongSideForPattern(aircraft.Position, runway, newDirection)
             );
 
-            var rebuiltChain = BuildActiveLegChain(
+            List<Phase> rebuiltChain = BuildActiveLegChain(
                 aircraft,
                 groundLayout,
                 legSwitch,
@@ -1074,7 +1075,7 @@ internal static class PatternCommandHandler
                 legSwitch.WrongSide
             );
 
-            var dirStrRebuild = newDirection == PatternDirection.Left ? "left" : "right";
+            string dirStrRebuild = newDirection == PatternDirection.Left ? "left" : "right";
             return CommandDispatcher.Ok(
                 $"Make {dirStrRebuild} traffic{CommandDispatcher.RunwayLabel(aircraft)}{MidfieldCrossingLabel(rebuiltChain)}"
             );
@@ -1091,7 +1092,7 @@ internal static class PatternCommandHandler
         // the circuit in the right place (after TakeoffPhase) when the aircraft actually departs.
         if (!hasPatternPhases && aircraft.IsOnGround)
         {
-            var dirStrGround = newDirection == PatternDirection.Left ? "left" : "right";
+            string dirStrGround = newDirection == PatternDirection.Left ? "left" : "right";
             return CommandDispatcher.Ok($"Make {dirStrGround} traffic{CommandDispatcher.RunwayLabel(aircraft)}");
         }
 
@@ -1100,7 +1101,7 @@ internal static class PatternCommandHandler
         // PhaseRunner's auto-cycle build the circuit once the climb-out completes.
         if (!hasPatternPhases)
         {
-            var circuit = PatternBuilder.BuildCircuit(
+            List<Phase> circuit = PatternBuilder.BuildCircuit(
                 runway,
                 category,
                 aircraft.AircraftType,
@@ -1122,7 +1123,7 @@ internal static class PatternCommandHandler
             // rewinds to index 0 and re-runs the completed prefix.
             if (aircraft.Phases.CurrentPhase is { Status: PhaseStatus.Pending } spliced)
             {
-                var splicedCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
+                PhaseContext splicedCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
                 spliced.Status = PhaseStatus.Active;
                 spliced.OnStart(splicedCtx);
             }
@@ -1142,7 +1143,7 @@ internal static class PatternCommandHandler
             }
         }
 
-        var dirStr = newDirection == PatternDirection.Left ? "left" : "right";
+        string dirStr = newDirection == PatternDirection.Left ? "left" : "right";
         return CommandDispatcher.Ok($"Make {dirStr} traffic{CommandDispatcher.RunwayLabel(aircraft)}{MidfieldCrossingLabel(aircraft.Phases.Phases)}");
     }
 
@@ -1294,7 +1295,7 @@ internal static class PatternCommandHandler
         IReadOnlyList<RunwayInfo>? airportRunways
     )
     {
-        var flownRunway = legSwitch.PreviousRunway!;
+        RunwayInfo flownRunway = legSwitch.PreviousRunway!;
         if (!legSwitch.WrongSide)
         {
             return BuildSameSideRebuild(
@@ -1333,9 +1334,27 @@ internal static class PatternCommandHandler
             CrossAtPatternAltitude = true,
             InitialTurn = legSwitch.PreviousDirection == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right,
         };
-        var chain = BuildWrongSideJoin(aircraft, groundLayout, runway, newDirection, newWaypoints, category, sizeOv, altOv, airportRunways, crossing);
+        List<Phase> chain = BuildWrongSideJoin(
+            aircraft,
+            groundLayout,
+            runway,
+            newDirection,
+            newWaypoints,
+            category,
+            sizeOv,
+            altOv,
+            airportRunways,
+            crossing
+        );
 
-        var flownWaypoints = ComputeFlownWaypoints(aircraft, groundLayout, flownRunway, legSwitch.PreviousDirection, category, airportRunways);
+        PatternWaypoints flownWaypoints = ComputeFlownWaypoints(
+            aircraft,
+            groundLayout,
+            flownRunway,
+            legSwitch.PreviousDirection,
+            category,
+            airportRunways
+        );
         double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(
             aircraft.Position,
             new LatLon(flownWaypoints.ThresholdLat, flownWaypoints.ThresholdLon),
@@ -1367,7 +1386,7 @@ internal static class PatternCommandHandler
         MidfieldCrossingPhase? crossing
     )
     {
-        var circuit = PatternBuilder.BuildCircuit(
+        List<Phase> circuit = PatternBuilder.BuildCircuit(
             runway,
             category,
             aircraft.AircraftType,
@@ -1382,7 +1401,7 @@ internal static class PatternCommandHandler
             AuthoredRunway(aircraft, groundLayout, runway)
         );
 
-        var chain = PatternBuilder.BuildFieldCrossingPrefix(
+        List<Phase> chain = PatternBuilder.BuildFieldCrossingPrefix(
             crossing ?? new MidfieldCrossingPhase { Waypoints = newWaypoints },
             newWaypoints,
             category,
@@ -1411,7 +1430,7 @@ internal static class PatternCommandHandler
         bool rejoinTrack
     )
     {
-        var chain = PatternBuilder.BuildCircuit(
+        List<Phase> chain = PatternBuilder.BuildCircuit(
             runway,
             category,
             aircraft.AircraftType,
@@ -1444,8 +1463,8 @@ internal static class PatternCommandHandler
         IReadOnlyList<RunwayInfo>? airportRunways
     )
     {
-        var authored = AuthoredRunway(aircraft, groundLayout, flownRunway);
-        var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+        GroundRunway? authored = AuthoredRunway(aircraft, groundLayout, flownRunway);
+        (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(
             flownRunway,
             authored,
             category,
@@ -1504,12 +1523,12 @@ internal static class PatternCommandHandler
         RunwayInfo? nearest = null;
         double nearestDistanceNm = double.MaxValue;
 
-        foreach (var candidate in airportRunways)
+        foreach (RunwayInfo candidate in airportRunways)
         {
             double halfPavementNm = candidate.PavementLengthFt / GeoMath.FeetPerNm / 2.0;
             double downfieldToleranceNm = Math.Min(FlownRunwayDisplacementToleranceNm, halfPavementNm);
 
-            foreach (var (designator, lat, lon, heading) in RunwayEnds(candidate))
+            foreach ((string? designator, double lat, double lon, TrueHeading heading) in RunwayEnds(candidate))
             {
                 var end = new LatLon(lat, lon);
                 double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(thresholdWaypoint, end, heading));
@@ -1570,7 +1589,7 @@ internal static class PatternCommandHandler
     // mid-flight rebuild path.
     private static void ApplyRebuiltPatternChain(AircraftState aircraft, RunwayInfo runway, PatternDirection direction, List<Phase> chain)
     {
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases!.Clear(ctx);
 
         var phases = new PhaseList
@@ -1583,7 +1602,7 @@ internal static class PatternCommandHandler
             ClearedRunwayId = aircraft.Phases.ClearedRunwayId,
             TrafficDirection = direction,
         };
-        foreach (var phase in chain)
+        foreach (Phase phase in chain)
         {
             phases.Add(phase);
         }
@@ -1602,7 +1621,7 @@ internal static class PatternCommandHandler
     {
         if (aircraft.Phases?.CurrentPhase is T)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.AdvanceToNext(ctx);
             return CommandDispatcher.Ok($"Turn {legName}");
         }
@@ -1631,7 +1650,7 @@ internal static class PatternCommandHandler
     {
         if (aircraft.Phases?.CurrentPhase is DownwindPhase)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.AdvanceToNext(ctx);
             return CommandDispatcher.Ok("Turn base");
         }
@@ -1659,7 +1678,7 @@ internal static class PatternCommandHandler
             return new CommandResult(false, $"Extend not allowed on {leg.ToString().ToLowerInvariant()} leg");
         }
 
-        var currentLeg = GetCurrentPatternLeg(aircraft.Phases?.CurrentPhase);
+        PatternEntryLeg? currentLeg = GetCurrentPatternLeg(aircraft.Phases?.CurrentPhase);
         if (currentLeg is not { } current)
         {
             // Not on a numbered leg yet (PatternEntry after ERD/ERC/ELD/ELC, HoldingShort,
@@ -1777,7 +1796,7 @@ internal static class PatternCommandHandler
     /// </summary>
     private static CommandResult? TryArmFirstPendingPatternLeg(AircraftState aircraft)
     {
-        var phases = aircraft.Phases;
+        PhaseList? phases = aircraft.Phases;
         if (phases is null)
         {
             return null;
@@ -1785,7 +1804,7 @@ internal static class PatternCommandHandler
 
         for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
         {
-            var p = phases.Phases[i];
+            Phase p = phases.Phases[i];
             if (p.Status != PhaseStatus.Pending)
             {
                 continue;
@@ -1852,7 +1871,7 @@ internal static class PatternCommandHandler
     /// </summary>
     private static bool WillAppendNextCircuit(AircraftState aircraft)
     {
-        var phases = aircraft.Phases;
+        PhaseList? phases = aircraft.Phases;
         if (phases is null)
         {
             return false;
@@ -1871,7 +1890,7 @@ internal static class PatternCommandHandler
         // ReenterPattern is true.
         for (int i = phases.CurrentIndex; i < phases.Phases.Count; i++)
         {
-            var p = phases.Phases[i];
+            Phase p = phases.Phases[i];
             if (p is TouchAndGoPhase or StopAndGoPhase or LowApproachPhase)
             {
                 return true;
@@ -1932,7 +1951,7 @@ internal static class PatternCommandHandler
         RunwayInfo runway
     )
     {
-        var phase = aircraft.Phases?.CurrentPhase;
+        Phase? phase = aircraft.Phases?.CurrentPhase;
         PatternEntryLeg? leg = phase switch
         {
             UpwindPhase => PatternEntryLeg.Upwind,
@@ -1971,11 +1990,11 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "No assigned runway for pattern rebuild");
         }
 
-        var runway = aircraft.Phases.AssignedRunway;
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        var direction = CurrentPatternDirection(aircraft) ?? aircraft.Phases.TrafficDirection ?? PatternDirection.Left;
+        RunwayInfo runway = aircraft.Phases.AssignedRunway;
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        PatternDirection direction = CurrentPatternDirection(aircraft) ?? aircraft.Phases.TrafficDirection ?? PatternDirection.Left;
 
-        var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+        (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
             category,
@@ -1984,7 +2003,7 @@ internal static class PatternCommandHandler
         );
 
         bool touchAndGo = aircraft.Phases.TrafficDirection is not null;
-        var circuitPhases = PatternBuilder.BuildCircuit(
+        List<Phase> circuitPhases = PatternBuilder.BuildCircuit(
             runway,
             category,
             aircraft.AircraftType,
@@ -2025,7 +2044,7 @@ internal static class PatternCommandHandler
 
     internal static CommandResult TryMakeShortApproach(AircraftState aircraft)
     {
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         if (aircraft.Phases?.CurrentPhase is DownwindPhase liveDownwind)
         {
@@ -2033,7 +2052,7 @@ internal static class PatternCommandHandler
             // from its current position. Physics handles the bank — no teleport.
             // Also arm the upcoming Base with the category-floored short final so
             // the descent profile through Base targets the GS intercept altitude.
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             liveDownwind.ApplyShortApproach(ctx);
             if (TryFindNextPendingPhase<BasePhase>(aircraft) is { } pendingBaseLive)
             {
@@ -2088,7 +2107,7 @@ internal static class PatternCommandHandler
     {
         if (aircraft.Phases?.CurrentPhase is DownwindPhase liveDownwind)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             liveDownwind.RemoveShortApproach(ctx);
             if (TryFindNextPendingPhase<BasePhase>(aircraft) is { } pendingBaseLive)
             {
@@ -2149,7 +2168,7 @@ internal static class PatternCommandHandler
     private static T? TryFindNextPendingPhase<T>(AircraftState aircraft)
         where T : Phase
     {
-        var phases = aircraft.Phases;
+        PhaseList? phases = aircraft.Phases;
         if (phases is null)
         {
             return null;
@@ -2157,7 +2176,7 @@ internal static class PatternCommandHandler
 
         for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
         {
-            var p = phases.Phases[i];
+            Phase p = phases.Phases[i];
             if (p.Status != PhaseStatus.Pending)
             {
                 continue;
@@ -2182,14 +2201,14 @@ internal static class PatternCommandHandler
     /// </summary>
     private static CommandResult? TryArmPendingEntryModifier(AircraftState aircraft, PendingEntryModifier modifier)
     {
-        foreach (var block in aircraft.Queue.Blocks)
+        foreach (CommandBlock block in aircraft.Queue.Blocks)
         {
             if (block.IsApplied)
             {
                 continue;
             }
 
-            foreach (var parsed in BlockParsedCommands(block, aircraft))
+            foreach (ParsedCommand parsed in BlockParsedCommands(block, aircraft))
             {
                 // An entry at leg E builds the legs E..Final, so the target is reachable when it is
                 // at or after the entry leg.
@@ -2229,7 +2248,7 @@ internal static class PatternCommandHandler
             return [];
         }
 
-        var reparsed = CommandParser.ParseCompound(block.SourceCommandText, aircraft.FlightPlan.Route);
+        ParseResult<CompoundCommand> reparsed = CommandParser.ParseCompound(block.SourceCommandText, aircraft.FlightPlan.Route);
         if (!reparsed.IsSuccess || reparsed.Value is null)
         {
             return [];
@@ -2281,14 +2300,14 @@ internal static class PatternCommandHandler
     /// </summary>
     private static ParsedCommand? FindQueuedPatternEntry(AircraftState aircraft)
     {
-        foreach (var block in aircraft.Queue.Blocks)
+        foreach (CommandBlock block in aircraft.Queue.Blocks)
         {
             if (block.IsApplied)
             {
                 continue;
             }
 
-            foreach (var parsed in BlockParsedCommands(block, aircraft))
+            foreach (ParsedCommand parsed in BlockParsedCommands(block, aircraft))
             {
                 if (PatternEntryLegOf(parsed) is not null)
                 {
@@ -2325,7 +2344,7 @@ internal static class PatternCommandHandler
         DispatchContext ctx
     )
     {
-        var entry = FindQueuedPatternEntry(aircraft);
+        ParsedCommand? entry = FindQueuedPatternEntry(aircraft);
         if (entry is null)
         {
             return null;
@@ -2342,7 +2361,7 @@ internal static class PatternCommandHandler
             );
         }
 
-        var resolvedRunwayId = requested ?? entryRunwayId;
+        string? resolvedRunwayId = requested ?? entryRunwayId;
         if (resolvedRunwayId is null)
         {
             return new CommandResult(false, $"Cannot clear {aircraft.Callsign} — neither the clearance nor the queued pattern entry names a runway");
@@ -2452,7 +2471,7 @@ internal static class PatternCommandHandler
         if (pending.PatternRunwayId is not null)
         {
             var armedModifier = new OptionPatternModifier(null, pending.PatternRunwayId, pending.PatternAltitudeFt);
-            ResolveOptionClearancePattern(aircraft, armedModifier, out var pendingPatternRunway);
+            ResolveOptionClearancePattern(aircraft, armedModifier, out RunwayInfo? pendingPatternRunway);
             if (pendingPatternRunway is null)
             {
                 aircraft.PendingWarnings.Add(
@@ -2533,7 +2552,7 @@ internal static class PatternCommandHandler
                 break;
             case PendingEntryModifierKind.ShortApproach:
             {
-                var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+                AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
                 if (circuit.OfType<DownwindPhase>().FirstOrDefault() is { } downwind)
                 {
                     downwind.ShortApproachArmed = true;
@@ -2622,13 +2641,13 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "No active pattern phase");
         }
 
-        var current = aircraft.Phases.CurrentPhase;
+        Phase? current = aircraft.Phases.CurrentPhase;
         if (current is not (DownwindPhase or BasePhase or CrosswindPhase or UpwindPhase))
         {
             return new CommandResult(false, "Plan 270 requires an active pattern leg");
         }
 
-        var patternDir = aircraft.Phases.TrafficDirection;
+        PatternDirection? patternDir = aircraft.Phases.TrafficDirection;
         if (patternDir is null)
         {
             return new CommandResult(false, "Plan 270 requires an active traffic pattern");
@@ -2645,11 +2664,11 @@ internal static class PatternCommandHandler
         // the aircraft turns away from the runway, sweeps ~270°, and rolls out on the same course a
         // normal 90° pattern turn would have reached. Turning the pattern's own way instead ends
         // 180° off (on the next leg's reciprocal), which is the wrong-way bug this fixes.
-        var turnDir = patternDir == PatternDirection.Left ? TurnDirection.Right : TurnDirection.Left;
+        TurnDirection turnDir = patternDir == PatternDirection.Left ? TurnDirection.Right : TurnDirection.Left;
         var turnPhase = new MakeTurnPhase { Direction = turnDir, TargetDegrees = 270 };
         aircraft.Phases.InsertAfterCurrent(turnPhase);
 
-        var dirStr = turnDir == TurnDirection.Left ? "left" : "right";
+        string dirStr = turnDir == TurnDirection.Left ? "left" : "right";
         return CommandDispatcher.Ok($"Plan {dirStr} 270 at next turn");
     }
 
@@ -2667,7 +2686,7 @@ internal static class PatternCommandHandler
         }
 
         aircraft.Pattern.SizeOverrideNm = sizeNm;
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         // A commanded size below the turn-radius flyability floor cannot roll out on final
         // (PatternGeometry.MinFlyablePatternSizeNm) — the pattern is built at the floor
@@ -2679,16 +2698,16 @@ internal static class PatternCommandHandler
         // Update waypoints on active pattern phases if in a pattern
         if (aircraft.Phases?.AssignedRunway is { } runway)
         {
-            var direction = aircraft.Phases.TrafficDirection ?? PatternDirection.Left;
-            var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-            var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+            PatternDirection direction = aircraft.Phases.TrafficDirection ?? PatternDirection.Left;
+            IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+            (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
                 (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                 category,
                 sizeNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
-            var waypoints = PatternGeometry.Compute(
+            PatternWaypoints waypoints = PatternGeometry.Compute(
                 runway,
                 category,
                 aircraft.AircraftType,
@@ -2704,7 +2723,7 @@ internal static class PatternCommandHandler
 
         if (unableTooTight)
         {
-            var speech = PilotResponder.BuildUnablePatternSize(aircraft, sizeNm, floorNm);
+            PilotSpeechText speech = PilotResponder.BuildUnablePatternSize(aircraft, sizeNm, floorNm);
             if (soloTrainingMode)
             {
                 PilotResponder.QueueSoloPilotTransmission(aircraft, speech, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
@@ -2741,10 +2760,10 @@ internal static class PatternCommandHandler
             aircraft.Phases.InsertAfterCurrent(sturnPhase);
         }
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.AdvanceToNext(ctx);
 
-        var dirStr = initialDirection == TurnDirection.Left ? "left" : "right";
+        string dirStr = initialDirection == TurnDirection.Left ? "left" : "right";
         return CommandDispatcher.Ok($"S-turns, initial {dirStr}, {count} turns");
     }
 
@@ -2792,20 +2811,20 @@ internal static class PatternCommandHandler
                 return new CommandResult(false, "Pattern offset applies on upwind, crosswind, downwind, or base");
         }
 
-        var dirStr = direction == TurnDirection.Left ? "left" : "right";
+        string dirStr = direction == TurnDirection.Left ? "left" : "right";
         return CommandDispatcher.Ok($"Offset {dirStr} {resolved:G} NM");
     }
 
     internal static CommandResult TryMakeTurn(AircraftState aircraft, TurnDirection direction, double degrees)
     {
-        var dirStr = direction == TurnDirection.Left ? "left" : "right";
+        string dirStr = direction == TurnDirection.Left ? "left" : "right";
 
         // On the ground the turn phase would be inserted ahead of the takeoff chain and never complete — a stationary
         // aircraft cannot pivot (FlightPhysics.UpdateHeading) — stranding every phase behind it. The departure turn
         // the controller usually means is a CTO modifier.
         if (aircraft.IsOnGround)
         {
-            var hint = CompoundPolicy.DepartureTurnHint((int)degrees);
+            string hint = CompoundPolicy.DepartureTurnHint((int)degrees);
             return new CommandResult(false, $"Make {dirStr} {degrees:F0} requires the aircraft to be airborne — {hint}");
         }
 
@@ -2817,7 +2836,7 @@ internal static class PatternCommandHandler
             var standalone = new MakeTurnPhase { Direction = direction, TargetDegrees = degrees };
             aircraft.Phases = new PhaseList();
             aircraft.Phases.Add(standalone);
-            var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Start(startCtx);
             return CommandDispatcher.Ok($"Make {dirStr} {degrees:F0}");
         }
@@ -2839,7 +2858,7 @@ internal static class PatternCommandHandler
             aircraft.Phases.InsertAfterCurrent(turnPhase);
         }
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.AdvanceToNext(ctx);
 
         return CommandDispatcher.Ok($"Make {dirStr} {degrees:F0}");
@@ -2883,7 +2902,7 @@ internal static class PatternCommandHandler
             return null;
         }
 
-        var airportId = ResolveAirportContext(aircraft);
+        string airportId = ResolveAirportContext(aircraft);
         if (string.IsNullOrEmpty(airportId))
         {
             return new CommandResult(false, "No airport context to resolve runway");
@@ -2909,7 +2928,7 @@ internal static class PatternCommandHandler
     /// </summary>
     private static string ApplyOptionClearancePattern(AircraftState aircraft, OptionPatternModifier modifier, RunwayInfo? patternRunway)
     {
-        var phases = aircraft.Phases;
+        PhaseList? phases = aircraft.Phases;
         if ((phases is not null) && (patternRunway is not null))
         {
             bool runwayChanged = !string.Equals(
@@ -2990,7 +3009,7 @@ internal static class PatternCommandHandler
         DispatchContext ctx
     )
     {
-        if (ResolveOptionClearancePattern(aircraft, modifier, out var patternRunway) is { } rejection)
+        if (ResolveOptionClearancePattern(aircraft, modifier, out RunwayInfo? patternRunway) is { } rejection)
         {
             return rejection;
         }
@@ -3071,7 +3090,7 @@ internal static class PatternCommandHandler
 
         if (aircraft.Phases is not null)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
             aircraft.Phases = new PhaseList { AssignedRunway = aircraft.Phases.AssignedRunway };
         }
@@ -3081,10 +3100,10 @@ internal static class PatternCommandHandler
         }
 
         aircraft.Phases.Add(phase);
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var dirStr = orbitDirection switch
+        string dirStr = orbitDirection switch
         {
             TurnDirection.Left => "left 360s",
             TurnDirection.Right => "right 360s",
@@ -3111,7 +3130,7 @@ internal static class PatternCommandHandler
         RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
         if (aircraft.Phases is not null)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
         }
 
@@ -3122,10 +3141,10 @@ internal static class PatternCommandHandler
         }
 
         aircraft.Phases.Add(phase);
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var dirStr = orbitDirection switch
+        string dirStr = orbitDirection switch
         {
             TurnDirection.Left => "left 360s",
             TurnDirection.Right => "right 360s",
@@ -3176,8 +3195,8 @@ internal static class PatternCommandHandler
             _ => 0.0,
         };
         double leadIn45Nm = Math.Max(runwayHalfNm, categoryFloorNm);
-        var lead45 = GeoMath.ProjectPoint(abeamLat, abeamLon, reverseEntry45, leadIn45Nm);
-        var leadXtdDownwind = GeoMath.ProjectPoint(abeamLat, abeamLon, reverseDownwind, ExtendedDownwindLeadInNm);
+        (double Lat, double Lon) lead45 = GeoMath.ProjectPoint(abeamLat, abeamLon, reverseEntry45, leadIn45Nm);
+        (double Lat, double Lon) leadXtdDownwind = GeoMath.ProjectPoint(abeamLat, abeamLon, reverseDownwind, ExtendedDownwindLeadInNm);
 
         double score45 = ScoreLeadInPath(aircraft, lead45.Lat, lead45.Lon, entry45Deg, downwindDeg, UTurnPenaltyThresholdDeg);
         double scoreXtdDownwind = ScoreLeadInPath(
@@ -3401,7 +3420,7 @@ internal static class PatternCommandHandler
             // would carry pattern-length into the along-track and shift the
             // rollout outbound past the requested distance.
             TrueHeading reciprocal = wp.FinalHeading.ToReciprocal();
-            var finalPoint = GeoMath.ProjectPoint(wp.ThresholdLat, wp.ThresholdLon, reciprocal, finalDistanceNm.Value);
+            (double Lat, double Lon) finalPoint = GeoMath.ProjectPoint(wp.ThresholdLat, wp.ThresholdLon, reciprocal, finalDistanceNm.Value);
             double patternWidth = Math.Abs(
                 GeoMath.SignedCrossTrackDistanceNm(
                     new LatLon(wp.BaseTurnLat, wp.BaseTurnLon),
@@ -3410,7 +3429,7 @@ internal static class PatternCommandHandler
                 )
             );
             TrueHeading perpBearing = wp.BaseHeading.ToReciprocal();
-            var entryPoint = GeoMath.ProjectPoint(finalPoint.Lat, finalPoint.Lon, perpBearing, patternWidth);
+            (double Lat, double Lon) entryPoint = GeoMath.ProjectPoint(finalPoint.Lat, finalPoint.Lon, perpBearing, patternWidth);
             return (entryPoint.Lat, entryPoint.Lon);
         }
 
@@ -3421,7 +3440,7 @@ internal static class PatternCommandHandler
             double gsAngle = GlideSlopeGeometry.AngleForCategory(category);
             double entryDist = finalDistanceNm ?? (CategoryPerformance.PatternAltitudeAgl(category) / GlideSlopeGeometry.FeetPerNm(gsAngle));
             TrueHeading reciprocal = wp.FinalHeading.ToReciprocal();
-            var point = GeoMath.ProjectPoint(wp.ThresholdLat, wp.ThresholdLon, reciprocal, entryDist);
+            (double Lat, double Lon) point = GeoMath.ProjectPoint(wp.ThresholdLat, wp.ThresholdLon, reciprocal, entryDist);
             return (point.Lat, point.Lon);
         }
 
@@ -3533,8 +3552,8 @@ internal static class PatternCommandHandler
         ref PatternWaypoints? waypoints
     )
     {
-        var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-        var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+        IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+        (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
             category,
@@ -3583,8 +3602,8 @@ internal static class PatternCommandHandler
         // pattern side. EF infers direction from the runway (28L with 28R present → Left), but an
         // aircraft north of the 28L centerline is on a RIGHT base for 28L; building a left base
         // there would be a wrong-side base.
-        var side = rightOffsetNm >= 0 ? PatternDirection.Right : PatternDirection.Left;
-        var retargetWaypoints = PatternGeometry.Compute(
+        PatternDirection side = rightOffsetNm >= 0 ? PatternDirection.Right : PatternDirection.Left;
+        PatternWaypoints retargetWaypoints = PatternGeometry.Compute(
             runway,
             category,
             aircraft.AircraftType,
@@ -3746,7 +3765,7 @@ internal static class PatternCommandHandler
         AircraftCategory category
     )
     {
-        var phases = aircraft.Phases!;
+        PhaseList phases = aircraft.Phases!;
         phases.ActiveApproach = BuildVisualClearanceForIfr(aircraft, newRunway);
         if (phases.ClearedRunwayId is not null)
         {
@@ -3830,11 +3849,11 @@ internal static class PatternCommandHandler
         }
 
         bool isGaPattern = aircraft.Phases.TrafficDirection is not null;
-        var gaCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
+        PhaseContext gaCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
 
         // Build MAP phases for instrument approaches without an ATC override — an assigned
         // heading or altitude replaces the published missed approach.
-        var missedApproachPhases = (!isGaPattern && !hasAtcOverride) ? ApproachCommandHandler.BuildMissedApproachPhases(aircraft) : [];
+        List<Phase> missedApproachPhases = (!isGaPattern && !hasAtcOverride) ? ApproachCommandHandler.BuildMissedApproachPhases(aircraft) : [];
 
         var goAround = new GoAroundPhase
         {
@@ -3846,7 +3865,7 @@ internal static class PatternCommandHandler
 
         GoAroundHelper.InstallGoAroundPhases(gaCtx, goAround, missedApproachPhases);
 
-        var gaMsg = "Go around";
+        string gaMsg = "Go around";
         if (ga.TrafficPattern is PatternDirection.Left)
         {
             gaMsg += ", make left traffic";
@@ -3915,7 +3934,7 @@ internal static class PatternCommandHandler
                 );
             }
 
-            var isHeliCtl = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+            bool isHeliCtl = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
             Phase landingCtl = isHeliCtl ? new HelicopterLandingPhase() : new LandingPhase();
             if (CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, landingCtl))
             {
@@ -3994,7 +4013,7 @@ internal static class PatternCommandHandler
 
     private static bool IsOnLowApproach(AircraftState aircraft)
     {
-        var phases = aircraft.Phases;
+        PhaseList? phases = aircraft.Phases;
         if (phases is null)
         {
             return false;
@@ -4030,7 +4049,7 @@ internal static class PatternCommandHandler
 
         // Gate point on B's final approach course, RetargetFinalGateNm out from B's threshold.
         TrueHeading bFinalOutbound = b.TrueHeading.ToReciprocal();
-        var gate = GeoMath.ProjectPoint(b.ThresholdLatitude, b.ThresholdLongitude, bFinalOutbound, RetargetFinalGateNm);
+        (double Lat, double Lon) gate = GeoMath.ProjectPoint(b.ThresholdLatitude, b.ThresholdLongitude, bFinalOutbound, RetargetFinalGateNm);
 
         // (1) Divergence band.
         double divergence = a.TrueHeading.AbsAngleTo(b.TrueHeading);
@@ -4117,19 +4136,19 @@ internal static class PatternCommandHandler
         DispatchContext ctx
     )
     {
-        var airportId = ResolveAirportContext(aircraft);
+        string airportId = ResolveAirportContext(aircraft);
         if (string.IsNullOrEmpty(airportId))
         {
             return new CommandResult(false, "No airport context to resolve runway");
         }
 
-        var runwayB = NavigationDatabase.Instance.GetRunway(airportId, ctl.RunwayId!);
+        RunwayInfo? runwayB = NavigationDatabase.Instance.GetRunway(airportId, ctl.RunwayId!);
         if (runwayB is null)
         {
             return new CommandResult(false, $"Runway {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId!)} not found at {airportId}");
         }
 
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         // A low approach then a tight turn onto a diverging runway's short final is a light-aircraft
         // VFR-pattern maneuver flown low and slow. A jet or turboprop can't fly it (aviation review),
@@ -4139,13 +4158,17 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Unable, low-approach runway change is a light-aircraft maneuver");
         }
 
-        var feasibility = EvaluateLowApproachRetargetFeasibility(aircraft, assignedRunway, runwayB);
+        (bool Feasible, string Reason, double GateLat, double GateLon) feasibility = EvaluateLowApproachRetargetFeasibility(
+            aircraft,
+            assignedRunway,
+            runwayB
+        );
         if (!feasibility.Feasible)
         {
             return new CommandResult(false, feasibility.Reason);
         }
 
-        var phases = aircraft.Phases!;
+        PhaseList phases = aircraft.Phases!;
         if (!HasLowApproachPhase(phases))
         {
             return new CommandResult(false, "Cannot change landing runway — not on a low approach");
@@ -4165,9 +4188,9 @@ internal static class PatternCommandHandler
         lowApproach.EnableRetargetToDifferentRunway(feasibility.GateLat, feasibility.GateLon, runwayB.TrueHeading, RetargetFinalGateNm);
 
         // Build the runway-B tail: pattern entry onto B's final at the gate, then final + landing.
-        var directionB = GoAroundHelper.InferDefaultPatternDirection(runwayB) ?? PatternDirection.Left;
-        var airportRunwaysB = NavigationDatabase.Instance.GetRunways(runwayB.AirportId);
-        var (sizeOvB, altOvB) = PatternGeometry.ResolveAuthoredOverrides(
+        PatternDirection directionB = GoAroundHelper.InferDefaultPatternDirection(runwayB) ?? PatternDirection.Left;
+        IReadOnlyList<RunwayInfo> airportRunwaysB = NavigationDatabase.Instance.GetRunways(runwayB.AirportId);
+        (double? sizeOvB, double? altOvB) = PatternGeometry.ResolveAuthoredOverrides(
             runwayB,
             (ctx.GroundLayout ?? aircraft.Ground.Layout)?.FindRunway(runwayB.Designator),
             category,
@@ -4184,7 +4207,7 @@ internal static class PatternCommandHandler
             Kind = PatternEntryKind.Final,
         };
 
-        var circuitB = PatternBuilder.BuildCircuit(
+        List<Phase> circuitB = PatternBuilder.BuildCircuit(
             runwayB,
             category,
             aircraft.AircraftType,
@@ -4278,7 +4301,7 @@ internal static class PatternCommandHandler
             // for ReplaceApproachEnding to swap; install a fresh final + full-stop landing and
             // advance to it. ForceLanding (set below) suppresses the auto-go-around
             // FinalApproachPhase would otherwise re-trigger, driving a touchdown from any energy state.
-            var reversalCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext reversalCtx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.ReplaceUpcoming([new FinalApproachPhase { SkipInterceptCheck = true }, landing]);
             aircraft.Phases.AdvanceToNext(reversalCtx);
             FlightPhysics.NotifyPhaseAdvanced(aircraft);
@@ -4320,17 +4343,17 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "No ground layout available for LAHSO intersection calculation");
         }
 
-        var runway = aircraft.Phases.AssignedRunway;
+        RunwayInfo runway = aircraft.Phases.AssignedRunway;
 
         // Find the landing runway in the ground layout
-        var landingGround = groundLayout.FindGroundRunway(runway.Designator);
+        GroundRunway? landingGround = groundLayout.FindGroundRunway(runway.Designator);
         if (landingGround is null)
         {
             return new CommandResult(false, $"Landing runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)} not found in ground layout");
         }
 
         // Find the crossing runway in the ground layout
-        var crossingGround = groundLayout.FindGroundRunway(lahso.CrossingRunwayId);
+        GroundRunway? crossingGround = groundLayout.FindGroundRunway(lahso.CrossingRunwayId);
         if (crossingGround is null)
         {
             return new CommandResult(
@@ -4340,7 +4363,7 @@ internal static class PatternCommandHandler
         }
 
         // Compute the intersection point
-        var intersection = RunwayIntersectionCalculator.FindIntersection(landingGround, crossingGround);
+        (double Lat, double Lon, double DistFromStartNm)? intersection = RunwayIntersectionCalculator.FindIntersection(landingGround, crossingGround);
         if (intersection is null)
         {
             return new CommandResult(
@@ -4367,7 +4390,7 @@ internal static class PatternCommandHandler
 
         // Compute the hold-short lat/lon on the landing runway centerline. Anchored at the landing
         // threshold, matching the datum ComputeHoldShortDistanceNm measured from.
-        var holdShortPoint = GeoMath.ProjectPoint(LandingThreshold.Resolve(runway, groundLayout), runway.TrueHeading, holdShortDistNm);
+        LatLon holdShortPoint = GeoMath.ProjectPoint(LandingThreshold.Resolve(runway, groundLayout), runway.TrueHeading, holdShortDistNm);
 
         if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LandingPhase()))
         {

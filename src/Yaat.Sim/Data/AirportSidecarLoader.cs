@@ -35,7 +35,7 @@ public static class AirportSidecarLoader
             return result;
         }
 
-        foreach (var artccDir in Directory.EnumerateDirectories(artccsBaseDir))
+        foreach (string artccDir in Directory.EnumerateDirectories(artccsBaseDir))
         {
             string categoryDir = Path.Combine(artccDir, "Airports");
             if (!Directory.Exists(categoryDir))
@@ -43,7 +43,7 @@ public static class AirportSidecarLoader
                 continue;
             }
 
-            foreach (var file in Directory.GetFiles(categoryDir, "*.json"))
+            foreach (string file in Directory.GetFiles(categoryDir, "*.json"))
             {
                 LoadFile(file, result);
             }
@@ -99,7 +99,7 @@ public static class AirportSidecarLoader
         var indexByRunway = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < file.ExitDirections.Count; i++)
         {
-            var entry = file.ExitDirections[i];
+            ExitDirectionEntry entry = file.ExitDirections[i];
             string location = $"{filePath}: exitDirections[{i}]";
 
             if (string.IsNullOrWhiteSpace(entry.Runway))
@@ -141,7 +141,7 @@ public static class AirportSidecarLoader
         var windows = new List<AdwWindow>();
         for (int i = 0; i < file.Adw.Count; i++)
         {
-            var entry = file.Adw[i];
+            AdwEntry entry = file.Adw[i];
             string location = $"{filePath}: adw[{i}]";
 
             if (string.IsNullOrWhiteSpace(entry.ArrivalRunway) || string.IsNullOrWhiteSpace(entry.DepartureRunway))
@@ -194,14 +194,14 @@ public static class AirportSidecarLoader
         var turns = new List<BlockedTurn>();
         for (int i = 0; i < file.BlockedTurns.Count; i++)
         {
-            var entry = file.BlockedTurns[i];
+            BlockedTurnEntry entry = file.BlockedTurns[i];
             if (entry.Path.Count < 3)
             {
                 result.Warnings.Add($"{filePath}: blockedTurns[{i}] needs at least 3 path points (an L-shape through the apex), skipping");
                 continue;
             }
 
-            var points = ParseWaypointPath(entry.Path, $"blockedTurns[{i}]", filePath, result);
+            List<OneWayPoint>? points = ParseWaypointPath(entry.Path, $"blockedTurns[{i}]", filePath, result);
             if (points is null)
             {
                 continue;
@@ -218,14 +218,14 @@ public static class AirportSidecarLoader
         var constraints = new List<OneWayConstraint>();
         for (int i = 0; i < file.OneWayEdges.Count; i++)
         {
-            var entry = file.OneWayEdges[i];
+            OneWayConstraintEntry entry = file.OneWayEdges[i];
             if (entry.Path.Count < 2)
             {
                 result.Warnings.Add($"{filePath}: oneWayEdges[{i}] needs at least 2 path points, skipping");
                 continue;
             }
 
-            var points = ParseWaypointPath(entry.Path, $"oneWayEdges[{i}]", filePath, result);
+            List<OneWayPoint>? points = ParseWaypointPath(entry.Path, $"oneWayEdges[{i}]", filePath, result);
             if (points is null)
             {
                 continue;
@@ -241,7 +241,7 @@ public static class AirportSidecarLoader
     private static List<OneWayPoint>? ParseWaypointPath(List<OneWayWaypoint> path, string location, string filePath, AirportSidecarLoadResult result)
     {
         var points = new List<OneWayPoint>(path.Count);
-        foreach (var wp in path)
+        foreach (OneWayWaypoint wp in path)
         {
             if (wp.Point.Length != 2)
             {
@@ -277,7 +277,7 @@ public static class AirportSidecarLoader
         var connectors = new List<ImplicitConnectorEntry>();
         for (int i = 0; i < file.ImplicitConnectors.Count; i++)
         {
-            var entry = file.ImplicitConnectors[i];
+            ImplicitConnectorEntry entry = file.ImplicitConnectors[i];
             if (string.IsNullOrWhiteSpace(entry.Connector))
             {
                 result.Warnings.Add($"{filePath}: implicitConnectors[{i}] missing connector, skipping");
@@ -311,7 +311,7 @@ public static class AirportSidecarLoader
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < file.AvoidTaxiways.Count; i++)
         {
-            var entry = file.AvoidTaxiways[i];
+            AvoidTaxiwayEntry entry = file.AvoidTaxiways[i];
             if (string.IsNullOrWhiteSpace(entry.Name))
             {
                 result.Warnings.Add($"{filePath}: avoidTaxiways[{i}] missing name, skipping");
@@ -340,7 +340,7 @@ public static class AirportSidecarLoader
         var routes = new List<TaxiRouteDefinition>();
         for (int i = 0; i < file.TaxiRoutes.Count; i++)
         {
-            var def = file.TaxiRoutes[i];
+            TaxiRouteDefinition def = file.TaxiRoutes[i];
             string location = $"{filePath}: taxiRoutes[{i}]";
 
             if (string.IsNullOrWhiteSpace(def.Name))

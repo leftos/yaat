@@ -7,6 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -75,7 +76,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
 
-        var parsed = CommandParser.Parse(canonical);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(canonical);
 
         Assert.True(parsed.IsSuccess, parsed.Reason);
         Assert.Equal(canonical, CommandDescriber.DescribeCommand(parsed.Value!));
@@ -86,10 +87,10 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
 
-        var parsed = CommandParser.Parse("TG 28R MLT 28L 15");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("TG 28R MLT 28L 15");
 
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var tg = Assert.IsType<TouchAndGoCommand>(parsed.Value);
+        TouchAndGoCommand tg = Assert.IsType<TouchAndGoCommand>(parsed.Value);
         Assert.Equal("28R", tg.RunwayId);
         Assert.Equal(PatternDirection.Left, tg.TrafficPattern);
         Assert.Equal("28L", tg.PatternRunwayId);
@@ -101,10 +102,10 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
 
-        var parsed = CommandParser.Parse("COPT MRT 28R 20");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("COPT MRT 28R 20");
 
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var opt = Assert.IsType<ClearedForOptionCommand>(parsed.Value);
+        ClearedForOptionCommand opt = Assert.IsType<ClearedForOptionCommand>(parsed.Value);
         Assert.Equal(PatternDirection.Right, opt.TrafficPattern);
         Assert.Equal("28R", opt.PatternRunwayId);
         Assert.Equal(2000, opt.PatternAltitude);
@@ -117,7 +118,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
 
-        var parsed = CommandParser.Parse("TG MLT 28L BOGUS");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("TG MLT 28L BOGUS");
 
         Assert.False(parsed.IsSuccess);
         Assert.Contains("BOGUS", parsed.Reason ?? "", StringComparison.Ordinal);
@@ -130,7 +131,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     [Fact]
     public void CoptMlt28L_OnFinal28R_FliesTheOptionOn28RThenTransitionsTo28L()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -138,13 +139,13 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            var ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
+            AircraftState? ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
             if (ac is null)
             {
                 return;
@@ -155,7 +156,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
 
             // Re-issuing the option replaces the clearance the recording already gave; the modifier is
             // the new part.
-            var result = engine.SendCommand(Callsign, "COPT MLT 28L");
+            CommandResult result = engine.SendCommand(Callsign, "COPT MLT 28L");
             output.WriteLine($"COPT MLT 28L: success={result.Success} — {result.Message}");
             Assert.True(result.Success, $"COPT MLT 28L was refused: {result.Message}");
             Assert.Contains("Runway 28R", result.Message ?? "", StringComparison.Ordinal);
@@ -187,7 +188,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     [Fact]
     public void CoptMlt28L_GoingAroundOff28R_CancelsTheArmedTransitionAndWarnsTheRpo()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -195,13 +196,13 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            var ac = RestoreAt(engine, archive, FinalBeforeGoAroundTime);
+            AircraftState? ac = RestoreAt(engine, archive, FinalBeforeGoAroundTime);
             if (ac is null)
             {
                 return;
@@ -219,11 +220,11 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
                 }
             };
 
-            var result = engine.SendCommand(Callsign, "COPT MLT 28L");
+            CommandResult result = engine.SendCommand(Callsign, "COPT MLT 28L");
             Assert.True(result.Success, $"COPT MLT 28L was refused: {result.Message}");
             Assert.Equal("28L", ac.Phases?.PatternRunway?.Designator);
 
-            var goAround = engine.SendCommand(Callsign, "GA");
+            CommandResult goAround = engine.SendCommand(Callsign, "GA");
             Assert.True(goAround.Success, $"GA was refused: {goAround.Message}");
             Assert.IsType<GoAroundPhase>(ac.Phases?.CurrentPhase);
 
@@ -232,7 +233,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
             for (int t = 1; t <= MaxTicks; t++)
             {
                 engine.TickOneSecond();
-                var live = engine.FindAircraft(Callsign);
+                AircraftState? live = engine.FindAircraft(Callsign);
                 Assert.NotNull(live);
 
                 sawGoAround |= live.Phases?.CurrentPhase is GoAroundPhase;
@@ -254,8 +255,8 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
             Assert.Equal("28R", onNextCircuit.Phases?.PatternRunway?.Designator);
             Assert.DoesNotContain(onNextCircuit.Phases?.Phases ?? [], p => p is MidfieldCrossingPhase);
 
-            var upwind = Assert.IsType<UpwindPhase>(onNextCircuit.Phases?.CurrentPhase);
-            var rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
+            UpwindPhase upwind = Assert.IsType<UpwindPhase>(onNextCircuit.Phases?.CurrentPhase);
+            RunwayInfo rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
             Assert.NotNull(upwind.Waypoints);
             Assert.True(
                 GeoMath.DistanceNm(upwind.Waypoints.ThresholdLat, upwind.Waypoints.ThresholdLon, rwy28R.ThresholdLatitude, rwy28R.ThresholdLongitude)
@@ -287,15 +288,15 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
             return;
         }
 
-        var runway28R = NavigationDatabase.Instance.GetRunway("SFO", "28R");
+        RunwayInfo? runway28R = NavigationDatabase.Instance.GetRunway("SFO", "28R");
         if (runway28R is null)
         {
             return;
         }
 
-        var ac = OnFinalFor(runway28R);
+        AircraftState ac = OnFinalFor(runway28R);
 
-        var result = PatternCommandHandler.TrySetupClearedForOption(
+        CommandResult result = PatternCommandHandler.TrySetupClearedForOption(
             ac,
             new OptionPatternModifier(PatternDirection.Left, "01L", null),
             TestDispatch.Context(Random.Shared)
@@ -323,20 +324,20 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
             return;
         }
 
-        var runway28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R");
+        RunwayInfo? runway28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R");
         if (runway28R is null)
         {
             return;
         }
 
-        var parsed = CommandParser.Parse("COPT MLT 33");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("COPT MLT 33");
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var opt = Assert.IsType<ClearedForOptionCommand>(parsed.Value);
+        ClearedForOptionCommand opt = Assert.IsType<ClearedForOptionCommand>(parsed.Value);
         Assert.Equal("33", opt.PatternRunwayId);
         Assert.Null(opt.PatternAltitude);
 
-        var ac = OnFinalFor(runway28R);
-        var result = PatternCommandHandler.TrySetupClearedForOption(
+        AircraftState ac = OnFinalFor(runway28R);
+        CommandResult result = PatternCommandHandler.TrySetupClearedForOption(
             ac,
             new OptionPatternModifier(opt.TrafficPattern, opt.PatternRunwayId, opt.PatternAltitude),
             TestDispatch.Context(Random.Shared)
@@ -359,15 +360,15 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
             return;
         }
 
-        var runway28R = NavigationDatabase.Instance.GetRunway("SFO", "28R");
+        RunwayInfo? runway28R = NavigationDatabase.Instance.GetRunway("SFO", "28R");
         if (runway28R is null)
         {
             return;
         }
 
-        var ac = OnFinalFor(runway28R);
+        AircraftState ac = OnFinalFor(runway28R);
 
-        var result = PatternCommandHandler.TrySetupClearedForOption(
+        CommandResult result = PatternCommandHandler.TrySetupClearedForOption(
             ac,
             new OptionPatternModifier(PatternDirection.Left, "28L", null),
             TestDispatch.Context(Random.Shared)
@@ -386,7 +387,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     [Fact]
     public void Tg28RMrt28R_SameRunway_KeepsFlyingThePlain28RCircuit()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -394,19 +395,19 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            var ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
+            AircraftState? ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
             if (ac is null)
             {
                 return;
             }
 
-            var result = engine.SendCommand(Callsign, "TG 28R MRT 28R");
+            CommandResult result = engine.SendCommand(Callsign, "TG 28R MRT 28R");
             output.WriteLine($"TG 28R MRT 28R: success={result.Success} — {result.Message}");
             Assert.True(result.Success, $"TG 28R MRT 28R was refused: {result.Message}");
             Assert.Equal("28R", ac.Phases?.PatternRunway?.Designator);
@@ -417,7 +418,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
             for (int t = 1; t <= MaxTicks; t++)
             {
                 engine.TickOneSecond();
-                var live = engine.FindAircraft(Callsign);
+                AircraftState? live = engine.FindAircraft(Callsign);
                 Assert.NotNull(live);
                 Assert.Equal("28R", live.Phases?.AssignedRunway?.Designator);
                 Assert.DoesNotContain(live.Phases?.Phases ?? [], p => p is MidfieldCrossingPhase);
@@ -426,7 +427,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
                 {
                     sawUpwind = true;
                     output.WriteLine($"upwind at +{t}s");
-                    var rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
+                    RunwayInfo rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
                     Assert.NotNull(upwind.Waypoints);
                     Assert.True(
                         GeoMath.DistanceNm(
@@ -453,7 +454,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     [Fact]
     public void CoptMrt28L_BehindQueuedErd_SurvivesSnapshotAndLandsOnTheCircuit()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -463,12 +464,12 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
 
         Assert.True(engine.SendCommand("TSC020", "DCT VPCOL; ERD 28R").Success);
 
-        var copt = engine.SendCommand("TSC020", "COPT MRT 28L");
+        CommandResult copt = engine.SendCommand("TSC020", "COPT MRT 28L");
         output.WriteLine($"COPT MRT 28L: success={copt.Success} — {copt.Message}");
         Assert.True(copt.Success, $"COPT MRT 28L behind a queued ERD should be accepted: {copt.Message}");
         Assert.Contains("28L", copt.Message ?? "", StringComparison.Ordinal);
 
-        var ac = engine.FindAircraft("TSC020");
+        AircraftState? ac = engine.FindAircraft("TSC020");
         Assert.NotNull(ac);
 
         var restored = AircraftState.FromSnapshot(ac.ToSnapshot(), null);
@@ -506,7 +507,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
             return;
         }
 
-        var runway28R = NavigationDatabase.Instance.GetRunway("SFO", "28R");
+        RunwayInfo? runway28R = NavigationDatabase.Instance.GetRunway("SFO", "28R");
         if (runway28R is null)
         {
             return;
@@ -514,7 +515,12 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
 
         // A few miles out on the pattern side of 28R, with the option pre-issued for 1L: the entry is
         // still to come, so the modifier rides in PendingLandingClearance.
-        var abeam = GeoMath.ProjectPoint(runway28R.ThresholdLatitude, runway28R.ThresholdLongitude, runway28R.TrueHeading - 90.0, 3.0);
+        (double Lat, double Lon) abeam = GeoMath.ProjectPoint(
+            runway28R.ThresholdLatitude,
+            runway28R.ThresholdLongitude,
+            runway28R.TrueHeading - 90.0,
+            3.0
+        );
         var ac = new AircraftState
         {
             Callsign = "N721PS",
@@ -535,7 +541,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
         ac.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "01L", null);
         ac.Pattern.TrafficDirection = PatternDirection.Left;
 
-        var entry = PatternCommandHandler.TryEnterPattern(
+        CommandResult entry = PatternCommandHandler.TryEnterPattern(
             ac,
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
@@ -582,7 +588,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     {
         engine.Replay(archive.ToBaseSessionRecording(), 0);
 
-        var snapshot = archive.ReadSnapshotAt(elapsedSeconds);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(elapsedSeconds);
         if (snapshot is null)
         {
             output.WriteLine($"No snapshot near t={elapsedSeconds} — skipping");
@@ -591,7 +597,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
 
         engine.RestoreFromSnapshot(snapshot.State);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         if (ac is null)
         {
             output.WriteLine($"{Callsign} is not in the t={elapsedSeconds} snapshot — skipping");
@@ -607,8 +613,8 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     /// </summary>
     private void FlyTheOptionAndTheTransition(SimulationEngine engine)
     {
-        var rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
-        var rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
+        RunwayInfo rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
+        RunwayInfo rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
 
         bool sawTerminatorOn28R = false;
         bool transitionInstalled = false;
@@ -619,10 +625,10 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
         for (int t = 1; t <= MaxTicks; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
-            var phase = ac.Phases?.CurrentPhase;
+            Phase? phase = ac.Phases?.CurrentPhase;
             if (phase?.GetType() != lastPhaseType)
             {
                 lastPhaseType = phase?.GetType();
@@ -677,14 +683,14 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     /// </summary>
     private void AssertTransitionInstalled(AircraftState aircraft, RunwayInfo patternRunway, RunwayInfo otherRunway)
     {
-        var chain = aircraft.Phases?.Phases ?? [];
+        List<Phase> chain = aircraft.Phases?.Phases ?? [];
         output.WriteLine($"chain=[{string.Join(",", chain.Select(p => $"{p.GetType().Name}:{p.Status}"))}]");
 
         Assert.DoesNotContain(chain, p => p is MidfieldCrossingPhase { Status: PhaseStatus.Pending or PhaseStatus.Active });
 
-        var upwind = chain.OfType<UpwindPhase>().LastOrDefault();
+        UpwindPhase? upwind = chain.OfType<UpwindPhase>().LastOrDefault();
         Assert.NotNull(upwind);
-        var waypoints = upwind.Waypoints;
+        PatternWaypoints? waypoints = upwind.Waypoints;
         Assert.NotNull(waypoints);
 
         double turnAlongTrack = AlongTrack(patternRunway, waypoints.CrosswindTurnLat, waypoints.CrosswindTurnLon);

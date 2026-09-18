@@ -49,9 +49,9 @@ public class HeldReleaseReplayDeterminismTests
     [Fact]
     public void ReplayRelease_HeldRunwaySpawn_UsesBakedJitter_AndConsumesNoRng()
     {
-        var scenario = NewScenario(elapsed: 200);
+        SimScenarioState scenario = NewScenario(elapsed: 200);
         var world = new SimulationWorld();
-        var spawn = RunwaySpawn("N5", "KSJC");
+        LoadedAircraft spawn = RunwaySpawn("N5", "KSJC");
         scenario.DelayedQueue.Add(
             new DelayedSpawn
             {
@@ -62,13 +62,13 @@ public class HeldReleaseReplayDeterminismTests
         );
         HeldReleaseService.Arm(scenario, world, "SJC");
 
-        var before = world.Rng.GetState();
+        RngState before = world.Rng.GetState();
 
-        var result = HeldReleaseService.ReplayRelease(scenario, world, "N5", intervalSeconds: null, bakedJitterSeconds: 42);
+        HeldReleaseResult result = HeldReleaseService.ReplayRelease(scenario, world, "N5", intervalSeconds: null, bakedJitterSeconds: 42);
 
         Assert.True(result.Success);
         // Replay reproduces the recorded spawn time exactly — no jitter re-sampling.
-        var entry = scenario.DelayedQueue.Single();
+        DelayedSpawn entry = scenario.DelayedQueue.Single();
         Assert.False(entry.HeldForRelease);
         Assert.Equal(242, entry.SpawnAtSeconds);
         // The shared RNG stream is untouched, so every downstream consumer stays aligned.
@@ -78,9 +78,9 @@ public class HeldReleaseReplayDeterminismTests
     [Fact]
     public void ReplayRelease_NullBakedJitter_FallsBackDeterministically_NoRng()
     {
-        var scenario = NewScenario(elapsed: 200);
+        SimScenarioState scenario = NewScenario(elapsed: 200);
         var world = new SimulationWorld();
-        var spawn = RunwaySpawn("N5", "KSJC");
+        LoadedAircraft spawn = RunwaySpawn("N5", "KSJC");
         scenario.DelayedQueue.Add(
             new DelayedSpawn
             {
@@ -91,13 +91,13 @@ public class HeldReleaseReplayDeterminismTests
         );
         HeldReleaseService.Arm(scenario, world, "SJC");
 
-        var before = world.Rng.GetState();
+        RngState before = world.Rng.GetState();
 
         // A legacy recording with no baked jitter must still replay without touching the RNG.
-        var result = HeldReleaseService.ReplayRelease(scenario, world, "N5", intervalSeconds: null, bakedJitterSeconds: null);
+        HeldReleaseResult result = HeldReleaseService.ReplayRelease(scenario, world, "N5", intervalSeconds: null, bakedJitterSeconds: null);
 
         Assert.True(result.Success);
-        var entry = scenario.DelayedQueue.Single();
+        DelayedSpawn entry = scenario.DelayedQueue.Single();
         Assert.Equal((int)(200 + HeldReleaseService.MinSpawnReleaseDelaySeconds), entry.SpawnAtSeconds);
         Assert.Equal(before, world.Rng.GetState());
     }

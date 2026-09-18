@@ -18,7 +18,7 @@ public class MetarParserTests
     [InlineData("KOAK 121853Z 27012KT P6SM FEW025 20/12 A2992", 10.0)]
     public void Parse_Visibility_Correct(string metar, double expected)
     {
-        var result = MetarParser.Parse(metar);
+        MetarParser.ParsedMetar? result = MetarParser.Parse(metar);
         Assert.NotNull(result);
         Assert.Equal(expected, result.VisibilityStatuteMiles);
     }
@@ -30,7 +30,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_ClearSky_NoCeiling()
     {
-        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM CLR 20/12 A2992");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM CLR 20/12 A2992");
         Assert.NotNull(result);
         Assert.Null(result.CeilingFeetAgl);
     }
@@ -38,7 +38,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_SkyClear_NoCeiling()
     {
-        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM SKC 20/12 A2992");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM SKC 20/12 A2992");
         Assert.NotNull(result);
         Assert.Null(result.CeilingFeetAgl);
     }
@@ -46,7 +46,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_FewScattered_NotCeiling()
     {
-        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM FEW025 SCT040 20/12 A2992");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM FEW025 SCT040 20/12 A2992");
         Assert.NotNull(result);
         Assert.Null(result.CeilingFeetAgl);
     }
@@ -54,7 +54,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_Broken_IsCeiling()
     {
-        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM BKN025 20/12 A2992");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM BKN025 20/12 A2992");
         Assert.NotNull(result);
         Assert.Equal(2500, result.CeilingFeetAgl);
     }
@@ -62,7 +62,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_Overcast_IsCeiling()
     {
-        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM OVC010 20/12 A2992");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM OVC010 20/12 A2992");
         Assert.NotNull(result);
         Assert.Equal(1000, result.CeilingFeetAgl);
     }
@@ -70,7 +70,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_MultipleLayers_LowestBknWins()
     {
-        var result = MetarParser.Parse("KOAK 121853Z 27012KT 3SM FEW010 SCT020 BKN035 OVC050 20/12 A2992");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KOAK 121853Z 27012KT 3SM FEW010 SCT020 BKN035 OVC050 20/12 A2992");
         Assert.NotNull(result);
         Assert.Equal(3500, result.CeilingFeetAgl);
     }
@@ -78,7 +78,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_MultipleLayers_AllLayersRecorded()
     {
-        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM SCT020 BKN070 OVC200 20/12 A2992");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM SCT020 BKN070 OVC200 20/12 A2992");
         Assert.NotNull(result);
         Assert.Equal(3, result.Layers.Count);
         Assert.Equal(new MetarParser.CloudLayer(MetarParser.CloudCover.Scattered, 2000), result.Layers[0]);
@@ -90,7 +90,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_FewAndScattered_PresentInLayersButNotCeiling()
     {
-        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM FEW010 SCT025 20/12 A2992");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM FEW010 SCT025 20/12 A2992");
         Assert.NotNull(result);
         Assert.Equal(2, result.Layers.Count);
         Assert.Equal(MetarParser.CloudCover.Few, result.Layers[0].Cover);
@@ -104,7 +104,7 @@ public class MetarParserTests
     public void Parse_Layers_SortedAscendingByBase()
     {
         // Intentionally list layers out of order in the raw METAR — parser must sort.
-        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM OVC200 BKN070 SCT020 20/12 A2992");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM OVC200 BKN070 SCT020 20/12 A2992");
         Assert.NotNull(result);
         Assert.Equal([2000, 7000, 20000], result.Layers.Select(l => l.BaseFeetAgl));
     }
@@ -119,7 +119,7 @@ public class MetarParserTests
         IReadOnlyList<MetarParser.CloudLayer> from = [new(MetarParser.CloudCover.Scattered, 2000), new(MetarParser.CloudCover.Broken, 7000)];
         IReadOnlyList<MetarParser.CloudLayer> to = [new(MetarParser.CloudCover.Broken, 4000), new(MetarParser.CloudCover.Overcast, 10000)];
 
-        var mid = MetarParser.InterpolateLayers(from, to, 0.5);
+        IReadOnlyList<MetarParser.CloudLayer> mid = MetarParser.InterpolateLayers(from, to, 0.5);
         Assert.Equal(2, mid.Count);
         // At t=0.5 cover steps to the destination (t < 0.5 uses from, t >= 0.5 uses to)
         Assert.Equal(new MetarParser.CloudLayer(MetarParser.CloudCover.Broken, 3000), mid[0]);
@@ -132,11 +132,11 @@ public class MetarParserTests
         IReadOnlyList<MetarParser.CloudLayer> from = [new(MetarParser.CloudCover.Scattered, 2000)];
         IReadOnlyList<MetarParser.CloudLayer> to = [new(MetarParser.CloudCover.Broken, 4000)];
 
-        var early = MetarParser.InterpolateLayers(from, to, 0.25);
+        IReadOnlyList<MetarParser.CloudLayer> early = MetarParser.InterpolateLayers(from, to, 0.25);
         Assert.Equal(MetarParser.CloudCover.Scattered, early[0].Cover);
         Assert.Equal(2500, early[0].BaseFeetAgl);
 
-        var late = MetarParser.InterpolateLayers(from, to, 0.75);
+        IReadOnlyList<MetarParser.CloudLayer> late = MetarParser.InterpolateLayers(from, to, 0.75);
         Assert.Equal(MetarParser.CloudCover.Broken, late[0].Cover);
         Assert.Equal(3500, late[0].BaseFeetAgl);
     }
@@ -147,7 +147,7 @@ public class MetarParserTests
         IReadOnlyList<MetarParser.CloudLayer> from = [new(MetarParser.CloudCover.Broken, 7000)];
         IReadOnlyList<MetarParser.CloudLayer> to = [new(MetarParser.CloudCover.Scattered, 2000), new(MetarParser.CloudCover.Overcast, 10000)];
 
-        var result = MetarParser.InterpolateLayers(from, to, 0.3);
+        IReadOnlyList<MetarParser.CloudLayer> result = MetarParser.InterpolateLayers(from, to, 0.3);
         Assert.Equal(2, result.Count);
         // Paired layer 0: from BKN070 → SCT020, base lerps to 7000 + 0.3*(2000-7000) = 5500, t<0.5 → Broken
         // Extra layer (to[1]): OVC100 passes through unchanged
@@ -185,7 +185,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_VV_RepresentedAsSyntheticOvcLayer()
     {
-        var result = MetarParser.Parse("KOAK 121853Z 00000KT 1/4SM FG VV003 18/18 A2992");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KOAK 121853Z 00000KT 1/4SM FG VV003 18/18 A2992");
         Assert.NotNull(result);
         Assert.Equal(300, result.CeilingFeetAgl);
         // VV shows up as a synthetic OVC layer so obstruction logic treats it consistently.
@@ -200,7 +200,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_StationId_Extracted()
     {
-        var result = MetarParser.Parse("KSFO 121853Z 27012KT 10SM CLR 20/12 A2992");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KSFO 121853Z 27012KT 10SM CLR 20/12 A2992");
         Assert.NotNull(result);
         Assert.Equal("KSFO", result.StationId);
     }
@@ -234,9 +234,9 @@ public class MetarParserTests
     [Fact]
     public void FindStation_MatchesByIcao()
     {
-        var metars = new[] { "KSFO 121853Z 27012KT 10SM CLR 20/12 A2992", "KOAK 121853Z 27012KT 3SM BKN025 20/12 A2992" };
+        string[] metars = new[] { "KSFO 121853Z 27012KT 10SM CLR 20/12 A2992", "KOAK 121853Z 27012KT 3SM BKN025 20/12 A2992" };
 
-        var result = MetarParser.FindStation(metars, "OAK");
+        MetarParser.ParsedMetar? result = MetarParser.FindStation(metars, "OAK");
         Assert.NotNull(result);
         Assert.Equal("KOAK", result.StationId);
         Assert.Equal(3.0, result.VisibilityStatuteMiles);
@@ -245,7 +245,7 @@ public class MetarParserTests
     [Fact]
     public void FindStation_NoMatch_ReturnsNull()
     {
-        var metars = new[] { "KSFO 121853Z 27012KT 10SM CLR 20/12 A2992" };
+        string[] metars = new[] { "KSFO 121853Z 27012KT 10SM CLR 20/12 A2992" };
         Assert.Null(MetarParser.FindStation(metars, "LAX"));
     }
 
@@ -273,7 +273,7 @@ public class MetarParserTests
     [InlineData("KJFK 121853Z 04006KT 1/2SM FG VV010 02/02 A3037", 1000)]
     public void Parse_VerticalVisibility_IsCeiling(string metar, int expectedCeiling)
     {
-        var result = MetarParser.Parse(metar);
+        MetarParser.ParsedMetar? result = MetarParser.Parse(metar);
         Assert.NotNull(result);
         Assert.Equal(expectedCeiling, result.CeilingFeetAgl);
     }
@@ -281,7 +281,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_VV_LowerThanBkn_VVWins()
     {
-        var result = MetarParser.Parse("KSFO 121853Z 04006KT 1/4SM FG VV003 BKN010 02/02 A3037");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KSFO 121853Z 04006KT 1/4SM FG VV003 BKN010 02/02 A3037");
         Assert.NotNull(result);
         Assert.Equal(300, result.CeilingFeetAgl);
     }
@@ -289,7 +289,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_VV_HigherThanBkn_BknWins()
     {
-        var result = MetarParser.Parse("KSFO 121853Z 04006KT 1SM BR VV015 BKN008 02/02 A3037");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KSFO 121853Z 04006KT 1SM BR VV015 BKN008 02/02 A3037");
         Assert.NotNull(result);
         Assert.Equal(800, result.CeilingFeetAgl);
     }
@@ -303,7 +303,7 @@ public class MetarParserTests
     [InlineData("KSFO 121853Z 04006KT M1/2SM FG VV003 02/02 A3037", 0.5)]
     public void Parse_MVisibility_Correct(string metar, double expected)
     {
-        var result = MetarParser.Parse(metar);
+        MetarParser.ParsedMetar? result = MetarParser.Parse(metar);
         Assert.NotNull(result);
         Assert.Equal(expected, result.VisibilityStatuteMiles);
     }
@@ -315,7 +315,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_RealMetar_KsfoFewLayers_NoCeiling()
     {
-        var result = MetarParser.Parse("KSFO 032056Z 30014KT 10SM FEW006 FEW040 16/11 A3011 RMK AO2 SLP196 T01610111 58016");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KSFO 032056Z 30014KT 10SM FEW006 FEW040 16/11 A3011 RMK AO2 SLP196 T01610111 58016");
         Assert.NotNull(result);
         Assert.Equal("KSFO", result.StationId);
         Assert.Equal(10.0, result.VisibilityStatuteMiles);
@@ -325,7 +325,9 @@ public class MetarParserTests
     [Fact]
     public void Parse_RealMetar_KlaxBrokenHigh()
     {
-        var result = MetarParser.Parse("KLAX 032053Z 26009KT 10SM FEW100 SCT180 BKN250 19/12 A3003 RMK AO2 SLP168 T01890117 58010");
+        MetarParser.ParsedMetar? result = MetarParser.Parse(
+            "KLAX 032053Z 26009KT 10SM FEW100 SCT180 BKN250 19/12 A3003 RMK AO2 SLP168 T01890117 58010"
+        );
         Assert.NotNull(result);
         Assert.Equal("KLAX", result.StationId);
         Assert.Equal(10.0, result.VisibilityStatuteMiles);
@@ -335,7 +337,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_RealMetar_KatlBrokenLow()
     {
-        var result = MetarParser.Parse("KATL 032052Z 15004KT 10SM BKN024 17/11 A3032 RMK AO2 SLP266 T01670106 56016");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KATL 032052Z 15004KT 10SM BKN024 17/11 A3032 RMK AO2 SLP266 T01670106 56016");
         Assert.NotNull(result);
         Assert.Equal("KATL", result.StationId);
         Assert.Equal(10.0, result.VisibilityStatuteMiles);
@@ -345,7 +347,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_RealMetar_KjfkLowIfrWithMixedFraction()
     {
-        var result = MetarParser.Parse(
+        MetarParser.ParsedMetar? result = MetarParser.Parse(
             "KJFK 032051Z 04006KT 2 1/2SM -RA BR BKN006 OVC011 02/02 A3037 RMK AO2 SFC VIS 4 SLP285 P0007 60015 T00220017 56033"
         );
         Assert.NotNull(result);
@@ -365,7 +367,7 @@ public class MetarParserTests
     [InlineData("KOAK 121853Z 00000KT 10SM CLR 20/12 A2992", 0, 0, null)]
     public void Parse_Wind_Correct(string metar, int? expectedDir, int? expectedSpd, int? expectedGust)
     {
-        var result = MetarParser.Parse(metar);
+        MetarParser.ParsedMetar? result = MetarParser.Parse(metar);
         Assert.NotNull(result);
         Assert.Equal(expectedDir, result.WindDirectionDeg);
         Assert.Equal(expectedSpd, result.WindSpeedKts);
@@ -384,7 +386,7 @@ public class MetarParserTests
     [InlineData("KOAK 121853Z 10SM CLR 20/12 A2992", false, null, null)]
     public void Parse_WindVariability_Correct(string metar, bool expectedVariable, int? expectedFrom, int? expectedTo)
     {
-        var result = MetarParser.Parse(metar);
+        MetarParser.ParsedMetar? result = MetarParser.Parse(metar);
         Assert.NotNull(result);
         Assert.Equal(expectedVariable, result.WindVariable);
         Assert.Equal(expectedFrom, result.WindVarFromDeg);
@@ -395,7 +397,7 @@ public class MetarParserTests
     public void Parse_VariabilityGroup_KeepsMeanWindIntact()
     {
         // The dddVddd group must not disturb the parsed prevailing wind.
-        var result = MetarParser.Parse("KOAK 121853Z 21015G25KT 180V240 10SM CLR 20/12 A2992");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KOAK 121853Z 21015G25KT 180V240 10SM CLR 20/12 A2992");
         Assert.NotNull(result);
         Assert.Equal(210, result.WindDirectionDeg);
         Assert.Equal(15, result.WindSpeedKts);
@@ -415,7 +417,7 @@ public class MetarParserTests
     [InlineData("KOAK 121853Z 27012KT 10SM CLR 20/12 A2850", 28.50)]
     public void Parse_Altimeter_Correct(string metar, double expected)
     {
-        var result = MetarParser.Parse(metar);
+        MetarParser.ParsedMetar? result = MetarParser.Parse(metar);
         Assert.NotNull(result);
         Assert.NotNull(result.AltimeterInHg);
         Assert.Equal(expected, result.AltimeterInHg!.Value, 2);
@@ -424,7 +426,7 @@ public class MetarParserTests
     [Fact]
     public void Parse_NoAltimeter_ReturnsNull()
     {
-        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM CLR 20/12");
+        MetarParser.ParsedMetar? result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM CLR 20/12");
         Assert.NotNull(result);
         Assert.Null(result.AltimeterInHg);
     }
@@ -437,7 +439,9 @@ public class MetarParserTests
     public void Parse_RealMetar_MetarPrefix_Handled()
     {
         // Real METARs from AWC have "METAR" prefix
-        var result = MetarParser.Parse("METAR KOAK 032053Z 24006KT 10SM FEW006 FEW020 FEW200 16/11 A3012 RMK AO2 SLP199 T01610111 58014");
+        MetarParser.ParsedMetar? result = MetarParser.Parse(
+            "METAR KOAK 032053Z 24006KT 10SM FEW006 FEW020 FEW200 16/11 A3012 RMK AO2 SLP199 T01610111 58014"
+        );
         Assert.NotNull(result);
         Assert.Equal("KOAK", result.StationId);
         Assert.Equal(10.0, result.VisibilityStatuteMiles);

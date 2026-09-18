@@ -58,15 +58,15 @@ public class HandlerChainTests
             return;
         }
 
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var entry = route.Points[0].Position;
-        var next = route.Points[1].Position;
+        LatLon entry = route.Points[0].Position;
+        LatLon next = route.Points[1].Position;
         var ac = new AircraftState
         {
             Callsign = "TREND21",
@@ -78,7 +78,7 @@ public class HandlerChainTests
         };
         engine.World.AddAircraft(ac);
 
-        var result = engine.SendCommand(ac.Callsign, "CMTR IR149; SQVFR");
+        CommandResult result = engine.SendCommand(ac.Callsign, "CMTR IR149; SQVFR");
         Assert.True(result.Success, result.Message);
 
         // The route is installed; the follow-on block queues behind the route phase (untriggered
@@ -90,7 +90,7 @@ public class HandlerChainTests
     [Fact]
     public void CmtrChain_UnknownRouteMidChain_AbortsRemainder()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
@@ -117,7 +117,7 @@ public class HandlerChainTests
 
         // CM 8000 completes immediately (already level); the unknown-route CMTR then fails at fire
         // time and must discard the trailing SQ.
-        var result = engine.SendCommand(ac.Callsign, "CM 8000; CMTR IR999999; SQ");
+        CommandResult result = engine.SendCommand(ac.Callsign, "CM 8000; CMTR IR999999; SQ");
         Assert.True(result.Success, result.Message);
 
         for (int t = 0; t < 10 && _warnings.Count == 0; t++)
@@ -134,7 +134,7 @@ public class HandlerChainTests
     [Fact]
     public void CappChain_TriggeredFollowOn_QueuesWithTrigger()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
@@ -156,7 +156,7 @@ public class HandlerChainTests
 
         // The documented "speed until final" idiom: the clearance installs the approach phase and
         // the ATFN block queues with a DistanceFinal trigger so it can fire mid-phase (regime B).
-        var result = engine.SendCommand(ac.Callsign, "CAPP I28R; ATFN 10 RNS");
+        CommandResult result = engine.SendCommand(ac.Callsign, "CAPP I28R; ATFN 10 RNS");
         if (!result.Success)
         {
             _output.WriteLine($"Skipped: CAPP I28R unavailable — {result.Message}");
@@ -164,7 +164,7 @@ public class HandlerChainTests
         }
 
         Assert.NotNull(ac.Phases?.CurrentPhase);
-        var atfnBlock = ac.Queue.Blocks.Find(b => !b.IsApplied && b.Trigger is not null);
+        CommandBlock? atfnBlock = ac.Queue.Blocks.Find(b => !b.IsApplied && b.Trigger is not null);
         Assert.NotNull(atfnBlock);
     }
 }

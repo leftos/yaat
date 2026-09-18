@@ -67,22 +67,22 @@ public partial class ArrivalGeneratorsEditorViewModel : ObservableObject
 
     private void LoadFrom(GeneratorsPayload payload)
     {
-        var fresh = Clone(payload);
+        GeneratorsPayload fresh = Clone(payload);
 
         Generators.Clear();
-        foreach (var cfg in fresh.AircraftGenerators)
+        foreach (ScenarioGeneratorConfig cfg in fresh.AircraftGenerators)
         {
             Generators.Add(AttachOptions(GeneratorRowViewModel.FromConfig(cfg)));
         }
 
         VfrArrivalGenerators.Clear();
-        foreach (var cfg in fresh.VfrArrivalGenerators)
+        foreach (VfrArrivalGeneratorConfig cfg in fresh.VfrArrivalGenerators)
         {
             VfrArrivalGenerators.Add(AttachOptions(VfrArrivalGeneratorRowViewModel.FromConfig(cfg)));
         }
 
         OverflightGenerators.Clear();
-        foreach (var cfg in fresh.OverflightGenerators)
+        foreach (OverflightGeneratorConfig cfg in fresh.OverflightGenerators)
         {
             OverflightGenerators.Add(AttachOptions(OverflightGeneratorRowViewModel.FromConfig(cfg)));
         }
@@ -119,8 +119,8 @@ public partial class ArrivalGeneratorsEditorViewModel : ObservableObject
     [RelayCommand]
     private void AddGenerator()
     {
-        var defaultRunway = RunwayOptions.Count > 0 ? RunwayOptions[0] : "";
-        var row = AttachOptions(new GeneratorRowViewModel { Id = NewId(), Runway = defaultRunway });
+        string defaultRunway = RunwayOptions.Count > 0 ? RunwayOptions[0] : "";
+        GeneratorRowViewModel row = AttachOptions(new GeneratorRowViewModel { Id = NewId(), Runway = defaultRunway });
         Generators.Add(row);
         SelectedGenerator = row;
     }
@@ -134,7 +134,7 @@ public partial class ArrivalGeneratorsEditorViewModel : ObservableObject
     [RelayCommand]
     private void AddVfrArrivalGenerator()
     {
-        var row = AttachOptions(new VfrArrivalGeneratorRowViewModel { Id = NewId() });
+        VfrArrivalGeneratorRowViewModel row = AttachOptions(new VfrArrivalGeneratorRowViewModel { Id = NewId() });
         VfrArrivalGenerators.Add(row);
         SelectedVfrArrivalGenerator = row;
     }
@@ -148,7 +148,7 @@ public partial class ArrivalGeneratorsEditorViewModel : ObservableObject
     [RelayCommand]
     private void AddOverflightGenerator()
     {
-        var row = AttachOptions(new OverflightGeneratorRowViewModel { Id = NewId() });
+        OverflightGeneratorRowViewModel row = AttachOptions(new OverflightGeneratorRowViewModel { Id = NewId() });
         OverflightGenerators.Add(row);
         SelectedOverflightGenerator = row;
     }
@@ -187,7 +187,7 @@ public partial class ArrivalGeneratorsEditorViewModel : ObservableObject
             return null;
         }
 
-        var index = rows.IndexOf(selected);
+        int index = rows.IndexOf(selected);
         rows.Remove(selected);
         return rows.Count == 0 ? null : rows[Math.Min(index, rows.Count - 1)];
     }

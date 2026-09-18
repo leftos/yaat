@@ -35,8 +35,8 @@ public class MultiCfixPresetReplayTests(ITestOutputHelper output)
     [Fact]
     public void Asa221_MultiCfixPresets_StackOnRoute_NoQueueClearedWarning()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -49,12 +49,12 @@ public class MultiCfixPresetReplayTests(ITestOutputHelper output)
         // but not far enough to sequence any of the crossing fixes.
         engine.Replay(recording, 5);
 
-        var aircraft = engine.FindAircraft("ASA221");
+        AircraftState? aircraft = engine.FindAircraft("ASA221");
         Assert.NotNull(aircraft);
 
         // All six crossing restrictions stay stamped on the route (additive — nothing lost).
-        var restrictedFixes = aircraft.Targets.NavigationRoute.Where(f => f.AltitudeRestriction is not null).Select(f => f.Name).ToArray();
-        foreach (var fix in new[] { "NRRLI", "WWAVS", "EPICK", "YERKS", "FOLET", "EDDYY" })
+        string[] restrictedFixes = aircraft.Targets.NavigationRoute.Where(f => f.AltitudeRestriction is not null).Select(f => f.Name).ToArray();
+        foreach (string? fix in new[] { "NRRLI", "WWAVS", "EPICK", "YERKS", "FOLET", "EDDYY" })
         {
             Assert.Contains(fix, restrictedFixes);
         }

@@ -28,12 +28,12 @@ public class AppendDirectToTests
     [Fact]
     public void Adct_NoExistingRoute_BehavesLikeDct()
     {
-        var aircraft = CreateAircraft();
-        var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = CreateAircraft();
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Single(aircraft.Targets.NavigationRoute);
@@ -44,15 +44,15 @@ public class AppendDirectToTests
     [Fact]
     public void Adct_WithExistingRoute_AppendsToEnd()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "MOVDD", Position = new LatLon(37.6, -122.0) });
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "BRIXX", Position = new LatLon(37.7, -121.9) });
 
-        var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -65,14 +65,14 @@ public class AppendDirectToTests
     [Fact]
     public void Adct_WithExistingRoute_PreservesOriginalFixes()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "MOVDD", Position = new LatLon(37.6, -122.0) });
 
-        var navDb = TestNavDbFactory.WithFixes(("FIX1", 37.5, -121.8), ("FIX2", 37.4, -121.7));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("FIX1", 37.5, -121.8), ("FIX2", 37.4, -121.7));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("FIX1", 37.5, -121.8), new ResolvedFix("FIX2", 37.4, -121.7)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -84,12 +84,12 @@ public class AppendDirectToTests
     [Fact]
     public void Adct_NoExistingRoute_ChainsFiledRoute()
     {
-        var aircraft = CreateAircraft("SUNOL MODESTO OXNARD");
-        var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0), ("OXNARD", 34.2, -119.2));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = CreateAircraft("SUNOL MODESTO OXNARD");
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0), ("OXNARD", 34.2, -119.2));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -102,14 +102,14 @@ public class AppendDirectToTests
     [Fact]
     public void Adct_WithExistingRoute_ChainsFiledRoute()
     {
-        var aircraft = CreateAircraft("MOVDD SUNOL MODESTO");
+        AircraftState aircraft = CreateAircraft("MOVDD SUNOL MODESTO");
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "MOVDD", Position = new LatLon(37.6, -122.0) });
 
-        var navDb = TestNavDbFactory.WithFixes(("MOVDD", 37.6, -122.0), ("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("MOVDD", 37.6, -122.0), ("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -122,14 +122,14 @@ public class AppendDirectToTests
     [Fact]
     public void Dct_ClearsExistingRoute_UnlikeAdct()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "MOVDD", Position = new LatLon(37.6, -122.0) });
 
-        var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Single(aircraft.Targets.NavigationRoute);

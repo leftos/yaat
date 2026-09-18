@@ -40,18 +40,18 @@ public sealed class ArtccAirportResolver
     /// </summary>
     public async Task<IReadOnlyList<string>> GetAirportIdsAsync(string artccId)
     {
-        if (_airportCache.TryGetValue(artccId, out var cached) && IsDiskFresh(CachePathFor(artccId)))
+        if (_airportCache.TryGetValue(artccId, out IReadOnlyList<string>? cached) && IsDiskFresh(CachePathFor(artccId)))
         {
             return cached;
         }
 
-        var json = await GetArtccJsonAsync(artccId);
+        string? json = await GetArtccJsonAsync(artccId);
         if (json is null)
         {
             return [];
         }
 
-        var airports = ExtractUnderlyingAirports(json);
+        List<string> airports = ExtractUnderlyingAirports(json);
         _airportCache[artccId] = airports;
         _log.LogInformation("Resolved {Count} airports for {Artcc}", airports.Count, artccId);
         return airports;
@@ -63,14 +63,14 @@ public sealed class ArtccAirportResolver
     /// </summary>
     public async Task<string?> GetTowerCabVideoMapIdAsync(string artccId, string airportId)
     {
-        var json = await GetArtccJsonAsync(artccId);
+        string? json = await GetArtccJsonAsync(artccId);
         if (json is null)
         {
             return null;
         }
 
         using var doc = JsonDocument.Parse(json);
-        if (!doc.RootElement.TryGetProperty("facility", out var facility))
+        if (!doc.RootElement.TryGetProperty("facility", out JsonElement facility))
         {
             return null;
         }
@@ -80,14 +80,14 @@ public sealed class ArtccAirportResolver
 
     private async Task<string?> GetArtccJsonAsync(string artccId)
     {
-        var cachePath = CachePathFor(artccId);
-        if (_jsonCache.TryGetValue(artccId, out var cached) && IsDiskFresh(cachePath))
+        string cachePath = CachePathFor(artccId);
+        if (_jsonCache.TryGetValue(artccId, out string? cached) && IsDiskFresh(cachePath))
         {
             return cached;
         }
 
-        var url = $"{DataApiBase}/{artccId}";
-        var json = (await HttpFileCache.GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.AlwaysRefetch, CacheTtl, _log)).Content;
+        string url = $"{DataApiBase}/{artccId}";
+        string? json = (await HttpFileCache.GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.AlwaysRefetch, CacheTtl, _log)).Content;
         if (json is not null)
         {
             _jsonCache[artccId] = json;
@@ -111,7 +111,7 @@ public sealed class ArtccAirportResolver
         var airports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         using var doc = JsonDocument.Parse(json);
-        if (doc.RootElement.TryGetProperty("facility", out var facility))
+        if (doc.RootElement.TryGetProperty("facility", out JsonElement facility))
         {
             CollectUnderlyingAirports(facility, airports);
         }
@@ -122,22 +122,22 @@ public sealed class ArtccAirportResolver
     private static void CollectUnderlyingAirports(JsonElement facility, HashSet<string> airports)
     {
         if (
-            facility.TryGetProperty("starsConfiguration", out var starsCfg)
+            facility.TryGetProperty("starsConfiguration", out JsonElement starsCfg)
             && starsCfg.ValueKind == JsonValueKind.Object
-            && starsCfg.TryGetProperty("areas", out var areas)
+            && starsCfg.TryGetProperty("areas", out JsonElement areas)
             && areas.ValueKind == JsonValueKind.Array
         )
         {
-            foreach (var area in areas.EnumerateArray())
+            foreach (JsonElement area in areas.EnumerateArray())
             {
-                if (!area.TryGetProperty("underlyingAirports", out var uaArr) || uaArr.ValueKind != JsonValueKind.Array)
+                if (!area.TryGetProperty("underlyingAirports", out JsonElement uaArr) || uaArr.ValueKind != JsonValueKind.Array)
                 {
                     continue;
                 }
 
-                foreach (var ap in uaArr.EnumerateArray())
+                foreach (JsonElement ap in uaArr.EnumerateArray())
                 {
-                    var id = ap.GetString();
+                    string? id = ap.GetString();
                     if (!string.IsNullOrWhiteSpace(id))
                     {
                         airports.Add(id);
@@ -146,9 +146,9 @@ public sealed class ArtccAirportResolver
             }
         }
 
-        if (facility.TryGetProperty("childFacilities", out var children) && children.ValueKind == JsonValueKind.Array)
+        if (facility.TryGetProperty("childFacilities", out JsonElement children) && children.ValueKind == JsonValueKind.Array)
         {
-            foreach (var child in children.EnumerateArray())
+            foreach (JsonElement child in children.EnumerateArray())
             {
                 CollectUnderlyingAirports(child, airports);
             }
@@ -157,23 +157,23 @@ public sealed class ArtccAirportResolver
 
     private static string? SearchFacilityForTowerCabVideoMapId(JsonElement facility, string airportId)
     {
-        if (facility.TryGetProperty("id", out var idProp))
+        if (facility.TryGetProperty("id", out JsonElement idProp))
         {
-            var id = idProp.GetString();
+            string? id = idProp.GetString();
             if (string.Equals(id, airportId, StringComparison.OrdinalIgnoreCase))
             {
-                if (facility.TryGetProperty("towerCabConfiguration", out var tcc) && tcc.TryGetProperty("videoMapId", out var vmId))
+                if (facility.TryGetProperty("towerCabConfiguration", out JsonElement tcc) && tcc.TryGetProperty("videoMapId", out JsonElement vmId))
                 {
                     return vmId.GetString();
                 }
             }
         }
 
-        if (facility.TryGetProperty("childFacilities", out var children) && children.ValueKind == JsonValueKind.Array)
+        if (facility.TryGetProperty("childFacilities", out JsonElement children) && children.ValueKind == JsonValueKind.Array)
         {
-            foreach (var child in children.EnumerateArray())
+            foreach (JsonElement child in children.EnumerateArray())
             {
-                var result = SearchFacilityForTowerCabVideoMapId(child, airportId);
+                string? result = SearchFacilityForTowerCabVideoMapId(child, airportId);
                 if (result is not null)
                 {
                     return result;

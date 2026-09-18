@@ -35,7 +35,7 @@ public sealed class ClimbSpeedScheduleTests
     [Fact]
     public void InitialClimbPhase_SetsInitialClimbSpeed()
     {
-        var runway = TestRunwayFactory.Make();
+        RunwayInfo runway = TestRunwayFactory.Make();
         var ac = new AircraftState
         {
             Callsign = "TEST1",
@@ -70,7 +70,7 @@ public sealed class ClimbSpeedScheduleTests
     [Fact]
     public void InitialClimbPhase_OnTick_UpdatesSpeedAtAltitudeBand()
     {
-        var runway = TestRunwayFactory.Make();
+        RunwayInfo runway = TestRunwayFactory.Make();
         var ac = new AircraftState
         {
             Callsign = "TEST1",
@@ -112,7 +112,7 @@ public sealed class ClimbSpeedScheduleTests
     [Fact]
     public void FlightPhysics_AutoSchedule_SetsSpeedDuringClimb()
     {
-        var ac = MakeClimbingJet(altitude: 12000, ias: 250, targetAlt: 35000);
+        AircraftState ac = MakeClimbingJet(altitude: 12000, ias: 250, targetAlt: 35000);
 
         // No explicit speed command, climbing with null TargetSpeed
         FlightPhysics.Update(ac, 1.0);
@@ -124,7 +124,7 @@ public sealed class ClimbSpeedScheduleTests
     [Fact]
     public void FlightPhysics_AutoSchedule_RespectedExplicitSpeedCommand()
     {
-        var ac = MakeClimbingJet(altitude: 12000, ias: 210, targetAlt: 35000);
+        AircraftState ac = MakeClimbingJet(altitude: 12000, ias: 210, targetAlt: 35000);
         ac.Targets.HasExplicitSpeedCommand = true;
         ac.Targets.TargetSpeed = null;
 
@@ -137,7 +137,7 @@ public sealed class ClimbSpeedScheduleTests
     [Fact]
     public void FlightPhysics_AutoSchedule_NoScheduleWhenLevelFlight()
     {
-        var ac = MakeClimbingJet(altitude: 25000, ias: 280, targetAlt: 25000);
+        AircraftState ac = MakeClimbingJet(altitude: 25000, ias: 280, targetAlt: 25000);
 
         // At target altitude — TargetAltitude will be nulled by UpdateAltitude
         FlightPhysics.Update(ac, 1.0);
@@ -150,7 +150,7 @@ public sealed class ClimbSpeedScheduleTests
     [Fact]
     public void FlightPhysics_AutoSchedule_Below10kCapped250()
     {
-        var ac = MakeClimbingJet(altitude: 8000, ias: 200, targetAlt: 35000);
+        AircraftState ac = MakeClimbingJet(altitude: 8000, ias: 200, targetAlt: 35000);
 
         FlightPhysics.Update(ac, 1.0);
 
@@ -164,7 +164,7 @@ public sealed class ClimbSpeedScheduleTests
     [Fact]
     public void HasExplicitSpeedCommand_ClearedByAltitudeCommand()
     {
-        var ac = MakeClimbingJet(altitude: 12000, ias: 250, targetAlt: 35000);
+        AircraftState ac = MakeClimbingJet(altitude: 12000, ias: 250, targetAlt: 35000);
         ac.Targets.HasExplicitSpeedCommand = true;
 
         // Simulate CM command
@@ -177,7 +177,7 @@ public sealed class ClimbSpeedScheduleTests
     [Fact]
     public void HasExplicitSpeedCommand_SetBySpeedCommand()
     {
-        var ac = MakeClimbingJet(altitude: 12000, ias: 250, targetAlt: 35000);
+        AircraftState ac = MakeClimbingJet(altitude: 12000, ias: 250, targetAlt: 35000);
 
         var cmd = new SpeedCommand(210);
         CommandDispatcher.Dispatch(cmd, ac, TestDispatch.Context(new SerializableRandom(42)));
@@ -190,7 +190,7 @@ public sealed class ClimbSpeedScheduleTests
     {
         // Aircraft climbing from 500ft to 1000ft TPA with null TargetSpeed —
         // auto schedule should NOT fire because a pattern phase is active.
-        var runway = TestRunwayFactory.Make();
+        RunwayInfo runway = TestRunwayFactory.Make();
         var ac = new AircraftState
         {
             Callsign = "TEST1",

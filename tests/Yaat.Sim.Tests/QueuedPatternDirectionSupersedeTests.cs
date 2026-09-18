@@ -50,22 +50,26 @@ public class QueuedPatternDirectionSupersedeTests
     [Fact]
     public void FreshVector_CancelsQueuedMakeTraffic()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         // Queue a conditional pattern-direction command: when the aircraft reaches 5000 ft, make left
         // traffic. (Altitude condition keeps the repro free of any nav-fix lookup.)
-        var mltCompound = CommandParser.ParseCompound("AT 5000 MLT");
+        ParseResult<CompoundCommand> mltCompound = CommandParser.ParseCompound("AT 5000 MLT");
         Assert.True(mltCompound.IsSuccess, $"MLT parse failed: {mltCompound.Reason}");
 
-        var mltResult = CommandDispatcher.DispatchCompound(mltCompound.Value!, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
+        CommandResult mltResult = CommandDispatcher.DispatchCompound(
+            mltCompound.Value!,
+            ac,
+            TestDispatch.Context(Random.Shared, validateDctFixes: false)
+        );
         Assert.True(mltResult.Success, $"MLT dispatch failed: {mltResult.Message}");
         Assert.True(HasQueuedMakeTraffic(ac), "Precondition: the conditional MLT should be sitting in the queue.");
 
         // Controller changes the plan before the pattern command fires: a fresh lateral vector.
-        var vectorCompound = CommandParser.ParseCompound("FH 270");
+        ParseResult<CompoundCommand> vectorCompound = CommandParser.ParseCompound("FH 270");
         Assert.True(vectorCompound.IsSuccess, $"Vector parse failed: {vectorCompound.Reason}");
 
-        var vectorResult = CommandDispatcher.DispatchCompound(
+        CommandResult vectorResult = CommandDispatcher.DispatchCompound(
             vectorCompound.Value!,
             ac,
             TestDispatch.Context(Random.Shared, validateDctFixes: false)

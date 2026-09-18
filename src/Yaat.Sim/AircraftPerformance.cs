@@ -112,13 +112,13 @@ public static class AircraftPerformance
 
     public static double ClimbRate(string aircraftType, AircraftCategory cat, double altitudeFt)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         if (p is null)
         {
             return CategoryPerformance.ClimbRate(cat, altitudeFt);
         }
 
-        var acd = FaaAircraftDatabase.Get(aircraftType);
+        FaaAircraftRecord? acd = FaaAircraftDatabase.Get(aircraftType);
         double correctedInitial = _correctionAdapter.ClimbRateInitial(p, acd);
 
         ReadOnlySpan<(double, double)> breakpoints =
@@ -133,7 +133,7 @@ public static class AircraftPerformance
 
     public static double DescentRate(string aircraftType, AircraftCategory cat, double altitudeFt)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         if (p is null)
         {
             return CategoryPerformance.DescentRate(cat);
@@ -151,13 +151,13 @@ public static class AircraftPerformance
     /// </summary>
     public static double ClimbSpeed(string aircraftType, AircraftCategory cat, double altitudeFt)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         if (p is null)
         {
             return CategoryPerformance.DefaultSpeed(cat, altitudeFt);
         }
 
-        var acd = FaaAircraftDatabase.Get(aircraftType);
+        FaaAircraftRecord? acd = FaaAircraftDatabase.Get(aircraftType);
         double correctedInitial = _correctionAdapter.ClimbSpeedInitial(p, acd);
 
         ReadOnlySpan<(double, double)> breakpoints =
@@ -182,13 +182,13 @@ public static class AircraftPerformance
     /// </summary>
     public static double DescentSpeed(string aircraftType, AircraftCategory cat, double altitudeFt)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         if (p is null)
         {
             return CategoryPerformance.DefaultSpeed(cat, altitudeFt);
         }
 
-        var acd = FaaAircraftDatabase.Get(aircraftType);
+        FaaAircraftRecord? acd = FaaAircraftDatabase.Get(aircraftType);
         double correctedIas = _correctionAdapter.InitialApproachSpeed(p, acd);
 
         ReadOnlySpan<(double, double)> breakpoints =
@@ -213,7 +213,7 @@ public static class AircraftPerformance
     /// </summary>
     public static double DefaultSpeed(string aircraftType, AircraftCategory cat, double altitudeFt, double? targetAltitude)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         if (p is null)
         {
             return CategoryPerformance.DefaultSpeed(cat, altitudeFt);
@@ -250,13 +250,13 @@ public static class AircraftPerformance
 
     public static double AccelRate(string aircraftType, AircraftCategory cat)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         return p is not null ? p.AirborneAccelRate : CategoryPerformance.AccelRate(cat);
     }
 
     public static double DecelRate(string aircraftType, AircraftCategory cat)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         return p is not null ? p.AirborneDecelRate : CategoryPerformance.DecelRate(cat);
     }
 
@@ -266,13 +266,13 @@ public static class AircraftPerformance
     /// </summary>
     public static double GroundAccelRate(string aircraftType, AircraftCategory cat)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         return p?.GroundAccelRate ?? CategoryPerformance.GroundAccelRate(cat);
     }
 
     public static double RotationSpeed(string aircraftType, AircraftCategory cat)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         return p is not null ? p.RotateSpeed : CategoryPerformance.RotationSpeed(cat);
     }
 
@@ -288,31 +288,31 @@ public static class AircraftPerformance
 
     public static double InitialClimbSpeed(string aircraftType, AircraftCategory cat)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         if (p is null)
         {
             return CategoryPerformance.InitialClimbSpeed(cat);
         }
 
-        var acd = FaaAircraftDatabase.Get(aircraftType);
+        FaaAircraftRecord? acd = FaaAircraftDatabase.Get(aircraftType);
         return _correctionAdapter.ClimbSpeedInitial(p, acd);
     }
 
     public static double InitialClimbRate(string aircraftType, AircraftCategory cat)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         if (p is null)
         {
             return CategoryPerformance.InitialClimbRate(cat);
         }
 
-        var acd = FaaAircraftDatabase.Get(aircraftType);
+        FaaAircraftRecord? acd = FaaAircraftDatabase.Get(aircraftType);
         return _correctionAdapter.ClimbRateInitial(p, acd);
     }
 
     public static double TurnRate(string aircraftType, AircraftCategory cat)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         if (p is not null && p.StandardTurnRateOverride > 0)
         {
             return p.StandardTurnRateOverride;
@@ -326,15 +326,15 @@ public static class AircraftPerformance
     /// </summary>
     public static double ApproachSpeed(string aircraftType, AircraftCategory cat)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         if (p is not null && p.FinalApproachSpeed > 0)
         {
-            var acd = FaaAircraftDatabase.Get(aircraftType);
+            FaaAircraftRecord? acd = FaaAircraftDatabase.Get(aircraftType);
             return _correctionAdapter.FinalApproachSpeed(p, acd);
         }
 
         // Fall back to FAA ACD approach speed
-        var record = FaaAircraftDatabase.Get(aircraftType);
+        FaaAircraftRecord? record = FaaAircraftDatabase.Get(aircraftType);
         if (record?.ApproachSpeedKnot is { } faaSpeed)
         {
             return faaSpeed;
@@ -363,7 +363,7 @@ public static class AircraftPerformance
             return 0;
         }
 
-        var surface = weather.WindLayers[0];
+        WindLayer surface = weather.WindLayers[0];
         if (surface.Variable ?? false)
         {
             return 0;
@@ -384,7 +384,7 @@ public static class AircraftPerformance
             return 0;
         }
 
-        var surface = weather.WindLayers[0];
+        WindLayer surface = weather.WindLayers[0];
         if (surface.Variable ?? false)
         {
             return 0;
@@ -400,19 +400,19 @@ public static class AircraftPerformance
 
     public static double TouchdownSpeed(string aircraftType, AircraftCategory cat)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         return p is not null ? p.LandingSpeed : CategoryPerformance.TouchdownSpeed(cat);
     }
 
     public static double DownwindSpeed(string aircraftType, AircraftCategory cat)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         if (p is null)
         {
             return CategoryPerformance.DownwindSpeed(cat);
         }
 
-        var acd = FaaAircraftDatabase.Get(aircraftType);
+        FaaAircraftRecord? acd = FaaAircraftDatabase.Get(aircraftType);
         return _correctionAdapter.PatternSpeed(p, acd);
     }
 
@@ -421,13 +421,13 @@ public static class AircraftPerformance
     /// </summary>
     public static double BaseSpeed(string aircraftType, AircraftCategory cat)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         if (p is null)
         {
             return CategoryPerformance.BaseSpeed(cat);
         }
 
-        var acd = FaaAircraftDatabase.Get(aircraftType);
+        FaaAircraftRecord? acd = FaaAircraftDatabase.Get(aircraftType);
         return _correctionAdapter.BaseSpeed(p, acd);
     }
 
@@ -436,7 +436,7 @@ public static class AircraftPerformance
     /// </summary>
     public static double HoldingSpeed(string aircraftType, double altitudeFt)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         double maxHolding = CategoryPerformance.MaxHoldingSpeed(altitudeFt);
 
         if (p is not null && p.HoldingSpeed > 0)
@@ -452,7 +452,7 @@ public static class AircraftPerformance
     /// </summary>
     public static bool IsSpeedLimitWaived(string aircraftType)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         return p is not null && p.IsSpeedLimitWaived;
     }
 
@@ -466,7 +466,7 @@ public static class AircraftPerformance
     /// </summary>
     public static double MinimumSafeSpeedKts(string aircraftType)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         return p?.InitialApproachSpeed ?? 0;
     }
 
@@ -487,7 +487,7 @@ public static class AircraftPerformance
     /// </summary>
     public static double? Ceiling(string aircraftType)
     {
-        var p = AircraftProfileDatabase.Get(aircraftType);
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         return p?.Ceiling;
     }
 }

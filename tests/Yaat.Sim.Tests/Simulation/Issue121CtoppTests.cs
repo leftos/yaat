@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -28,14 +29,14 @@ public class Issue121CtoppTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -57,8 +58,8 @@ public class Issue121CtoppTests(ITestOutputHelper output)
     [Fact]
     public void Ctopp_DoesNotReturnUnknownCommand()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -66,14 +67,14 @@ public class Issue121CtoppTests(ITestOutputHelper output)
 
         engine.Replay(recording, recording.TotalElapsedSeconds);
 
-        var aircraft = engine.FindAircraft("CMD02");
+        AircraftState? aircraft = engine.FindAircraft("CMD02");
         Assert.NotNull(aircraft);
 
         output.WriteLine(
             $"CMD02: type={aircraft.AircraftType} alt={aircraft.Altitude:F0} onGround={aircraft.IsOnGround} phase={aircraft.Phases?.CurrentPhase?.Name ?? "(none)"}"
         );
 
-        var result = engine.SendCommand("CMD02", "CTOPP");
+        CommandResult result = engine.SendCommand("CMD02", "CTOPP");
 
         output.WriteLine($"CTOPP result: success={result.Success} message={result.Message}");
 
@@ -88,8 +89,8 @@ public class Issue121CtoppTests(ITestOutputHelper output)
     [Fact]
     public void Ctopp_RejectsAirborneHelicopterWithDomainError()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -97,10 +98,10 @@ public class Issue121CtoppTests(ITestOutputHelper output)
 
         engine.Replay(recording, recording.TotalElapsedSeconds);
 
-        var aircraft = engine.FindAircraft("CMD02");
+        AircraftState? aircraft = engine.FindAircraft("CMD02");
         Assert.NotNull(aircraft);
 
-        var result = engine.SendCommand("CMD02", "CTOPP");
+        CommandResult result = engine.SendCommand("CMD02", "CTOPP");
 
         Assert.False(result.Success);
         Assert.Contains("on the ground", result.Message!);
@@ -113,8 +114,8 @@ public class Issue121CtoppTests(ITestOutputHelper output)
     [Fact]
     public void Ctopp_RejectsNonHelicopterWithDomainError()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -123,10 +124,10 @@ public class Issue121CtoppTests(ITestOutputHelper output)
         engine.Replay(recording, recording.TotalElapsedSeconds);
 
         // LXJ453 is a fixed-wing jet in this scenario
-        var aircraft = engine.FindAircraft("LXJ453");
+        AircraftState? aircraft = engine.FindAircraft("LXJ453");
         Assert.NotNull(aircraft);
 
-        var result = engine.SendCommand("LXJ453", "CTOPP");
+        CommandResult result = engine.SendCommand("LXJ453", "CTOPP");
 
         Assert.False(result.Success);
         Assert.Contains("only valid for helicopters", result.Message!);

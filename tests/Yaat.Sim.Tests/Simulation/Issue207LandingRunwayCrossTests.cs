@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -61,8 +62,8 @@ public class Issue207LandingRunwayCrossTests(ITestOutputHelper output)
     [Fact]
     public void TaxiDuringLandingRollout_ImplicitlyClearsLandingRunwayExit()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -77,7 +78,7 @@ public class Issue207LandingRunwayCrossTests(ITestOutputHelper output)
         // t=2000, so follow-logic tweaks move its later landing by a second or two.
         engine.Replay(recording, 2210);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
         // Precondition: still rolling out on the landing runway (28R).
@@ -88,11 +89,11 @@ public class Issue207LandingRunwayCrossTests(ITestOutputHelper output)
         output.WriteLine($"Precondition: {Callsign} in LandingPhase on {landedRwy}, IAS={aircraft.IndicatedAirspeed:F1}kt");
 
         // Issue the TAXI command live, exactly as the controller did.
-        var result = engine.SendCommand(Callsign, "TAXI G D J");
+        CommandResult result = engine.SendCommand(Callsign, "TAXI G D J");
         Assert.True(result.Success, $"TAXI command failed: {result.Message}");
         output.WriteLine($"TAXI response: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine(
             "Hold-shorts: " + string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason},cleared={h.IsCleared})"))
@@ -104,7 +105,7 @@ public class Issue207LandingRunwayCrossTests(ITestOutputHelper output)
         // The first RunwayCrossing is the exit bar of the runway just landed on — it
         // must overlap the landing runway and be implicitly cleared (no hold short of
         // the runway the aircraft is rolling out on).
-        var firstCrossing = crossings[0];
+        HoldShortPoint firstCrossing = crossings[0];
         Assert.False(string.IsNullOrEmpty(firstCrossing.TargetName));
         Assert.True(
             RunwayIdentifier.Parse(firstCrossing.TargetName!).Overlaps(RunwayIdentifier.Parse(landedRwy)),
@@ -121,7 +122,7 @@ public class Issue207LandingRunwayCrossTests(ITestOutputHelper output)
 
         // Subsequent crossings (the genuine re-cross of 28R and the 28L crossing on J)
         // still require clearance — only the landing-runway exit is auto-cleared.
-        foreach (var later in crossings.Skip(1))
+        foreach (HoldShortPoint? later in crossings.Skip(1))
         {
             Assert.False(
                 later.IsCleared,

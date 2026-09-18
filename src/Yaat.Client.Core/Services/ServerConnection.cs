@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -128,7 +129,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
             await DisconnectAsync();
         }
 
-        var hubUrl = serverUrl.TrimEnd('/') + "/hubs/training";
+        string hubUrl = serverUrl.TrimEnd('/') + "/hubs/training";
         _log.LogInformation("Connecting to {Url}", hubUrl);
 
         _connection = new HubConnectionBuilder()
@@ -162,7 +163,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
                 // chain stops at the matching source-gen entry for any DTO
                 // we registered, sidestepping the reflection-disabled-by-
                 // default failure that blew up JoinRoom.
-                var chain = options.PayloadSerializerOptions.TypeInfoResolverChain;
+                IList<IJsonTypeInfoResolver> chain = options.PayloadSerializerOptions.TypeInfoResolverChain;
                 chain.Insert(0, YaatHubJsonContext.Default);
                 chain.Insert(1, YaatStripsHubJsonContext.Default);
                 chain.Insert(2, YaatTdlsHubJsonContext.Default);
@@ -318,7 +319,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public async Task<RoomStateDto?> JoinRoomAsync(string roomId, string initials, string artccId, string kind)
     {
         EnsureConnected();
-        var state = await _connection!.InvokeAsync<RoomStateDto?>("JoinRoom", roomId, initials, artccId, kind);
+        RoomStateDto? state = await _connection!.InvokeAsync<RoomStateDto?>("JoinRoom", roomId, initials, artccId, kind);
         if (state is not null)
         {
             IsPlaybackMode = state.IsPlayback;
@@ -366,7 +367,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     )
     {
         EnsureConnected();
-        var byteSize = System.Text.Encoding.UTF8.GetByteCount(scenarioJson);
+        int byteSize = System.Text.Encoding.UTF8.GetByteCount(scenarioJson);
         _log.LogInformation("Sending scenario JSON to server ({ByteSize} bytes)", byteSize);
         return await _connection!.InvokeAsync<LoadScenarioResultDto>(
             "LoadScenario",
@@ -515,7 +516,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
             return false;
         }
 
-        var routed = command.StartsWith("** ", StringComparison.Ordinal) ? command[3..] : command;
+        string routed = command.StartsWith("** ", StringComparison.Ordinal) ? command[3..] : command;
         return ActionRouter.WouldRecord(routed);
     }
 
@@ -786,7 +787,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public async Task<TimelineInfoDto?> GetTimelineInfoAsync()
     {
         EnsureConnected();
-        var info = await _connection!.InvokeAsync<TimelineInfoDto?>("GetTimelineInfo");
+        TimelineInfoDto? info = await _connection!.InvokeAsync<TimelineInfoDto?>("GetTimelineInfo");
         if (info is not null)
         {
             IsPlaybackMode = info.IsPlayback;
@@ -811,7 +812,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         EnsureConnected();
         var ms = new MemoryStream();
         await foreach (
-            var chunk in _connection!
+            byte[]? chunk in _connection!
                 .StreamAsync<byte[]>("ExportRecording", clientVersion, clientBuildKind, cancellationToken)
                 .WithCancellation(cancellationToken)
         )
@@ -887,7 +888,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         {
             cancellationToken.ThrowIfCancellationRequested();
             int len = Math.Min(chunkSize, bytes.Length - offset);
-            var chunk = new byte[len];
+            byte[] chunk = new byte[len];
             Buffer.BlockCopy(bytes, offset, chunk, 0, len);
             yield return chunk;
             await Task.Yield();

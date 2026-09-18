@@ -117,7 +117,7 @@ public partial class FlightPlanEditorWindow : Window
     /// </summary>
     private static string SplitRemarks(string remarks, out string strippedPrefix)
     {
-        var parts = remarks.Split("RMK/", 2, StringSplitOptions.None);
+        string[] parts = remarks.Split("RMK/", 2, StringSplitOptions.None);
         if (parts.Length != 2)
         {
             strippedPrefix = "";
@@ -227,7 +227,7 @@ public partial class FlightPlanEditorWindow : Window
 
     private void OnAmendClick(object? sender, RoutedEventArgs e)
     {
-        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: TypBox.Text,
             eqText: EqBox.Text,
             icaoEqText: IcaoEqBox.Text,

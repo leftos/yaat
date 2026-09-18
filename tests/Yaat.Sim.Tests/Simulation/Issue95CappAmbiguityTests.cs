@@ -2,6 +2,7 @@ using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -31,14 +32,14 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -57,8 +58,8 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
     [Fact]
     public void SWA11_CappI17R_ResolvesToConnectingApproach()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -68,7 +69,7 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
         // Replay to t=70, just before the original AT KLOCK CAPP I17R at t=71
         engine.Replay(recording, 70);
 
-        var aircraft = engine.FindAircraft("SWA11");
+        AircraftState? aircraft = engine.FindAircraft("SWA11");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"Before CAPP: alt={aircraft.Altitude:F0} hdg={aircraft.TrueHeading.Degrees:F1}");
@@ -77,7 +78,7 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
         output.WriteLine($"StarViaMode: {aircraft.Procedure.StarViaMode} ActiveStarId: {aircraft.Procedure.ActiveStarId}");
 
         // Send CAPP I17R directly (no AT) — tests approach resolution immediately
-        var result = engine.SendCommand("SWA11", "CAPP I17R");
+        CommandResult result = engine.SendCommand("SWA11", "CAPP I17R");
         output.WriteLine($"CAPP result: Success={result.Success} Message={result.Message}");
 
         Assert.True(result.Success, $"CAPP should succeed. Got: {result.Message}");
@@ -98,8 +99,8 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
     [Fact]
     public void SWA11_CappRunwayOnly_ResolvesToConnectingApproach()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -108,11 +109,11 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
 
         engine.Replay(recording, 70);
 
-        var aircraft = engine.FindAircraft("SWA11");
+        AircraftState? aircraft = engine.FindAircraft("SWA11");
         Assert.NotNull(aircraft);
 
         // Send CAPP 17R directly (no AT) — tests runway-only resolution
-        var result = engine.SendCommand("SWA11", "CAPP 17R");
+        CommandResult result = engine.SendCommand("SWA11", "CAPP 17R");
         output.WriteLine($"CAPP 17R result: Success={result.Success} Message={result.Message}");
 
         Assert.True(result.Success, $"CAPP 17R should succeed. Got: {result.Message}");
@@ -124,8 +125,8 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
         output.WriteLine($"Resolved approach: {approachId}");
 
         // Verify the approach has a transition that includes KLOCK
-        var navDb = NavigationDatabase.Instance;
-        var procedure = navDb.GetApproach("RNO", approachId);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        CifpApproachProcedure? procedure = navDb.GetApproach("RNO", approachId);
         Assert.NotNull(procedure);
 
         bool hasKlockTransition = procedure.Transitions.Values.Any(t =>
@@ -143,8 +144,8 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
     [Fact]
     public void SWA11_StarViaModeClearedAfterCapp()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -153,7 +154,7 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
 
         engine.Replay(recording, 70);
 
-        var aircraft = engine.FindAircraft("SWA11");
+        AircraftState? aircraft = engine.FindAircraft("SWA11");
         Assert.NotNull(aircraft);
 
         // Confirm STAR state is active before CAPP
@@ -162,7 +163,7 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
         );
 
         // Send CAPP directly to test state clearing
-        var result = engine.SendCommand("SWA11", "CAPP I17R");
+        CommandResult result = engine.SendCommand("SWA11", "CAPP I17R");
         Assert.True(result.Success, $"CAPP should succeed. Got: {result.Message}");
 
         output.WriteLine(
@@ -192,8 +193,8 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
     [Fact]
     public void SWA11_DescendsToMeetKlockConstraint()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -203,7 +204,7 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
         // Replay the full recording (includes the AT KLOCK CAPP at t=71)
         engine.Replay(recording, 745);
 
-        var aircraft = engine.FindAircraft("SWA11");
+        AircraftState? aircraft = engine.FindAircraft("SWA11");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"After full replay: alt={aircraft.Altitude:F0}");

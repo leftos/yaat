@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -36,7 +38,7 @@ public class ConflictStopAfterBehindE2ETests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -70,7 +72,7 @@ public class ConflictStopAfterBehindE2ETests(ITestOutputHelper output)
     [Fact]
     public void TaxiingAircraft_NotStoppedByParkedAircraftWithAdequateWingtipClearance()
     {
-        var groundLayout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? groundLayout = new TestAirportGroundData().GetLayout("OAK");
         if (groundLayout is null)
         {
             return;
@@ -78,7 +80,7 @@ public class ConflictStopAfterBehindE2ETests(ITestOutputHelper output)
 
         TestVnasData.EnsureInitialized();
 
-        var (n152, n569) = BuildBundleGeometry(groundLayout);
+        (AircraftState? n152, AircraftState? n569) = BuildBundleGeometry(groundLayout);
 
         GroundConflictDetector.ApplySpeedLimits([n152, n569], groundLayout, deltaSeconds: 0.0);
 
@@ -150,11 +152,11 @@ public class ConflictStopAfterBehindE2ETests(ITestOutputHelper output)
         // Find two distinct nodes near the position to synthesize a single edge.
         // The conflict detector only inspects the segment's node IDs and the
         // owning aircraft's heading, not the route's geographic accuracy.
-        var nearestNode = layout.FindNearestNode(near.Lat, near.Lon);
+        GroundNode? nearestNode = layout.FindNearestNode(near.Lat, near.Lon);
         Assert.NotNull(nearestNode);
-        var neighborEdge = nearestNode.Edges.FirstOrDefault();
+        IGroundEdge? neighborEdge = nearestNode.Edges.FirstOrDefault();
         Assert.NotNull(neighborEdge);
-        var otherNode = neighborEdge.OtherNode(nearestNode);
+        GroundNode otherNode = neighborEdge.OtherNode(nearestNode);
 
         var segment = new Yaat.Sim.Data.Airport.TaxiRouteSegment
         {

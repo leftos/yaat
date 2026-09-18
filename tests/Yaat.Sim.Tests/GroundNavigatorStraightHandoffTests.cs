@@ -56,13 +56,13 @@ public class GroundNavigatorStraightHandoffTests
         var p0 = new LatLon(37.700, -122.200);
         double radiusNm = 75.0 / GeoMath.FeetPerNm;
         const double kappa = 0.5523;
-        var (p1Lat, p1Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(90.0), kappa * radiusNm);
-        var (cornerLat, cornerLon) = GeoMath.ProjectPoint(p0, new TrueHeading(90.0), radiusNm);
-        var (p3Lat, p3Lon) = GeoMath.ProjectPoint(new LatLon(cornerLat, cornerLon), new TrueHeading(180.0), radiusNm);
+        (double p1Lat, double p1Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(90.0), kappa * radiusNm);
+        (double cornerLat, double cornerLon) = GeoMath.ProjectPoint(p0, new TrueHeading(90.0), radiusNm);
+        (double p3Lat, double p3Lon) = GeoMath.ProjectPoint(new LatLon(cornerLat, cornerLon), new TrueHeading(180.0), radiusNm);
         var p3 = new LatLon(p3Lat, p3Lon);
-        var (p2Lat, p2Lon) = GeoMath.ProjectPoint(p3, new TrueHeading(0.0), kappa * radiusNm);
-        var from = Node(1, p0);
-        var to = Node(2, p3);
+        (double p2Lat, double p2Lon) = GeoMath.ProjectPoint(p3, new TrueHeading(0.0), kappa * radiusNm);
+        GroundNode from = Node(1, p0);
+        GroundNode to = Node(2, p3);
         var curve = new CubicBezier(p0.Lat, p0.Lon, p1Lat, p1Lon, p2Lat, p2Lon, p3.Lat, p3.Lon);
         var arc = new GroundArc
         {
@@ -90,8 +90,8 @@ public class GroundNavigatorStraightHandoffTests
         };
 
         double exitTangent = arcSegment.Edge.ArrivalBearing;
-        var (exitLat, exitLon) = GeoMath.ProjectPoint(to.Position, new TrueHeading(exitTangent + 0.3), 1500.0 / GeoMath.FeetPerNm);
-        var exit = Node(3, new LatLon(exitLat, exitLon));
+        (double exitLat, double exitLon) = GeoMath.ProjectPoint(to.Position, new TrueHeading(exitTangent + 0.3), 1500.0 / GeoMath.FeetPerNm);
+        GroundNode exit = Node(3, new LatLon(exitLat, exitLon));
         var straight = new GroundEdge
         {
             Nodes = [to, exit],
@@ -117,8 +117,8 @@ public class GroundNavigatorStraightHandoffTests
     [Fact]
     public void Straight_AfterAFillet_OwnsTheHeadingAndReachesItsNodeAtACrawl()
     {
-        var (route, exit, entryBearing) = FilletThenLongStraight();
-        var (aircraft, ctx) = MakeFixture(route.Segments[0].Edge.FromNode.Position, entryBearing, speedKts: 5.0);
+        (TaxiRoute? route, GroundNode? exit, double entryBearing) = FilletThenLongStraight();
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(route.Segments[0].Edge.FromNode.Position, entryBearing, speedKts: 5.0);
         var nav = new GroundNavigator { MaxSpeedKts = 5.0 };
         nav.SetupSegment(route, ctx, _ => true);
 
@@ -129,11 +129,11 @@ public class GroundNavigatorStraightHandoffTests
         for (; ticks < 2400 && !arrived; ticks++)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
-            var result = nav.Tick(ctx, isLastSegment: onStraight, _ => true);
+            NavigatorResult result = nav.Tick(ctx, isLastSegment: onStraight, _ => true);
             if (onStraight)
             {
                 Assert.Null(aircraft.Targets.TargetTrueHeading);
-                var straight = route.Segments[1].Edge;
+                DirectionalEdge straight = route.Segments[1].Edge;
                 maxCrossTrackFt = Math.Max(
                     maxCrossTrackFt,
                     Math.Abs(

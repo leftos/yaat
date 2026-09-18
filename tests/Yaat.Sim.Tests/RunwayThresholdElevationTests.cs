@@ -24,7 +24,7 @@ public class RunwayThresholdElevationTests
 
     private RunwayInfo? Runway(string airport, string designator)
     {
-        var rwy = TestVnasData.NavigationDb?.GetRunway(airport, designator);
+        RunwayInfo? rwy = TestVnasData.NavigationDb?.GetRunway(airport, designator);
         if (rwy is not null)
         {
             _output.WriteLine($"{airport} {designator}: thresholdElev={rwy.ElevationFt:F0}ft");
@@ -46,7 +46,7 @@ public class RunwayThresholdElevationTests
     [InlineData("KOAK", "28R", 6)]
     public void RunwayEndsCarryTheirOwnThresholdElevation(string airport, string designator, double expectedFt)
     {
-        var rwy = Runway(airport, designator);
+        RunwayInfo? rwy = Runway(airport, designator);
         if (rwy is null)
         {
             return;
@@ -62,8 +62,8 @@ public class RunwayThresholdElevationTests
     [Fact]
     public void GlidepathFollowsTheLandingEndsElevation()
     {
-        var fifteen = Runway("KASE", "15");
-        var thirtyThree = Runway("KASE", "33");
+        RunwayInfo? fifteen = Runway("KASE", "15");
+        RunwayInfo? thirtyThree = Runway("KASE", "33");
         if (fifteen is null || thirtyThree is null)
         {
             return;
@@ -84,8 +84,8 @@ public class RunwayThresholdElevationTests
     [Fact]
     public void PatternAltitudeKeepsTheAirportDatum()
     {
-        var fifteen = Runway("KASE", "15");
-        var thirtyThree = Runway("KASE", "33");
+        RunwayInfo? fifteen = Runway("KASE", "15");
+        RunwayInfo? thirtyThree = Runway("KASE", "33");
         if (fifteen is null || thirtyThree is null)
         {
             return;
@@ -108,10 +108,10 @@ public class RunwayThresholdElevationTests
     [Fact]
     public void AirportElevationFallsBackToTheMeanOfTheEnds()
     {
-        var level = TestRunwayFactory.Make(elevationFt: 9, endElevationFt: 9);
+        RunwayInfo level = TestRunwayFactory.Make(elevationFt: 9, endElevationFt: 9);
         Assert.Equal(9, level.AirportElevationFt, 3);
 
-        var sloped = TestRunwayFactory.Make(elevationFt: 100, endElevationFt: 200);
+        RunwayInfo sloped = TestRunwayFactory.Make(elevationFt: 100, endElevationFt: 200);
         Assert.Equal(150, sloped.AirportElevationFt, 3);
     }
 }

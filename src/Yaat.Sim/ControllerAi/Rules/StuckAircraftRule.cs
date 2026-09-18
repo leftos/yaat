@@ -1,3 +1,4 @@
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 
@@ -24,12 +25,12 @@ public sealed class StuckAircraftRule : IDecisionRule
     public void Evaluate(AiRuleScope scope)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var aircraft in scope.Jurisdiction)
+        foreach (AircraftState aircraft in scope.Jurisdiction)
         {
             seen.Add(aircraft.Callsign);
-            var memo = scope.MemoFor(aircraft);
-            var phase = aircraft.Phases?.CurrentPhase;
-            var ground = aircraft.Ground;
+            AiAircraftMemo memo = scope.MemoFor(aircraft);
+            Phase? phase = aircraft.Phases?.CurrentPhase;
+            AircraftGroundOps ground = aircraft.Ground;
             bool orderedStop = (ground.Hold is not null) || ground.HeldForRelease;
             if (!IsMovementPhase(phase) || orderedStop)
             {
@@ -52,7 +53,7 @@ public sealed class StuckAircraftRule : IDecisionRule
             double stalled = scope.Now - memo.MovementAnchorAtSeconds;
             if (stalled >= (memo.YieldedDuringStall ? YieldingStuckAfterSeconds : StuckAfterSeconds))
             {
-                var cause = yielding
+                string cause = yielding
                     ? $" while yielding to {ground.AutoYieldTarget ?? "ground traffic"}"
                     : (memo.YieldedDuringStall ? " after yielding to ground traffic" : "");
                 scope.Tick.Anomalies.Open(

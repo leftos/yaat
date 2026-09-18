@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Tests.Helpers;
@@ -35,7 +36,14 @@ public class VfrColdCallSpawnTests
             Altitude = 4500,
         };
 
-        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, new Random(42), new BeaconCodePool());
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
+            request,
+            "OAK",
+            [],
+            groundLayout: null,
+            new Random(42),
+            new BeaconCodePool()
+        );
 
         Assert.Null(error);
         Assert.NotNull(state);
@@ -60,7 +68,7 @@ public class VfrColdCallSpawnTests
         }
 
         // Parking spawns: pilot's transponder is on Standby until they power up for taxi.
-        var groundLayout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? groundLayout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(groundLayout);
 
         var request = new SpawnRequest
@@ -72,7 +80,7 @@ public class VfrColdCallSpawnTests
             ParkingName = "NEW1",
         };
 
-        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout, new Random(42), new BeaconCodePool());
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout, new Random(42), new BeaconCodePool());
 
         Assert.Null(error);
         Assert.NotNull(state);
@@ -100,7 +108,14 @@ public class VfrColdCallSpawnTests
             Altitude = 11000,
         };
 
-        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, new Random(42), new BeaconCodePool());
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
+            request,
+            "OAK",
+            [],
+            groundLayout: null,
+            new Random(42),
+            new BeaconCodePool()
+        );
 
         Assert.Null(error);
         Assert.NotNull(state);
@@ -120,14 +135,14 @@ public class VfrColdCallSpawnTests
             return;
         }
 
-        var scenarioJson = BuildSingleAircraftScenario(includeFlightPlan: false);
+        string scenarioJson = BuildSingleAircraftScenario(includeFlightPlan: false);
 
-        var result = ScenarioLoader.Load(scenarioJson, groundData: null, new Random(42), MagneticDeclination.EvaluationDateUtc);
+        ScenarioLoadResult result = ScenarioLoader.Load(scenarioJson, groundData: null, new Random(42), MagneticDeclination.EvaluationDateUtc);
         ScenarioLoader.AssignSpawnBeacons(new BeaconCodePool(), result.AllAircraftStates);
-        var loaded = result.ImmediateAircraft.FirstOrDefault(a => a.State.Callsign == "N123XX");
+        LoadedAircraft? loaded = result.ImmediateAircraft.FirstOrDefault(a => a.State.Callsign == "N123XX");
         Assert.NotNull(loaded);
 
-        var state = loaded.State;
+        AircraftState state = loaded.State;
         Assert.False(state.FlightPlan.HasFlightPlan);
         Assert.Equal((uint)0, state.Transponder.AssignedCode);
         Assert.Equal((uint)1200, state.Transponder.Code);
@@ -144,14 +159,14 @@ public class VfrColdCallSpawnTests
             return;
         }
 
-        var scenarioJson = BuildSingleAircraftScenario(includeFlightPlan: true);
+        string scenarioJson = BuildSingleAircraftScenario(includeFlightPlan: true);
 
-        var result = ScenarioLoader.Load(scenarioJson, groundData: null, new Random(42), MagneticDeclination.EvaluationDateUtc);
+        ScenarioLoadResult result = ScenarioLoader.Load(scenarioJson, groundData: null, new Random(42), MagneticDeclination.EvaluationDateUtc);
         ScenarioLoader.AssignSpawnBeacons(new BeaconCodePool(), result.AllAircraftStates);
-        var loaded = result.ImmediateAircraft.FirstOrDefault(a => a.State.Callsign == "N123XX");
+        LoadedAircraft? loaded = result.ImmediateAircraft.FirstOrDefault(a => a.State.Callsign == "N123XX");
         Assert.NotNull(loaded);
 
-        var state = loaded.State;
+        AircraftState state = loaded.State;
         Assert.True(state.FlightPlan.HasFlightPlan);
         Assert.NotEqual((uint)0, state.Transponder.AssignedCode);
         Assert.NotEqual((uint)1200, state.Transponder.AssignedCode);
@@ -187,7 +202,7 @@ public class VfrColdCallSpawnTests
                 End = 436,
             },
         ]);
-        var result = ScenarioLoader.Load(
+        ScenarioLoadResult result = ScenarioLoader.Load(
             BuildSingleAircraftScenario(includeFlightPlan: true),
             groundData: null,
             new Random(42),
@@ -195,7 +210,7 @@ public class VfrColdCallSpawnTests
         );
         ScenarioLoader.AssignSpawnBeacons(pool, result.AllAircraftStates);
 
-        var state = result.ImmediateAircraft.First(a => a.State.Callsign == "N123XX").State;
+        AircraftState state = result.ImmediateAircraft.First(a => a.State.Callsign == "N123XX").State;
         Assert.True(state.FlightPlan.IsVfr);
         Assert.InRange(state.Transponder.AssignedCode, 101u, 160u);
         Assert.Equal(state.Transponder.AssignedCode, state.Transponder.Code);

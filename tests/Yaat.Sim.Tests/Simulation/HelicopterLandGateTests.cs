@@ -31,7 +31,7 @@ public class HelicopterLandGateTests
     private static (SimulationEngine Engine, AirportGroundLayout Layout, AircraftState Heli) Setup(LatLon position, double altitude, bool onGround)
     {
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("OAK");
+        AirportGroundLayout? layout = groundData.GetLayout("OAK");
         Assert.NotNull(layout);
 
         var engine = new SimulationEngine(groundData)
@@ -102,7 +102,7 @@ public class HelicopterLandGateTests
         Assert.Null(heli.Ground.Layout);
         Assert.Null(heli.Phases);
 
-        var result = engine.SendCommand(heli.Callsign, "LAND @SIG1");
+        CommandResult result = engine.SendCommand(heli.Callsign, "LAND @SIG1");
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<HelicopterApproachPhase>(heli.Phases!.CurrentPhase);
@@ -111,9 +111,9 @@ public class HelicopterLandGateTests
     [Fact]
     public void Land_FromOffField_InstallsApproach()
     {
-        var (engine, _, heli) = Setup(OverTheBay, altitude: 500, onGround: false);
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = Setup(OverTheBay, altitude: 500, onGround: false);
 
-        var result = engine.SendCommand(heli.Callsign, "LAND @SIG1");
+        CommandResult result = engine.SendCommand(heli.Callsign, "LAND @SIG1");
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<HelicopterApproachPhase>(heli.Phases!.CurrentPhase);
@@ -123,12 +123,16 @@ public class HelicopterLandGateTests
     [Fact]
     public void Land_HoveringOverTheField_AtPatternAltitude_AirTaxis()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
-        var heliSpot = layout!.FindSpotByName("HELI");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        GroundNode? heliSpot = layout!.FindSpotByName("HELI");
         Assert.NotNull(heliSpot);
-        var (engine, _, heli) = Setup(heliSpot.Position, altitude: OakFieldElevationFt + 300, onGround: false);
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = Setup(
+            heliSpot.Position,
+            altitude: OakFieldElevationFt + 300,
+            onGround: false
+        );
 
-        var result = engine.SendCommand(heli.Callsign, "LAND @FDX1");
+        CommandResult result = engine.SendCommand(heli.Callsign, "LAND @FDX1");
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<AirTaxiPhase>(heli.Phases!.CurrentPhase);
@@ -137,12 +141,16 @@ public class HelicopterLandGateTests
     [Fact]
     public void Land_OnTheGround_AirTaxis()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
-        var heliSpot = layout!.FindSpotByName("HELI");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        GroundNode? heliSpot = layout!.FindSpotByName("HELI");
         Assert.NotNull(heliSpot);
-        var (engine, _, heli) = Setup(heliSpot.Position, altitude: OakFieldElevationFt, onGround: true);
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = Setup(
+            heliSpot.Position,
+            altitude: OakFieldElevationFt,
+            onGround: true
+        );
 
-        var result = engine.SendCommand(heli.Callsign, "LAND @FDX1");
+        CommandResult result = engine.SendCommand(heli.Callsign, "LAND @FDX1");
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<AirTaxiPhase>(heli.Phases!.CurrentPhase);
@@ -151,12 +159,16 @@ public class HelicopterLandGateTests
     [Fact]
     public void Land_OverTheField_AbovePatternAltitude_InstallsApproach()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
-        var heliSpot = layout!.FindSpotByName("HELI");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        GroundNode? heliSpot = layout!.FindSpotByName("HELI");
         Assert.NotNull(heliSpot);
-        var (engine, _, heli) = Setup(heliSpot.Position, altitude: OakFieldElevationFt + 1500, onGround: false);
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = Setup(
+            heliSpot.Position,
+            altitude: OakFieldElevationFt + 1500,
+            onGround: false
+        );
 
-        var result = engine.SendCommand(heli.Callsign, "LAND @FDX1");
+        CommandResult result = engine.SendCommand(heli.Callsign, "LAND @FDX1");
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<HelicopterApproachPhase>(heli.Phases!.CurrentPhase);
@@ -165,9 +177,9 @@ public class HelicopterLandGateTests
     [Fact]
     public void AirTaxi_FromOffField_IsRefused_AndKeepsThePhase()
     {
-        var (engine, _, heli) = Setup(OverTheBay, altitude: 500, onGround: false);
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = Setup(OverTheBay, altitude: 500, onGround: false);
 
-        var result = engine.SendCommand(heli.Callsign, "ATXI SIG1");
+        CommandResult result = engine.SendCommand(heli.Callsign, "ATXI SIG1");
 
         Assert.False(result.Success);
         // Spoken by the pilot as the "unable" readback: short, about the aircraft, no dash for the verbalizer to choke on.
@@ -182,13 +194,17 @@ public class HelicopterLandGateTests
     [Fact]
     public void AirTaxi_FromOverheadTooHigh_IsRefused_WithoutAZeroMileage()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
-        var sig1 = layout!.FindSpotByName("SIG1");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        GroundNode? sig1 = layout!.FindSpotByName("SIG1");
         Assert.NotNull(sig1);
 
-        var (engine, _, heli) = Setup(sig1.Position, altitude: OakFieldElevationFt + 600, onGround: false);
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = Setup(
+            sig1.Position,
+            altitude: OakFieldElevationFt + 600,
+            onGround: false
+        );
 
-        var result = engine.SendCommand(heli.Callsign, "ATXI SIG1");
+        CommandResult result = engine.SendCommand(heli.Callsign, "ATXI SIG1");
 
         Assert.False(result.Success);
         Assert.Equal("Unable, we're overhead, request landing at SIG1", result.Message);
@@ -203,13 +219,13 @@ public class HelicopterLandGateTests
     [Fact]
     public void Land_FromTwoMilesHigh_CapturesThePathBeforeTheSpot()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
-        var sig1 = layout!.FindSpotByName("SIG1");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        GroundNode? sig1 = layout!.FindSpotByName("SIG1");
         Assert.NotNull(sig1);
-        var twoMilesWest = GeoMath.ProjectPoint(sig1.Position, new TrueHeading(270), 2.0);
-        var (engine, _, heli) = Setup(twoMilesWest, altitude: 2000, onGround: false);
+        LatLon twoMilesWest = GeoMath.ProjectPoint(sig1.Position, new TrueHeading(270), 2.0);
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = Setup(twoMilesWest, altitude: 2000, onGround: false);
 
-        var result = engine.SendCommand(heli.Callsign, "LAND @SIG1");
+        CommandResult result = engine.SendCommand(heli.Callsign, "LAND @SIG1");
         Assert.True(result.Success, result.Message);
         Assert.IsType<HelicopterApproachPhase>(heli.Phases!.CurrentPhase);
 

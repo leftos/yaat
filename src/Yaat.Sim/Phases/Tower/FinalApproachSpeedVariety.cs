@@ -68,12 +68,12 @@ public static class FinalApproachSpeedVariety
     public static double UnitInterval(string callsign, string salt)
     {
         uint h = 2166136261u;
-        foreach (var c in callsign)
+        foreach (char c in callsign)
         {
             h = (h ^ c) * 16777619u;
         }
 
-        foreach (var c in salt)
+        foreach (char c in salt)
         {
             h = (h ^ c) * 16777619u;
         }

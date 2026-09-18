@@ -722,7 +722,7 @@ public static class PhraseologyRules
     /// </summary>
     private static IEnumerable<PhraseologyRule> ParkingSynonymRules()
     {
-        foreach (var noun in new[] { "gate", "stand", "helipad" })
+        foreach (string? noun in new[] { "gate", "stand", "helipad" })
         {
             yield return new(["taxi", "to?", noun, "{parking...}"], "TAXI @{parking}", Taxi, SttOnly: true);
             yield return new(["taxi", "to?", noun, "{parking...}", "via", "{path...}"], "TAXI {path} @{parking}", Taxi, SttOnly: true);
@@ -751,10 +751,10 @@ public static class PhraseologyRules
             (["hold", "short", "of?", "runway?", "{holdshort}"], " HS {holdshort}"),
         ];
 
-        foreach (var (noun, capture, sigil) in destinations)
+        foreach ((string? noun, string? capture, string? sigil) in destinations)
         {
-            var name = "{" + capture + "...}";
-            var destination = sigil + "{" + capture + "}";
+            string name = "{" + capture + "...}";
+            string destination = sigil + "{" + capture + "}";
             (string[] Pattern, string Template)[] orders =
             [
                 (["taxi", "to?", noun, name], "TAXI " + destination),
@@ -762,9 +762,9 @@ public static class PhraseologyRules
                 (["taxi", "via", "{path...}", "to", noun, name], "TAXI {path} " + destination),
             ];
 
-            foreach (var (orderPattern, orderTemplate) in orders)
+            foreach ((string[]? orderPattern, string? orderTemplate) in orders)
             {
-                foreach (var (clausePattern, clauseTemplate) in runwayClauses)
+                foreach ((string[]? clausePattern, string? clauseTemplate) in runwayClauses)
                 {
                     yield return new([.. orderPattern, .. clausePattern], orderTemplate + clauseTemplate, Taxi, SttOnly: true);
                 }

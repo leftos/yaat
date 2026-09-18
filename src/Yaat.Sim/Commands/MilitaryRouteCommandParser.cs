@@ -23,8 +23,8 @@ public static class MilitaryRouteCommandParser
             return PR.Fail("CMTR requires a military route ID (e.g. CMTR IR149)");
         }
 
-        var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var designator = parts[0].ToUpperInvariant();
+        string[] parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string designator = parts[0].ToUpperInvariant();
 
         if (parts.Length == 1)
         {
@@ -37,14 +37,14 @@ public static class MilitaryRouteCommandParser
         }
 
         // The B prefix mirrors the existing at-or-below convention used by CFIX {fix} B{alt}.
-        var altitudeToken = parts[1];
+        string altitudeToken = parts[1];
         bool atOrBelow = altitudeToken.StartsWith('B') || altitudeToken.StartsWith('b');
         if (atOrBelow)
         {
             altitudeToken = altitudeToken[1..];
         }
 
-        var altitude = AltitudeResolver.Resolve(altitudeToken);
+        int? altitude = AltitudeResolver.Resolve(altitudeToken);
         if (altitude is null)
         {
             return PR.Fail($"Invalid altitude '{parts[1]}' for CMTR");
@@ -78,8 +78,8 @@ public static class MilitaryRouteCommandParser
             return PR.Fail("XMTR requires a clearance limit (e.g. XMTR KTCM)");
         }
 
-        var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var destination = parts[0].ToUpperInvariant();
+        string[] parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string destination = parts[0].ToUpperInvariant();
         int index = 1;
 
         // All-digits is what separates an altitude from a route token: airways and fixes always
@@ -107,7 +107,7 @@ public static class MilitaryRouteCommandParser
             return PR.Fail("XMTR VIA requires a route of flight");
         }
 
-        var route = string.Join(' ', parts[routeStart..]).ToUpperInvariant();
+        string route = string.Join(' ', parts[routeStart..]).ToUpperInvariant();
         return PR.Ok(new ClearedOutOfMilitaryRouteCommand(destination, route, altitude));
     }
 
@@ -127,8 +127,8 @@ public static class MilitaryRouteCommandParser
             return PR.Fail("CAR requires an aerial refueling track (e.g. CAR AR1)");
         }
 
-        var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var designator = parts[0].ToUpperInvariant();
+        string[] parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string designator = parts[0].ToUpperInvariant();
 
         if (parts.Length == 1)
         {
@@ -143,8 +143,8 @@ public static class MilitaryRouteCommandParser
             return PR.Fail($"CAR takes a track and either no altitude or a block of two, got '{arg.Trim()}'");
         }
 
-        var floor = AltitudeResolver.Resolve(parts[1]);
-        var ceiling = AltitudeResolver.Resolve(parts[2]);
+        int? floor = AltitudeResolver.Resolve(parts[1]);
+        int? ceiling = AltitudeResolver.Resolve(parts[2]);
         if (floor is null || ceiling is null)
         {
             return PR.Fail($"Invalid block altitude '{parts[1]} {parts[2]}' for CAR");

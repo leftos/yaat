@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -68,7 +69,7 @@ public class Issue5N152spNimiRvHeadingTests(ITestOutputHelper output)
     [Fact]
     public void N152SP_AfterCto_HoldsRvHeadingUntilFhCommand()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -76,8 +77,8 @@ public class Issue5N152spNimiRvHeadingTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -85,7 +86,7 @@ public class Issue5N152spNimiRvHeadingTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(1095);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(1095);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=1095 — skipping");
@@ -103,7 +104,7 @@ public class Issue5N152spNimiRvHeadingTests(ITestOutputHelper output)
             const int AssertEndTime = 1230;
             engine.ReplayRange(snapshotTime, AssertEndTime, recording.Actions);
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
             // The InitialClimbPhase must still be the active phase — otherwise
@@ -145,12 +146,12 @@ public class Issue5N152spNimiRvHeadingTests(ITestOutputHelper output)
             // would be expensive; instead use the recorded snapshots.
             for (int t = AssertStartTime; t <= AssertEndTime; t += 10)
             {
-                var sample = archive.ReadSnapshotAt(t);
+                TimedSnapshot? sample = archive.ReadSnapshotAt(t);
                 if (sample is null)
                 {
                     continue;
                 }
-                var snapAc = sample.State.Aircraft.FirstOrDefault(a => a.Callsign == Callsign);
+                AircraftSnapshotDto? snapAc = sample.State.Aircraft.FirstOrDefault(a => a.Callsign == Callsign);
                 if (snapAc is null)
                 {
                     continue;

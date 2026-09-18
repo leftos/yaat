@@ -1,6 +1,8 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -47,8 +49,8 @@ public class FollowGroundCrossChainTests(ITestOutputHelper output)
     [Fact]
     public void FollowGroundThenCross_FiresTheCrossOnlyWhenTheFollowerReachesTheHoldShort()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -56,15 +58,15 @@ public class FollowGroundCrossChainTests(ITestOutputHelper output)
 
         engine.Replay(recording, ReplayTime);
 
-        var follower = engine.FindAircraft(Follower);
-        var lead = engine.FindAircraft(Lead);
+        AircraftState? follower = engine.FindAircraft(Follower);
+        AircraftState? lead = engine.FindAircraft(Lead);
         Assert.NotNull(follower);
         Assert.NotNull(lead);
         Assert.IsType<AtParkingPhase>(follower.Phases?.CurrentPhase);
         Assert.IsType<TaxiingPhase>(lead.Phases?.CurrentPhase);
 
         // (1) The chain is accepted.
-        var result = engine.SendCommand(Follower, "FOLLOWG KPO83; CROSS 28R");
+        CommandResult result = engine.SendCommand(Follower, "FOLLOWG KPO83; CROSS 28R");
         output.WriteLine($"FOLLOWG KPO83; CROSS 28R -> success={result.Success} msg={result.Message}");
         Assert.True(result.Success, $"chain should be accepted but got: {result.Message}");
 
@@ -72,7 +74,7 @@ public class FollowGroundCrossChainTests(ITestOutputHelper output)
         Assert.NotNull(follower);
         Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
 
-        var blocks = follower.Queue.Blocks;
+        List<CommandBlock> blocks = follower.Queue.Blocks;
         output.WriteLine($"queue blocks={blocks.Count} index={follower.Queue.CurrentBlockIndex}");
         for (int i = 0; i < blocks.Count; i++)
         {
@@ -81,21 +83,21 @@ public class FollowGroundCrossChainTests(ITestOutputHelper output)
 
         // The FOLLOWG applies at issue time and installs the phase; only the CROSS remains queued behind it.
         Assert.Single(blocks);
-        var crossBlock = blocks[0];
+        CommandBlock crossBlock = blocks[0];
         Assert.False(crossBlock.IsApplied, "the CROSS block must be queued, not fired, while the follower is still following");
 
-        var runway28R = RunwayOccupancy.AirportRunways("OAK").FirstOrDefault(r => r.Id.Contains("28R"));
+        RunwayInfo? runway28R = RunwayOccupancy.AirportRunways("OAK").FirstOrDefault(r => r.Id.Contains("28R"));
         Assert.NotNull(runway28R);
 
-        var layout = follower.Ground.Layout ?? lead.Ground.Layout;
+        AirportGroundLayout? layout = follower.Ground.Layout ?? lead.Ground.Layout;
         Assert.NotNull(layout);
-        var holdShorts28R = layout.GetRunwayHoldShortNodes("28R");
+        List<GroundNode> holdShorts28R = layout.GetRunwayHoldShortNodes("28R");
         Assert.NotEmpty(holdShorts28R);
 
         // The lead's own crossing of 28R is un-cleared, so it stops at the bar rather than taxiing through.
-        var leadRoute = lead.Ground.AssignedTaxiRoute;
+        TaxiRoute? leadRoute = lead.Ground.AssignedTaxiRoute;
         Assert.NotNull(leadRoute);
-        var lead28R = leadRoute.HoldShortPoints.FirstOrDefault(h => (h.TargetName is { } n) && RunwayIdentifier.Parse(n).Contains("28R"));
+        HoldShortPoint? lead28R = leadRoute.HoldShortPoints.FirstOrDefault(h => (h.TargetName is { } n) && RunwayIdentifier.Parse(n).Contains("28R"));
         Assert.NotNull(lead28R);
         Assert.False(lead28R.IsCleared, "the lead's 28R crossing must be un-cleared so it holds short");
 
@@ -116,7 +118,7 @@ public class FollowGroundCrossChainTests(ITestOutputHelper output)
             Assert.NotNull(follower);
             Assert.NotNull(lead);
 
-            var phase = follower.Phases?.CurrentPhase;
+            Phase? phase = follower.Phases?.CurrentPhase;
 
             // (4) While still following, the follower must not be on the runway it has not been cleared across.
             if ((phase is FollowingPhase) && RunwayOccupancy.IsOnPavement(follower, runway28R))

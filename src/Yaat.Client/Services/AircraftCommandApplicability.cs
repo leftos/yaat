@@ -62,7 +62,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        foreach (var name in ac.PhaseSequence.Split(" > "))
+        foreach (string name in ac.PhaseSequence.Split(" > "))
         {
             if (name is "FinalApproach" or "Landing" or "Landing-H")
             {
@@ -80,7 +80,7 @@ public static class AircraftCommandApplicability
     /// </summary>
     private static bool IsOnArrival(AircraftModel ac)
     {
-        var phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase ?? "";
         return IsPendingLandingPhase(phase) || (IsTransientArrivalManeuver(phase) && HasPendingLandingPhase(ac));
     }
 
@@ -164,7 +164,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        var phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase ?? "";
         return phase.StartsWith("Holding Short", StringComparison.Ordinal) || (phase == "Taxiing" && !string.IsNullOrEmpty(ac.AssignedRunway));
     }
 
@@ -180,7 +180,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        var phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase ?? "";
         return phase is "LinedUpAndWaiting" or "LiningUp" or "Takeoff"
             || phase.StartsWith("Holding Short", StringComparison.Ordinal)
             || (phase == "Taxiing" && !string.IsNullOrEmpty(ac.AssignedRunway));
@@ -205,7 +205,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        var phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase ?? "";
         return phase is "LinedUpAndWaiting" or "LiningUp" or "Takeoff";
     }
 
@@ -248,7 +248,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        var phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase ?? "";
         return IsOnArrival(ac) || phase is "TouchAndGo" or "StopAndGo" or "LowApproach";
     }
 
@@ -272,7 +272,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        var phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase ?? "";
         return phase is "Landing" or "Runway Exit";
     }
 
@@ -310,7 +310,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        var phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase ?? "";
         return phase is "Pushback" or "Pushback to Spot" or "Taxiing" || phase.StartsWith("Following", StringComparison.Ordinal);
     }
 
@@ -350,7 +350,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        var phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase ?? "";
         return phase
                 is "At Parking"
                     or "Pushback"
@@ -377,7 +377,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        var phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase ?? "";
         return string.IsNullOrEmpty(phase) || IsPendingLandingPhase(phase) || IsHoldingPhase(phase);
     }
 

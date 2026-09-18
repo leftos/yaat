@@ -33,21 +33,21 @@ public class ParkingExtensionDirectionTests
     [Fact]
     public void Oak_TaxiGD_ToNew1_TurnsTowardParking_NotAwayDownC()
     {
-        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
         if (layout is null || TestVnasData.NavigationDb is null)
         {
             _output.WriteLine("oak layout / navdata unavailable — skipping");
             return;
         }
 
-        var newParking = layout.FindParkingByName("NEW1");
+        GroundNode? newParking = layout.FindParkingByName("NEW1");
         Assert.NotNull(newParking);
 
         // A node on taxiway G near the 28R crossing — the route continues G → D → NEW1.
-        var start = NearestNodeOnTaxiway(layout, "G", 37.727440, -122.212859);
+        GroundNode start = NearestNodeOnTaxiway(layout, "G", 37.727440, -122.212859);
         _output.WriteLine($"start node = {start.Id}, NEW1 = {newParking.Id}");
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             start.Id,
             ["G", "D"],
@@ -74,14 +74,14 @@ public class ParkingExtensionDirectionTests
     [Fact]
     public void Oak_TaxiGCD_ToNew1_TurnsTowardParking_NotWrongWayDownCAcrossRunway()
     {
-        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
         if (layout is null || TestVnasData.NavigationDb is null)
         {
             _output.WriteLine("oak layout / navdata unavailable — skipping");
             return;
         }
 
-        var newParking = layout.FindParkingByName("NEW1");
+        GroundNode? newParking = layout.FindParkingByName("NEW1");
         Assert.NotNull(newParking);
 
         // Same start as the TAXI G D case above: a node on taxiway G near the 28R crossing.
@@ -91,10 +91,10 @@ public class ParkingExtensionDirectionTests
         // because its tail dead-ends short of NEW1 (turning onto D there is an inadmissible U-turn), so
         // the probe never charges the real detour. The route then loops the wrong way down C, threads
         // taxiway E, doubles back across runway 28R, and only then reaches D → NEW1 (~3× the distance).
-        var start = NearestNodeOnTaxiway(layout, "G", 37.727440, -122.212859);
+        GroundNode start = NearestNodeOnTaxiway(layout, "G", 37.727440, -122.212859);
         _output.WriteLine($"start node = {start.Id}, NEW1 = {newParking.Id}");
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             start.Id,
             ["G", "C", "D"],

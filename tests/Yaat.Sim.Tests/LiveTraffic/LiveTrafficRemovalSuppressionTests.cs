@@ -47,7 +47,7 @@ public class LiveTrafficRemovalSuppressionTests
     [Fact]
     public void ADeletedRemoval_RaisesTheHostsFeedSuppressionOnce()
     {
-        var engine = EngineWithShadow();
+        SimulationEngine engine = EngineWithShadow();
         var host = new AttendanceActionHost();
 
         engine.Actions.ApplyRecorded(new RecordedLiveTrafficRemoval(0, Callsign, LiveTrafficRemovalReason.Deleted), host);
@@ -65,7 +65,7 @@ public class LiveTrafficRemovalSuppressionTests
     [Fact]
     public void TheSuppressionConsumer_FiresAfterTheShadowHasLeftTheWorld()
     {
-        var engine = EngineWithShadow();
+        SimulationEngine engine = EngineWithShadow();
         var host = new AttendanceActionHost();
         bool? stillInWorldWhenTold = null;
         host.WhenLiveTrafficHidden = callsign => stillInWorldWhenTold = engine.World.FindAircraft(callsign) is not null;
@@ -79,7 +79,7 @@ public class LiveTrafficRemovalSuppressionTests
     [Fact]
     public void AFeedRemoval_TakesTheShadowOut_WithoutSuppressingTheCallsign()
     {
-        var engine = EngineWithShadow();
+        SimulationEngine engine = EngineWithShadow();
         var host = new AttendanceActionHost();
 
         engine.Actions.ApplyRecorded(new RecordedLiveTrafficRemoval(0, Callsign, LiveTrafficRemovalReason.OutOfScope), host);

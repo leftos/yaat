@@ -33,7 +33,11 @@ public partial class MainViewModel
 
     public void RefreshDisplayFavorites()
     {
-        var composed = _favoriteStore.ComposeDisplay(ActiveScenarioId, ActiveScenarioPrimaryAirportId, _preferences.LoadedFavoriteSetIds);
+        List<FavoriteDisplayEntry> composed = _favoriteStore.ComposeDisplay(
+            ActiveScenarioId,
+            ActiveScenarioPrimaryAirportId,
+            _preferences.LoadedFavoriteSetIds
+        );
 
         // Entries are records over stable entity references, so sequence equality is a valid
         // change detector. Skipping the no-op case matters: mutators refresh synchronously AND
@@ -45,7 +49,7 @@ public partial class MainViewModel
         }
 
         DisplayFavorites.Clear();
-        foreach (var entry in composed)
+        foreach (FavoriteDisplayEntry entry in composed)
         {
             DisplayFavorites.Add(entry);
         }
@@ -60,14 +64,14 @@ public partial class MainViewModel
     {
         var options = new List<FavoriteContainerOption> { new("Global", _favoriteStore.GlobalSet.Id, FavoriteSetKind.Global, Key: null) };
 
-        var activeAirport = FavoriteStore.NormalizeAirportId(ActiveScenarioPrimaryAirportId);
+        string? activeAirport = FavoriteStore.NormalizeAirportId(ActiveScenarioPrimaryAirportId);
         if (activeAirport is not null && _favoriteStore.FindAirportSet(activeAirport) is null)
         {
             options.Add(new FavoriteContainerOption($"Airport ({activeAirport})", SetId: null, FavoriteSetKind.Airport, activeAirport));
         }
 
-        var activeScenarioPending = ActiveScenarioId is not null && _favoriteStore.FindScenarioSet(ActiveScenarioId) is null;
-        foreach (var set in _favoriteStore.OrderedSets)
+        bool activeScenarioPending = ActiveScenarioId is not null && _favoriteStore.FindScenarioSet(ActiveScenarioId) is null;
+        foreach (FavoriteSet set in _favoriteStore.OrderedSets)
         {
             switch (set.Kind)
             {
@@ -76,7 +80,7 @@ public partial class MainViewModel
                     options.Add(new FavoriteContainerOption(set.DisplayName, set.Id, set.Kind, set.Key));
                     break;
                 case FavoriteSetKind.Named:
-                    var label = IsFavoriteSetLoaded(set.Id) ? set.Name : $"{set.Name} (not loaded)";
+                    string label = IsFavoriteSetLoaded(set.Id) ? set.Name : $"{set.Name} (not loaded)";
                     options.Add(new FavoriteContainerOption(label, set.Id, set.Kind, Key: null));
                     break;
             }
@@ -84,9 +88,9 @@ public partial class MainViewModel
 
         if (activeScenarioPending)
         {
-            var scenarioLabel = $"Scenario ({ActiveScenarioName ?? ActiveScenarioId})";
+            string scenarioLabel = $"Scenario ({ActiveScenarioName ?? ActiveScenarioId})";
             var scenarioOption = new FavoriteContainerOption(scenarioLabel, SetId: null, FavoriteSetKind.Scenario, ActiveScenarioId);
-            var insertAt = options.FindLastIndex(o => o.Kind is FavoriteSetKind.Global or FavoriteSetKind.Airport or FavoriteSetKind.Scenario) + 1;
+            int insertAt = options.FindLastIndex(o => o.Kind is FavoriteSetKind.Global or FavoriteSetKind.Airport or FavoriteSetKind.Scenario) + 1;
             options.Insert(insertAt, scenarioOption);
         }
 
@@ -138,14 +142,14 @@ public partial class MainViewModel
             return;
         }
 
-        var currentText = CommandText.Trim();
-        var favoriteCommandText = ResolveFavoriteCommandText(favorite);
+        string currentText = CommandText.Trim();
+        string favoriteCommandText = ResolveFavoriteCommandText(favorite);
 
         // Build the full command: "{currentText} {favoriteCommandText}" or just "{favoriteCommandText}"
-        var fullCommand = string.IsNullOrEmpty(currentText) ? favoriteCommandText : $"{currentText} {favoriteCommandText}";
+        string fullCommand = string.IsNullOrEmpty(currentText) ? favoriteCommandText : $"{currentText} {favoriteCommandText}";
 
-        var savedText = CommandText;
-        var savedCaret = CommandCaretIndex;
+        string savedText = CommandText;
+        int savedCaret = CommandCaretIndex;
         CommandText = fullCommand;
         CommandCaretIndex = fullCommand.Length;
 
@@ -168,9 +172,9 @@ public partial class MainViewModel
             return;
         }
 
-        var current = CommandText.TrimEnd();
-        var favoriteCommandText = ResolveFavoriteCommandText(favorite);
-        var newText = string.IsNullOrEmpty(current) ? favoriteCommandText : $"{current}, {favoriteCommandText}";
+        string current = CommandText.TrimEnd();
+        string favoriteCommandText = ResolveFavoriteCommandText(favorite);
+        string newText = string.IsNullOrEmpty(current) ? favoriteCommandText : $"{current}, {favoriteCommandText}";
         CommandText = newText;
         CommandCaretIndex = newText.Length;
     }
@@ -201,10 +205,10 @@ public partial class MainViewModel
     /// <summary>Saves each favorite entity and appends all of them to each destination set (shared entities, not copies).</summary>
     public void AddFavorites(IReadOnlyList<FavoriteCommand> favorites, IReadOnlyList<string> setIds)
     {
-        foreach (var favorite in favorites)
+        foreach (FavoriteCommand favorite in favorites)
         {
             _favoriteStore.SaveFavorite(favorite);
-            foreach (var setId in setIds)
+            foreach (string setId in setIds)
             {
                 _favoriteStore.AddToSet(setId, favorite.Id);
             }
@@ -219,13 +223,13 @@ public partial class MainViewModel
     public void UpdateFavorite(FavoriteCommand updated, IReadOnlyList<string> setIds)
     {
         _favoriteStore.SaveFavorite(updated);
-        var current = _favoriteStore.GetMembershipSetIds(updated.Id);
-        foreach (var setId in setIds.Where(id => !current.Contains(id, StringComparer.OrdinalIgnoreCase)))
+        List<string> current = _favoriteStore.GetMembershipSetIds(updated.Id);
+        foreach (string? setId in setIds.Where(id => !current.Contains(id, StringComparer.OrdinalIgnoreCase)))
         {
             _favoriteStore.AddToSet(setId, updated.Id);
         }
 
-        foreach (var setId in current.Where(id => !setIds.Contains(id, StringComparer.OrdinalIgnoreCase)))
+        foreach (string? setId in current.Where(id => !setIds.Contains(id, StringComparer.OrdinalIgnoreCase)))
         {
             _favoriteStore.RemoveFromSet(setId, updated.Id);
         }
@@ -263,14 +267,14 @@ public partial class MainViewModel
 
     private void InsertBlankNear(FavoriteDisplayEntry anchor, FavoriteCommand blank, int offset)
     {
-        var set = _favoriteStore.GetSet(anchor.SetId);
+        FavoriteSet? set = _favoriteStore.GetSet(anchor.SetId);
         if (set is null)
         {
             return;
         }
 
         _favoriteStore.SaveFavorite(blank);
-        var anchorIndex = set.FavoriteIds.FindIndex(id => string.Equals(id, anchor.Favorite.Id, StringComparison.OrdinalIgnoreCase));
+        int anchorIndex = set.FavoriteIds.FindIndex(id => string.Equals(id, anchor.Favorite.Id, StringComparison.OrdinalIgnoreCase));
         _favoriteStore.InsertInSet(set.Id, blank.Id, anchorIndex < 0 ? int.MaxValue : anchorIndex + offset);
         RefreshDisplayFavorites();
     }
@@ -284,7 +288,7 @@ public partial class MainViewModel
             return;
         }
 
-        var set = _favoriteStore.GetSet(moving.SetId);
+        FavoriteSet? set = _favoriteStore.GetSet(moving.SetId);
         if (set is null)
         {
             return;
@@ -296,7 +300,7 @@ public partial class MainViewModel
             return;
         }
 
-        var anchorIndex = ids.FindIndex(id => string.Equals(id, anchor.Favorite.Id, StringComparison.OrdinalIgnoreCase));
+        int anchorIndex = ids.FindIndex(id => string.Equals(id, anchor.Favorite.Id, StringComparison.OrdinalIgnoreCase));
         if (anchorIndex < 0)
         {
             ids.Add(moving.Favorite.Id);
@@ -321,7 +325,7 @@ public partial class MainViewModel
     /// </summary>
     public FavoriteImportResult? ImportFavoritesFile(string fileName, Stream input, FavoriteImportMode mode)
     {
-        var result = FavoriteExport.ImportFile(_favoriteStore, fileName, input, mode);
+        FavoriteImportResult? result = FavoriteExport.ImportFile(_favoriteStore, fileName, input, mode);
         if (result is null)
         {
             return null;
@@ -333,7 +337,7 @@ public partial class MainViewModel
         }
         else
         {
-            foreach (var setId in result.NewSetIdsToLoad)
+            foreach (string setId in result.NewSetIdsToLoad)
             {
                 _preferences.SetFavoriteSetLoaded(setId, true);
             }

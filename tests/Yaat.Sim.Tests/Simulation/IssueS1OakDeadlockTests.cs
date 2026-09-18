@@ -65,8 +65,8 @@ public class IssueS1OakDeadlockTests(ITestOutputHelper output)
     [Fact]
     public void ConvergenceWinner_DoesNotStallAcrossMerge()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -86,8 +86,8 @@ public class IssueS1OakDeadlockTests(ITestOutputHelper output)
         for (int t = 96; t <= 130; t++)
         {
             engine.ReplayOneSecond();
-            var w = engine.FindAircraft(Winner);
-            var y = engine.FindAircraft(Yielder);
+            AircraftState? w = engine.FindAircraft(Winner);
+            AircraftState? y = engine.FindAircraft(Yielder);
             Assert.NotNull(w);
             Assert.NotNull(y);
 

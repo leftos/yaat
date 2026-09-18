@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -45,7 +47,7 @@ public class Plan270LongWayTurnTests(ITestOutputHelper output)
     [Fact]
     public void N123AB_Plan270FromRightBase_TurnsLeftTheLongWay()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -53,21 +55,21 @@ public class Plan270LongWayTurnTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
             engine.Replay(archive.ToBaseSessionRecording(), 0);
-            var snapshot = archive.ReadSnapshotAt(SnapshotSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(SnapshotSeconds);
             if (snapshot is null)
             {
                 return;
             }
             engine.RestoreFromSnapshot(snapshot.State);
 
-            var aircraft = engine.FindAircraft("N123AB");
+            AircraftState? aircraft = engine.FindAircraft("N123AB");
             Assert.NotNull(aircraft);
 
             // Preconditions: established on a RIGHT-traffic Base leg.
@@ -76,7 +78,7 @@ public class Plan270LongWayTurnTests(ITestOutputHelper output)
             double baseHeading = aircraft.TrueHeading.Degrees;
             output.WriteLine($"pre: phase={aircraft.Phases.CurrentPhase?.Name} hdg={baseHeading:F0} traffic={aircraft.Phases.TrafficDirection}");
 
-            var result = engine.SendCommand("N123AB", "P270");
+            CommandResult result = engine.SendCommand("N123AB", "P270");
             output.WriteLine($"P270 -> Success={result.Success} Message='{result.Message}'");
 
             // For a RIGHT-traffic pattern the long way round to final is a LEFT 270.
@@ -97,7 +99,7 @@ public class Plan270LongWayTurnTests(ITestOutputHelper output)
             for (int t = 1; t <= 120 && !rolledOutOnFinal; t++)
             {
                 engine.TickOneSecond();
-                var ac = engine.FindAircraft("N123AB");
+                AircraftState? ac = engine.FindAircraft("N123AB");
                 if (ac is null)
                 {
                     break;

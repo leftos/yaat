@@ -29,18 +29,18 @@ public class BlockedTurnResolverTests
     [Fact]
     public void BlocksThePivotTurn_Bidirectional_ThroughTheApex()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var result = BlockedTurnResolver.Resolve(layout, [SfoTurn()]);
+        BlockedTurnResult result = BlockedTurnResolver.Resolve(layout, [SfoTurn()]);
         Assert.NotEmpty(result.ForbiddenTurns);
 
         int apexId = layout.FindNearestNode(ApexA.Lat, ApexA.Lon)!.Id;
 
-        foreach (var (prev, apex, next) in result.ForbiddenTurns)
+        foreach ((int prev, int apex, int next) in result.ForbiddenTurns)
         {
             Assert.Equal(apexId, apex); // every blocked pivot is the L/F apex, not a collinear arm node
             Assert.Contains((next, apex, prev), result.ForbiddenTurns); // bidirectional
@@ -50,19 +50,19 @@ public class BlockedTurnResolverTests
     [Fact]
     public void HidesExactlyTheLFCornerArc_OtherCornersRemain()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var result = BlockedTurnResolver.Resolve(layout, [SfoTurn()]);
+        BlockedTurnResult result = BlockedTurnResolver.Resolve(layout, [SfoTurn()]);
         Assert.NotEmpty(result.HiddenArcPairs);
 
         // Every hidden arc bridges L and F (the blocked corner), and is a real arc in the layout.
-        foreach (var (a, b) in result.HiddenArcPairs)
+        foreach ((int a, int b) in result.HiddenArcPairs)
         {
-            var arc = ArcByPair(layout, a, b);
+            GroundArc? arc = ArcByPair(layout, a, b);
             Assert.NotNull(arc);
             Assert.True(arc!.MatchesTaxiway("L") && arc.MatchesTaxiway("F"));
         }
@@ -73,7 +73,7 @@ public class BlockedTurnResolverTests
         Assert.True(lfArcs.Count > hiddenLf, "other L/F corner arcs must remain drawn");
 
         // Sibling F/F1 corner arcs at the same apex are never hidden.
-        foreach (var arc in layout.Arcs.Where(a => a.MatchesTaxiway("F") && a.MatchesTaxiway("F1")))
+        foreach (GroundArc? arc in layout.Arcs.Where(a => a.MatchesTaxiway("F") && a.MatchesTaxiway("F1")))
         {
             Assert.False(result.IsHiddenArc(arc.Nodes[0].Id, arc.Nodes[1].Id));
         }
@@ -82,16 +82,16 @@ public class BlockedTurnResolverTests
     [Fact]
     public void HiddenArc_IsAlsoForbiddenToRoute_BothDirections()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var result = BlockedTurnResolver.Resolve(layout, [SfoTurn()]);
+        BlockedTurnResult result = BlockedTurnResolver.Resolve(layout, [SfoTurn()]);
         Assert.NotEmpty(result.HiddenArcPairs);
 
-        foreach (var (a, b) in result.HiddenArcPairs)
+        foreach ((int a, int b) in result.HiddenArcPairs)
         {
             Assert.Contains((a, b), result.ForbiddenArcMoves);
             Assert.Contains((b, a), result.ForbiddenArcMoves);
@@ -101,15 +101,15 @@ public class BlockedTurnResolverTests
     [Fact]
     public void DuplicateMiddleWaypoint_CollapsesToSingleApex()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
         // The 4-point path (duplicate apex) must resolve identically to a 3-point path (single apex).
-        var withDuplicate = BlockedTurnResolver.Resolve(layout, [new BlockedTurn([L, ApexA, ApexB, F], null)]);
-        var singleApex = BlockedTurnResolver.Resolve(layout, [new BlockedTurn([L, ApexA, F], null)]);
+        BlockedTurnResult withDuplicate = BlockedTurnResolver.Resolve(layout, [new BlockedTurn([L, ApexA, ApexB, F], null)]);
+        BlockedTurnResult singleApex = BlockedTurnResolver.Resolve(layout, [new BlockedTurn([L, ApexA, F], null)]);
 
         Assert.True(withDuplicate.ForbiddenTurns.SetEquals(singleApex.ForbiddenTurns));
         Assert.True(withDuplicate.HiddenArcPairs.SetEquals(singleApex.HiddenArcPairs));
@@ -118,13 +118,13 @@ public class BlockedTurnResolverTests
     [Fact]
     public void EmptyTurns_ProduceEmptyResult()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var result = BlockedTurnResolver.Resolve(layout, []);
+        BlockedTurnResult result = BlockedTurnResolver.Resolve(layout, []);
         Assert.Empty(result.ForbiddenTurns);
         Assert.Empty(result.ForbiddenArcMoves);
         Assert.Empty(result.HiddenArcPairs);

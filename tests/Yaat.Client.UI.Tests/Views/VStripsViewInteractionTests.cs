@@ -23,9 +23,9 @@ public class VStripsViewInteractionTests
     [AvaloniaFact]
     public void VStripsViewWindow_BootsWithSeededBays()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var (window, view) = BootView(vm);
+        (Window? window, VStripsView? view) = BootView(vm);
 
         Assert.True(window.IsVisible);
         Assert.Equal("Fresno ATCT", vm.FacilityName);
@@ -38,7 +38,7 @@ public class VStripsViewInteractionTests
 
         // The facility button shows the short id (CRC's "BOS" box shape);
         // the full name lives in its tooltip.
-        var facilityButton = view.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "FacilityButton");
+        Button facilityButton = view.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "FacilityButton");
         Assert.Equal("FAC1", facilityButton.Content);
         Assert.Equal("Fresno ATCT — switch this window's facility", ToolTip.GetTip(facilityButton));
     }
@@ -52,7 +52,7 @@ public class VStripsViewInteractionTests
         // or the ItemsControl.Styles DockPanel.Dock="Bottom" selector ever
         // flips, strips would render top-down and every ComputeDropIndex
         // branch would silently target the wrong visual slot.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
         SeedStripsInBay(
             vm,
@@ -63,7 +63,7 @@ public class VStripsViewInteractionTests
                 [],
             ]
         );
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
         var strips = view.GetVisualDescendants().OfType<FlightStripControl>().Where(c => c.DataContext is StripItemViewModel).ToList();
         // The rack-mounted controls + the drag-ghost slot (not used here) and
@@ -86,20 +86,20 @@ public class VStripsViewInteractionTests
         // With more bays than fit the window, the header's bay strip must
         // scroll horizontally under the wheel (vertical or tilt) so hidden
         // bay buttons are reachable without resizing the window.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, ManyBaysConfig());
-        var (window, view) = BootView(vm, width: 520);
+        (Window? window, VStripsView? view) = BootView(vm, width: 520);
 
-        var scroller = view.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "BayBarScroller");
+        ScrollViewer scroller = view.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "BayBarScroller");
         Assert.True(scroller.Extent.Width > scroller.Viewport.Width, "bay strip must overflow the 520px window for this test");
         Assert.Equal(0, scroller.Offset.X);
 
-        var center = scroller.TranslatePoint(new Point(scroller.Bounds.Width / 2, scroller.Bounds.Height / 2), window)!.Value;
+        Point center = scroller.TranslatePoint(new Point(scroller.Bounds.Width / 2, scroller.Bounds.Height / 2), window)!.Value;
 
         // Wheel down → scroll right (offset grows).
         window.MouseWheel(center, new Vector(0, -1));
         Dispatcher.UIThread.RunJobs();
-        var afterDown = scroller.Offset.X;
+        double afterDown = scroller.Offset.X;
         Assert.True(afterDown > 0, $"wheel down should scroll right, offset stayed {afterDown}");
 
         // Wheel up → scroll back left, clamped at 0.
@@ -119,14 +119,14 @@ public class VStripsViewInteractionTests
     {
         // Covers the zoom +/- buttons added in Round 1.5. Default is 0.8;
         // minus steps by 0.1 down to 0.5, plus steps up to 1.5.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
         Assert.Equal(0.8, vm.ZoomScale, 3);
 
-        var zoomOut = view.GetVisualDescendants().OfType<Button>().Single(b => b.Content is string s && s == "−");
-        var zoomIn = view.GetVisualDescendants().OfType<Button>().Single(b => b.Content is string s && s == "+");
+        Button zoomOut = view.GetVisualDescendants().OfType<Button>().Single(b => b.Content is string s && s == "−");
+        Button zoomIn = view.GetVisualDescendants().OfType<Button>().Single(b => b.Content is string s && s == "+");
 
         zoomOut.Command?.Execute(null);
         Dispatcher.UIThread.RunJobs();
@@ -138,7 +138,7 @@ public class VStripsViewInteractionTests
         Assert.Equal(0.9, vm.ZoomScale, 3);
 
         // Clamp at 0.5 — step down 8 times from 0.9.
-        for (var i = 0; i < 8; i++)
+        for (int i = 0; i < 8; i++)
         {
             zoomOut.Command?.Execute(null);
         }
@@ -146,7 +146,7 @@ public class VStripsViewInteractionTests
         Assert.Equal(0.5, vm.ZoomScale, 3);
 
         // Clamp at 1.5 — step up 15 times from 0.5.
-        for (var i = 0; i < 15; i++)
+        for (int i = 0; i < 15; i++)
         {
             zoomIn.Command?.Execute(null);
         }
@@ -159,7 +159,7 @@ public class VStripsViewInteractionTests
     {
         // Right-click on a full strip shows: Offset, Push-to-{bays}, Delete.
         // Half-strip and separator items are absent for full strips.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
         SeedStripsInBay(
             vm,
@@ -170,11 +170,11 @@ public class VStripsViewInteractionTests
                 [],
             ]
         );
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var strip = vm.ItemsByIdForTests["S1"];
-        var menu = view.BuildStripContextMenu(strip, vm);
-        var headers = ExtractHeaders(menu);
+        StripItemViewModel strip = vm.ItemsByIdForTests["S1"];
+        MenuFlyout menu = view.BuildStripContextMenu(strip, vm);
+        List<string?> headers = ExtractHeaders(menu);
 
         Assert.Contains("Offset", headers);
         Assert.Contains("Push to", headers);
@@ -184,7 +184,7 @@ public class VStripsViewInteractionTests
         Assert.DoesNotContain("Edit label", headers);
 
         // "Push to" sub-menu has one item per bay.
-        var pushItem = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Push to");
+        MenuItem pushItem = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Push to");
         var pushTargets = pushItem.Items.OfType<MenuItem>().Select(m => (string?)m.Header).ToList();
         Assert.Equal(2, pushTargets.Count);
         Assert.Contains("GROUND", pushTargets);
@@ -197,7 +197,7 @@ public class VStripsViewInteractionTests
         // Right-click on a strip whose rack holds more than one strip exposes a
         // "Push all in rack to" submenu with one item per bay. Hidden when the
         // rack has only one strip (then "Push to" already does the same job).
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
         SeedStripsInBay(
             vm,
@@ -208,14 +208,14 @@ public class VStripsViewInteractionTests
                 [],
             ]
         );
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var strip = vm.ItemsByIdForTests["S1"];
-        var menu = view.BuildStripContextMenu(strip, vm);
-        var headers = ExtractHeaders(menu);
+        StripItemViewModel strip = vm.ItemsByIdForTests["S1"];
+        MenuFlyout menu = view.BuildStripContextMenu(strip, vm);
+        List<string?> headers = ExtractHeaders(menu);
 
         Assert.Contains("Push all in rack to", headers);
-        var pushAll = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Push all in rack to");
+        MenuItem pushAll = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Push all in rack to");
         var targets = pushAll.Items.OfType<MenuItem>().Select(m => (string?)m.Header).ToList();
         Assert.Equal(2, targets.Count);
         Assert.Contains("GROUND", targets);
@@ -227,7 +227,7 @@ public class VStripsViewInteractionTests
     {
         // With only one strip in the rack, "Push all in rack to" is redundant
         // with "Push to" and is suppressed.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
         SeedStripsInBay(
             vm,
@@ -238,11 +238,11 @@ public class VStripsViewInteractionTests
                 [],
             ]
         );
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var strip = vm.ItemsByIdForTests["S1"];
-        var menu = view.BuildStripContextMenu(strip, vm);
-        var headers = ExtractHeaders(menu);
+        StripItemViewModel strip = vm.ItemsByIdForTests["S1"];
+        MenuFlyout menu = view.BuildStripContextMenu(strip, vm);
+        List<string?> headers = ExtractHeaders(menu);
 
         Assert.DoesNotContain("Push all in rack to", headers);
     }
@@ -254,7 +254,7 @@ public class VStripsViewInteractionTests
         // bay-gnd emits three STRIP canonicals — one per strip — in the
         // source's visual-bottom-to-top order so the destination preserves
         // the same order at its visual bottom.
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         SeedStripsInBay(
             vm,
@@ -265,19 +265,19 @@ public class VStripsViewInteractionTests
                 [],
             ]
         );
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var strip = vm.ItemsByIdForTests["S1"];
-        var menu = view.BuildStripContextMenu(strip, vm);
-        var pushAll = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Push all in rack to");
-        var localItem = pushAll.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "LOCAL");
+        StripItemViewModel strip = vm.ItemsByIdForTests["S1"];
+        MenuFlyout menu = view.BuildStripContextMenu(strip, vm);
+        MenuItem pushAll = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Push all in rack to");
+        MenuItem localItem = pushAll.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "LOCAL");
 
         // Click handlers are async void Click handlers; await the underlying
         // PushAllInRackAsync indirectly by invoking the same path the click
         // would invoke. We simulate the click via Click handlers RaiseEvent —
         // that fires the registered async lambda, which we then drain.
         localItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-        for (var i = 0; i < 4 && captured.Count < 3; i++)
+        for (int i = 0; i < 4 && captured.Count < 3; i++)
         {
             await Task.Yield();
             Dispatcher.UIThread.RunJobs();
@@ -299,7 +299,7 @@ public class VStripsViewInteractionTests
         // SimpleConfig has no external bays. The "Scan to" submenu only shows
         // when at least one external bay is accessible — without one, scanning
         // has no destination, so the entry is suppressed.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
         SeedStripsInBay(
             vm,
@@ -310,11 +310,11 @@ public class VStripsViewInteractionTests
                 [],
             ]
         );
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var strip = vm.ItemsByIdForTests["S1"];
-        var menu = view.BuildStripContextMenu(strip, vm);
-        var headers = ExtractHeaders(menu);
+        StripItemViewModel strip = vm.ItemsByIdForTests["S1"];
+        MenuFlyout menu = view.BuildStripContextMenu(strip, vm);
+        List<string?> headers = ExtractHeaders(menu);
 
         Assert.DoesNotContain("Scan to", headers);
     }
@@ -328,7 +328,7 @@ public class VStripsViewInteractionTests
         // mixing them under Scan-to would invite a wrong-destination click
         // (server would reject anyway, but the UX should keep the surface
         // semantically clean).
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, ConfigWithExternalBay());
         SeedStripsInBay(
             vm,
@@ -339,14 +339,14 @@ public class VStripsViewInteractionTests
                 [],
             ]
         );
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var strip = vm.ItemsByIdForTests["S1"];
-        var menu = view.BuildStripContextMenu(strip, vm);
-        var headers = ExtractHeaders(menu);
+        StripItemViewModel strip = vm.ItemsByIdForTests["S1"];
+        MenuFlyout menu = view.BuildStripContextMenu(strip, vm);
+        List<string?> headers = ExtractHeaders(menu);
 
         Assert.Contains("Scan to", headers);
-        var scanItem = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Scan to");
+        MenuItem scanItem = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Scan to");
         var targets = scanItem.Items.OfType<MenuItem>().Select(m => (string?)m.Header).ToList();
 
         // Only external bays should appear; internal bays would create a
@@ -364,7 +364,7 @@ public class VStripsViewInteractionTests
         // append-to-tail of rack 1 (CRC bottom-up first-available). The
         // dispatched callsign matches the strip's AircraftId (full-strip
         // aircraft-scoped behavior).
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, ConfigWithExternalBay());
         SeedStripsInBay(
             vm,
@@ -375,21 +375,21 @@ public class VStripsViewInteractionTests
                 [],
             ]
         );
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var strip = vm.ItemsByIdForTests["S1"];
-        var menu = view.BuildStripContextMenu(strip, vm);
-        var scanItem = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Scan to");
-        var nctItem = scanItem.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "NCT");
+        StripItemViewModel strip = vm.ItemsByIdForTests["S1"];
+        MenuFlyout menu = view.BuildStripContextMenu(strip, vm);
+        MenuItem scanItem = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Scan to");
+        MenuItem nctItem = scanItem.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "NCT");
 
         nctItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-        for (var i = 0; i < 4 && captured.Count < 1; i++)
+        for (int i = 0; i < 4 && captured.Count < 1; i++)
         {
             await Task.Yield();
             Dispatcher.UIThread.RunJobs();
         }
 
-        var emitted = Assert.Single(captured);
+        (string Callsign, string Command) emitted = Assert.Single(captured);
         Assert.Equal("S1", emitted.Callsign);
         Assert.Equal("SCAN NCT/NCT/1", emitted.Command);
     }
@@ -402,7 +402,7 @@ public class VStripsViewInteractionTests
         // Every menu item now dispatches by strip id (STRIPD STRIP_<id> /
         // STRIPO STRIP_<id> / AN STRIP_<id> / STRIP STRIP_<id> ...), so the
         // receiver can manage the copy without disturbing the original.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, ConfigWithExternalBay());
 
         var copy = new StripItemDto(
@@ -432,11 +432,11 @@ public class VStripsViewInteractionTests
                 ItemMovedOrCreatedBySessionId: null
             )
         );
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var strip = vm.ItemsByIdForTests["STRIP_UAL123_abcdef01"];
-        var menu = view.BuildStripContextMenu(strip, vm);
-        var headers = ExtractHeaders(menu);
+        StripItemViewModel strip = vm.ItemsByIdForTests["STRIP_UAL123_abcdef01"];
+        MenuFlyout menu = view.BuildStripContextMenu(strip, vm);
+        List<string?> headers = ExtractHeaders(menu);
 
         Assert.Contains("Offset", headers);
         Assert.Contains("Push to", headers);
@@ -449,7 +449,7 @@ public class VStripsViewInteractionTests
     {
         // Right-click on rack space below populated strips exposes "Push all
         // to" with one item per bay. Behavior matches the strip context menu.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
         SeedStripsInBay(
             vm,
@@ -460,15 +460,15 @@ public class VStripsViewInteractionTests
                 [],
             ]
         );
-        var (_, _) = BootView(vm);
+        (Window _, VStripsView _) = BootView(vm);
 
-        var rack = vm.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
-        var menu = VStripsView.BuildEmptyRackMenu(rack, vm);
+        StripRackViewModel rack = vm.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        MenuFlyout? menu = VStripsView.BuildEmptyRackMenu(rack, vm);
         Assert.NotNull(menu);
-        var headers = ExtractHeaders(menu!);
+        List<string?> headers = ExtractHeaders(menu!);
 
         Assert.Contains("Push all to", headers);
-        var pushAll = menu!.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Push all to");
+        MenuItem pushAll = menu!.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Push all to");
         var targets = pushAll.Items.OfType<MenuItem>().Select(m => (string?)m.Header).ToList();
         Assert.Equal(2, targets.Count);
         Assert.Contains("GROUND", targets);
@@ -479,14 +479,14 @@ public class VStripsViewInteractionTests
     public void EmptyRackContextMenu_EmptyRack_HidesPushAllTo()
     {
         // No strips in the rack → no "Push all to" submenu.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var (_, _) = BootView(vm);
+        (Window _, VStripsView _) = BootView(vm);
 
-        var rack = vm.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
-        var menu = VStripsView.BuildEmptyRackMenu(rack, vm);
+        StripRackViewModel rack = vm.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        MenuFlyout? menu = VStripsView.BuildEmptyRackMenu(rack, vm);
         Assert.NotNull(menu);
-        var headers = ExtractHeaders(menu!);
+        List<string?> headers = ExtractHeaders(menu!);
 
         Assert.DoesNotContain("Push all to", headers);
     }
@@ -497,21 +497,21 @@ public class VStripsViewInteractionTests
         // Right-click on empty rack space in an unlocked facility exposes Add
         // Half-Strip, Add Separator (4 styles: Handwritten, White, Red,
         // Green), and Add Blank Strip. Matches docs/crc/vstrips.md:180-195.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var (_, _) = BootView(vm);
+        (Window _, VStripsView _) = BootView(vm);
 
-        var rack = vm.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
-        var menu = VStripsView.BuildEmptyRackMenu(rack, vm);
+        StripRackViewModel rack = vm.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        MenuFlyout? menu = VStripsView.BuildEmptyRackMenu(rack, vm);
         Assert.NotNull(menu);
-        var headers = ExtractHeaders(menu!);
+        List<string?> headers = ExtractHeaders(menu!);
 
         Assert.Contains("Add half-strip", headers);
         Assert.Contains("Add separator", headers);
         Assert.Contains("Add blank strip", headers);
         Assert.DoesNotContain("Add handwritten separator", headers);
 
-        var sepItem = menu!.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Add separator");
+        MenuItem sepItem = menu!.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Add separator");
         var styles = sepItem.Items.OfType<MenuItem>().Select(m => (string?)m.Header).ToList();
         Assert.Equal(4, styles.Count);
         Assert.Contains("Handwritten", styles);
@@ -525,7 +525,7 @@ public class VStripsViewInteractionTests
     {
         // Locked facilities collapse the separator styles to Handwritten only
         // (docs/crc/vstrips.md:195).
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(
             vm,
             new FlightStripsConfigDto(
@@ -538,12 +538,12 @@ public class VStripsViewInteractionTests
                 EnableSeparateArrDepPrinters: true
             )
         );
-        var (_, _) = BootView(vm);
+        (Window _, VStripsView _) = BootView(vm);
 
-        var rack = vm.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
-        var menu = VStripsView.BuildEmptyRackMenu(rack, vm);
+        StripRackViewModel rack = vm.Bays.Single(b => b.BayId == "bay-gnd").Racks[0];
+        MenuFlyout? menu = VStripsView.BuildEmptyRackMenu(rack, vm);
         Assert.NotNull(menu);
-        var headers = ExtractHeaders(menu!);
+        List<string?> headers = ExtractHeaders(menu!);
 
         Assert.Contains("Add half-strip", headers);
         Assert.Contains("Add handwritten separator", headers);
@@ -554,14 +554,14 @@ public class VStripsViewInteractionTests
     [AvaloniaFact]
     public void BayButtonClick_SelectsBayViaViewModel()
     {
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
         // Click the LOCAL bay (second one). SelectBayAsync on an own-bay is a
         // local-only selection — no server command emitted. We verify the
         // observable property flipped to prove the click handler ran.
-        var localButton = view.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.Tag is StripBayViewModel bay && bay.Name == "LOCAL");
+        Button? localButton = view.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.Tag is StripBayViewModel bay && bay.Name == "LOCAL");
         Assert.NotNull(localButton);
 
         localButton!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -575,7 +575,7 @@ public class VStripsViewInteractionTests
     [AvaloniaFact]
     public void Disconnect_ClearsRackStripsAndPrinterButKeepsBayLayout()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
         SeedStripsInBay(
             vm,
@@ -607,13 +607,13 @@ public class VStripsViewInteractionTests
     [AvaloniaFact]
     public void Disconnect_BannerVisibleWhenOfflineAndHidesOnReconnect()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
         // Default state is disconnected; the red banner should be visible.
         Assert.False(vm.IsConnected);
-        var banner = view.FindControl<Border>("DisconnectedBanner");
+        Border? banner = view.FindControl<Border>("DisconnectedBanner");
         Assert.NotNull(banner);
         Assert.True(banner!.IsVisible);
 
@@ -631,11 +631,11 @@ public class VStripsViewInteractionTests
         // first inline cell (h0) so the controller can type immediately without
         // clicking. Covers the embedded tab, popped-out window, and /vstrips/
         // webapp — all share this VStripsView / FlightStripControl.
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
         await vm.CreateHalfStripAsync(bay, 0, []);
         Assert.Equal("HSC FAC1/GROUND/1", captured[^1].Command);
 
@@ -646,7 +646,7 @@ public class VStripsViewInteractionTests
         vm.ReconcileFullState(SingleStripInGroundRack("HSTRIP_abc12345"));
         RealizeContainers(view);
 
-        var h0 = FindVisibleField(view, "HSTRIP_abc12345", "h0");
+        TextBox? h0 = FindVisibleField(view, "HSTRIP_abc12345", "h0");
         Assert.NotNull(h0);
         Assert.True(h0!.IsFocused, "First half-strip cell (h0) should be focused after create");
     }
@@ -657,11 +657,11 @@ public class VStripsViewInteractionTests
         // Creating a separator auto-focuses its single label field so the
         // controller can name the band immediately. Same VStripsView /
         // FlightStripControl as the desktop and webapp builds.
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
         await vm.CreateSeparatorAsync(SeparatorStyle.Handwritten, bay, 0, index: null, label: null);
         Assert.StartsWith("SEP ", captured[^1].Command);
 
@@ -669,7 +669,7 @@ public class VStripsViewInteractionTests
         vm.ReconcileFullState(SingleStripInGroundRack("SEP_abc12345"));
         RealizeContainers(view);
 
-        var sep = FindVisibleField(view, "SEP_abc12345", "sep");
+        TextBox? sep = FindVisibleField(view, "SEP_abc12345", "sep");
         Assert.NotNull(sep);
         Assert.True(sep!.IsFocused, "Separator label should be focused after create");
     }
@@ -680,18 +680,18 @@ public class VStripsViewInteractionTests
         // Creating a blank strip auto-focuses its first annotation cell (Tag "1")
         // — the top-left of the hand-annotation grid, the blank's first editable
         // field.
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
         await vm.CreateBlankAsync(bay, 0, index: null);
 
         vm.ReconcileItems([NewBlankDto("BLANK_abc12345")]);
         vm.ReconcileFullState(SingleStripInGroundRack("BLANK_abc12345"));
         RealizeContainers(view);
 
-        var cell = FindVisibleField(view, "BLANK_abc12345", "1");
+        TextBox? cell = FindVisibleField(view, "BLANK_abc12345", "1");
         Assert.NotNull(cell);
         Assert.True(cell!.IsFocused, "First annotation cell of a blank strip should be focused after create");
     }
@@ -702,15 +702,15 @@ public class VStripsViewInteractionTests
         // A half-strip created elsewhere (no local HSC) arrives via the same
         // reconcile path but must NOT grab focus — that would interrupt the
         // controller mid-task.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
         vm.ReconcileItems([NewHalfStripDto("HSTRIP_remote01")]);
         vm.ReconcileFullState(SingleStripInGroundRack("HSTRIP_remote01"));
         RealizeContainers(view);
 
-        var h0 = FindVisibleField(view, "HSTRIP_remote01", "h0");
+        TextBox? h0 = FindVisibleField(view, "HSTRIP_remote01", "h0");
         Assert.NotNull(h0);
         Assert.False(h0!.IsFocused, "A remotely-created half-strip must not steal focus");
     }
@@ -720,7 +720,7 @@ public class VStripsViewInteractionTests
     [AvaloniaFact]
     public void Find_CtrlFOpensBar_TypingHighlightsMatches_EscClosesAndClears()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
         SeedStripsInBay(
             vm,
@@ -730,7 +730,7 @@ public class VStripsViewInteractionTests
                 [],
             ]
         );
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
         // Ctrl+F opens the find bar.
         view.RaiseEvent(
@@ -752,7 +752,7 @@ public class VStripsViewInteractionTests
         Assert.True(vm.ItemsByIdForTests["UAL333"].IsFindMatch);
         Assert.False(vm.ItemsByIdForTests["AAL222"].IsFindMatch);
         Assert.Equal("1/2", view.FindController.MatchSummary);
-        var currentCount = new[] { "UAL111", "AAL222", "UAL333" }.Count(id => vm.ItemsByIdForTests[id].IsCurrentFindMatch);
+        int currentCount = new[] { "UAL111", "AAL222", "UAL333" }.Count(id => vm.ItemsByIdForTests[id].IsCurrentFindMatch);
         Assert.Equal(1, currentCount);
 
         // Next advances the current match.
@@ -771,7 +771,7 @@ public class VStripsViewInteractionTests
     [AvaloniaFact]
     public async Task Find_IsScopedToSelectedBay_AndRefreshesOnBaySwitch()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("UAL111"), FullStrip("DAL999")]);
         vm.ReconcileFullState(
@@ -800,10 +800,10 @@ public class VStripsViewInteractionTests
                 ItemMovedOrCreatedBySessionId: null
             )
         );
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var gnd = vm.Bays.Single(b => b.BayId == "bay-gnd");
-        var loc = vm.Bays.Single(b => b.BayId == "bay-loc");
+        StripBayViewModel gnd = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel loc = vm.Bays.Single(b => b.BayId == "bay-loc");
         await vm.SelectBayAsync(gnd);
         Dispatcher.UIThread.RunJobs();
 
@@ -830,14 +830,14 @@ public class VStripsViewInteractionTests
     [AvaloniaFact]
     public void StickyScroll_NewStripAtBottom_KeepsViewPinnedToBottom()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
         // Enough strips to overflow the 400px window's rack viewport.
-        var ids = Enumerable.Range(0, 10).Select(i => $"S{i:D2}").ToArray();
+        string[] ids = Enumerable.Range(0, 10).Select(i => $"S{i:D2}").ToArray();
         SeedStripsInBay(vm, "bay-gnd", [ids, []]);
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var sv = view.FindControl<ScrollViewer>("RacksScrollViewer");
+        ScrollViewer? sv = view.FindControl<ScrollViewer>("RacksScrollViewer");
         Assert.NotNull(sv);
         Dispatcher.UIThread.RunJobs();
         view.UpdateLayout();
@@ -847,7 +847,7 @@ public class VStripsViewInteractionTests
         Assert.True(sv!.Extent.Height > sv.Viewport.Height, $"content {sv.Extent.Height} must exceed viewport {sv.Viewport.Height}");
 
         // Scroll to the bottom.
-        var maxBefore = sv.Extent.Height - sv.Viewport.Height;
+        double maxBefore = sv.Extent.Height - sv.Viewport.Height;
         sv.Offset = new Vector(sv.Offset.X, maxBefore);
         Dispatcher.UIThread.RunJobs();
         view.UpdateLayout();
@@ -855,13 +855,13 @@ public class VStripsViewInteractionTests
         Assert.True(sv.Offset.Y >= maxBefore - 1.0);
 
         // A new strip arrives at the visual bottom (model index 0), growing the content.
-        var grown = new[] { "SNEW" }.Concat(ids).ToArray();
+        string[] grown = new[] { "SNEW" }.Concat(ids).ToArray();
         SeedStripsInBay(vm, "bay-gnd", [grown, []]);
         Dispatcher.UIThread.RunJobs();
         view.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
 
-        var maxAfter = sv.Extent.Height - sv.Viewport.Height;
+        double maxAfter = sv.Extent.Height - sv.Viewport.Height;
         Assert.True(maxAfter > maxBefore, "content should have grown after the new strip");
         Assert.True(sv.Offset.Y >= maxAfter - 1.0, $"offset {sv.Offset.Y} should stay pinned to the new bottom {maxAfter}");
     }
@@ -869,13 +869,13 @@ public class VStripsViewInteractionTests
     [AvaloniaFact]
     public void StickyScroll_ScrolledUp_NewStripDoesNotYankToBottom()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var ids = Enumerable.Range(0, 10).Select(i => $"S{i:D2}").ToArray();
+        string[] ids = Enumerable.Range(0, 10).Select(i => $"S{i:D2}").ToArray();
         SeedStripsInBay(vm, "bay-gnd", [ids, []]);
-        var (_, view) = BootView(vm);
+        (Window _, VStripsView? view) = BootView(vm);
 
-        var sv = view.FindControl<ScrollViewer>("RacksScrollViewer");
+        ScrollViewer? sv = view.FindControl<ScrollViewer>("RacksScrollViewer");
         Assert.NotNull(sv);
         Dispatcher.UIThread.RunJobs();
         view.UpdateLayout();
@@ -888,7 +888,7 @@ public class VStripsViewInteractionTests
         view.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
 
-        var grown = new[] { "SNEW" }.Concat(ids).ToArray();
+        string[] grown = new[] { "SNEW" }.Concat(ids).ToArray();
         SeedStripsInBay(vm, "bay-gnd", [grown, []]);
         Dispatcher.UIThread.RunJobs();
         view.UpdateLayout();
@@ -932,7 +932,7 @@ public class VStripsViewInteractionTests
 
     private static TextBox? FindVisibleField(VStripsView view, string stripId, string tag)
     {
-        var stripControl = view.GetVisualDescendants()
+        FlightStripControl? stripControl = view.GetVisualDescendants()
             .OfType<FlightStripControl>()
             .SingleOrDefault(c => (c.DataContext as StripItemViewModel)?.Id == stripId);
         return stripControl?.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(t => (t.Tag as string) == tag && t.IsEffectivelyVisible);
@@ -946,7 +946,7 @@ public class VStripsViewInteractionTests
         Dispatcher.UIThread.RunJobs();
         view.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
-        foreach (var itemsControl in view.GetVisualDescendants().OfType<ItemsControl>())
+        foreach (ItemsControl itemsControl in view.GetVisualDescendants().OfType<ItemsControl>())
         {
             itemsControl.ApplyTemplate();
             if (itemsControl.Presenter is ItemsPresenter presenter)
@@ -1026,7 +1026,7 @@ public class VStripsViewInteractionTests
     // rackStrips (outer = rack index, inner = strip ids in model order bottom-up).
     internal static void SeedStripsInBay(VStripsViewModel vm, string bayId, string[][] rackStrips)
     {
-        var flatIds = rackStrips.SelectMany(r => r).ToArray();
+        string[] flatIds = rackStrips.SelectMany(r => r).ToArray();
         vm.ReconcileItems(flatIds.Select(FullStrip).ToArray());
         vm.ReconcileFullState(
             new FlightStripsStateDto(
@@ -1068,7 +1068,7 @@ public class VStripsViewInteractionTests
         Dispatcher.UIThread.RunJobs();
         // Realize the bay ItemsControl — without this the DataTemplate containers
         // may not be instantiated yet, and GetVisualDescendants misses them.
-        foreach (var itemsControl in view.GetVisualDescendants().OfType<ItemsControl>())
+        foreach (ItemsControl itemsControl in view.GetVisualDescendants().OfType<ItemsControl>())
         {
             itemsControl.ApplyTemplate();
             if (itemsControl.Presenter is ItemsPresenter presenter)

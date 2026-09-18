@@ -20,16 +20,16 @@ public static class ScenarioDifficultyHelper
     public static List<string> GetAvailableDifficulties(string json)
     {
         var root = JsonNode.Parse(json);
-        var aircraft = root?["aircraft"]?.AsArray();
+        JsonArray? aircraft = root?["aircraft"]?.AsArray();
         if (aircraft is null)
         {
             return [];
         }
 
         var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var ac in aircraft)
+        foreach (JsonNode? ac in aircraft)
         {
-            var diff = ac?["difficulty"]?.GetValue<string>();
+            string? diff = ac?["difficulty"]?.GetValue<string>();
             if (!string.IsNullOrEmpty(diff))
             {
                 present.Add(diff);
@@ -37,7 +37,7 @@ public static class ScenarioDifficultyHelper
         }
 
         var result = new List<string>();
-        foreach (var level in DifficultyOrder)
+        foreach (string level in DifficultyOrder)
         {
             if (present.Remove(level))
             {
@@ -56,20 +56,20 @@ public static class ScenarioDifficultyHelper
     public static Dictionary<string, int> GetCountsPerCeiling(string json, List<string> availableDifficulties)
     {
         var root = JsonNode.Parse(json);
-        var aircraft = root?["aircraft"]?.AsArray();
+        JsonArray? aircraft = root?["aircraft"]?.AsArray();
         if (aircraft is null)
         {
             return availableDifficulties.ToDictionary(d => d, _ => 0);
         }
 
         var counts = new Dictionary<string, int>();
-        foreach (var ceiling in availableDifficulties)
+        foreach (string ceiling in availableDifficulties)
         {
             int maxRank = GetRank(ceiling);
             int count = 0;
-            foreach (var ac in aircraft)
+            foreach (JsonNode? ac in aircraft)
             {
-                var diff = ac?["difficulty"]?.GetValue<string>();
+                string? diff = ac?["difficulty"]?.GetValue<string>();
                 int rank = GetRank(diff);
                 if (rank <= maxRank)
                 {
@@ -89,8 +89,8 @@ public static class ScenarioDifficultyHelper
     /// </summary>
     public static (string Json, List<string> Warnings) FilterByDifficulty(string json, string maxDifficulty)
     {
-        var root = JsonNode.Parse(json)!;
-        var aircraft = root["aircraft"]?.AsArray();
+        JsonNode root = JsonNode.Parse(json)!;
+        JsonArray? aircraft = root["aircraft"]?.AsArray();
         if (aircraft is null)
         {
             return (json, []);
@@ -102,8 +102,8 @@ public static class ScenarioDifficultyHelper
 
         for (int i = aircraft.Count - 1; i >= 0; i--)
         {
-            var ac = aircraft[i];
-            var diff = ac?["difficulty"]?.GetValue<string>();
+            JsonNode? ac = aircraft[i];
+            string? diff = ac?["difficulty"]?.GetValue<string>();
             int rank = GetRank(diff);
 
             if (rank == -1 && !string.IsNullOrEmpty(diff) && unknownValues.Add(diff))
@@ -123,15 +123,15 @@ public static class ScenarioDifficultyHelper
     public static bool HasParkingSpawns(string json)
     {
         var root = JsonNode.Parse(json);
-        var aircraft = root?["aircraft"]?.AsArray();
+        JsonArray? aircraft = root?["aircraft"]?.AsArray();
         if (aircraft is null)
         {
             return false;
         }
 
-        foreach (var ac in aircraft)
+        foreach (JsonNode? ac in aircraft)
         {
-            var startingType = ac?["startingConditions"]?["type"]?.GetValue<string>();
+            string? startingType = ac?["startingConditions"]?["type"]?.GetValue<string>();
             if (!string.Equals(startingType, "Parking", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
@@ -157,17 +157,17 @@ public static class ScenarioDifficultyHelper
             return false;
         }
 
-        foreach (var preset in presetCommands)
+        foreach (JsonNode? preset in presetCommands)
         {
-            var command = preset?["command"]?.GetValue<string>();
+            string? command = preset?["command"]?.GetValue<string>();
             if (string.IsNullOrWhiteSpace(command))
             {
                 continue;
             }
 
-            var trimmed = command.Trim();
+            string trimmed = command.Trim();
             int spaceIdx = trimmed.IndexOf(' ');
-            var verb = spaceIdx < 0 ? trimmed : trimmed[..spaceIdx];
+            string verb = spaceIdx < 0 ? trimmed : trimmed[..spaceIdx];
             if (CommandRegistry.IsAliasFor(CanonicalCommandType.Taxi, verb))
             {
                 return true;
@@ -180,7 +180,7 @@ public static class ScenarioDifficultyHelper
     public static bool HasArrivalGenerators(string json)
     {
         var root = JsonNode.Parse(json);
-        var generators = root?["aircraftGenerators"]?.AsArray();
+        JsonArray? generators = root?["aircraftGenerators"]?.AsArray();
         return generators is { Count: > 0 };
     }
 

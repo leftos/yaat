@@ -34,7 +34,7 @@ public static class AutoRouter
         int maxExpansions = MaxExpansions
     )
     {
-        var (route, failure, _) = RunWithCost(ctx, startOverride, maxExpansions);
+        (TaxiRoute? route, PathfindingFailure? failure, double _) = RunWithCost(ctx, startOverride, maxExpansions);
         return (route, failure);
     }
 
@@ -65,7 +65,7 @@ public static class AutoRouter
             );
         }
 
-        if (!ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out var startNode))
+        if (!ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out GroundNode? startNode))
         {
             return (
                 null,
@@ -88,7 +88,7 @@ public static class AutoRouter
                 );
             }
 
-            var holdShortNodes = ctx.Layout.GetRunwayHoldShortNodes(ctx.Destination.RunwayId);
+            List<GroundNode> holdShortNodes = ctx.Layout.GetRunwayHoldShortNodes(ctx.Destination.RunwayId);
             if (holdShortNodes.Count == 0)
             {
                 return (
@@ -126,7 +126,7 @@ public static class AutoRouter
         if (ctx.StartNodeId == destinationNode.Id)
         {
             ctx.DiagnosticLog?.Invoke($"[auto] trivial route — start == destination node {ctx.StartNodeId}");
-            var emptyRoute = RouteMaterialiser.Materialise([], ctx, []);
+            TaxiRoute emptyRoute = RouteMaterialiser.Materialise([], ctx, []);
             return (emptyRoute, null, 0.0);
         }
 
@@ -138,7 +138,14 @@ public static class AutoRouter
         HashSet<(int, int)>? bannedMoves = null;
         for (int attempt = 0; attempt < 3; attempt++)
         {
-            var result = RunAstar(ctx, startNode, destinationNode, startOverride, maxExpansions, bannedMoves);
+            (TaxiRoute? Route, PathfindingFailure? Failure, double Cost) result = RunAstar(
+                ctx,
+                startNode,
+                destinationNode,
+                startOverride,
+                maxExpansions,
+                bannedMoves
+            );
             if (result.Route is null || !ctx.HasSameSideCenterlineRun(result.Route.Segments.Select(s => s.Edge).ToList()))
             {
                 return result;
@@ -146,7 +153,7 @@ public static class AutoRouter
 
             bannedMoves ??= [];
             int bannedBefore = bannedMoves.Count;
-            foreach (var seg in result.Route.Segments)
+            foreach (TaxiRouteSegment seg in result.Route.Segments)
             {
                 if (seg.Edge.Edge.IsRunwayCenterline)
                 {
@@ -204,7 +211,7 @@ public static class AutoRouter
         // When startOverride is provided, inherit its LastEdge + ArrivalBearing so the first
         // expansion goes through GeometricAdmissibility against the prior heading. Otherwise
         // the search starts cold (admissibility skips the first edge).
-        var startRoute = startOverride ?? PartialRoute.StartAt(ctx.StartNodeId);
+        PartialRoute startRoute = startOverride ?? PartialRoute.StartAt(ctx.StartNodeId);
         double startHeuristic = RouteCostFunction.Heuristic(startNode, destinationNode);
         bestGScore[GeometricAdmissibility.PruningStateKey(startRoute.HeadNodeId, startRoute.ArrivalBearing, startRoute.LastTaxiwayName)] =
             startRoute.AccumulatedCost;
@@ -216,7 +223,7 @@ public static class AutoRouter
 
         while (openSet.Count > 0)
         {
-            var current = openSet.Dequeue();
+            PartialRoute current = openSet.Dequeue();
             expansions++;
 
             if (expansions > maxExpansions)
@@ -258,8 +265,8 @@ public static class AutoRouter
                 int newEdgeCount = current.Depth - baseDepth;
                 ctx.DiagnosticLog?.Invoke($"[auto] SUCCESS edges={newEdgeCount}  total_cost={current.AccumulatedCost:F3}  expansions={expansions}");
 
-                var edges = current.MaterialiseEdges(baseDepth);
-                var route = RouteMaterialiser.Materialise(edges, ctx, []);
+                List<DirectionalEdge> edges = current.MaterialiseEdges(baseDepth);
+                TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, []);
                 return (route, null, current.AccumulatedCost - startRoute.AccumulatedCost);
             }
 
@@ -269,7 +276,7 @@ public static class AutoRouter
                 deepestViable = current;
             }
 
-            if (!ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out var headNode))
+            if (!ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out GroundNode? headNode))
             {
                 continue;
             }
@@ -277,7 +284,7 @@ public static class AutoRouter
             int admitted = 0;
             int rejected = 0;
 
-            foreach (var edge in headNode.Edges)
+            foreach (IGroundEdge edge in headNode.Edges)
             {
                 GroundNode nextNode = edge.OtherNode(headNode);
 
@@ -360,7 +367,7 @@ public static class AutoRouter
 
                 // Skip if we already have a cheaper or equal path to this (node, bearing-bucket, taxiway) state.
                 string taxiwayName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
-                var nextKey = GeometricAdmissibility.PruningStateKey(nextNode.Id, arrivalBearing, taxiwayName);
+                (int Node, int Bucket, string Taxiway) nextKey = GeometricAdmissibility.PruningStateKey(nextNode.Id, arrivalBearing, taxiwayName);
                 if (bestGScore.TryGetValue(nextKey, out double existingBest) && (newGScore >= existingBest - 1e-9))
                 {
                     rejected++;
@@ -370,7 +377,7 @@ public static class AutoRouter
                 admitted++;
                 bestGScore[nextKey] = newGScore;
 
-                var extended = current with
+                PartialRoute extended = current with
                 {
                     HeadNodeId = nextNode.Id,
                     ArrivalBearing = arrivalBearing,
@@ -428,7 +435,7 @@ public static class AutoRouter
     /// </summary>
     private static GroundNode? ResolveDestinationNode(SearchContext ctx)
     {
-        if (ctx.Destination.TargetNodeId is { } id && ctx.Layout.Nodes.TryGetValue(id, out var node))
+        if (ctx.Destination.TargetNodeId is { } id && ctx.Layout.Nodes.TryGetValue(id, out GroundNode? node))
         {
             return node;
         }

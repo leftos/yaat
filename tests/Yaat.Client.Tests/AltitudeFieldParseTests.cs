@@ -13,7 +13,7 @@ public class AltitudeFieldParseTests
     [Fact]
     public void EmptyText_ReturnsVfr()
     {
-        var result = AircraftModel.ParseAltitudeField("");
+        (string Rules, PlannedAltitude Altitude)? result = AircraftModel.ParseAltitudeField("");
         Assert.NotNull(result);
         Assert.Equal("VFR", result.Value.Rules);
         Assert.Equal(PlannedAltitude.Vfr(null), result.Value.Altitude);
@@ -22,7 +22,7 @@ public class AltitudeFieldParseTests
     [Fact]
     public void WhitespaceText_ReturnsVfr()
     {
-        var result = AircraftModel.ParseAltitudeField("  ");
+        (string Rules, PlannedAltitude Altitude)? result = AircraftModel.ParseAltitudeField("  ");
         Assert.NotNull(result);
         Assert.Equal("VFR", result.Value.Rules);
         Assert.Equal(PlannedAltitude.Vfr(null), result.Value.Altitude);
@@ -31,7 +31,7 @@ public class AltitudeFieldParseTests
     [Fact]
     public void BareNumber_ReturnsIfr()
     {
-        var result = AircraftModel.ParseAltitudeField("120");
+        (string Rules, PlannedAltitude Altitude)? result = AircraftModel.ParseAltitudeField("120");
         Assert.NotNull(result);
         Assert.Equal("IFR", result.Value.Rules);
         Assert.Equal(PlannedAltitude.Ifr(12000), result.Value.Altitude);
@@ -40,7 +40,7 @@ public class AltitudeFieldParseTests
     [Fact]
     public void VfrKeyword_ReturnsVfr()
     {
-        var result = AircraftModel.ParseAltitudeField("VFR");
+        (string Rules, PlannedAltitude Altitude)? result = AircraftModel.ParseAltitudeField("VFR");
         Assert.NotNull(result);
         Assert.Equal("VFR", result.Value.Rules);
         Assert.Equal(PlannedAltitude.Vfr(null), result.Value.Altitude);
@@ -49,7 +49,7 @@ public class AltitudeFieldParseTests
     [Fact]
     public void VfrWithAltitude_ReturnsVfr()
     {
-        var result = AircraftModel.ParseAltitudeField("VFR/055");
+        (string Rules, PlannedAltitude Altitude)? result = AircraftModel.ParseAltitudeField("VFR/055");
         Assert.NotNull(result);
         Assert.Equal("VFR", result.Value.Rules);
         Assert.Equal(PlannedAltitude.Vfr(5500), result.Value.Altitude);

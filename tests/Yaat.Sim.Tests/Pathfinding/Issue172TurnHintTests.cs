@@ -24,7 +24,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     /// </summary>
     private static (int RightId, int LeftId) ResolveWNeighbors(AirportGroundLayout layout)
     {
-        var node = layout.Nodes[WCrossNode];
+        GroundNode node = layout.Nodes[WCrossNode];
         var wNeighbors = node
             .Edges.Where(e => e.TaxiwayName.Equals("W", StringComparison.OrdinalIgnoreCase))
             .Select(e => e.OtherNodeId(WCrossNode))
@@ -69,13 +69,13 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     [Fact]
     public void RightHint_StartsRouteTowardRightNeighbor()
     {
-        var layout = OakLayout(output);
+        AirportGroundLayout? layout = OakLayout(output);
         if (layout is null)
         {
             return;
         }
 
-        var route = ResolveWithHint(layout, TurnDirection.Right, out string? failReason);
+        TaxiRoute? route = ResolveWithHint(layout, TurnDirection.Right, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -87,13 +87,13 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     [Fact]
     public void LeftHint_StartsRouteTowardLeftNeighbor()
     {
-        var layout = OakLayout(output);
+        AirportGroundLayout? layout = OakLayout(output);
         if (layout is null)
         {
             return;
         }
 
-        var route = ResolveWithHint(layout, TurnDirection.Left, out string? failReason);
+        TaxiRoute? route = ResolveWithHint(layout, TurnDirection.Left, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -105,14 +105,14 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     [Fact]
     public void OppositeHints_ProduceOppositeFirstSteps()
     {
-        var layout = OakLayout(output);
+        AirportGroundLayout? layout = OakLayout(output);
         if (layout is null)
         {
             return;
         }
 
-        var right = ResolveWithHint(layout, TurnDirection.Right, out _);
-        var left = ResolveWithHint(layout, TurnDirection.Left, out _);
+        TaxiRoute? right = ResolveWithHint(layout, TurnDirection.Right, out _);
+        TaxiRoute? left = ResolveWithHint(layout, TurnDirection.Left, out _);
 
         Assert.NotNull(right);
         Assert.NotNull(left);
@@ -145,14 +145,14 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
 
     private static AirportGroundLayout TwoJunctionLayout()
     {
-        var a0 = Node(1, 37.700, -122.200);
-        var a1 = Node(2, 37.702, -122.200);
-        var a2 = Node(3, 37.704, -122.200);
-        var br = Node(4, 37.702, -122.197); // east of A1 → right turn from a northbound A
-        var bl = Node(5, 37.704, -122.203); // west of A2 → left turn from a northbound A
+        GroundNode a0 = Node(1, 37.700, -122.200);
+        GroundNode a1 = Node(2, 37.702, -122.200);
+        GroundNode a2 = Node(3, 37.704, -122.200);
+        GroundNode br = Node(4, 37.702, -122.197); // east of A1 → right turn from a northbound A
+        GroundNode bl = Node(5, 37.704, -122.203); // west of A2 → left turn from a northbound A
 
         var layout = new AirportGroundLayout { AirportId = "TEST" };
-        foreach (var n in new[] { a0, a1, a2, br, bl })
+        foreach (GroundNode? n in new[] { a0, a1, a2, br, bl })
         {
             layout.Nodes[n.Id] = n;
         }
@@ -188,7 +188,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     [Fact]
     public void MidRoute_RightHintOntoB_TurnsAtRightHandJunction()
     {
-        var route = ResolveMidRoute(TwoJunctionLayout(), TurnDirection.Right, out string? failReason);
+        TaxiRoute? route = ResolveMidRoute(TwoJunctionLayout(), TurnDirection.Right, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -198,7 +198,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     [Fact]
     public void MidRoute_LeftHintOntoB_TurnsAtLeftHandJunction()
     {
-        var route = ResolveMidRoute(TwoJunctionLayout(), TurnDirection.Left, out string? failReason);
+        TaxiRoute? route = ResolveMidRoute(TwoJunctionLayout(), TurnDirection.Left, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -216,14 +216,14 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     //     AE(11) ──── S(10) ──── AW(13)        (A runs east-west; aircraft at S heading north)
     private static AirportGroundLayout TwoEntryLayout()
     {
-        var s = Node(10, 37.700, -122.200);
-        var ae = Node(11, 37.700, -122.197); // east of S → right turn from a northbound aircraft
-        var aw = Node(13, 37.700, -122.203); // west of S → left turn
-        var be = Node(12, 37.701, -122.197); // B north off AE
-        var bw = Node(14, 37.701, -122.203); // B north off AW
+        GroundNode s = Node(10, 37.700, -122.200);
+        GroundNode ae = Node(11, 37.700, -122.197); // east of S → right turn from a northbound aircraft
+        GroundNode aw = Node(13, 37.700, -122.203); // west of S → left turn
+        GroundNode be = Node(12, 37.701, -122.197); // B north off AE
+        GroundNode bw = Node(14, 37.701, -122.203); // B north off AW
 
         var layout = new AirportGroundLayout { AirportId = "TEST" };
-        foreach (var n in new[] { s, ae, aw, be, bw })
+        foreach (GroundNode? n in new[] { s, ae, aw, be, bw })
         {
             layout.Nodes[n.Id] = n;
         }
@@ -259,7 +259,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     [Fact]
     public void FirstTaxiway_RightHint_StartsEastTowardRightEntry()
     {
-        var route = ResolveFirstTaxiway(TwoEntryLayout(), TurnDirection.Right, out string? failReason);
+        TaxiRoute? route = ResolveFirstTaxiway(TwoEntryLayout(), TurnDirection.Right, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -271,7 +271,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     [Fact]
     public void FirstTaxiway_LeftHint_StartsWestTowardLeftEntry()
     {
-        var route = ResolveFirstTaxiway(TwoEntryLayout(), TurnDirection.Left, out string? failReason);
+        TaxiRoute? route = ResolveFirstTaxiway(TwoEntryLayout(), TurnDirection.Left, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -287,8 +287,8 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     // Taxiway A leaves the start S only to the east — a single direction.
     private static AirportGroundLayout OneWayFirstTaxiwayLayout()
     {
-        var s = Node(20, 37.700, -122.200);
-        var ae = Node(21, 37.700, -122.197); // east of S only
+        GroundNode s = Node(20, 37.700, -122.200);
+        GroundNode ae = Node(21, 37.700, -122.197); // east of S only
 
         var layout = new AirportGroundLayout { AirportId = "TEST" };
         layout.Nodes[s.Id] = s;
@@ -319,7 +319,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     public void FirstTaxiway_UnrealisableHint_RoutesAnyway_AndAdvises()
     {
         // Heading north, A only goes east (a right turn). A "<A" (left) request can't be honored.
-        var route = ResolveOneWayFirst(TurnDirection.Left, out string? failReason);
+        TaxiRoute? route = ResolveOneWayFirst(TurnDirection.Left, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -330,7 +330,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     [Fact]
     public void FirstTaxiway_RealisableHint_AddsNoAdvisory()
     {
-        var route = ResolveOneWayFirst(TurnDirection.Right, out string? failReason);
+        TaxiRoute? route = ResolveOneWayFirst(TurnDirection.Right, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -340,13 +340,13 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     // Taxiway B joins A only on the east side of A1 — a single turn direction at the junction.
     private static AirportGroundLayout OneWayOntoLayout()
     {
-        var a0 = Node(1, 37.700, -122.200);
-        var a1 = Node(2, 37.702, -122.200);
-        var a2 = Node(3, 37.704, -122.200);
-        var br = Node(4, 37.702, -122.197); // B east off A1 only
+        GroundNode a0 = Node(1, 37.700, -122.200);
+        GroundNode a1 = Node(2, 37.702, -122.200);
+        GroundNode a2 = Node(3, 37.704, -122.200);
+        GroundNode br = Node(4, 37.702, -122.197); // B east off A1 only
 
         var layout = new AirportGroundLayout { AirportId = "TEST" };
-        foreach (var n in new[] { a0, a1, a2, br })
+        foreach (GroundNode? n in new[] { a0, a1, a2, br })
         {
             layout.Nodes[n.Id] = n;
         }
@@ -382,7 +382,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     public void MidRoute_UnrealisableHint_RoutesAnyway_AndAdvises()
     {
         // Northbound on A, B only leaves A1 to the east (a right turn). A "<B" request can't be honored.
-        var route = ResolveOneWayOnto(TurnDirection.Left, out string? failReason);
+        TaxiRoute? route = ResolveOneWayOnto(TurnDirection.Left, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -393,7 +393,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
     [Fact]
     public void MidRoute_RealisableHint_AddsNoAdvisory()
     {
-        var route = ResolveOneWayOnto(TurnDirection.Right, out string? failReason);
+        TaxiRoute? route = ResolveOneWayOnto(TurnDirection.Right, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);

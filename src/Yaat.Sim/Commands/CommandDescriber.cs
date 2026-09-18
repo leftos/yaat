@@ -335,7 +335,7 @@ public static class CommandDescriber
         // command to fill in. A verb missing from the registry is a completeness bug (CommandRegistry.All
         // covers every CanonicalCommandType and a test enforces it), so fail loudly rather than defaulting
         // to None — silently occupying no axis is the defect this table exists to remove.
-        var definition = CommandRegistry.Get(ToCanonicalType(command));
+        CommandDefinition? definition = CommandRegistry.Get(ToCanonicalType(command));
         return definition?.QueuedDimension
             ?? throw new InvalidOperationException(
                 $"No CommandRegistry definition for {command.GetType().Name} — every command must declare a QueuedDimension"
@@ -517,8 +517,8 @@ public static class CommandDescriber
     /// </summary>
     private static CommandDimension TakeoffClearanceDimension(DepartureInstruction departure, int? assignedAltitude)
     {
-        var lateral = departure is DefaultDeparture or PresentPositionHoverDeparture ? CommandDimension.None : CommandDimension.Lateral;
-        var vertical =
+        CommandDimension lateral = departure is DefaultDeparture or PresentPositionHoverDeparture ? CommandDimension.None : CommandDimension.Lateral;
+        CommandDimension vertical =
             (assignedAltitude is not null) || departure is ClosedTrafficDeparture or PatternExitDeparture or PresentPositionHoverDeparture
                 ? CommandDimension.Vertical
                 : CommandDimension.None;
@@ -528,10 +528,10 @@ public static class CommandDescriber
 
     internal static CommandDimension GetCompoundDimensions(CompoundCommand compound)
     {
-        var dims = CommandDimension.None;
-        foreach (var block in compound.Blocks)
+        CommandDimension dims = CommandDimension.None;
+        foreach (ParsedBlock block in compound.Blocks)
         {
-            foreach (var cmd in block.Commands)
+            foreach (ParsedCommand cmd in block.Commands)
             {
                 dims |= GetCommandDimension(cmd);
             }
@@ -999,8 +999,8 @@ public static class CommandDescriber
             return timer.CancelAll ? "TIMER CANCEL ALL" : $"TIMER CANCEL {timer.CancelId}";
         }
 
-        var seconds = (int)(timer.Seconds ?? 0);
-        var duration = $"{seconds / 60}:{seconds % 60:D2}";
+        int seconds = (int)(timer.Seconds ?? 0);
+        string duration = $"{seconds / 60}:{seconds % 60:D2}";
         return string.IsNullOrWhiteSpace(timer.Message) ? $"TIMER {duration}" : $"TIMER {duration} {timer.Message}";
     }
 
@@ -1021,7 +1021,7 @@ public static class CommandDescriber
 
     private static string FormatAsdexEditCanonical(AsdexEditCommand cmd)
     {
-        var verb = cmd.Field switch
+        string verb = cmd.Field switch
         {
             AsdexEditField.Scratchpad1 => "ASDXSP1",
             AsdexEditField.Scratchpad2 => "ASDXSP2",
@@ -1048,7 +1048,7 @@ public static class CommandDescriber
 
     private static string FormatTokenizedCanonical(string verb, IReadOnlyList<string>? tokens)
     {
-        var list = tokens ?? [];
+        IReadOnlyList<string> list = tokens ?? [];
         return list.Count == 0 ? verb : $"{verb} {string.Join(' ', list)}";
     }
 
@@ -1057,7 +1057,7 @@ public static class CommandDescriber
 
     private static string FormatHalfStripOffsetOrSlideCanonical(string verb, string? facilityId, string? bayName, int? rack, string? lookupKey)
     {
-        var baySpec = FormatBaySpec(facilityId, bayName, rack);
+        string? baySpec = FormatBaySpec(facilityId, bayName, rack);
         return (baySpec, lookupKey) switch
         {
             (null, null) => verb,
@@ -1069,7 +1069,7 @@ public static class CommandDescriber
 
     private static string FormatSeparatorCreateCanonical(SeparatorCreateCommand cmd)
     {
-        var style = cmd.Style switch
+        string style = cmd.Style switch
         {
             SeparatorStyle.Handwritten => "H",
             SeparatorStyle.White => "W",
@@ -1078,14 +1078,14 @@ public static class CommandDescriber
             _ => "H",
         };
 
-        var tokens = cmd.Tokens ?? [];
+        IReadOnlyList<string> tokens = cmd.Tokens ?? [];
         return tokens.Count == 0 ? $"SEP {style}" : $"SEP {style} {string.Join(' ', tokens)}";
     }
 
     private static string FormatHalfStripCreateCanonical(HalfStripCreateCommand cmd)
     {
-        var baySpec = FormatBaySpec(cmd.FacilityId, cmd.BayName, cmd.Rack)!;
-        var lines = cmd.Lines ?? [];
+        string baySpec = FormatBaySpec(cmd.FacilityId, cmd.BayName, cmd.Rack)!;
+        IReadOnlyList<string> lines = cmd.Lines ?? [];
         if (lines.Count == 0)
         {
             return $"HSC {baySpec}";
@@ -1110,8 +1110,8 @@ public static class CommandDescriber
 
     private static string FormatHalfStripMutateCanonical(string verb, string? facilityId, string? bayName, int? rack, IReadOnlyList<string>? tokens)
     {
-        var baySpec = FormatBaySpec(facilityId, bayName, rack);
-        var body = (tokens is not null && tokens.Count > 0) ? string.Join('\\', tokens) : null;
+        string? baySpec = FormatBaySpec(facilityId, bayName, rack);
+        string? body = (tokens is not null && tokens.Count > 0) ? string.Join('\\', tokens) : null;
         return (baySpec, body) switch
         {
             (null, null) => verb,
@@ -1435,7 +1435,7 @@ public static class CommandDescriber
 
     private static string DescribeAsdexEditNatural(AsdexEditCommand cmd)
     {
-        var field = cmd.Field switch
+        string field = cmd.Field switch
         {
             AsdexEditField.Scratchpad1 => "ASDE-X scratchpad 1",
             AsdexEditField.Scratchpad2 => "ASDE-X scratchpad 2",
@@ -1467,8 +1467,8 @@ public static class CommandDescriber
             return timer.CancelAll ? "Cancel all timers" : $"Cancel timer {timer.CancelId}";
         }
 
-        var seconds = (int)(timer.Seconds ?? 0);
-        var duration = $"{seconds / 60}:{seconds % 60:D2}";
+        int seconds = (int)(timer.Seconds ?? 0);
+        string duration = $"{seconds / 60}:{seconds % 60:D2}";
         return string.IsNullOrWhiteSpace(timer.Message) ? $"Timer {duration}" : $"Timer {duration}: {timer.Message}";
     }
 
@@ -1497,8 +1497,8 @@ public static class CommandDescriber
 
     private static string DescribeHalfStripCreateNatural(HalfStripCreateCommand cmd)
     {
-        var location = DescribeBayLocation(cmd.FacilityId, cmd.BayName, cmd.Rack);
-        var lines = cmd.Lines ?? [];
+        string location = DescribeBayLocation(cmd.FacilityId, cmd.BayName, cmd.Rack);
+        IReadOnlyList<string> lines = cmd.Lines ?? [];
         if (lines.Count == 0)
         {
             return $"Create half-strip in {location}";
@@ -1512,15 +1512,15 @@ public static class CommandDescriber
 
     private static string DescribeHalfStripAmendNatural(HalfStripAmendCommand cmd)
     {
-        var scope = DescribeHalfStripBayScope(cmd.FacilityId, cmd.BayName, cmd.Rack);
-        var tokens = cmd.Tokens ?? [];
+        string scope = DescribeHalfStripBayScope(cmd.FacilityId, cmd.BayName, cmd.Rack);
+        IReadOnlyList<string> tokens = cmd.Tokens ?? [];
         return tokens.Count > 0 ? $"Amend half-strip{scope}: {tokens[0]}" : $"Amend half-strip{scope}";
     }
 
     private static string DescribeHalfStripDeleteNatural(HalfStripDeleteCommand cmd)
     {
-        var scope = DescribeHalfStripBayScope(cmd.FacilityId, cmd.BayName, cmd.Rack);
-        var tokens = cmd.Tokens ?? [];
+        string scope = DescribeHalfStripBayScope(cmd.FacilityId, cmd.BayName, cmd.Rack);
+        IReadOnlyList<string> tokens = cmd.Tokens ?? [];
         return tokens.Count > 0 ? $"Delete half-strip{scope}: {tokens[0]}" : $"Delete half-strip{scope}";
     }
 
@@ -1693,7 +1693,7 @@ public static class CommandDescriber
 
     private static string FormatSpeedCanonical(SpeedCommand cmd)
     {
-        var verb = cmd.Force ? "SPEEDF" : "SPD";
+        string verb = cmd.Force ? "SPEEDF" : "SPD";
         return cmd.Modifier switch
         {
             SpeedModifier.Floor => $"{verb} {cmd.Speed}+",
@@ -1714,7 +1714,7 @@ public static class CommandDescriber
 
     private static string FormatWarpCanonical(WarpCommand cmd)
     {
-        var sb = new StringBuilder("WARP ").Append(cmd.PositionLabel);
+        StringBuilder sb = new StringBuilder("WARP ").Append(cmd.PositionLabel);
         if (cmd.MagneticHeading is { } h)
         {
             sb.Append(' ').Append($"{h.Degrees:000}");
@@ -1732,15 +1732,15 @@ public static class CommandDescriber
 
     private static string FormatWarpNatural(WarpCommand cmd)
     {
-        var headingPart = cmd.MagneticHeading is { } h ? $"heading {h.Degrees:000}" : "heading unchanged";
-        var altitudePart = cmd.Altitude is { } a ? $"{a:N0} ft" : "altitude unchanged";
-        var speedPart = cmd.Speed is { } s ? $"{s} kts" : "speed unchanged";
+        string headingPart = cmd.MagneticHeading is { } h ? $"heading {h.Degrees:000}" : "heading unchanged";
+        string altitudePart = cmd.Altitude is { } a ? $"{a:N0} ft" : "altitude unchanged";
+        string speedPart = cmd.Speed is { } s ? $"{s} kts" : "speed unchanged";
         return $"Warp to {cmd.PositionLabel}, {headingPart}, {altitudePart}, {speedPart}";
     }
 
     private static string FormatSpeedNatural(SpeedCommand cmd)
     {
-        var suffix = cmd.Force ? " (override)" : "";
+        string suffix = cmd.Force ? " (override)" : "";
         return cmd.Modifier switch
         {
             SpeedModifier.Floor => $"Maintain {cmd.Speed} knots or greater{suffix}",
@@ -1766,11 +1766,11 @@ public static class CommandDescriber
     /// </summary>
     private static string FormatPushCanonical(PushbackCommand push)
     {
-        var facing = FormatPushFacing(push);
+        string facing = FormatPushFacing(push);
         if (push.DestinationParking is not null || push.DestinationSpot is not null)
         {
-            var prefix = push.DestinationSpot is not null ? "$" : "@";
-            var name = push.DestinationSpot ?? push.DestinationParking;
+            string prefix = push.DestinationSpot is not null ? "$" : "@";
+            string? name = push.DestinationSpot ?? push.DestinationParking;
             return $"PUSH {prefix}{name}{facing}";
         }
 
@@ -1801,8 +1801,8 @@ public static class CommandDescriber
     /// </summary>
     private static string FormatPushMultiCanonical(PushbackMultiCommand push)
     {
-        var body = string.Join(' ', push.Targets);
-        var facing = push.FinalFacing is { } heading ? $" FACE {GroundCommandParser.CardinalToken(heading)}" : "";
+        string body = string.Join(' ', push.Targets);
+        string facing = push.FinalFacing is { } heading ? $" FACE {GroundCommandParser.CardinalToken(heading)}" : "";
         return push.Targets.Count == 0 ? $"PUSHM{facing}" : $"PUSHM {body}{facing}";
     }
 
@@ -1813,8 +1813,8 @@ public static class CommandDescriber
     /// </summary>
     private static string FormatPushMultiNatural(PushbackMultiCommand push)
     {
-        var legs = string.Join(", then ", push.Targets.Select(NaturalTargetName));
-        var facing = push.FinalFacing is { } heading ? $", facing {GroundCommandParser.CardinalToken(heading)}" : "";
+        string legs = string.Join(", then ", push.Targets.Select(NaturalTargetName));
+        string facing = push.FinalFacing is { } heading ? $", facing {GroundCommandParser.CardinalToken(heading)}" : "";
         return push.Targets.Count == 0 ? $"Tug move{facing}" : $"Tug move to {legs}{facing}";
     }
 
@@ -1839,8 +1839,8 @@ public static class CommandDescriber
     {
         if (push.DestinationParking is not null || push.DestinationSpot is not null)
         {
-            var name = push.DestinationSpot ?? push.DestinationParking;
-            var msg = $"Push to {name}";
+            string? name = push.DestinationSpot ?? push.DestinationParking;
+            string msg = $"Push to {name}";
             if (push.FacingTaxiway is not null)
             {
                 msg += $" facing {push.FacingTaxiway}";
@@ -1853,7 +1853,7 @@ public static class CommandDescriber
             return msg;
         }
 
-        var result = "Pushback";
+        string result = "Pushback";
         if (push.Taxiway is not null)
         {
             result += $" onto {push.Taxiway}";
@@ -1869,7 +1869,7 @@ public static class CommandDescriber
 
     private static string FormatCtoCanonical(ClearedForTakeoffCommand cto)
     {
-        var suffix = cto.Departure switch
+        string suffix = cto.Departure switch
         {
             DefaultDeparture => "",
             RunwayHeadingDeparture => " MRH",
@@ -1890,9 +1890,9 @@ public static class CommandDescriber
             _ => "",
         };
 
-        var alt = cto.AssignedAltitude is not null ? $" {cto.AssignedAltitude}" : "";
-        var cwt = cto.CautionWakeTurbulence ? " CWT" : "";
-        var imm = cto.Immediate ? " IMM" : "";
+        string alt = cto.AssignedAltitude is not null ? $" {cto.AssignedAltitude}" : "";
+        string cwt = cto.CautionWakeTurbulence ? " CWT" : "";
+        string imm = cto.Immediate ? " IMM" : "";
 
         return $"CTO{suffix}{alt}{cwt}{imm}";
     }
@@ -1999,7 +1999,7 @@ public static class CommandDescriber
 
     private static string DescribeCtoNatural(ClearedForTakeoffCommand cto)
     {
-        var msg = cto.Immediate ? "Cleared for immediate takeoff" : "Cleared for takeoff";
+        string msg = cto.Immediate ? "Cleared for immediate takeoff" : "Cleared for takeoff";
         msg += cto.Departure switch
         {
             DefaultDeparture => "",
@@ -2034,7 +2034,7 @@ public static class CommandDescriber
 
     private static string DescribeClearedToLandNatural(ClearedToLandCommand cmd)
     {
-        var msg = "Cleared to land";
+        string msg = "Cleared to land";
         if (cmd.CautionWakeTurbulence)
         {
             msg += ", caution wake turbulence";
@@ -2050,7 +2050,7 @@ public static class CommandDescriber
             return $"CTOPP{FormatCtoppHoverAltToken(hover.HoverAltitudeAglFt)}";
         }
 
-        var suffix = ctopp.Departure switch
+        string suffix = ctopp.Departure switch
         {
             DefaultDeparture => "",
             FlyHeadingDeparture { Direction: TurnDirection.Right } fh => $" RH{fh.MagneticHeading.Degrees:000}",
@@ -2063,7 +2063,7 @@ public static class CommandDescriber
             _ => "",
         };
 
-        var alt = ctopp.AssignedAltitude is not null ? $" {ctopp.AssignedAltitude}" : "";
+        string alt = ctopp.AssignedAltitude is not null ? $" {ctopp.AssignedAltitude}" : "";
 
         return $"CTOPP{suffix}{alt}";
     }
@@ -2089,7 +2089,7 @@ public static class CommandDescriber
             return $"Cleared for takeoff, present position, hover and hold at {hover.HoverAltitudeAglFt:N0} feet";
         }
 
-        var msg = "Cleared for takeoff, present position";
+        string msg = "Cleared for takeoff, present position";
         msg += ctopp.Departure switch
         {
             DefaultDeparture => "",
@@ -2128,7 +2128,7 @@ public static class CommandDescriber
 
     private static string DescribeGaNatural(GoAroundCommand ga)
     {
-        var msg = "Go around";
+        string msg = "Go around";
         if (ga.TrafficPattern is PatternDirection.Left)
         {
             msg += ", make left traffic";
@@ -2177,7 +2177,7 @@ public static class CommandDescriber
 
     private static string DescribePatternEntryNatural(string legName, string? runwayId, double? distNm)
     {
-        var msg = $"Enter {legName}";
+        string msg = $"Enter {legName}";
         if (runwayId is not null)
         {
             msg += $", Runway {RunwayIdentifier.ToDisplayDesignator(runwayId)}";
@@ -2221,7 +2221,7 @@ public static class CommandDescriber
 
     private static string FormatCappNatural(ClearedApproachCommand cmd)
     {
-        var msg = "Cleared";
+        string msg = "Cleared";
         if (cmd.AtFix is not null)
         {
             msg += $" at {cmd.AtFix},";
@@ -2246,9 +2246,9 @@ public static class CommandDescriber
 
     private static string FormatHoldCanonical(HoldingPatternCommand cmd)
     {
-        var unit = cmd.IsMinuteBased ? "M" : "";
-        var dir = cmd.Direction == TurnDirection.Left ? "L" : "R";
-        var entry = cmd.Entry switch
+        string unit = cmd.IsMinuteBased ? "M" : "";
+        string dir = cmd.Direction == TurnDirection.Left ? "L" : "R";
+        string entry = cmd.Entry switch
         {
             HoldingEntry.Direct => " D",
             HoldingEntry.Teardrop => " T",
@@ -2260,9 +2260,9 @@ public static class CommandDescriber
 
     private static string FormatHoldNatural(HoldingPatternCommand cmd)
     {
-        var dir = cmd.Direction == TurnDirection.Left ? "left" : "right";
-        var unit = cmd.IsMinuteBased ? "minute" : "nm";
-        var entry = cmd.Entry switch
+        string dir = cmd.Direction == TurnDirection.Left ? "left" : "right";
+        string unit = cmd.IsMinuteBased ? "minute" : "nm";
+        string entry = cmd.Entry switch
         {
             HoldingEntry.Direct => ", direct entry",
             HoldingEntry.Teardrop => ", teardrop entry",
@@ -2280,7 +2280,7 @@ public static class CommandDescriber
             CrossFixAltitudeType.AtOrBelow => "B",
             _ => "",
         };
-        var alt = $"{prefix}{cmd.Altitude / 100:000}";
+        string alt = $"{prefix}{cmd.Altitude / 100:000}";
         return cmd.Speed is not null ? $"CFIX {cmd.FixName} {alt} {cmd.Speed}" : $"CFIX {cmd.FixName} {alt}";
     }
 
@@ -2292,7 +2292,7 @@ public static class CommandDescriber
             CrossFixAltitudeType.AtOrBelow => "at or below",
             _ => "at",
         };
-        var msg = $"Cross {cmd.FixName} {altWord} {cmd.Altitude:N0}";
+        string msg = $"Cross {cmd.FixName} {altWord} {cmd.Altitude:N0}";
         if (cmd.Speed is not null)
         {
             msg += $", {cmd.Speed} knots";
@@ -2306,7 +2306,7 @@ public static class CommandDescriber
         for (int i = 0; i < cmd.Fixes.Count; i++)
         {
             string fixStr = cmd.Fixes[i].Name;
-            if (cmd.AltitudeConstraints.TryGetValue(i, out var alt))
+            if (cmd.AltitudeConstraints.TryGetValue(i, out ConstrainedFixAltitude? alt))
             {
                 string prefix = alt.AltType switch
                 {
@@ -2386,9 +2386,9 @@ public static class CommandDescriber
             return $"Hold short of {string.Join(" and ", cross.HoldShorts.Select(h => h.ToNatural()))}";
         }
 
-        var noun = cross.RunwayIds.Count == 1 ? "runway" : "runways";
-        var runways = string.Join(" and ", cross.RunwayIds.Select(RunwayIdentifier.ToDisplayDesignator));
-        var clause = $"Cross {noun} {runways}";
+        string noun = cross.RunwayIds.Count == 1 ? "runway" : "runways";
+        string runways = string.Join(" and ", cross.RunwayIds.Select(RunwayIdentifier.ToDisplayDesignator));
+        string clause = $"Cross {noun} {runways}";
         if (cross.HoldShorts.Count > 0)
         {
             clause += $", hold short of {string.Join(" and ", cross.HoldShorts.Select(h => h.ToNatural()))}";
@@ -2443,7 +2443,7 @@ public static class CommandDescriber
 
     private static string FormatTaxiNatural(TaxiCommand taxi)
     {
-        var displayPath = FormatTaxiNaturalPath(taxi);
+        string displayPath = FormatTaxiNaturalPath(taxi);
         bool hasPath = displayPath.Length > 0;
 
         string body;
@@ -2485,7 +2485,7 @@ public static class CommandDescriber
     /// </summary>
     private static IReadOnlyList<string> TaxiPathTokensWithHints(TaxiCommand taxi)
     {
-        var hints = taxi.PathTurnHints;
+        List<TurnDirection?>? hints = taxi.PathTurnHints;
         if (hints is null)
         {
             return taxi.Path;
@@ -2512,7 +2512,7 @@ public static class CommandDescriber
     /// </summary>
     private static string FormatTaxiNaturalPath(TaxiCommand taxi)
     {
-        var hints = taxi.PathTurnHints;
+        List<TurnDirection?>? hints = taxi.PathTurnHints;
         var rendered = new List<string>(taxi.Path.Count);
         for (int i = 0; i < taxi.Path.Count; i++)
         {
@@ -2521,7 +2521,7 @@ public static class CommandDescriber
                 continue;
             }
 
-            var hint = (hints is not null && i < hints.Count) ? hints[i] : null;
+            TurnDirection? hint = (hints is not null && i < hints.Count) ? hints[i] : null;
             rendered.Add(
                 hint switch
                 {
@@ -2569,25 +2569,25 @@ public static class CommandDescriber
 
     private static string FormatPtacCanonical(PositionTurnAltitudeClearanceCommand cmd)
     {
-        var verb = cmd.Forced ? "PTACF" : "PTAC";
-        var headingStr = cmd.MagneticHeading is { } h ? $"{h.Degrees:000}" : "PH";
-        var altStr = cmd.Altitude is { } a ? $"{a:000}" : "PA";
+        string verb = cmd.Forced ? "PTACF" : "PTAC";
+        string headingStr = cmd.MagneticHeading is { } h ? $"{h.Degrees:000}" : "PH";
+        string altStr = cmd.Altitude is { } a ? $"{a:000}" : "PA";
         return cmd.ApproachId is not null ? $"{verb} {headingStr} {altStr} {cmd.ApproachId}" : $"{verb} {headingStr} {altStr}";
     }
 
     private static string FormatPtacNatural(PositionTurnAltitudeClearanceCommand cmd)
     {
-        var headingPart = cmd.MagneticHeading is { } h ? $"Fly heading {h.Degrees:000}" : "Maintain present heading";
-        var altPart = cmd.Altitude is { } a ? $"maintain {a:N0}" : "maintain present altitude";
-        var clearedVerb = cmd.Forced ? "forced cleared" : "cleared";
-        var approachPart = cmd.ApproachId is not null ? $", {clearedVerb} {cmd.ApproachId} approach" : $", {clearedVerb} approach";
+        string headingPart = cmd.MagneticHeading is { } h ? $"Fly heading {h.Degrees:000}" : "Maintain present heading";
+        string altPart = cmd.Altitude is { } a ? $"maintain {a:N0}" : "maintain present altitude";
+        string clearedVerb = cmd.Forced ? "forced cleared" : "cleared";
+        string approachPart = cmd.ApproachId is not null ? $", {clearedVerb} {cmd.ApproachId} approach" : $", {clearedVerb} approach";
         return $"{headingPart}, {altPart}{approachPart}";
     }
 
     private static string FormatJarrNatural(JoinStarCommand cmd)
     {
-        var via = cmd.Transition is not null ? $" via {cmd.Transition}" : "";
-        var runway = cmd.RunwayTransition is not null ? $", runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayTransition)}" : "";
+        string via = cmd.Transition is not null ? $" via {cmd.Transition}" : "";
+        string runway = cmd.RunwayTransition is not null ? $", runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayTransition)}" : "";
         return $"Join {cmd.StarId} arrival{via}{runway}";
     }
 
@@ -2615,7 +2615,7 @@ public static class CommandDescriber
 
     private static string FormatCvaNatural(ClearedVisualApproachCommand cmd)
     {
-        var msg = $"Cleared visual approach runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayId)}";
+        string msg = $"Cleared visual approach runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayId)}";
         if (cmd.TrafficDirection is PatternDirection.Left)
         {
             msg += ", left traffic";
@@ -2633,13 +2633,13 @@ public static class CommandDescriber
 
     private static string FormatTrafficAdvisoryCanonical(TrafficAdvisoryDetails details)
     {
-        var basePart = $"RTIS {details.Clock} {details.Miles} {details.Direction} {details.AircraftType}";
+        string basePart = $"RTIS {details.Clock} {details.Miles} {details.Direction} {details.AircraftType}";
         return details.Altitude is { } altitude ? $"{basePart} {altitude / 100:000}" : basePart;
     }
 
     internal static string FormatTrafficAdvisoryPhrase(TrafficAdvisoryDetails details)
     {
-        var basePart =
+        string basePart =
             $"Traffic, {details.Clock} o'clock, {FormatMiles(details.Miles)}, {DirectionWord(details.Direction)}, {FormatAircraftType(details.AircraftType)}";
         return details.Altitude is { } altitude ? $"{basePart}, {altitude:N0}, report it in sight." : $"{basePart}, report it in sight.";
     }
@@ -2652,7 +2652,7 @@ public static class CommandDescriber
 
     private static string FormatTrafficPatternCanonical(TrafficPatternDetails details)
     {
-        var side = details.Side switch
+        string side = details.Side switch
         {
             PatternDirection.Left => "L ",
             PatternDirection.Right => "R ",
@@ -2663,19 +2663,19 @@ public static class CommandDescriber
 
     internal static string FormatTrafficPatternPhrase(TrafficPatternDetails details)
     {
-        var side = details.Side switch
+        string side = details.Side switch
         {
             PatternDirection.Left => "left ",
             PatternDirection.Right => "right ",
             _ => "",
         };
-        var runway = RunwayIdentifier.ToDisplayDesignator(details.RunwayId);
+        string runway = RunwayIdentifier.ToDisplayDesignator(details.RunwayId);
         return $"Traffic, {details.Miles}-mile {side}{PatternLegWord(details.Leg)} for runway {runway}, {FormatVfrType(details.AircraftType)}, report it in sight.";
     }
 
     internal static string FormatTrafficLandmarkPhrase(TrafficLandmarkDetails details)
     {
-        var name = NavigationDatabase.Instance.GetFixFriendlyName(details.FixName);
+        string name = NavigationDatabase.Instance.GetFixFriendlyName(details.FixName);
         return $"Traffic, over {name}, {FormatVfrType(details.AircraftType)}, report it in sight.";
     }
 
@@ -2724,7 +2724,7 @@ public static class CommandDescriber
     private static string FormatVfrType(string type)
     {
         string formatted;
-        var record = FaaAircraftDatabase.Get(type);
+        FaaAircraftRecord? record = FaaAircraftDatabase.Get(type);
         if (record is not null && !string.IsNullOrWhiteSpace(record.Manufacturer))
         {
             // FAA manufacturer casing is inconsistent ("Cessna" but "MOONEY"); normalize to Title Case.
@@ -2854,8 +2854,8 @@ public static class CommandDescriber
 
     private static string FormatFaaAircraftType(FaaAircraftRecord record)
     {
-        var manufacturer = record.Manufacturer?.Trim();
-        var model = NormalizeAircraftModel(record.ModelFaa?.Trim() ?? record.ModelBada?.Trim());
+        string? manufacturer = record.Manufacturer?.Trim();
+        string? model = NormalizeAircraftModel(record.ModelFaa?.Trim() ?? record.ModelBada?.Trim());
         if (string.IsNullOrWhiteSpace(model))
         {
             return record.IcaoCode.ToUpperInvariant();
@@ -2876,7 +2876,7 @@ public static class CommandDescriber
             return model;
         }
 
-        var dashIndex = model.IndexOf('-');
+        int dashIndex = model.IndexOf('-');
         if (dashIndex > 0 && dashIndex < model.Length - 1 && char.IsDigit(model[dashIndex - 1]) && char.IsDigit(model[dashIndex + 1]))
         {
             return model[..dashIndex];
@@ -2973,21 +2973,21 @@ public static class CommandDescriber
             return $"CMTR {cmd.Designator}";
         }
 
-        var prefix = cmd.AtOrBelow ? "B" : "";
+        string prefix = cmd.AtOrBelow ? "B" : "";
         return $"CMTR {cmd.Designator} {prefix}{altitude}";
     }
 
     private static string DescribeClearedOutOfMilitaryRoute(ClearedOutOfMilitaryRouteCommand cmd)
     {
-        var altitude = cmd.AltitudeFt is { } feet ? $" {feet}" : "";
-        var via = cmd.Route is null ? "" : $" VIA {cmd.Route}";
+        string altitude = cmd.AltitudeFt is { } feet ? $" {feet}" : "";
+        string via = cmd.Route is null ? "" : $" VIA {cmd.Route}";
         return $"XMTR {cmd.Destination}{altitude}{via}";
     }
 
     private static string DescribeClearedOutOfMilitaryRouteNatural(ClearedOutOfMilitaryRouteCommand cmd)
     {
-        var via = cmd.Route is null ? "" : $" via {cmd.Route}";
-        var maintain = cmd.AltitudeFt is { } feet ? $", maintain {feet:N0}" : "";
+        string via = cmd.Route is null ? "" : $" via {cmd.Route}";
+        string maintain = cmd.AltitudeFt is { } feet ? $", maintain {feet:N0}" : "";
         return $"Cleared out of the military route to {cmd.Destination}{via}{maintain}";
     }
 

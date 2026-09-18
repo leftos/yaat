@@ -38,10 +38,10 @@ public sealed class Attendance
     public void Replace(IReadOnlyList<string> positionIds, ArtccConfigRoot? config)
     {
         _positions.Clear();
-        foreach (var positionId in positionIds.Distinct(StringComparer.Ordinal).OrderBy(id => id, StringComparer.Ordinal))
+        foreach (string? positionId in positionIds.Distinct(StringComparer.Ordinal).OrderBy(id => id, StringComparer.Ordinal))
         {
-            var owner = config?.ResolvePosition(positionId);
-            var tcp = config?.GetTcpForPosition(positionId);
+            TrackOwner? owner = config?.ResolvePosition(positionId);
+            Tcp? tcp = config?.GetTcpForPosition(positionId);
             if (owner is null && tcp is null)
             {
                 Log.LogDebug("Attended position {PositionId} is not in the room's ARTCC config; keeping it by id only", positionId);
@@ -64,7 +64,7 @@ public sealed class Attendance
     /// </summary>
     public Tcp? ConsolidationOwnerOf(Tcp tcp, SimScenarioState scenario, ConsolidationState overrides)
     {
-        var facilityId = scenario.StudentPosition?.FacilityId ?? "";
+        string facilityId = scenario.StudentPosition?.FacilityId ?? "";
         if (scenario.ArtccConfig is not { } config || string.IsNullOrEmpty(facilityId))
         {
             return null;
@@ -84,7 +84,7 @@ public sealed class Attendance
             return true;
         }
 
-        var owner = ConsolidationOwnerOf(tcp, scenario, overrides);
+        Tcp? owner = ConsolidationOwnerOf(tcp, scenario, overrides);
         return owner is not null && IsTcpAttended(owner);
     }
 }

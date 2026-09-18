@@ -178,7 +178,7 @@ public class TdlsFlightPlanEditorViewModelTests
         );
         Assert.False(editor.IsSendEnabled);
 
-        var notifications = 0;
+        int notifications = 0;
         editor.SendCommand.CanExecuteChanged += (_, _) => notifications++;
 
         editor.SelectedDepFreq = editor.DepFreqs[0];
@@ -211,7 +211,7 @@ public class TdlsFlightPlanEditorViewModelTests
         // surfacing as "MANDATORY FIELD NOT SET — Departure frequency" with the
         // Send button greyed out. After the SelectedItem refactor, an item picked
         // by ApplyTransitionDefaults registers as set immediately.
-        var cfg = BuildConfig(mandatorySid: true, mandatoryExpect: true, mandatoryDepFreq: true);
+        TdlsConfigDto cfg = BuildConfig(mandatorySid: true, mandatoryExpect: true, mandatoryDepFreq: true);
         var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null, isReadOnly: false, opConfigId: null);
 
         Assert.NotNull(editor.SelectedDepFreq);
@@ -223,7 +223,7 @@ public class TdlsFlightPlanEditorViewModelTests
     [Fact]
     public void IsSendEnabled_False_WhenMandatoryFieldMissing()
     {
-        var cfg = BuildConfig(mandatoryExpect: true);
+        TdlsConfigDto cfg = BuildConfig(mandatoryExpect: true);
         var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null, isReadOnly: false, opConfigId: null);
 
         // Wipe Expect — that's mandatory in this config; Send must lock.
@@ -238,7 +238,7 @@ public class TdlsFlightPlanEditorViewModelTests
     {
         // When a seed already has values, the constructor must NOT overwrite
         // them with the transition's defaults (controller's hand-edits win).
-        var cfg = BuildConfig();
+        TdlsConfigDto cfg = BuildConfig();
         var seed = new ClearanceDto(
             Expect: "20 MIN",
             Sid: "OAKLAND4",
@@ -265,7 +265,7 @@ public class TdlsFlightPlanEditorViewModelTests
         // issued clearance. Every field reflects the seed, the panel reports
         // itself non-editable, and Send is locked even though all mandatory
         // fields are populated.
-        var cfg = BuildConfig();
+        TdlsConfigDto cfg = BuildConfig();
         var seed = new ClearanceDto(
             Expect: "20 MIN",
             Sid: "OAKLAND4",
@@ -295,7 +295,7 @@ public class TdlsFlightPlanEditorViewModelTests
         // A sent PDC issued with a blank Expect must keep it blank in review —
         // read-only construction skips ApplyTransitionDefaults, so the FE
         // default ("10 MIN") is NOT pulled in.
-        var cfg = BuildConfig();
+        TdlsConfigDto cfg = BuildConfig();
         var seed = new ClearanceDto(
             Expect: null,
             Sid: "OAKLAND4",
@@ -321,7 +321,7 @@ public class TdlsFlightPlanEditorViewModelTests
         // "OAK6 OAK V107 LAX" — leading token matches SID name; second token
         // matches transition FirstRoutePoint. Both dropdowns should snap to
         // the filed values without any explicit seed.
-        var cfg = BuildConfig();
+        TdlsConfigDto cfg = BuildConfig();
         var fp = new TdlsFlightPlanInfoDto(
             AssignedBeaconCode: 501,
             Departure: "KOAK",
@@ -344,7 +344,7 @@ public class TdlsFlightPlanEditorViewModelTests
     public void FiledRoute_DottedSidTransitionForm_AlsoMatches()
     {
         // "OAKLAND4.ALTAM V107 LAX" — common ATC route notation for SID+transition.
-        var cfg = BuildConfig();
+        TdlsConfigDto cfg = BuildConfig();
         var fp = new TdlsFlightPlanInfoDto(
             AssignedBeaconCode: 501,
             Departure: "KOAK",
@@ -366,7 +366,7 @@ public class TdlsFlightPlanEditorViewModelTests
     [Fact]
     public void FiledRoute_UnknownSidFallsBackToDefault()
     {
-        var cfg = BuildConfig();
+        TdlsConfigDto cfg = BuildConfig();
         var fp = new TdlsFlightPlanInfoDto(
             AssignedBeaconCode: null,
             Departure: "KOAK",
@@ -466,9 +466,9 @@ public class TdlsFlightPlanEditorViewModelTests
         // The reported bug: "TRUKN2 ORRCA" auto-filled the transition and "SNTNA2 ORRCA" did not,
         // because the ZOA config sets firstRoutePoint on TRUKN2's ORRCA transition and omits it on
         // SNTNA2's even though both transitions are named ORRCA.
-        var cfg = BuildSfoLikeConfig("- - - -");
+        TdlsConfigDto cfg = BuildSfoLikeConfig("- - - -");
 
-        var (sidId, transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, "SNTNA2 ORRCA STOKD KEEDS");
+        (string? sidId, string? transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, "SNTNA2 ORRCA STOKD KEEDS");
 
         Assert.Equal("SNTNA2", sidId);
         Assert.Equal("SNTNA2-ORRCA", transitionId);
@@ -480,9 +480,9 @@ public class TdlsFlightPlanEditorViewModelTests
         // OFFSH9's ORRCA transition has firstRoutePoint = "STOKD" (the FE pointed it at the fix
         // after the transition fix). The route names the transition, so the name pass must catch it
         // rather than leaving the dropdown on the SID's first transition.
-        var cfg = BuildSfoLikeConfig("- - - -");
+        TdlsConfigDto cfg = BuildSfoLikeConfig("- - - -");
 
-        var (sidId, transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, "OFFSH9 ORRCA KEEDS");
+        (string? sidId, string? transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, "OFFSH9 ORRCA KEEDS");
 
         Assert.Equal("OFFSH9", sidId);
         Assert.Equal("OFFSH9-ORRCA", transitionId);
@@ -494,9 +494,9 @@ public class TdlsFlightPlanEditorViewModelTests
         // WESLA3 lists a transition *named* ORRCA before one whose firstRoutePoint is ORRCA. The
         // FE's explicit entry-fix mapping stays authoritative: firstRoutePoint is matched across
         // every transition before any name comparison runs.
-        var cfg = BuildSfoLikeConfig("- - - -");
+        TdlsConfigDto cfg = BuildSfoLikeConfig("- - - -");
 
-        var (sidId, transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, "WESLA3 ORRCA MOVDD");
+        (string? sidId, string? transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, "WESLA3 ORRCA MOVDD");
 
         Assert.Equal("WESLA3", sidId);
         Assert.Equal("WESLA3-POINTHIT", transitionId);
@@ -510,9 +510,9 @@ public class TdlsFlightPlanEditorViewModelTests
     {
         // The "no transition" entry's name is dashes, not a fix. A route token made of dashes must
         // never select it — the SID still matches, the transition stays unresolved.
-        var cfg = BuildSfoLikeConfig(noTransitionName);
+        TdlsConfigDto cfg = BuildSfoLikeConfig(noTransitionName);
 
-        var (sidId, transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, $"SNTNA2 {noTransitionName} OSI");
+        (string? sidId, string? transitionId) = TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute(cfg, $"SNTNA2 {noTransitionName} OSI");
 
         Assert.Equal("SNTNA2", sidId);
         Assert.Null(transitionId);
@@ -553,7 +553,7 @@ public class TdlsFlightPlanEditorViewModelTests
     {
         // What an open editor gets when an amendment lands: the header follows the new route, and the SID and
         // transition the route derives follow it rather than staying on what the aircraft was filed with.
-        var cfg = BuildSfoLikeConfig("- - - -");
+        TdlsConfigDto cfg = BuildSfoLikeConfig("- - - -");
         var fp = new TdlsFlightPlanInfoDto(
             AssignedBeaconCode: 501,
             Departure: "KSFO",
@@ -753,7 +753,7 @@ public class TdlsFlightPlanEditorViewModelTests
     {
         // "Climb via SID [except maintain X]" and "maintain X" are alternatives (7110.65 §4-3-2). A clearance holding
         // both tells the pilot two different things about the same altitude.
-        var editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
+        TdlsFlightPlanEditorViewModel editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
         editor.InitialAlt = "5000FT";
         Assert.True(editor.IsInitialAltEnabled);
 
@@ -768,7 +768,7 @@ public class TdlsFlightPlanEditorViewModelTests
     {
         // The field comes back, empty: the controller chose an altitude for a clearance that no longer exists, and
         // silently re-issuing it would put back a value they never picked for this one.
-        var editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
+        TdlsFlightPlanEditorViewModel editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
         editor.InitialAlt = "5000FT";
         editor.SelectedClimbvia = editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
 
@@ -782,7 +782,7 @@ public class TdlsFlightPlanEditorViewModelTests
     public void PlaceholderClimbVia_IsNoClimbViaAtAll()
     {
         // The FE's "- - - -" entry is selectable but instructs nothing, so it neither locks Maintain nor clears it.
-        var editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
+        TdlsFlightPlanEditorViewModel editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
         editor.InitialAlt = "5000FT";
 
         editor.SelectedClimbvia = editor.Climbvias.Single(v => v.Value == "- - - -");
@@ -796,7 +796,7 @@ public class TdlsFlightPlanEditorViewModelTests
     {
         // ZOA's OAK NUEVO8 defines defaultClimbvia "CLB VIA SID EXC MAINT 10000FT" AND defaultInitialAlt "10000FT".
         // Back-filling both would open the editor on a clearance no controller could have composed.
-        var editor = OakEditor(mandatoryInitialAlt: false, flightPlan: OakFlightPlan("NUEVO8 OAK V6 LIN"));
+        TdlsFlightPlanEditorViewModel editor = OakEditor(mandatoryInitialAlt: false, flightPlan: OakFlightPlan("NUEVO8 OAK V6 LIN"));
 
         Assert.Equal("NUEVO8", editor.SelectedSid?.Id);
         Assert.Equal("CLB VIA SID EXC MAINT 10000FT", editor.Climbvia);
@@ -809,7 +809,7 @@ public class TdlsFlightPlanEditorViewModelTests
     {
         // The same data through the other door: a later SID pick overwrites the fields rather than back-filling them,
         // so the suppression has to read the climb-via assigned moments earlier in the same pass.
-        var editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
+        TdlsFlightPlanEditorViewModel editor = OakEditor(mandatoryInitialAlt: false, flightPlan: null);
         editor.InitialAlt = "5000FT";
 
         editor.SelectedSid = editor.Sids.Single(s => s.Id == "NUEVO8");
@@ -824,7 +824,7 @@ public class TdlsFlightPlanEditorViewModelTests
     {
         // A facility can make Maintain mandatory; a climb-via is the altitude instruction, so it fills that
         // requirement. Otherwise the editor would disable the only field the Send button is waiting on.
-        var editor = OakEditor(mandatoryInitialAlt: true, flightPlan: null);
+        TdlsFlightPlanEditorViewModel editor = OakEditor(mandatoryInitialAlt: true, flightPlan: null);
         Assert.False(editor.IsSendEnabled);
         Assert.Contains("Maintain", editor.MissingMandatoryFieldNames, StringComparison.Ordinal);
 
@@ -861,7 +861,7 @@ public class TdlsFlightPlanEditorViewModelTests
         // The reported bug: the aircraft was filed on a route naming no configured SID, so the controller picked a
         // Maintain by hand. The amendment brings a SID whose transition defaults to a climb-via, and the clearance
         // about to be sent carried both instructions.
-        var editor = OakEditor(mandatoryInitialAlt: false, flightPlan: OakFlightPlan("SUNOL V6 LIN"));
+        TdlsFlightPlanEditorViewModel editor = OakEditor(mandatoryInitialAlt: false, flightPlan: OakFlightPlan("SUNOL V6 LIN"));
         Assert.Equal("SKYLINE7", editor.SelectedSid?.Id);
         editor.InitialAlt = "5000FT";
         Assert.True(editor.IsInitialAltEnabled);

@@ -15,7 +15,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
 
     public FileLoggerProvider(string path)
     {
-        var dir = Path.GetDirectoryName(path);
+        string? dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir))
         {
             Directory.CreateDirectory(dir);
@@ -24,7 +24,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
         // Roll the previous session aside before truncating. Without this, a user who hits a hang or
         // crash and then relaunches to collect their log destroys the only record of the failure —
         // the new session's FileMode.Create wipes it before anyone reads it.
-        var rotationError = RotatePreviousLogs(path);
+        Exception? rotationError = RotatePreviousLogs(path);
 
         var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
         _writer = new StreamWriter(stream) { AutoFlush = true };
@@ -61,15 +61,15 @@ public sealed class FileLoggerProvider : ILoggerProvider
                 return null;
             }
 
-            var oldest = $"{path}.{KeepPreviousLogs}";
+            string oldest = $"{path}.{KeepPreviousLogs}";
             if (File.Exists(oldest))
             {
                 File.Delete(oldest);
             }
 
-            for (var i = KeepPreviousLogs - 1; i >= 1; i--)
+            for (int i = KeepPreviousLogs - 1; i >= 1; i--)
             {
-                var from = $"{path}.{i}";
+                string from = $"{path}.{i}";
                 if (File.Exists(from))
                 {
                     File.Move(from, $"{path}.{i + 1}", overwrite: true);
@@ -112,9 +112,9 @@ public sealed class FileLogger(string category, StreamWriter writer) : ILogger
             return;
         }
 
-        var message = formatter(state, exception);
-        var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
-        var level = logLevel switch
+        string message = formatter(state, exception);
+        string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+        string level = logLevel switch
         {
             LogLevel.Trace => "trce",
             LogLevel.Debug => "dbug",
@@ -125,7 +125,7 @@ public sealed class FileLogger(string category, StreamWriter writer) : ILogger
             _ => "????",
         };
 
-        var line = $"{timestamp} [{level}] {category}: {message}";
+        string line = $"{timestamp} [{level}] {category}: {message}";
 
         lock (WriteLock)
         {

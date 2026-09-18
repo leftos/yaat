@@ -34,11 +34,11 @@ public class Issue416PrecedingDepartureTests
     [Fact]
     public void Standstill_LeaderRollingTooClose_DeclinesClearance()
     {
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 0);
-        var lead = MakeRollingLeader(runway, downfieldFt: 2000, groundSpeedKts: 60, rejecting: false);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 0);
+        AircraftState lead = MakeRollingLeader(runway, downfieldFt: 2000, groundSpeedKts: 60, rejecting: false);
         Assert.Equal(RunwayUseKind.Departing, RunwayOccupancy.Classify(lead, runway, null)?.Kind);
-        var ctx = Ctx(dep, runway, lead, autoReject: true);
+        PhaseContext ctx = Ctx(dep, runway, lead, autoReject: true);
         dep.Phases!.Start(ctx);
 
         double maxIas = RunStandstill(dep, ctx, seconds: 20);
@@ -58,15 +58,15 @@ public class Issue416PrecedingDepartureTests
     [Fact]
     public void Standstill_LeaderAirborneWithSrsSpacing_DoesNotBlock()
     {
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 0);
-        var lead = MakeAirborneLeader(runway, downfieldFt: 7000, iasKts: 160, aglFt: 300);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 0);
+        AircraftState lead = MakeAirborneLeader(runway, downfieldFt: 7000, iasKts: 160, aglFt: 300);
         Assert.Equal(RunwayUseKind.Departing, RunwayOccupancy.Classify(lead, runway, null)?.Kind);
         Assert.True(7000 < runway.PavementLengthFt, "fixture: the leader must still be short of the runway end");
-        var ctx = Ctx(dep, runway, lead, autoReject: true);
+        PhaseContext ctx = Ctx(dep, runway, lead, autoReject: true);
         dep.Phases!.Start(ctx);
 
-        var (airborne, _) = RunRoll(dep, ctx, lead, seconds: 120);
+        (bool airborne, double _) = RunRoll(dep, ctx, lead, seconds: 120);
 
         Assert.True(airborne, $"An airborne leader with SRS spacing must not block the roll (IAS={dep.IndicatedAirspeed:F0})");
     }
@@ -79,10 +79,10 @@ public class Issue416PrecedingDepartureTests
     [Fact]
     public void Standstill_LeaderRejectingFarAhead_StillDeclines()
     {
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 0);
-        var lead = MakeRollingLeader(runway, downfieldFt: 5000, groundSpeedKts: 80, rejecting: true);
-        var ctx = Ctx(dep, runway, lead, autoReject: true);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 0);
+        AircraftState lead = MakeRollingLeader(runway, downfieldFt: 5000, groundSpeedKts: 80, rejecting: true);
+        PhaseContext ctx = Ctx(dep, runway, lead, autoReject: true);
         dep.Phases!.Start(ctx);
 
         double maxIas = RunStandstill(dep, ctx, seconds: 20);
@@ -101,14 +101,14 @@ public class Issue416PrecedingDepartureTests
     [Fact]
     public void Rolling_LeaderOutrunsTrailer_NoReject()
     {
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 60);
-        var lead = MakeRollingLeader(runway, downfieldFt: 6000, groundSpeedKts: 120, rejecting: false);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 60);
+        AircraftState lead = MakeRollingLeader(runway, downfieldFt: 6000, groundSpeedKts: 120, rejecting: false);
         Assert.Equal(RunwayUseKind.Departing, RunwayOccupancy.Classify(lead, runway, null)?.Kind);
-        var ctx = Ctx(dep, runway, lead, autoReject: true);
+        PhaseContext ctx = Ctx(dep, runway, lead, autoReject: true);
         dep.Phases!.Start(ctx);
 
-        var (airborne, _) = RunRoll(dep, ctx, lead, seconds: 120);
+        (bool airborne, double _) = RunRoll(dep, ctx, lead, seconds: 120);
 
         Assert.True(airborne, $"A leader that outruns the trailer must not trigger a reject (IAS={dep.IndicatedAirspeed:F0})");
     }
@@ -121,13 +121,13 @@ public class Issue416PrecedingDepartureTests
     [Fact]
     public void Rolling_LowSpeed_LeaderRejectingAhead_Rejects()
     {
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 60);
-        var lead = MakeRollingLeader(runway, downfieldFt: 2500, groundSpeedKts: 80, rejecting: true);
-        var ctx = Ctx(dep, runway, lead, autoReject: true);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 60);
+        AircraftState lead = MakeRollingLeader(runway, downfieldFt: 2500, groundSpeedKts: 80, rejecting: true);
+        PhaseContext ctx = Ctx(dep, runway, lead, autoReject: true);
         dep.Phases!.Start(ctx);
 
-        var (airborne, minSepFt) = RunRoll(dep, ctx, lead, seconds: 120);
+        (bool airborne, double minSepFt) = RunRoll(dep, ctx, lead, seconds: 120);
 
         Assert.False(airborne, $"The trailer must reject, not lift off (IAS={dep.IndicatedAirspeed:F0})");
         Assert.True(dep.IndicatedAirspeed < 1.0, $"Trailer should be stopped, IAS={dep.IndicatedAirspeed:F0}");
@@ -147,11 +147,11 @@ public class Issue416PrecedingDepartureTests
     [Fact]
     public void OppositeDirectionRoller_AtFarEnd_Blocks()
     {
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 0);
-        var lead = MakeOpposingLeader(runway, downfieldFt: runway.PavementLengthFt - 100, groundSpeedKts: 60);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 0);
+        AircraftState lead = MakeOpposingLeader(runway, downfieldFt: runway.PavementLengthFt - 100, groundSpeedKts: 60);
         Assert.Equal(RunwayUseKind.Departing, RunwayOccupancy.Classify(lead, runway, null)?.Kind);
-        var ctx = Ctx(dep, runway, lead, autoReject: true);
+        PhaseContext ctx = Ctx(dep, runway, lead, autoReject: true);
         dep.Phases!.Start(ctx);
 
         double maxIas = RunStandstill(dep, ctx, seconds: 20);
@@ -172,11 +172,11 @@ public class Issue416PrecedingDepartureTests
     [Fact]
     public void OppositeDirectionRoller_ClosingDistance_RejectsHighSpeedRoll()
     {
-        var runway = Runway28R();
-        var dep = MakeRollingDeparture(runway, iasKts: 90);
-        var lead = MakeOpposingLeader(runway, downfieldFt: 8000, groundSpeedKts: 60);
+        RunwayInfo runway = Runway28R();
+        AircraftState dep = MakeRollingDeparture(runway, iasKts: 90);
+        AircraftState lead = MakeOpposingLeader(runway, downfieldFt: 8000, groundSpeedKts: 60);
         Assert.Equal(RunwayUseKind.Departing, RunwayOccupancy.Classify(lead, runway, null)?.Kind);
-        var cat = AircraftCategorization.Categorize(dep.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(dep.AircraftType);
         Assert.True(
             GroundFrame.IasForGroundSpeed(dep, dep.IndicatedAirspeed) > CategoryPerformance.LowSpeedRejectThresholdKts(cat),
             "fixture: the trailer must be in the high-speed regime, where only the overfly math can reject"
@@ -185,10 +185,10 @@ public class Issue416PrecedingDepartureTests
             RejectedTakeoff.CanOverfly(dep, cat, 8000 - RejectedTakeoff.StopMarginFt),
             "fixture: the stationary distance would be overflyable"
         );
-        var ctx = Ctx(dep, runway, lead, autoReject: true);
+        PhaseContext ctx = Ctx(dep, runway, lead, autoReject: true);
         dep.Phases!.Start(ctx);
 
-        var (airborne, _) = RunRoll(dep, ctx, lead, seconds: 120);
+        (bool airborne, double _) = RunRoll(dep, ctx, lead, seconds: 120);
 
         Assert.False(airborne, $"A closing head-on roller must be judged on the closing distance (IAS={dep.IndicatedAirspeed:F0})");
         Assert.True(dep.IndicatedAirspeed < 1.0, $"Trailer should be stopped, IAS={dep.IndicatedAirspeed:F0}");

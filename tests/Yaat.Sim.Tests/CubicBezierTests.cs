@@ -60,8 +60,8 @@ public class CubicBezierTests
     [Fact]
     public void Evaluate_AtT0_ReturnsP0()
     {
-        var b = MakeArc();
-        var (lat, lon) = b.Evaluate(0);
+        CubicBezier b = MakeArc();
+        (double lat, double lon) = b.Evaluate(0);
         Assert.Equal(NodeALat, lat, 1e-10);
         Assert.Equal(NodeALon, lon, 1e-10);
     }
@@ -69,8 +69,8 @@ public class CubicBezierTests
     [Fact]
     public void Evaluate_AtT1_ReturnsP3()
     {
-        var b = MakeArc();
-        var (lat, lon) = b.Evaluate(1);
+        CubicBezier b = MakeArc();
+        (double lat, double lon) = b.Evaluate(1);
         Assert.Equal(NodeBLat, lat, 1e-10);
         Assert.Equal(NodeBLon, lon, 1e-10);
     }
@@ -78,8 +78,8 @@ public class CubicBezierTests
     [Fact]
     public void Evaluate_AtMidpoint_IsOnCurve()
     {
-        var b = MakeArc();
-        var (lat, lon) = b.Evaluate(0.5);
+        CubicBezier b = MakeArc();
+        (double lat, double lon) = b.Evaluate(0.5);
 
         // Midpoint of a 90° arc should be offset from the chord midpoint toward the center.
         // It should be between the two endpoints in both lat and lon.
@@ -92,7 +92,7 @@ public class CubicBezierTests
     [Fact]
     public void ClosestT_PointAtStart_ReturnsNearZero()
     {
-        var b = MakeArc();
+        CubicBezier b = MakeArc();
         double t = b.ClosestT(NodeALat, NodeALon, 20);
         Assert.True(t < 0.05, $"Expected t near 0, got {t}");
     }
@@ -100,7 +100,7 @@ public class CubicBezierTests
     [Fact]
     public void ClosestT_PointAtEnd_ReturnsNearOne()
     {
-        var b = MakeArc();
+        CubicBezier b = MakeArc();
         double t = b.ClosestT(NodeBLat, NodeBLon, 20);
         Assert.True(t > 0.95, $"Expected t near 1, got {t}");
     }
@@ -108,8 +108,8 @@ public class CubicBezierTests
     [Fact]
     public void ClosestT_PointOnCurve_MatchesEvaluation()
     {
-        var b = MakeArc();
-        var (midLat, midLon) = b.Evaluate(0.5);
+        CubicBezier b = MakeArc();
+        (double midLat, double midLon) = b.Evaluate(0.5);
         double t = b.ClosestT(midLat, midLon, 20);
         Assert.Equal(0.5, t, 0.02);
     }
@@ -117,7 +117,7 @@ public class CubicBezierTests
     [Fact]
     public void ClosestT_PointOffCurve_ReturnsNearestT()
     {
-        var b = MakeArc();
+        CubicBezier b = MakeArc();
         // Point at the intersection (inside the curve) — should project to somewhere around t=0.5
         double t = b.ClosestT(IntersectionLat, IntersectionLon, 20);
         Assert.True(t > 0.2 && t < 0.8, $"Expected t near midpoint for interior point, got {t}");
@@ -128,7 +128,7 @@ public class CubicBezierTests
     [Fact]
     public void RadiusOfCurvature_StraightBezier_IsVeryLarge()
     {
-        var b = MakeStraight();
+        CubicBezier b = MakeStraight();
         double r = b.RadiusOfCurvatureFt(0.5, IntersectionLat);
         Assert.True(r > 1_000_000, $"Straight bezier should have very large radius, got {r:F0}ft");
     }
@@ -136,7 +136,7 @@ public class CubicBezierTests
     [Fact]
     public void RadiusOfCurvature_90DegArc_IsReasonable()
     {
-        var b = MakeArc();
+        CubicBezier b = MakeArc();
         double r = b.RadiusOfCurvatureFt(0.5, IntersectionLat);
 
         // For a 75ft tangent distance at 90°, the curb radius R = T / tan(45°) = 75ft.
@@ -147,7 +147,7 @@ public class CubicBezierTests
     [Fact]
     public void MinRadiusOfCurvature_90DegArc_IsTighterThanEndpoints()
     {
-        var b = MakeArc();
+        CubicBezier b = MakeArc();
         double minR = b.MinRadiusOfCurvatureFt(IntersectionLat, 20);
         double endpointR = b.RadiusOfCurvatureFt(0.0, IntersectionLat);
 
@@ -160,7 +160,7 @@ public class CubicBezierTests
     [Fact]
     public void ArcLength_StraightBezier_ApproximatesChordLength()
     {
-        var b = MakeStraight();
+        CubicBezier b = MakeStraight();
         double arcLen = b.ArcLengthNm(20);
         double chordLen = GeoMath.DistanceNm(IntersectionLat, IntersectionLon, StraightEndLat, StraightEndLon);
         double ratio = arcLen / chordLen;
@@ -170,7 +170,7 @@ public class CubicBezierTests
     [Fact]
     public void ArcLength_CurvedArc_IsLongerThanChord()
     {
-        var b = MakeArc();
+        CubicBezier b = MakeArc();
         double arcLen = b.ArcLengthNm(20);
         double chordLen = GeoMath.DistanceNm(NodeALat, NodeALon, NodeBLat, NodeBLon);
         Assert.True(arcLen > chordLen, $"Arc length {arcLen:F6}nm should exceed chord {chordLen:F6}nm");
@@ -181,7 +181,7 @@ public class CubicBezierTests
     [Fact]
     public void TangentBearing_AtT0_AlignsWithP0ToP1()
     {
-        var b = MakeArc();
+        CubicBezier b = MakeArc();
         double bearing = b.TangentBearing(0);
 
         // P0 to P1 direction: same lat, decreasing lon → heading west (270°)
@@ -191,7 +191,7 @@ public class CubicBezierTests
     [Fact]
     public void TangentBearing_AtT1_AlignsWithP2ToP3()
     {
-        var b = MakeArc();
+        CubicBezier b = MakeArc();
         double bearing = b.TangentBearing(1);
 
         // P2 to P3 direction: same lon, decreasing lat → heading south (180°)
@@ -211,7 +211,7 @@ public class CubicBezierTests
         double radiusM = radiusFt * 0.3048;
         double expected = Math.Sqrt(0.13 * 9.80665 * radiusM) / 0.514444;
 
-        var arc = MakeGroundArc(radiusFt); // TurnAngleDeg defaults to 0 → corner ceiling non-binding
+        GroundArc arc = MakeGroundArc(radiusFt); // TurnAngleDeg defaults to 0 → corner ceiling non-binding
 
         Assert.Equal(expected, arc.MaxSafeSpeedKts(AircraftCategory.Jet), 0.01);
     }
@@ -219,8 +219,8 @@ public class CubicBezierTests
     [Fact]
     public void MaxSafeSpeedKts_LargerRadius_ProducesHigherSpeed()
     {
-        var smallArc = MakeGroundArc(75.0);
-        var largeArc = MakeGroundArc(150.0);
+        GroundArc smallArc = MakeGroundArc(75.0);
+        GroundArc largeArc = MakeGroundArc(150.0);
 
         Assert.True(largeArc.MaxSafeSpeedKts(AircraftCategory.Jet) > smallArc.MaxSafeSpeedKts(AircraftCategory.Jet));
     }

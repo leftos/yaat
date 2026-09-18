@@ -30,7 +30,7 @@ public partial class MainViewModel
         get
         {
             yield return Radar;
-            foreach (var instance in ExtraRadarViews)
+            foreach (RadarViewInstance instance in ExtraRadarViews)
             {
                 yield return instance.Vm;
             }
@@ -43,7 +43,7 @@ public partial class MainViewModel
         get
         {
             yield return Ground;
-            foreach (var instance in ExtraGroundViews)
+            foreach (GroundViewInstance instance in ExtraGroundViews)
             {
                 yield return instance.Vm;
             }
@@ -115,7 +115,10 @@ public partial class MainViewModel
     /// </summary>
     public RadarViewInstance OpenExtraRadarView(string airportId)
     {
-        var instance = OpenRadarInstance(ViewInstanceOrdinals.NextFree(ExtraRadarViews.Select(i => i.Ordinal)), NormalizeAirportId(airportId));
+        RadarViewInstance instance = OpenRadarInstance(
+            ViewInstanceOrdinals.NextFree(ExtraRadarViews.Select(i => i.Ordinal)),
+            NormalizeAirportId(airportId)
+        );
         PersistExtraViews();
         return instance;
     }
@@ -128,7 +131,10 @@ public partial class MainViewModel
     /// </summary>
     public GroundViewInstance OpenExtraGroundView(string airportId)
     {
-        var instance = OpenGroundInstance(ViewInstanceOrdinals.NextFree(ExtraGroundViews.Select(i => i.Ordinal)), NormalizeAirportId(airportId));
+        GroundViewInstance instance = OpenGroundInstance(
+            ViewInstanceOrdinals.NextFree(ExtraGroundViews.Select(i => i.Ordinal)),
+            NormalizeAirportId(airportId)
+        );
         PersistExtraViews();
         return instance;
     }
@@ -156,7 +162,7 @@ public partial class MainViewModel
     {
         get
         {
-            var airportId = _lastRadarPrimaryAirportId ?? Ground.Layout?.AirportId;
+            string? airportId = _lastRadarPrimaryAirportId ?? Ground.Layout?.AirportId;
             return airportId is null ? null : NormalizeAirportId(airportId);
         }
     }
@@ -179,8 +185,8 @@ public partial class MainViewModel
     /// </summary>
     private string NormalizeAirportId(string airportId)
     {
-        var trimmed = airportId.Trim().ToUpperInvariant();
-        if (_commandInput.NavDbReady && NavigationDatabase.Instance.TryResolveFaaId(trimmed, out var faaId))
+        string trimmed = airportId.Trim().ToUpperInvariant();
+        if (_commandInput.NavDbReady && NavigationDatabase.Instance.TryResolveFaaId(trimmed, out string? faaId))
         {
             return faaId;
         }
@@ -194,13 +200,13 @@ public partial class MainViewModel
     /// </summary>
     private static (double Lat, double Lon)? ResolveAirportPosition(string airportId)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         if (navDb.GetFixPosition(airportId) is { } direct)
         {
             return direct;
         }
 
-        return navDb.TryResolveAirport(airportId, out var canonicalId) ? navDb.GetFixPosition(canonicalId) : null;
+        return navDb.TryResolveAirport(airportId, out string? canonicalId) ? navDb.GetFixPosition(canonicalId) : null;
     }
 
     /// <summary>Drops an extra Radar View instance. A no-op when it was already removed.</summary>
@@ -238,7 +244,7 @@ public partial class MainViewModel
     /// </summary>
     public void ReconcileExtraViews(IReadOnlyList<SavedExtraView> radar, IReadOnlyList<SavedExtraView> ground)
     {
-        for (var i = ExtraRadarViews.Count - 1; i >= 0; i--)
+        for (int i = ExtraRadarViews.Count - 1; i >= 0; i--)
         {
             if (!radar.Any(entry => Matches(entry, ExtraRadarViews[i].Ordinal, ExtraRadarViews[i].AirportId)))
             {
@@ -246,7 +252,7 @@ public partial class MainViewModel
             }
         }
 
-        for (var i = ExtraGroundViews.Count - 1; i >= 0; i--)
+        for (int i = ExtraGroundViews.Count - 1; i >= 0; i--)
         {
             if (!ground.Any(entry => Matches(entry, ExtraGroundViews[i].Ordinal, ExtraGroundViews[i].AirportId)))
             {
@@ -255,7 +261,7 @@ public partial class MainViewModel
             }
         }
 
-        foreach (var entry in radar)
+        foreach (SavedExtraView entry in radar)
         {
             if (!ExtraRadarViews.Any(instance => Matches(entry, instance.Ordinal, instance.AirportId)))
             {
@@ -263,7 +269,7 @@ public partial class MainViewModel
             }
         }
 
-        foreach (var entry in ground)
+        foreach (SavedExtraView entry in ground)
         {
             if (!ExtraGroundViews.Any(instance => Matches(entry, instance.Ordinal, instance.AirportId)))
             {
@@ -279,7 +285,7 @@ public partial class MainViewModel
 
     private RadarViewInstance OpenRadarInstance(int ordinal, string airportId)
     {
-        var vm = CreateRadarViewModel(isPrimary: false, settingsKeySuffix: OrdinalSuffix(ordinal));
+        RadarViewModel vm = CreateRadarViewModel(isPrimary: false, settingsKeySuffix: OrdinalSuffix(ordinal));
         var instance = new RadarViewInstance
         {
             Ordinal = ordinal,
@@ -293,7 +299,7 @@ public partial class MainViewModel
 
     private GroundViewInstance OpenGroundInstance(int ordinal, string airportId)
     {
-        var vm = CreateGroundViewModel(isPrimary: false, settingsKeySuffix: OrdinalSuffix(ordinal));
+        GroundViewModel vm = CreateGroundViewModel(isPrimary: false, settingsKeySuffix: OrdinalSuffix(ordinal));
         var instance = new GroundViewInstance
         {
             Ordinal = ordinal,
@@ -322,7 +328,7 @@ public partial class MainViewModel
     /// </summary>
     private void SeedExtraRadar(RadarViewInstance instance)
     {
-        var vm = instance.Vm;
+        RadarViewModel vm = instance.Vm;
         vm.SetMeasureState(Measure);
         if (_airportElevationLookup is { } elevationLookup)
         {
@@ -352,7 +358,7 @@ public partial class MainViewModel
     /// </summary>
     private void SeedRadarAirport(RadarViewInstance instance)
     {
-        var vm = instance.Vm;
+        RadarViewModel vm = instance.Vm;
         vm.SetPrimaryAirportId(instance.AirportId);
         if (_commandInput.NavDbReady && (ResolveAirportPosition(instance.AirportId) is { } position))
         {
@@ -361,7 +367,7 @@ public partial class MainViewModel
 
         // The ARTCC and scenario id the docked view was given — a recording load can carry an ARTCC other
         // than the preference, and the scenario id keys this instance's own saved view.
-        var artccId = _lastScenarioArtccId ?? _preferences.ArtccId;
+        string artccId = _lastScenarioArtccId ?? _preferences.ArtccId;
         if (!string.IsNullOrEmpty(artccId))
         {
             _ = vm.LoadVideoMapsForArtccAsync(artccId, instance.AirportId, _lastScenarioId);
@@ -375,7 +381,7 @@ public partial class MainViewModel
     /// </summary>
     private void SeedExtraGround(GroundViewInstance instance)
     {
-        var vm = instance.Vm;
+        GroundViewModel vm = instance.Vm;
         vm.SetMeasureState(Measure);
         if (_airportElevationLookup is { } elevationLookup)
         {
@@ -398,12 +404,12 @@ public partial class MainViewModel
     /// </summary>
     private void SeedGroundAirport(GroundViewInstance instance)
     {
-        var vm = instance.Vm;
+        GroundViewModel vm = instance.Vm;
         // The scenario's airport comes first: during a bootstrap the docked view still holds the previous
         // scenario's layout until the server answers, so its airport is stale exactly when this runs. Both
         // sides are canonicalized — the scenario files the ICAO form ("KOAK"), an instance carries the FAA
         // form ("OAK"), and they are the same airport.
-        var primaryAirport = _lastRadarPrimaryAirportId ?? Ground.Layout?.AirportId;
+        string? primaryAirport = _lastRadarPrimaryAirportId ?? Ground.Layout?.AirportId;
         if ((primaryAirport is not null) && string.Equals(instance.AirportId, NormalizeAirportId(primaryAirport), StringComparison.OrdinalIgnoreCase))
         {
             vm.MirrorLayoutFrom(Ground);
@@ -412,7 +418,7 @@ public partial class MainViewModel
 
         vm.StopMirroring();
         _ = vm.LoadLayoutAsync(instance.AirportId);
-        var artccId = _preferences.ArtccId;
+        string artccId = _preferences.ArtccId;
         if (!string.IsNullOrEmpty(artccId))
         {
             _ = vm.LoadTowerCabLayersAsync(artccId, instance.AirportId);

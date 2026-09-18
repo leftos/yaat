@@ -39,17 +39,17 @@ public static class RunwayEntryPoint
     /// <param name="currentTaxiway">The aircraft's current taxiway, used only to disambiguate a hold short that carries more than one taxiway name. Null when unknown.</param>
     public static string? Resolve(AirportGroundLayout layout, int holdShortNodeId, string runwayDesignator, string? currentTaxiway)
     {
-        if (!layout.Nodes.TryGetValue(holdShortNodeId, out var node))
+        if (!layout.Nodes.TryGetValue(holdShortNodeId, out GroundNode? node))
         {
             return null;
         }
 
-        if (!TryBuildAxis(layout, runwayDesignator, out var threshold, out var heading))
+        if (!TryBuildAxis(layout, runwayDesignator, out LatLon threshold, out TrueHeading heading))
         {
             return null;
         }
 
-        var nearest = FindFullLengthHoldShort(layout, runwayDesignator, threshold, heading);
+        GroundNode? nearest = FindFullLengthHoldShort(layout, runwayDesignator, threshold, heading);
         if (nearest is null || nearest.Id == holdShortNodeId)
         {
             return null;
@@ -91,7 +91,7 @@ public static class RunwayEntryPoint
     {
         GroundNode? nearest = null;
         double nearestFt = double.MaxValue;
-        foreach (var candidate in layout.GetRunwayHoldShortNodes(runwayDesignator))
+        foreach (GroundNode candidate in layout.GetRunwayHoldShortNodes(runwayDesignator))
         {
             double candidateFt = AlongTrackFt(candidate.Position, threshold, heading);
             if (candidateFt < nearestFt)
@@ -118,15 +118,15 @@ public static class RunwayEntryPoint
         threshold = default;
         heading = default;
 
-        var runway = layout.FindRunway(runwayDesignator);
+        GroundRunway? runway = layout.FindRunway(runwayDesignator);
         if (runway is null || runway.Coordinates.Count < 2)
         {
             return false;
         }
 
         bool isFirstEnd = runway.Id.End1.Equals(RunwayIdentifier.NormalizeDesignator(runwayDesignator), StringComparison.OrdinalIgnoreCase);
-        var start = isFirstEnd ? runway.Coordinates[0] : runway.Coordinates[^1];
-        var end = isFirstEnd ? runway.Coordinates[^1] : runway.Coordinates[0];
+        (double Lat, double Lon) start = isFirstEnd ? runway.Coordinates[0] : runway.Coordinates[^1];
+        (double Lat, double Lon) end = isFirstEnd ? runway.Coordinates[^1] : runway.Coordinates[0];
 
         threshold = new LatLon(start.Lat, start.Lon);
         heading = new TrueHeading(GeoMath.BearingTo(threshold, new LatLon(end.Lat, end.Lon)));
@@ -149,7 +149,7 @@ public static class RunwayEntryPoint
     private static string? ResolveTaxiwayName(GroundNode node, string? currentTaxiway)
     {
         var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge is not GroundEdge straight || straight.IsRunwayCenterline || straight.IsRamp || string.IsNullOrEmpty(straight.TaxiwayName))
             {
@@ -169,7 +169,7 @@ public static class RunwayEntryPoint
         }
 
         string best = counts.Keys.First();
-        foreach (var (name, count) in counts)
+        foreach ((string? name, int count) in counts)
         {
             if ((count > counts[best]) || ((count == counts[best]) && (string.CompareOrdinal(name, best) < 0)))
             {

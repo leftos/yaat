@@ -24,7 +24,7 @@ internal static class AircraftDebriefCoachingTemplates
             return CleanRunNote(operation, completionReason, completionDetail);
         }
 
-        var headline = $"{SeverityWord(topFinding.Severity)}: {topFinding.Title}";
+        string headline = $"{SeverityWord(topFinding.Severity)}: {topFinding.Title}";
         if (totalFindings == 1)
         {
             return headline + ".";

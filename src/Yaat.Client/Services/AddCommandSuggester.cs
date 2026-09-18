@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using Yaat.Client.Models;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.Services;
@@ -18,7 +20,7 @@ internal static class AddCommandSuggester
         int maxSuggestions
     )
     {
-        if (!scheme.Patterns.TryGetValue(CanonicalCommandType.Add, out var addPattern))
+        if (!scheme.Patterns.TryGetValue(CanonicalCommandType.Add, out CommandPattern? addPattern))
         {
             return false;
         }
@@ -30,12 +32,12 @@ internal static class AddCommandSuggester
 
         // Cursor-aware view of typed args. ADD always lives at index 0; completedArgs is the
         // 0-based position the user is currently editing (relative to ADD's args).
-        var completedArgs = parsed.ParameterIndex;
+        int completedArgs = parsed.ParameterIndex;
         if (completedArgs < 0)
         {
             return false;
         }
-        var partial = fullText[parsed.ActiveTokenStart..parsed.CaretIndex];
+        string partial = fullText[parsed.ActiveTokenStart..parsed.CaretIndex];
 
         switch (completedArgs)
         {
@@ -71,7 +73,7 @@ internal static class AddCommandSuggester
             {
                 if (parsed.Tokens.Length > 2)
                 {
-                    var weight = ParseWeightToken(parsed.Tokens[2]);
+                    WeightClass? weight = ParseWeightToken(parsed.Tokens[2]);
                     if (weight is not null)
                     {
                         AddEngineOptions(
@@ -117,7 +119,7 @@ internal static class AddCommandSuggester
         params (string Value, string Description)[] options
     )
     {
-        foreach (var (value, desc) in options)
+        foreach ((string? value, string? desc) in options)
         {
             if (suggestions.Count >= maxSuggestions)
             {
@@ -129,7 +131,7 @@ internal static class AddCommandSuggester
                 continue;
             }
 
-            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
+            (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
             suggestions.Add(
                 new SuggestionItem
                 {
@@ -200,7 +202,7 @@ internal static class AddCommandSuggester
 
     private static string FormatTypes(WeightClass weight, EngineKind engine)
     {
-        var types = AircraftGenerator.GetTypesForCombo(weight, engine);
+        string[]? types = AircraftGenerator.GetTypesForCombo(weight, engine);
         return types is not null ? string.Join(", ", types) : "";
     }
 
@@ -221,7 +223,7 @@ internal static class AddCommandSuggester
         {
             if (partial.StartsWith('@'))
             {
-                var spotPartial = partial.Length > 1 ? partial[1..] : "";
+                string spotPartial = partial.Length > 1 ? partial[1..] : "";
                 TryAddFrdPreview(fullText, activeTokenStart, activeTokenEnd, spotPartial, suggestions);
                 AddParkingSuggestions(fullText, activeTokenStart, activeTokenEnd, spotPartial, suggestions, parkingNames, maxSuggestions);
             }
@@ -334,13 +336,13 @@ internal static class AddCommandSuggester
             return;
         }
 
-        var runways = NavigationDatabase.Instance.GetRunways(primaryAirportId);
-        foreach (var rwy in runways)
+        IReadOnlyList<RunwayInfo> runways = NavigationDatabase.Instance.GetRunways(primaryAirportId);
+        foreach (RunwayInfo rwy in runways)
         {
             // Show both ends of each physical runway
             string[] designators = rwy.Id.End1.Equals(rwy.Id.End2, StringComparison.OrdinalIgnoreCase) ? [rwy.Id.End1] : [rwy.Id.End1, rwy.Id.End2];
 
-            foreach (var designator in designators)
+            foreach (string designator in designators)
             {
                 if (suggestions.Count >= maxSuggestions)
                 {
@@ -352,7 +354,12 @@ internal static class AddCommandSuggester
                     continue;
                 }
 
-                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, designator);
+                (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(
+                    fullText,
+                    activeTokenStart,
+                    activeTokenEnd,
+                    designator
+                );
                 suggestions.Add(
                     new SuggestionItem
                     {
@@ -383,7 +390,7 @@ internal static class AddCommandSuggester
         int maxSuggestions
     )
     {
-        foreach (var name in parkingNames.Order(StringComparer.OrdinalIgnoreCase))
+        foreach (string? name in parkingNames.Order(StringComparer.OrdinalIgnoreCase))
         {
             if (suggestions.Count >= maxSuggestions)
             {
@@ -395,7 +402,7 @@ internal static class AddCommandSuggester
                 continue;
             }
 
-            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, "@" + name);
+            (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, "@" + name);
             suggestions.Add(
                 new SuggestionItem
                 {
@@ -424,13 +431,13 @@ internal static class AddCommandSuggester
         ObservableCollection<SuggestionItem> suggestions
     )
     {
-        var parsed = FrdResolver.ParseFrd(spotPartial);
+        (string Fix, int? Radial, int? Distance)? parsed = FrdResolver.ParseFrd(spotPartial);
         if (parsed is not { Radial: int radial })
         {
             return;
         }
 
-        var upperFix = parsed.Value.Fix.ToUpperInvariant();
+        string upperFix = parsed.Value.Fix.ToUpperInvariant();
         int? distance = parsed.Value.Distance;
         bool fixKnown = NavigationDatabase.Instance.GetFixPosition(upperFix) is not null;
 
@@ -457,8 +464,8 @@ internal static class AddCommandSuggester
             description = $"FRD — {upperFix} {radial:000}°M / {distance.Value} nm; add {{altitude}} to spawn here";
         }
 
-        var token = "@" + spotPartial.ToUpperInvariant();
-        var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, token);
+        string token = "@" + spotPartial.ToUpperInvariant();
+        (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, token);
         suggestions.Add(
             new SuggestionItem
             {
@@ -497,12 +504,12 @@ internal static class AddCommandSuggester
 
         // partial is "WAYPOINT.", "WAYPOINT.STAR" or "WAYPOINT.STAR." — complete the STAR, then the runway,
         // both scoped to the primary airport (no global pickers).
-        var dotParts = partial.Split('.');
+        string[] dotParts = partial.Split('.');
 
         if (dotParts.Length == 2)
         {
-            var starPartial = dotParts[1];
-            foreach (var star in NavigationDatabase.Instance.GetStars(primaryAirportId))
+            string starPartial = dotParts[1];
+            foreach (CifpStarProcedure star in NavigationDatabase.Instance.GetStars(primaryAirportId))
             {
                 if (suggestions.Count >= maxSuggestions)
                 {
@@ -514,8 +521,8 @@ internal static class AddCommandSuggester
                     continue;
                 }
 
-                var value = $"{dotParts[0]}.{star.ProcedureId}";
-                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
+                string value = $"{dotParts[0]}.{star.ProcedureId}";
+                (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
                 suggestions.Add(
                     new SuggestionItem
                     {
@@ -533,14 +540,14 @@ internal static class AddCommandSuggester
 
         if (dotParts.Length == 3)
         {
-            var rwPartial = dotParts[2];
-            foreach (var rwy in NavigationDatabase.Instance.GetRunways(primaryAirportId))
+            string rwPartial = dotParts[2];
+            foreach (RunwayInfo rwy in NavigationDatabase.Instance.GetRunways(primaryAirportId))
             {
                 string[] designators = rwy.Id.End1.Equals(rwy.Id.End2, StringComparison.OrdinalIgnoreCase)
                     ? [rwy.Id.End1]
                     : [rwy.Id.End1, rwy.Id.End2];
 
-                foreach (var designator in designators)
+                foreach (string designator in designators)
                 {
                     if (suggestions.Count >= maxSuggestions)
                     {
@@ -552,8 +559,8 @@ internal static class AddCommandSuggester
                         continue;
                     }
 
-                    var value = $"{dotParts[0]}.{dotParts[1]}.{designator}";
-                    var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
+                    string value = $"{dotParts[0]}.{dotParts[1]}.{designator}";
+                    (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
                     suggestions.Add(
                         new SuggestionItem
                         {
@@ -579,17 +586,17 @@ internal static class AddCommandSuggester
         int maxSuggestions
     )
     {
-        var weight = ParseWeightToken(words[2]);
-        var engine = ParseEngineToken(words[3]);
+        WeightClass? weight = ParseWeightToken(words[2]);
+        EngineKind? engine = ParseEngineToken(words[3]);
         if (weight is null || engine is null)
         {
             return;
         }
 
-        var types = AircraftGenerator.GetTypesForCombo(weight.Value, engine.Value);
+        string[]? types = AircraftGenerator.GetTypesForCombo(weight.Value, engine.Value);
         if (types is not null)
         {
-            foreach (var type in types)
+            foreach (string type in types)
             {
                 if (suggestions.Count >= maxSuggestions)
                 {
@@ -601,7 +608,7 @@ internal static class AddCommandSuggester
                     continue;
                 }
 
-                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, type);
+                (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, type);
                 suggestions.Add(
                     new SuggestionItem
                     {
@@ -617,8 +624,8 @@ internal static class AddCommandSuggester
 
         if (partial.Length == 0 || partial.StartsWith('*'))
         {
-            var airlinePartial = partial.Length > 1 ? partial[1..] : "";
-            foreach (var airline in AircraftGenerator.GetAirlines())
+            string airlinePartial = partial.Length > 1 ? partial[1..] : "";
+            foreach (string airline in AircraftGenerator.GetAirlines())
             {
                 if (suggestions.Count >= maxSuggestions)
                 {
@@ -630,8 +637,8 @@ internal static class AddCommandSuggester
                     continue;
                 }
 
-                var display = $"*{airline}";
-                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, display);
+                string display = $"*{airline}";
+                (string? insertText, int caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, display);
                 suggestions.Add(
                     new SuggestionItem
                     {
@@ -648,7 +655,7 @@ internal static class AddCommandSuggester
 
     private static bool MatchesAnyAlias(string token, CommandPattern pattern)
     {
-        foreach (var alias in pattern.Aliases)
+        foreach (string alias in pattern.Aliases)
         {
             if (string.Equals(token, alias, StringComparison.OrdinalIgnoreCase))
             {

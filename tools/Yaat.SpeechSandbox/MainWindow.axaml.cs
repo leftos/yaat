@@ -60,41 +60,41 @@ public partial class MainWindow : Window
         _whisperStt = new WhisperSttEngine(new PreferencesWhisperRuntimeConfig(_preferences));
         _audioCapture = new AudioCaptureService(_preferences);
 
-        var llmCommandPromptBox = this.FindControl<TextBox>("LlmCommandPromptBox")!;
-        var llmResolverPromptBox = this.FindControl<TextBox>("LlmResolverPromptBox")!;
-        var whisperPromptBox = this.FindControl<TextBox>("WhisperPromptBox")!;
+        TextBox llmCommandPromptBox = this.FindControl<TextBox>("LlmCommandPromptBox")!;
+        TextBox llmResolverPromptBox = this.FindControl<TextBox>("LlmResolverPromptBox")!;
+        TextBox whisperPromptBox = this.FindControl<TextBox>("WhisperPromptBox")!;
         llmCommandPromptBox.Text = LocalLlmCommandMapper.GetDefaultSystemPrompt();
         llmResolverPromptBox.Text = LocalLlmCallsignResolver.DefaultSystemPrompt;
         whisperPromptBox.Text = WhisperBiasingPrompt.Default;
 
-        var configText = this.FindControl<TextBlock>("ConfigText")!;
+        TextBlock configText = this.FindControl<TextBlock>("ConfigText")!;
         configText.Text = BuildConfigSummary();
 
-        var runButton = this.FindControl<Button>("RunButton")!;
+        Button runButton = this.FindControl<Button>("RunButton")!;
         runButton.Click += OnRunClicked;
 
-        var resetCommandButton = this.FindControl<Button>("ResetCommandPromptButton")!;
+        Button resetCommandButton = this.FindControl<Button>("ResetCommandPromptButton")!;
         resetCommandButton.Click += (_, _) => llmCommandPromptBox.Text = LocalLlmCommandMapper.GetDefaultSystemPrompt();
 
-        var resetResolverButton = this.FindControl<Button>("ResetResolverPromptButton")!;
+        Button resetResolverButton = this.FindControl<Button>("ResetResolverPromptButton")!;
         resetResolverButton.Click += (_, _) => llmResolverPromptBox.Text = LocalLlmCallsignResolver.DefaultSystemPrompt;
 
-        var loadDefaultsButton = this.FindControl<Button>("LoadDefaultsButton")!;
+        Button loadDefaultsButton = this.FindControl<Button>("LoadDefaultsButton")!;
         loadDefaultsButton.Click += OnLoadExampleClicked;
 
-        var recordButton = this.FindControl<Button>("RecordButton")!;
+        Button recordButton = this.FindControl<Button>("RecordButton")!;
         recordButton.Click += OnRecordToggleClicked;
 
-        var reTranscribeButton = this.FindControl<Button>("ReTranscribeButton")!;
+        Button reTranscribeButton = this.FindControl<Button>("ReTranscribeButton")!;
         reTranscribeButton.Click += OnReTranscribeClicked;
 
-        var clearClipButton = this.FindControl<Button>("ClearClipButton")!;
+        Button clearClipButton = this.FindControl<Button>("ClearClipButton")!;
         clearClipButton.Click += OnClearClipClicked;
 
-        var buildWhisperPromptButton = this.FindControl<Button>("BuildWhisperPromptButton")!;
+        Button buildWhisperPromptButton = this.FindControl<Button>("BuildWhisperPromptButton")!;
         buildWhisperPromptButton.Click += (_, _) => RebuildWhisperPromptFromInputs();
 
-        var buildLlmUserPromptButton = this.FindControl<Button>("BuildLlmUserPromptButton")!;
+        Button buildLlmUserPromptButton = this.FindControl<Button>("BuildLlmUserPromptButton")!;
         buildLlmUserPromptButton.Click += (_, _) => RebuildLlmUserPromptFromInputs();
 
         TryLoadPersistedClip();
@@ -105,8 +105,8 @@ public partial class MainWindow : Window
         {
             try
             {
-                var whisperTask = _whisperStt.PrewarmAsync(CancellationToken.None);
-                var llmTask = _llmService.PrewarmAsync(CancellationToken.None);
+                Task whisperTask = _whisperStt.PrewarmAsync(CancellationToken.None);
+                Task llmTask = _llmService.PrewarmAsync(CancellationToken.None);
                 await Task.WhenAll(whisperTask, llmTask);
                 Dispatcher.UIThread.Post(() => SetStatus("Whisper + LLM prewarmed. Ready."));
             }
@@ -141,8 +141,8 @@ public partial class MainWindow : Window
 
     private void UpdateClipStatus()
     {
-        var status = this.FindControl<TextBlock>("ClipStatusText")!;
-        var reTranscribeButton = this.FindControl<Button>("ReTranscribeButton")!;
+        TextBlock status = this.FindControl<TextBlock>("ClipStatusText")!;
+        Button reTranscribeButton = this.FindControl<Button>("ReTranscribeButton")!;
         if (_currentClipSamples is null || _currentClipSamples.Length == 0)
         {
             status.Text = $"No clip loaded. Will save to: {SandboxClipPath.ClipFile}";
@@ -160,7 +160,7 @@ public partial class MainWindow : Window
 
     private void OnRecordToggleClicked(object? sender, RoutedEventArgs e)
     {
-        var recordButton = this.FindControl<Button>("RecordButton")!;
+        Button recordButton = this.FindControl<Button>("RecordButton")!;
         if (!_isRecording)
         {
             if (!_audioCapture.StartCapture())
@@ -174,7 +174,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            var samples = _audioCapture.StopCapture();
+            float[] samples = _audioCapture.StopCapture();
             _isRecording = false;
             recordButton.Content = "Record clip";
 
@@ -187,8 +187,8 @@ public partial class MainWindow : Window
             try
             {
                 SandboxClipPath.EnsureDirExists();
-                using var wavStream = WavHeader.WritePcm16(samples, AudioCaptureService.SampleRate);
-                using var fs = File.Create(SandboxClipPath.ClipFile);
+                using MemoryStream wavStream = WavHeader.WritePcm16(samples, AudioCaptureService.SampleRate);
+                using FileStream fs = File.Create(SandboxClipPath.ClipFile);
                 wavStream.CopyTo(fs);
                 _currentClipSamples = samples;
                 SetStatus($"Saved {samples.Length:N0} samples ({SecondsOf(samples):F2}s) to {SandboxClipPath.ClipFile}");
@@ -217,14 +217,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        var reTranscribeButton = this.FindControl<Button>("ReTranscribeButton")!;
+        Button reTranscribeButton = this.FindControl<Button>("ReTranscribeButton")!;
         reTranscribeButton.IsEnabled = false;
         try
         {
-            var prompt = this.FindControl<TextBox>("WhisperPromptBox")!.Text ?? string.Empty;
+            string prompt = this.FindControl<TextBox>("WhisperPromptBox")!.Text ?? string.Empty;
             SetStatus("Transcribing with Whisper...");
             var sw = Stopwatch.StartNew();
-            var transcript = await _whisperStt.TranscribeAsync(_currentClipSamples, prompt, CancellationToken.None);
+            string? transcript = await _whisperStt.TranscribeAsync(_currentClipSamples, prompt, CancellationToken.None);
             sw.Stop();
 
             if (string.IsNullOrWhiteSpace(transcript))
@@ -306,15 +306,19 @@ public partial class MainWindow : Window
     /// </summary>
     private void RebuildLlmUserPromptFromInputs()
     {
-        var rawTranscript = (this.FindControl<TextBox>("TranscriptBox")!.Text ?? string.Empty).Trim();
-        var activeCallsigns = ParseList(this.FindControl<TextBox>("ActiveCallsignsBox")!.Text);
-        var programmedFixes = ParseList(this.FindControl<TextBox>("ProgrammedFixesBox")!.Text);
-        var availableRunways = ParseAvailableRunways(this.FindControl<TextBox>("AvailableRunwaysBox")!.Text);
-        var aircraftDestinations = ParseAircraftDestinations(this.FindControl<TextBox>("AircraftDestinationsBox")!.Text);
+        string rawTranscript = (this.FindControl<TextBox>("TranscriptBox")!.Text ?? string.Empty).Trim();
+        List<string> activeCallsigns = ParseList(this.FindControl<TextBox>("ActiveCallsignsBox")!.Text);
+        List<string> programmedFixes = ParseList(this.FindControl<TextBox>("ProgrammedFixesBox")!.Text);
+        IReadOnlyDictionary<string, IReadOnlyList<string>> availableRunways = ParseAvailableRunways(
+            this.FindControl<TextBox>("AvailableRunwaysBox")!.Text
+        );
+        IReadOnlyDictionary<string, string> aircraftDestinations = ParseAircraftDestinations(
+            this.FindControl<TextBox>("AircraftDestinationsBox")!.Text
+        );
 
         // Mirror the Step 1 callsign-strip + digit-normalize so the textbox shows the same
         // command-text the production LLM mapper sees as the "Transcript:" line.
-        var (commandText, _) = SpeechRecognitionService.ExtractAndStripCallsign(rawTranscript, activeCallsigns);
+        (string? commandText, string? _) = SpeechRecognitionService.ExtractAndStripCallsign(rawTranscript, activeCallsigns);
 
         var mapContext = new MapContext(activeCallsigns, programmedFixes)
         {
@@ -340,7 +344,7 @@ public partial class MainWindow : Window
 
     private async void OnRunClicked(object? sender, RoutedEventArgs e)
     {
-        var runButton = this.FindControl<Button>("RunButton")!;
+        Button runButton = this.FindControl<Button>("RunButton")!;
         runButton.IsEnabled = false;
         try
         {
@@ -362,19 +366,23 @@ public partial class MainWindow : Window
         ClearResults();
         SetStatus("Running...");
 
-        var transcript = (this.FindControl<TextBox>("TranscriptBox")!.Text ?? string.Empty).Trim();
+        string transcript = (this.FindControl<TextBox>("TranscriptBox")!.Text ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(transcript))
         {
             SetStatus("No transcript provided.");
             return;
         }
 
-        var activeCallsigns = ParseList(this.FindControl<TextBox>("ActiveCallsignsBox")!.Text);
-        var programmedFixes = ParseList(this.FindControl<TextBox>("ProgrammedFixesBox")!.Text);
-        var availableRunways = ParseAvailableRunways(this.FindControl<TextBox>("AvailableRunwaysBox")!.Text);
-        var aircraftDestinations = ParseAircraftDestinations(this.FindControl<TextBox>("AircraftDestinationsBox")!.Text);
-        var commandPrompt = this.FindControl<TextBox>("LlmCommandPromptBox")!.Text ?? string.Empty;
-        var resolverPrompt = this.FindControl<TextBox>("LlmResolverPromptBox")!.Text ?? string.Empty;
+        List<string> activeCallsigns = ParseList(this.FindControl<TextBox>("ActiveCallsignsBox")!.Text);
+        List<string> programmedFixes = ParseList(this.FindControl<TextBox>("ProgrammedFixesBox")!.Text);
+        IReadOnlyDictionary<string, IReadOnlyList<string>> availableRunways = ParseAvailableRunways(
+            this.FindControl<TextBox>("AvailableRunwaysBox")!.Text
+        );
+        IReadOnlyDictionary<string, string> aircraftDestinations = ParseAircraftDestinations(
+            this.FindControl<TextBox>("AircraftDestinationsBox")!.Text
+        );
+        string commandPrompt = this.FindControl<TextBox>("LlmCommandPromptBox")!.Text ?? string.Empty;
+        string resolverPrompt = this.FindControl<TextBox>("LlmResolverPromptBox")!.Text ?? string.Empty;
 
         AppendLog($"Transcript:           {transcript}");
         AppendLog($"Active callsigns:     [{string.Join(", ", activeCallsigns)}]");
@@ -384,7 +392,7 @@ public partial class MainWindow : Window
         AppendLog("");
 
         // Step 1: Pipeline-level callsign extraction + transcript stripping.
-        var (commandText, extractedCallsign) = SpeechRecognitionService.ExtractAndStripCallsign(transcript, activeCallsigns);
+        (string? commandText, string? extractedCallsign) = SpeechRecognitionService.ExtractAndStripCallsign(transcript, activeCallsigns);
         this.FindControl<TextBlock>("ExtractedCallsignText")!.Text = $"Callsign: {extractedCallsign ?? "(none)"}";
         this.FindControl<TextBlock>("StrippedCommandText")!.Text = $"Stripped command text: {commandText}";
         AppendLog($"[Step 1] callsign={extractedCallsign ?? "(none)"} stripped='{commandText}'");
@@ -400,16 +408,16 @@ public partial class MainWindow : Window
         // BuildUserPrompt entirely. If the box is empty, auto-fill it from the current inputs
         // so the user sees what the production path would have generated and can iterate from
         // there. Either way, the textbox content is the source of truth at Run time.
-        var llmUserPromptBox = this.FindControl<TextBox>("LlmUserPromptBox")!;
+        TextBox llmUserPromptBox = this.FindControl<TextBox>("LlmUserPromptBox")!;
         if (string.IsNullOrWhiteSpace(llmUserPromptBox.Text))
         {
             llmUserPromptBox.Text = LocalLlmCommandMapper.BuildUserPromptForDebug(commandText, mapContext);
         }
-        var llmUserPromptOverride = llmUserPromptBox.Text ?? string.Empty;
+        string llmUserPromptOverride = llmUserPromptBox.Text ?? string.Empty;
 
         // Step 2: Rule mapper.
         var ruleSw = Stopwatch.StartNew();
-        var ruleResult = await _ruleMapper.MapAsync(commandText, mapContext, CancellationToken.None);
+        MapResult? ruleResult = await _ruleMapper.MapAsync(commandText, mapContext, CancellationToken.None);
         ruleSw.Stop();
         this.FindControl<TextBlock>("RuleResultText")!.Text = ruleResult is null
             ? "Rule mapper: (no match)"
@@ -419,7 +427,7 @@ public partial class MainWindow : Window
 
         string? canonical = ruleResult?.CanonicalCommand;
         string? callsign = extractedCallsign ?? ruleResult?.Callsign;
-        var usedLlmFallback = false;
+        bool usedLlmFallback = false;
 
         // Step 3: LLM command mapper fallback — only if the rule mapper didn't match. We always
         // use MapWithPromptsAsync (not MapAsync) because the user prompt textbox is editable,
@@ -441,7 +449,7 @@ public partial class MainWindow : Window
                 // a function of the textbox contents at Run time.
                 var sandboxLlmMapper = new LocalLlmCommandMapper(_llmService);
                 var llmSw = Stopwatch.StartNew();
-                var llmResult = await sandboxLlmMapper.MapWithPromptsAsync(commandPrompt, llmUserPromptOverride, CancellationToken.None);
+                MapResult? llmResult = await sandboxLlmMapper.MapWithPromptsAsync(commandPrompt, llmUserPromptOverride, CancellationToken.None);
                 llmSw.Stop();
                 this.FindControl<TextBlock>("LlmCanonicalText")!.Text = llmResult is null
                     ? "LLM mapper: (no match)"
@@ -468,7 +476,7 @@ public partial class MainWindow : Window
             {
                 var sandboxResolver = new LocalLlmCallsignResolver(_llmService, resolverPrompt);
                 var resolverSw = Stopwatch.StartNew();
-                var resolved = await sandboxResolver.ResolveAsync(transcript, activeCallsigns, CancellationToken.None);
+                string? resolved = await sandboxResolver.ResolveAsync(transcript, activeCallsigns, CancellationToken.None);
                 resolverSw.Stop();
                 this.FindControl<TextBlock>("ResolverCallsignText")!.Text = resolved is null
                     ? "Resolver: (none / NONE)"
@@ -562,16 +570,16 @@ public partial class MainWindow : Window
             return result;
         }
 
-        foreach (var line in raw.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (string line in raw.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            var colonIdx = line.IndexOf(':');
+            int colonIdx = line.IndexOf(':');
             if (colonIdx <= 0 || colonIdx >= line.Length - 1)
             {
                 continue;
             }
 
-            var airport = line[..colonIdx].Trim();
-            var runways = line[(colonIdx + 1)..]
+            string airport = line[..colonIdx].Trim();
+            List<string> runways = line[(colonIdx + 1)..]
                 .Split([' ', ',', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .ToList();
 
@@ -597,10 +605,10 @@ public partial class MainWindow : Window
             return result;
         }
 
-        foreach (var line in raw.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (string line in raw.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             // Try arrow form first ("N9225L -> KOAK"), then colon form ("N9225L: KOAK").
-            var arrowIdx = line.IndexOf("->", StringComparison.Ordinal);
+            int arrowIdx = line.IndexOf("->", StringComparison.Ordinal);
             int sepIdx;
             int sepLen;
             if (arrowIdx > 0)
@@ -610,7 +618,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                var colonIdx = line.IndexOf(':');
+                int colonIdx = line.IndexOf(':');
                 if (colonIdx <= 0)
                 {
                     continue;
@@ -619,8 +627,8 @@ public partial class MainWindow : Window
                 sepLen = 1;
             }
 
-            var callsign = line[..sepIdx].Trim();
-            var airport = line[(sepIdx + sepLen)..].Trim();
+            string callsign = line[..sepIdx].Trim();
+            string airport = line[(sepIdx + sepLen)..].Trim();
             if (callsign.Length > 0 && airport.Length > 0)
             {
                 result[callsign] = airport;

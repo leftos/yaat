@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -24,14 +26,14 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -46,8 +48,8 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
     [Fact]
     public void Capp_NoApproach_FailsAndPreservesPhases()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -56,7 +58,7 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
         // Replay to just before the CAPP command at t=727
         engine.Replay(recording, 726);
 
-        var aircraft = engine.FindAircraft("JSX170");
+        AircraftState? aircraft = engine.FindAircraft("JSX170");
         Assert.NotNull(aircraft);
 
         // Preconditions: aircraft has phases but no resolvable approach
@@ -64,10 +66,10 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
         Assert.Null(aircraft.Phases.ActiveApproach);
         Assert.Null(aircraft.Approach.Expected);
 
-        var phasesBefore = aircraft.Phases;
+        PhaseList phasesBefore = aircraft.Phases;
 
         // Issue CAPP — should fail because no approach is resolvable
-        var result = engine.SendCommand("JSX170", "CAPP");
+        CommandResult result = engine.SendCommand("JSX170", "CAPP");
 
         aircraft = engine.FindAircraft("JSX170");
         Assert.NotNull(aircraft);
@@ -82,17 +84,17 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
         // CLAND with a bare 2-digit runway parses cleanly as "cleared to land runway 30" (never an
         // "unsupported command"). Runway acceptance widened to bare 2-digit forms so the low-approach
         // runway change (CLAND <divergingRunway>, #292) works for runways like 33/30 without an L/C/R.
-        var parseResult = CommandParser.ParseCompound("CLAND 30", aircraftRoute: null);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound("CLAND 30", aircraftRoute: null);
         Assert.True(parseResult.IsSuccess, parseResult.Reason);
-        var cland = Assert.IsType<ClearedToLandCommand>(Assert.Single(Assert.Single(parseResult.Value!.Blocks).Commands));
+        ClearedToLandCommand cland = Assert.IsType<ClearedToLandCommand>(Assert.Single(Assert.Single(parseResult.Value!.Blocks).Commands));
         Assert.Equal("30", cland.RunwayId);
     }
 
     [Fact]
     public void Cland_NoArg_SucceedsOnAircraftWithRunway()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -101,20 +103,20 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
         // Replay to t=989 where FDX3807 has an assigned runway
         engine.Replay(recording, 989);
 
-        var aircraft = engine.FindAircraft("FDX3807");
+        AircraftState? aircraft = engine.FindAircraft("FDX3807");
         Assert.NotNull(aircraft);
         Assert.NotNull(aircraft.Phases);
         Assert.NotNull(aircraft.Phases.AssignedRunway);
 
-        var result = engine.SendCommand("FDX3807", "CLAND");
+        CommandResult result = engine.SendCommand("FDX3807", "CLAND");
         Assert.True(result.Success, $"CLAND should succeed on aircraft with assigned runway, but got: {result.Message}");
     }
 
     [Fact]
     public void Capp_WithResolvableApproach_Succeeds()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -123,7 +125,7 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
         // Replay to t=989 where FDX3807 has phases and a destination runway
         engine.Replay(recording, 989);
 
-        var aircraft = engine.FindAircraft("FDX3807");
+        AircraftState? aircraft = engine.FindAircraft("FDX3807");
         Assert.NotNull(aircraft);
         Assert.NotNull(aircraft.Phases);
 
@@ -134,7 +136,7 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
             aircraft.Approach.Expected = "I30";
         }
 
-        var result = engine.SendCommand("FDX3807", "CAPP");
+        CommandResult result = engine.SendCommand("FDX3807", "CAPP");
         Assert.True(result.Success, $"CAPP should succeed when approach is resolvable, but got: {result.Message}");
     }
 }

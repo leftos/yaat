@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -91,14 +92,14 @@ public class SfoCtoIntersectionDepartureE2ETests(ITestOutputHelper output)
     [Fact]
     public void N346G_ClearedForTakeoffAtTaxiwayE_StartsRollingWithoutStopping()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
-        var runway = TestVnasData.NavigationDb!.GetRunway("KSFO", "28R");
+        RunwayInfo? runway = TestVnasData.NavigationDb!.GetRunway("KSFO", "28R");
         if (runway is null)
         {
             output.WriteLine("SKIP: KSFO 28R not in navdata");
@@ -107,7 +108,7 @@ public class SfoCtoIntersectionDepartureE2ETests(ITestOutputHelper output)
 
         engine.Replay(recording, CtoReplaySeconds);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         output.WriteLine(
             $"[t={CtoReplaySeconds}] phase={aircraft.Phases?.CurrentPhase?.Name ?? "(none)"} ias={aircraft.IndicatedAirspeed:F2}kt "
@@ -166,15 +167,15 @@ public class SfoCtoIntersectionDepartureE2ETests(ITestOutputHelper output)
     [Fact]
     public void Diagnostic_LogCtoToTakeoffProfile()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("SFO");
-        var runway = TestVnasData.NavigationDb!.GetRunway("KSFO", "28R");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
+        RunwayInfo? runway = TestVnasData.NavigationDb!.GetRunway("KSFO", "28R");
         if (layout is null || runway is null)
         {
             output.WriteLine("SKIP: SFO layout or KSFO 28R not available");
@@ -183,7 +184,7 @@ public class SfoCtoIntersectionDepartureE2ETests(ITestOutputHelper output)
 
         engine.Replay(recording, CtoReplaySeconds);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
         string previousPhase = aircraft.Phases?.CurrentPhase?.Name ?? "(none)";

@@ -30,9 +30,9 @@ public static class TaxiRouteFormatter
     public static List<TaxiwayLeg> TaxiwayLegs(TaxiRoute route)
     {
         var legs = new List<TaxiwayLeg>();
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
-            var members = TaxiwayMembers(seg.Edge.Edge);
+            List<string> members = TaxiwayMembers(seg.Edge.Edge);
             if (members.Count == 0)
             {
                 continue;
@@ -56,7 +56,7 @@ public static class TaxiRouteFormatter
     public static List<string> CleanTaxiwaySequence(TaxiRoute route)
     {
         var names = new List<string>();
-        foreach (var leg in TaxiwayLegs(route))
+        foreach (TaxiwayLeg leg in TaxiwayLegs(route))
         {
             string? last = names.Count > 0 ? names[^1] : null;
             if (!leg.IsRunway && !string.Equals(leg.Name, last, StringComparison.OrdinalIgnoreCase))
@@ -78,13 +78,13 @@ public static class TaxiRouteFormatter
     /// </summary>
     public static string BuildReadableTaxiPath(TaxiRoute route, bool hasNamedTerminus)
     {
-        var path = string.Join(" ", CleanTaxiwaySequence(route));
+        string path = string.Join(" ", CleanTaxiwaySequence(route));
         if (hasNamedTerminus || route.Segments.Count == 0)
         {
             return path;
         }
 
-        var endNode = route.Segments[^1].ToNodeId;
+        int endNode = route.Segments[^1].ToNodeId;
         return string.IsNullOrEmpty(path) ? $"#{endNode}" : $"{path} #{endNode}";
     }
 
@@ -101,7 +101,7 @@ public static class TaxiRouteFormatter
     {
         string[] raw = edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName];
         var result = new List<string>();
-        foreach (var name in raw)
+        foreach (string name in raw)
         {
             if (!string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase) && !IsRunwayName(name))
             {
@@ -109,7 +109,7 @@ public static class TaxiRouteFormatter
             }
         }
 
-        foreach (var name in raw)
+        foreach (string name in raw)
         {
             if (IsRunwayName(name))
             {

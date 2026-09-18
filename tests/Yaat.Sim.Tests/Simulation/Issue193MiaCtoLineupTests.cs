@@ -44,8 +44,8 @@ public class Issue193MiaCtoLineupTests(ITestOutputHelper output)
     [Fact]
     public void ENY3516_ClearedForTakeoff_LinesUpAndTakesOff()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -56,7 +56,7 @@ public class Issue193MiaCtoLineupTests(ITestOutputHelper output)
         // t=150; t=161 redundant). By the recording end the aircraft is mid-line-up.
         engine.Replay(recording, (int)recording.TotalElapsedSeconds);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         if (aircraft is null)
         {
             output.WriteLine($"Skipped: {Callsign} not present at end of replay");
@@ -76,7 +76,7 @@ public class Issue193MiaCtoLineupTests(ITestOutputHelper output)
         bool hasTowerChain = false;
         for (int t = 1; t <= 120; t++)
         {
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             if (ac is null)
             {
                 break;
@@ -103,7 +103,7 @@ public class Issue193MiaCtoLineupTests(ITestOutputHelper output)
         for (int t = 1; t <= 300; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             if (ac is null)
             {
                 break;

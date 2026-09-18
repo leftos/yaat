@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -52,8 +53,8 @@ public class Issue213OakGExitOrbitTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOff28RViaG_RoundsKinkWithoutOrbiting()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -61,10 +62,10 @@ public class Issue213OakGExitOrbitTests(ITestOutputHelper output)
 
         engine.Replay(recording, 2221);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
 
-        var result = engine.SendCommand(Callsign, "TAXI G D J");
+        CommandResult result = engine.SendCommand(Callsign, "TAXI G D J");
         Assert.True(result.Success, $"TAXI command failed: {result.Message}");
 
         // Tick forward through the runway-exit kink. With ThrowOnOrbit=true a pure-pursuit

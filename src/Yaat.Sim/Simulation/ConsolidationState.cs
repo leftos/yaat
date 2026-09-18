@@ -43,7 +43,7 @@ public sealed class ConsolidationState
     /// </summary>
     private bool WouldCreateCycle(string receivingId, string sendingId)
     {
-        var current = receivingId;
+        string current = receivingId;
         var visited = new HashSet<string>();
         while (visited.Add(current))
         {
@@ -52,7 +52,7 @@ public sealed class ConsolidationState
                 return true;
             }
 
-            if (!_overrides.TryGetValue(current, out var ov))
+            if (!_overrides.TryGetValue(current, out ManualOverride? ov))
             {
                 return false;
             }
@@ -84,7 +84,7 @@ public sealed class ConsolidationState
     {
         lock (_lock)
         {
-            return _overrides.TryGetValue(tcpId, out var ov) ? ov : null;
+            return _overrides.TryGetValue(tcpId, out ManualOverride? ov) ? ov : null;
         }
     }
 
@@ -98,7 +98,7 @@ public sealed class ConsolidationState
             _overrides.Remove(tcpId);
 
             var toRemove = new List<string>();
-            foreach (var (key, value) in _overrides)
+            foreach ((string? key, ManualOverride? value) in _overrides)
             {
                 if (value.ReceivingTcpId == tcpId)
                 {
@@ -106,7 +106,7 @@ public sealed class ConsolidationState
                 }
             }
 
-            foreach (var key in toRemove)
+            foreach (string key in toRemove)
             {
                 _overrides.Remove(key);
             }
@@ -121,7 +121,7 @@ public sealed class ConsolidationState
         lock (_lock)
         {
             _overrides.Clear();
-            foreach (var (key, value) in overrides)
+            foreach ((string? key, ManualOverride? value) in overrides)
             {
                 _overrides[key] = value;
             }

@@ -77,13 +77,13 @@ public class TowerListSnapshotMapperTests
             return;
         }
 
-        var live = Flatten(seeded);
+        List<(TowerListKey Key, string Callsign, double EnteredAtSeconds)> live = Flatten(seeded);
         Assert.Contains(live, e => (e.Key == OakList) && (e.Callsign == "AAL100") && (e.EnteredAtSeconds == 10));
         Assert.Contains(live, e => (e.Key == OakList) && (e.Callsign == "SWA300") && (e.EnteredAtSeconds == 20));
         Assert.Contains(live, e => (e.Key == OakList) && (e.Callsign == "UAL200") && (e.EnteredAtSeconds == 35));
 
-        var dto = TowerListSnapshotMapper.Capture(seeded);
-        var serialized = JsonSerializer.Deserialize<TowerListSnapshotDto>(JsonSerializer.Serialize(dto))!;
+        TowerListSnapshotDto dto = TowerListSnapshotMapper.Capture(seeded);
+        TowerListSnapshotDto serialized = JsonSerializer.Deserialize<TowerListSnapshotDto>(JsonSerializer.Serialize(dto))!;
 
         TowerListSnapshotMapper.Restore(target, serialized);
 
@@ -152,7 +152,7 @@ public class TowerListSnapshotMapperTests
             return;
         }
 
-        var lists = tracker.GetLists();
+        List<TowerListKey> lists = tracker.GetLists();
         Assert.NotEmpty(lists);
 
         tracker.ClearSession();

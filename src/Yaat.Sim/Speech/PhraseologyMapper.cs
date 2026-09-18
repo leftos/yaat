@@ -138,7 +138,7 @@ public static class PhraseologyMapper
         }
 
         // Step 1: normalize spoken numbers to digits.
-        var normalized = AtcNumberParser.NormalizeDigits(transcript);
+        string normalized = AtcNumberParser.NormalizeDigits(transcript);
         if (!string.Equals(normalized, transcript, StringComparison.Ordinal))
         {
             Log.LogDebug("[Speech] NumberNormalize: \"{Before}\" → \"{After}\"", transcript, normalized);
@@ -148,7 +148,7 @@ public static class PhraseologyMapper
         // already happened inside AtcNumberParser.NormalizeDigits above so the canonical "28R"
         // form is visible to both this rule engine and the LLM fallback in
         // SpeechRecognitionService.MapTranscriptAsync.
-        var tokens = Tokenize(normalized);
+        List<string> tokens = Tokenize(normalized);
         var strippedFillers = tokens.Where(t => FillerWords.Contains(t)).ToList();
         if (strippedFillers.Count > 0)
         {
@@ -157,7 +157,7 @@ public static class PhraseologyMapper
         }
         if (context.CustomFixPatterns.Count > 0)
         {
-            var beforeCustomFix = tokens;
+            List<string> beforeCustomFix = tokens;
             tokens = CollapseCustomFixNames(tokens, context.CustomFixPatterns);
             if (!beforeCustomFix.SequenceEqual(tokens))
             {
@@ -178,22 +178,22 @@ public static class PhraseologyMapper
         // We rebuild the protection set locally to guarantee the OrdinalIgnoreCase comparer
         // regardless of what the caller supplied in MapContext.ProgrammedFixes.
         var protectedFixes = new HashSet<string>(context.ProgrammedFixes, StringComparer.OrdinalIgnoreCase);
-        var beforeNearMiss = tokens;
+        List<string> beforeNearMiss = tokens;
         tokens = NatoNearMissResolver.Resolve(tokens, protectedFixes);
         LogTokenRewrites("NatoNearMiss", beforeNearMiss, tokens);
 
         // Step 3: extract callsign from leading or trailing tokens.
-        var callsign = ExtractCallsign(tokens, context.ActiveCallsigns, out var callsignStart, out var callsignEnd);
+        string? callsign = ExtractCallsign(tokens, context.ActiveCallsigns, out int callsignStart, out int callsignEnd);
         if (callsign is not null)
         {
-            var consumedTokens = tokens.GetRange(callsignStart, callsignEnd - callsignStart);
+            List<string> consumedTokens = tokens.GetRange(callsignStart, callsignEnd - callsignStart);
             Log.LogDebug("[Speech] CallsignExtract: \"{Spoken}\" → {Icao}", string.Join(' ', consumedTokens), callsign);
             // Remove the callsign tokens from the list.
             tokens = RemoveRange(tokens, callsignStart, callsignEnd - callsignStart);
         }
 
         // Step 4: extract condition prefix ("at {fix}", "when level at {alt}", "when {condition}").
-        var conditionPrefix = ExtractConditionPrefix(tokens, out var conditionConsumed);
+        string? conditionPrefix = ExtractConditionPrefix(tokens, out int conditionConsumed);
         if (conditionPrefix is not null)
         {
             var consumedTokens = tokens.Take(conditionConsumed).ToList();
@@ -207,7 +207,7 @@ public static class PhraseologyMapper
         // Runs AFTER callsign extraction so "November 346 Golf, taxi via tango" still parses
         // the callsign correctly, and BEFORE rule matching so rules use plain single-token
         // captures against already-collapsed tokens.
-        var beforeNatoCollapse = tokens;
+        List<string> beforeNatoCollapse = tokens;
         tokens = NatoLetterNormalizer.Collapse(tokens, context.TaxiwayNames);
         if (!beforeNatoCollapse.SequenceEqual(tokens))
         {
@@ -225,7 +225,7 @@ public static class PhraseologyMapper
         // departure" matches only against SID procedures.
         if (context.Procedures.Count > 0)
         {
-            var beforeProcedureCollapse = tokens;
+            List<string> beforeProcedureCollapse = tokens;
             tokens = SidStarNameNormalizer.Collapse(tokens, context.Procedures);
             if (!beforeProcedureCollapse.SequenceEqual(tokens))
             {
@@ -240,7 +240,7 @@ public static class PhraseologyMapper
 
         // Normalized tokens snapshot for the trace — captured here so the matcher's local mutations
         // below don't influence what the trace reports as the "post-normalization" view.
-        var normalizedJoined = string.Join(' ', tokens);
+        string normalizedJoined = string.Join(' ', tokens);
 
         // Step 5: greedy left-to-right longest-match — two-pass over the token list.
         //
@@ -268,13 +268,13 @@ public static class PhraseologyMapper
         // downwind for runway 274" downgrades to a bare ERD in both passes — only pass 2's rule
         // attempt ever reaches the 274 capture).
         var matchedRulesPass1 = new List<PhraseologyRule>();
-        var runwayInvalidPass1 = false;
-        var (outputs, consumedPass1) = MatchTokens(tokens, context, matchedRulesPass1, ref runwayInvalidPass1);
-        var winningMatchedRules = matchedRulesPass1;
-        var runwayInvalid = runwayInvalidPass1;
+        bool runwayInvalidPass1 = false;
+        (List<string>? outputs, int consumedPass1) = MatchTokens(tokens, context, matchedRulesPass1, ref runwayInvalidPass1);
+        List<PhraseologyRule> winningMatchedRules = matchedRulesPass1;
+        bool runwayInvalid = runwayInvalidPass1;
 
-        var pass1UsedSecondPassFiller = matchedRulesPass1.Any(r => r.Pattern.Any(p => SecondPassFillers.Contains(p)));
-        var inputContainsSecondPassFiller = tokens.Any(t => SecondPassFillers.Contains(t));
+        bool pass1UsedSecondPassFiller = matchedRulesPass1.Any(r => r.Pattern.Any(p => SecondPassFillers.Contains(p)));
+        bool inputContainsSecondPassFiller = tokens.Any(t => SecondPassFillers.Contains(t));
         if (inputContainsSecondPassFiller && !pass1UsedSecondPassFiller)
         {
             var pass2Stripped = tokens.Where(t => SecondPassFillers.Contains(t)).ToList();
@@ -284,8 +284,8 @@ public static class PhraseologyMapper
             );
             var strippedTokens = tokens.Where(t => !SecondPassFillers.Contains(t)).ToList();
             var matchedRulesPass2 = new List<PhraseologyRule>();
-            var runwayInvalidPass2 = false;
-            var (outputsPass2, consumedPass2) = MatchTokens(strippedTokens, context, matchedRulesPass2, ref runwayInvalidPass2);
+            bool runwayInvalidPass2 = false;
+            (List<string>? outputsPass2, int consumedPass2) = MatchTokens(strippedTokens, context, matchedRulesPass2, ref runwayInvalidPass2);
             runwayInvalid = runwayInvalidPass2;
 
             // Pass 2 wins on more outputs OR same outputs but more raw tokens consumed. Comparing
@@ -310,7 +310,7 @@ public static class PhraseologyMapper
             return (null, new RuleMapperTrace(normalizedJoined, conditionPrefix, [], null, "no rule matched"));
         }
 
-        var canonical = string.Join(", ", outputs);
+        string canonical = string.Join(", ", outputs);
         if (conditionPrefix is not null)
         {
             canonical = conditionPrefix + " " + canonical;
@@ -332,7 +332,7 @@ public static class PhraseologyMapper
         {
             return;
         }
-        for (var i = 0; i < before.Count; i++)
+        for (int i = 0; i < before.Count; i++)
         {
             if (!string.Equals(before[i], after[i], StringComparison.Ordinal))
             {
@@ -359,8 +359,8 @@ public static class PhraseologyMapper
     )
     {
         var outputs = new List<string>();
-        var totalConsumed = 0;
-        var idx = 0;
+        int totalConsumed = 0;
+        int idx = 0;
         while (idx < tokens.Count)
         {
             // "disregard" — controller cancels every instruction issued earlier in the same
@@ -382,7 +382,7 @@ public static class PhraseologyMapper
                 continue;
             }
 
-            var best = FindLongestMatch(tokens, idx, context, ref runwayInvalid);
+            (string Output, int Consumed, PhraseologyRule Rule)? best = FindLongestMatch(tokens, idx, context, ref runwayInvalid);
             if (best is null)
             {
                 // No rule matches here — advance one token and keep trying.
@@ -429,13 +429,13 @@ public static class PhraseologyMapper
     )
     {
         (string Output, int Consumed, int LiteralCount, PhraseologyRule Rule)? best = null;
-        foreach (var rule in PhraseologyRules.All)
+        foreach (PhraseologyRule rule in PhraseologyRules.All)
         {
-            if (TryMatchRule(rule, tokens, start, context, out var consumed, out var output, ref runwayInvalid))
+            if (TryMatchRule(rule, tokens, start, context, out int consumed, out string? output, ref runwayInvalid))
             {
-                var captureCount = rule.Pattern.Count(p => p.StartsWith('{') && p.EndsWith('}'));
-                var literalCount = rule.Pattern.Length - captureCount;
-                var candidate = (output, consumed, literalCount, rule);
+                int captureCount = rule.Pattern.Count(p => p.StartsWith('{') && p.EndsWith('}'));
+                int literalCount = rule.Pattern.Length - captureCount;
+                (string output, int consumed, int literalCount, PhraseologyRule rule) candidate = (output, consumed, literalCount, rule);
                 if (best is null || consumed > best.Value.Consumed || (consumed == best.Value.Consumed && literalCount > best.Value.LiteralCount))
                 {
                     best = candidate;
@@ -472,11 +472,11 @@ public static class PhraseologyMapper
         {
             // Post-pass: correct fix-like captures using the phonetic matcher. Runs only for
             // capture names we know represent fix references (e.g. {fix}, {current}).
-            foreach (var name in FixLikeCaptureNames)
+            foreach (string name in FixLikeCaptureNames)
             {
-                if (captures.TryGetValue(name, out var rawValue))
+                if (captures.TryGetValue(name, out string? rawValue))
                 {
-                    var matched = PhoneticFixMatcher.TryMatch(rawValue, context.ProgrammedFixes);
+                    string? matched = PhoneticFixMatcher.TryMatch(rawValue, context.ProgrammedFixes);
                     if (matched is not null)
                     {
                         // Only log on non-trivial rewrites — case-normalization ("cepin" →
@@ -501,11 +501,11 @@ public static class PhraseologyMapper
             // the membership check inside TryRecoverRunway is case-insensitive to be safe.
             if (context.AvailableRunways.Count > 0)
             {
-                foreach (var name in RunwayLikeCaptureNames)
+                foreach (string name in RunwayLikeCaptureNames)
                 {
-                    if (captures.TryGetValue(name, out var rawValue))
+                    if (captures.TryGetValue(name, out string? rawValue))
                     {
-                        var recovered = TryRecoverRunway(rawValue, context.AvailableRunways);
+                        string? recovered = TryRecoverRunway(rawValue, context.AvailableRunways);
                         if (recovered is null)
                         {
                             Log.LogDebug("[Speech] RunwayRecover: \"{Raw}\" failed — not in scenario runway list, rule rejected", rawValue);
@@ -529,11 +529,11 @@ public static class PhraseologyMapper
             // Post-pass: rewrite cardinal-direction captures to their canonical letter form (N/S/E/W).
             // Failing the rule (instead of emitting the raw word) lets the greedy matcher skip
             // the nonsense combination and the LLM fallback get a shot at it.
-            foreach (var name in CardinalCaptureNames)
+            foreach (string name in CardinalCaptureNames)
             {
-                if (captures.TryGetValue(name, out var rawValue))
+                if (captures.TryGetValue(name, out string? rawValue))
                 {
-                    var letter = AtcNumberParser.TryResolveCardinalLetter(rawValue);
+                    string? letter = AtcNumberParser.TryResolveCardinalLetter(rawValue);
                     if (letter is null)
                     {
                         Log.LogDebug("[Speech] CardinalResolve: \"{Raw}\" failed — not a cardinal direction, rule rejected", rawValue);
@@ -550,9 +550,9 @@ public static class PhraseologyMapper
             //     "hitting" / "harriet" — real taxiway names are 1-4 alphanumeric chars).
             //   Set-membership check against MapContext.TaxiwayNames when populated — skipped
             //     for empty-context tests (mirrors runway/procedure validation skip behavior).
-            foreach (var name in TaxiwayLikeCaptureNames)
+            foreach (string name in TaxiwayLikeCaptureNames)
             {
-                if (captures.TryGetValue(name, out var rawValue))
+                if (captures.TryGetValue(name, out string? rawValue))
                 {
                     if (!IsPlausibleTaxiwayName(rawValue))
                     {
@@ -560,7 +560,7 @@ public static class PhraseologyMapper
                         output = "";
                         return false;
                     }
-                    var upper = rawValue.ToUpperInvariant();
+                    string upper = rawValue.ToUpperInvariant();
                     if (context.TaxiwayNames.Count > 0 && !context.TaxiwayNames.Contains(upper))
                     {
                         Log.LogDebug("[Speech] TaxiwayValidate: \"{Raw}\" failed — not in scenario taxiway list, rule rejected", rawValue);
@@ -574,11 +574,11 @@ public static class PhraseologyMapper
             // Post-pass: re-join parking / spot names and validate them against the loaded layout
             // (or, with no layout, against the shape of a real name). Anything else rejects the
             // rule so the LLM fallback gets the transcript.
-            foreach (var name in DestinationNameCaptureNames)
+            foreach (string name in DestinationNameCaptureNames)
             {
-                if (captures.TryGetValue(name, out var rawValue))
+                if (captures.TryGetValue(name, out string? rawValue))
                 {
-                    var resolved = ResolveDestinationName(rawValue, name, context.DestinationNames);
+                    string? resolved = ResolveDestinationName(rawValue, name, context.DestinationNames);
                     if (resolved is null)
                     {
                         Log.LogDebug("[Speech] DestinationName: \"{Raw}\" is not a parking/spot name, rule rejected", rawValue);
@@ -597,13 +597,13 @@ public static class PhraseologyMapper
             // fallback recover from procedure mishears.
             if (context.Procedures.Count > 0)
             {
-                foreach (var (name, expectedKind) in ProcedureLikeCaptureNames)
+                foreach ((string? name, ProcedureKind expectedKind) in ProcedureLikeCaptureNames)
                 {
-                    if (captures.TryGetValue(name, out var rawValue))
+                    if (captures.TryGetValue(name, out string? rawValue))
                     {
-                        var upper = rawValue.ToUpperInvariant();
-                        var isKnown = false;
-                        foreach (var p in context.Procedures)
+                        string upper = rawValue.ToUpperInvariant();
+                        bool isKnown = false;
+                        foreach (ProcedurePattern p in context.Procedures)
                         {
                             if (p.Kind == expectedKind && p.CanonicalName.Equals(upper, StringComparison.OrdinalIgnoreCase))
                             {
@@ -626,7 +626,7 @@ public static class PhraseologyMapper
                 }
             }
 
-            var filled = FillTemplate(rule.OutputTemplate, captures);
+            string filled = FillTemplate(rule.OutputTemplate, captures);
             // Validate the filled canonical via the same compound parser the terminal input uses.
             // ParseCompound expands shorthand forms (SPD X UNTIL Y → SPD X; AT Y RNS) and handles
             // ;/, separators, so compound rule outputs validate the same way the dispatcher
@@ -672,11 +672,11 @@ public static class PhraseologyMapper
     )
     {
         consumed = 0;
-        var startTokenIdx = tokenIdx;
+        int startTokenIdx = tokenIdx;
 
         while (patternIdx < pattern.Length)
         {
-            var p = pattern[patternIdx];
+            string p = pattern[patternIdx];
 
             // Variadic capture group {name...} — consumes one-or-more consecutive tokens into
             // a single space-joined capture. When the variadic is the last token in the pattern,
@@ -686,7 +686,7 @@ public static class PhraseologyMapper
             // including it. Minimum consumed tokens: 1. A variadic must match at least one token.
             if (p.StartsWith('{') && p.EndsWith("...}"))
             {
-                var name = p[1..^4];
+                string name = p[1..^4];
                 if (tokenIdx >= tokens.Count)
                 {
                     return false;
@@ -695,14 +695,14 @@ public static class PhraseologyMapper
                 if (patternIdx + 1 >= pattern.Length)
                 {
                     // Last pattern token — greedy-consume all remaining input tokens.
-                    var collected = tokens.GetRange(tokenIdx, tokens.Count - tokenIdx);
+                    List<string> collected = tokens.GetRange(tokenIdx, tokens.Count - tokenIdx);
                     captures[name] = string.Join(' ', collected);
                     tokenIdx = tokens.Count;
                     patternIdx++;
                     continue;
                 }
 
-                var next = pattern[patternIdx + 1];
+                string next = pattern[patternIdx + 1];
                 if (next.StartsWith('{') || next.EndsWith('?'))
                 {
                     throw new InvalidOperationException($"Variadic capture '{p}' must be followed by a required literal, got '{next}'.");
@@ -710,7 +710,7 @@ public static class PhraseologyMapper
 
                 // Scan forward for the first token matching the next literal — must be AFTER
                 // tokenIdx to guarantee at least one captured token.
-                var scan = tokenIdx + 1;
+                int scan = tokenIdx + 1;
                 while (scan < tokens.Count && !string.Equals(tokens[scan], next, StringComparison.OrdinalIgnoreCase))
                 {
                     scan++;
@@ -720,7 +720,7 @@ public static class PhraseologyMapper
                     return false;
                 }
 
-                var captured = tokens.GetRange(tokenIdx, scan - tokenIdx);
+                List<string> captured = tokens.GetRange(tokenIdx, scan - tokenIdx);
                 captures[name] = string.Join(' ', captured);
                 tokenIdx = scan;
                 patternIdx++;
@@ -734,7 +734,7 @@ public static class PhraseologyMapper
                 {
                     return false;
                 }
-                var name = p[1..^1];
+                string name = p[1..^1];
                 captures[name] = tokens[tokenIdx];
                 tokenIdx++;
                 patternIdx++;
@@ -744,16 +744,16 @@ public static class PhraseologyMapper
             // Optional literal: literal?
             if (p.EndsWith('?'))
             {
-                var literal = p[..^1];
+                string literal = p[..^1];
                 // Try matching the optional token present first. If it matches, we consume
                 // it; if not, we skip it. In both branches we recurse on the remaining pattern.
                 if (tokenIdx < tokens.Count && string.Equals(tokens[tokenIdx], literal, StringComparison.OrdinalIgnoreCase))
                 {
                     // Present branch
                     var captureSnapshot = new Dictionary<string, string>(captures, StringComparer.OrdinalIgnoreCase);
-                    if (TryMatchPattern(pattern, patternIdx + 1, tokens, tokenIdx + 1, captureSnapshot, out var subConsumed))
+                    if (TryMatchPattern(pattern, patternIdx + 1, tokens, tokenIdx + 1, captureSnapshot, out int subConsumed))
                     {
-                        foreach (var kvp in captureSnapshot)
+                        foreach (KeyValuePair<string, string> kvp in captureSnapshot)
                         {
                             captures[kvp.Key] = kvp.Value;
                         }
@@ -781,8 +781,8 @@ public static class PhraseologyMapper
 
     private static string FillTemplate(string template, Dictionary<string, string> captures)
     {
-        var result = template;
-        foreach (var kvp in captures)
+        string result = template;
+        foreach (KeyValuePair<string, string> kvp in captures)
         {
             result = result.Replace("{" + kvp.Key + "}", kvp.Value, StringComparison.OrdinalIgnoreCase);
         }
@@ -800,8 +800,8 @@ public static class PhraseologyMapper
 
         // Reassemble the token list as a space-separated string so CallsignParser can tokenize
         // it the same way it does standalone transcripts. This keeps both extractors in sync.
-        var joined = string.Join(' ', tokens);
-        var leading = CallsignParser.TryParseLeading(joined, activeCallsigns);
+        string joined = string.Join(' ', tokens);
+        CallsignParser.ParsedCallsign? leading = CallsignParser.TryParseLeading(joined, activeCallsigns);
         if (leading is not null)
         {
             start = 0;
@@ -809,7 +809,7 @@ public static class PhraseologyMapper
             return leading.IcaoCallsign;
         }
 
-        var trailing = CallsignParser.TryParseTrailing(joined, activeCallsigns);
+        CallsignParser.ParsedCallsign? trailing = CallsignParser.TryParseTrailing(joined, activeCallsigns);
         if (trailing is not null)
         {
             int trailingStart = tokens.Count - trailing.TokensConsumed;
@@ -887,7 +887,7 @@ public static class PhraseologyMapper
         // not fix condition — handled by the other branch).
         if (string.Equals(tokens[0], "at", StringComparison.OrdinalIgnoreCase))
         {
-            var next = tokens[1];
+            string next = tokens[1];
             if (next.Length > 0 && !char.IsDigit(next[0]))
             {
                 consumed = 2;
@@ -902,7 +902,7 @@ public static class PhraseologyMapper
             && string.Equals(tokens[1], "level", StringComparison.OrdinalIgnoreCase)
         )
         {
-            var altIdx = 2;
+            int altIdx = 2;
             if (altIdx < tokens.Count && string.Equals(tokens[altIdx], "at", StringComparison.OrdinalIgnoreCase))
             {
                 altIdx++;
@@ -930,9 +930,9 @@ public static class PhraseologyMapper
             return false;
         }
 
-        foreach (var runwayList in availableRunways.Values)
+        foreach (IReadOnlyList<string> runwayList in availableRunways.Values)
         {
-            foreach (var candidate in runwayList)
+            foreach (string candidate in runwayList)
             {
                 if (string.Equals(candidate, runway, StringComparison.OrdinalIgnoreCase))
                 {
@@ -974,7 +974,7 @@ public static class PhraseologyMapper
             return null;
         }
 
-        var upper = captured.ToUpperInvariant();
+        string upper = captured.ToUpperInvariant();
         if (IsKnownRunway(upper, availableRunways))
         {
             return upper;
@@ -983,22 +983,22 @@ public static class PhraseologyMapper
         // Pattern 1: 3-digit token (e.g. "288") — likely a misheard "NN" + suffix letter.
         if (upper.Length == 3 && upper.All(char.IsDigit))
         {
-            var basePart = upper[..2];
-            var trailing = upper[2];
+            string basePart = upper[..2];
+            char trailing = upper[2];
 
             // Phonetic suffix hints, ordered by confidence. The 8 → R mapping is the load-bearing
             // case (right/eight rhyme); the 0 → L/C mapping is a much weaker fallback for the
             // rare case where Whisper drops the suffix word into a digit slot.
-            var suffixHints = trailing switch
+            char[] suffixHints = trailing switch
             {
                 '8' => new[] { 'R' },
                 '0' => new[] { 'L', 'C' },
                 _ => Array.Empty<char>(),
             };
 
-            foreach (var hint in suffixHints)
+            foreach (char hint in suffixHints)
             {
-                var candidate = basePart + hint;
+                string candidate = basePart + hint;
                 if (IsKnownRunway(candidate, availableRunways))
                 {
                     return candidate;
@@ -1018,7 +1018,7 @@ public static class PhraseologyMapper
         // Pattern 2: single digit + suffix letter (e.g. "9R") — pad to "09R".
         if (upper.Length == 2 && char.IsDigit(upper[0]) && (upper[1] == 'L' || upper[1] == 'C' || upper[1] == 'R'))
         {
-            var padded = "0" + upper;
+            string padded = "0" + upper;
             if (IsKnownRunway(padded, availableRunways))
             {
                 return padded;
@@ -1029,7 +1029,7 @@ public static class PhraseologyMapper
         // Pattern 3: single bare digit (e.g. "9") — pad to "09".
         if (upper.Length == 1 && char.IsDigit(upper[0]))
         {
-            var padded = "0" + upper;
+            string padded = "0" + upper;
             if (IsKnownRunway(padded, availableRunways))
             {
                 return padded;
@@ -1049,13 +1049,13 @@ public static class PhraseologyMapper
     /// </summary>
     public static string? ResolveDestinationName(string spokenName, string captureName, IReadOnlySet<string> layoutNames)
     {
-        var parts = spokenName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string[] parts = spokenName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (parts.Any(DestinationNameStopWords.Contains))
         {
             return null;
         }
 
-        var joined = string.Concat(parts.Select(p => string.Equals(p, "dash", StringComparison.OrdinalIgnoreCase) ? "-" : p)).ToUpperInvariant();
+        string joined = string.Concat(parts.Select(p => string.Equals(p, "dash", StringComparison.OrdinalIgnoreCase) ? "-" : p)).ToUpperInvariant();
         if (joined.Length is < 1 or > 9 || !joined.Any(char.IsLetterOrDigit) || !joined.All(c => char.IsLetterOrDigit(c) || c == '-'))
         {
             return null;
@@ -1068,7 +1068,7 @@ public static class PhraseologyMapper
                 return joined;
             }
 
-            var nounPrefixed = captureName.ToUpperInvariant() + joined;
+            string nounPrefixed = captureName.ToUpperInvariant() + joined;
             return layoutNames.Contains(nounPrefixed) ? nounPrefixed : null;
         }
 
@@ -1089,8 +1089,8 @@ public static class PhraseologyMapper
         {
             return false;
         }
-        var hasDigit = false;
-        foreach (var c in token)
+        bool hasDigit = false;
+        foreach (char c in token)
         {
             if (!char.IsLetterOrDigit(c))
             {
@@ -1112,7 +1112,7 @@ public static class PhraseologyMapper
         {
             return false;
         }
-        foreach (var c in s)
+        foreach (char c in s)
         {
             if (c < '0' || c > '9')
             {
@@ -1131,10 +1131,10 @@ public static class PhraseologyMapper
         // output. Pattern matching, filler matching, and connector matching all use
         // OrdinalIgnoreCase comparisons so case preservation here is safe.
         var tokens = new List<string>();
-        var start = -1;
-        for (var i = 0; i < transcript.Length; i++)
+        int start = -1;
+        for (int i = 0; i < transcript.Length; i++)
         {
-            var c = transcript[i];
+            char c = transcript[i];
             if (char.IsLetterOrDigit(c))
             {
                 if (start == -1)
@@ -1161,7 +1161,7 @@ public static class PhraseologyMapper
     private static List<string> RemoveRange(List<string> tokens, int start, int count)
     {
         var copy = new List<string>(tokens.Count - count);
-        for (var i = 0; i < tokens.Count; i++)
+        for (int i = 0; i < tokens.Count; i++)
         {
             if (i < start || i >= start + count)
             {
@@ -1185,19 +1185,19 @@ public static class PhraseologyMapper
     internal static List<string> CollapseRunwayDesignators(List<string> tokens)
     {
         var output = new List<string>(tokens.Count);
-        var i = 0;
+        int i = 0;
         while (i < tokens.Count)
         {
             if (i + 1 < tokens.Count && IsDigitString(tokens[i]))
             {
-                var suffix = MatchRunwaySuffixWord(tokens[i + 1]);
+                char? suffix = MatchRunwaySuffixWord(tokens[i + 1]);
                 if (suffix is not null)
                 {
                     // Zero-pad single-digit runway numbers: real-world designators are always
                     // two digits ("01R" not "1R", "09L" not "9L"). Whisper transcribes "one right"
                     // as ["one", "right"] → ["1", "right"], and we need to emit "01R" so the
                     // {rwy} capture matches the airport's actual runway list.
-                    var digits = tokens[i].Length == 1 ? "0" + tokens[i] : tokens[i];
+                    string digits = tokens[i].Length == 1 ? "0" + tokens[i] : tokens[i];
                     // Trim 3+ digit prefixes back to 2 digits: real runway numbers are 01-36, so
                     // any longer digit token followed by a suffix word is a Whisper mishear. The
                     // load-bearing case is "two eight right" → Whisper doubles up the eight/right
@@ -1304,19 +1304,19 @@ public static class PhraseologyMapper
         }
 
         var output = new List<string>(tokens.Count);
-        var i = 0;
+        int i = 0;
         while (i < tokens.Count)
         {
             CustomFixSpeechPattern? matched = null;
-            foreach (var pattern in patterns)
+            foreach (CustomFixSpeechPattern pattern in patterns)
             {
                 if (pattern.Tokens.Count == 0 || i + pattern.Tokens.Count > tokens.Count)
                 {
                     continue;
                 }
 
-                var allMatch = true;
-                for (var k = 0; k < pattern.Tokens.Count; k++)
+                bool allMatch = true;
+                for (int k = 0; k < pattern.Tokens.Count; k++)
                 {
                     if (!string.Equals(tokens[i + k], pattern.Tokens[k], StringComparison.OrdinalIgnoreCase))
                     {

@@ -23,9 +23,9 @@ public class AccessibleFacilityResolverTests
             return;
         }
 
-        var facilities = config.GetAccessibleStripFacilities("OAK_TWR");
+        IReadOnlyList<AccessibleFacility> facilities = config.GetAccessibleStripFacilities("OAK_TWR");
 
-        var own = facilities.Single(f => f.FacilityId == "OAK");
+        AccessibleFacility own = facilities.Single(f => f.FacilityId == "OAK");
         Assert.True(own.IsStudentFacility);
         // OAK's config links NCT and O90 bays for scanning strips out; both open
         // as their own tabs so what was scanned there can actually be read.
@@ -44,7 +44,7 @@ public class AccessibleFacilityResolverTests
 
         // One hop only. SFO is a sibling ATCT under NCT — reachable from NCT's
         // subtree but not from anything OAK links, so it stays out.
-        var facilities = config.GetAccessibleStripFacilities("OAK_TWR");
+        IReadOnlyList<AccessibleFacility> facilities = config.GetAccessibleStripFacilities("OAK_TWR");
 
         Assert.DoesNotContain(facilities, f => f.FacilityId == "SFO");
         Assert.DoesNotContain(facilities, f => f.FacilityId == "SJC");
@@ -58,7 +58,7 @@ public class AccessibleFacilityResolverTests
             return;
         }
 
-        var facilities = config.GetAccessibleStripFacilities("NCT_APP");
+        IReadOnlyList<AccessibleFacility> facilities = config.GetAccessibleStripFacilities("NCT_APP");
 
         Assert.True(facilities.Single(f => f.FacilityId == "NCT").IsStudentFacility);
         Assert.Contains(facilities, f => f.FacilityId == "OAK");
@@ -73,7 +73,7 @@ public class AccessibleFacilityResolverTests
             return;
         }
 
-        var bays = config.GetAllCommandTargetableStripBays("OAK_TWR");
+        IReadOnlyList<AccessibleBay> bays = config.GetAllCommandTargetableStripBays("OAK_TWR");
 
         // NC1 is not among the bays OAK links, but it belongs to a facility OAK
         // can open — so a command issued from that tab has to resolve it.
@@ -106,9 +106,9 @@ public class AccessibleFacilityResolverTests
             return;
         }
 
-        var facilities = config.GetAccessibleTdlsFacilities("NCT_APP");
+        IReadOnlyList<AccessibleTdlsFacility> facilities = config.GetAccessibleTdlsFacilities("NCT_APP");
 
-        var nct = facilities.Single(f => f.FacilityId == "NCT");
+        AccessibleTdlsFacility nct = facilities.Single(f => f.FacilityId == "NCT");
         // NCT owns no tdlsConfiguration — it is listed purely as the consolidated
         // page over the five child facilities that do (upstream's parent view).
         Assert.Equal(["SFO", "OAK", "SJC", "SMF", "RNO"], nct.MemberFacilityIds);
@@ -123,7 +123,7 @@ public class AccessibleFacilityResolverTests
             return;
         }
 
-        var facilities = config.GetAccessibleTdlsFacilities("NCT_APP");
+        IReadOnlyList<AccessibleTdlsFacility> facilities = config.GetAccessibleTdlsFacilities("NCT_APP");
 
         Assert.Equal(["OAK"], facilities.Single(f => f.FacilityId == "OAK").MemberFacilityIds);
     }
@@ -139,9 +139,9 @@ public class AccessibleFacilityResolverTests
         // Upstream-faithful: the consolidated page is a top-down-consolidation
         // affordance, so working OAK does not reach up to NCT (unlike strips,
         // which follow the external-bay links).
-        var facilities = config.GetAccessibleTdlsFacilities("OAK_TWR");
+        IReadOnlyList<AccessibleTdlsFacility> facilities = config.GetAccessibleTdlsFacilities("OAK_TWR");
 
-        var only = Assert.Single(facilities);
+        AccessibleTdlsFacility only = Assert.Single(facilities);
         Assert.Equal("OAK", only.FacilityId);
         Assert.Equal(["OAK"], only.MemberFacilityIds);
     }
@@ -154,7 +154,7 @@ public class AccessibleFacilityResolverTests
             return;
         }
 
-        var facilities = config.GetAccessibleTdlsFacilities("NCT_APP");
+        IReadOnlyList<AccessibleTdlsFacility> facilities = config.GetAccessibleTdlsFacilities("NCT_APP");
 
         // MRY has strip bays but no TDLS config and no children — nothing to show.
         Assert.DoesNotContain(facilities, f => f.FacilityId == "MRY");

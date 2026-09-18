@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Client.Models;
 using Yaat.Client.Views;
 
 namespace Yaat.Client.Tests;
@@ -18,7 +19,7 @@ public class FlightPlanEditorAmendmentBuilderTests
     [Fact]
     public void DepartureBlank_DestinationKept_SendsEmptyDeparture()
     {
-        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "A",
             icaoEqText: "",
@@ -41,7 +42,7 @@ public class FlightPlanEditorAmendmentBuilderTests
     {
         // Avalonia TextBox.Text can be null when the box is empty — emulates the path
         // that produced "Departure":null on the wire in the original bug bundle.
-        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "A",
             icaoEqText: "",
@@ -61,7 +62,7 @@ public class FlightPlanEditorAmendmentBuilderTests
     [Fact]
     public void AllTextFieldsBlank_AllStringsAreEmptyNotNull()
     {
-        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "",
             eqText: "",
             icaoEqText: "",
@@ -89,7 +90,7 @@ public class FlightPlanEditorAmendmentBuilderTests
     public void SpeedBlank_SendsZero()
     {
         // int? null would mean "don't touch" server-side. 0 means "explicit clear".
-        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "A",
             icaoEqText: "",
@@ -109,7 +110,7 @@ public class FlightPlanEditorAmendmentBuilderTests
     [Fact]
     public void SpeedUnparseable_SendsZero()
     {
-        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "A",
             icaoEqText: "",
@@ -128,7 +129,7 @@ public class FlightPlanEditorAmendmentBuilderTests
     [Fact]
     public void RouteBlank_SendsEmptyRoute()
     {
-        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "A",
             icaoEqText: "",
@@ -150,7 +151,7 @@ public class FlightPlanEditorAmendmentBuilderTests
     {
         // CRC compat: FlightPlanEditorViewModel sets EquipmentSuffix="A" when TypeCode is
         // populated but EquipmentSuffix is blank (line 669-672 of the decompiled VM).
-        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "",
             icaoEqText: "",
@@ -169,7 +170,7 @@ public class FlightPlanEditorAmendmentBuilderTests
     [Fact]
     public void TypeBlankAndEquipmentBlank_LeavesEquipmentBlank()
     {
-        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "",
             eqText: "",
             icaoEqText: "",
@@ -190,7 +191,7 @@ public class FlightPlanEditorAmendmentBuilderTests
     {
         // Protocol prefix (+/V/, /T/, etc.) is hidden from the user but must round-trip
         // intact even when the user blanks the visible remark portion.
-        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "A",
             icaoEqText: "",
@@ -209,7 +210,7 @@ public class FlightPlanEditorAmendmentBuilderTests
     [Fact]
     public void TextIsTrimmedAndUpperCased()
     {
-        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: " da42 ",
             eqText: " a ",
             icaoEqText: "",
@@ -234,7 +235,7 @@ public class FlightPlanEditorAmendmentBuilderTests
     [Fact]
     public void IcaoEquipment_TrimmedUpperCased_BlankIsExplicitClear()
     {
-        var amendment = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "B77W",
             eqText: "L",
             icaoEqText: " sde2e3fghij5m1rwxy ",
@@ -249,7 +250,7 @@ public class FlightPlanEditorAmendmentBuilderTests
 
         Assert.Equal("SDE2E3FGHIJ5M1RWXY", amendment.IcaoEquipmentCodes);
 
-        var cleared = FlightPlanEditorAmendmentBuilder.Build(
+        FlightPlanAmendment cleared = FlightPlanEditorAmendmentBuilder.Build(
             typText: "B77W",
             eqText: "L",
             icaoEqText: "",

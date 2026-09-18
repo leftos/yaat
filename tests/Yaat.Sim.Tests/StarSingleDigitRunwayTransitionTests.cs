@@ -35,25 +35,25 @@ public class StarSingleDigitRunwayTransitionTests : IDisposable
     public void Parser_SingleDigitRunway_PassesDesignatorUnnormalized()
     {
         // Entry point: the JARR parser hands the handler a bare "1R" (accepted by IsRunwayDesignator).
-        var result = CommandParser.Parse("JARR BDEGA 1R");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("JARR BDEGA 1R");
         Assert.True(result.IsSuccess, $"parse failed: {result.Reason}");
-        var cmd = Assert.IsType<JoinStarCommand>(result.Value);
+        JoinStarCommand cmd = Assert.IsType<JoinStarCommand>(result.Value);
         Assert.Equal("1R", cmd.RunwayTransition);
     }
 
     [Fact]
     public void LookupRunwayTransition_SingleDigitRunway_ResolvesSameAsPadded()
     {
-        var star = NavigationDatabase.Instance.GetStar("KSFO", "BDEGA4");
+        CifpStarProcedure? star = NavigationDatabase.Instance.GetStar("KSFO", "BDEGA4");
         Assert.NotNull(star);
 
         // Real-data sanity: KSFO BDEGA carries a single-digit (01x) runway transition.
-        var padded = NavigationCommandHandler.LookupRunwayTransition(star!.RunwayTransitions, "01R");
+        CifpTransition? padded = NavigationCommandHandler.LookupRunwayTransition(star!.RunwayTransitions, "01R");
         Assert.NotNull(padded);
 
         // Flown-route path: TryResolveStarFromCifp resolves the runway transition via this exact
         // helper. A single-digit designator must resolve the same transition legs.
-        var singleDigit = NavigationCommandHandler.LookupRunwayTransition(star.RunwayTransitions, "1R");
+        CifpTransition? singleDigit = NavigationCommandHandler.LookupRunwayTransition(star.RunwayTransitions, "1R");
         Assert.NotNull(singleDigit);
         Assert.Equal(padded!.Legs.Count, singleDigit!.Legs.Count);
     }
@@ -61,13 +61,13 @@ public class StarSingleDigitRunwayTransitionTests : IDisposable
     [Fact]
     public void GetStarRunwayTransitions_SingleDigitRunway_ResolvesSameAsPadded()
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
 
-        var padded = navDb.GetStarRunwayTransitions("KSFO", "BDEGA4", "01R");
+        IReadOnlyList<string>? padded = navDb.GetStarRunwayTransitions("KSFO", "BDEGA4", "01R");
         Assert.NotNull(padded);
         Assert.NotEmpty(padded!);
 
-        var singleDigit = navDb.GetStarRunwayTransitions("KSFO", "BDEGA4", "1R");
+        IReadOnlyList<string>? singleDigit = navDb.GetStarRunwayTransitions("KSFO", "BDEGA4", "1R");
         Assert.NotNull(singleDigit);
         Assert.Equal(padded, singleDigit);
     }
@@ -78,14 +78,14 @@ public class StarSingleDigitRunwayTransitionTests : IDisposable
         // Scenario "OnStar" spawns write StarRunway (uppercased-but-unpadded by SpawnParser) straight
         // into Procedure.DestinationRunway. A single-digit spawn ("1R") must be zero-padded ("01R") so
         // the flown-route and restriction lookups match the CIFP "RW01R" key (issue #273).
-        var navDb = NavigationDatabase.Instance;
-        var star = navDb.GetStar("KSFO", "BDEGA4");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        CifpStarProcedure? star = navDb.GetStar("KSFO", "BDEGA4");
         if (star is null || star.CommonLegs.Count == 0 || !star.RunwayTransitions.ContainsKey("RW01R"))
         {
             return; // offline CIFP fallback lacks BDEGA4/RW01R
         }
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(new List<CifpLeg>(star.CommonLegs));
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(new List<CifpLeg>(star.CommonLegs));
         if (targets.Count == 0 || navDb.GetFixPosition(targets[0].Name) is null)
         {
             return;
@@ -105,7 +105,7 @@ public class StarSingleDigitRunwayTransitionTests : IDisposable
             DestinationAirportId = "KSFO",
         };
 
-        var (state, error) = AircraftGenerator.Generate(
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
             request,
             "KSFO",
             Array.Empty<AircraftState>(),

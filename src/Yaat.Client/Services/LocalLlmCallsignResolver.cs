@@ -69,19 +69,19 @@ public sealed class LocalLlmCallsignResolver
             return null;
         }
 
-        var userPrompt = BuildUserPrompt(transcript, activeCallsigns);
+        string userPrompt = BuildUserPrompt(transcript, activeCallsigns);
         // No grammar — the resolver's output is freeform "ICAO callsign or NONE", validated against
         // the active list afterward by ValidateAgainstActive. Constraining the grammar to the
         // active-callsign alternation would be theoretically tighter but adds zero safety
         // (validation already prevents phantom callsigns) and would require building a fresh
         // grammar on every call from a fresh callsign list — not worth the complexity.
-        var raw = await _llm.GenerateAsync(_systemPrompt, userPrompt, gbnfGrammar: null, ct).ConfigureAwait(false);
+        string? raw = await _llm.GenerateAsync(_systemPrompt, userPrompt, gbnfGrammar: null, ct).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(raw))
         {
             return null;
         }
 
-        var resolved = ValidateAgainstActive(raw, activeCallsigns);
+        string? resolved = ValidateAgainstActive(raw, activeCallsigns);
         if (resolved is null)
         {
             Log.LogDebug("LLM callsign resolver output did not match any active callsign: {Raw}", raw);
@@ -108,10 +108,10 @@ public sealed class LocalLlmCallsignResolver
     /// </summary>
     internal static string? ValidateAgainstActive(string raw, IReadOnlyCollection<string> activeCallsigns)
     {
-        var trimmed = raw.Trim().Trim('`', '"', '\'').Trim();
+        string trimmed = raw.Trim().Trim('`', '"', '\'').Trim();
 
         // Keep only the first line — small models sometimes spill extra lines after the answer.
-        var newlineIdx = trimmed.IndexOfAny(['\n', '\r']);
+        int newlineIdx = trimmed.IndexOfAny(['\n', '\r']);
         if (newlineIdx > 0)
         {
             trimmed = trimmed[..newlineIdx].Trim();
@@ -124,14 +124,14 @@ public sealed class LocalLlmCallsignResolver
 
         // Match the first whitespace-delimited token against the active list — lets us tolerate
         // models that append stray trailing text despite the instruction not to.
-        var firstToken = trimmed.Split([' ', '\t', ',', '.'], 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string[] firstToken = trimmed.Split([' ', '\t', ',', '.'], 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (firstToken.Length == 0)
         {
             return null;
         }
 
-        var candidate = firstToken[0];
-        foreach (var active in activeCallsigns)
+        string candidate = firstToken[0];
+        foreach (string active in activeCallsigns)
         {
             if (string.Equals(active, candidate, StringComparison.OrdinalIgnoreCase))
             {

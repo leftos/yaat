@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.ControllerAi;
 using Yaat.Sim.Tests.Helpers;
@@ -31,7 +32,7 @@ public class StripIdBakedDrawTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
         engine.Scenario!.StudentPosition = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "O");
         engine.InitializeFromArtcc();
         return engine;
@@ -42,8 +43,8 @@ public class StripIdBakedDrawTests
     {
         var record = new RecordedCommand(12, "", "SEP W OAK/Ground1/1/1 HOLD LINE", "XX", "conn-1") { StripId = "SEP_a1b2c3d4", Accepted = true };
 
-        var json = JsonSerializer.Serialize<RecordedAction>(record, RecordingJsonOptions.Default);
-        var restored = Assert.IsType<RecordedCommand>(JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default));
+        string json = JsonSerializer.Serialize<RecordedAction>(record, RecordingJsonOptions.Default);
+        RecordedCommand restored = Assert.IsType<RecordedCommand>(JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default));
 
         Assert.Equal("SEP_a1b2c3d4", restored.StripId);
     }
@@ -70,10 +71,10 @@ public class StripIdBakedDrawTests
 
         var host = new AttendanceActionHost();
 
-        var outcome = engine.Actions.Issue(new ActionInput("", "SEP W OAK/Ground1/1/1 HOLD LINE", "conn-1", "XX", Baked: null), host);
+        ActionOutcome outcome = engine.Actions.Issue(new ActionInput("", "SEP W OAK/Ground1/1/1 HOLD LINE", "conn-1", "XX", Baked: null), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        var created = Assert.Single(engine.Strips.Items.Values);
+        StripItemRecord created = Assert.Single(engine.Strips.Items.Values);
         Assert.StartsWith("SEP_", created.Id, StringComparison.Ordinal);
         Assert.Equal(created.Id, outcome.ToRecord?.StripId);
         Assert.Equal(created.Id, Assert.Single(engine.Scenario!.ActionLog.OfType<RecordedCommand>()).StripId);
@@ -94,7 +95,7 @@ public class StripIdBakedDrawTests
         var host = new AttendanceActionHost();
         var record = new RecordedCommand(0, "", "SEP W OAK/Ground1/1/1 HOLD LINE", "XX", "conn-1") { StripId = "SEP_baked", Accepted = true };
 
-        var outcome = engine.Actions.Apply(record, host);
+        ActionOutcome outcome = engine.Actions.Apply(record, host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("SEP_baked", Assert.Single(engine.Strips.Items.Values).Id);

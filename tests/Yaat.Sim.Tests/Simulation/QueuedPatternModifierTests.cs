@@ -44,7 +44,7 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
     [Fact]
     public void ExtDownwind_BehindQueuedErd_IsAcceptedAndPreservesEntry()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -52,15 +52,15 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
 
         SpawnAirborneOverOak(engine, "TST001");
 
-        var setup = engine.SendCommand("TST001", "DCT VPCOL; ERD 28R");
+        CommandResult setup = engine.SendCommand("TST001", "DCT VPCOL; ERD 28R");
         Assert.True(setup.Success, setup.Message);
 
-        var ac = engine.FindAircraft("TST001");
+        AircraftState? ac = engine.FindAircraft("TST001");
         Assert.NotNull(ac);
         Assert.Null(ac.Phases?.CurrentPhase); // ERD queued, not yet fired — free-flying to VPCOL
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // the queued ERD block
 
-        var ext = engine.SendCommand("TST001", "EXT DOWNWIND");
+        CommandResult ext = engine.SendCommand("TST001", "EXT DOWNWIND");
         output.WriteLine($"EXT DOWNWIND: success={ext.Success} — {ext.Message}");
         Assert.True(ext.Success, $"EXT DOWNWIND behind a queued ERD should be accepted: {ext.Message}");
 
@@ -79,7 +79,7 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
     [Fact]
     public void ExtDownwind_BehindQueuedErd_ExtendsDownwindWhenEntryBuilds()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -93,10 +93,10 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
         // Fire the entry: builds the circuit and consumes the pre-armed extend.
         Assert.True(engine.SendCommand("TST002", "ERD 28R").Success);
 
-        var ac = engine.FindAircraft("TST002");
+        AircraftState? ac = engine.FindAircraft("TST002");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
-        var downwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
+        DownwindPhase? downwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
         Assert.NotNull(downwind);
         Assert.True(downwind.IsExtended, "The pre-armed EXT DOWNWIND must extend the downwind the entry builds");
     }
@@ -107,7 +107,7 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
     [Fact]
     public void ShortApproach_BehindQueuedErd_ArmsBuiltDownwind()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -120,10 +120,10 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
 
         Assert.True(engine.SendCommand("TST003", "ERD 28R").Success);
 
-        var ac = engine.FindAircraft("TST003");
+        AircraftState? ac = engine.FindAircraft("TST003");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
-        var downwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
+        DownwindPhase? downwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
         Assert.NotNull(downwind);
         Assert.True(downwind.ShortApproachArmed, "The pre-armed SA must arm the downwind the entry builds");
     }
@@ -134,7 +134,7 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
     [Fact]
     public void ExtDownwind_BehindTriggeredErd_IsAccepted()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -144,7 +144,7 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
 
         Assert.True(engine.SendCommand("TST004", "AT VPCOL ERD 28R").Success);
 
-        var ext = engine.SendCommand("TST004", "EXT DOWNWIND");
+        CommandResult ext = engine.SendCommand("TST004", "EXT DOWNWIND");
         output.WriteLine($"EXT DOWNWIND: success={ext.Success} — {ext.Message}");
         Assert.True(ext.Success, $"EXT behind a triggered ERD should be accepted: {ext.Message}");
     }
@@ -155,7 +155,7 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
     [Fact]
     public void ExtDownwind_NothingQueued_IsRejected()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -163,7 +163,7 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
 
         SpawnAirborneOverOak(engine, "TST005");
 
-        var ext = engine.SendCommand("TST005", "EXT DOWNWIND");
+        CommandResult ext = engine.SendCommand("TST005", "EXT DOWNWIND");
         output.WriteLine($"EXT DOWNWIND (nothing queued): success={ext.Success} — {ext.Message}");
         Assert.False(ext.Success, "EXT DOWNWIND with nothing to extend should be rejected");
     }
@@ -175,7 +175,7 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
     [Fact]
     public void ExtDownwind_AfterErdFired_StillArmsPendingDownwind()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -184,17 +184,17 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
         SpawnAirborneOverOak(engine, "TST006");
 
         Assert.True(engine.SendCommand("TST006", "ERD 28R").Success);
-        var ac = engine.FindAircraft("TST006");
+        AircraftState? ac = engine.FindAircraft("TST006");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
 
-        var ext = engine.SendCommand("TST006", "EXT DOWNWIND");
+        CommandResult ext = engine.SendCommand("TST006", "EXT DOWNWIND");
         Assert.True(ext.Success, ext.Message);
 
         ac = engine.FindAircraft("TST006");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
-        var downwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
+        DownwindPhase? downwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
         Assert.NotNull(downwind);
         Assert.True(downwind.IsExtended);
     }
@@ -212,7 +212,7 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
     [Fact]
     public void MultiBlockModifier_BehindQueuedErd_IsAcceptedAndPreservesEntry()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -222,11 +222,11 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
 
         Assert.True(engine.SendCommand("TST007", "DCT VPCOL; ERD 28R").Success);
 
-        var ac = engine.FindAircraft("TST007");
+        AircraftState? ac = engine.FindAircraft("TST007");
         Assert.NotNull(ac);
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // queued ERD before
 
-        var mod = engine.SendCommand("TST007", "EXT DOWNWIND; SA");
+        CommandResult mod = engine.SendCommand("TST007", "EXT DOWNWIND; SA");
         output.WriteLine($"EXT DOWNWIND; SA: success={mod.Success} — {mod.Message}");
         Assert.True(mod.Success, $"A compound of only pattern modifiers behind a queued ERD should be accepted: {mod.Message}");
 
@@ -241,7 +241,7 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
         ac = engine.FindAircraft("TST007");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
-        var downwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
+        DownwindPhase? downwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
         Assert.NotNull(downwind);
         Assert.True(downwind.ShortApproachArmed, "The last-armed modifier (SA) must arm the downwind the entry builds");
     }
@@ -259,7 +259,7 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
     [Fact]
     public void ModifierLedMixedCompound_BehindQueuedErd_RejectsWithoutWipingEntry()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -269,11 +269,11 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
 
         Assert.True(engine.SendCommand("TST008", "DCT VPCOL; ERD 28R").Success);
 
-        var ac = engine.FindAircraft("TST008");
+        AircraftState? ac = engine.FindAircraft("TST008");
         Assert.NotNull(ac);
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // queued ERD before
 
-        var mod = engine.SendCommand("TST008", "EXT DOWNWIND; CLAND 28R");
+        CommandResult mod = engine.SendCommand("TST008", "EXT DOWNWIND; CLAND 28R");
         output.WriteLine($"EXT DOWNWIND; CLAND 28R: success={mod.Success} — {mod.Message}");
         Assert.False(mod.Success, "A modifier-led mixed compound with no extendable leg should be rejected");
 

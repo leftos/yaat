@@ -73,7 +73,7 @@ internal sealed class TugPathCheck
         }
 
         // The prefilter reaches as far as the footprint does.
-        var box = Box.Around(poses).Padded((2.0 * _halfLengthFt) + (2.0 * _halfSpanFt));
+        Box box = Box.Around(poses).Padded((2.0 * _halfLengthFt) + (2.0 * _halfSpanFt));
         return RunwayRefusal(poses, box, subject)
             ?? HoldingPositionRefusal(poses, box, subject)
             ?? MovementAreaRefusal(poses, box, exemptNames, subject);
@@ -92,12 +92,12 @@ internal sealed class TugPathCheck
         Func<IGroundEdge, bool> match
     )
     {
-        var (minDistanceFt, rangeFt) = window;
-        var start = Local(from);
+        (double minDistanceFt, double rangeFt) = window;
+        Pt start = Local(from);
         double travelRad = travelTrueDeg * DegToRad;
         var ray = new Pt(Math.Sin(travelRad) * rangeFt, Math.Cos(travelRad) * rangeFt);
         (IGroundEdge Edge, double DistanceFt)? nearest = null;
-        foreach (var edge in _edges)
+        foreach (EdgeSegment edge in _edges)
         {
             if ((RayFraction(start, ray, edge.A, edge.B) is not { } fraction) || !match(edge.Edge))
             {
@@ -135,22 +135,22 @@ internal sealed class TugPathCheck
         Func<IGroundEdge, bool> match
     )
     {
-        var start = Local(from);
+        Pt start = Local(from);
         double travelRad = travelTrueDeg * DegToRad;
         var travel = new Pt(Math.Sin(travelRad), Math.Cos(travelRad));
         (IGroundEdge Edge, double LineTravelTrueDeg, LatLon NearestPoint, double AlongFt, double DistanceFt)? nearest = null;
-        foreach (var edge in _edges)
+        foreach (EdgeSegment edge in _edges)
         {
             if (!match(edge.Edge))
             {
                 continue;
             }
 
-            var nearestPoint = NearestPointOnSegment(start, edge.A, edge.B);
-            var offset = nearestPoint - start;
+            Pt nearestPoint = NearestPointOnSegment(start, edge.A, edge.B);
+            Pt offset = nearestPoint - start;
             double alongFt = (offset.X * travel.X) + (offset.Y * travel.Y);
             double distanceFt = Distance(offset, default);
-            var lineTravel = AlongsideTravelDeg(edge, travelTrueDeg, window.MaxAngleDeg);
+            double? lineTravel = AlongsideTravelDeg(edge, travelTrueDeg, window.MaxAngleDeg);
             Log.LogDebug(
                 "Alongside search on {TravelDeg:F1}°: edge {NodeA}-{NodeB} nearest point {DistanceFt:F1} ft away, {AlongFt:F1} ft along; {Verdict}",
                 travelTrueDeg,
@@ -183,22 +183,22 @@ internal sealed class TugPathCheck
     /// </summary>
     internal bool IsOnEdgeExtent(LatLon point, double toleranceFt, Func<IGroundEdge, bool> match)
     {
-        var p = Local(point);
-        foreach (var edge in _edges)
+        Pt p = Local(point);
+        foreach (EdgeSegment edge in _edges)
         {
             if (!match(edge.Edge))
             {
                 continue;
             }
 
-            var direction = edge.B - edge.A;
+            Pt direction = edge.B - edge.A;
             double lengthFt = Distance(direction, default);
             if (lengthFt <= Epsilon)
             {
                 continue;
             }
 
-            var offset = p - edge.A;
+            Pt offset = p - edge.A;
             double alongFt = ((offset.X * direction.X) + (offset.Y * direction.Y)) / lengthFt;
             double crossFt = Math.Abs(Cross(direction, offset)) / lengthFt;
             bool onEdge = (alongFt >= -ExtentSlackFt) && (alongFt <= (lengthFt + ExtentSlackFt)) && (crossFt <= toleranceFt);
@@ -229,7 +229,7 @@ internal sealed class TugPathCheck
     /// </summary>
     private static double? AlongsideTravelDeg(EdgeSegment edge, double travelTrueDeg, double maxAngleDeg)
     {
-        var direction = edge.B - edge.A;
+        Pt direction = edge.B - edge.A;
         if (Distance(direction, default) <= Epsilon)
         {
             return null;
@@ -237,15 +237,15 @@ internal sealed class TugPathCheck
 
         var forward = new TrueHeading(Math.Atan2(direction.X, direction.Y) / DegToRad);
         var travel = new TrueHeading(travelTrueDeg);
-        var nearer = forward.AbsAngleTo(travel) <= forward.ToReciprocal().AbsAngleTo(travel) ? forward : forward.ToReciprocal();
+        TrueHeading nearer = forward.AbsAngleTo(travel) <= forward.ToReciprocal().AbsAngleTo(travel) ? forward : forward.ToReciprocal();
         return nearer.AbsAngleTo(travel) <= maxAngleDeg ? nearer.Degrees : null;
     }
 
     private TugPathRefusal? RunwayRefusal(List<LocalPose> poses, Box box, string subject)
     {
-        foreach (var runway in _runways.Where(r => box.Padded(r.HalfWidthFt).Overlaps(r.A, r.B)))
+        foreach (RunwaySegment? runway in _runways.Where(r => box.Padded(r.HalfWidthFt).Overlaps(r.A, r.B)))
         {
-            foreach (var pose in poses)
+            foreach (LocalPose pose in poses)
             {
                 if (FootprintSides(pose).Any(side => SegmentDistanceFt(side.A, side.B, runway.A, runway.B) <= runway.HalfWidthFt))
                 {
@@ -260,9 +260,9 @@ internal sealed class TugPathCheck
     private TugPathRefusal? HoldingPositionRefusal(List<LocalPose> poses, Box box, string subject)
     {
         var holdEdges = _edges.Where(e => e.TouchesHoldShort && box.Overlaps(e.A, e.B)).ToList();
-        foreach (var pose in poses)
+        foreach (LocalPose pose in poses)
         {
-            foreach (var side in FootprintSides(pose))
+            foreach ((Pt A, Pt B) side in FootprintSides(pose))
             {
                 if (holdEdges.Any(e => Crosses(side.A, side.B, e.A, e.B)))
                 {
@@ -282,16 +282,16 @@ internal sealed class TugPathCheck
             .Where(e => e.Name is not null)
             .Select(e => new MovementEdge(e.Segment, e.Name!))
             .ToList();
-        var adjacency = AdjacencyOf(movementEdges);
-        var leaving = PavementAt(poses[0], movementEdges, adjacency);
-        var arriving = PavementAt(poses[^1], movementEdges, adjacency);
+        Dictionary<int, List<int>> adjacency = AdjacencyOf(movementEdges);
+        HashSet<int> leaving = PavementAt(poses[0], movementEdges, adjacency);
+        HashSet<int> arriving = PavementAt(poses[^1], movementEdges, adjacency);
         var runs = new EndRuns(leaving, LeavingRunLength(poses, movementEdges, leaving), arriving, ArrivingRunStart(poses, movementEdges, arriving));
         for (int sample = 0; sample < poses.Count; sample++)
         {
-            var (nose, tail) = Fuselage(poses[sample]);
+            (Pt nose, Pt tail) = Fuselage(poses[sample]);
             for (int e = 0; e < movementEdges.Count; e++)
             {
-                var edge = movementEdges[e];
+                MovementEdge edge = movementEdges[e];
                 if (runs.Exempts(sample, e) || !Crosses(nose, tail, edge.Segment.A, edge.Segment.B))
                 {
                     continue;
@@ -314,8 +314,8 @@ internal sealed class TugPathCheck
     /// </summary>
     private HashSet<int> PavementAt(LocalPose pose, List<MovementEdge> edges, Dictionary<int, List<int>> adjacency)
     {
-        var pavement = CrossedAt(pose, edges);
-        foreach (var chain in pavement.ToList().GroupBy(e => edges[e].Name, StringComparer.OrdinalIgnoreCase))
+        HashSet<int> pavement = CrossedAt(pose, edges);
+        foreach (IGrouping<string, int> chain in pavement.ToList().GroupBy(e => edges[e].Name, StringComparer.OrdinalIgnoreCase))
         {
             WalkChain(edges, adjacency, chain, pavement);
         }
@@ -340,7 +340,7 @@ internal sealed class TugPathCheck
         foreach (int seed in seeds)
         {
             name ??= edges[seed].Name;
-            foreach (var node in edges[seed].Segment.Edge.Nodes)
+            foreach (GroundNode node in edges[seed].Segment.Edge.Nodes)
             {
                 if (reached.TryAdd(node.Id, 0.0))
                 {
@@ -358,7 +358,7 @@ internal sealed class TugPathCheck
                 continue;
             }
 
-            foreach (int e in adjacency.TryGetValue(nodeId, out var touching) ? touching : [])
+            foreach (int e in adjacency.TryGetValue(nodeId, out List<int>? touching) ? touching : [])
             {
                 if (name!.Equals(edges[e].Name, StringComparison.OrdinalIgnoreCase))
                 {
@@ -372,7 +372,7 @@ internal sealed class TugPathCheck
     /// <summary>Walks an edge from a node reached at <paramref name="fromSeedFt"/>, queueing its far node when that is nearer than any walk before.</summary>
     private static void Step(MovementEdge edge, int nodeId, double fromSeedFt, Dictionary<int, double> reached, Queue<int> queue)
     {
-        var far = edge.Segment.Edge.Nodes[0].Id == nodeId ? edge.Segment.Edge.Nodes[1] : edge.Segment.Edge.Nodes[0];
+        GroundNode far = edge.Segment.Edge.Nodes[0].Id == nodeId ? edge.Segment.Edge.Nodes[1] : edge.Segment.Edge.Nodes[0];
         double farFt = fromSeedFt + Distance(edge.Segment.A, edge.Segment.B);
         if (reached.TryGetValue(far.Id, out double held) && (held <= farFt))
         {
@@ -389,9 +389,9 @@ internal sealed class TugPathCheck
         var adjacency = new Dictionary<int, List<int>>();
         for (int e = 0; e < edges.Count; e++)
         {
-            foreach (var node in edges[e].Segment.Edge.Nodes)
+            foreach (GroundNode node in edges[e].Segment.Edge.Nodes)
             {
-                if (!adjacency.TryGetValue(node.Id, out var touching))
+                if (!adjacency.TryGetValue(node.Id, out List<int>? touching))
                 {
                     touching = [];
                     adjacency[node.Id] = touching;
@@ -407,7 +407,7 @@ internal sealed class TugPathCheck
     /// <summary>The indices of the edges the pose's fuselage lies across.</summary>
     private HashSet<int> CrossedAt(LocalPose pose, List<MovementEdge> edges)
     {
-        var (nose, tail) = Fuselage(pose);
+        (Pt nose, Pt tail) = Fuselage(pose);
         var crossed = new HashSet<int>();
         for (int e = 0; e < edges.Count; e++)
         {
@@ -423,7 +423,7 @@ internal sealed class TugPathCheck
     /// <summary>Whether the pose's fuselage lies across any of the edges <paramref name="among"/> indexes.</summary>
     private bool CrossesAny(LocalPose pose, List<MovementEdge> edges, HashSet<int> among)
     {
-        var (nose, tail) = Fuselage(pose);
+        (Pt nose, Pt tail) = Fuselage(pose);
         return among.Any(e => Crosses(nose, tail, edges[e].Segment.A, edges[e].Segment.B));
     }
 
@@ -473,18 +473,18 @@ internal sealed class TugPathCheck
 
     private (Pt Nose, Pt Tail) Fuselage(LocalPose pose)
     {
-        var ahead = Ahead(pose);
+        Pt ahead = Ahead(pose);
         return (pose.Position + ahead, pose.Position - ahead);
     }
 
     private (Pt A, Pt B)[] FootprintSides(LocalPose pose)
     {
-        var ahead = Ahead(pose);
+        Pt ahead = Ahead(pose);
         var right = new Pt(Math.Cos(pose.NoseRad) * _halfSpanFt, -Math.Sin(pose.NoseRad) * _halfSpanFt);
-        var noseRight = pose.Position + ahead + right;
-        var noseLeft = pose.Position + ahead - right;
-        var tailLeft = pose.Position - ahead - right;
-        var tailRight = pose.Position - ahead + right;
+        Pt noseRight = pose.Position + ahead + right;
+        Pt noseLeft = pose.Position + ahead - right;
+        Pt tailLeft = pose.Position - ahead - right;
+        Pt tailRight = pose.Position - ahead + right;
         return [(noseRight, noseLeft), (noseLeft, tailLeft), (tailLeft, tailRight), (tailRight, noseRight)];
     }
 
@@ -499,8 +499,8 @@ internal sealed class TugPathCheck
     {
         for (int i = 1; i < runway.Coordinates.Count; i++)
         {
-            var a = runway.Coordinates[i - 1];
-            var b = runway.Coordinates[i];
+            (double Lat, double Lon) a = runway.Coordinates[i - 1];
+            (double Lat, double Lon) b = runway.Coordinates[i];
             yield return new RunwaySegment(runway.Name, runway.WidthFt / 2.0, Local(new LatLon(a.Lat, a.Lon)), Local(new LatLon(b.Lat, b.Lon)));
         }
     }
@@ -543,14 +543,14 @@ internal sealed class TugPathCheck
     /// </summary>
     private static double? RayFraction(Pt start, Pt ray, Pt q1, Pt q2)
     {
-        var segment = q2 - q1;
+        Pt segment = q2 - q1;
         double denominator = Cross(ray, segment);
         if (Math.Abs(denominator) <= Epsilon)
         {
             return null;
         }
 
-        var offset = q1 - start;
+        Pt offset = q1 - start;
         double alongRay = Cross(offset, segment) / denominator;
         double alongSegment = Cross(offset, ray) / denominator;
         bool crosses = (alongRay >= 0.0) && (alongRay <= 1.0) && (alongSegment >= 0.0) && (alongSegment <= 1.0);

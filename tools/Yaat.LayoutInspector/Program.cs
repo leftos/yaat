@@ -23,7 +23,7 @@ public static class Program
             return 2;
         }
 
-        if (!CliOptions.TryParse(args, out var options, out string? parseError))
+        if (!CliOptions.TryParse(args, out CliOptions? options, out string? parseError))
         {
             Console.Error.WriteLine(parseError);
             UsageText.Print();

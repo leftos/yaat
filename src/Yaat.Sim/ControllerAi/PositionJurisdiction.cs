@@ -32,10 +32,10 @@ public static class PositionJurisdiction
             return null;
         }
 
-        var runwayAirport = (aircraft.Phases?.DepartureRunway ?? aircraft.Phases?.AssignedRunway)?.AirportId;
-        var airport = runwayAirport ?? PilotContactRoster.SurfaceAirportOf(aircraft);
-        var phase = aircraft.Phases?.CurrentPhase;
-        var phaseRole = phase is null ? null : RoleForPhase(phase);
+        string? runwayAirport = (aircraft.Phases?.DepartureRunway ?? aircraft.Phases?.AssignedRunway)?.AirportId;
+        string? airport = runwayAirport ?? PilotContactRoster.SurfaceAirportOf(aircraft);
+        Phase? phase = aircraft.Phases?.CurrentPhase;
+        ControlRole? phaseRole = phase is null ? null : RoleForPhase(phase);
         if (phaseRole is { } cabRole)
         {
             // §3-1-3.a.4: taxiing or holding ON or ALONG a runway (anything but crossing it) is local control's,
@@ -61,7 +61,9 @@ public static class PositionJurisdiction
                 return null;
             }
 
-            var radar = staffed.FirstOrDefault(p => (p.Role is ControlRole.Approach or ControlRole.Center) && p.Identity.MatchesPosition(owner));
+            AiPositionConfig? radar = staffed.FirstOrDefault(p =>
+                (p.Role is ControlRole.Approach or ControlRole.Center) && p.Identity.MatchesPosition(owner)
+            );
             if (radar is not null)
             {
                 return radar;
@@ -73,15 +75,15 @@ public static class PositionJurisdiction
             return null;
         }
 
-        foreach (var candidate in CandidateAirports(aircraft, airport))
+        foreach (string candidate in CandidateAirports(aircraft, airport))
         {
-            var runways = runwaysFor(candidate);
+            IReadOnlyList<RunwayInfo> runways = runwaysFor(candidate);
             if (runways.Count == 0)
             {
                 continue;
             }
 
-            var use = RunwayOccupancy.ClassifyBest(aircraft, runways, layoutFor(aircraft));
+            RunwayUse? use = RunwayOccupancy.ClassifyBest(aircraft, runways, layoutFor(aircraft));
             if (use is null)
             {
                 continue;
@@ -181,13 +183,13 @@ public sealed class AiWorldView
     )
     {
         var view = new AiWorldView(aircraft.OrderBy(ac => ac.Callsign, StringComparer.Ordinal).ToList());
-        foreach (var ac in view.Snapshot)
+        foreach (AircraftState ac in view.Snapshot)
         {
-            var position = PositionJurisdiction.Resolve(ac, staffed, layoutFor, runwaysFor, isHumanHeld, isAssignedToHuman);
+            AiPositionConfig? position = PositionJurisdiction.Resolve(ac, staffed, layoutFor, runwaysFor, isHumanHeld, isAssignedToHuman);
             view._responsible[ac.Callsign] = position;
             if (position is not null)
             {
-                if (!view._byPosition.TryGetValue(position.PositionId, out var list))
+                if (!view._byPosition.TryGetValue(position.PositionId, out List<AircraftState>? list))
                 {
                     list = [];
                     view._byPosition[position.PositionId] = list;
@@ -203,5 +205,5 @@ public sealed class AiWorldView
     public AiPositionConfig? ResponsiblePosition(AircraftState aircraft) => _responsible.GetValueOrDefault(aircraft.Callsign);
 
     public IReadOnlyList<AircraftState> Jurisdiction(AiPositionConfig position) =>
-        _byPosition.TryGetValue(position.PositionId, out var list) ? list : None;
+        _byPosition.TryGetValue(position.PositionId, out List<AircraftState>? list) ? list : None;
 }

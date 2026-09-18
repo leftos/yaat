@@ -39,13 +39,13 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
     /// </summary>
     private static GroundNode? FindStartNodeOnEShortOfC(AirportGroundLayout layout)
     {
-        var junction = layout.FindIntersectionNode("E", "C");
+        GroundNode? junction = layout.FindIntersectionNode("E", "C");
         if (junction is null)
         {
             return null;
         }
 
-        foreach (var edge in junction.Edges)
+        foreach (IGroundEdge edge in junction.Edges)
         {
             if (edge.MatchesTaxiway("E") && !edge.MatchesTaxiway("C"))
             {
@@ -79,7 +79,7 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
 
     private static TaxiCommand ParseTaxi(string input)
     {
-        var parsed = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
         Assert.True(parsed.IsSuccess, $"'{input}' failed to parse: {parsed.Reason}");
         return Assert.IsType<TaxiCommand>(parsed.Value);
     }
@@ -92,10 +92,10 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
             return;
         }
 
-        var taxiways = route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase);
+        IEnumerable<string> taxiways = route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase);
         output.WriteLine($"[{label}] taxiways=[{string.Join(", ", taxiways)}]");
         output.WriteLine($"[{label}] warnings=[{string.Join(" | ", route.Warnings)}]");
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             output.WriteLine($"[{label}]   HS node={hs.NodeId} target={hs.TargetName} reason={hs.Reason} cleared={hs.IsCleared}");
         }
@@ -108,25 +108,25 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
     [Fact]
     public void TaxiCdj_HsCAtJ_RoutesAlongJ_AndBindsJSideCrossing()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
         }
 
-        var start = FindStartNodeOnEShortOfC(layout);
+        GroundNode? start = FindStartNodeOnEShortOfC(layout);
         Assert.NotNull(start);
-        var ecJunction = layout.FindIntersectionNode("E", "C");
+        GroundNode? ecJunction = layout.FindIntersectionNode("E", "C");
         Assert.NotNull(ecJunction);
-        var jcJunction = layout.FindIntersectionNode("J", "C");
+        GroundNode? jcJunction = layout.FindIntersectionNode("J", "C");
         Assert.NotNull(jcJunction);
 
         double headingTowardC = GeoMath.BearingTo(start.Position, ecJunction.Position);
-        var ac = MakeAircraftAt(start, headingTowardC);
+        AircraftState ac = MakeAircraftAt(start, headingTowardC);
 
-        var taxi = ParseTaxi("TAXI C D J HS C@J");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiCommand taxi = ParseTaxi("TAXI C D J HS C@J");
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         LogRoute("C@J", route);
         Assert.True(result.Success, $"TAXI C D J HS C@J failed: {result.Message}");
         Assert.NotNull(route);
@@ -135,11 +135,11 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
         Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "J", StringComparison.OrdinalIgnoreCase));
 
         // Exactly one explicit hold-short for C, bound on J at the J/C crossing.
-        var hs = Assert.Single(
+        HoldShortPoint hs = Assert.Single(
             route.HoldShortPoints,
             h => (h.Reason == HoldShortReason.ExplicitHoldShort) && (h.TargetName?.StartsWith("C", StringComparison.OrdinalIgnoreCase) == true)
         );
-        Assert.True(layout.Nodes.TryGetValue(hs.NodeId, out var boundNode), $"HS node {hs.NodeId} not in layout");
+        Assert.True(layout.Nodes.TryGetValue(hs.NodeId, out GroundNode? boundNode), $"HS node {hs.NodeId} not in layout");
 
         Assert.True(NodeIncidentTo(boundNode, "J"), $"HS bound to node {boundNode.Id}, which is not on J");
         Assert.True(NodeIncidentTo(boundNode, "C"), $"HS bound to node {boundNode.Id}, which is not adjacent to C");
@@ -153,8 +153,8 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
 
         // The route terminates at the crossing — it does not continue down J past C
         // (nothing beyond the hold-short was cleared).
-        var lastSeg = route.Segments[^1];
-        Assert.True(layout.Nodes.TryGetValue(lastSeg.ToNodeId, out var endNode), $"route end node {lastSeg.ToNodeId} not in layout");
+        TaxiRouteSegment lastSeg = route.Segments[^1];
+        Assert.True(layout.Nodes.TryGetValue(lastSeg.ToNodeId, out GroundNode? endNode), $"route end node {lastSeg.ToNodeId} not in layout");
         double endDistToJc = DistanceFt(endNode.Position, jcJunction.Position);
         Assert.True(endDistToJc < 300, $"route ends {endDistToJc:F0} ft past the J/C junction (node {endNode.Id})");
     }
@@ -166,34 +166,34 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
     [Fact]
     public void TaxiCdj_HsRunway28RAtJ_BindsBarOnJ()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
         }
 
-        var start = FindStartNodeOnEShortOfC(layout);
+        GroundNode? start = FindStartNodeOnEShortOfC(layout);
         Assert.NotNull(start);
-        var ecJunction = layout.FindIntersectionNode("E", "C");
+        GroundNode? ecJunction = layout.FindIntersectionNode("E", "C");
         Assert.NotNull(ecJunction);
 
         double headingTowardC = GeoMath.BearingTo(start.Position, ecJunction.Position);
-        var ac = MakeAircraftAt(start, headingTowardC);
+        AircraftState ac = MakeAircraftAt(start, headingTowardC);
 
-        var taxi = ParseTaxi("TAXI C D J HS 28R@J");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiCommand taxi = ParseTaxi("TAXI C D J HS 28R@J");
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         LogRoute("28R@J", route);
         Assert.True(result.Success, $"TAXI C D J HS 28R@J failed: {result.Message}");
         Assert.NotNull(route);
 
         Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "J", StringComparison.OrdinalIgnoreCase));
 
-        var hs = Assert.Single(
+        HoldShortPoint hs = Assert.Single(
             route.HoldShortPoints,
             h => (h.Reason == HoldShortReason.ExplicitHoldShort) && (h.TargetName?.Contains("28R", StringComparison.OrdinalIgnoreCase) == true)
         );
-        Assert.True(layout.Nodes.TryGetValue(hs.NodeId, out var boundNode), $"HS node {hs.NodeId} not in layout");
+        Assert.True(layout.Nodes.TryGetValue(hs.NodeId, out GroundNode? boundNode), $"HS node {hs.NodeId} not in layout");
         Assert.Equal(GroundNodeType.RunwayHoldShort, boundNode.Type);
         Assert.NotNull(boundNode.RunwayId);
         Assert.True(boundNode.RunwayId.Value.Contains("28R"), $"HS bound to bar for {boundNode.RunwayId}, expected 28R");
@@ -208,32 +208,32 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
     [Fact]
     public void TaxiCdj_BareHsC_KeepsFirstCrossingBinding()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
         }
 
-        var start = FindStartNodeOnEShortOfC(layout);
+        GroundNode? start = FindStartNodeOnEShortOfC(layout);
         Assert.NotNull(start);
-        var ecJunction = layout.FindIntersectionNode("E", "C");
+        GroundNode? ecJunction = layout.FindIntersectionNode("E", "C");
         Assert.NotNull(ecJunction);
 
         double headingTowardC = GeoMath.BearingTo(start.Position, ecJunction.Position);
-        var ac = MakeAircraftAt(start, headingTowardC);
+        AircraftState ac = MakeAircraftAt(start, headingTowardC);
 
-        var taxi = ParseTaxi("TAXI C D J HS C");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiCommand taxi = ParseTaxi("TAXI C D J HS C");
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         LogRoute("bare C", route);
         Assert.True(result.Success, $"TAXI C D J HS C failed: {result.Message}");
         Assert.NotNull(route);
 
-        var hs = Assert.Single(
+        HoldShortPoint hs = Assert.Single(
             route.HoldShortPoints,
             h => (h.Reason == HoldShortReason.ExplicitHoldShort) && string.Equals(h.TargetName, "C", StringComparison.OrdinalIgnoreCase)
         );
-        Assert.True(layout.Nodes.TryGetValue(hs.NodeId, out var boundNode), $"HS node {hs.NodeId} not in layout");
+        Assert.True(layout.Nodes.TryGetValue(hs.NodeId, out GroundNode? boundNode), $"HS node {hs.NodeId} not in layout");
 
         double distToStart = DistanceFt(boundNode.Position, ecJunction.Position);
         Assert.True(distToStart < 300, $"bare HS C bound {distToStart:F0} ft from the first (E/C) crossing — behavior changed");
@@ -250,43 +250,43 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
     [Fact]
     public void PostHoc_HsCAtJ_BindsJSideCrossingOnExistingRoute()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
         }
 
-        var start = FindStartNodeOnEShortOfC(layout);
+        GroundNode? start = FindStartNodeOnEShortOfC(layout);
         Assert.NotNull(start);
-        var ecJunction = layout.FindIntersectionNode("E", "C");
+        GroundNode? ecJunction = layout.FindIntersectionNode("E", "C");
         Assert.NotNull(ecJunction);
-        var jcJunction = layout.FindIntersectionNode("J", "C");
+        GroundNode? jcJunction = layout.FindIntersectionNode("J", "C");
         Assert.NotNull(jcJunction);
 
         double headingTowardC = GeoMath.BearingTo(start.Position, ecJunction.Position);
-        var ac = MakeAircraftAt(start, headingTowardC);
+        AircraftState ac = MakeAircraftAt(start, headingTowardC);
 
         // A route that travels the full length of J (hold short of 28R at its far end),
         // so the J-side C crossing is en route.
-        var taxi = ParseTaxi("TAXI C D J HS 28R@J");
-        var taxiResult = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        TaxiCommand taxi = ParseTaxi("TAXI C D J HS 28R@J");
+        CommandResult taxiResult = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(taxiResult.Success, $"setup taxi failed: {taxiResult.Message}");
 
-        var parsed = CommandParser.Parse("HS C@J");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("HS C@J");
         Assert.True(parsed.IsSuccess, $"'HS C@J' failed to parse: {parsed.Reason}");
-        var hsCmd = Assert.IsType<HoldShortCommand>(parsed.Value);
+        HoldShortCommand hsCmd = Assert.IsType<HoldShortCommand>(parsed.Value);
 
-        var result = GroundCommandHandler.TryHoldShort(ac, hsCmd, layout);
-        var route = ac.Ground.AssignedTaxiRoute;
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, hsCmd, layout);
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         LogRoute("post-hoc C@J", route);
         Assert.True(result.Success, $"HS C@J failed: {result.Message}");
         Assert.NotNull(route);
 
-        var hs = Assert.Single(
+        HoldShortPoint hs = Assert.Single(
             route.HoldShortPoints,
             h => (h.Reason == HoldShortReason.ExplicitHoldShort) && (h.TargetName?.StartsWith("C", StringComparison.OrdinalIgnoreCase) == true)
         );
-        Assert.True(layout.Nodes.TryGetValue(hs.NodeId, out var boundNode), $"HS node {hs.NodeId} not in layout");
+        Assert.True(layout.Nodes.TryGetValue(hs.NodeId, out GroundNode? boundNode), $"HS node {hs.NodeId} not in layout");
         Assert.True(NodeIncidentTo(boundNode, "J"), $"HS bound to node {boundNode.Id}, which is not on J");
         double distToJc = DistanceFt(boundNode.Position, jcJunction.Position);
         Assert.True(distToJc < 300, $"HS node {boundNode.Id} is {distToJc:F0} ft from the J/C junction — expected the crossing on J");
@@ -307,15 +307,15 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
     [Fact]
     public void Parse_LocatedTargets_RoundTripCanonical()
     {
-        var hs = CommandParser.Parse("HS C@J");
+        ParseResult<ParsedCommand> hs = CommandParser.Parse("HS C@J");
         Assert.True(hs.IsSuccess, hs.Reason);
         Assert.Equal("HS C@J", CommandDescriber.DescribeCommand(hs.Value!));
 
-        var res = CommandParser.Parse("RES HS C@J");
+        ParseResult<ParsedCommand> res = CommandParser.Parse("RES HS C@J");
         Assert.True(res.IsSuccess, res.Reason);
         Assert.Equal("RES HS C@J", CommandDescriber.DescribeCommand(res.Value!));
 
-        var cross = CommandParser.Parse("CROSS 28R HS 33@J");
+        ParseResult<ParsedCommand> cross = CommandParser.Parse("CROSS 28R HS 33@J");
         Assert.True(cross.IsSuccess, cross.Reason);
         Assert.Equal("CROSS 28R HS 33@J", CommandDescriber.DescribeCommand(cross.Value!));
     }
@@ -329,7 +329,7 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
     [Fact]
     public void Readback_LocatedTaxiwayTarget_SpeaksTaxiwayWithoutAtSign()
     {
-        var parsed = CommandParser.Parse("HS C@J");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("HS C@J");
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
         string? spoken = PhraseologyVerbalizer.Verbalize(parsed.Value!);
@@ -344,7 +344,7 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
     [Fact]
     public void Readback_LocatedRunwayTarget_SpeaksRunway()
     {
-        var parsed = CommandParser.Parse("HS 28R@J");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("HS 28R@J");
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
         string? spoken = PhraseologyVerbalizer.Verbalize(parsed.Value!);
@@ -367,7 +367,7 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
     [InlineData("TAXI C D J HS 28R@J", "taxi via charlie, delta, juliett, hold short of runway two eight right at juliett")]
     public void Readback_TaxiWithHoldShort_RunwayWordMatchesTargetType(string command, string expected)
     {
-        var parsed = CommandParser.Parse(command);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         Assert.Equal(expected, PhraseologyVerbalizer.Verbalize(parsed.Value!));
     }
@@ -386,8 +386,8 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
     [InlineData("taxi via charlie delta juliet hold short of charlie", "TAXI C D J HS C")]
     public void Stt_LocatedHoldShort_RoundTripsToCanonical(string transcript, string expectedCanonical)
     {
-        var ctx = MapContext.Empty with { TaxiwayNames = new HashSet<string>(["B", "C", "D", "J"], StringComparer.OrdinalIgnoreCase) };
-        var result = PhraseologyMapper.Map(transcript, ctx);
+        MapContext ctx = MapContext.Empty with { TaxiwayNames = new HashSet<string>(["B", "C", "D", "J"], StringComparer.OrdinalIgnoreCase) };
+        MapResult? result = PhraseologyMapper.Map(transcript, ctx);
         Assert.NotNull(result);
         Assert.Equal(expectedCanonical, result.CanonicalCommand);
     }

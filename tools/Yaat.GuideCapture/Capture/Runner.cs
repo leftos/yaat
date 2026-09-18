@@ -18,7 +18,7 @@ internal static class Runner
     {
         Directory.CreateDirectory(outDir);
 
-        var scenes = sceneFilter is null
+        IReadOnlyList<Scene> scenes = sceneFilter is null
             ? allScenes
             : allScenes.Where(s => string.Equals(s.Name, sceneFilter, StringComparison.OrdinalIgnoreCase)).ToList();
 
@@ -26,15 +26,15 @@ internal static class Runner
         {
             Console.Error.WriteLine($"No scenes match filter '{sceneFilter}'.");
             Console.Error.WriteLine("Available scenes:");
-            foreach (var s in allScenes)
+            foreach (Scene s in allScenes)
             {
                 Console.Error.WriteLine($"  {s.Name}");
             }
             return 1;
         }
 
-        var failed = 0;
-        foreach (var scene in scenes)
+        int failed = 0;
+        foreach (Scene scene in scenes)
         {
             try
             {
@@ -65,7 +65,7 @@ internal static class Runner
 
         await scene.BeforeWindowAsync(ctx);
 
-        var window = scene.CreateWindow(ctx);
+        Window window = scene.CreateWindow(ctx);
         try
         {
             // Width/Height of 0 means "use the window's declared default" — for
@@ -96,12 +96,12 @@ internal static class Runner
             await Task.Delay(scene.SettleAfterShow);
             Dispatcher.UIThread.RunJobs();
 
-            var captureTarget = scene.GetCaptureTarget(window);
-            var bitmap =
+            Window captureTarget = scene.GetCaptureTarget(window);
+            WriteableBitmap bitmap =
                 captureTarget.CaptureRenderedFrame()
                 ?? throw new InvalidOperationException("CaptureRenderedFrame returned null. UseHeadlessDrawing must be false.");
 
-            var path = Path.Combine(outDir, $"{scene.Name}.png");
+            string path = Path.Combine(outDir, $"{scene.Name}.png");
             bitmap.Save(path, PngBitmapEncoderOptions.Default);
             Console.WriteLine($"  -> {path}");
         }

@@ -18,9 +18,9 @@ public class ConsolidationCanonicalRoundTripTests
     [MemberData(nameof(Shapes))]
     public void Canonical_RoundTripsThroughParser(ParsedCommand command)
     {
-        var canonical = CommandDescriber.DescribeCommand(command);
+        string canonical = CommandDescriber.DescribeCommand(command);
 
-        var reparsed = CommandParser.Parse(canonical);
+        ParseResult<ParsedCommand> reparsed = CommandParser.Parse(canonical);
 
         Assert.True(reparsed.IsSuccess, $"'{canonical}' failed to parse: {reparsed.Reason}");
         Assert.Equal(command, reparsed.Value);

@@ -37,14 +37,14 @@ public class Issue398SpotHoldShortRunwayCollisionTests(ITestOutputHelper output)
     [Fact]
     public void TaxiCrossingRunway9_WithHsSpot9_KeepsRunwayCrossingReason()
     {
-        var layout = LoadIah();
+        AirportGroundLayout? layout = LoadIah();
         if (layout is null)
         {
             return;
         }
 
         // The 9/27 hold-short on SK, found by name (ids renumber with geometry).
-        var holdShort = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "9", "SK");
+        GroundNode? holdShort = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "9", "SK");
         Assert.NotNull(holdShort);
 
         // Confirm the collision precondition: the airport really has a spot literally named "9".
@@ -54,14 +54,14 @@ public class Issue398SpotHoldShortRunwayCollisionTests(ITestOutputHelper output)
         // taxiway approach. Start on the approach side and route across so 9/27 is a *crossing*.
         GroundNode? approachSide = null;
         GroundNode? runwaySide = null;
-        foreach (var edge in holdShort.Edges)
+        foreach (IGroundEdge edge in holdShort.Edges)
         {
             if (!edge.MatchesTaxiway("SK"))
             {
                 continue;
             }
 
-            var neighbor = edge.OtherNode(holdShort);
+            GroundNode neighbor = edge.OtherNode(holdShort);
             if (neighbor.Edges.Any(e => e.TaxiwayName.Contains("RWY", StringComparison.OrdinalIgnoreCase)))
             {
                 runwaySide = neighbor;
@@ -77,14 +77,14 @@ public class Issue398SpotHoldShortRunwayCollisionTests(ITestOutputHelper output)
 
         // The SK node on the far side of the runway (a plain SK edge off the runway-side node, not the bar).
         GroundNode? destAcross = null;
-        foreach (var edge in runwaySide.Edges)
+        foreach (IGroundEdge edge in runwaySide.Edges)
         {
             if (!edge.MatchesTaxiway("SK") || edge.TaxiwayName.Contains("RWY", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            var neighbor = edge.OtherNode(runwaySide);
+            GroundNode neighbor = edge.OtherNode(runwaySide);
             if (neighbor.Id != holdShort.Id)
             {
                 destAcross = neighbor;
@@ -100,7 +100,7 @@ public class Issue398SpotHoldShortRunwayCollisionTests(ITestOutputHelper output)
                 ExplicitHoldShorts = holdShortTarget is null ? null : [HoldShortTarget.Parse(holdShortTarget)],
                 DestinationHintNode = destAcross,
             };
-            var route = TaxiPathfinder.ResolveExplicitPath(layout, approachSide.Id, ["SK"], out string? fail, options, AircraftCategory.Jet);
+            TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(layout, approachSide.Id, ["SK"], out string? fail, options, AircraftCategory.Jet);
             Assert.True(route is not null, $"pathfinder failed: {fail}");
             return route;
         }
@@ -108,17 +108,17 @@ public class Issue398SpotHoldShortRunwayCollisionTests(ITestOutputHelper output)
         HoldShortPoint RunwayPoint(TaxiRoute route) => Assert.Single(route.HoldShortPoints, h => h.NodeId == holdShort.Id);
 
         // Baseline: a plain crossing (no explicit hold-short) is a RunwayCrossing.
-        var baseline = Resolve(null)!;
+        TaxiRoute baseline = Resolve(null)!;
         Assert.Equal(HoldShortReason.RunwayCrossing, RunwayPoint(baseline).Reason);
 
         // Control: HS $8 — IAH has no runway 8, so the crossing stays a RunwayCrossing.
-        var control = Resolve("$8")!;
+        TaxiRoute control = Resolve("$8")!;
         Assert.Equal(HoldShortReason.RunwayCrossing, RunwayPoint(control).Reason);
 
         // The bug: HS $9 collides with runway 9's end. The 9/27 crossing must still be a plain
         // RunwayCrossing (the spot hold-short belongs to the spot node, not this runway bar).
-        var colliding = Resolve("$9")!;
-        var runwayPoint = RunwayPoint(colliding);
+        TaxiRoute colliding = Resolve("$9")!;
+        HoldShortPoint runwayPoint = RunwayPoint(colliding);
         output.WriteLine($"9/27 crossing with HS $9: reason={runwayPoint.Reason} target={runwayPoint.TargetName}");
         Assert.Equal(HoldShortReason.RunwayCrossing, runwayPoint.Reason);
     }

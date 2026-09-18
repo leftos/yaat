@@ -185,7 +185,7 @@ public sealed class PushbackPhase : Phase
             return ContinuesStandPushOff;
         }
 
-        var start = _progress.Start;
+        LatLon start = _progress.Start;
         if ((start.Lat == 0.0) && (start.Lon == 0.0))
         {
             return false;
@@ -234,7 +234,7 @@ public sealed class PushbackPhase : Phase
     /// <returns>The pose the move began at, or the live pose when the move recorded no start.</returns>
     public TugPose StartPose(AircraftState aircraft)
     {
-        var start = _progress.Start;
+        LatLon start = _progress.Start;
         return (start.Lat == 0.0) && (start.Lon == 0.0)
             ? PoseOf(aircraft)
             : new TugPose(start, TugKinematics.FlipForKind(_progress.StartTravelTrueDeg, Move.Kind));
@@ -265,8 +265,8 @@ public sealed class PushbackPhase : Phase
     /// <returns>The remaining path, starting at the live pose at zero feet.</returns>
     public IReadOnlyList<(TugPose Pose, double AlongFt)> RemainingPath(AircraftState aircraft, IReadOnlyList<TugMove> continuation)
     {
-        var cache = continuation.Count == 0 ? _movePathCache : _runPathCache;
-        var pose = PoseOf(aircraft);
+        PathCache cache = continuation.Count == 0 ? _movePathCache : _runPathCache;
+        TugPose pose = PoseOf(aircraft);
         bool sameContinuation = SameMoves(cache.Continuation, continuation);
         if ((cache.PathFromHere is { } cached) && (cache.PathFromHerePose == pose) && sameContinuation)
         {
@@ -282,7 +282,7 @@ public sealed class PushbackPhase : Phase
             return here;
         }
 
-        var simulated = cache.SimulatedPath;
+        List<(TugPose Pose, double AlongFt)>? simulated = cache.SimulatedPath;
         double movedFt = simulated is null ? 0.0 : FeetBetween(cache.SimulatedFrom, pose.Position);
         if ((simulated is null) || (movedFt > RemainingPathRebuildFt) || !sameContinuation)
         {
@@ -293,7 +293,7 @@ public sealed class PushbackPhase : Phase
         }
 
         var path = new List<(TugPose Pose, double AlongFt)>(simulated.Count) { (pose, 0.0) };
-        foreach (var (sample, alongFt) in simulated)
+        foreach ((TugPose sample, double alongFt) in simulated)
         {
             if (alongFt > movedFt)
             {
@@ -338,16 +338,16 @@ public sealed class PushbackPhase : Phase
     /// </summary>
     private List<(TugPose Pose, double AlongFt)> SimulateRemaining(string aircraftType, TugPose pose, IReadOnlyList<TugMove> continuation)
     {
-        var move =
+        TugMove move =
             Move.Shape == TugMoveShape.Straight
                 ? Move with
                 {
                     StraightDistanceFt = Math.Max(0.0, Move.StraightDistanceFt - _progress.DistanceFt),
                 }
                 : Move;
-        var traces = TugKinematics.Simulate(pose, [move, .. continuation], aircraftType, TugMovePlanner.StepFt).Moves;
+        IReadOnlyList<TugMoveTrace> traces = TugKinematics.Simulate(pose, [move, .. continuation], aircraftType, TugMovePlanner.StepFt).Moves;
         var samples = new List<TugPose>();
-        foreach (var trace in traces)
+        foreach (TugMoveTrace trace in traces)
         {
             for (int i = samples.Count == 0 ? 0 : 1; i < trace.Samples.Count; i++)
             {
@@ -359,8 +359,8 @@ public sealed class PushbackPhase : Phase
         double alongFt = 0.0;
         for (int i = 1; i < samples.Count; i++)
         {
-            var from = samples[i - 1];
-            var to = samples[i];
+            TugPose from = samples[i - 1];
+            TugPose to = samples[i];
             double stepFt = FeetBetween(from.Position, to.Position);
             double turnDeg = new TrueHeading(from.NoseTrueDeg).SignedAngleTo(new TrueHeading(to.NoseTrueDeg));
             int pieces = Math.Max(1, (int)Math.Ceiling(Math.Max(stepFt / RemainingPathSpacingFt, Math.Abs(turnDeg) / RemainingPathTurnDeg)));
@@ -405,8 +405,8 @@ public sealed class PushbackPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        var aircraft = ctx.Aircraft;
-        var pose = PoseOf(aircraft);
+        AircraftState aircraft = ctx.Aircraft;
+        TugPose pose = PoseOf(aircraft);
         _progress = TugMoveProgress.Begin(pose, Move);
         _lastPosition = pose.Position;
         ctx.Targets.TargetTrueHeading = null;
@@ -439,8 +439,8 @@ public sealed class PushbackPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        var aircraft = ctx.Aircraft;
-        var pose = PoseOf(aircraft);
+        AircraftState aircraft = ctx.Aircraft;
+        TugPose pose = PoseOf(aircraft);
         if (_progressPending)
         {
             ResolvePending(aircraft, pose);
@@ -609,7 +609,7 @@ public sealed class PushbackPhase : Phase
     /// </summary>
     private void Drive(PhaseContext ctx, TugPose pose)
     {
-        var aircraft = ctx.Aircraft;
+        AircraftState aircraft = ctx.Aircraft;
         PublishTugRates(ctx);
         double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, Move.Tight);
         double speedKts = MoveSpeedKts(ctx, pose, radiusFt, turning: false);
@@ -679,7 +679,7 @@ public sealed class PushbackPhase : Phase
     /// <summary>The distance physics will move the aircraft this tick toward a target speed, feet.</summary>
     private static double StepFt(PhaseContext ctx, double targetKts)
     {
-        var aircraft = ctx.Aircraft;
+        AircraftState aircraft = ctx.Aircraft;
         double stepKts = Math.Min(Math.Min(aircraft.IndicatedAirspeed, targetKts), aircraft.Ground.SpeedLimit ?? double.PositiveInfinity);
         return Math.Max(0.0, stepKts) * ctx.DeltaSeconds / 3600.0 * GeoMath.FeetPerNm;
     }
@@ -759,7 +759,7 @@ public sealed class PushbackPhase : Phase
     /// <returns>The distance to the next turn, or null when the rest of the move is straight.</returns>
     private double? NextTurnAlongFt(AircraftState aircraft, double radiusFt)
     {
-        var path = RemainingPath(aircraft, []);
+        IReadOnlyList<(TugPose Pose, double AlongFt)> path = RemainingPath(aircraft, []);
         for (int i = 1; i < path.Count; i++)
         {
             double stepFt = path[i].AlongFt - path[i - 1].AlongFt;
@@ -836,7 +836,7 @@ public sealed class PushbackPhase : Phase
         }
 
         _timeSinceLastLog = 0;
-        var aircraft = ctx.Aircraft;
+        AircraftState aircraft = ctx.Aircraft;
         Log.LogTrace(
             "[Push] {Callsign}: {Kind} {Shape} moved={Moved:F1}ft, gs={Gs:F1}kts, pushHdg={PushHdg:F0}, noseHdg={NoseHdg:F0}, toEnd={ToEnd:F1}ft",
             aircraft.Callsign,
@@ -903,7 +903,7 @@ public sealed class PushbackPhase : Phase
 
     public static PushbackPhase FromSnapshot(PushbackPhaseDto dto)
     {
-        var phase = dto.Shape is { } shape ? FromMoveSnapshot(dto, shape) : FromLegacySnapshot(dto);
+        PushbackPhase phase = dto.Shape is { } shape ? FromMoveSnapshot(dto, shape) : FromLegacySnapshot(dto);
         phase._timeSinceLastLog = dto.TimeSinceLastLog;
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
@@ -915,7 +915,7 @@ public sealed class PushbackPhase : Phase
     {
         var point = new LatLon(dto.PointLatitude, dto.PointLongitude);
         LatLon? stopAt = (dto.StopAtLatitude, dto.StopAtLongitude) is ({ } stopLat, { } stopLon) ? new LatLon(stopLat, stopLon) : null;
-        var move = shape switch
+        TugMove move = shape switch
         {
             TugMoveShape.Straight => TugMove.Straight(dto.Kind, dto.StraightDistanceFt),
             TugMoveShape.ToPoint => TugMove.ToPoint(dto.Kind, point),
@@ -973,9 +973,11 @@ public sealed class PushbackPhase : Phase
     private static PushbackPhase FromLegacySnapshot(PushbackPhaseDto dto)
     {
         var start = new LatLon(dto.LegacyStartLat ?? 0.0, dto.LegacyStartLon ?? 0.0);
-        var target = LegacyPoint(dto.LegacyTargetLatitude, dto.LegacyTargetLongitude);
+        LatLon? target = LegacyPoint(dto.LegacyTargetLatitude, dto.LegacyTargetLongitude);
         bool owesClearance = (target is null) && (dto.LegacyTargetHeading is null);
-        var (move, plannedEnd) = target is { } point ? LegacyTargetedMove(dto, point) : (LegacyUntargetedMove(dto.LegacyTargetHeading), start);
+        (TugMove? move, LatLon plannedEnd) = target is { } point
+            ? LegacyTargetedMove(dto, point)
+            : (LegacyUntargetedMove(dto.LegacyTargetHeading), start);
 
         // A pre-tug-move snapshot carries a single pushback, never a chain, so it always ends at a standstill and
         // nothing was ever flown through from a push-off.
@@ -999,8 +1001,8 @@ public sealed class PushbackPhase : Phase
     /// </summary>
     private static (TugMove Move, LatLon PlannedEnd) LegacyTargetedMove(PushbackPhaseDto dto, LatLon target)
     {
-        var kind = dto.Kind;
-        var pullForward = LegacyPoint(dto.LegacyPullForwardLatitude, dto.LegacyPullForwardLongitude);
+        PushbackLegKind kind = dto.Kind;
+        LatLon? pullForward = LegacyPoint(dto.LegacyPullForwardLatitude, dto.LegacyPullForwardLongitude);
         if (dto.LegacyReachedTarget == true)
         {
             return (TugMove.Straight(kind, 0.0), target);

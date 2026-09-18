@@ -29,13 +29,13 @@ public sealed class PiperSynthesizer : IDisposable
         {
             throw new DirectoryNotFoundException($"Piper voice dir not found: {voiceDir}");
         }
-        var onnxFile = dirInfo.GetFiles("*.onnx").FirstOrDefault() ?? throw new FileNotFoundException($"No .onnx file in voice dir: {voiceDir}");
-        var tokensPath = Path.Combine(voiceDir, "tokens.txt");
+        FileInfo onnxFile = dirInfo.GetFiles("*.onnx").FirstOrDefault() ?? throw new FileNotFoundException($"No .onnx file in voice dir: {voiceDir}");
+        string tokensPath = Path.Combine(voiceDir, "tokens.txt");
         if (!File.Exists(tokensPath))
         {
             throw new FileNotFoundException($"tokens.txt missing in voice dir: {voiceDir}");
         }
-        var dataDir = Path.Combine(voiceDir, "espeak-ng-data");
+        string dataDir = Path.Combine(voiceDir, "espeak-ng-data");
 
         var config = new OfflineTtsConfig();
         config.Model.Vits.Model = onnxFile.FullName;
@@ -63,7 +63,7 @@ public sealed class PiperSynthesizer : IDisposable
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, DefaultVoiceRelative);
+            string candidate = Path.Combine(dir.FullName, DefaultVoiceRelative);
             if (IsValidVoiceDir(candidate))
             {
                 return candidate;
@@ -71,7 +71,7 @@ public sealed class PiperSynthesizer : IDisposable
             dir = dir.Parent;
         }
 
-        var appData = Path.Combine(
+        string appData = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "yaat",
             "voices",
@@ -92,7 +92,7 @@ public sealed class PiperSynthesizer : IDisposable
     {
         var gen = new OfflineTtsGenerationConfig { Sid = speakerId, Speed = speed };
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var audio = _tts.GenerateWithConfig(text, gen, null);
+        OfflineTtsGeneratedAudio audio = _tts.GenerateWithConfig(text, gen, null);
         sw.Stop();
         return new SynthResult(audio.Samples, _tts.SampleRate, (int)sw.ElapsedMilliseconds);
     }
@@ -110,9 +110,9 @@ public sealed class PiperSynthesizer : IDisposable
         {
             return samples;
         }
-        var leadingSamples = Math.Max(0, sampleRate * leadingMs / 1000);
-        var trailingSamples = Math.Max(0, sampleRate * trailingMs / 1000);
-        var output = new float[leadingSamples + samples.Length + trailingSamples];
+        int leadingSamples = Math.Max(0, sampleRate * leadingMs / 1000);
+        int trailingSamples = Math.Max(0, sampleRate * trailingMs / 1000);
+        float[] output = new float[leadingSamples + samples.Length + trailingSamples];
         Array.Copy(samples, 0, output, leadingSamples, samples.Length);
         return output;
     }
@@ -128,16 +128,16 @@ public sealed class PiperSynthesizer : IDisposable
         {
             return samples;
         }
-        var ratio = (double)srcRate / dstRate;
-        var outLength = (int)(samples.Length / ratio);
-        var output = new float[outLength];
+        double ratio = (double)srcRate / dstRate;
+        int outLength = (int)(samples.Length / ratio);
+        float[] output = new float[outLength];
         for (int i = 0; i < outLength; i++)
         {
-            var srcPos = i * ratio;
-            var idx = (int)srcPos;
-            var frac = srcPos - idx;
-            var a = samples[idx];
-            var b = idx + 1 < samples.Length ? samples[idx + 1] : a;
+            double srcPos = i * ratio;
+            int idx = (int)srcPos;
+            double frac = srcPos - idx;
+            float a = samples[idx];
+            float b = idx + 1 < samples.Length ? samples[idx + 1] : a;
             output[i] = (float)(a + (b - a) * frac);
         }
         return output;

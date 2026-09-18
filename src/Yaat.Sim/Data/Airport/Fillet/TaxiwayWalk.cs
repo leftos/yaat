@@ -9,7 +9,7 @@ internal static class TaxiwayWalk
 
     internal static WalkResult Walk(GroundEdge startEdge, GroundNode intersection, HashSet<int> manualArcNodes)
     {
-        var otherNode = startEdge.OtherNode(intersection);
+        GroundNode otherNode = startEdge.OtherNode(intersection);
         double firstEdgeFt = GeoMath.DistanceNm(intersection.Position, otherNode.Position) * GeoMath.FeetPerNm;
 
         bool hasOtherTw = otherNode.Edges.Any(e => (e is GroundEdge ge) && (ge.TaxiwayName != startEdge.TaxiwayName));
@@ -17,15 +17,15 @@ internal static class TaxiwayWalk
         var steps = new List<WalkStep> { new(startEdge, otherNode, firstEdgeFt, hasOtherTw, isProtected) };
 
         var visited = new HashSet<int> { intersection.Id, otherNode.Id };
-        var currentNode = otherNode;
-        var prevEdge = startEdge;
+        GroundNode currentNode = otherNode;
+        GroundEdge prevEdge = startEdge;
         double cumDist = firstEdgeFt;
 
         while (true)
         {
             GroundEdge? continuation = null;
             int count = 0;
-            foreach (var e in currentNode.Edges)
+            foreach (IGroundEdge e in currentNode.Edges)
             {
                 if ((e is GroundEdge ge) && (ge != prevEdge) && (ge.TaxiwayName == startEdge.TaxiwayName))
                 {
@@ -39,7 +39,7 @@ internal static class TaxiwayWalk
                 break;
             }
 
-            var nextNode = continuation!.OtherNode(currentNode);
+            GroundNode nextNode = continuation!.OtherNode(currentNode);
             if (!visited.Add(nextNode.Id))
             {
                 break;
@@ -66,7 +66,7 @@ internal static class TaxiwayWalk
     /// </summary>
     internal static double DistToFirstIntersectionFt(WalkResult walk)
     {
-        foreach (var step in walk.Steps)
+        foreach (WalkStep step in walk.Steps)
         {
             if (step.HasOtherTaxiways && (step.CumulativeDistFt >= FilletConstants.MaxTangentDistFt))
             {
@@ -91,9 +91,9 @@ internal static class TaxiwayWalk
         double remaining = targetDistFt;
         for (int i = 0; i < walk.Steps.Count; i++)
         {
-            var step = walk.Steps[i];
+            WalkStep step = walk.Steps[i];
             double stepLenFt = i == 0 ? step.CumulativeDistFt : step.CumulativeDistFt - walk.Steps[i - 1].CumulativeDistFt;
-            var fromNode = i == 0 ? intersection : walk.Steps[i - 1].FarNode;
+            GroundNode fromNode = i == 0 ? intersection : walk.Steps[i - 1].FarNode;
 
             if (remaining <= stepLenFt + 1e-6)
             {
@@ -105,7 +105,7 @@ internal static class TaxiwayWalk
         }
 
         int last = walk.Steps.Count - 1;
-        var lastFrom = last == 0 ? intersection : walk.Steps[last - 1].FarNode;
+        GroundNode lastFrom = last == 0 ? intersection : walk.Steps[last - 1].FarNode;
         return new EdgeLocation(last, walk.Steps[last].Edge, lastFrom, walk.Steps[last].FarNode, 1.0);
     }
 
@@ -120,13 +120,13 @@ internal static class TaxiwayWalk
 
         for (int i = 0; i < walk.Steps.Count; i++)
         {
-            var step = walk.Steps[i];
+            WalkStep step = walk.Steps[i];
             double stepLenFt = i == 0 ? step.CumulativeDistFt : step.CumulativeDistFt - walk.Steps[i - 1].CumulativeDistFt;
 
             if (remaining <= stepLenFt + 1e-6)
             {
-                var fromNode = i == 0 ? intersection : walk.Steps[i - 1].FarNode;
-                var toNode = step.FarNode;
+                GroundNode fromNode = i == 0 ? intersection : walk.Steps[i - 1].FarNode;
+                GroundNode toNode = step.FarNode;
                 double frac = stepLenFt > 0 ? remaining / stepLenFt : 0;
                 double lat = fromNode.Position.Lat + (frac * (toNode.Position.Lat - fromNode.Position.Lat));
                 double lon = fromNode.Position.Lon + (frac * (toNode.Position.Lon - fromNode.Position.Lon));
@@ -138,7 +138,7 @@ internal static class TaxiwayWalk
             prevEdge = step.Edge;
         }
 
-        var terminal = walk.TerminalNode;
+        GroundNode terminal = walk.TerminalNode;
         return (terminal.Position, GeoMath.BearingTo(terminal.Position, intersection.Position));
     }
 

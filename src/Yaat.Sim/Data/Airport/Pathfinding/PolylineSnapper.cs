@@ -20,9 +20,9 @@ internal static class PolylineSnapper
     public static List<GroundNode>? Snap(AirportGroundLayout layout, IReadOnlyList<OneWayPoint> path, string context, ILogger log)
     {
         var nodes = new List<GroundNode>(path.Count);
-        foreach (var wp in path)
+        foreach (OneWayPoint wp in path)
         {
-            var node = layout.FindNearestNode(wp.Lat, wp.Lon);
+            GroundNode? node = layout.FindNearestNode(wp.Lat, wp.Lon);
             if (node is null)
             {
                 log.LogWarning(
@@ -78,7 +78,7 @@ internal static class PolylineSnapper
                 continue;
             }
 
-            var path = BfsAlongTaxiway(layout, a, b, taxiway);
+            List<(int From, int To)>? path = BfsAlongTaxiway(layout, a, b, taxiway);
             if (path is not null)
             {
                 return path;
@@ -102,12 +102,12 @@ internal static class PolylineSnapper
                 break;
             }
 
-            if (!layout.Nodes.TryGetValue(current, out var node))
+            if (!layout.Nodes.TryGetValue(current, out GroundNode? node))
             {
                 continue;
             }
 
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (!edge.MatchesTaxiway(taxiway))
                 {

@@ -69,7 +69,7 @@ public class Issue400RampLaneDestinationCutTests
     /// <summary>A jet stopped on taxiway V at spot 7 (its north-west end), nose along V toward T.</summary>
     private static AircraftState AddStoppedOnV(SimulationEngine engine, AirportGroundLayout layout, string callsign)
     {
-        var spot = layout.FindSpotNodeByName("7");
+        GroundNode? spot = layout.FindSpotNodeByName("7");
         Assert.True(spot is not null, "spot 7 on taxiway V not found in the OAK layout");
 
         var aircraft = new AircraftState
@@ -110,18 +110,18 @@ public class Issue400RampLaneDestinationCutTests
     [Fact]
     public void TaxiVTTeToSpot22_CutsAcrossTheApronOntoTc()
     {
-        var engine = BuildEngine(out var layout);
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
         if (engine is null || layout is null)
         {
             return;
         }
 
-        var aircraft = AddStoppedOnV(engine, layout, "SWA690");
-        var result = engine.SendCommand("SWA690", "TAXI V T TE @22");
+        AircraftState aircraft = AddStoppedOnV(engine, layout, "SWA690");
+        CommandResult result = engine.SendCommand("SWA690", "TAXI V T TE @22");
         _output.WriteLine($"result: {result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         _output.WriteLine("route: " + string.Join(" ", route.Segments.Select(s => $"{s.FromNodeId}-{s.ToNodeId}({s.TaxiwayName})")));
 
@@ -130,12 +130,12 @@ public class Issue400RampLaneDestinationCutTests
         Assert.True(Traverses(route, "TE"), "route must taxi along TE as cleared");
         Assert.Equal("22", route.DestinationParking);
 
-        var spot22 = layout.FindParkingByName("22")!;
+        GroundNode spot22 = layout.FindParkingByName("22")!;
         Assert.Equal(spot22.Id, route.Segments[^1].ToNodeId);
 
         var cuts = route.Segments.Where(IsFreeSpaceLeg).ToList();
         Assert.True(cuts.Count == 1, $"expected exactly one free-space leg, found {cuts.Count}");
-        var cut = cuts[0];
+        TaxiRouteSegment cut = cuts[0];
         Assert.True(OnTaxiway(cut.Edge.FromNode, "TE"), $"the cut must leave from a TE node, not #{cut.FromNodeId}");
         Assert.True(LengthFt(cut) <= RampLaneReposition.MaxCrossingFt, $"crossing {LengthFt(cut):F0} ft exceeds the cap");
         int cutIndex = route.Segments.IndexOf(cut);
@@ -153,17 +153,17 @@ public class Issue400RampLaneDestinationCutTests
     [Fact]
     public void TaxiVTTeToSpot22_AircraftReachesTheSpot()
     {
-        var engine = BuildEngine(out var layout);
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
         if (engine is null || layout is null)
         {
             return;
         }
 
-        var aircraft = AddStoppedOnV(engine, layout, "SWA690");
-        var result = engine.SendCommand("SWA690", "TAXI V T TE @22");
+        AircraftState aircraft = AddStoppedOnV(engine, layout, "SWA690");
+        CommandResult result = engine.SendCommand("SWA690", "TAXI V T TE @22");
         Assert.True(result.Success, result.Message);
 
-        var spot22 = layout.FindParkingByName("22")!;
+        GroundNode spot22 = layout.FindParkingByName("22")!;
         var evaluator = new TaxiBudgetEvaluator();
         for (int t = 1; t <= BehaviourWindowSec; t++)
         {
@@ -190,17 +190,17 @@ public class Issue400RampLaneDestinationCutTests
     [Fact]
     public void TaxiVTTcToSpot22_ConnectedLaneNeedsNoCut()
     {
-        var engine = BuildEngine(out var layout);
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
         if (engine is null || layout is null)
         {
             return;
         }
 
-        var aircraft = AddStoppedOnV(engine, layout, "SWA690");
-        var result = engine.SendCommand("SWA690", "TAXI V T TC @22");
+        AircraftState aircraft = AddStoppedOnV(engine, layout, "SWA690");
+        CommandResult result = engine.SendCommand("SWA690", "TAXI V T TC @22");
         Assert.True(result.Success, result.Message);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         Assert.DoesNotContain(route.Segments, IsFreeSpaceLeg);
         Assert.True(Traverses(route, "TC"));
@@ -210,17 +210,17 @@ public class Issue400RampLaneDestinationCutTests
     [Fact]
     public void TaxiVTTeToSpot23_OwnLaneNeedsNoCut()
     {
-        var engine = BuildEngine(out var layout);
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
         if (engine is null || layout is null)
         {
             return;
         }
 
-        var aircraft = AddStoppedOnV(engine, layout, "SWA690");
-        var result = engine.SendCommand("SWA690", "TAXI V T TE @23");
+        AircraftState aircraft = AddStoppedOnV(engine, layout, "SWA690");
+        CommandResult result = engine.SendCommand("SWA690", "TAXI V T TE @23");
         Assert.True(result.Success, result.Message);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         Assert.DoesNotContain(route.Segments, IsFreeSpaceLeg);
         Assert.True(Traverses(route, "TE"));
@@ -230,15 +230,15 @@ public class Issue400RampLaneDestinationCutTests
     [Fact]
     public void CutRoute_SurvivesSnapshotRoundTrip()
     {
-        var engine = BuildEngine(out var layout);
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
         if (engine is null || layout is null)
         {
             return;
         }
 
-        var aircraft = AddStoppedOnV(engine, layout, "SWA690");
+        AircraftState aircraft = AddStoppedOnV(engine, layout, "SWA690");
         Assert.True(engine.SendCommand("SWA690", "TAXI V T TE @22").Success);
-        var route = aircraft.Ground.AssignedTaxiRoute!;
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
         Assert.Contains(route.Segments, IsFreeSpaceLeg);
 
         var restored = TaxiRoute.FromSnapshot(route.ToSnapshot(), layout);

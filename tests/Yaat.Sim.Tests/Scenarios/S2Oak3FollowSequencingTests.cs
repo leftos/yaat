@@ -36,27 +36,27 @@ public class S2Oak3FollowSequencingTests
 
     private ScenarioLoadResult? LoadScenario()
     {
-        var path = Path.Combine(ScenariosRoot, ArtccId, ScenarioFile);
+        string path = Path.Combine(ScenariosRoot, ArtccId, ScenarioFile);
         if (!File.Exists(path))
         {
             _output.WriteLine($"S2-OAK-3 (1) not cached at {path} — skipping. Download via tools/validate-all-scenarios.py.");
             return null;
         }
 
-        var json = File.ReadAllText(path);
+        string json = File.ReadAllText(path);
         return ScenarioLoader.Load(json, groundData: null, rng: new SerializableRandom(42), MagneticDeclination.EvaluationDateUtc);
     }
 
     [Fact]
     public void ScenarioLoads_SixVfrC172sInbound()
     {
-        var result = LoadScenario();
+        ScenarioLoadResult? result = LoadScenario();
         if (result is null)
         {
             return;
         }
 
-        var aircraft = result.ImmediateAircraft;
+        List<LoadedAircraft> aircraft = result.ImmediateAircraft;
         Assert.Equal(6, aircraft.Count);
         Assert.All(aircraft, a => Assert.Equal("C172", a.State.AircraftType));
         Assert.All(aircraft, a => Assert.True(a.State.FlightPlan.IsVfr, $"{a.State.Callsign} should be VFR"));
@@ -70,7 +70,7 @@ public class S2Oak3FollowSequencingTests
         // FOLLOW to any of these aircraft even though none are in a pattern yet.
         // Real sequencing workflow: call traffic → RTIS → FOLLOW. Tests use
         // RTISF (forced) to bypass the live visual detection machinery.
-        var result = LoadScenario();
+        ScenarioLoadResult? result = LoadScenario();
         if (result is null)
         {
             return;
@@ -80,17 +80,17 @@ public class S2Oak3FollowSequencingTests
         var callsigns = byCallsign.Keys.OrderBy(k => k).ToList();
         Assert.Equal(6, callsigns.Count);
 
-        Func<string, AircraftState?> lookup = cs => byCallsign.TryGetValue(cs, out var ac) ? ac : null;
-        var dispatchCtx = TestDispatch.Context(Random.Shared, findAircraft: lookup);
+        Func<string, AircraftState?> lookup = cs => byCallsign.TryGetValue(cs, out AircraftState? ac) ? ac : null;
+        DispatchContext dispatchCtx = TestDispatch.Context(Random.Shared, findAircraft: lookup);
 
         for (int i = 1; i < callsigns.Count; i++)
         {
-            var follower = byCallsign[callsigns[i]];
-            var leadCallsign = callsigns[i - 1];
+            AircraftState follower = byCallsign[callsigns[i]];
+            string leadCallsign = callsigns[i - 1];
 
             // Simulate "traffic in sight" via RTISF, then issue FOLLOW.
             CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand(leadCallsign), follower, dispatchCtx);
-            var cmdResult = CommandDispatcher.Dispatch(new FollowCommand(leadCallsign, false), follower, dispatchCtx);
+            CommandResult cmdResult = CommandDispatcher.Dispatch(new FollowCommand(leadCallsign, false), follower, dispatchCtx);
 
             Assert.True(cmdResult.Success, $"{follower.Callsign} FOLLOW {leadCallsign} failed: {cmdResult.Message}");
             Assert.IsType<VfrFollowPhase>(follower.Phases?.CurrentPhase);
@@ -103,7 +103,7 @@ public class S2Oak3FollowSequencingTests
     {
         // Use the real scenario positions: pick two aircraft and verify the
         // follower's heading target lies within ~10° of the true bearing to the lead.
-        var result = LoadScenario();
+        ScenarioLoadResult? result = LoadScenario();
         if (result is null)
         {
             return;
@@ -112,18 +112,18 @@ public class S2Oak3FollowSequencingTests
         // N9225L is closest to OAK (~6.4 nm N), N346G is ~10 nm N — use N9225L as lead,
         // N346G as follower. See scenario dump in planning notes.
         var byCallsign = result.ImmediateAircraft.ToDictionary(a => a.State.Callsign, a => a.State);
-        if (!byCallsign.TryGetValue("N9225L", out var lead) || !byCallsign.TryGetValue("N346G", out var follower))
+        if (!byCallsign.TryGetValue("N9225L", out AircraftState? lead) || !byCallsign.TryGetValue("N346G", out AircraftState? follower))
         {
             _output.WriteLine("Expected callsigns N9225L / N346G missing — scenario may have changed.");
             return;
         }
 
-        Func<string, AircraftState?> lookup = cs => byCallsign.TryGetValue(cs, out var ac) ? ac : null;
-        var dispatchCtx = TestDispatch.Context(Random.Shared, findAircraft: lookup);
+        Func<string, AircraftState?> lookup = cs => byCallsign.TryGetValue(cs, out AircraftState? ac) ? ac : null;
+        DispatchContext dispatchCtx = TestDispatch.Context(Random.Shared, findAircraft: lookup);
 
         // Force traffic in sight then FOLLOW.
         CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("N9225L"), follower, dispatchCtx);
-        var cmdResult = CommandDispatcher.Dispatch(new FollowCommand("N9225L", false), follower, dispatchCtx);
+        CommandResult cmdResult = CommandDispatcher.Dispatch(new FollowCommand("N9225L", false), follower, dispatchCtx);
         Assert.True(cmdResult.Success, $"FOLLOW failed: {cmdResult.Message}");
 
         // Manually build a PhaseContext like the live tick loop would, with the lookup set.

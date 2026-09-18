@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -38,18 +39,18 @@ public class Issue172Jbu577TailOverRunwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiGBHsB_WarnsAtIssuanceAndTagsTailOverRunway()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 443);
-        var jbu = engine.FindAircraft("JBU577");
+        AircraftState? jbu = engine.FindAircraft("JBU577");
         Assert.NotNull(jbu);
 
-        var result = engine.SendCommand("JBU577", "TAXI G B HS B");
+        CommandResult result = engine.SendCommand("JBU577", "TAXI G B HS B");
         output.WriteLine($"echo: {result.Message}");
         Assert.True(result.Success, result.Message);
 
@@ -57,14 +58,14 @@ public class Issue172Jbu577TailOverRunwayTests(ITestOutputHelper output)
         Assert.Contains("unable to clear the runway", result.Message, StringComparison.OrdinalIgnoreCase);
 
         // W2 state: the B taxiway hold-short is tagged with the runway hold-short node it overhangs.
-        var route = jbu.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = jbu.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
-        var bHold = route.HoldShortPoints.Single(h => h.Reason == HoldShortReason.ExplicitHoldShort && h.TargetName == "B");
+        HoldShortPoint bHold = route.HoldShortPoints.Single(h => h.Reason == HoldShortReason.ExplicitHoldShort && h.TargetName == "B");
         Assert.NotNull(bHold.TailOverRunwayNodeId);
 
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
-        Assert.True(layout.Nodes.TryGetValue(bHold.TailOverRunwayNodeId!.Value, out var rwyNode));
+        Assert.True(layout.Nodes.TryGetValue(bHold.TailOverRunwayNodeId!.Value, out GroundNode? rwyNode));
         Assert.Equal(GroundNodeType.RunwayHoldShort, rwyNode.Type);
 
         // Negative: the runway-crossing hold-short itself is never tagged tail-over (only the taxiway HS).
@@ -74,8 +75,8 @@ public class Issue172Jbu577TailOverRunwayTests(ITestOutputHelper output)
     [Fact]
     public void HoldingShortOfB_OccupiesRunwayAndEmitsUnableToClearNote()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -112,14 +113,14 @@ public class Issue172Jbu577TailOverRunwayTests(ITestOutputHelper output)
                 engine.TickOneSecond();
             }
 
-            var ac = engine.FindAircraft("JBU577");
+            AircraftState? ac = engine.FindAircraft("JBU577");
             if (ac is null || t < 444)
             {
                 continue;
             }
 
             bool holdingShort = ac.Phases?.CurrentPhase?.GetType().Name == "HoldingShortPhase";
-            var bHold = ac.Ground.AssignedTaxiRoute?.HoldShortPoints.FirstOrDefault(h => h.TailOverRunwayNodeId is not null);
+            HoldShortPoint? bHold = ac.Ground.AssignedTaxiRoute?.HoldShortPoints.FirstOrDefault(h => h.TailOverRunwayNodeId is not null);
             if (holdingShort && bHold?.TailOverRunwayNodeId is { } node)
             {
                 tailOverNode = node;

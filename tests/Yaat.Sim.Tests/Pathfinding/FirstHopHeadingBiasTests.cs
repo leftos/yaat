@@ -41,14 +41,14 @@ public class FirstHopHeadingBiasTests
     //     AE(11) ──── S(10) ──── AW(13)
     private static AirportGroundLayout TwoEntryLayout()
     {
-        var s = Node(10, 37.700, -122.200);
-        var ae = Node(11, 37.700, -122.197); // due east of S
-        var aw = Node(13, 37.700, -122.203); // due west of S (symmetric)
-        var be = Node(12, 37.701, -122.197); // B north off AE
-        var bw = Node(14, 37.701, -122.203); // B north off AW
+        GroundNode s = Node(10, 37.700, -122.200);
+        GroundNode ae = Node(11, 37.700, -122.197); // due east of S
+        GroundNode aw = Node(13, 37.700, -122.203); // due west of S (symmetric)
+        GroundNode be = Node(12, 37.701, -122.197); // B north off AE
+        GroundNode bw = Node(14, 37.701, -122.203); // B north off AW
 
         var layout = new AirportGroundLayout { AirportId = "TEST" };
-        foreach (var n in new[] { s, ae, aw, be, bw })
+        foreach (GroundNode? n in new[] { s, ae, aw, be, bw })
         {
             layout.Nodes[n.Id] = n;
         }
@@ -74,7 +74,7 @@ public class FirstHopHeadingBiasTests
     [Fact]
     public void EastHeading_StartsEast_NoHint()
     {
-        var route = ResolveNoHint(TwoEntryLayout(), headingTrue: 90.0, out string? failReason);
+        TaxiRoute? route = ResolveNoHint(TwoEntryLayout(), headingTrue: 90.0, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -84,7 +84,7 @@ public class FirstHopHeadingBiasTests
     [Fact]
     public void WestHeading_StartsWest_NoHint()
     {
-        var route = ResolveNoHint(TwoEntryLayout(), headingTrue: 270.0, out string? failReason);
+        TaxiRoute? route = ResolveNoHint(TwoEntryLayout(), headingTrue: 270.0, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -99,8 +99,8 @@ public class FirstHopHeadingBiasTests
     [Fact]
     public void OppositeHeadings_ProduceOppositeFirstSteps_NoHint()
     {
-        var east = ResolveNoHint(TwoEntryLayout(), headingTrue: 90.0, out _);
-        var west = ResolveNoHint(TwoEntryLayout(), headingTrue: 270.0, out _);
+        TaxiRoute? east = ResolveNoHint(TwoEntryLayout(), headingTrue: 90.0, out _);
+        TaxiRoute? west = ResolveNoHint(TwoEntryLayout(), headingTrue: 270.0, out _);
 
         Assert.NotNull(east);
         Assert.NotNull(west);
@@ -114,7 +114,7 @@ public class FirstHopHeadingBiasTests
     [Fact]
     public void PerpendicularHeading_ResolvesWithoutDeadlock_NoHint()
     {
-        var route = ResolveNoHint(TwoEntryLayout(), headingTrue: 0.0, out string? failReason);
+        TaxiRoute? route = ResolveNoHint(TwoEntryLayout(), headingTrue: 0.0, out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -124,8 +124,8 @@ public class FirstHopHeadingBiasTests
     // Taxiway A leaves start S(20) only to the east — the sole route is a turn away from a westbound heading.
     private static AirportGroundLayout OneWayEastLayout()
     {
-        var s = Node(20, 37.700, -122.200);
-        var ae = Node(21, 37.700, -122.197); // east of S only
+        GroundNode s = Node(20, 37.700, -122.200);
+        GroundNode ae = Node(21, 37.700, -122.197); // east of S only
 
         var layout = new AirportGroundLayout { AirportId = "TEST" };
         layout.Nodes[s.Id] = s;
@@ -143,7 +143,7 @@ public class FirstHopHeadingBiasTests
     [Fact]
     public void ForcedReversal_StillReverses_DespiteHeadingBias()
     {
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             OneWayEastLayout(),
             fromNodeId: 20,
             taxiwayNames: ["A"],

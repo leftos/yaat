@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -85,7 +86,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
     /// </summary>
     private ArmTrace? Observe(string callsign, string? leaderCallsign, int restoreAt, int replayUntil, int endAt)
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return null;
@@ -101,11 +102,11 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
 
             SimLogBuilder.CreateForTest(output).EnableCategory("OccupiedRunwayGoAround", LogLevel.Debug).InitializeSimLog();
 
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             var engine = new SimulationEngine(new TestAirportGroundData());
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(restoreAt);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(restoreAt);
             if (snapshot is null)
             {
                 return null;
@@ -121,7 +122,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
             bool protectionEngaged = false;
             bool fasInstructed = false;
 
-            var pre = engine.FindAircraft(callsign);
+            AircraftState? pre = engine.FindAircraft(callsign);
             if (pre?.Phases?.CurrentPhase is { } startPhase)
             {
                 seen.Add(startPhase.GetType().Name);
@@ -142,7 +143,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
                     engine.TickOneSecond();
                 }
 
-                var ac = engine.FindAircraft(callsign);
+                AircraftState? ac = engine.FindAircraft(callsign);
                 if (ac is null)
                 {
                     continue;
@@ -178,7 +179,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
                 if (goAroundSecond is null && name.Contains("GoAround", StringComparison.Ordinal))
                 {
                     goAroundSecond = t;
-                    var leader = leaderCallsign is null ? null : engine.FindAircraft(leaderCallsign);
+                    AircraftState? leader = leaderCallsign is null ? null : engine.FindAircraft(leaderCallsign);
                     leaderPhaseAtGoAround = leader?.Phases?.CurrentPhase?.GetType().Name ?? "(not in the world)";
                     output.WriteLine($"t={t}: {callsign} went around; {leaderCallsign ?? "(no leader watched)"} phase={leaderPhaseAtGoAround}");
                 }
@@ -244,7 +245,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
     [Fact]
     public void WJA1508_IsSpacedAndLands_28R()
     {
-        var trace = Observe("WJA1508", leaderCallsign: "SKW3398", restoreAt: 125, replayUntil: 410, endAt: 470);
+        ArmTrace? trace = Observe("WJA1508", leaderCallsign: "SKW3398", restoreAt: 125, replayUntil: 410, endAt: 470);
         if (trace is null)
         {
             return;
@@ -260,7 +261,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
     [Fact]
     public void SKW5536_IsSpacedAndLands_28L()
     {
-        var trace = Observe("SKW5536", leaderCallsign: "UAL2627", restoreAt: 500, replayUntil: 725, endAt: 790);
+        ArmTrace? trace = Observe("SKW5536", leaderCallsign: "UAL2627", restoreAt: 500, replayUntil: 725, endAt: 790);
         if (trace is null)
         {
             return;
@@ -275,7 +276,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
     [Fact]
     public void SKW5416_StillGoesAroundForStudentCrossing_28L()
     {
-        var phases = CollectPhases("SKW5416", restoreAt: 1040, replayUntil: 1130, endAt: 1130);
+        HashSet<string>? phases = CollectPhases("SKW5416", restoreAt: 1040, replayUntil: 1130, endAt: 1130);
         if (phases is null)
         {
             return;

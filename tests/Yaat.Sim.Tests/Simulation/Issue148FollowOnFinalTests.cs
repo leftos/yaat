@@ -4,6 +4,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -67,7 +68,7 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
     [Fact]
     public void Follower_DoesNotFreePursueLeaderOnFinal()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -75,8 +76,8 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -84,7 +85,7 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(750);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(750);
             if (snapshot is null)
             {
                 return;
@@ -95,11 +96,11 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
             // Run forward 35 seconds — well past the FOLLOW at t=755.
             engine.ReplayRange(startTime, 785, recording.Actions);
 
-            var follower = engine.FindAircraft(Follower);
+            AircraftState? follower = engine.FindAircraft(Follower);
             Assert.NotNull(follower);
             Assert.Equal(Leader, follower.Approach.FollowingCallsign);
 
-            var phase = follower.Phases?.CurrentPhase;
+            Phase? phase = follower.Phases?.CurrentPhase;
             Assert.False(
                 phase is VfrFollowPhase,
                 $"Follower stuck in VfrFollowPhase free-pursuit at t=785 — should have joined leader's pattern. Heading={follower.TrueHeading.Degrees:F0}°, target={follower.Targets.TargetTrueHeading?.Degrees:F0}°"
@@ -121,7 +122,7 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
     [Fact]
     public void Follower_JoinsLeaderRunwayAndDirection()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -129,8 +130,8 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -138,7 +139,7 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(750);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(750);
             if (snapshot is null)
             {
                 return;
@@ -146,7 +147,7 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             engine.ReplayRange((int)snapshot.ElapsedSeconds, 770, recording.Actions);
 
-            var follower = engine.FindAircraft(Follower);
+            AircraftState? follower = engine.FindAircraft(Follower);
             Assert.NotNull(follower);
 
             Assert.Equal("28R", follower.Phases?.AssignedRunway?.Designator);
@@ -168,7 +169,7 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
     [Fact]
     public void Follower_DoesNotSnapHeadingTowardLeader()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -176,8 +177,8 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -185,7 +186,7 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(750);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(750);
             if (snapshot is null)
             {
                 return;
@@ -193,7 +194,7 @@ public class Issue148FollowOnFinalTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             engine.ReplayRange((int)snapshot.ElapsedSeconds, 775, recording.Actions);
 
-            var follower = engine.FindAircraft(Follower);
+            AircraftState? follower = engine.FindAircraft(Follower);
             Assert.NotNull(follower);
 
             // Right-downwind for 28R is ~111° true. A free-pursuit south turn

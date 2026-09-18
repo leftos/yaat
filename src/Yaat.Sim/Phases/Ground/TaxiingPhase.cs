@@ -68,7 +68,7 @@ public sealed class TaxiingPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ctx.Aircraft.Ground.AssignedTaxiRoute;
         if (route is not null && IsHoldAtStartOnly(route))
         {
             ctx.Aircraft.IsOnGround = true;
@@ -99,7 +99,7 @@ public sealed class TaxiingPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ctx.Aircraft.Ground.AssignedTaxiRoute;
         if (route is not null && IsHoldAtStartOnly(route))
         {
             return TickHoldAtStartOnly(ctx, route);
@@ -169,7 +169,7 @@ public sealed class TaxiingPhase : Phase
         }
 
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
-        var result = _nav.Tick(ctx, isLastSegment, nodeId => IsHoldShortCleared(route, nodeId));
+        NavigatorResult result = _nav.Tick(ctx, isLastSegment, nodeId => IsHoldShortCleared(route, nodeId));
 
         if (held)
         {
@@ -202,7 +202,7 @@ public sealed class TaxiingPhase : Phase
         // Update current taxiway name
         if (route.CurrentSegment is { } seg)
         {
-            var prev = ctx.Aircraft.Ground.CurrentTaxiway;
+            string? prev = ctx.Aircraft.Ground.CurrentTaxiway;
             ctx.Aircraft.Ground.CurrentTaxiway = seg.TaxiwayName;
 
             // Fire AT-taxiway triggers on transition only (avoid per-tick storm).
@@ -332,7 +332,7 @@ public sealed class TaxiingPhase : Phase
         _nav.SetupSegment(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
 
         // Override target position with hold-short offset if applicable
-        var hs = route.GetHoldShortAt(_nav.TargetNodeId);
+        HoldShortPoint? hs = route.GetHoldShortAt(_nav.TargetNodeId);
         if (hs is not null && !hs.IsCleared && hs.Latitude is not null && hs.Longitude is not null)
         {
             _nav.OverrideTargetPosition(hs.Latitude.Value, hs.Longitude.Value);
@@ -360,7 +360,7 @@ public sealed class TaxiingPhase : Phase
             return 0;
         }
 
-        var lastHoldShort = route.HoldShortPoints[^1];
+        HoldShortPoint lastHoldShort = route.HoldShortPoints[^1];
         if ((lastHoldShort.Reason != HoldShortReason.DestinationRunway) || (lastHoldShort.NodeId != route.Segments[^1].ToNodeId))
         {
             return 0;
@@ -371,7 +371,7 @@ public sealed class TaxiingPhase : Phase
 
     private static bool IsHoldShortCleared(TaxiRoute route, int nodeId)
     {
-        var hs = route.GetHoldShortAt(nodeId);
+        HoldShortPoint? hs = route.GetHoldShortAt(nodeId);
         return hs is null || hs.IsCleared;
     }
 
@@ -399,7 +399,7 @@ public sealed class TaxiingPhase : Phase
         FlightPhysics.NotifyGroundEntityReached(ctx.Aircraft, arrivedNodeId: _nav.TargetNodeId, newTaxiwayName: arrivedTaxiway);
 
         // Check if this node is a hold-short point
-        var holdShort = route.GetHoldShortAt(_nav.TargetNodeId);
+        HoldShortPoint? holdShort = route.GetHoldShortAt(_nav.TargetNodeId);
         if (holdShort is not null && !holdShort.IsCleared)
         {
             // Safety net: if another aircraft is already holding at this node, don't snap to it.
@@ -435,7 +435,7 @@ public sealed class TaxiingPhase : Phase
             ctx.Targets.TargetSpeed = 0;
 
             var holdPhase = new HoldingShortPhase(holdShort);
-            var resumePhases = BuildResumePhases(ctx, route, holdShort, advancePastCurrentSegment: true);
+            List<Phase> resumePhases = BuildResumePhases(ctx, route, holdShort, advancePastCurrentSegment: true);
 
             var insertList = new List<Phase> { holdPhase };
             insertList.AddRange(resumePhases);
@@ -502,7 +502,7 @@ public sealed class TaxiingPhase : Phase
 
         ApplyDepartureClearanceIfPending(ctx);
 
-        var phases = ctx.Aircraft.Phases;
+        PhaseList? phases = ctx.Aircraft.Phases;
         if (phases is not null && phases.Phases.Count <= phases.CurrentIndex + 1)
         {
             if (route.DestinationParking is not null)
@@ -536,7 +536,7 @@ public sealed class TaxiingPhase : Phase
             || ctx.GroundLayout is not { } layout
             || route.Segments.Count == 0
             || route.CurrentSegmentIndex < route.Segments.Count - 2
-            || !layout.Nodes.TryGetValue(route.Segments[^1].ToNodeId, out var spotNode)
+            || !layout.Nodes.TryGetValue(route.Segments[^1].ToNodeId, out GroundNode? spotNode)
         )
         {
             return false;
@@ -593,7 +593,7 @@ public sealed class TaxiingPhase : Phase
             return false;
         }
 
-        var holdShort = route.HoldShortPoints[0];
+        HoldShortPoint holdShort = route.HoldShortPoints[0];
         if (holdShort.IsCleared)
         {
             return CompleteRoute(ctx, route);
@@ -625,14 +625,14 @@ public sealed class TaxiingPhase : Phase
         }
 
         int startNodeId = route.Segments[0].FromNodeId;
-        var holdShort = route.GetHoldShortAt(startNodeId);
+        HoldShortPoint? holdShort = route.GetHoldShortAt(startNodeId);
         if (holdShort is null || holdShort.IsCleared)
         {
             _startNodeHoldDone = true;
             return false;
         }
 
-        if (!ctx.GroundLayout.Nodes.TryGetValue(startNodeId, out var startNode))
+        if (!ctx.GroundLayout.Nodes.TryGetValue(startNodeId, out GroundNode? startNode))
         {
             _startNodeHoldDone = true;
             return false;
@@ -700,7 +700,7 @@ public sealed class TaxiingPhase : Phase
         if (holdShort.Reason == HoldShortReason.DestinationRunway)
         {
             ApplyDepartureClearanceIfPending(ctx);
-            var phaseList = ctx.Aircraft.Phases;
+            PhaseList? phaseList = ctx.Aircraft.Phases;
             if (phaseList is not null && phaseList.Phases.Count <= phaseList.CurrentIndex + 1)
             {
                 phases.Add(new HoldingInPositionPhase());
@@ -767,7 +767,7 @@ public sealed class TaxiingPhase : Phase
         // the rest of the sequence and a trailing terminal phase would strand the aircraft behind them. Ordered
         // exactly as CompleteRoute does it — clearance first, then the terminal — so a stored clearance is never
         // dropped by a route that also names a parking destination.
-        var phaseList = ctx.Aircraft.Phases;
+        PhaseList? phaseList = ctx.Aircraft.Phases;
         if (phaseList is not null && phaseList.Phases.Count > phaseList.CurrentIndex + 1)
         {
             return [];
@@ -827,7 +827,7 @@ public sealed class TaxiingPhase : Phase
 
         return holdShort.Reason == HoldShortReason.ExplicitHoldShort
             && layout is not null
-            && layout.Nodes.TryGetValue(holdShort.NodeId, out var node)
+            && layout.Nodes.TryGetValue(holdShort.NodeId, out GroundNode? node)
             && node.Type == GroundNodeType.RunwayHoldShort;
     }
 
@@ -883,7 +883,7 @@ public sealed class TaxiingPhase : Phase
 
             if (
                 nodeId != entryHoldShort.NodeId
-                && layout.Nodes.TryGetValue(nodeId, out var node)
+                && layout.Nodes.TryGetValue(nodeId, out GroundNode? node)
                 && node.Type == GroundNodeType.RunwayHoldShort
                 && node.RunwayId is { } nodeRwyId
                 && nodeRwyId.Equals(entryRwyId)
@@ -943,7 +943,7 @@ public sealed class TaxiingPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            var seg = route.CurrentSegment;
+            TaxiRouteSegment? seg = route.CurrentSegment;
             double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_nav.TargetLat, _nav.TargetLon));
             Log.LogTrace(
                 "[Taxi] {Callsign}: seg {SegIdx}/{SegCount} on {Taxiway}, target node {NodeId}, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}",
@@ -961,8 +961,8 @@ public sealed class TaxiingPhase : Phase
 
     internal static void ApplyDepartureClearanceIfPending(PhaseContext ctx)
     {
-        var phases = ctx.Aircraft.Phases;
-        var dep = phases?.DepartureClearance;
+        PhaseList? phases = ctx.Aircraft.Phases;
+        DepartureClearanceInfo? dep = phases?.DepartureClearance;
         if (dep is null || phases is null)
         {
             return;

@@ -17,7 +17,7 @@ public class CommandDescriberCompletenessTests(ITestOutputHelper output)
     {
         var missing = new List<string>();
 
-        foreach (var type in AllParsedCommandTypes)
+        foreach (Type type in AllParsedCommandTypes)
         {
             if (type == typeof(UnsupportedCommand))
             {
@@ -27,7 +27,7 @@ public class CommandDescriberCompletenessTests(ITestOutputHelper output)
                 continue;
             }
 
-            var cmd = CreateDummy(type);
+            ParsedCommand? cmd = CreateDummy(type);
             if (cmd is null)
             {
                 output.WriteLine($"SKIP: Cannot construct {type.Name}");
@@ -47,7 +47,7 @@ public class CommandDescriberCompletenessTests(ITestOutputHelper output)
         if (missing.Count > 0)
         {
             output.WriteLine("Missing from ToCanonicalType:");
-            foreach (var name in missing)
+            foreach (string name in missing)
             {
                 output.WriteLine($"  - {name}");
             }
@@ -80,16 +80,16 @@ public class CommandDescriberCompletenessTests(ITestOutputHelper output)
         var uncovered = new List<string>();
         var unconstructible = new List<string>();
 
-        foreach (var type in AllParsedCommandTypes)
+        foreach (Type type in AllParsedCommandTypes)
         {
-            var cmd = CreateDummy(type);
+            ParsedCommand? cmd = CreateDummy(type);
             if (cmd is null)
             {
                 unconstructible.Add(type.Name);
                 continue;
             }
 
-            var desc = describe(cmd);
+            string desc = describe(cmd);
             if (desc == "?" || desc == cmd.ToString())
             {
                 uncovered.Add(type.Name);
@@ -99,7 +99,7 @@ public class CommandDescriberCompletenessTests(ITestOutputHelper output)
         if (uncovered.Count > 0)
         {
             output.WriteLine($"{describerName} falls back to ToString()/'?' for:");
-            foreach (var name in uncovered)
+            foreach (string name in uncovered)
             {
                 output.WriteLine($"  - {name}");
             }
@@ -108,7 +108,7 @@ public class CommandDescriberCompletenessTests(ITestOutputHelper output)
         if (unconstructible.Count > 0)
         {
             output.WriteLine("Cannot construct a dummy for (extend MakeDummyArg):");
-            foreach (var name in unconstructible)
+            foreach (string name in unconstructible)
             {
                 output.WriteLine($"  - {name}");
             }

@@ -17,7 +17,7 @@ public class FrdResolverToFrdTests
     [Fact]
     public void ToFrd_AtFixPosition_ReturnsBareFixName()
     {
-        var result = FrdResolver.ToFrd(37.7213, -122.2208, TestFixes);
+        string? result = FrdResolver.ToFrd(37.7213, -122.2208, TestFixes);
 
         Assert.Equal("OAK", result);
     }
@@ -26,7 +26,7 @@ public class FrdResolverToFrdTests
     public void ToFrd_NearFixPosition_ReturnsBareFixName()
     {
         // Within 0.1nm of OAK
-        var result = FrdResolver.ToFrd(37.7214, -122.2207, TestFixes);
+        string? result = FrdResolver.ToFrd(37.7214, -122.2207, TestFixes);
 
         Assert.Equal("OAK", result);
     }
@@ -35,7 +35,7 @@ public class FrdResolverToFrdTests
     public void ToFrd_AwayFromFix_ReturnsFrdString()
     {
         // ~10nm north of OAK
-        var result = FrdResolver.ToFrd(37.8880, -122.2208, TestFixes);
+        string? result = FrdResolver.ToFrd(37.8880, -122.2208, TestFixes);
 
         Assert.NotNull(result);
         Assert.StartsWith("OAK", result);
@@ -45,7 +45,7 @@ public class FrdResolverToFrdTests
     [Fact]
     public void ToFrd_NoFixesInRange_ReturnsNull()
     {
-        var result = FrdResolver.ToFrd(0.0, 0.0, TestFixes, maxNm: 1.0);
+        string? result = FrdResolver.ToFrd(0.0, 0.0, TestFixes, maxNm: 1.0);
 
         Assert.Null(result);
     }
@@ -53,7 +53,7 @@ public class FrdResolverToFrdTests
     [Fact]
     public void ToFrd_EmptyFixList_ReturnsNull()
     {
-        var result = FrdResolver.ToFrd(37.7213, -122.2208, []);
+        string? result = FrdResolver.ToFrd(37.7213, -122.2208, []);
 
         Assert.Null(result);
     }
@@ -65,16 +65,16 @@ public class FrdResolverToFrdTests
         double lat = 37.7213;
         double lon = -122.0500;
 
-        var frdString = FrdResolver.ToFrd(lat, lon, TestFixes);
+        string? frdString = FrdResolver.ToFrd(lat, lon, TestFixes);
         Assert.NotNull(frdString);
 
         // Resolve it back
-        var stubFixes = TestNavDbFactory.WithFixes(("OAK", 37.7213, -122.2208));
-        var resolved = FrdResolver.Resolve(frdString, stubFixes);
+        NavigationDatabase stubFixes = TestNavDbFactory.WithFixes(("OAK", 37.7213, -122.2208));
+        LatLon? resolved = FrdResolver.Resolve(frdString, stubFixes);
         Assert.NotNull(resolved);
 
         // Should be within 2nm of original (rounding of radial and distance)
-        var distNm = GeoMath.DistanceNm(lat, lon, resolved.Value.Lat, resolved.Value.Lon);
+        double distNm = GeoMath.DistanceNm(lat, lon, resolved.Value.Lat, resolved.Value.Lon);
         Assert.True(distNm < 2.0, $"Round-trip distance was {distNm:F2} nm, expected < 2.0");
     }
 
@@ -94,9 +94,9 @@ public class FrdResolverToFrdTests
         double magBrg = MagneticDeclination.TrueToMagnetic(trueBrg, oakLat, oakLon);
         int expectedRadial = (int)Math.Round(magBrg);
 
-        var frd = FrdResolver.ToFrd(lat, lon, TestFixes);
+        string? frd = FrdResolver.ToFrd(lat, lon, TestFixes);
         Assert.NotNull(frd);
-        var parsed = FrdResolver.ParseFrd(frd);
+        (string Fix, int? Radial, int? Distance)? parsed = FrdResolver.ParseFrd(frd);
         Assert.NotNull(parsed);
         Assert.Equal("OAK", parsed.Value.Fix);
         Assert.Equal(expectedRadial, parsed.Value.Radial);
@@ -113,9 +113,9 @@ public class FrdResolverToFrdTests
         // before projecting. OAK090010 should land 10 nm along the 090 MAGNETIC radial.
         double oakLat = 37.7213,
             oakLon = -122.2208;
-        var navDb = TestNavDbFactory.WithFixes(("OAK", oakLat, oakLon));
+        NavigationDatabase navDb = TestNavDbFactory.WithFixes(("OAK", oakLat, oakLon));
 
-        var resolved = FrdResolver.Resolve("OAK090010", navDb);
+        LatLon? resolved = FrdResolver.Resolve("OAK090010", navDb);
         Assert.NotNull(resolved);
 
         double trueBrg = GeoMath.BearingTo(oakLat, oakLon, resolved.Value.Lat, resolved.Value.Lon);
@@ -128,7 +128,7 @@ public class FrdResolverToFrdTests
     public void ToFrd_PicksNearestFix()
     {
         // Position much closer to SUNOL than OAK
-        var result = FrdResolver.ToFrd(37.59, -121.88, TestFixes);
+        string? result = FrdResolver.ToFrd(37.59, -121.88, TestFixes);
 
         Assert.NotNull(result);
         Assert.StartsWith("SUNOL", result);
@@ -138,11 +138,11 @@ public class FrdResolverToFrdTests
     public void ToFrd_RadialFormattedThreeDigits()
     {
         // Position north of OAK — radial should be zero-padded
-        var result = FrdResolver.ToFrd(37.9, -122.2208, TestFixes);
+        string? result = FrdResolver.ToFrd(37.9, -122.2208, TestFixes);
 
         Assert.NotNull(result);
         // The string after the fix name should be 6 digits: radial(3) + distance(3)
-        var suffix = result["OAK".Length..];
+        string suffix = result["OAK".Length..];
         Assert.Equal(6, suffix.Length);
         Assert.True(int.TryParse(suffix, out _));
     }
@@ -179,7 +179,7 @@ public class FrdResolverToFrdTests
     public void ToFrd_NearFrdNamedFix_AnchorsOnRealFixInstead()
     {
         // ~3 nm south of the OAK169001 adapted fix — that fix is the nearest, but it must not anchor.
-        var result = FrdResolver.ToFrd(37.6553, -122.2166, FrdNamedFixes);
+        string? result = FrdResolver.ToFrd(37.6553, -122.2166, FrdNamedFixes);
 
         Assert.NotNull(result);
         Assert.Matches(@"^OAK\d{6}$", result);
@@ -189,7 +189,7 @@ public class FrdResolverToFrdTests
     public void ToFrd_OnTopOfFrdNamedFix_ReturnsBareIdentifier()
     {
         // Within 0.1 nm: the identifier itself is a real, resolvable fix, so naming it is correct.
-        var result = FrdResolver.ToFrd(37.7054, -122.2165, FrdNamedFixes);
+        string? result = FrdResolver.ToFrd(37.7054, -122.2165, FrdNamedFixes);
 
         Assert.Equal("OAK169001", result);
     }
@@ -197,7 +197,7 @@ public class FrdResolverToFrdTests
     [Fact]
     public void ToFrd_RealNavData_NeverAnchorsOnFrdNamedFix()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
@@ -206,7 +206,7 @@ public class FrdResolverToFrdTests
         // Guards the premise: the real vNAS dataset really does publish these as fixes.
         Assert.NotNull(navDb.GetFixPosition("OAK169001"));
 
-        var allFixes = navDb.GetFixTuples();
+        IReadOnlyList<(string Name, double Lat, double Lon)> allFixes = navDb.GetFixTuples();
         var frdNamed = allFixes.Where(f => FrdResolver.IsFrdIdentifier(f.Name)).Take(200).ToList();
         Assert.NotEmpty(frdNamed);
 
@@ -214,12 +214,12 @@ public class FrdResolverToFrdTests
         // (which would return a bare identifier rather than a constructed FRD), close enough that the
         // adapted fix or one of its neighbours is still the nearest entry of any kind.
         int probesWhereFrdFixIsNearest = 0;
-        foreach (var probeAnchor in frdNamed)
+        foreach ((string Name, double Lat, double Lon) probeAnchor in frdNamed)
         {
             double lat = probeAnchor.Lat + (2.0 / 60.0);
             double lon = probeAnchor.Lon;
 
-            var nearest = allFixes.MinBy(f => GeoMath.DistanceNm(lat, lon, f.Lat, f.Lon));
+            (string Name, double Lat, double Lon) nearest = allFixes.MinBy(f => GeoMath.DistanceNm(lat, lon, f.Lat, f.Lon));
             if (!FrdResolver.IsFrdIdentifier(nearest.Name))
             {
                 continue;
@@ -227,9 +227,9 @@ public class FrdResolverToFrdTests
 
             probesWhereFrdFixIsNearest++;
 
-            var result = FrdResolver.ToFrd(lat, lon, allFixes);
+            string? result = FrdResolver.ToFrd(lat, lon, allFixes);
             Assert.NotNull(result);
-            var anchor = FrdResolver.ParseFrd(result)?.Fix;
+            string? anchor = FrdResolver.ParseFrd(result)?.Fix;
             Assert.NotNull(anchor);
             Assert.False(FrdResolver.IsFrdIdentifier(anchor), $"ToFrd anchored on FRD-named fix '{anchor}' (result '{result}')");
         }

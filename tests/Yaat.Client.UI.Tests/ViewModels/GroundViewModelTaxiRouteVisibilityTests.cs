@@ -22,7 +22,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
     [Fact]
     public void Compute_ShowAllOff_OnlyForcedShown()
     {
-        var result = GroundViewModel.ComputeVisibleTaxiRouteCallsigns(Set("A"), Set(), showAll: false, Fleet(("A", true), ("B", true)));
+        List<string> result = GroundViewModel.ComputeVisibleTaxiRouteCallsigns(Set("A"), Set(), showAll: false, Fleet(("A", true), ("B", true)));
 
         Assert.Equal(new[] { "A" }, result);
     }
@@ -30,7 +30,12 @@ public class GroundViewModelTaxiRouteVisibilityTests
     [Fact]
     public void Compute_ShowAllOn_IncludesTaxiingMinusHidden()
     {
-        var result = GroundViewModel.ComputeVisibleTaxiRouteCallsigns(Set(), Set("B"), showAll: true, Fleet(("A", true), ("B", true), ("C", false)));
+        List<string> result = GroundViewModel.ComputeVisibleTaxiRouteCallsigns(
+            Set(),
+            Set("B"),
+            showAll: true,
+            Fleet(("A", true), ("B", true), ("C", false))
+        );
 
         // A taxiing and not hidden -> shown; B hidden -> out; C has no active route -> out.
         Assert.Equal(new[] { "A" }, result);
@@ -39,7 +44,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
     [Fact]
     public void Compute_ForcedShownWinsOverHidden_AndNoDuplicates()
     {
-        var result = GroundViewModel.ComputeVisibleTaxiRouteCallsigns(Set("A"), Set("A"), showAll: true, Fleet(("A", true), ("B", true)));
+        List<string> result = GroundViewModel.ComputeVisibleTaxiRouteCallsigns(Set("A"), Set("A"), showAll: true, Fleet(("A", true), ("B", true)));
 
         // A explicitly shown (wins over an overlapping hide) and listed once; B added via show-all.
         Assert.Equal(new[] { "A", "B" }, result);
@@ -48,7 +53,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
     [Fact]
     public void Compute_ShowAllOff_IgnoresHiddenSetAndFleet()
     {
-        var result = GroundViewModel.ComputeVisibleTaxiRouteCallsigns(Set(), Set("A"), showAll: false, Fleet(("A", true), ("B", true)));
+        List<string> result = GroundViewModel.ComputeVisibleTaxiRouteCallsigns(Set(), Set("A"), showAll: false, Fleet(("A", true), ("B", true)));
 
         Assert.Empty(result);
     }
@@ -57,7 +62,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
 
     private static GroundViewModel BuildVm(params AircraftModel[] aircraft)
     {
-        var list = aircraft.ToList();
+        List<AircraftModel> list = aircraft.ToList();
         var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
         vm.SetAircraftLookup(cs => list.FirstOrDefault(a => a.Callsign == cs));
         vm.SetAircraftProvider(() => list);
@@ -69,7 +74,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
     [AvaloniaFact]
     public void Mode_ShowAllOff_AlwaysShowThenFollow()
     {
-        var vm = BuildVm(Taxiing("A"));
+        GroundViewModel vm = BuildVm(Taxiing("A"));
 
         Assert.Equal(TaxiRouteDisplayMode.Follow, vm.GetTaxiRouteMode("A"));
         Assert.False(vm.IsTaxiRouteVisible("A"));
@@ -84,7 +89,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
     [AvaloniaFact]
     public void Mode_ShowAllOn_FollowVisible_AlwaysHideOptsOut()
     {
-        var vm = BuildVm(Taxiing("A"));
+        GroundViewModel vm = BuildVm(Taxiing("A"));
         vm.ShowAllTaxiRoutes = true;
 
         Assert.True(vm.IsTaxiRouteVisible("A")); // follow + show-all on -> visible
@@ -103,7 +108,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
     [AvaloniaFact]
     public void Mode_AlwaysShow_SurvivesShowAllTurnedOff()
     {
-        var vm = BuildVm(Taxiing("A"));
+        GroundViewModel vm = BuildVm(Taxiing("A"));
         vm.ShowAllTaxiRoutes = true;
         vm.SetTaxiRouteMode("A", TaxiRouteDisplayMode.AlwaysShow);
 
@@ -117,7 +122,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
     [AvaloniaFact]
     public void IsVisible_ShowAllOn_NonTaxiingNotShown()
     {
-        var vm = BuildVm(new AircraftModel { Callsign = "A", HasActiveTaxiRoute = false });
+        GroundViewModel vm = BuildVm(new AircraftModel { Callsign = "A", HasActiveTaxiRoute = false });
         vm.ShowAllTaxiRoutes = true;
 
         Assert.False(vm.IsTaxiRouteVisible("A"));
@@ -164,7 +169,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
     [AvaloniaFact]
     public void Hover_RevealsRouteEvenWhenHidden_AndClearsWhenDisabled()
     {
-        var vm = BuildLinearTaxiwayVm();
+        GroundViewModel vm = BuildLinearTaxiwayVm();
         vm.SetTaxiRouteMode("A", TaxiRouteDisplayMode.AlwaysHide); // opt A out of the persistent overlay
         Assert.False(vm.IsTaxiRouteVisible("A"));
 
@@ -185,7 +190,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
     [AvaloniaFact]
     public void Hover_ClearsWhenCursorLeaves()
     {
-        var vm = BuildLinearTaxiwayVm();
+        GroundViewModel vm = BuildLinearTaxiwayVm();
         vm.ShowTaxiRouteOnHover = true;
 
         vm.SetHoveredAircraft("A");

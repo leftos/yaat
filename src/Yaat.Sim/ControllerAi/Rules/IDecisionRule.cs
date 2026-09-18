@@ -41,7 +41,7 @@ public sealed class AiRuleScope
 
     public AiAircraftMemo MemoFor(AircraftState aircraft)
     {
-        if (!Memos.TryGetValue(aircraft.Callsign, out var memo))
+        if (!Memos.TryGetValue(aircraft.Callsign, out AiAircraftMemo? memo))
         {
             memo = new AiAircraftMemo();
             Memos[aircraft.Callsign] = memo;
@@ -53,7 +53,7 @@ public sealed class AiRuleScope
     /// <summary>Closes every open episode of <paramref name="kind"/> for this position whose subject is not in <paramref name="stillPresent"/>.</summary>
     public void CloseVanished(AiAnomalyKind kind, IReadOnlySet<string> stillPresent)
     {
-        foreach (var subject in Tick.Anomalies.OpenSubjects(kind, Position.PositionId))
+        foreach (string subject in Tick.Anomalies.OpenSubjects(kind, Position.PositionId))
         {
             if (!stillPresent.Contains(subject))
             {

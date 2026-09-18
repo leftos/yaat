@@ -163,7 +163,7 @@ public class TowerListStepTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(scenarioJson, _zoa, 7, []);
+        SimulationEngine engine = AiTestFixture.Load(scenarioJson, _zoa, 7, []);
         engine.InitializeFromArtcc();
         Assert.Contains(OakList, engine.TowerListTracker.GetLists());
         Assert.Empty(engine.TowerListTracker.GetEntries(OakList));
@@ -194,7 +194,7 @@ public class TowerListStepTests
 
         engine.RunSecond(spine);
 
-        var entry = Assert.Single(OakEntries(engine));
+        (string Callsign, double EnteredAtSeconds) entry = Assert.Single(OakEntries(engine));
         Assert.Equal(Callsign, entry.Callsign);
         Assert.Equal(engine.Scenario!.ElapsedSeconds, entry.EnteredAtSeconds);
         Assert.True(spine.CoordinationChangeCount > 0, "the spine's drain step should have handed the new entry over");
@@ -244,10 +244,10 @@ public class TowerListStepTests
 
         var spine = new SpineCapturingHost(engine);
         engine.RunSecond(spine);
-        var entry = Assert.Single(OakEntries(engine));
+        (string Callsign, double EnteredAtSeconds) entry = Assert.Single(OakEntries(engine));
         Assert.Equal(1, entry.EnteredAtSeconds);
 
-        var snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
 
         // Out of range and back in: the engine now holds the same aircraft under a much later dwell second.
         MoveOutOfRange(engine);
@@ -284,8 +284,8 @@ public class TowerListStepTests
             engine.RunSecond(spine);
         }
 
-        var nctP1 = engine.TowerListTracker.GetEntries(NctSharedListId);
-        var fatP1 = engine.TowerListTracker.GetEntries(FatSharedListId);
+        List<(string Callsign, double EnteredAtSeconds)> nctP1 = engine.TowerListTracker.GetEntries(NctSharedListId);
+        List<(string Callsign, double EnteredAtSeconds)> fatP1 = engine.TowerListTracker.GetEntries(FatSharedListId);
 
         // NCT's P1 is the SJC list (150 nm), so both aircraft are on it — oldest first, the OAK departure ahead of
         // the Fresno arrival that spawned three seconds later. FAT's own P1 holds the Fresno arrival alone.
@@ -293,7 +293,7 @@ public class TowerListStepTests
         Assert.True(nctP1[0].EnteredAtSeconds < nctP1[1].EnteredAtSeconds, "the OAK departure entered NCT's P1 first");
         Assert.Equal([FatCallsign], fatP1.Select(e => e.Callsign).ToList());
 
-        var snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
 
         // Both out to the Sierra: every list empties, so what the restore puts back can only have come from the snapshot.
         engine.FindAircraft(Callsign)!.Position = new LatLon(41.5, -117.0);
@@ -333,7 +333,7 @@ public class TowerListStepTests
 
         // Tapped for this test's context only: SimLog.InitializeForTest never touches the process-wide factory.
         using var captured = new CapturingSimLogProvider(LogLevel.Warning, capacity: 32);
-        using var factory = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Warning).AddProvider(captured));
+        using ILoggerFactory factory = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Warning).AddProvider(captured));
         SimLog.InitializeForTest(factory);
 
         TowerListSnapshotMapper.Restore(
@@ -347,7 +347,7 @@ public class TowerListStepTests
         Assert.Empty(engine.TowerListTracker.GetEntries(NctSharedListId));
         Assert.Empty(engine.TowerListTracker.GetEntries(FatSharedListId));
 
-        var warning = Assert.Single(captured.Drain().Where(r => r.Level == LogLevel.Warning).ToList());
+        CapturedLogRecord warning = Assert.Single(captured.Drain().Where(r => r.Level == LogLevel.Warning).ToList());
         Assert.Contains("P1 (no facility id)", warning.Message);
     }
 
@@ -371,11 +371,11 @@ public class TowerListStepTests
             engine.RunSecond(spine);
         }
 
-        var liveNctP1 = engine.TowerListTracker.GetEntries(NctSharedListId);
+        List<(string Callsign, double EnteredAtSeconds)> liveNctP1 = engine.TowerListTracker.GetEntries(NctSharedListId);
         Assert.NotEmpty(liveNctP1);
 
         using var captured = new CapturingSimLogProvider(LogLevel.Warning, capacity: 32);
-        using var factory = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Warning).AddProvider(captured));
+        using ILoggerFactory factory = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Warning).AddProvider(captured));
         SimLog.InitializeForTest(factory);
 
         TowerListSnapshotMapper.Restore(
@@ -406,7 +406,7 @@ public class TowerListStepTests
         Assert.Empty(engine.TowerListTracker.GetEntries(new TowerListKey("ZLC", "P1")));
         Assert.Empty(engine.TowerListTracker.GetEntries(FatSharedListId));
 
-        var warning = Assert.Single(captured.Drain().Where(r => r.Level == LogLevel.Warning).ToList());
+        CapturedLogRecord warning = Assert.Single(captured.Drain().Where(r => r.Level == LogLevel.Warning).ToList());
         Assert.Contains("2 tower list(s) in the snapshot could not be restored", warning.Message);
         Assert.Contains("ZLC/P1 (facility/list not configured)", warning.Message);
         Assert.Contains("P2 (no facility id)", warning.Message);

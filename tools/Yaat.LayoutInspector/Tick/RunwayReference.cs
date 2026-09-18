@@ -1,5 +1,6 @@
 using Yaat.Sim;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 
 namespace Yaat.LayoutInspector.Tick;
 
@@ -19,7 +20,7 @@ public readonly record struct RunwayReference(double Lat, double Lon, TrueHeadin
     /// </summary>
     public static RunwayReference? Load(string runwayArg)
     {
-        var parts = runwayArg.Split('/');
+        string[] parts = runwayArg.Split('/');
         if (parts.Length != 2)
         {
             Console.Error.WriteLine($"error: --tick-ref expects 'ICAO/RWY' (e.g. SFO/28R), got {runwayArg}");
@@ -29,7 +30,7 @@ public readonly record struct RunwayReference(double Lat, double Lon, TrueHeadin
         string airport = parts[0].ToUpperInvariant();
         string rwy = parts[1].ToUpperInvariant();
 
-        var runway = NavigationDatabase.Instance.GetRunway(airport, rwy);
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway(airport, rwy);
         if (runway is null)
         {
             Console.Error.WriteLine($"error: runway {airport}/{rwy} not found in NavData");

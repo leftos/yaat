@@ -20,7 +20,7 @@ public class AiPacingTests
     [Fact]
     public void ThinkTime_IsAPureFunctionOfCallsignAndRule_WithinBounds()
     {
-        foreach (var callsign in new[] { "N152SP", "SWA1234", "UAL1", "N7LJ" })
+        foreach (string? callsign in new[] { "N152SP", "SWA1234", "UAL1", "N7LJ" })
         {
             double think = AiPacing.ThinkTimeSeconds(callsign, "answer-taxi-out");
             Assert.InRange(think, AiPacing.ThinkMinSeconds, AiPacing.ThinkMaxSeconds);
@@ -65,9 +65,9 @@ public class AiPacingTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         var sink = new RecordingAiCommandSink();
         var pacing = new AiPacing();
         var memo = new AiAircraftMemo();
@@ -82,9 +82,9 @@ public class AiPacingTests
         double think = AiPacing.ThinkTimeSeconds(aircraft.Callsign, "probe");
         Assert.False(Scope(engine, aircraft, ground, now + think - 0.5, pacing, sink).TryIssue(aircraft, memo, "TAXIAUTO 28R", intent));
 
-        var issuing = Scope(engine, aircraft, ground, now + think, pacing, sink);
+        AiRuleScope issuing = Scope(engine, aircraft, ground, now + think, pacing, sink);
         Assert.True(issuing.TryIssue(aircraft, memo, "TAXIAUTO 28R", intent));
-        var request = Assert.Single(sink.Issued);
+        AiCommandRequest request = Assert.Single(sink.Issued);
         Assert.Same(request, memo.InFlight);
         Assert.Equal("TAXIAUTO 28R", request.Canonical);
         Assert.Equal(ground.PositionId, request.From.PositionId);
@@ -153,7 +153,7 @@ public class AiPacingTests
         IAiCommandSink sink
     )
     {
-        var context = AiTestFixture.Context(engine, [aircraft], [position], now, [], sink);
+        AiTickContext context = AiTestFixture.Context(engine, [aircraft], [position], now, [], sink);
         return new AiRuleScope
         {
             Tick = context,

@@ -25,8 +25,8 @@ public class SignatureHelpStateTests
     public void Show_SetsSingleOverload()
     {
         var state = new SignatureHelpState();
-        var sig = MakeSig("Fly Heading", [new CommandParameter("heading", "0-360", false)]);
-        var set = MakeSet(sig);
+        CommandSignature sig = MakeSig("Fly Heading", [new CommandParameter("heading", "0-360", false)]);
+        CommandSignatureSet set = MakeSet(sig);
 
         state.Show(set, 0, []);
 
@@ -40,9 +40,9 @@ public class SignatureHelpStateTests
     [Fact]
     public void BuildParts_SingleParam_MarksActive()
     {
-        var sig = MakeSig("Fly Heading", [new CommandParameter("heading", "0-360", false)]);
+        CommandSignature sig = MakeSig("Fly Heading", [new CommandParameter("heading", "0-360", false)]);
 
-        var parts = SignatureHelpState.BuildParts(sig, 0);
+        IReadOnlyList<SignaturePart> parts = SignatureHelpState.BuildParts(sig, 0);
 
         Assert.Equal(3, parts.Count);
         Assert.Equal("FH", parts[0].Text);
@@ -64,7 +64,7 @@ public class SignatureHelpStateTests
             "Fly runway heading until heading given"
         );
 
-        var parts = SignatureHelpState.BuildParts(sig, 1);
+        IReadOnlyList<SignaturePart> parts = SignatureHelpState.BuildParts(sig, 1);
 
         // CTO, " ", RH, " ", [heading] = 5 parts
         Assert.Equal(5, parts.Count);
@@ -79,7 +79,7 @@ public class SignatureHelpStateTests
     [Fact]
     public void BuildParts_MultipleParams_HighlightsCorrectOne()
     {
-        var sig = MakeSig(
+        CommandSignature sig = MakeSig(
             "PTAC",
             [
                 new CommandParameter("heading", "0-360", false),
@@ -88,7 +88,7 @@ public class SignatureHelpStateTests
             ]
         );
 
-        var parts = SignatureHelpState.BuildParts(sig, 1);
+        IReadOnlyList<SignaturePart> parts = SignatureHelpState.BuildParts(sig, 1);
 
         // FH, " ", {heading}, " ", {distance}, " ", {approach} = 7 parts
         Assert.Equal(7, parts.Count);
@@ -101,9 +101,9 @@ public class SignatureHelpStateTests
     public void OverloadCycling_WrapsAround()
     {
         var state = new SignatureHelpState();
-        var sig1 = MakeSig("Go Around", []);
-        var sig2 = MakeSig("Go Around — Heading", [new CommandParameter("heading", "0-360", false)]);
-        var set = MakeSet(sig1, sig2);
+        CommandSignature sig1 = MakeSig("Go Around", []);
+        CommandSignature sig2 = MakeSig("Go Around — Heading", [new CommandParameter("heading", "0-360", false)]);
+        CommandSignatureSet set = MakeSet(sig1, sig2);
 
         state.Show(set, 0, []);
 
@@ -143,7 +143,7 @@ public class SignatureHelpStateTests
             [new CommandParameter("runway", "rwy", false), new CommandParameter("distance", "nm", false)],
             "Runway + Distance"
         );
-        var set = MakeSet(bareSig, rwySig, rwyDistSig);
+        CommandSignatureSet set = MakeSet(bareSig, rwySig, rwyDistSig);
         var state = new SignatureHelpState();
 
         state.Show(set, 0, ["28L"]);
@@ -157,8 +157,8 @@ public class SignatureHelpStateTests
     public void Dismiss_ClearsState()
     {
         var state = new SignatureHelpState();
-        var sig = MakeSig("Fly Heading", [new CommandParameter("heading", "0-360", false)]);
-        var set = MakeSet(sig);
+        CommandSignature sig = MakeSig("Fly Heading", [new CommandParameter("heading", "0-360", false)]);
+        CommandSignatureSet set = MakeSet(sig);
 
         state.Show(set, 0, []);
         Assert.True(state.IsVisible);
@@ -190,7 +190,7 @@ public class SignatureHelpStateTests
             "Fly heading"
         );
 
-        var set = MakeSet(bareSig, rhSig, hdgSig);
+        CommandSignatureSet set = MakeSet(bareSig, rhSig, hdgSig);
 
         // When typed "RH", should auto-select the RH overload
         state.Show(set, 0, ["RH"]);
@@ -239,7 +239,7 @@ public class SignatureHelpStateTests
         // Reproduces the CTO 020 150 bug: "020" is a heading, not a literal RH/OC/LT, so
         // signature help must show the Heading overload, not the first registered literal one.
         var state = new SignatureHelpState();
-        var set = MakeCtoSet();
+        CommandSignatureSet set = MakeCtoSet();
 
         // "CTO 020 150" with no trailing space → typedArgs=["020","150"], paramIndex=1
         state.Show(set, 1, ["020", "150"]);
@@ -253,7 +253,7 @@ public class SignatureHelpStateTests
         // With "020" committed as the first arg, all literal-prefixed overloads must be
         // eliminated regardless of how they would otherwise score.
         var state = new SignatureHelpState();
-        var set = MakeCtoSet();
+        CommandSignatureSet set = MakeCtoSet();
 
         state.Show(set, 1, ["020", "150"]);
 
@@ -268,7 +268,7 @@ public class SignatureHelpStateTests
         // help must keep the RH overload eligible (prefix match), not eliminate it for not
         // exactly equaling "RH".
         var state = new SignatureHelpState();
-        var set = MakeCtoSet();
+        CommandSignatureSet set = MakeCtoSet();
 
         // "CTO R" with no trailing space → typedArgs=["R"], paramIndex=0
         state.Show(set, 0, ["R"]);
@@ -282,7 +282,7 @@ public class SignatureHelpStateTests
         // While typing the heading "020" (no trailing space), Heading overload should be
         // picked because "RH"/"OC"/"LT" don't start with "0".
         var state = new SignatureHelpState();
-        var set = MakeCtoSet();
+        CommandSignatureSet set = MakeCtoSet();
 
         // "CTO 020" with no trailing space → typedArgs=["020"], paramIndex=0
         state.Show(set, 0, ["020"]);
@@ -294,8 +294,8 @@ public class SignatureHelpStateTests
     public void ActiveParameterDescription_ShowsTypeHint()
     {
         var state = new SignatureHelpState();
-        var sig = MakeSig("Fly Heading", [new CommandParameter("heading", "0-360", false)], "Fly assigned heading");
-        var set = MakeSet(sig);
+        CommandSignature sig = MakeSig("Fly Heading", [new CommandParameter("heading", "0-360", false)], "Fly assigned heading");
+        CommandSignatureSet set = MakeSet(sig);
 
         state.Show(set, 0, []);
 
@@ -306,8 +306,8 @@ public class SignatureHelpStateTests
     public void UpdateParameterIndex_ChangesHighlighting()
     {
         var state = new SignatureHelpState();
-        var sig = MakeSig("Hold", [new CommandParameter("fix", "fix name", false), new CommandParameter("inbound", "0-360", false)]);
-        var set = MakeSet(sig);
+        CommandSignature sig = MakeSig("Hold", [new CommandParameter("fix", "fix name", false), new CommandParameter("inbound", "0-360", false)]);
+        CommandSignatureSet set = MakeSet(sig);
 
         state.Show(set, 0, []);
         Assert.True(state.SignatureParts[2].IsActive); // fix
@@ -329,7 +329,7 @@ public class SignatureHelpStateTests
             "Turn right crosswind on departure"
         );
 
-        var parts = SignatureHelpState.BuildParts(sig, 1);
+        IReadOnlyList<SignaturePart> parts = SignatureHelpState.BuildParts(sig, 1);
 
         // CTO, " ", MRC, " ", [altitude?] = 5 parts
         Assert.Equal(5, parts.Count);
@@ -344,15 +344,15 @@ public class SignatureHelpStateTests
     public void BuildParts_RepeatableParam_RendersEllipsis_AndStaysActivePastItsIndex()
     {
         // CROSS's runway list: a single trailing repeatable parameter.
-        var sig = MakeSig("Cross Runway", [new CommandParameter("runway", "runway designator", false, Repeatable: true)]);
+        CommandSignature sig = MakeSig("Cross Runway", [new CommandParameter("runway", "runway designator", false, Repeatable: true)]);
 
         // Cursor on the first runway.
-        var parts0 = SignatureHelpState.BuildParts(sig, 0);
+        IReadOnlyList<SignaturePart> parts0 = SignatureHelpState.BuildParts(sig, 0);
         Assert.Equal("[runway…]", parts0[2].Text);
         Assert.True(parts0[2].IsActive);
 
         // Cursor moved onto a second runway — the repeatable param stays highlighted.
-        var parts1 = SignatureHelpState.BuildParts(sig, 1);
+        IReadOnlyList<SignaturePart> parts1 = SignatureHelpState.BuildParts(sig, 1);
         Assert.Equal("[runway…]", parts1[2].Text);
         Assert.True(parts1[2].IsActive);
     }
@@ -368,7 +368,7 @@ public class SignatureHelpStateTests
             "Turn left to heading on departure"
         );
 
-        var parts = SignatureHelpState.BuildParts(sig, 0);
+        IReadOnlyList<SignaturePart> parts = SignatureHelpState.BuildParts(sig, 0);
 
         // CTO, " ", LT, " ", [heading], " ", [altitude?] = 7 parts
         Assert.Equal(7, parts.Count);

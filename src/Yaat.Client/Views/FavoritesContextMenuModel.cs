@@ -11,7 +11,7 @@ public static class FavoritesContextMenuModel
     public static IReadOnlyList<FavoritesMenuEntry> Build(IEnumerable<FavoriteCommand> visibleFavorites, AircraftModel? aircraft)
     {
         var raw = new List<FavoritesMenuEntry>();
-        foreach (var fav in visibleFavorites)
+        foreach (FavoriteCommand fav in visibleFavorites)
         {
             if (fav.IsSpacer)
             {
@@ -19,19 +19,19 @@ public static class FavoritesContextMenuModel
                 continue;
             }
 
-            var text = MainViewModel.ResolveFavoriteCommandTextFor(fav, aircraft);
+            string text = MainViewModel.ResolveFavoriteCommandTextFor(fav, aircraft);
             if (string.IsNullOrEmpty(text))
             {
                 continue;
             }
 
-            var label = string.IsNullOrWhiteSpace(fav.Label) ? text : fav.Label;
+            string label = string.IsNullOrWhiteSpace(fav.Label) ? text : fav.Label;
             raw.Add(new FavoritesMenuEntry(IsSpacer: false, Label: label, CommandText: text));
         }
 
         var result = new List<FavoritesMenuEntry>(raw.Count);
-        var seenNonSpacer = false;
-        foreach (var entry in raw)
+        bool seenNonSpacer = false;
+        foreach (FavoritesMenuEntry entry in raw)
         {
             if (entry.IsSpacer)
             {

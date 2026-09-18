@@ -131,10 +131,10 @@ public class GroundPhaseTests
 
     private static (PushbackPhase Phase, PhaseContext Ctx) StartPush(AircraftState aircraft, TugMove move)
     {
-        var phase = PushOf(aircraft, move);
+        PushbackPhase phase = PushOf(aircraft, move);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
         return (phase, ctx);
     }
@@ -156,7 +156,7 @@ public class GroundPhaseTests
         };
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
         return (phase, ctx);
     }
@@ -178,7 +178,7 @@ public class GroundPhaseTests
         };
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
         return (phase, ctx);
     }
@@ -207,8 +207,8 @@ public class GroundPhaseTests
         var ticks = new List<PushTick>();
         for (int i = 0; i < maxTicks; i++)
         {
-            var from = aircraft.Position;
-            var nose = aircraft.TrueHeading;
+            LatLon from = aircraft.Position;
+            TrueHeading nose = aircraft.TrueHeading;
             if (phase.OnTick(ctx))
             {
                 return (true, ticks);
@@ -235,9 +235,9 @@ public class GroundPhaseTests
     /// <summary>Flies a turn from a standstill heading north and returns the total nose turn per foot moved, radians.</summary>
     private static double TurnPerFoot(TugMove move)
     {
-        var aircraft = MakeGroundAircraft(heading: 0);
-        var (phase, ctx) = StartPush(aircraft, move);
-        var run = RunPush(aircraft, phase, ctx, 20);
+        AircraftState aircraft = MakeGroundAircraft(heading: 0);
+        (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, move);
+        (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 20);
         var turning = run.Ticks.Skip(2).ToList();
         return (turning.Sum(t => t.NoseTurnDeg) * Math.PI / 180.0) / turning.Sum(t => t.MovedFt);
     }
@@ -247,10 +247,10 @@ public class GroundPhaseTests
     [Fact]
     public void TryHoldPosition_OnGround_SetsHeld()
     {
-        var aircraft = MakeGroundAircraft();
+        AircraftState aircraft = MakeGroundAircraft();
         aircraft.IsOnGround = true;
 
-        var result = GroundCommandHandler.TryHoldPosition(aircraft);
+        CommandResult result = GroundCommandHandler.TryHoldPosition(aircraft);
 
         Assert.True(result.Success);
         Assert.True(aircraft.Ground.IsImmobile);
@@ -259,10 +259,10 @@ public class GroundPhaseTests
     [Fact]
     public void TryHoldPosition_Airborne_Fails()
     {
-        var aircraft = MakeGroundAircraft();
+        AircraftState aircraft = MakeGroundAircraft();
         aircraft.IsOnGround = false;
 
-        var result = GroundCommandHandler.TryHoldPosition(aircraft);
+        CommandResult result = GroundCommandHandler.TryHoldPosition(aircraft);
 
         Assert.False(result.Success);
         Assert.False(aircraft.Ground.IsImmobile);
@@ -271,13 +271,13 @@ public class GroundPhaseTests
     [Fact]
     public void TryHoldPosition_FollowingPhase_Succeeds()
     {
-        var aircraft = MakeGroundAircraft();
+        AircraftState aircraft = MakeGroundAircraft();
         aircraft.IsOnGround = true;
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new FollowingPhase("LEAD01"));
         aircraft.Phases.Start(MakeContext(aircraft));
 
-        var result = GroundCommandHandler.TryHoldPosition(aircraft);
+        CommandResult result = GroundCommandHandler.TryHoldPosition(aircraft);
 
         Assert.True(result.Success);
         Assert.True(aircraft.Ground.IsImmobile);
@@ -288,11 +288,11 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_WhenHeld_StopsMoving()
     {
-        var aircraft = MakeGroundAircraft();
+        AircraftState aircraft = MakeGroundAircraft();
         aircraft.Phases = new PhaseList();
-        var phase = SimplePush(aircraft);
+        PushbackPhase phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
         // PushbackTrueHeading should be set (opposite of aircraft heading)
@@ -321,11 +321,11 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_WhenResumed_ContinuesMoving()
     {
-        var aircraft = MakeGroundAircraft();
+        AircraftState aircraft = MakeGroundAircraft();
         aircraft.Phases = new PhaseList();
-        var phase = SimplePush(aircraft);
+        PushbackPhase phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
         // Let physics accelerate once
@@ -358,11 +358,11 @@ public class GroundPhaseTests
         // A hold that lands inside the braking distance still brakes the tow over the last feet of the move, and
         // those feet belong to the move: once the distance is covered the move is over, and the phase has to hand
         // over instead of sitting on a finished move until RES lifts the hold.
-        var aircraft = MakeGroundAircraft(heading: 0);
+        AircraftState aircraft = MakeGroundAircraft(heading: 0);
         var move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(aircraft.AircraftType));
-        var (phase, ctx) = StartPush(aircraft, move);
+        (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, move);
 
-        var start = aircraft.Position;
+        LatLon start = aircraft.Position;
         double movedFt = 0;
         bool completedEarly = false;
         for (int i = 0; (i < 120) && (movedFt < move.StraightDistanceFt) && !completedEarly; i++)
@@ -393,8 +393,8 @@ public class GroundPhaseTests
     [Fact]
     public void TaxiingPhase_RunwayCrossing_InsertsHoldCrossingResume()
     {
-        var layout = BuildCrossingLayout();
-        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+        AirportGroundLayout layout = BuildCrossingLayout();
+        AircraftState aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
 
         var route = new TaxiRoute
         {
@@ -425,7 +425,7 @@ public class GroundPhaseTests
         aircraft.Phases = new PhaseList();
         var taxiPhase = new TaxiingPhase();
         aircraft.Phases.Add(taxiPhase);
-        var ctx = MakeContext(aircraft, layout);
+        PhaseContext ctx = MakeContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         // Simulate arriving at node 1 (hold-short) by placing aircraft there
@@ -445,7 +445,7 @@ public class GroundPhaseTests
         Assert.True(completed);
 
         // Verify inserted phases: HoldingShortPhase, CrossingRunwayPhase, TaxiingPhase
-        var phases = aircraft.Phases.Phases;
+        List<Phase> phases = aircraft.Phases.Phases;
         Assert.True(phases.Count >= 4, $"Expected at least 4 phases, got {phases.Count}");
         Assert.IsType<TaxiingPhase>(phases[0]);
         Assert.IsType<HoldingShortPhase>(phases[1]);
@@ -456,8 +456,8 @@ public class GroundPhaseTests
     [Fact]
     public void TaxiingPhase_ExplicitHoldShort_InsertsHoldAndResume()
     {
-        var layout = BuildCrossingLayout();
-        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+        AirportGroundLayout layout = BuildCrossingLayout();
+        AircraftState aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
 
         var route = new TaxiRoute
         {
@@ -482,7 +482,7 @@ public class GroundPhaseTests
         aircraft.Phases = new PhaseList();
         var taxiPhase = new TaxiingPhase();
         aircraft.Phases.Add(taxiPhase);
-        var ctx = MakeContext(aircraft, layout);
+        PhaseContext ctx = MakeContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         // Place at hold-short node
@@ -504,7 +504,7 @@ public class GroundPhaseTests
         // entry-side runway HS when "HS <rwy>" is in the command) is treated like a
         // RunwayCrossing on resume: HoldingShort → CrossingRunwayPhase → TaxiingPhase.
         // Without this, the aircraft would just taxi across at 15 kt taxi speed.
-        var phases = aircraft.Phases.Phases;
+        List<Phase> phases = aircraft.Phases.Phases;
         Assert.True(phases.Count >= 4, $"Expected at least 4 phases (Taxi + Hold + Cross + Taxi), got {phases.Count}");
         Assert.IsType<TaxiingPhase>(phases[0]);
         Assert.IsType<HoldingShortPhase>(phases[1]);
@@ -515,8 +515,8 @@ public class GroundPhaseTests
     [Fact]
     public void TaxiingPhase_DestinationRunway_InsertsHoldOnly()
     {
-        var layout = BuildCrossingLayout();
-        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+        AirportGroundLayout layout = BuildCrossingLayout();
+        AircraftState aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
 
         // Route ends at hold-short node 1 (destination runway)
         var route = new TaxiRoute
@@ -537,7 +537,7 @@ public class GroundPhaseTests
         aircraft.Phases = new PhaseList();
         var taxiPhase = new TaxiingPhase();
         aircraft.Phases.Add(taxiPhase);
-        var ctx = MakeContext(aircraft, layout);
+        PhaseContext ctx = MakeContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         // Place at hold-short node
@@ -556,7 +556,7 @@ public class GroundPhaseTests
         Assert.True(completed);
 
         // HoldingShortPhase + HoldingInPositionPhase (no departure clearance)
-        var phases = aircraft.Phases.Phases;
+        List<Phase> phases = aircraft.Phases.Phases;
         Assert.Equal(3, phases.Count);
         Assert.IsType<TaxiingPhase>(phases[0]);
         Assert.IsType<HoldingShortPhase>(phases[1]);
@@ -568,16 +568,16 @@ public class GroundPhaseTests
     [Fact]
     public void FollowingPhase_ApproachingHoldShort_AutoHolds()
     {
-        var layout = BuildCrossingLayout();
-        var target = MakeGroundAircraft(37.623, -122.380, heading: 0);
+        AirportGroundLayout layout = BuildCrossingLayout();
+        AircraftState target = MakeGroundAircraft(37.623, -122.380, heading: 0);
         target.Callsign = "LEAD01";
 
         // Place follower just before the hold-short node (heading toward it)
-        var aircraft = MakeGroundAircraft(37.6208, -122.380, heading: 0);
+        AircraftState aircraft = MakeGroundAircraft(37.6208, -122.380, heading: 0);
         aircraft.Phases = new PhaseList();
         var followPhase = new FollowingPhase("LEAD01");
         aircraft.Phases.Add(followPhase);
-        var ctx = MakeContext(aircraft, layout, cs => cs == "LEAD01" ? target : null);
+        PhaseContext ctx = MakeContext(aircraft, layout, cs => cs == "LEAD01" ? target : null);
         aircraft.Phases.Start(ctx);
 
         bool completed = false;
@@ -597,7 +597,7 @@ public class GroundPhaseTests
         Assert.True(completed, "FollowingPhase should complete when hold-short is detected");
 
         // Verify inserted phases: HoldingShortPhase + new FollowingPhase
-        var phases = aircraft.Phases.Phases;
+        List<Phase> phases = aircraft.Phases.Phases;
         Assert.True(phases.Count >= 3, $"Expected at least 3 phases, got {phases.Count}");
         Assert.IsType<FollowingPhase>(phases[0]);
         Assert.IsType<HoldingShortPhase>(phases[1]);
@@ -607,16 +607,16 @@ public class GroundPhaseTests
     [Fact]
     public void FollowingPhase_HeadingAway_DoesNotHold()
     {
-        var layout = BuildCrossingLayout();
-        var target = MakeGroundAircraft(37.619, -122.380, heading: 180);
+        AirportGroundLayout layout = BuildCrossingLayout();
+        AircraftState target = MakeGroundAircraft(37.619, -122.380, heading: 180);
         target.Callsign = "LEAD01";
 
         // Place follower near node 1 but heading AWAY from it (south)
-        var aircraft = MakeGroundAircraft(37.6208, -122.380, heading: 180);
+        AircraftState aircraft = MakeGroundAircraft(37.6208, -122.380, heading: 180);
         aircraft.Phases = new PhaseList();
         var followPhase = new FollowingPhase("LEAD01");
         aircraft.Phases.Add(followPhase);
-        var ctx = MakeContext(aircraft, layout, cs => cs == "LEAD01" ? target : null);
+        PhaseContext ctx = MakeContext(aircraft, layout, cs => cs == "LEAD01" ? target : null);
         aircraft.Phases.Start(ctx);
 
         // Should not complete due to hold-short detection
@@ -630,15 +630,15 @@ public class GroundPhaseTests
     [Fact]
     public void FollowingPhase_NoLayout_SkipsCheck()
     {
-        var target = MakeGroundAircraft(37.623, -122.380, heading: 0);
+        AircraftState target = MakeGroundAircraft(37.623, -122.380, heading: 0);
         target.Callsign = "LEAD01";
 
-        var aircraft = MakeGroundAircraft(37.6208, -122.380, heading: 0);
+        AircraftState aircraft = MakeGroundAircraft(37.6208, -122.380, heading: 0);
         aircraft.Phases = new PhaseList();
         var followPhase = new FollowingPhase("LEAD01");
         aircraft.Phases.Add(followPhase);
         // No ground layout
-        var ctx = MakeContext(aircraft, null, cs => cs == "LEAD01" ? target : null);
+        PhaseContext ctx = MakeContext(aircraft, null, cs => cs == "LEAD01" ? target : null);
         aircraft.Phases.Start(ctx);
 
         bool completed = followPhase.OnTick(ctx);
@@ -658,13 +658,13 @@ public class GroundPhaseTests
     public void FollowingPhase_BehindStoppedLead_ClosesUpToStopDistance()
     {
         // Lead parked, engines running, not moving.
-        var lead = MakeGroundAircraft(37.623, -122.380, heading: 0);
+        AircraftState lead = MakeGroundAircraft(37.623, -122.380, heading: 0);
         lead.Callsign = "LEAD01";
         lead.IndicatedAirspeed = 0;
 
         // Follower directly behind the lead, just inside the follow distance, still rolling at 5 kt.
         double startGapNm = FollowingPhase.FollowDistanceNm - 0.002;
-        var follower = MakeGroundAircraft(37.623 - (startGapNm / 60.0), -122.380, heading: 0);
+        AircraftState follower = MakeGroundAircraft(37.623 - (startGapNm / 60.0), -122.380, heading: 0);
         follower.IndicatedAirspeed = 5;
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase("LEAD01"));
@@ -722,11 +722,11 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_SpeedRecoversAfterConflictClears()
     {
-        var aircraft = MakeGroundAircraft(heading: 90);
+        AircraftState aircraft = MakeGroundAircraft(heading: 90);
         aircraft.Phases = new PhaseList();
-        var phase = SimplePush(aircraft);
+        PushbackPhase phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
         // Let physics ramp up to pushback speed
@@ -760,12 +760,12 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_OnStart_ClearsTargetHeading()
     {
-        var aircraft = MakeGroundAircraft();
+        AircraftState aircraft = MakeGroundAircraft();
         aircraft.Targets.TargetTrueHeading = new TrueHeading(270);
         aircraft.Phases = new PhaseList();
-        var phase = SimplePush(aircraft);
+        PushbackPhase phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
         Assert.Null(aircraft.Targets.TargetTrueHeading);
@@ -785,8 +785,8 @@ public class GroundPhaseTests
         double accel = CategoryPerformance.TugAccelRate(AircraftCategory.Jet);
         double decel = CategoryPerformance.TugDecelRate(AircraftCategory.Jet);
 
-        var completing = MakeGroundAircraft();
-        var (completingPhase, completingCtx) = StartPush(completing, TugMove.Straight(PushbackLegKind.Push, 50.0));
+        AircraftState completing = MakeGroundAircraft();
+        (PushbackPhase? completingPhase, PhaseContext? completingCtx) = StartPush(completing, TugMove.Straight(PushbackLegKind.Push, 50.0));
 
         Assert.Equal(accel, completingCtx.Targets.DesiredAccelRate!.Value, 1e-9);
         Assert.Equal(decel, completingCtx.Targets.DesiredDecelRate!.Value, 1e-9);
@@ -796,8 +796,8 @@ public class GroundPhaseTests
         Assert.Null(completingCtx.Targets.DesiredAccelRate);
         Assert.Null(completingCtx.Targets.DesiredDecelRate);
 
-        var skipping = MakeGroundAircraft();
-        var (skippingPhase, skippingCtx) = StartPush(skipping, TugMove.Straight(PushbackLegKind.Push, 50.0));
+        AircraftState skipping = MakeGroundAircraft();
+        (PushbackPhase? skippingPhase, PhaseContext? skippingCtx) = StartPush(skipping, TugMove.Straight(PushbackLegKind.Push, 50.0));
 
         Assert.Equal(accel, skippingCtx.Targets.DesiredAccelRate!.Value, 1e-9);
         Assert.Equal(decel, skippingCtx.Targets.DesiredDecelRate!.Value, 1e-9);
@@ -817,11 +817,11 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_PushTurnTo_TurnsOnlyAsItMovesAndEndsOnTheFacing()
     {
-        var aircraft = MakeGroundAircraft(heading: 0);
-        var (phase, ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90));
+        AircraftState aircraft = MakeGroundAircraft(heading: 0);
+        (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90));
         double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
 
-        var run = RunPush(aircraft, phase, ctx, 300);
+        (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 300);
 
         Assert.True(run.Completed, "the turn never completed");
         Assert.All(run.Ticks, t => AssertWithinCurvature(t, radiusFt));
@@ -836,10 +836,10 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_StraightPush_KeepsTheTowbarOnTheNoseAxis()
     {
-        var aircraft = MakeGroundAircraft(heading: 90);
-        var (phase, ctx) = StartPush(aircraft, TugMove.Straight(PushbackLegKind.Push, 50.0));
+        AircraftState aircraft = MakeGroundAircraft(heading: 90);
+        (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.Straight(PushbackLegKind.Push, 50.0));
 
-        var run = RunPush(aircraft, phase, ctx, 300);
+        (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 300);
 
         Assert.True(run.Completed, "the straight push never completed");
         Assert.All(
@@ -856,13 +856,13 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_PushTurningRight_PutsTheTowbarLeftOfTheNose()
     {
-        var aircraft = MakeGroundAircraft(heading: 0);
-        var (phase, ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90));
+        AircraftState aircraft = MakeGroundAircraft(heading: 0);
+        (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90));
         double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
         double expectedDeg = Math.Atan(WheelbaseFt(aircraft.AircraftType) / radiusFt) * (180.0 / Math.PI);
 
-        var run = RunPush(aircraft, phase, ctx, 300);
-        var steering = FullRateTurns(run.Ticks, radiusFt);
+        (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 300);
+        List<PushTick> steering = FullRateTurns(run.Ticks, radiusFt);
 
         Assert.True(run.Completed, "the turn never completed");
         Assert.True(steering.Count >= 5, $"only {steering.Count} steps steered at the full rate, so the towbar angle proved nothing");
@@ -876,13 +876,13 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_PullTurningRight_PutsTheTowbarRightOfTheNose()
     {
-        var aircraft = MakeGroundAircraft(heading: 0);
-        var (phase, ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Pull, 90));
+        AircraftState aircraft = MakeGroundAircraft(heading: 0);
+        (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Pull, 90));
         double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
         double expectedDeg = Math.Atan(WheelbaseFt(aircraft.AircraftType) / radiusFt) * (180.0 / Math.PI);
 
-        var run = RunPush(aircraft, phase, ctx, 300);
-        var steering = FullRateTurns(run.Ticks, radiusFt);
+        (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 300);
+        List<PushTick> steering = FullRateTurns(run.Ticks, radiusFt);
 
         Assert.True(run.Completed, "the turn never completed");
         Assert.True(steering.Count >= 5, $"only {steering.Count} steps steered at the full rate, so the towbar angle proved nothing");
@@ -893,8 +893,8 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_OnStart_AttachesTheTowbar_AndASkippedMoveDetachesIt()
     {
-        var aircraft = MakeGroundAircraft(heading: 90);
-        var (phase, ctx) = StartPush(aircraft, TugMove.Straight(PushbackLegKind.Push, 50.0));
+        AircraftState aircraft = MakeGroundAircraft(heading: 90);
+        (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.Straight(PushbackLegKind.Push, 50.0));
 
         Assert.NotNull(aircraft.Ground.TowbarTrueHeading);
         Assert.Equal(90.0, aircraft.Ground.TowbarTrueHeading!.Value.Degrees, 9);
@@ -911,8 +911,8 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_CompletedMove_KeepsTheTowbarOnlyWhenItFlowsIntoTheNext()
     {
-        var continuing = MakeGroundAircraft(heading: 90);
-        var (continuingPhase, continuingCtx) = StartMoveContinuing(
+        AircraftState continuing = MakeGroundAircraft(heading: 90);
+        (PushbackPhase? continuingPhase, PhaseContext? continuingCtx) = StartMoveContinuing(
             continuing,
             TugMove.Straight(PushbackLegKind.Push, 50.0),
             continuesIntoNextMove: true
@@ -922,8 +922,12 @@ public class GroundPhaseTests
 
         Assert.NotNull(continuing.Ground.TowbarTrueHeading);
 
-        var stopping = MakeGroundAircraft(heading: 90);
-        var (stoppingPhase, stoppingCtx) = StartMoveContinuing(stopping, TugMove.Straight(PushbackLegKind.Push, 50.0), continuesIntoNextMove: false);
+        AircraftState stopping = MakeGroundAircraft(heading: 90);
+        (PushbackPhase? stoppingPhase, PhaseContext? stoppingCtx) = StartMoveContinuing(
+            stopping,
+            TugMove.Straight(PushbackLegKind.Push, 50.0),
+            continuesIntoNextMove: false
+        );
 
         stoppingPhase.OnEnd(stoppingCtx, PhaseStatus.Completed);
 
@@ -934,13 +938,13 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_Straight_CompletesOnlyAfterItsDistance()
     {
-        var aircraft = MakeGroundAircraft(heading: 90);
-        var start = aircraft.Position;
-        var (phase, ctx) = StartPush(aircraft, TugMove.Straight(PushbackLegKind.Push, 50.0));
+        AircraftState aircraft = MakeGroundAircraft(heading: 90);
+        LatLon start = aircraft.Position;
+        (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.Straight(PushbackLegKind.Push, 50.0));
 
         Assert.False(phase.OnTick(ctx), "completed before moving");
         FlightPhysics.Update(aircraft, 1.0);
-        var run = RunPush(aircraft, phase, ctx, 300);
+        (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 300);
 
         double pushedFt = GeoMath.DistanceNm(start, aircraft.Position) * GeoMath.FeetPerNm;
         Assert.True(run.Completed, "the straight push never completed");
@@ -955,12 +959,12 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_ToPoint_TurnsNoTighterThanTheRadius()
     {
-        var aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 90);
-        var target = GeoMath.ProjectPoint(aircraft.Position, new TrueHeading(225), 400.0 / GeoMath.FeetPerNm);
-        var (phase, ctx) = StartPush(aircraft, TugMove.ToPoint(PushbackLegKind.Push, target));
+        AircraftState aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 90);
+        LatLon target = GeoMath.ProjectPoint(aircraft.Position, new TrueHeading(225), 400.0 / GeoMath.FeetPerNm);
+        (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.ToPoint(PushbackLegKind.Push, target));
         double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
 
-        var run = RunPush(aircraft, phase, ctx, 600);
+        (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 600);
 
         Assert.True(run.Completed, "the push never reached its point");
         Assert.Equal(0.0, run.Ticks[0].NoseTurnDeg, 6);
@@ -986,11 +990,11 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_FacingSouth_PushesNorth()
     {
-        var aircraft = MakeGroundAircraft(heading: 180);
+        AircraftState aircraft = MakeGroundAircraft(heading: 180);
         aircraft.Phases = new PhaseList();
-        var phase = SimplePush(aircraft);
+        PushbackPhase phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
         // Pushback heading should be opposite of nose: 180 + 180 = 360 → 0
@@ -1001,11 +1005,11 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_FacingWest_PushesEast()
     {
-        var aircraft = MakeGroundAircraft(heading: 270);
+        AircraftState aircraft = MakeGroundAircraft(heading: 270);
         aircraft.Phases = new PhaseList();
-        var phase = SimplePush(aircraft);
+        PushbackPhase phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
         Assert.Equal(90, aircraft.Ground.PushbackTrueHeading!.Value.Degrees, 1.0);
@@ -1014,11 +1018,11 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_FacingNorth_PushesSouth()
     {
-        var aircraft = MakeGroundAircraft(heading: 360);
+        AircraftState aircraft = MakeGroundAircraft(heading: 360);
         aircraft.Phases = new PhaseList();
-        var phase = SimplePush(aircraft);
+        PushbackPhase phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
         Assert.Equal(180, aircraft.Ground.PushbackTrueHeading!.Value.Degrees, 1.0);
@@ -1029,8 +1033,8 @@ public class GroundPhaseTests
     [Fact]
     public void TaxiingPhase_PreClearedHoldShort_SkipsHoldingShortPhase()
     {
-        var layout = BuildCrossingLayout();
-        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+        AirportGroundLayout layout = BuildCrossingLayout();
+        AircraftState aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
 
         var route = new TaxiRoute
         {
@@ -1063,7 +1067,7 @@ public class GroundPhaseTests
         aircraft.Phases = new PhaseList();
         var taxiPhase = new TaxiingPhase();
         aircraft.Phases.Add(taxiPhase);
-        var ctx = MakeContext(aircraft, layout);
+        PhaseContext ctx = MakeContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         // Place at hold-short node
@@ -1097,8 +1101,8 @@ public class GroundPhaseTests
         //
         // The fix: FromSnapshot leaves _initialized=false so the next OnTick
         // re-runs SetupCurrentSegment from the route's current segment.
-        var layout = BuildCrossingLayout();
-        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+        AirportGroundLayout layout = BuildCrossingLayout();
+        AircraftState aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
 
         // 3-segment route: 0→1, 1→2, 2→3. No hold-shorts so progression is uninterrupted.
         var route = new TaxiRoute
@@ -1116,7 +1120,7 @@ public class GroundPhaseTests
         aircraft.Phases = new PhaseList();
         var taxiPhase = new TaxiingPhase();
         aircraft.Phases.Add(taxiPhase);
-        var ctx = MakeContext(aircraft, layout);
+        PhaseContext ctx = MakeContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         // Tick a few times so the phase initialises and the aircraft moves a bit
@@ -1137,12 +1141,12 @@ public class GroundPhaseTests
         var dto = (TaxiingPhaseDto)taxiPhase.ToSnapshot();
         var restored = TaxiingPhase.FromSnapshot(dto);
 
-        var restoredAircraft = MakeGroundAircraft(aircraft.Position.Lat, aircraft.Position.Lon, heading: 0);
+        AircraftState restoredAircraft = MakeGroundAircraft(aircraft.Position.Lat, aircraft.Position.Lon, heading: 0);
         restoredAircraft.IndicatedAirspeed = aircraft.IndicatedAirspeed;
         restoredAircraft.Ground.AssignedTaxiRoute = route;
         restoredAircraft.Phases = new PhaseList();
         restoredAircraft.Phases.Add(restored);
-        var restoredCtx = MakeContext(restoredAircraft, layout);
+        PhaseContext restoredCtx = MakeContext(restoredAircraft, layout);
 
         int idxBefore = route.CurrentSegmentIndex;
         restored.OnTick(restoredCtx);
@@ -1174,11 +1178,11 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_WhenHeld_SetsTargetSpeedZero()
     {
-        var aircraft = MakeGroundAircraft();
+        AircraftState aircraft = MakeGroundAircraft();
         aircraft.Phases = new PhaseList();
-        var phase = SimplePush(aircraft);
+        PushbackPhase phase = SimplePush(aircraft);
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
         // Tick once to get moving
@@ -1209,13 +1213,13 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_LargeTurn_StartsMovingAtOnceWithNoPivot()
     {
-        var aircraft = MakeGroundAircraft(heading: 0);
-        var (phase, ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 180) with { Tight = true });
+        AircraftState aircraft = MakeGroundAircraft(heading: 0);
+        (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 180) with { Tight = true });
 
         Assert.Equal(180.0, aircraft.Ground.PushbackTrueHeading!.Value.Degrees, 6);
         Assert.True(ctx.Targets.TargetSpeed > 0, "the push did not ask for speed");
 
-        var run = RunPush(aircraft, phase, ctx, 5);
+        (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 5);
 
         Assert.True(run.Ticks.Sum(t => t.MovedFt) > 1.0, "the aircraft did not move");
         double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: true);
@@ -1226,13 +1230,13 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_Pull_LeadsWithTheNose()
     {
-        var aircraft = MakeGroundAircraft(heading: 30);
-        var start = aircraft.Position;
-        var target = GeoMath.ProjectPoint(start, new TrueHeading(30), 200.0 / GeoMath.FeetPerNm);
-        var (phase, ctx) = StartPush(aircraft, TugMove.ToPoint(PushbackLegKind.Pull, target));
+        AircraftState aircraft = MakeGroundAircraft(heading: 30);
+        LatLon start = aircraft.Position;
+        LatLon target = GeoMath.ProjectPoint(start, new TrueHeading(30), 200.0 / GeoMath.FeetPerNm);
+        (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.ToPoint(PushbackLegKind.Pull, target));
 
         Assert.Null(aircraft.Ground.PushbackTrueHeading);
-        var run = RunPush(aircraft, phase, ctx, 10);
+        (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 10);
 
         Assert.All(run.Ticks, t => Assert.Null(t.PushGapDeg));
         Assert.True(run.Ticks.Sum(t => t.MovedFt) > 10.0, "the pull did not move the aircraft");
@@ -1246,12 +1250,12 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_DwellBefore_HoldsStillForTheDwellThenMoves()
     {
-        var aircraft = MakeGroundAircraft(heading: 0);
-        var start = aircraft.Position;
-        var (phase, ctx) = StartPush(aircraft, TugMove.Straight(PushbackLegKind.Push, 50.0) with { DwellBefore = true });
+        AircraftState aircraft = MakeGroundAircraft(heading: 0);
+        LatLon start = aircraft.Position;
+        (PushbackPhase? phase, PhaseContext? ctx) = StartPush(aircraft, TugMove.Straight(PushbackLegKind.Push, 50.0) with { DwellBefore = true });
         int dwellTicks = (int)PushbackPhase.DwellSeconds;
 
-        var dwell = RunPush(aircraft, phase, ctx, dwellTicks);
+        (bool Completed, List<PushTick> Ticks) dwell = RunPush(aircraft, phase, ctx, dwellTicks);
 
         Assert.All(dwell.Ticks, t => Assert.Equal(0.0, t.MovedFt, 9));
         Assert.All(dwell.Ticks, t => Assert.Equal(0.0, t.NoseTurnDeg, 9));
@@ -1259,7 +1263,7 @@ public class GroundPhaseTests
         Assert.Equal(0, ctx.Targets.TargetSpeed ?? 0);
         Assert.Equal(start, aircraft.Position);
 
-        var moving = RunPush(aircraft, phase, ctx, 1);
+        (bool Completed, List<PushTick> Ticks) moving = RunPush(aircraft, phase, ctx, 1);
         Assert.True(moving.Ticks[0].MovedFt > 0.0, "the push did not move once the dwell was over");
     }
 
@@ -1275,7 +1279,7 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_StandPushOff_AmendableAndNoRampPriorityUntilItHasMoved()
     {
-        var aircraft = MakeGroundAircraft(heading: 0);
+        AircraftState aircraft = MakeGroundAircraft(heading: 0);
         var standPose = new TugPose(aircraft.Position, 0);
         var move = TugMove.Straight(PushbackLegKind.Push, 100.0);
         var phase = new PushbackPhase
@@ -1289,15 +1293,15 @@ public class GroundPhaseTests
         };
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
         Assert.True(phase.CanAmend(aircraft));
         Assert.False(phase.HasRampPriority(aircraft));
-        Assert.True(phase.TryGetPushLegEnd(aircraft, out var end));
+        Assert.True(phase.TryGetPushLegEnd(aircraft, out LatLon end));
         Assert.Equal(phase.PlannedEnd, end);
 
-        var run = RunPush(aircraft, phase, ctx, 300);
+        (bool Completed, List<PushTick> Ticks) run = RunPush(aircraft, phase, ctx, 300);
 
         Assert.True(run.Completed);
         Assert.True(phase.HasRampPriority(aircraft), "a 100 ft push-off left a B738 on its stand");
@@ -1312,8 +1316,12 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_MoveContinuingThePushOff_NotAmendableAndKeepsRampPriority()
     {
-        var aircraft = MakeGroundAircraft(heading: 0);
-        var (phase, _) = StartMoveOffTheStand(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90), continuesStandPushOff: true);
+        AircraftState aircraft = MakeGroundAircraft(heading: 0);
+        (PushbackPhase? phase, PhaseContext _) = StartMoveOffTheStand(
+            aircraft,
+            TugMove.TurnTo(PushbackLegKind.Push, 90),
+            continuesStandPushOff: true
+        );
 
         Assert.False(phase.CanAmend(aircraft));
         Assert.True(phase.HasRampPriority(aircraft), "a move flown through from the push-off lost the push's ramp priority");
@@ -1326,8 +1334,12 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_MoveAfterAReversal_HasNoRampPriority()
     {
-        var aircraft = MakeGroundAircraft(heading: 0);
-        var (phase, _) = StartMoveOffTheStand(aircraft, TugMove.TurnTo(PushbackLegKind.Push, 90), continuesStandPushOff: false);
+        AircraftState aircraft = MakeGroundAircraft(heading: 0);
+        (PushbackPhase? phase, PhaseContext _) = StartMoveOffTheStand(
+            aircraft,
+            TugMove.TurnTo(PushbackLegKind.Push, 90),
+            continuesStandPushOff: false
+        );
 
         Assert.False(phase.CanAmend(aircraft));
         Assert.False(phase.HasRampPriority(aircraft), "a move after a reversal claimed the push-off's ramp priority");
@@ -1345,7 +1357,7 @@ public class GroundPhaseTests
         // cross runways at ~10 kts and continue into taxi without stopping.
         // OnEnd must NOT zero IndicatedAirspeed, or the aircraft loses its
         // crossing momentum and has to re-accelerate from zero.
-        var aircraft = MakeGroundAircraft();
+        AircraftState aircraft = MakeGroundAircraft();
         aircraft.IndicatedAirspeed = 10; // mid-crossing speed
         var phase = new CrossingRunwayPhase(approachNodeId: 1, targetNodeId: 2, runwayId: "28L");
 
@@ -1373,8 +1385,8 @@ public class GroundPhaseTests
         // EXPEDITE on the ground bumps the taxi cap by TaxiExpediteMultiplier
         // (jet 30 kts → 39 kts). Verified by the navigator's MaxSpeedKts after
         // a tick of TaxiingPhase with the flag set.
-        var layout = BuildCrossingLayout();
-        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+        AirportGroundLayout layout = BuildCrossingLayout();
+        AircraftState aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
 
         var route = new TaxiRoute
         {
@@ -1385,7 +1397,7 @@ public class GroundPhaseTests
         aircraft.Phases = new PhaseList();
         var taxi = new TaxiingPhase();
         aircraft.Phases.Add(taxi);
-        var ctx = MakeContext(aircraft, layout);
+        PhaseContext ctx = MakeContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         Assert.Equal(CategoryPerformance.TaxiSpeed(AircraftCategory.Jet), taxi.NavMaxSpeedKts, precision: 3);
@@ -1411,7 +1423,7 @@ public class GroundPhaseTests
         // rolling. The other ground-movement phases (CrossingRunwayPhase,
         // PushbackPhase, TaxiingPhase, etc.) all honor IsImmobile; RunwayExitPhase
         // must too.
-        var aircraft = MakeGroundAircraft();
+        AircraftState aircraft = MakeGroundAircraft();
         aircraft.Phases = new PhaseList();
         var phase = new RunwayExitPhase();
         var ctx = new PhaseContext
@@ -1438,8 +1450,8 @@ public class GroundPhaseTests
         // IndicatedAirspeed down without pinning Targets.TargetSpeed — generic
         // physics kept re-accelerating toward the stale taxi target every sub-tick,
         // so the aircraft never stopped (two held aircraft met head-on at OAK).
-        var layout = BuildCrossingLayout();
-        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+        AirportGroundLayout layout = BuildCrossingLayout();
+        AircraftState aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
 
         var route = new TaxiRoute
         {
@@ -1450,7 +1462,7 @@ public class GroundPhaseTests
         aircraft.Phases = new PhaseList();
         var taxi = new TaxiingPhase();
         aircraft.Phases.Add(taxi);
-        var ctx = MakeContext(aircraft, layout);
+        PhaseContext ctx = MakeContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         aircraft.IndicatedAirspeed = 15;
@@ -1499,8 +1511,8 @@ public class GroundPhaseTests
     [InlineData("Following")]
     public void GroundMotionPhase_WhenHeld_LeavesNoSpeedTarget(string phaseName)
     {
-        var layout = BuildCrossingLayout();
-        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+        AirportGroundLayout layout = BuildCrossingLayout();
+        AircraftState aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
         var route = new TaxiRoute
         {
             Segments = [new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) }],
@@ -1526,7 +1538,7 @@ public class GroundPhaseTests
 
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft, layout);
+        PhaseContext ctx = MakeContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         aircraft.IndicatedAirspeed = 15;
@@ -1550,13 +1562,13 @@ public class GroundPhaseTests
     [Fact]
     public void RunwayHoldingPhase_WhenHolding_RepublishesZeroSpeedTargetEveryTick()
     {
-        var layout = BuildCrossingLayout();
-        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+        AirportGroundLayout layout = BuildCrossingLayout();
+        AircraftState aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
         var phase = new RunwayHoldingPhase("28L/10R");
 
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
-        var ctx = MakeContext(aircraft, layout);
+        PhaseContext ctx = MakeContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         // A stale target from the phase that ran before the hold.

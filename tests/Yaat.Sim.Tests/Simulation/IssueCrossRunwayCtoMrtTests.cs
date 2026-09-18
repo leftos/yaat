@@ -1,10 +1,12 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -56,7 +58,7 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
     [Fact]
     public void N629PU_CtoMrt28RFrom33_LinesUpOn33_AndDeparts()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -64,8 +66,8 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -74,7 +76,7 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
             engine.Replay(recording, 0);
 
             // Restore just before the recorded CTO MRT 28R (t=2053).
-            var snapshot = archive.ReadSnapshotAt(2050);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(2050);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=2050 — skipping");
@@ -82,7 +84,7 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
             }
             engine.RestoreFromSnapshot(snapshot.State);
 
-            var pre = engine.FindAircraft("N629PU");
+            AircraftState? pre = engine.FindAircraft("N629PU");
             Assert.NotNull(pre);
             Assert.IsType<HoldingShortPhase>(pre.Phases?.CurrentPhase);
             double fieldElev = pre.Altitude;
@@ -91,12 +93,12 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
             );
 
             // Issue the exact command the controller gave.
-            var cmd = engine.SendCommand("N629PU", "CTO MRT 28R");
+            CommandResult cmd = engine.SendCommand("N629PU", "CTO MRT 28R");
             Assert.True(cmd.Success, $"CTO MRT 28R rejected: {cmd.Message}");
 
             // The lineup must target runway 33 (true ~344°), NOT 28R (~292°).
-            var afterCmd = engine.FindAircraft("N629PU");
-            var lineup = afterCmd!.Phases?.Phases.OfType<LineUpPhase>().FirstOrDefault();
+            AircraftState? afterCmd = engine.FindAircraft("N629PU");
+            LineUpPhase? lineup = afterCmd!.Phases?.Phases.OfType<LineUpPhase>().FirstOrDefault();
             Assert.NotNull(lineup);
             // PatternRunway records the 28R circuit runway; DepartureRunway records 33.
             Assert.Equal("28R", afterCmd.Phases?.PatternRunway?.Designator);
@@ -108,7 +110,7 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
             for (int t = 1; t <= 150; t++)
             {
                 engine.TickOneSecond();
-                var ac = engine.FindAircraft("N629PU");
+                AircraftState? ac = engine.FindAircraft("N629PU");
                 if (ac is null)
                 {
                     break;
@@ -126,7 +128,7 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
             Assert.True(airborne, "N629PU never departed runway 33 after CTO MRT 28R (stuck lining up)");
 
             // After departing it must join the 28R closed-traffic circuit.
-            var post = engine.FindAircraft("N629PU");
+            AircraftState? post = engine.FindAircraft("N629PU");
             Assert.NotNull(post);
             bool inCircuit =
                 post.Phases?.Phases.Any(p =>
@@ -139,7 +141,7 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
     [Fact]
     public void N629PU_FirstCircuit_UpwindOnDepartureRunway_ThenJoins28R()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -147,28 +149,28 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
             engine.Replay(recording, 0);
-            var snapshot = archive.ReadSnapshotAt(2050);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(2050);
             if (snapshot is null)
             {
                 return;
             }
             engine.RestoreFromSnapshot(snapshot.State);
 
-            var cmd = engine.SendCommand("N629PU", "CTO MRT 28R");
+            CommandResult cmd = engine.SendCommand("N629PU", "CTO MRT 28R");
             Assert.True(cmd.Success);
 
-            var ac = engine.FindAircraft("N629PU");
+            AircraftState? ac = engine.FindAircraft("N629PU");
             // First circuit: upwind anchored to the departure runway (33, true
             // ~344°), then a join leg, then the 28R downwind onward.
-            var upwind = ac!.Phases?.Phases.OfType<UpwindPhase>().FirstOrDefault();
+            UpwindPhase? upwind = ac!.Phases?.Phases.OfType<UpwindPhase>().FirstOrDefault();
             Assert.NotNull(upwind);
             Assert.NotNull(upwind!.Waypoints);
             double upwindHdg = upwind.Waypoints!.UpwindHeading.Degrees;
@@ -182,7 +184,7 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
     [Fact]
     public void N785Q_CtocDuringLineUp_HoldsPositionImmediately_ThenResumesOnCto()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -190,8 +192,8 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -203,14 +205,14 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
             // it is holding short (before the CTO) and drive it with commands —
             // restoring mid-LineUp re-runs OnStart with a stale ctx.Runway and
             // faults (a harness artifact, not the bug under test).
-            var snapshot = archive.ReadSnapshotAt(2160);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(2160);
             if (snapshot is null)
             {
                 return;
             }
             engine.RestoreFromSnapshot(snapshot.State);
 
-            var pre = engine.FindAircraft("N785Q");
+            AircraftState? pre = engine.FindAircraft("N785Q");
             if (pre?.Phases?.CurrentPhase is not HoldingShortPhase)
             {
                 output.WriteLine($"N785Q not holding short at t=2160 (phase={pre?.Phases?.CurrentPhase?.Name}) — skipping");
@@ -223,7 +225,7 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
             for (int t = 1; t <= 15; t++)
             {
                 engine.TickOneSecond();
-                var ac = engine.FindAircraft("N785Q");
+                AircraftState? ac = engine.FindAircraft("N785Q");
                 if (ac?.Phases?.CurrentPhase is LineUpPhase && ac.IndicatedAirspeed > 2.0)
                 {
                     liningUp = true;
@@ -232,7 +234,7 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
             }
             Assert.True(liningUp, "N785Q never started rolling into the line-up after CTO");
 
-            var ctoc = engine.SendCommand("N785Q", "CTOC");
+            CommandResult ctoc = engine.SendCommand("N785Q", "CTOC");
             Assert.True(ctoc.Success, $"CTOC rejected: {ctoc.Message}");
             Assert.Contains("hold in position", ctoc.Message!, System.StringComparison.OrdinalIgnoreCase);
 
@@ -244,20 +246,20 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
             {
                 engine.TickOneSecond();
             }
-            var held = engine.FindAircraft("N785Q");
+            AircraftState? held = engine.FindAircraft("N785Q");
             Assert.NotNull(held);
             Assert.IsType<LineUpPhase>(held.Phases?.CurrentPhase);
             Assert.True(held.IndicatedAirspeed < 1.0, $"N785Q should be stopped (hold position) but IAS={held.IndicatedAirspeed:F1}");
 
             // Re-clearing for takeoff resumes the line-up and departs.
-            var cto = engine.SendCommand("N785Q", "CTO");
+            CommandResult cto = engine.SendCommand("N785Q", "CTO");
             Assert.True(cto.Success, $"CTO rejected: {cto.Message}");
             double fieldElev = held.Altitude;
             bool airborne = false;
             for (int t = 1; t <= 120; t++)
             {
                 engine.TickOneSecond();
-                var ac = engine.FindAircraft("N785Q");
+                AircraftState? ac = engine.FindAircraft("N785Q");
                 if (ac is null)
                 {
                     break;

@@ -24,16 +24,16 @@ public sealed class HoldShortRestoreTests
     /// <summary>Finds a hold-short node with a named taxiway edge to a neighbour, so a one-segment route can be built.</summary>
     private static (GroundNode HoldShort, GroundNode Neighbour, IGroundEdge Edge)? FindHoldShortWithEdge(AirportGroundLayout layout, string runwayId)
     {
-        foreach (var holdShort in layout.GetRunwayHoldShortNodes(runwayId))
+        foreach (GroundNode holdShort in layout.GetRunwayHoldShortNodes(runwayId))
         {
-            foreach (var edge in holdShort.Edges)
+            foreach (IGroundEdge edge in holdShort.Edges)
             {
                 if (string.IsNullOrEmpty(edge.TaxiwayName))
                 {
                     continue;
                 }
 
-                foreach (var node in edge.Nodes)
+                foreach (GroundNode node in edge.Nodes)
                 {
                     if (node.Id != holdShort.Id)
                     {
@@ -49,19 +49,19 @@ public sealed class HoldShortRestoreTests
     [Fact]
     public void RestoredHoldingShort_KeepsTailOverRunway_SoClrwyStaysAvailable()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
         }
 
-        var found = FindHoldShortWithEdge(layout, "28R");
+        (GroundNode HoldShort, GroundNode Neighbour, IGroundEdge Edge)? found = FindHoldShortWithEdge(layout, "28R");
         if (found is null)
         {
             return;
         }
 
-        var (holdShortNode, neighbour, edge) = found.Value;
+        (GroundNode? holdShortNode, GroundNode? neighbour, IGroundEdge? edge) = found.Value;
 
         // The issue-#172 "W2" state: holding short of a taxiway with the tail still over a runway.
         var holdShort = new HoldShortPoint
@@ -98,7 +98,7 @@ public sealed class HoldShortRestoreTests
         Assert.False(live.CanAcceptCommand(CanonicalCommandType.ClearRunway).IsRejected);
 
         var restored = AircraftState.FromSnapshot(aircraft.ToSnapshot(), layout);
-        var restoredPhase = Assert.IsType<HoldingShortPhase>(restored.Phases?.CurrentPhase);
+        HoldingShortPhase restoredPhase = Assert.IsType<HoldingShortPhase>(restored.Phases?.CurrentPhase);
 
         Assert.NotNull(restoredPhase.HoldShort.TailOverRunwayNodeId);
         Assert.False(

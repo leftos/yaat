@@ -5,7 +5,7 @@ internal static class FilletPlanConsistency
     public static void ValidateCutReferences(FilletPlan plan)
     {
         var cutIds = plan.Cuts.Keys.ToHashSet();
-        var stableAnchors = plan.StableAnchoredEndpointIds;
+        IReadOnlySet<int> stableAnchors = plan.StableAnchoredEndpointIds;
 
         void RequireEndpoint(FilletEndpoint ep, string context)
         {
@@ -30,19 +30,19 @@ internal static class FilletPlanConsistency
             }
         }
 
-        foreach (var op in plan.CornerArcs)
+        foreach (CornerArcOp op in plan.CornerArcs)
         {
             RequireEndpoint(op.EndpointAtArmA, $"CornerArc corner {op.CornerId} armA");
             RequireEndpoint(op.EndpointAtArmB, $"CornerArc corner {op.CornerId} armB");
         }
 
-        foreach (var op in plan.StraightConnectors)
+        foreach (StraightConnectorOp op in plan.StraightConnectors)
         {
             RequireEndpoint(op.EndpointAtArmA, $"StraightConnector J{op.JunctionNodeId} corner {op.CornerId} armA");
             RequireEndpoint(op.EndpointAtArmB, $"StraightConnector J{op.JunctionNodeId} corner {op.CornerId} armB");
         }
 
-        foreach (var op in plan.SurvivingEdges)
+        foreach (SurvivingEdgeOp op in plan.SurvivingEdges)
         {
             if (op.From is FilletEndpoint.Cut fromCut)
             {
@@ -72,7 +72,7 @@ internal static class FilletPlanConsistency
             }
         }
 
-        foreach (var op in plan.SurvivingEdges)
+        foreach (SurvivingEdgeOp op in plan.SurvivingEdges)
         {
             if (op.From is FilletEndpoint.Node fromNode)
             {

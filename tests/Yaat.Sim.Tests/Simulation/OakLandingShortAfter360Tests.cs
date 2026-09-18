@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -50,8 +51,8 @@ public class OakLandingShortAfter360Tests(ITestOutputHelper output)
     [Fact]
     public void L360OnFinal_TouchesDownOnRunway_NotShortOfThreshold()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -60,12 +61,12 @@ public class OakLandingShortAfter360Tests(ITestOutputHelper output)
         // Start just before the L360 (t=1048); N2BP is already established on final.
         engine.Replay(recording, 1000);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
         Assert.NotNull(ac.Phases.AssignedRunway);
 
-        var runway = ac.Phases.AssignedRunway;
+        RunwayInfo runway = ac.Phases.AssignedRunway;
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
 
         bool reachedGround = false;

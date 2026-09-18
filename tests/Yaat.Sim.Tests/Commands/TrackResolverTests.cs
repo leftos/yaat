@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -53,9 +54,9 @@ public class TrackResolverTests
     {
         Assert.SkipWhen(_zoa is null, "ZOA config not available");
         var student = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
-        var scenario = Scenario(student, new Tcp(3, "O", "tcp-3o", null), _zoa);
+        SimScenarioState scenario = Scenario(student, new Tcp(3, "O", "tcp-3o", null), _zoa);
 
-        var ground = TrackResolver.ResolveTcpToOwner(scenario, "OAK_GND");
+        TrackOwner? ground = TrackResolver.ResolveTcpToOwner(scenario, "OAK_GND");
 
         Assert.NotNull(ground);
         Assert.Equal("OAK_GND", ground.Callsign);
@@ -67,15 +68,15 @@ public class TrackResolverTests
     public void ResolveTcpToOwner_CallsignAtCode_PicksAmongPositionsSharingACallsign()
     {
         Assert.SkipWhen(_zoa is null, "ZOA config not available");
-        var scenario = Scenario(TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O"), new Tcp(3, "O", "tcp-3o", null), _zoa);
-        var byCallsign = TrackResolver.ResolveTcpToOwner(scenario, "NCT_APP");
-        var byCode = TrackResolver.ResolveTcpToOwner(scenario, "1M");
+        SimScenarioState scenario = Scenario(TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O"), new Tcp(3, "O", "tcp-3o", null), _zoa);
+        TrackOwner? byCallsign = TrackResolver.ResolveTcpToOwner(scenario, "NCT_APP");
+        TrackOwner? byCode = TrackResolver.ResolveTcpToOwner(scenario, "1M");
         Assert.NotNull(byCallsign);
         Assert.NotNull(byCode);
         Assert.NotEqual("M", byCallsign.SectorId);
         Assert.NotEqual("NCT_APP", byCode.Callsign);
 
-        var qualified = TrackResolver.ResolveTcpToOwner(scenario, "NCT_APP@1M");
+        TrackOwner? qualified = TrackResolver.ResolveTcpToOwner(scenario, "NCT_APP@1M");
 
         Assert.NotNull(qualified);
         Assert.Equal("NCT_APP", qualified.Callsign);
@@ -90,7 +91,7 @@ public class TrackResolverTests
         var student = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "O");
         var ground = TrackOwner.CreateStars("OAK_GND", "OAK", 3, "O");
         var tcp = new Tcp(3, "O", "tcp-3o", null);
-        var scenario = Scenario(student, tcp, config: null, Atc(ground, tcp));
+        SimScenarioState scenario = Scenario(student, tcp, config: null, Atc(ground, tcp));
 
         Assert.Equal(student, TrackResolver.ResolveTcpToOwner(scenario, "3O"));
     }
@@ -100,7 +101,7 @@ public class TrackResolverTests
     {
         var student = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "O");
         var dep = TrackOwner.CreateStars("SFO_DEP", "NCT", 4, "U");
-        var scenario = Scenario(student, new Tcp(3, "O", "tcp-3o", null), config: null, Atc(dep, new Tcp(4, "U", "tcp-4u", null)));
+        SimScenarioState scenario = Scenario(student, new Tcp(3, "O", "tcp-3o", null), config: null, Atc(dep, new Tcp(4, "U", "tcp-4u", null)));
 
         Assert.Equal(dep, TrackResolver.ResolveTcpToOwner(scenario, "4u"));
         Assert.Null(TrackResolver.ResolveTcpToOwner(scenario, "2B"));
@@ -114,8 +115,8 @@ public class TrackResolverTests
             return;
         }
 
-        var scenario = Scenario(NctApproach(), null, _zoa);
-        var expected = _zoa.ResolveStarsHandoffCode("NCT", "`3");
+        SimScenarioState scenario = Scenario(NctApproach(), null, _zoa);
+        TrackOwner? expected = _zoa.ResolveStarsHandoffCode("NCT", "`3");
         Assert.NotNull(expected);
 
         Assert.Equal(expected, TrackResolver.ResolveTcpToOwner(scenario, "`3"));
@@ -130,14 +131,14 @@ public class TrackResolverTests
             return;
         }
 
-        var scenario = Scenario(NctApproach(), null, _zoa);
+        SimScenarioState scenario = Scenario(NctApproach(), null, _zoa);
 
-        var boulder = TrackResolver.ResolveTcpToOwner(scenario, "2B");
+        TrackOwner? boulder = TrackResolver.ResolveTcpToOwner(scenario, "2B");
         Assert.NotNull(boulder);
         Assert.Equal("NCT", boulder.FacilityId);
         Assert.Equal(2, boulder.Subset);
 
-        var eram = _zoa.ResolveEramCode("C44");
+        TrackOwner? eram = _zoa.ResolveEramCode("C44");
         Assert.NotNull(eram);
         Assert.Equal(eram, TrackResolver.ResolveTcpToOwner(scenario, "C44"));
     }
@@ -150,8 +151,8 @@ public class TrackResolverTests
             return;
         }
 
-        var scenario = Scenario(student: null, studentTcp: null, _zoa);
-        var expected = _zoa.ResolveEramToStarsHandoffCode("Q2B");
+        SimScenarioState scenario = Scenario(student: null, studentTcp: null, _zoa);
+        TrackOwner? expected = _zoa.ResolveEramToStarsHandoffCode("Q2B");
         Assert.NotNull(expected);
 
         Assert.Equal(expected, TrackResolver.ResolveTcpToOwner(scenario, "Q2B"));
@@ -162,7 +163,7 @@ public class TrackResolverTests
     [Fact]
     public void ResolveTcpToOwner_NoConfig_UnknownCodeIsNull()
     {
-        var scenario = Scenario(TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "O"), new Tcp(3, "O", "tcp-3o", null), config: null);
+        SimScenarioState scenario = Scenario(TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "O"), new Tcp(3, "O", "tcp-3o", null), config: null);
 
         Assert.Null(TrackResolver.ResolveTcpToOwner(scenario, "`3"));
         Assert.Null(TrackResolver.ResolveTcpToOwner(scenario, "C44"));
@@ -178,10 +179,10 @@ public class TrackResolverTests
 
         var dep = TrackOwner.CreateStars("SFO_DEP", "NCT", 4, "U");
         var depTcp = new Tcp(4, "U", "tcp-4u", null);
-        var scenario = Scenario(NctApproach(), null, _zoa, Atc(dep, depTcp));
+        SimScenarioState scenario = Scenario(NctApproach(), null, _zoa, Atc(dep, depTcp));
 
         Assert.Same(depTcp, TrackResolver.FindTcpByCode(scenario, "4U"));
-        var boulder = TrackResolver.FindTcpByCode(scenario, "2B");
+        Tcp? boulder = TrackResolver.FindTcpByCode(scenario, "2B");
         Assert.NotNull(boulder);
         Assert.Equal("B", boulder.SectorId);
         Assert.Null(TrackResolver.FindTcpByCode(scenario, "ZZ"));
@@ -192,7 +193,7 @@ public class TrackResolverTests
     {
         var student = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "O");
         var dep = TrackOwner.CreateStars("SFO_DEP", "NCT", 4, "U");
-        var scenario = Scenario(student, new Tcp(3, "O", "tcp-3o", null), config: null, Atc(dep, new Tcp(4, "U", "tcp-4u", null)));
+        SimScenarioState scenario = Scenario(student, new Tcp(3, "O", "tcp-3o", null), config: null, Atc(dep, new Tcp(4, "U", "tcp-4u", null)));
         var selections = new PositionSelections();
         selections.Select("conn", student);
 
@@ -205,7 +206,7 @@ public class TrackResolverTests
     {
         var student = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "O");
         var dep = TrackOwner.CreateStars("SFO_DEP", "NCT", 4, "U");
-        var scenario = Scenario(student, new Tcp(3, "O", "tcp-3o", null), config: null);
+        SimScenarioState scenario = Scenario(student, new Tcp(3, "O", "tcp-3o", null), config: null);
         var selections = new PositionSelections();
 
         Assert.Equal(student, TrackResolver.ResolveIdentity(scenario, selections, "conn", null));
@@ -223,10 +224,10 @@ public class TrackResolverTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var scenario = Scenario(student: null, studentTcp: null, _zoa);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimScenarioState scenario = Scenario(student: null, studentTcp: null, _zoa);
 
-        var identity = TrackResolver.ResolveIdentity(scenario, new PositionSelections(), AiConnectionId.Format(ground.PositionId), null);
+        TrackOwner? identity = TrackResolver.ResolveIdentity(scenario, new PositionSelections(), AiConnectionId.Format(ground.PositionId), null);
 
         Assert.Equal(ground.Identity, identity);
     }
@@ -239,10 +240,10 @@ public class TrackResolverTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
         var student = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "T");
-        var scenario = Scenario(student, new Tcp(3, "T", "tcp-3t", null), _zoa);
-        var aiConnectionId = AiConnectionId.Format(ground.PositionId);
+        SimScenarioState scenario = Scenario(student, new Tcp(3, "T", "tcp-3t", null), _zoa);
+        string aiConnectionId = AiConnectionId.Format(ground.PositionId);
         var selections = new PositionSelections();
         selections.Select(aiConnectionId, student);
 
@@ -258,7 +259,7 @@ public class TrackResolverTests
         selections.Select("b", eram);
         selections.Select("a", dep);
 
-        var snapshot = selections.Snapshot();
+        SortedDictionary<string, TrackOwner> snapshot = selections.Snapshot();
         Assert.Equal(["a", "b"], snapshot.Keys.ToArray());
 
         var restored = new PositionSelections();
@@ -266,9 +267,9 @@ public class TrackResolverTests
         restored.Restore(snapshot.ToDictionary(kv => kv.Key, kv => kv.Value.ToSnapshot()));
 
         Assert.False(restored.TryGet("stale", out _));
-        Assert.True(restored.TryGet("a", out var a));
+        Assert.True(restored.TryGet("a", out TrackOwner? a));
         Assert.Equal(dep, a);
-        Assert.True(restored.TryGet("b", out var b));
+        Assert.True(restored.TryGet("b", out TrackOwner? b));
         Assert.Equal(eram, b);
 
         restored.Restore(null);

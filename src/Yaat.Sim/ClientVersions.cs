@@ -31,21 +31,21 @@ public static class ClientVersions
             return false;
         }
 
-        var core = value.Trim();
-        var cut = core.IndexOfAny(['-', '+']);
+        string core = value.Trim();
+        int cut = core.IndexOfAny(['-', '+']);
         if (cut >= 0)
         {
             core = core[..cut];
         }
 
-        var parts = core.Split('.');
+        string[] parts = core.Split('.');
         if (parts.Length is 0 or > 3)
         {
             return false;
         }
 
-        var numbers = new int[3];
-        for (var i = 0; i < parts.Length; i++)
+        int[] numbers = new int[3];
+        for (int i = 0; i < parts.Length; i++)
         {
             if (!int.TryParse(parts[i], NumberStyles.None, CultureInfo.InvariantCulture, out numbers[i]))
             {
@@ -64,7 +64,7 @@ public static class ClientVersions
     /// </summary>
     public static bool IsOlderThan(string? candidate, string? required)
     {
-        if (!TryParse(candidate, out var have) || !TryParse(required, out var need))
+        if (!TryParse(candidate, out Version? have) || !TryParse(required, out Version? need))
         {
             return false;
         }

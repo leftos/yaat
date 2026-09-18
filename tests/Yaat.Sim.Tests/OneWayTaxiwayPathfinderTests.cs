@@ -56,11 +56,11 @@ public class OneWayTaxiwayPathfinderTests
     /// <summary>S-X-D short "C" corridor + S-Y1-Y2-D long "B" detour. Returns node ids and the C-reverse forbidden set.</summary>
     private static AirportGroundLayout Layout(out int start, out int dest, out HashSet<(int, int)> forbidCReverse)
     {
-        var s = Node(0, 37.000, -122.000);
-        var x = Node(1, 37.000, -122.010);
-        var d = Node(2, 37.000, -122.020);
-        var y1 = Node(3, 37.030, -122.000);
-        var y2 = Node(4, 37.030, -122.020);
+        GroundNode s = Node(0, 37.000, -122.000);
+        GroundNode x = Node(1, 37.000, -122.010);
+        GroundNode d = Node(2, 37.000, -122.020);
+        GroundNode y1 = Node(3, 37.030, -122.000);
+        GroundNode y2 = Node(4, 37.030, -122.020);
 
         Edge(s, x, "C");
         Edge(x, d, "C");
@@ -69,7 +69,7 @@ public class OneWayTaxiwayPathfinderTests
         Edge(y2, d, "B");
 
         var layout = new AirportGroundLayout { AirportId = "TST" };
-        foreach (var n in new[] { s, x, d, y1, y2 })
+        foreach (GroundNode? n in new[] { s, x, d, y1, y2 })
         {
             layout.Nodes[n.Id] = n;
         }
@@ -84,9 +84,9 @@ public class OneWayTaxiwayPathfinderTests
     [Fact]
     public void Auto_HardExclude_TakesDetour_AvoidingWrongWayCorridor()
     {
-        var layout = Layout(out int start, out int dest, out var forbidden);
+        AirportGroundLayout layout = Layout(out int start, out int dest, out HashSet<(int, int)>? forbidden);
 
-        var (route, failure) = AutoRouter.Run(Ctx(layout, start, dest, forbidden, OneWayMode.HardExclude));
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(Ctx(layout, start, dest, forbidden, OneWayMode.HardExclude));
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -97,9 +97,9 @@ public class OneWayTaxiwayPathfinderTests
     [Fact]
     public void Off_UsesShortCorridor_WhenNoConstraint()
     {
-        var layout = Layout(out int start, out int dest, out _);
+        AirportGroundLayout layout = Layout(out int start, out int dest, out _);
 
-        var (route, failure) = AutoRouter.Run(Ctx(layout, start, dest, new HashSet<(int, int)>(), OneWayMode.Off));
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(Ctx(layout, start, dest, new HashSet<(int, int)>(), OneWayMode.Off));
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -109,11 +109,11 @@ public class OneWayTaxiwayPathfinderTests
     [Fact]
     public void Explicit_Warn_TraversesWrongWayButFlagsIt()
     {
-        var layout = Layout(out int start, out int dest, out var forbidden);
+        AirportGroundLayout layout = Layout(out int start, out int dest, out HashSet<(int, int)>? forbidden);
 
         // Warn mode does not hard-block, so A* still picks the shorter C corridor — the wrong way — and
         // the route surfaces a warning.
-        var (route, failure) = AutoRouter.Run(Ctx(layout, start, dest, forbidden, OneWayMode.Warn));
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(Ctx(layout, start, dest, forbidden, OneWayMode.Warn));
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -124,10 +124,10 @@ public class OneWayTaxiwayPathfinderTests
     [Fact]
     public void WithFlowDirection_NoWarning()
     {
-        var layout = Layout(out int start, out int dest, out var forbidden);
+        AirportGroundLayout layout = Layout(out int start, out int dest, out HashSet<(int, int)>? forbidden);
 
         // Travelling the allowed direction D->S must not be flagged.
-        var (route, failure) = AutoRouter.Run(Ctx(layout, dest, start, forbidden, OneWayMode.Warn));
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(Ctx(layout, dest, start, forbidden, OneWayMode.Warn));
 
         Assert.Null(failure);
         Assert.NotNull(route);

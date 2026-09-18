@@ -50,7 +50,7 @@ public class SequentialTransparentCompoundTests
 
     private static CommandResult Dispatch(AircraftState ac, string input)
     {
-        var parsed = CommandParser.ParseCompound(input);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(input);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         return CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
     }
@@ -58,9 +58,9 @@ public class SequentialTransparentCompoundTests
     [Fact]
     public void TransparentLeadingBlocks_AtParking_Succeeds()
     {
-        var ac = MakeAircraftAtParking();
+        AircraftState ac = MakeAircraftAtParking();
 
-        var result = Dispatch(ac, "SQ; SQNORM; PUSH; TAXI B5 HS B");
+        CommandResult result = Dispatch(ac, "SQ; SQNORM; PUSH; TAXI B5 HS B");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(4611u, ac.Transponder.Code);
@@ -76,9 +76,9 @@ public class SequentialTransparentCompoundTests
     [Fact]
     public void TransparentLeadingBlocks_ReadbackComposesSequentially()
     {
-        var ac = MakeAircraftAtParking();
+        AircraftState ac = MakeAircraftAtParking();
 
-        var result = Dispatch(ac, "SQ; SQNORM; PUSH");
+        CommandResult result = Dispatch(ac, "SQ; SQNORM; PUSH");
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(result.Message);
@@ -89,10 +89,10 @@ public class SequentialTransparentCompoundTests
     [Fact]
     public void TransparentLeading_DriverRejected_TransparentsApplied_FailureSurfaces()
     {
-        var ac = MakeAircraftAtParking();
+        AircraftState ac = MakeAircraftAtParking();
 
         // CTO is rejected at parking; sequential semantics mean the already-peeled SQ stays applied.
-        var result = Dispatch(ac, "SQ; CTO");
+        CommandResult result = Dispatch(ac, "SQ; CTO");
 
         Assert.False(result.Success);
         Assert.Equal(4611u, ac.Transponder.Code);
@@ -117,7 +117,7 @@ public class SequentialTransparentCompoundTests
             Transponder = new AircraftTransponder { AssignedCode = 4611, Code = 7654 },
         };
 
-        var result = Dispatch(ac, "SQ; FH 270");
+        CommandResult result = Dispatch(ac, "SQ; FH 270");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(4611u, ac.Transponder.Code);
@@ -127,9 +127,9 @@ public class SequentialTransparentCompoundTests
     [Fact]
     public void TransparentLeading_ThenWait_Defers()
     {
-        var ac = MakeAircraftAtParking();
+        AircraftState ac = MakeAircraftAtParking();
 
-        var result = Dispatch(ac, "SQ; WAIT 5 PUSH");
+        CommandResult result = Dispatch(ac, "SQ; WAIT 5 PUSH");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(4611u, ac.Transponder.Code);

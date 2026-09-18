@@ -37,10 +37,10 @@ public class NoDispatcherArmMessageTests
     [Fact]
     public void GroundCommand_ToAirborneAircraft_ReturnsFriendlyMessage()
     {
-        var ac = AirborneAircraft();
+        AircraftState ac = AirborneAircraft();
         var taxi = new TaxiCommand(["W1"], [], DestinationRunway: "30");
 
-        var result = CommandDispatcher.Dispatch(taxi, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(taxi, ac, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.NotNull(result.Message);

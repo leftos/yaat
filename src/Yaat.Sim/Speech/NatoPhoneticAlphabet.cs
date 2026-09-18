@@ -80,7 +80,7 @@ public static class NatoPhoneticAlphabet
     /// </summary>
     public static bool TryGetWord(char letter, out string word)
     {
-        var upper = char.ToUpperInvariant(letter);
+        char upper = char.ToUpperInvariant(letter);
         return LetterToWord.TryGetValue(upper, out word!);
     }
 
@@ -109,14 +109,14 @@ public static class NatoPhoneticAlphabet
                 _ => c.ToString(),
             };
         }
-        var upper = char.ToUpperInvariant(c);
-        return LetterToWord.TryGetValue(upper, out var word) ? word : upper.ToString();
+        char upper = char.ToUpperInvariant(c);
+        return LetterToWord.TryGetValue(upper, out string? word) ? word : upper.ToString();
     }
 
     private static Dictionary<string, char> BuildReverseMap()
     {
         var map = new Dictionary<string, char>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (letter, word) in LetterToWord)
+        foreach ((char letter, string? word) in LetterToWord)
         {
             map[word] = letter;
         }

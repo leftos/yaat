@@ -57,12 +57,12 @@ public class SessionClockTests
     [Fact]
     public void LoadScenario_AppliesTheModelDate_ToAircraftDeclination()
     {
-        var engine2024 = LoadAndTick(Day2024);
-        var engine2026 = LoadAndTick(Day2026);
-        var engine2024Again = LoadAndTick(Day2024);
+        SimulationEngine engine2024 = LoadAndTick(Day2024);
+        SimulationEngine engine2026 = LoadAndTick(Day2026);
+        SimulationEngine engine2024Again = LoadAndTick(Day2024);
 
-        var ac2024 = engine2024.World.GetSnapshot()[0];
-        var ac2026 = engine2026.World.GetSnapshot()[0];
+        AircraftState ac2024 = engine2024.World.GetSnapshot()[0];
+        AircraftState ac2026 = engine2026.World.GetSnapshot()[0];
         Assert.Equal(Day2024, engine2024.Scenario!.MagneticModelDateUtc);
         Assert.NotEqual(ac2024.Declination, ac2026.Declination);
         Assert.Equal(ac2024.Declination, engine2024Again.World.GetSnapshot()[0].Declination);
@@ -75,10 +75,10 @@ public class SessionClockTests
     public void LoadScenario_PinsTheInstant_AndSimTimeAdvancesWithElapsed()
     {
         var engine = new SimulationEngine(new TestAirportGroundData());
-        var warnings = engine.LoadScenario(ScenarioJson, 42, Instant);
+        List<string> warnings = engine.LoadScenario(ScenarioJson, 42, Instant);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         Assert.Equal(Instant, scenario.SessionStartUtc);
         Assert.Equal(Instant.Date, scenario.MagneticModelDateUtc);
         Assert.Equal(Instant, scenario.SimTimeUtc);
@@ -93,8 +93,8 @@ public class SessionClockTests
     [Fact]
     public void Snapshot_RoundTripsTheModelDate_AndOlderSnapshotsKeepTheLoadedDate()
     {
-        var engine = LoadAndTick(Day2024);
-        var snapshot = engine.CaptureSnapshot(0);
+        SimulationEngine engine = LoadAndTick(Day2024);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot(0);
         Assert.Equal(Day2024, snapshot.Scenario.SessionStartUtc);
 
         var restored = new SimulationEngine(new TestAirportGroundData());
@@ -102,9 +102,9 @@ public class SessionClockTests
         restored.RestoreFromSnapshot(snapshot);
         Assert.Equal(Day2024, restored.Scenario!.MagneticModelDateUtc);
 
-        var legacyJson = JsonSerializer.Serialize(snapshot).Replace("\"SessionStartUtc\":\"2024-06-01T00:00:00Z\"", "\"SessionStartUtc\":null");
+        string legacyJson = JsonSerializer.Serialize(snapshot).Replace("\"SessionStartUtc\":\"2024-06-01T00:00:00Z\"", "\"SessionStartUtc\":null");
         Assert.NotEqual(JsonSerializer.Serialize(snapshot), legacyJson);
-        var legacy = JsonSerializer.Deserialize<StateSnapshotDto>(legacyJson)!;
+        StateSnapshotDto legacy = JsonSerializer.Deserialize<StateSnapshotDto>(legacyJson)!;
         var legacyEngine = new SimulationEngine(new TestAirportGroundData());
         legacyEngine.LoadScenario(ScenarioJson, 42, Day2026);
         legacyEngine.RestoreFromSnapshot(legacy);
@@ -116,10 +116,10 @@ public class SessionClockTests
     {
         var engine = new SimulationEngine(new TestAirportGroundData());
         engine.LoadScenario(ScenarioJson, 42, Instant);
-        var snapshot = engine.CaptureSnapshot(0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot(0);
         Assert.Equal(Instant, snapshot.Scenario.SessionStartUtc);
 
-        var serialized = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot))!;
+        StateSnapshotDto serialized = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot))!;
         Assert.Equal(Instant, serialized.Scenario.SessionStartUtc);
 
         var restored = new SimulationEngine(new TestAirportGroundData());
@@ -131,9 +131,9 @@ public class SessionClockTests
     [Fact]
     public void Manifest_ResolvesTheSessionStart_FromRecordedDate_ForOlderArchives()
     {
-        var explicitStart = Manifest(Day2024, Day2026.AddHours(13));
-        var recordedOnly = Manifest(null, Day2026.AddHours(13));
-        var neither = Manifest(null, null);
+        RecordingManifest explicitStart = Manifest(Day2024, Day2026.AddHours(13));
+        RecordingManifest recordedOnly = Manifest(null, Day2026.AddHours(13));
+        RecordingManifest neither = Manifest(null, null);
 
         Assert.Equal(Day2024, explicitStart.ResolveSessionStartUtc());
         Assert.Equal(Day2026, recordedOnly.ResolveSessionStartUtc());
@@ -165,7 +165,7 @@ public class SessionClockTests
         using var archive = RecordingArchive.Open(ms);
         Assert.Equal(Instant, archive.Manifest.SessionStartUtc);
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         Assert.Equal(Instant, recording.SessionStartUtc);
 
         var engine = new SimulationEngine(new TestAirportGroundData());
@@ -189,7 +189,7 @@ public class SessionClockTests
     private static SimulationEngine LoadAndTick(DateTime sessionStartUtc)
     {
         var engine = new SimulationEngine(new TestAirportGroundData());
-        var warnings = engine.LoadScenario(ScenarioJson, 42, sessionStartUtc);
+        List<string> warnings = engine.LoadScenario(ScenarioJson, 42, sessionStartUtc);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
         engine.TickOneSecond();
         return engine;

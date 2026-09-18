@@ -16,7 +16,7 @@ public static class AltitudeResolver
             return null;
         }
 
-        if (int.TryParse(arg, out var value))
+        if (int.TryParse(arg, out int value))
         {
             if (value <= 0)
             {
@@ -27,23 +27,23 @@ public static class AltitudeResolver
         }
 
         // AGL format: {airport}+{digits} e.g., "KOAK+010"
-        var plusIndex = arg.IndexOf('+');
+        int plusIndex = arg.IndexOf('+');
         if (plusIndex <= 0 || plusIndex == arg.Length - 1)
         {
             return null;
         }
 
-        var airportCode = arg[..plusIndex];
-        var digitsPart = arg[(plusIndex + 1)..];
+        string airportCode = arg[..plusIndex];
+        string digitsPart = arg[(plusIndex + 1)..];
 
-        if (!int.TryParse(digitsPart, out var aglValue) || aglValue <= 0)
+        if (!int.TryParse(digitsPart, out int aglValue) || aglValue <= 0)
         {
             return null;
         }
 
         int aglAltitude = aglValue < 1000 ? aglValue * 100 : aglValue;
 
-        var elevation = NavigationDatabase.Instance.GetAirportElevation(airportCode);
+        double? elevation = NavigationDatabase.Instance.GetAirportElevation(airportCode);
         if (elevation is null)
         {
             return null;

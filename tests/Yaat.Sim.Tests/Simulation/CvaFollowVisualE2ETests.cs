@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
@@ -54,33 +55,33 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
     [Fact]
     public void CvaFollow_LeaderVisual_TrailerVisual_BothLand()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var (leader, trailer) = SpawnPairOnFinalForRunway30(engine);
+        (AircraftState? leader, AircraftState? trailer) = SpawnPairOnFinalForRunway30(engine);
 
-        var leadRfis = engine.SendCommand("LEAD1", "RFIS");
+        CommandResult leadRfis = engine.SendCommand("LEAD1", "RFIS");
         output.WriteLine($"LEAD1 RFIS: {leadRfis.Success} — {leadRfis.Message}");
         Assert.True(leadRfis.Success, $"Leader RFIS failed: {leadRfis.Message}");
 
-        var leadCva = engine.SendCommand("LEAD1", "CVA 30");
+        CommandResult leadCva = engine.SendCommand("LEAD1", "CVA 30");
         output.WriteLine($"LEAD1 CVA 30: {leadCva.Success} — {leadCva.Message}");
         Assert.True(leadCva.Success, $"Leader CVA 30 failed: {leadCva.Message}");
         AssertNoPatternPhases(leader, "LEAD1");
         Assert.Contains(typeof(FinalApproachPhase), leader.Phases!.Phases.Select(p => p.GetType()));
         Assert.Contains(typeof(LandingPhase), leader.Phases.Phases.Select(p => p.GetType()));
 
-        var leadCland = engine.SendCommand("LEAD1", "CLAND");
+        CommandResult leadCland = engine.SendCommand("LEAD1", "CLAND");
         output.WriteLine($"LEAD1 CLAND: {leadCland.Success} — {leadCland.Message}");
         Assert.True(leadCland.Success, $"Leader CLAND failed: {leadCland.Message}");
         Assert.Equal(ClearanceType.ClearedToLand, leader.Phases.LandingClearance);
 
         IssueTrailerRtisAndCvaFollow(engine, trailer);
 
-        var trailCland = engine.SendCommand("TRAIL1", "CLAND");
+        CommandResult trailCland = engine.SendCommand("TRAIL1", "CLAND");
         output.WriteLine($"TRAIL1 CLAND: {trailCland.Success} — {trailCland.Message}");
         Assert.True(trailCland.Success, $"Trailer CLAND failed: {trailCland.Message}");
         Assert.Equal(ClearanceType.ClearedToLand, trailer.Phases?.LandingClearance);
@@ -96,15 +97,15 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
     [Fact]
     public void CvaFollow_LeaderIls_TrailerVisual_BothLand()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var (leader, trailer) = SpawnPairOnFinalForRunway30(engine);
+        (AircraftState? leader, AircraftState? trailer) = SpawnPairOnFinalForRunway30(engine);
 
-        var leadCapp = engine.SendCommand("LEAD1", "CAPP I30");
+        CommandResult leadCapp = engine.SendCommand("LEAD1", "CAPP I30");
         output.WriteLine($"LEAD1 CAPP I30: {leadCapp.Success} — {leadCapp.Message}");
         Assert.True(leadCapp.Success, $"Leader CAPP I30 failed: {leadCapp.Message}");
         var leaderPhases = leader.Phases!.Phases.Select(p => p.GetType()).ToList();
@@ -116,13 +117,13 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
         Assert.Contains(typeof(LandingPhase), leaderPhases);
         AssertNoPatternPhases(leader, "LEAD1");
 
-        var leadCland = engine.SendCommand("LEAD1", "CLAND");
+        CommandResult leadCland = engine.SendCommand("LEAD1", "CLAND");
         output.WriteLine($"LEAD1 CLAND: {leadCland.Success} — {leadCland.Message}");
         Assert.True(leadCland.Success, $"Leader CLAND failed: {leadCland.Message}");
 
         IssueTrailerRtisAndCvaFollow(engine, trailer);
 
-        var trailCland = engine.SendCommand("TRAIL1", "CLAND");
+        CommandResult trailCland = engine.SendCommand("TRAIL1", "CLAND");
         output.WriteLine($"TRAIL1 CLAND: {trailCland.Success} — {trailCland.Message}");
         Assert.True(trailCland.Success, $"Trailer CLAND failed: {trailCland.Message}");
 
@@ -131,8 +132,8 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
 
     private (AircraftState leader, AircraftState trailer) SpawnPairOnFinalForRunway30(SimulationEngine engine)
     {
-        var navDb = NavigationDatabase.Instance;
-        var runway30 = navDb.GetRunway("OAK", "30");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? runway30 = navDb.GetRunway("OAK", "30");
         Assert.NotNull(runway30);
 
         double finalCourse = runway30.TrueHeading.Degrees;
@@ -140,11 +141,11 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
         double thresholdLat = runway30.ThresholdLatitude;
         double thresholdLon = runway30.ThresholdLongitude;
 
-        var (leadLat, leadLon) = GeoMath.ProjectPointRaw(thresholdLat, thresholdLon, reciprocal, 10.0);
-        var (trailLat, trailLon) = GeoMath.ProjectPointRaw(thresholdLat, thresholdLon, reciprocal, 15.0);
+        (double leadLat, double leadLon) = GeoMath.ProjectPointRaw(thresholdLat, thresholdLon, reciprocal, 10.0);
+        (double trailLat, double trailLon) = GeoMath.ProjectPointRaw(thresholdLat, thresholdLon, reciprocal, 15.0);
 
-        var leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 3000);
-        var trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 3500);
+        AircraftState leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 3000);
+        AircraftState trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 3500);
         engine.World.AddAircraft(leader);
         engine.World.AddAircraft(trailer);
 
@@ -181,7 +182,7 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
     {
         // A following visual approach requires only traffic-in-sight, not field-in-sight
         // (7110.65 §7-4-3.a.2 NOTE). Report the preceding traffic in sight, then CVA FOLLOW.
-        var rtis = engine.SendCommand("TRAIL1", "RTIS LEAD1");
+        CommandResult rtis = engine.SendCommand("TRAIL1", "RTIS LEAD1");
         output.WriteLine($"TRAIL1 RTIS LEAD1: {rtis.Success} — {rtis.Message}");
         Assert.True(rtis.Success, $"Trailer RTIS failed: {rtis.Message}");
 
@@ -195,7 +196,7 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
         Assert.True(trailer.Approach.HasReportedTrafficInSight, "RTIS should resolve within 15 s at 5 nm dead-ahead with no METAR");
         Assert.Equal("LEAD1", trailer.Approach.LastReportedTrafficCallsign);
 
-        var cva = engine.SendCommand("TRAIL1", "CVA 30 FOLLOW LEAD1");
+        CommandResult cva = engine.SendCommand("TRAIL1", "CVA 30 FOLLOW LEAD1");
         output.WriteLine($"TRAIL1 CVA 30 FOLLOW LEAD1: {cva.Success} — {cva.Message}");
         Assert.True(cva.Success, $"Trailer CVA FOLLOW failed: {cva.Message}");
         Assert.Equal("LEAD1", trailer.Approach.FollowingCallsign);
@@ -222,7 +223,7 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
         {
             engine.TickOneSecond();
 
-            foreach (var ac in aircraft)
+            foreach (AircraftState ac in aircraft)
             {
                 if (!landed[ac.Callsign] && ac.IsOnGround && ac.GroundSpeed < 40)
                 {
@@ -230,7 +231,7 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
                     output.WriteLine($"t+{t}s: {ac.Callsign} landed, gs={ac.GroundSpeed:F1}kt, pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6})");
                 }
 
-                foreach (var w in ac.PendingWarnings)
+                foreach (string w in ac.PendingWarnings)
                 {
                     if (w.Contains("going around", StringComparison.OrdinalIgnoreCase))
                     {
@@ -247,7 +248,7 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
 
             if (t % 30 == 0)
             {
-                foreach (var ac in aircraft)
+                foreach (AircraftState ac in aircraft)
                 {
                     output.WriteLine(
                         $"  t+{t}s: {ac.Callsign} alt={ac.Altitude:F0}ft gs={ac.GroundSpeed:F1}kt hdg={ac.TrueHeading.Degrees:F0} "
@@ -258,9 +259,9 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
         }
 
         Assert.Null(goAroundDetail);
-        foreach (var (callsign, didLand) in landed)
+        foreach ((string? callsign, bool didLand) in landed)
         {
-            var ac = aircraft.First(a => a.Callsign == callsign);
+            AircraftState ac = aircraft.First(a => a.Callsign == callsign);
             Assert.True(
                 didLand,
                 $"{callsign} did not land within {maxSeconds}s. Final state: alt={ac.Altitude:F0}ft, "

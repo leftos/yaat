@@ -43,10 +43,10 @@ internal static class ShownRouteBuilder
 
     public static (List<DrawnWaypoint> Waypoints, VectorTail? Tail) BuildPrimary(AircraftModel ac, NavigationDatabase navDb)
     {
-        var waypoints = ResolveNavigationRouteWaypoints(ac);
+        List<DrawnWaypoint> waypoints = ResolveNavigationRouteWaypoints(ac);
 
         // Tail from procedure VM/VA, if any
-        var tail = TryGetProcedureVectorTail(ac, navDb, waypoints);
+        VectorTail? tail = TryGetProcedureVectorTail(ac, navDb, waypoints);
 
         // Pure-vector aircraft: no fixes in the route, but the controller has assigned a
         // heading — draw the heading from the aircraft position. (When the route still has
@@ -67,22 +67,22 @@ internal static class ShownRouteBuilder
             return null;
         }
 
-        var rawHint = ac.ExpectedApproach;
+        string? rawHint = ac.ExpectedApproach;
         if (string.IsNullOrWhiteSpace(rawHint))
         {
             return null;
         }
 
-        var airport = ac.Destination;
+        string airport = ac.Destination;
         if (string.IsNullOrWhiteSpace(airport))
         {
             return null;
         }
 
         // Parse "ILS 30" or "ILS 30.SHARK" → (approachShorthand, optional transition)
-        var (approachShorthand, transitionName) = ParseApproachHint(rawHint);
+        (string? approachShorthand, string? transitionName) = ParseApproachHint(rawHint);
 
-        var candidates = navDb.ResolveApproachCandidates(airport, approachShorthand);
+        List<string> candidates = navDb.ResolveApproachCandidates(airport, approachShorthand);
         if (candidates.Count == 0)
         {
             return null;
@@ -90,13 +90,13 @@ internal static class ShownRouteBuilder
 
         // Pick the first candidate. Disambiguation (route-connectivity, etc.) is the server's
         // job at CAPP time — we just want a best-effort visualization here.
-        var procedure = navDb.GetApproach(airport, candidates[0]);
+        CifpApproachProcedure? procedure = navDb.GetApproach(airport, candidates[0]);
         if (procedure?.Runway is null)
         {
             return null;
         }
 
-        var runway = navDb.GetRunway(airport, procedure.Runway);
+        RunwayInfo? runway = navDb.GetRunway(airport, procedure.Runway);
         if (runway is null)
         {
             return null;
@@ -108,7 +108,7 @@ internal static class ShownRouteBuilder
             procedure.Transitions.TryGetValue(transitionName, out transition);
         }
 
-        var waypoints = transition is not null
+        List<DrawnWaypoint> waypoints = transition is not null
             ? BuildApproachWaypoints(transition.Legs, procedure.CommonLegs, navDb)
             : BuildCommonLegWaypoints(procedure.CommonLegs, navDb);
 
@@ -124,17 +124,17 @@ internal static class ShownRouteBuilder
         // centerline.
         if (transition is null)
         {
-            var fac = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
-            var reciprocal = fac.Course.ToReciprocal();
+            FinalApproachCourseResult fac = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+            TrueHeading reciprocal = fac.Course.ToReciprocal();
             double anchorOriginLat = fac.AnchorLat ?? waypoints[0].Lat;
             double anchorOriginLon = fac.AnchorLon ?? waypoints[0].Lon;
-            var (anchorLat, anchorLon) = GeoMath.ProjectPoint(anchorOriginLat, anchorOriginLon, reciprocal, FacExtensionNm);
+            (double anchorLat, double anchorLon) = GeoMath.ProjectPoint(anchorOriginLat, anchorOriginLon, reciprocal, FacExtensionNm);
             waypoints.Insert(0, new DrawnWaypoint("", anchorLat, anchorLon));
         }
 
         // Append runway threshold so the segment terminates at the touchdown point.
-        var thresholdName = $"RW{runway.Designator}";
-        var last = waypoints[^1];
+        string thresholdName = $"RW{runway.Designator}";
+        DrawnWaypoint last = waypoints[^1];
         if (
             !last.ResolvedName.Equals(thresholdName, StringComparison.OrdinalIgnoreCase)
             && !(Math.Abs(last.Lat - runway.ThresholdLatitude) < 1e-6 && Math.Abs(last.Lon - runway.ThresholdLongitude) < 1e-6)
@@ -154,7 +154,7 @@ internal static class ShownRouteBuilder
         // and could disagree with the flown position. Synthetic arc vertices arrive with an empty
         // name and render as bare polyline points.
         var result = new List<DrawnWaypoint>(ac.NavRouteFixes.Count);
-        foreach (var fix in ac.NavRouteFixes)
+        foreach (NavRouteFixDto fix in ac.NavRouteFixes)
         {
             result.Add(new DrawnWaypoint(fix.Name, fix.Lat, fix.Lon, fix.RestrictionLines));
         }
@@ -167,10 +167,10 @@ internal static class ShownRouteBuilder
         // aircraft sequences off the SID, ActiveStarId once the approach is loaded.
         if (!string.IsNullOrEmpty(ac.ActiveStarId) && !string.IsNullOrWhiteSpace(ac.Destination))
         {
-            var procedure = navDb.GetStar(ac.Destination, ac.ActiveStarId);
+            CifpStarProcedure? procedure = navDb.GetStar(ac.Destination, ac.ActiveStarId);
             if (procedure is not null)
             {
-                var legs = AssembleStarLegs(procedure, ac.DestinationRunway);
+                IReadOnlyList<CifpLeg> legs = AssembleStarLegs(procedure, ac.DestinationRunway);
                 if (TryExtractTrailingVector(legs, navDb) is { } tail)
                 {
                     return tail;
@@ -180,10 +180,10 @@ internal static class ShownRouteBuilder
 
         if (!string.IsNullOrEmpty(ac.ActiveSidId) && !string.IsNullOrWhiteSpace(ac.Departure))
         {
-            var procedure = navDb.GetSid(ac.Departure, ac.ActiveSidId);
+            CifpSidProcedure? procedure = navDb.GetSid(ac.Departure, ac.ActiveSidId);
             if (procedure is not null)
             {
-                var legs = AssembleSidLegs(procedure, ac.DepartureRunway);
+                IReadOnlyList<CifpLeg> legs = AssembleSidLegs(procedure, ac.DepartureRunway);
                 if (TryExtractTrailingVector(legs, navDb) is { } tail)
                 {
                     return tail;
@@ -201,8 +201,8 @@ internal static class ShownRouteBuilder
         // present (per-runway VMs), otherwise at the end of the common legs.
         if (!string.IsNullOrWhiteSpace(destinationRunway))
         {
-            var key = MatchRunwayTransitionKey(procedure.RunwayTransitions, destinationRunway);
-            if (key is not null && procedure.RunwayTransitions.TryGetValue(key, out var rwyTransition) && rwyTransition.Legs.Count > 0)
+            string? key = MatchRunwayTransitionKey(procedure.RunwayTransitions, destinationRunway);
+            if (key is not null && procedure.RunwayTransitions.TryGetValue(key, out CifpTransition? rwyTransition) && rwyTransition.Legs.Count > 0)
             {
                 var combined = new List<CifpLeg>(procedure.CommonLegs.Count + rwyTransition.Legs.Count);
                 combined.AddRange(procedure.CommonLegs);
@@ -221,8 +221,8 @@ internal static class ShownRouteBuilder
         var legs = new List<CifpLeg>();
         if (!string.IsNullOrWhiteSpace(departureRunway))
         {
-            var key = MatchRunwayTransitionKey(procedure.RunwayTransitions, departureRunway);
-            if (key is not null && procedure.RunwayTransitions.TryGetValue(key, out var rwyTransition))
+            string? key = MatchRunwayTransitionKey(procedure.RunwayTransitions, departureRunway);
+            if (key is not null && procedure.RunwayTransitions.TryGetValue(key, out CifpTransition? rwyTransition))
             {
                 legs.AddRange(rwyTransition.Legs);
             }
@@ -237,15 +237,15 @@ internal static class ShownRouteBuilder
         // designator ("28R", "1R") or an already-prefixed key. Strip an optional leading "RW", zero-pad
         // the designator, then rebuild the exact key — a naive suffix match would bind "1R" to "RW11R"
         // or "RW31R". Mirrors NavigationCommandHandler.LookupRunwayTransition (issue #273).
-        var designator = RunwayIdentifier.NormalizeDesignator(runway.StartsWith("RW", StringComparison.OrdinalIgnoreCase) ? runway[2..] : runway);
-        var rwKey = "RW" + designator;
+        string designator = RunwayIdentifier.NormalizeDesignator(runway.StartsWith("RW", StringComparison.OrdinalIgnoreCase) ? runway[2..] : runway);
+        string rwKey = "RW" + designator;
         if (transitions.ContainsKey(rwKey))
         {
             return rwKey;
         }
 
         // CIFP "B" key means both parallels share one transition (e.g. "RW01B" serves RW01L/RW01R).
-        var bothKey = "RW" + designator.TrimEnd('L', 'R', 'C') + "B";
+        string bothKey = "RW" + designator.TrimEnd('L', 'R', 'C') + "B";
         return transitions.ContainsKey(bothKey) ? bothKey : null;
     }
 
@@ -257,7 +257,7 @@ internal static class ShownRouteBuilder
         // and CF-style course legs carry their own FixIdentifier as the anchor.
         for (int i = legs.Count - 1; i >= 0; i--)
         {
-            var leg = legs[i];
+            CifpLeg leg = legs[i];
             if (leg.PathTerminator is not (CifpPathTerminator.VM or CifpPathTerminator.VA or CifpPathTerminator.FM))
             {
                 continue;
@@ -270,7 +270,7 @@ internal static class ShownRouteBuilder
             // FM: anchor is this leg's own fix identifier.
             if (leg.PathTerminator == CifpPathTerminator.FM && !string.IsNullOrEmpty(leg.FixIdentifier))
             {
-                var pos = leg.ResolveFixPosition(navDb);
+                (double Lat, double Lon)? pos = leg.ResolveFixPosition(navDb);
                 if (pos.HasValue)
                 {
                     return new VectorTail(pos.Value.Lat, pos.Value.Lon, magCourse, TailLengthNm);
@@ -280,12 +280,12 @@ internal static class ShownRouteBuilder
             // VM/VA: anchor is the most recent preceding leg with a resolvable fix.
             for (int j = i - 1; j >= 0; j--)
             {
-                var prev = legs[j];
+                CifpLeg prev = legs[j];
                 if (string.IsNullOrEmpty(prev.FixIdentifier))
                 {
                     continue;
                 }
-                var pos = prev.ResolveFixPosition(navDb);
+                (double Lat, double Lon)? pos = prev.ResolveFixPosition(navDb);
                 if (pos.HasValue)
                 {
                     return new VectorTail(pos.Value.Lat, pos.Value.Lon, magCourse, TailLengthNm);
@@ -303,8 +303,8 @@ internal static class ShownRouteBuilder
         NavigationDatabase navDb
     )
     {
-        var transitionFixes = BuildLegWaypoints(transitionLegs, stopAtMap: false, navDb);
-        var commonFixes = BuildLegWaypoints(commonLegs, stopAtMap: true, navDb);
+        List<DrawnWaypoint> transitionFixes = BuildLegWaypoints(transitionLegs, stopAtMap: false, navDb);
+        List<DrawnWaypoint> commonFixes = BuildLegWaypoints(commonLegs, stopAtMap: true, navDb);
 
         // Mirror BuildApproachFixesWithTransition: trim common fixes already consumed by the
         // transition (e.g. transition ending at the IAF that also opens the common segment).
@@ -328,7 +328,7 @@ internal static class ShownRouteBuilder
     private static List<DrawnWaypoint> BuildLegWaypoints(IReadOnlyList<CifpLeg> legs, bool stopAtMap, NavigationDatabase navDb)
     {
         var result = new List<DrawnWaypoint>(legs.Count);
-        foreach (var leg in legs)
+        foreach (CifpLeg leg in legs)
         {
             if (string.IsNullOrEmpty(leg.FixIdentifier))
             {
@@ -343,7 +343,7 @@ internal static class ShownRouteBuilder
             {
                 continue;
             }
-            var pos = leg.ResolveFixPosition(navDb);
+            (double Lat, double Lon)? pos = leg.ResolveFixPosition(navDb);
             if (pos.HasValue)
             {
                 result.Add(new DrawnWaypoint(leg.FixIdentifier, pos.Value.Lat, pos.Value.Lon));
@@ -358,7 +358,7 @@ internal static class ShownRouteBuilder
     /// </summary>
     internal static (string Approach, string? Transition) ParseApproachHint(string hint)
     {
-        var trimmed = hint.Trim();
+        string trimmed = hint.Trim();
         int dotIdx = trimmed.IndexOf('.');
         if (dotIdx < 0)
         {

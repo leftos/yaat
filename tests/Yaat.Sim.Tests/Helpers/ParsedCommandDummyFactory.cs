@@ -1,3 +1,4 @@
+using System.Reflection;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 
@@ -26,13 +27,13 @@ internal static class ParsedCommandDummyFactory
     /// </summary>
     public static ParsedCommand? CreateDummy(Type type)
     {
-        var ctor = type.GetConstructors().OrderBy(c => c.GetParameters().Length).FirstOrDefault();
+        ConstructorInfo? ctor = type.GetConstructors().OrderBy(c => c.GetParameters().Length).FirstOrDefault();
         if (ctor is null)
         {
             return null;
         }
 
-        var args = ctor.GetParameters().Select(p => MakeDummyArg(p.ParameterType)).ToArray();
+        object?[] args = ctor.GetParameters().Select(p => MakeDummyArg(p.ParameterType)).ToArray();
 
         try
         {
@@ -114,7 +115,7 @@ internal static class ParsedCommandDummyFactory
         if (paramType.IsGenericType && paramType.GetGenericTypeDefinition() == typeof(IReadOnlyList<>))
         {
             // Return an empty concrete List<T> — the record will see it as IReadOnlyList<T>.
-            var listType = typeof(List<>).MakeGenericType(paramType.GetGenericArguments()[0]);
+            Type listType = typeof(List<>).MakeGenericType(paramType.GetGenericArguments()[0]);
             return Activator.CreateInstance(listType);
         }
 

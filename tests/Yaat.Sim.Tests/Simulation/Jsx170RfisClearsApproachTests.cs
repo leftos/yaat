@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -41,8 +42,8 @@ public class Jsx170RfisClearsApproachTests(ITestOutputHelper output)
     [Fact]
     public void Rfis_DoesNotClearFinalApproach()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -50,17 +51,17 @@ public class Jsx170RfisClearsApproachTests(ITestOutputHelper output)
 
         engine.Replay(recording, 795);
 
-        var before = engine.FindAircraft("JSX170");
+        AircraftState? before = engine.FindAircraft("JSX170");
         Assert.NotNull(before);
         Assert.NotNull(before.Phases);
         Assert.IsType<FinalApproachPhase>(before.Phases.CurrentPhase);
         Assert.False(before.Approach.HasReportedFieldInSight);
 
-        var result = engine.SendCommand("JSX170", "RFIS");
+        CommandResult result = engine.SendCommand("JSX170", "RFIS");
         output.WriteLine($"RFIS result: success={result.Success} message={result.Message}");
         Assert.True(result.Success, result.Message);
 
-        var after = engine.FindAircraft("JSX170");
+        AircraftState? after = engine.FindAircraft("JSX170");
         Assert.NotNull(after);
         Assert.NotNull(after.Phases);
         Assert.IsType<FinalApproachPhase>(after.Phases.CurrentPhase);

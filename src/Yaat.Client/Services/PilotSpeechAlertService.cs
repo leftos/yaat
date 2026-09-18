@@ -42,7 +42,7 @@ public sealed class PilotSpeechAlertService
     {
         try
         {
-            var ding = EnsureCachedDing();
+            float[] ding = EnsureCachedDing();
             await _player.PlayAsync(ding, SampleRate, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -69,11 +69,11 @@ public sealed class PilotSpeechAlertService
     {
         // Two-tone notification: A5 → E5, 120 ms each, with attack + decay envelope so each
         // tone has a distinct "bell" character instead of a flat blip. Total ≈ 240 ms.
-        var firstTone = BuildTone(880.0, durationMs: 120, attackMs: 5, decayMs: 100);
-        var secondTone = BuildTone(660.0, durationMs: 120, attackMs: 5, decayMs: 100);
+        float[] firstTone = BuildTone(880.0, durationMs: 120, attackMs: 5, decayMs: 100);
+        float[] secondTone = BuildTone(660.0, durationMs: 120, attackMs: 5, decayMs: 100);
 
         int totalSamples = firstTone.Length + secondTone.Length;
-        var samples = new float[totalSamples];
+        float[] samples = new float[totalSamples];
         Array.Copy(firstTone, 0, samples, 0, firstTone.Length);
         Array.Copy(secondTone, 0, samples, firstTone.Length, secondTone.Length);
         for (int i = 0; i < samples.Length; i++)
@@ -90,7 +90,7 @@ public sealed class PilotSpeechAlertService
         int attackSamples = Math.Max(1, (int)(SampleRate * attackMs / 1000.0));
         int decayStart = Math.Max(0, sampleCount - (int)(SampleRate * decayMs / 1000.0));
 
-        var samples = new float[sampleCount];
+        float[] samples = new float[sampleCount];
         double phaseStep = 2.0 * Math.PI * frequencyHz / SampleRate;
         for (int i = 0; i < sampleCount; i++)
         {

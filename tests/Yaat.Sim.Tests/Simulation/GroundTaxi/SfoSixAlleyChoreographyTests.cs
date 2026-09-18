@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
@@ -100,13 +101,13 @@ public class SfoSixAlleyChoreographyTests
     [Fact]
     public void PushLong_ArrivalNeverSlowed()
     {
-        var setup = Setup(PushLongPusherGate, PushLongSpot, PushLongArrivalGate);
+        Alley? setup = Setup(PushLongPusherGate, PushLongSpot, PushLongArrivalGate);
         if (setup is null)
         {
             return;
         }
 
-        var alley = setup.Value;
+        Alley alley = setup.Value;
         var guard = new DeadlockGuard(alley.Pusher, alley.Arrival);
         string pushCommand = $"PUSH ${PushLongSpot}";
         int pushDoneSec = PushToSpot(alley, guard, pushCommand, PushLongPusherGate);
@@ -114,7 +115,7 @@ public class SfoSixAlleyChoreographyTests
         AssertRestingOnSpot(alley.Pusher, alley.Spot, alley.Ground.Layout);
 
         string clearance = $"TAXI T A T6B @{PushLongArrivalGate}";
-        var taxi = alley.Ground.Engine.SendCommand(Arrival, clearance);
+        CommandResult taxi = alley.Ground.Engine.SendCommand(Arrival, clearance);
         Assert.True(taxi.Success, $"'{clearance}' from the 28L bar on T failed: {taxi.Message}");
 
         var slowdowns = new List<string>();
@@ -164,18 +165,18 @@ public class SfoSixAlleyChoreographyTests
     [Fact]
     public void ArrivalWaitsBrieflyForPushOnOtherLane()
     {
-        var setup = Setup(TrailPusherGate, AlleySpot, AlleyGate);
+        Alley? setup = Setup(TrailPusherGate, AlleySpot, AlleyGate);
         if (setup is null)
         {
             return;
         }
 
-        var alley = setup.Value;
-        var engine = alley.Ground.Engine;
+        Alley alley = setup.Value;
+        SimulationEngine engine = alley.Ground.Engine;
         var guard = new DeadlockGuard(alley.Pusher, alley.Arrival);
 
         string pushCommand = $"PUSH ${AlleySpot}";
-        var push = engine.SendCommand(Pusher, pushCommand);
+        CommandResult push = engine.SendCommand(Pusher, pushCommand);
         Assert.True(push.Success, $"'{pushCommand}' from {TrailPusherGate} failed: {push.Message}");
         SfoGroundHarness.TickUntil(engine, () => false, ArrivalClearanceSeconds, second => guard.Tick(second));
         Assert.True(
@@ -183,10 +184,10 @@ public class SfoSixAlleyChoreographyTests
             $"test setup: the push had stopped before the arrival's clearance at t={ArrivalClearanceSeconds}s (phase={PhaseName(alley.Pusher)})"
         );
         string clearance = $"TAXI T A T6A @{AlleyGate}";
-        var taxi = engine.SendCommand(Arrival, clearance);
+        CommandResult taxi = engine.SendCommand(Arrival, clearance);
         Assert.True(taxi.Success, $"'{clearance}' from the 28L bar on T failed: {taxi.Message}");
 
-        var run = RunTrail(alley, guard, ArrivalClearanceSeconds);
+        TrailRun run = RunTrail(alley, guard, ArrivalClearanceSeconds);
         double requiredFt = RequiredLateralFt(ArrivalType, PusherType);
         _output.WriteLine(
             $"push finished t={run.PusherDoneSecond}s, arrival parked t={run.ArrivalParkedSecond}s, trail-limited={run.TrailLimited}, "
@@ -288,20 +289,20 @@ public class SfoSixAlleyChoreographyTests
     /// <returns>The built alley, or null to skip.</returns>
     private Alley? Setup(string pusherGate, string spotName, string gateName)
     {
-        var built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
         if (built is null)
         {
             return null;
         }
 
-        var ground = built.Value;
-        var spot = ground.Layout.FindSpotNodeByName(spotName);
-        var parking = ground.Layout.FindParkingByName(gateName);
+        SfoGround ground = built.Value;
+        GroundNode? spot = ground.Layout.FindSpotNodeByName(spotName);
+        GroundNode? parking = ground.Layout.FindParkingByName(gateName);
         Assert.True(spot is not null, $"the SFO layout has no spot named '{spotName}'");
         Assert.True(parking is not null, $"the SFO layout has no parking named '{gateName}'");
 
-        var pusher = SfoGroundHarness.SpawnParked(ground, Pusher, PusherType, pusherGate);
-        var arrival = SfoGroundHarness.SpawnAtHoldShort(ground, Arrival, ArrivalType, ("28L", "T", "B"));
+        AircraftState pusher = SfoGroundHarness.SpawnParked(ground, Pusher, PusherType, pusherGate);
+        AircraftState arrival = SfoGroundHarness.SpawnAtHoldShort(ground, Arrival, ArrivalType, ("28L", "T", "B"));
         return new Alley(ground, pusher, arrival, spot!, parking!);
     }
 
@@ -317,7 +318,7 @@ public class SfoSixAlleyChoreographyTests
     /// <returns>The second the push finished and came to rest on the spot.</returns>
     private int PushToSpot(Alley alley, DeadlockGuard guard, string command, string pusherGate)
     {
-        var push = alley.Ground.Engine.SendCommand(Pusher, command);
+        CommandResult push = alley.Ground.Engine.SendCommand(Pusher, command);
         Assert.True(push.Success, $"'{command}' from {pusherGate} failed: {push.Message}");
 
         bool everPushed = false;

@@ -419,9 +419,9 @@ public partial class RadarViewModel : ObservableObject
             return [];
         }
 
-        var names = NavigationDatabase.Instance.AllFixNames;
+        string[] names = NavigationDatabase.Instance.AllFixNames;
         var result = new List<(string, double, double)>(names.Length);
-        foreach (var name in names)
+        foreach (string name in names)
         {
             // vNAS publishes thousands of adapted fixes whose identifiers are themselves FRD strings
             // (OAK169001). They stay typeable via FixNames, but they aren't chartable waypoints, so
@@ -431,7 +431,7 @@ public partial class RadarViewModel : ObservableObject
                 continue;
             }
 
-            var pos = NavigationDatabase.Instance.GetFixPosition(name);
+            (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetFixPosition(name);
             if (pos.HasValue)
             {
                 result.Add((name, pos.Value.Lat, pos.Value.Lon));
@@ -448,13 +448,13 @@ public partial class RadarViewModel : ObservableObject
     /// a location.</summary>
     public bool ToggleMarker(string token)
     {
-        var normalized = token.Trim().ToUpperInvariant();
+        string normalized = token.Trim().ToUpperInvariant();
         if (normalized.Length == 0)
         {
             return false;
         }
 
-        var existing = _pinnedMarkerTokens.FindIndex(t => t.Equals(normalized, StringComparison.Ordinal));
+        int existing = _pinnedMarkerTokens.FindIndex(t => t.Equals(normalized, StringComparison.Ordinal));
         if (existing >= 0)
         {
             _pinnedMarkerTokens.RemoveAt(existing);
@@ -478,7 +478,7 @@ public partial class RadarViewModel : ObservableObject
     /// pinned. Unlike <see cref="ToggleMarker"/> this only ever adds.</summary>
     public void AddMarker(string frd)
     {
-        var normalized = frd.Trim().ToUpperInvariant();
+        string normalized = frd.Trim().ToUpperInvariant();
         if (normalized.Length == 0 || _pinnedMarkerTokens.Contains(normalized, StringComparer.Ordinal))
         {
             return;
@@ -493,17 +493,17 @@ public partial class RadarViewModel : ObservableObject
     /// <paramref name="maxNm"/>. Returns true if one was removed.</summary>
     public bool RemoveNearestMarker(double lat, double lon, double maxNm)
     {
-        var markers = PinnedMarkers;
+        IReadOnlyList<(string Name, double Lat, double Lon)>? markers = PinnedMarkers;
         if (markers is null || markers.Count == 0)
         {
             return false;
         }
 
-        var bestIndex = -1;
-        var bestNm = maxNm;
-        for (var i = 0; i < markers.Count; i++)
+        int bestIndex = -1;
+        double bestNm = maxNm;
+        for (int i = 0; i < markers.Count; i++)
         {
-            var nm = GeoMath.DistanceNm(new LatLon(lat, lon), new LatLon(markers[i].Lat, markers[i].Lon));
+            double nm = GeoMath.DistanceNm(new LatLon(lat, lon), new LatLon(markers[i].Lat, markers[i].Lon));
             if (nm <= bestNm)
             {
                 bestNm = nm;
@@ -546,9 +546,9 @@ public partial class RadarViewModel : ObservableObject
         }
 
         var result = new List<(string, double, double)>(_pinnedMarkerTokens.Count);
-        foreach (var token in _pinnedMarkerTokens)
+        foreach (string token in _pinnedMarkerTokens)
         {
-            var pos = FrdResolver.Resolve(token, NavigationDatabase.Instance);
+            LatLon? pos = FrdResolver.Resolve(token, NavigationDatabase.Instance);
             if (pos.HasValue)
             {
                 result.Add((token, pos.Value.Lat, pos.Value.Lon));
@@ -597,7 +597,7 @@ public partial class RadarViewModel : ObservableObject
 
         if (!string.IsNullOrEmpty(destination))
         {
-            var elev = _getAirportElevation(destination);
+            double? elev = _getAirportElevation(destination);
             if (elev.HasValue)
             {
                 return elev.Value;
@@ -606,7 +606,7 @@ public partial class RadarViewModel : ObservableObject
 
         if (!string.IsNullOrEmpty(PrimaryAirportId))
         {
-            var elev = _getAirportElevation(PrimaryAirportId);
+            double? elev = _getAirportElevation(PrimaryAirportId);
             if (elev.HasValue)
             {
                 return elev.Value;
@@ -620,7 +620,7 @@ public partial class RadarViewModel : ObservableObject
     {
         try
         {
-            var dto = await _connection.GetFacilityVideoMapsForArtccAsync(artccId, airportId);
+            FacilityVideoMapsDto? dto = await _connection.GetFacilityVideoMapsForArtccAsync(artccId, airportId);
             if (dto is null)
             {
                 _log.LogWarning("No video maps for {Artcc}", artccId);
@@ -634,7 +634,7 @@ public partial class RadarViewModel : ObservableObject
             ApplyVideoMapsDto(dto);
 
             // Download all referenced maps
-            var data = await _videoMapService.LoadMapsAsync(artccId, dto.VideoMaps);
+            List<VideoMapData> data = await _videoMapService.LoadMapsAsync(artccId, dto.VideoMaps);
 
             // Restore per-scenario settings if available
             RestoreSettings();
@@ -654,7 +654,7 @@ public partial class RadarViewModel : ObservableObject
     {
         // Build brightness lookup
         BrightnessLookup.Clear();
-        foreach (var map in dto.VideoMaps)
+        foreach (VideoMapInfoDto map in dto.VideoMaps)
         {
             BrightnessLookup[map.Id] = map.BrightnessCategory;
         }
@@ -669,7 +669,7 @@ public partial class RadarViewModel : ObservableObject
         }
         else if (dto.Areas.Count > 0)
         {
-            var area = dto.Areas[0];
+            StarsAreaDto area = dto.Areas[0];
             CenterLat = area.CenterLat;
             CenterLon = area.CenterLon;
             RangeRingCenterLat = area.CenterLat;
@@ -680,7 +680,7 @@ public partial class RadarViewModel : ObservableObject
 
         // Build toggle list
         MapToggles.Clear();
-        foreach (var map in dto.VideoMaps)
+        foreach (VideoMapInfoDto map in dto.VideoMaps)
         {
             var item = new VideoMapToggleItem
             {
@@ -726,23 +726,23 @@ public partial class RadarViewModel : ObservableObject
     private void BuildMapShortcutsFromGroup(List<int?> mapIds)
     {
         MapShortcuts.Clear();
-        var count = Math.Min(6, mapIds.Count);
+        int count = Math.Min(6, mapIds.Count);
         int[] rowMajorOrder = [0, 2, 4, 1, 3, 5];
-        foreach (var srcIdx in rowMajorOrder)
+        foreach (int srcIdx in rowMajorOrder)
         {
             if (srcIdx >= count)
             {
                 continue;
             }
 
-            var starsId = mapIds[srcIdx];
+            int? starsId = mapIds[srcIdx];
             if (starsId is null)
             {
                 continue;
             }
 
-            var toggle = FindToggleByStarsId(starsId.Value);
-            var shortName = toggle?.ShortName ?? $"M{starsId}";
+            VideoMapToggleItem? toggle = FindToggleByStarsId(starsId.Value);
+            string shortName = toggle?.ShortName ?? $"M{starsId}";
             var shortcut = new MapShortcutItem
             {
                 Index = srcIdx,
@@ -815,7 +815,7 @@ public partial class RadarViewModel : ObservableObject
             return;
         }
 
-        var key = scope switch
+        string? key = scope switch
         {
             FavoriteMapScope.Artcc => _activeArtccId,
             FavoriteMapScope.Airport => _activeAirportId,
@@ -827,7 +827,7 @@ public partial class RadarViewModel : ObservableObject
             return;
         }
 
-        var newValue = scope switch
+        bool newValue = scope switch
         {
             FavoriteMapScope.Artcc => !item.IsFavoriteArtcc,
             FavoriteMapScope.Airport => !item.IsFavoriteAirport,
@@ -889,7 +889,7 @@ public partial class RadarViewModel : ObservableObject
 
     public VideoMapToggleItem? FindToggleByStarsId(int starsId)
     {
-        foreach (var t in MapToggles)
+        foreach (VideoMapToggleItem t in MapToggles)
         {
             if (t.StarsId == starsId)
             {
@@ -902,7 +902,7 @@ public partial class RadarViewModel : ObservableObject
 
     public void ToggleMapByStarsId(int starsId)
     {
-        var toggle = FindToggleByStarsId(starsId);
+        VideoMapToggleItem? toggle = FindToggleByStarsId(starsId);
         if (toggle is not null)
         {
             toggle.IsEnabled = !toggle.IsEnabled;
@@ -916,7 +916,7 @@ public partial class RadarViewModel : ObservableObject
 
     public void ToggleMapShortcut(MapShortcutItem shortcut)
     {
-        var toggle = FindToggleByStarsId(shortcut.StarsId);
+        VideoMapToggleItem? toggle = FindToggleByStarsId(shortcut.StarsId);
         if (toggle is not null)
         {
             toggle.IsEnabled = !toggle.IsEnabled;
@@ -926,7 +926,7 @@ public partial class RadarViewModel : ObservableObject
 
     public void SyncShortcutState(int starsId, bool enabled)
     {
-        foreach (var sc in MapShortcuts)
+        foreach (MapShortcutItem sc in MapShortcuts)
         {
             if (sc.StarsId == starsId)
             {
@@ -997,7 +997,7 @@ public partial class RadarViewModel : ObservableObject
 
     public void AdjustPtlLength(int delta)
     {
-        var next = PtlLengthMinutes + delta * 0.5;
+        double next = PtlLengthMinutes + delta * 0.5;
         PtlLengthMinutes = Math.Clamp(next, 0.5, 3.0);
         SaveSettings();
     }
@@ -1068,12 +1068,12 @@ public partial class RadarViewModel : ObservableObject
     [RelayCommand]
     private void ClearAllMaps()
     {
-        foreach (var t in MapToggles)
+        foreach (VideoMapToggleItem t in MapToggles)
         {
             t.IsEnabled = false;
         }
 
-        foreach (var sc in MapShortcuts)
+        foreach (MapShortcutItem sc in MapShortcuts)
         {
             sc.IsEnabled = false;
         }
@@ -1087,7 +1087,7 @@ public partial class RadarViewModel : ObservableObject
 
     public void AdjustRange(int delta)
     {
-        var newRange = RangeNm + delta;
+        double newRange = RangeNm + delta;
         if (newRange is >= 1 and <= 256)
         {
             RangeNm = newRange;
@@ -1097,12 +1097,12 @@ public partial class RadarViewModel : ObservableObject
 
     public int GetBrightnessPercent(BriteTarget target)
     {
-        return _brightnessValues.TryGetValue(target, out var val) ? val : 100;
+        return _brightnessValues.TryGetValue(target, out int val) ? val : 100;
     }
 
     public void AdjustBrightness(BriteTarget target, int delta)
     {
-        var pct = GetBrightnessPercent(target);
+        int pct = GetBrightnessPercent(target);
         pct = Math.Clamp(pct + delta, 0, 100);
         _brightnessValues[target] = pct;
 
@@ -1129,7 +1129,7 @@ public partial class RadarViewModel : ObservableObject
     {
         if (direction > 0)
         {
-            foreach (var step in RangeRingSizeSteps)
+            foreach (double step in RangeRingSizeSteps)
             {
                 if (step > current)
                 {
@@ -1154,7 +1154,7 @@ public partial class RadarViewModel : ObservableObject
     public SavedRadarSettings CaptureSettings()
     {
         var enabledIds = new List<int>();
-        foreach (var t in MapToggles)
+        foreach (VideoMapToggleItem t in MapToggles)
         {
             if (t.IsEnabled)
             {
@@ -1163,7 +1163,7 @@ public partial class RadarViewModel : ObservableObject
         }
 
         var brightnessDict = new Dictionary<string, int>();
-        foreach (var (target, value) in _brightnessValues)
+        foreach ((BriteTarget target, int value) in _brightnessValues)
         {
             brightnessDict[target.ToString()] = value;
         }
@@ -1212,7 +1212,7 @@ public partial class RadarViewModel : ObservableObject
     /// </summary>
     public string ResolveMapName(int starsId)
     {
-        foreach (var t in MapToggles)
+        foreach (VideoMapToggleItem t in MapToggles)
         {
             if (t.StarsId == starsId)
             {
@@ -1230,7 +1230,7 @@ public partial class RadarViewModel : ObservableObject
             return;
         }
 
-        var saved = _preferences.GetRadarSettings(key);
+        SavedRadarSettings? saved = _preferences.GetRadarSettings(key);
         if (saved is null)
         {
             return;
@@ -1245,13 +1245,13 @@ public partial class RadarViewModel : ObservableObject
 
         // Restore map toggles
         var enabledSet = new HashSet<int>(saved.EnabledStarsIds);
-        foreach (var t in MapToggles)
+        foreach (VideoMapToggleItem t in MapToggles)
         {
             t.IsEnabled = enabledSet.Contains(t.StarsId);
         }
 
         // Sync shortcut states
-        foreach (var sc in MapShortcuts)
+        foreach (MapShortcutItem sc in MapShortcuts)
         {
             sc.IsEnabled = enabledSet.Contains(sc.StarsId);
         }
@@ -1277,9 +1277,9 @@ public partial class RadarViewModel : ObservableObject
 
         if (saved.BrightnessValues is { Count: > 0 })
         {
-            foreach (var (key, value) in saved.BrightnessValues)
+            foreach ((string? key, int value) in saved.BrightnessValues)
             {
-                if (Enum.TryParse<BriteTarget>(key, out var target))
+                if (Enum.TryParse<BriteTarget>(key, out BriteTarget target))
                 {
                     _brightnessValues[target] = Math.Clamp(value, 0, 100);
                 }
@@ -1296,14 +1296,14 @@ public partial class RadarViewModel : ObservableObject
     private void UpdateActiveMaps()
     {
         var active = new List<VideoMapData>();
-        foreach (var toggle in MapToggles)
+        foreach (VideoMapToggleItem toggle in MapToggles)
         {
             if (!toggle.IsEnabled)
             {
                 continue;
             }
 
-            var cached = _videoMapService.GetCached(toggle.MapId);
+            VideoMapData? cached = _videoMapService.GetCached(toggle.MapId);
             if (cached is not null)
             {
                 active.Add(cached);
@@ -1554,7 +1554,7 @@ public partial class RadarViewModel : ObservableObject
 
     public async Task ReportTrafficInSightAsync(string callsign, string initials, string? targetCallsign)
     {
-        var cmd = string.IsNullOrWhiteSpace(targetCallsign) ? "RTIS" : $"RTIS {targetCallsign}";
+        string cmd = string.IsNullOrWhiteSpace(targetCallsign) ? "RTIS" : $"RTIS {targetCallsign}";
         await _sendCommand(callsign, cmd, initials);
     }
 
@@ -1634,7 +1634,7 @@ public partial class RadarViewModel : ObservableObject
 
     public async Task ClearedForTakeoffAsync(string callsign, string initials, string? arg)
     {
-        var cmd = string.IsNullOrWhiteSpace(arg) ? "CTO" : $"CTO {arg.Trim()}";
+        string cmd = string.IsNullOrWhiteSpace(arg) ? "CTO" : $"CTO {arg.Trim()}";
         await _sendCommand(callsign, cmd, initials);
     }
 
@@ -1754,13 +1754,13 @@ public partial class RadarViewModel : ObservableObject
 
     public async Task JRingAsync(string callsign, string initials, double? radiusNm)
     {
-        var arg = radiusNm?.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        string? arg = radiusNm?.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
         await _sendCommand(callsign, arg is not null ? $"JRING {arg}" : "JRING", initials);
     }
 
     public async Task ConeAsync(string callsign, string initials, double? lengthNm)
     {
-        var arg = lengthNm?.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        string? arg = lengthNm?.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
         await _sendCommand(callsign, arg is not null ? $"CONE {arg}" : "CONE", initials);
     }
 
@@ -1908,7 +1908,7 @@ public partial class RadarViewModel : ObservableObject
             return;
         }
 
-        var lastIdx = _drawnWaypointsMutable.Count - 1;
+        int lastIdx = _drawnWaypointsMutable.Count - 1;
         _waypointConditions.Remove(lastIdx);
         _drawnWaypointsMutable.RemoveAt(lastIdx);
         DrawnWaypoints = _drawnWaypointsMutable.Count > 0 ? _drawnWaypointsMutable.ToList() : null;
@@ -1923,7 +1923,7 @@ public partial class RadarViewModel : ObservableObject
 
         // Remove conditions that referenced this index, shift higher indices down
         var newConditions = new Dictionary<int, WaypointCondition>();
-        foreach (var (idx, cond) in _waypointConditions)
+        foreach ((int idx, WaypointCondition? cond) in _waypointConditions)
         {
             if (idx < index)
             {
@@ -1936,7 +1936,7 @@ public partial class RadarViewModel : ObservableObject
         }
 
         _waypointConditions.Clear();
-        foreach (var (idx, cond) in newConditions)
+        foreach ((int idx, WaypointCondition? cond) in newConditions)
         {
             _waypointConditions[idx] = cond;
         }
@@ -1998,8 +1998,8 @@ public partial class RadarViewModel : ObservableObject
             return;
         }
 
-        var command = BuildDrawRouteCommand();
-        var callsign = _drawRouteCallsign;
+        string command = BuildDrawRouteCommand();
+        string callsign = _drawRouteCallsign;
         CancelDrawRoute();
         await _sendCommand(callsign, command, initials);
     }
@@ -2013,8 +2013,8 @@ public partial class RadarViewModel : ObservableObject
 
         for (int i = 0; i < _drawnWaypointsMutable.Count; i++)
         {
-            var fixName = _drawnWaypointsMutable[i].ResolvedName;
-            var condition = _waypointConditions.GetValueOrDefault(i);
+            string fixName = _drawnWaypointsMutable[i].ResolvedName;
+            WaypointCondition? condition = _waypointConditions.GetValueOrDefault(i);
 
             if (condition is not null && !string.IsNullOrWhiteSpace(condition.Altitude) && string.IsNullOrWhiteSpace(condition.Commands))
             {
@@ -2059,7 +2059,7 @@ public partial class RadarViewModel : ObservableObject
         if (_shownPathCallsigns.Remove(callsign))
         {
             _pathCache.Remove(callsign);
-            if (_pathColorIndices.Remove(callsign, out var freedIdx))
+            if (_pathColorIndices.Remove(callsign, out int freedIdx))
             {
                 _freeColorIndices.Push(freedIdx);
             }
@@ -2085,30 +2085,33 @@ public partial class RadarViewModel : ObservableObject
 
         var entries = new List<ShownPathEntry>(_shownPathCallsigns.Count);
         var shapes = new List<ShownShapeEntry>();
-        foreach (var callsign in _shownPathCallsigns)
+        foreach (string callsign in _shownPathCallsigns)
         {
-            var ac = FindAircraftByCallsign(callsign);
+            AircraftModel? ac = FindAircraftByCallsign(callsign);
             if (ac is null)
             {
                 continue;
             }
 
-            var fingerprint = BuildShownPathFingerprint(ac);
-            var color = PathColors[_pathColorIndices[callsign]];
+            string fingerprint = BuildShownPathFingerprint(ac);
+            SKColor color = PathColors[_pathColorIndices[callsign]];
 
             // Active-procedure geometry (holds/PTs/coded legs) is computed server-side and arrives
             // ready to draw — map it straight through with the aircraft's overlay color. No caching
             // needed (the points are cheap and change only on a phase transition).
-            foreach (var shape in ac.NavRouteShapes)
+            foreach (NavRouteShapeDto shape in ac.NavRouteShapes)
             {
                 shapes.Add(new ShownShapeEntry(shape, color));
             }
 
-            if (_pathCache.TryGetValue(callsign, out var cached) && cached.Fingerprint == fingerprint)
+            if (
+                _pathCache.TryGetValue(callsign, out (IReadOnlyList<ShownPathEntry> Segments, string Fingerprint) cached)
+                && cached.Fingerprint == fingerprint
+            )
             {
                 // Aircraft position changes every tick — re-emit cached segments with the
                 // current position so the dashed leader and pure-vector tail track the target.
-                foreach (var seg in cached.Segments)
+                foreach (ShownPathEntry seg in cached.Segments)
                 {
                     entries.Add(seg with { AircraftLat = ac.Position.Lat, AircraftLon = ac.Position.Lon });
                 }
@@ -2120,10 +2123,10 @@ public partial class RadarViewModel : ObservableObject
                 continue;
             }
 
-            var navDb = NavigationDatabase.Instance;
+            NavigationDatabase navDb = NavigationDatabase.Instance;
             var segments = new List<ShownPathEntry>(2);
 
-            var (primaryWps, primaryTail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+            (List<DrawnWaypoint>? primaryWps, VectorTail? primaryTail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
             if (primaryWps.Count > 0 || primaryTail is not null)
             {
                 segments.Add(new ShownPathEntry(callsign, primaryWps, color, ac.Position.Lat, ac.Position.Lon, DrawLeader: true, Tail: primaryTail));
@@ -2156,7 +2159,7 @@ public partial class RadarViewModel : ObservableObject
         // without changing the fix list — would not invalidate cached segments and the overlay
         // would stay stuck on stale geometry or labels.
         var sb = new System.Text.StringBuilder();
-        foreach (var fix in ac.NavRouteFixes)
+        foreach (NavRouteFixDto fix in ac.NavRouteFixes)
         {
             sb.Append(fix.Name)
                 .Append(':')
@@ -2200,7 +2203,7 @@ public partial class RadarViewModel : ObservableObject
         if (_shownPathCallsigns.Remove(callsign))
         {
             _pathCache.Remove(callsign);
-            if (_pathColorIndices.Remove(callsign, out var freedIdx))
+            if (_pathColorIndices.Remove(callsign, out int freedIdx))
             {
                 _freeColorIndices.Push(freedIdx);
             }

@@ -216,7 +216,7 @@ public class GroundConflictDetectorTests
     /// </summary>
     private static (AircraftState Parked, AircraftState Mover) BuildParkedNeighborPair(double? routeLateralFt, double moverGs)
     {
-        var parked = MakeAircraft("PRK", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+        AircraftState parked = MakeAircraft("PRK", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
 
         double separationFt = ParkedNeighborStopRingFt - InsideStopRingMarginFt;
         double bearingRad = ParkedNeighborBearingDeg * Math.PI / 180.0;
@@ -276,7 +276,7 @@ public class GroundConflictDetectorTests
         // The lane the mover will actually drive passes the parked B738 at 140 ft — more than the
         // 50.85 + 58.7 + 25 = 134.55 ft the wingspan bypass needs — so nothing may cap it, even though its
         // nose (40° off the bearing) points between the lanes and reads as a closing conflict.
-        var (parked, mover) = BuildParkedNeighborPair(routeLateralFt: 140.0, moverGs: 0);
+        (AircraftState? parked, AircraftState? mover) = BuildParkedNeighborPair(routeLateralFt: 140.0, moverGs: 0);
 
         var aircraft = new List<AircraftState> { parked, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -292,7 +292,7 @@ public class GroundConflictDetectorTests
     {
         // Same geometry, but the route runs 60 ft from the parked aircraft — inside the wingspan
         // clearance — so the mover still stops.
-        var (parked, mover) = BuildParkedNeighborPair(routeLateralFt: 60.0, moverGs: 0);
+        (AircraftState? parked, AircraftState? mover) = BuildParkedNeighborPair(routeLateralFt: 60.0, moverGs: 0);
 
         var aircraft = new List<AircraftState> { parked, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -307,7 +307,7 @@ public class GroundConflictDetectorTests
         // The route budget is what is left to drive, not the whole current segment: the mover is 20 ft from
         // the end of a segment that clears the parked aircraft, and the next one passes 40 ft from it.
         // Charging the full current segment spent the whole budget on the clearing leg and let the mover go.
-        var (parked, mover) = BuildParkedNeighborPair(routeLateralFt: 140.0, moverGs: 0);
+        (AircraftState? parked, AircraftState? mover) = BuildParkedNeighborPair(routeLateralFt: 140.0, moverGs: 0);
         double closeLonOffset = (40.0 / 100.0) * OffsetLonPer100Ft;
         var elbow = new GroundNode
         {
@@ -323,7 +323,7 @@ public class GroundConflictDetectorTests
         };
 
         // Segment 0 ends 20 ft ahead of the mover at the elbow; segment 1 turns in to within 40 ft.
-        var first = mover.Ground.AssignedTaxiRoute!.Segments[0];
+        TaxiRouteSegment first = mover.Ground.AssignedTaxiRoute!.Segments[0];
         mover.Ground.AssignedTaxiRoute = new TaxiRoute
         {
             Segments = [MakeGeoSeg(first.Edge.FromNode, elbow), MakeGeoSeg(elbow, closePass)],
@@ -350,7 +350,7 @@ public class GroundConflictDetectorTests
         // A live-traffic shadow standing still is as fixed as a parked aircraft — external, so nothing we do
         // moves it — and the route-aware bypass has to treat it the same way or a stopped shadow gates every
         // aircraft whose lane merely points at it.
-        var (parked, mover) = BuildParkedNeighborPair(routeLateralFt: 140.0, moverGs: 0);
+        (AircraftState? parked, AircraftState? mover) = BuildParkedNeighborPair(routeLateralFt: 140.0, moverGs: 0);
         parked.Phases = null;
         parked.LiveTraffic = new AircraftLiveTraffic();
 
@@ -368,7 +368,7 @@ public class GroundConflictDetectorTests
     {
         // With no route there is nothing but the nose to go on, so the heading-based test still rules: the
         // mover sits inside the stop ring and the lateral room along its heading is only ~89 ft.
-        var (parked, mover) = BuildParkedNeighborPair(routeLateralFt: null, moverGs: 8);
+        (AircraftState? parked, AircraftState? mover) = BuildParkedNeighborPair(routeLateralFt: null, moverGs: 8);
 
         var aircraft = new List<AircraftState> { parked, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -401,8 +401,8 @@ public class GroundConflictDetectorTests
     /// </summary>
     private static TaxiRouteSegment MakeSeg(int from, int to, string taxiway, GroundEdge edge)
     {
-        var fromNode = edge.Nodes.FirstOrDefault(n => n.Id == from) ?? PlaceholderNode(from);
-        var toNode = edge.Nodes.FirstOrDefault(n => n.Id == to) ?? PlaceholderNode(to);
+        GroundNode fromNode = edge.Nodes.FirstOrDefault(n => n.Id == from) ?? PlaceholderNode(from);
+        GroundNode toNode = edge.Nodes.FirstOrDefault(n => n.Id == to) ?? PlaceholderNode(to);
         return new TaxiRouteSegment { TaxiwayName = taxiway, Edge = edge.Directed(fromNode, toNode) };
     }
 
@@ -417,16 +417,16 @@ public class GroundConflictDetectorTests
     [Fact]
     public void TwoTaxiing_SameEdgeSameDirection_TrailerGetsSpeedLimit()
     {
-        var (layout, _, _, _) = BuildSimpleLayout();
-        var edge01 = layout.Edges[0];
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
 
         // Both on edge 0→1, heading north, A is behind B (further from node 1)
-        var routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
-        var routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
         // A at node 0, B 150ft ahead
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
-        var b = MakeAircraft(
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        AircraftState b = MakeAircraft(
             "B",
             new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon),
             heading: 0,
@@ -446,14 +446,14 @@ public class GroundConflictDetectorTests
     [Fact]
     public void TwoTaxiing_ConvergingOnSameNode_FartherOneSlows()
     {
-        var (layout, n0, n1, _) = BuildConvergenceLayout();
+        (AirportGroundLayout? layout, GroundNode? n0, GroundNode? n1, GroundNode _) = BuildConvergenceLayout();
 
-        var routeA = MakeRoute(MakeSeg(0, 2, "A", layout.Edges[0]));
-        var routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));
+        TaxiRoute routeA = MakeRoute(MakeSeg(0, 2, "A", layout.Edges[0]));
+        TaxiRoute routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));
 
         // A is further from N2 than B
-        var a = MakeAircraft("A", n0.Position, heading: 45, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
-        var b = MakeAircraft("B", n1.Position, heading: 315, gs: 15, taxiRoute: routeB, phase: new TaxiingPhase());
+        AircraftState a = MakeAircraft("A", n0.Position, heading: 45, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        AircraftState b = MakeAircraft("B", n1.Position, heading: 315, gs: 15, taxiRoute: routeB, phase: new TaxiingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
@@ -517,15 +517,15 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Convergence_NearerAircraftClearsFirst_FartherIsNotSlowed()
     {
-        var (layout, n0, n1, _) = BuildAsymmetricConvergenceLayout();
+        (AirportGroundLayout? layout, GroundNode? n0, GroundNode? n1, GroundNode _) = BuildAsymmetricConvergenceLayout();
 
-        var routeA = MakeRoute(MakeSeg(0, 2, "A", layout.Edges[0]));
-        var routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));
+        TaxiRoute routeA = MakeRoute(MakeSeg(0, 2, "A", layout.Edges[0]));
+        TaxiRoute routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));
 
         // A (yielder) is ~1000 ft from the shared node; B (winner) is ~150 ft and moving fast, so it
         // clears the node well before A arrives. A must not be slowed.
-        var a = MakeAircraft("A", n0.Position, heading: 0, gs: 8, taxiRoute: routeA, phase: new TaxiingPhase());
-        var b = MakeAircraft("B", n1.Position, heading: 180, gs: 25, taxiRoute: routeB, phase: new TaxiingPhase());
+        AircraftState a = MakeAircraft("A", n0.Position, heading: 0, gs: 8, taxiRoute: routeA, phase: new TaxiingPhase());
+        AircraftState b = MakeAircraft("B", n1.Position, heading: 180, gs: 25, taxiRoute: routeB, phase: new TaxiingPhase());
 
         GroundConflictDetector.ApplySpeedLimits([a, b], layout);
 
@@ -536,15 +536,15 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Convergence_NearStoppedWinner_FartherStillSlows()
     {
-        var (layout, n0, n1, _) = BuildAsymmetricConvergenceLayout();
+        (AirportGroundLayout? layout, GroundNode? n0, GroundNode? n1, GroundNode _) = BuildAsymmetricConvergenceLayout();
 
-        var routeA = MakeRoute(MakeSeg(0, 2, "A", layout.Edges[0]));
-        var routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));
+        TaxiRoute routeA = MakeRoute(MakeSeg(0, 2, "A", layout.Edges[0]));
+        TaxiRoute routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));
 
         // The nearer aircraft B is essentially stopped (<= 3 kt), so it cannot be trusted to clear
         // the node first — the gate keeps the slowdown and the farther aircraft A yields.
-        var a = MakeAircraft("A", n0.Position, heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
-        var b = MakeAircraft("B", n1.Position, heading: 180, gs: 2, taxiRoute: routeB, phase: new TaxiingPhase());
+        AircraftState a = MakeAircraft("A", n0.Position, heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        AircraftState b = MakeAircraft("B", n1.Position, heading: 180, gs: 2, taxiRoute: routeB, phase: new TaxiingPhase());
 
         GroundConflictDetector.ApplySpeedLimits([a, b], layout);
 
@@ -554,19 +554,19 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Convergence_AnnotatesYielderWithAutoYieldTarget()
     {
-        var (layout, n0, n1, _) = BuildConvergenceLayout();
-        var routeA = MakeRoute(MakeSeg(0, 2, "A", layout.Edges[0]));
-        var routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));
-        var a = MakeAircraft("A", n0.Position, heading: 45, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
-        var b = MakeAircraft("B", n1.Position, heading: 315, gs: 15, taxiRoute: routeB, phase: new TaxiingPhase());
+        (AirportGroundLayout? layout, GroundNode? n0, GroundNode? n1, GroundNode _) = BuildConvergenceLayout();
+        TaxiRoute routeA = MakeRoute(MakeSeg(0, 2, "A", layout.Edges[0]));
+        TaxiRoute routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));
+        AircraftState a = MakeAircraft("A", n0.Position, heading: 45, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        AircraftState b = MakeAircraft("B", n1.Position, heading: 315, gs: 15, taxiRoute: routeB, phase: new TaxiingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
 
         // The yielder is the speed-limited one; it carries the auto-yield annotation
         // pointing at the winner. The winner carries none.
-        var yielder = a.Ground.SpeedLimit is not null ? a : b;
-        var winner = ReferenceEquals(yielder, a) ? b : a;
+        AircraftState yielder = a.Ground.SpeedLimit is not null ? a : b;
+        AircraftState winner = ReferenceEquals(yielder, a) ? b : a;
         Assert.Equal(winner.Callsign, yielder.Ground.AutoYieldTarget);
         Assert.False(yielder.Ground.AutoYieldIsFollowing); // converging give-way, not in-trail follow
         Assert.Null(winner.Ground.AutoYieldTarget);
@@ -575,13 +575,13 @@ public class GroundConflictDetectorTests
     [Fact]
     public void SameEdgeTrailing_AnnotatesTrailerWithAutoYieldTarget()
     {
-        var (layout, _, _, _) = BuildSimpleLayout();
-        var edge01 = layout.Edges[0];
-        var routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
-        var routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
+        TaxiRoute routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
         // A behind, B ahead — A trails B on the shared edge.
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
-        var b = MakeAircraft(
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        AircraftState b = MakeAircraft(
             "B",
             new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon),
             heading: 0,
@@ -593,8 +593,8 @@ public class GroundConflictDetectorTests
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
 
-        var trailer = a.Ground.SpeedLimit is not null ? a : b;
-        var leader = ReferenceEquals(trailer, a) ? b : a;
+        AircraftState trailer = a.Ground.SpeedLimit is not null ? a : b;
+        AircraftState leader = ReferenceEquals(trailer, a) ? b : a;
         Assert.Equal(leader.Callsign, trailer.Ground.AutoYieldTarget);
         Assert.True(trailer.Ground.AutoYieldIsFollowing); // in-trail follow, not converging give-way
         Assert.Null(leader.Ground.AutoYieldTarget);
@@ -605,8 +605,8 @@ public class GroundConflictDetectorTests
     {
         // Two aircraft well outside SearchRangeNm — no pair is formed, and the per-tick
         // reset must clear any stale annotation.
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
-        var b = MakeAircraft("B", new LatLon(BaseLat + 1.0, BaseLon), heading: 0, gs: 15);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat + 1.0, BaseLon), heading: 0, gs: 15);
         a.Ground.AutoYieldTarget = "STALE";
 
         var aircraft = new List<AircraftState> { a, b };
@@ -620,8 +620,8 @@ public class GroundConflictDetectorTests
     public void MovingAircraft_ClosingOnStationary_MovingOneStops()
     {
         // B is stationary at parking, A is taxiing toward B at 150ft
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
-        var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 90, gs: 0, phase: new AtParkingPhase());
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 90, gs: 0, phase: new AtParkingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -639,8 +639,14 @@ public class GroundConflictDetectorTests
         // from the hold-short at the same entry and is actively lining up toward B.
         // A must be treated as a mover (not a parked obstacle) so it stops behind B
         // instead of driving through it.
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 10, phase: new LineUpPhase());
-        var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 0, phase: new LinedUpAndWaitingPhase());
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 10, phase: new LineUpPhase());
+        AircraftState b = MakeAircraft(
+            "B",
+            new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon),
+            heading: 0,
+            gs: 0,
+            phase: new LinedUpAndWaitingPhase()
+        );
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -658,7 +664,7 @@ public class GroundConflictDetectorTests
         // obstacle on every sub-tick its speed had just been pinned to zero. No limit was written on
         // those sub-ticks, and it crept forward at ~3 ft/s. The commanded speed is the intent signal:
         // an aircraft asking for forward speed is a mover however slowly it happens to be rolling.
-        var luaw = MakeAircraft(
+        AircraftState luaw = MakeAircraft(
             "LUAW1",
             new LatLon(BaseLat + (0.8 * OffsetLatPer100Ft), BaseLon),
             heading: 0,
@@ -667,9 +673,9 @@ public class GroundConflictDetectorTests
         );
         luaw.Targets.TargetSpeed = 0;
 
-        var liningUp = MakeAircraft("LINE1", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new LineUpPhase());
+        AircraftState liningUp = MakeAircraft("LINE1", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new LineUpPhase());
 
-        var startPosition = liningUp.Position;
+        LatLon startPosition = liningUp.Position;
         var aircraft = new List<AircraftState> { luaw, liningUp };
 
         for (int k = 1; k <= 4; k++)
@@ -698,8 +704,8 @@ public class GroundConflictDetectorTests
         // A stationary aircraft in LineUpPhase (e.g. braked at the hold-short bar waiting
         // for its lineup path) is still a passable obstacle: a mover with adequate lateral
         // clearance behind it must not be hard-stopped by mere proximity.
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 90, gs: 15);
-        var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 0, phase: new LineUpPhase());
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 90, gs: 15);
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 0, phase: new LineUpPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -713,8 +719,8 @@ public class GroundConflictDetectorTests
     public void StationaryNearMoving_NotInPath_NoLimit()
     {
         // A is moving east, B is stationary to the north (not in A's path)
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 90, gs: 15);
-        var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 90, gs: 15);
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -728,12 +734,12 @@ public class GroundConflictDetectorTests
     public void PushingTowardOther_PushbackYields()
     {
         // A is pushing back south (pushbackHeading=180), B is south of A (in pushback path, 150ft)
-        var a = MakeAircraft("A", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
         a.Phases = new PhaseList();
         a.Phases.Add(StraightPushFrom(a));
         a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
-        var b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -747,12 +753,12 @@ public class GroundConflictDetectorTests
     public void PushingAwayFromOther_NoYield()
     {
         // A is pushing back south (pushbackHeading=180), B is north of A (not in pushback path)
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
         a.Phases = new PhaseList();
         a.Phases.Add(StraightPushFrom(a));
         a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
-        var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -768,12 +774,12 @@ public class GroundConflictDetectorTests
         // gate ~180 ft ahead — beyond collision distance (stopDist ~154 ft for the
         // B738 pair) but inside the 200 ft pushback buffer. A pushback must not be
         // pinned to 0 by a parked neighbor; it may creep at its pushback speed.
-        var a = MakeAircraft("A", new LatLon(BaseLat + 1.8 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat + 1.8 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
         a.Phases = new PhaseList();
         a.Phases.Add(StraightPushFrom(a));
         a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
-        var b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -792,12 +798,12 @@ public class GroundConflictDetectorTests
         // Safety floor: when the parked neighbor is within actual collision distance
         // (~120 ft < stopDist ~154 ft for the B738 pair, dead ahead), the pushback
         // still hard-stops so it does not back into the parked aircraft.
-        var a = MakeAircraft("A", new LatLon(BaseLat + 1.2 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat + 1.2 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
         a.Phases = new PhaseList();
         a.Phases.Add(StraightPushFrom(a));
         a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
-        var b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -822,7 +828,7 @@ public class GroundConflictDetectorTests
     /// </summary>
     private static AircraftState MakePusher(LatLon standPosition, LatLon position, bool startsAtStand, bool continuesStandPushOff)
     {
-        var pusher = MakeAircraft("PSH", standPosition, heading: 0, gs: 3, pushbackHeading: 180);
+        AircraftState pusher = MakeAircraft("PSH", standPosition, heading: 0, gs: 3, pushbackHeading: 180);
         pusher.Phases = new PhaseList();
         pusher.Phases.Add(
             new PushbackPhase
@@ -853,7 +859,7 @@ public class GroundConflictDetectorTests
     private static AircraftState MakePusherToTarget(LatLon standPosition, LatLon position, LatLon target, double pushHeading)
     {
         double noseAtStand = new TrueHeading(GeoMath.BearingTo(standPosition, target)).ToReciprocal().Degrees;
-        var pusher = MakeAircraft("PSH", standPosition, heading: noseAtStand, gs: 3, pushbackHeading: pushHeading);
+        AircraftState pusher = MakeAircraft("PSH", standPosition, heading: noseAtStand, gs: 3, pushbackHeading: pushHeading);
         pusher.Phases = new PhaseList();
         pusher.Phases.Add(
             new PushbackPhase
@@ -877,7 +883,7 @@ public class GroundConflictDetectorTests
     /// </summary>
     private static PushbackPhase StraightPushFrom(AircraftState aircraft)
     {
-        var pushHeading = aircraft.Ground.PushbackTrueHeading ?? aircraft.TrueHeading.ToReciprocal();
+        TrueHeading pushHeading = aircraft.Ground.PushbackTrueHeading ?? aircraft.TrueHeading.ToReciprocal();
         return new PushbackPhase
         {
             Move = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.SimplePushbackFt(aircraft.AircraftType)),
@@ -909,10 +915,10 @@ public class GroundConflictDetectorTests
         // A pushback whose tail is already out in the alley owns it: the taxiing aircraft gives way and the
         // pusher completes into its spot. Resolving the two sides independently stopped both forever — the
         // pusher pinned for the mover ahead of its push direction, and the mover trailed the stopped pusher.
-        var pusher = MakePusherFromStand(StandNorthOf(190), new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon));
+        AircraftState pusher = MakePusherFromStand(StandNorthOf(190), new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon));
 
         // Head-on along the push axis ~190 ft out: no lateral room for either to pass.
-        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
 
         var aircraft = new List<AircraftState> { pusher, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -939,13 +945,13 @@ public class GroundConflictDetectorTests
         // Same geometry as the mutual stop, but the push is a leg the plan reversed into — the second leg of a
         // PUSHM, or the push half of a three-point turn. That tow is repositioning, not committing an alley off a
         // stand, so it is ordinary ramp traffic: the mover keeps going and the pusher takes the hard stop.
-        var pusher = MakePusher(
+        AircraftState pusher = MakePusher(
             StandNorthOf(190),
             new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon),
             startsAtStand: false,
             continuesStandPushOff: false
         );
-        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
 
         var aircraft = new List<AircraftState> { pusher, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -965,13 +971,13 @@ public class GroundConflictDetectorTests
         // The move after the push-off, flown through from it with no reversal between, is still leg 1 of the push
         // off the stand: the tail is out in the alley and the tug crew cannot see behind it, so the taxiing
         // aircraft gives way exactly as it does for the push-off itself.
-        var pusher = MakePusher(
+        AircraftState pusher = MakePusher(
             StandNorthOf(190),
             new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon),
             startsAtStand: false,
             continuesStandPushOff: true
         );
-        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
 
         var aircraft = new List<AircraftState> { pusher, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -992,8 +998,8 @@ public class GroundConflictDetectorTests
     {
         // The mover sits behind the push direction (the tail is swinging away from it), so the
         // pusher owes it nothing and the give-way rule does not engage — the mover just trails.
-        var pusher = MakePusherFromStand(StandNorthOf(0), new LatLon(BaseLat, BaseLon));
-        var mover = MakeTaxiingE75L(new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon), heading: 180);
+        AircraftState pusher = MakePusherFromStand(StandNorthOf(0), new LatLon(BaseLat, BaseLon));
+        AircraftState mover = MakeTaxiingE75L(new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon), heading: 180);
 
         var aircraft = new List<AircraftState> { pusher, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1010,8 +1016,8 @@ public class GroundConflictDetectorTests
         // An aircraft crossing a runway is never held for a ramp push — it has to get the whole aircraft
         // past the hold line first (AIM 4-3-21.b) — so the pusher takes the stop, annotated with who it is
         // waiting for so a stalled PUSH is readable.
-        var pusher = MakePusherFromStand(StandNorthOf(190), new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon));
-        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState pusher = MakePusherFromStand(StandNorthOf(190), new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon));
+        AircraftState mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
         mover.Phases = new PhaseList();
         mover.Phases.Add(new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"));
         mover.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -1030,8 +1036,8 @@ public class GroundConflictDetectorTests
     {
         // A live-traffic shadow is not ours to hold: nothing we write to it moves it, so the give-way rule
         // must not pick it as the holder. The pusher keeps its hard stop and the shadow is left untouched.
-        var pusher = MakePusherFromStand(StandNorthOf(190), new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon));
-        var shadow = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState pusher = MakePusherFromStand(StandNorthOf(190), new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon));
+        AircraftState shadow = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
         shadow.LiveTraffic = new AircraftLiveTraffic();
 
         var aircraft = new List<AircraftState> { pusher, shadow };
@@ -1050,8 +1056,8 @@ public class GroundConflictDetectorTests
         // can wait for the traffic to go by — "hold your push, traffic in the alley" — so today's yield
         // applies unchanged.
         var stand = new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon);
-        var pusher = MakePusherFromStand(stand, stand);
-        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState pusher = MakePusherFromStand(stand, stand);
+        AircraftState mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
 
         var aircraft = new List<AircraftState> { pusher, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1069,8 +1075,8 @@ public class GroundConflictDetectorTests
         // lateral room, the holder is pinned by the give-way and the pusher by its own proximity stop. Both
         // sit at zero until the controller BREAKs one of them — documented on PushbackYieldForTraffic rather
         // than papered over, because no automatic resolution is safe this close.
-        var pusher = MakePusherFromStand(StandNorthOf(120), new LatLon(BaseLat + (1.2 * OffsetLatPer100Ft), BaseLon));
-        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState pusher = MakePusherFromStand(StandNorthOf(120), new LatLon(BaseLat + (1.2 * OffsetLatPer100Ft), BaseLon));
+        AircraftState mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
 
         var aircraft = new List<AircraftState> { pusher, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1087,13 +1093,13 @@ public class GroundConflictDetectorTests
         // ring — so the give-way pins it. The rest of the push runs east across the alley, though, and never
         // comes closer to the holder than it already is. Stopping the pusher there would wedge it against the
         // very aircraft holding for it, with neither moving again until the controller BREAKs one.
-        var pusher = MakePusherToTarget(
+        AircraftState pusher = MakePusherToTarget(
             StandNorthOf(142),
             new LatLon(BaseLat + (1.42 * OffsetLatPer100Ft), BaseLon),
             new LatLon(BaseLat + (1.42 * OffsetLatPer100Ft), BaseLon + (2.0 * OffsetLonPer100Ft)),
             pushHeading: 180
         );
-        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
 
         var aircraft = new List<AircraftState> { pusher, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1114,13 +1120,13 @@ public class GroundConflictDetectorTests
         // drives into the aircraft that is waiting for it, so the pusher keeps its proximity stop. Both sit at
         // zero until the controller BREAKs one of them — the wedge documented on PushbackYieldForTraffic,
         // because no automatic resolution is safe when the push is aimed at the other aircraft.
-        var pusher = MakePusherToTarget(
+        AircraftState pusher = MakePusherToTarget(
             StandNorthOf(142),
             new LatLon(BaseLat + (1.42 * OffsetLatPer100Ft), BaseLon),
             new LatLon(BaseLat, BaseLon),
             pushHeading: 180
         );
-        var mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
 
         var aircraft = new List<AircraftState> { pusher, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1136,7 +1142,7 @@ public class GroundConflictDetectorTests
     /// </summary>
     private static AircraftState MakeCreepingPuller(LatLon position, double remainingFt)
     {
-        var move = TugMove.Straight(PushbackLegKind.Pull, remainingFt) with { Creep = true };
+        TugMove move = TugMove.Straight(PushbackLegKind.Pull, remainingFt) with { Creep = true };
         var phase = new PushbackPhase
         {
             Move = move,
@@ -1150,8 +1156,8 @@ public class GroundConflictDetectorTests
     [Fact]
     public void CreepingTugMove_LimitAboveTheCommandedCreep_ShowsNoYieldTarget()
     {
-        var parked = MakeAircraft("PRK", new LatLon(BaseLat, BaseLon + OffsetLonPer100Ft), heading: 0, gs: 0, phase: new AtParkingPhase());
-        var mover = MakeCreepingPuller(new LatLon(BaseLat, BaseLon), remainingFt: 20);
+        AircraftState parked = MakeAircraft("PRK", new LatLon(BaseLat, BaseLon + OffsetLonPer100Ft), heading: 0, gs: 0, phase: new AtParkingPhase());
+        AircraftState mover = MakeCreepingPuller(new LatLon(BaseLat, BaseLon), remainingFt: 20);
         var tugMove = (PushbackPhase)mover.Phases!.CurrentPhase!;
         Assert.Equal(CategoryPerformance.PushbackAlignSpeed(AircraftCategory.Jet), tugMove.CommandedSpeedKts(mover));
 
@@ -1165,8 +1171,8 @@ public class GroundConflictDetectorTests
     [Fact]
     public void CreepingTugMove_LimitBelowTheCommandedCreep_ShowsTheNeighbour()
     {
-        var parked = MakeAircraft("PRK", new LatLon(BaseLat, BaseLon + OffsetLonPer100Ft), heading: 0, gs: 0, phase: new AtParkingPhase());
-        var mover = MakeCreepingPuller(new LatLon(BaseLat, BaseLon), remainingFt: 20);
+        AircraftState parked = MakeAircraft("PRK", new LatLon(BaseLat, BaseLon + OffsetLonPer100Ft), heading: 0, gs: 0, phase: new AtParkingPhase());
+        AircraftState mover = MakeCreepingPuller(new LatLon(BaseLat, BaseLon), remainingFt: 20);
 
         // 2 kt is under the commanded creep: the tow is being braked for the neighbour, and the operator sees who for.
         GroundConflictDetector.ShowTugMoveYield(mover, parked, limitKts: 2);
@@ -1179,8 +1185,8 @@ public class GroundConflictDetectorTests
     public void TwoMoving_HeadOn_NoLayout_BothStop()
     {
         // A heading north, B heading south, 250ft apart, both moving
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
-        var b = MakeAircraft("B", new LatLon(BaseLat + 2.5 * OffsetLatPer100Ft, BaseLon), heading: 180, gs: 15);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat + 2.5 * OffsetLatPer100Ft, BaseLon), heading: 180, gs: 15);
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1197,8 +1203,8 @@ public class GroundConflictDetectorTests
     {
         // A is following B, both close together
         var followPhase = new FollowingPhase("B");
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, phase: followPhase);
-        var b = MakeAircraft("B", new LatLon(BaseLat + 0.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 10);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, phase: followPhase);
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat + 0.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 10);
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1211,8 +1217,8 @@ public class GroundConflictDetectorTests
     public void AircraftFarApart_NoInteraction()
     {
         // A and B are 1nm apart (well beyond SearchRangeNm=0.1)
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
-        var b = MakeAircraft("B", new LatLon(BaseLat + 1.0 / 60.0, BaseLon), heading: 180, gs: 15);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat + 1.0 / 60.0, BaseLon), heading: 180, gs: 15);
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1224,8 +1230,8 @@ public class GroundConflictDetectorTests
     [Fact]
     public void BothStationary_NoLimitsSet()
     {
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
-        var b = MakeAircraft("B", new LatLon(BaseLat + 0.5 * OffsetLatPer100Ft, BaseLon), heading: 180, gs: 0, phase: new AtParkingPhase());
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat + 0.5 * OffsetLatPer100Ft, BaseLon), heading: 180, gs: 0, phase: new AtParkingPhase());
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1237,7 +1243,7 @@ public class GroundConflictDetectorTests
     [Fact]
     public void SingleAircraftOnGround_NoLimitsSet()
     {
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
 
         var aircraft = new List<AircraftState> { a };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1248,8 +1254,8 @@ public class GroundConflictDetectorTests
     [Fact]
     public void IsClearOf_PushingReference_OutsideBuffer_ReturnsTrue()
     {
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
-        var b = MakeAircraft("B", new LatLon(BaseLat + 5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat + 5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
 
         Assert.True(GroundConflictDetector.IsClearOf(a, b, null));
     }
@@ -1257,8 +1263,8 @@ public class GroundConflictDetectorTests
     [Fact]
     public void IsClearOf_PushingReference_InsideBuffer_ReturnsFalse()
     {
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
-        var b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
 
         Assert.False(GroundConflictDetector.IsClearOf(a, b, null));
     }
@@ -1272,14 +1278,14 @@ public class GroundConflictDetectorTests
     {
         // A heading north at 15kts, B is 150ft ahead also heading north at 10kts.
         // Without BREAK, A would get a trailing speed limit. With BREAK, A is exempt.
-        var (layout, _, _, _) = BuildSimpleLayout();
-        var edge01 = layout.Edges[0];
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
 
-        var routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
-        var routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
-        var b = MakeAircraft(
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        AircraftState b = MakeAircraft(
             "B",
             new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon),
             heading: 0,
@@ -1301,7 +1307,7 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Break_TimerDecrements_EachTick()
     {
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
         a.Ground.ConflictBreakRemainingSeconds = 15.0;
 
         var aircraft = new List<AircraftState> { a };
@@ -1314,14 +1320,14 @@ public class GroundConflictDetectorTests
     public void Break_TimerExpired_ConflictsResume()
     {
         // Same setup as Break_AircraftExempt test, but timer is at zero.
-        var (layout, _, _, _) = BuildSimpleLayout();
-        var edge01 = layout.Edges[0];
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
 
-        var routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
-        var routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
-        var b = MakeAircraft(
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        AircraftState b = MakeAircraft(
             "B",
             new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon),
             heading: 0,
@@ -1418,23 +1424,23 @@ public class GroundConflictDetectorTests
     [Fact]
     public void HeldAircraft_PassableLaterally()
     {
-        var (layout, _, _, _) = BuildSimpleLayout();
-        var edge01 = layout.Edges[0];
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
 
-        var routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
-        var routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
         // Held aircraft sits at origin, heading north, with a route. Hold=GiveWay
         // simulates GIVEWAY — the route is assigned but the aircraft is parked
         // until the resume geometry fires.
-        var held = MakeAircraft("HELD", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
+        AircraftState held = MakeAircraft("HELD", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
         held.Ground.Hold = HoldDirective.GiveWay("MOVER");
 
         // Mover is 100ft south and 200ft east, heading north. B738 wingspan ~117 ft
         // → required lateral = 117/2 + 117/2 + 25 = 142 ft. The 200ft offset
         // clears this, so the bypass should let the mover pass at speed.
         const double OffsetLonPer100Ft = 100.0 / FtPerNm / 60.0; // approx; longitude scales with cos(lat) but at 37° the error is small
-        var mover = MakeAircraft(
+        AircraftState mover = MakeAircraft(
             "MOVER",
             new LatLon(BaseLat - OffsetLatPer100Ft, BaseLon + 2.5 * OffsetLonPer100Ft),
             heading: 0,
@@ -1465,17 +1471,17 @@ public class GroundConflictDetectorTests
     [Fact]
     public void HeldAircraft_StopsInPathMover()
     {
-        var (layout, _, _, _) = BuildSimpleLayout();
-        var edge01 = layout.Edges[0];
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
 
-        var routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
-        var routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
-        var held = MakeAircraft("HELD", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
+        AircraftState held = MakeAircraft("HELD", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
         held.Ground.Hold = HoldDirective.HoldPosition;
 
         // Mover 100ft south, same longitude — directly behind the held aircraft.
-        var mover = MakeAircraft(
+        AircraftState mover = MakeAircraft(
             "MOVER",
             new LatLon(BaseLat - OffsetLatPer100Ft, BaseLon),
             heading: 0,
@@ -1501,12 +1507,12 @@ public class GroundConflictDetectorTests
     [Fact]
     public void HeldButStillMoving_HeadOnPair_StillGetsSpeedLimits()
     {
-        var (layout, _, _, _) = BuildSimpleLayout();
-        var edge01 = layout.Edges[0];
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
 
         // Nose-to-nose on the same taxiway, 250 ft apart, both "held" but both
         // still rolling at taxi speed (the OAK N262QX / N28697 geometry).
-        var north = MakeAircraft(
+        AircraftState north = MakeAircraft(
             "NORTH",
             new LatLon(BaseLat, BaseLon),
             heading: 0,
@@ -1516,7 +1522,7 @@ public class GroundConflictDetectorTests
         );
         north.Ground.Hold = HoldDirective.HoldPosition;
 
-        var south = MakeAircraft(
+        AircraftState south = MakeAircraft(
             "SOUTH",
             new LatLon(BaseLat + 2.5 * OffsetLatPer100Ft, BaseLon),
             heading: 180,
@@ -1546,16 +1552,16 @@ public class GroundConflictDetectorTests
     [Fact]
     public void DebugSink_EmitsControllerGiveWayLine_ForControllerHeldPair()
     {
-        var (layout, _, _, _) = BuildSimpleLayout();
-        var edge01 = layout.Edges[0];
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
 
-        var routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
-        var routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
-        var held = MakeAircraft("N123", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
+        AircraftState held = MakeAircraft("N123", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
         held.Ground.Hold = HoldDirective.GiveWay("MOVER");
 
-        var mover = MakeAircraft(
+        AircraftState mover = MakeAircraft(
             "MOVER",
             new LatLon(BaseLat - OffsetLatPer100Ft, BaseLon),
             heading: 0,
@@ -1580,16 +1586,16 @@ public class GroundConflictDetectorTests
     [Fact]
     public void DebugSink_OmitsControllerGiveWayLine_ForHoldPosition()
     {
-        var (layout, _, _, _) = BuildSimpleLayout();
-        var edge01 = layout.Edges[0];
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
 
-        var routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
-        var routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeHeld = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        TaxiRoute routeMover = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
-        var held = MakeAircraft("N123", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
+        AircraftState held = MakeAircraft("N123", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, taxiRoute: routeHeld, phase: new TaxiingPhase());
         held.Ground.Hold = HoldDirective.HoldPosition;
 
-        var mover = MakeAircraft(
+        AircraftState mover = MakeAircraft(
             "MOVER",
             new LatLon(BaseLat - OffsetLatPer100Ft, BaseLon),
             heading: 0,
@@ -1619,13 +1625,13 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Crossing_OnRunwayAircraft_HasPriority_TaxiingCrosserYields()
     {
-        var (layout, _, _, _) = BuildSimpleLayout();
-        var edge01 = layout.Edges[0];
-        var routeCrosser = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
+        TaxiRoute routeCrosser = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
         // Runway-exit aircraft at origin heading north, closing on a crosser ~90ft ahead.
-        var exiting = MakeAircraft("EXIT", new LatLon(BaseLat, BaseLon), heading: 0, gs: 12, phase: new RunwayExitPhase());
-        var crosser = MakeAircraft(
+        AircraftState exiting = MakeAircraft("EXIT", new LatLon(BaseLat, BaseLon), heading: 0, gs: 12, phase: new RunwayExitPhase());
+        AircraftState crosser = MakeAircraft(
             "CROSS",
             new LatLon(BaseLat + 0.9 * OffsetLatPer100Ft, BaseLon),
             heading: 90,
@@ -1651,12 +1657,12 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Crossing_TakeoffRollAircraft_HasPriority_TaxiingCrosserYields()
     {
-        var (layout, _, _, _) = BuildSimpleLayout();
-        var edge01 = layout.Edges[0];
-        var routeCrosser = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
+        TaxiRoute routeCrosser = MakeRoute(MakeSeg(0, 1, "A", edge01));
 
-        var departing = MakeAircraft("DEP", new LatLon(BaseLat, BaseLon), heading: 0, gs: 40, phase: new TakeoffPhase());
-        var crosser = MakeAircraft(
+        AircraftState departing = MakeAircraft("DEP", new LatLon(BaseLat, BaseLon), heading: 0, gs: 40, phase: new TakeoffPhase());
+        AircraftState crosser = MakeAircraft(
             "CROSS",
             new LatLon(BaseLat + 0.9 * OffsetLatPer100Ft, BaseLon),
             heading: 90,
@@ -1684,8 +1690,14 @@ public class GroundConflictDetectorTests
     {
         // "STOP" has no route and gs=0 but heading north, with a crosser ~70ft due
         // north heading east. STOP is closing (by heading) on the crosser → must hold.
-        var stopped = MakeAircraft("STOP", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0);
-        var crosser = MakeAircraft("CROSS", new LatLon(BaseLat + 0.7 * OffsetLatPer100Ft, BaseLon), heading: 90, gs: 8, phase: new TaxiingPhase());
+        AircraftState stopped = MakeAircraft("STOP", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0);
+        AircraftState crosser = MakeAircraft(
+            "CROSS",
+            new LatLon(BaseLat + 0.7 * OffsetLatPer100Ft, BaseLon),
+            heading: 90,
+            gs: 8,
+            phase: new TaxiingPhase()
+        );
 
         var aircraft = new List<AircraftState> { stopped, crosser };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1703,8 +1715,8 @@ public class GroundConflictDetectorTests
     {
         // AAA heading 030, ZZZ 50ft due north heading 150 — both closing, heading
         // difference 120° (not head-on), within stop distance.
-        var aaa = MakeAircraft("AAA", new LatLon(BaseLat, BaseLon), heading: 30, gs: 10);
-        var zzz = MakeAircraft("ZZZ", new LatLon(BaseLat + 0.5 * OffsetLatPer100Ft, BaseLon), heading: 150, gs: 10);
+        AircraftState aaa = MakeAircraft("AAA", new LatLon(BaseLat, BaseLon), heading: 30, gs: 10);
+        AircraftState zzz = MakeAircraft("ZZZ", new LatLon(BaseLat + 0.5 * OffsetLatPer100Ft, BaseLon), heading: 150, gs: 10);
 
         var aircraft = new List<AircraftState> { aaa, zzz };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1730,8 +1742,8 @@ public class GroundConflictDetectorTests
     {
         // A heading 030, B 280ft due north heading 160 — 130° apart, both approaching,
         // inside the 300ft head-on range but beyond trail distance.
-        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 30, gs: 10);
-        var b = MakeAircraft("B", new LatLon(BaseLat + 2.8 * OffsetLatPer100Ft, BaseLon), heading: 160, gs: 10);
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 30, gs: 10);
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat + 2.8 * OffsetLatPer100Ft, BaseLon), heading: 160, gs: 10);
 
         var aircraft = new List<AircraftState> { a, b };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
@@ -1781,10 +1793,10 @@ public class GroundConflictDetectorTests
             DistanceNm = 110.0 / FtPerNm,
         };
 
-        var winnerRoute = MakeRoute(MakeSeg(677, 17, "W", edge), MakeSeg(17, 676, "W", edge));
-        var yielderRoute = MakeRoute(MakeSeg(679, 17, "U", edge), MakeSeg(17, 676, "W", edge));
+        TaxiRoute winnerRoute = MakeRoute(MakeSeg(677, 17, "W", edge), MakeSeg(17, 676, "W", edge));
+        TaxiRoute yielderRoute = MakeRoute(MakeSeg(679, 17, "U", edge), MakeSeg(17, 676, "W", edge));
 
-        var winner = MakeAircraft(
+        AircraftState winner = MakeAircraft(
             "JSX177",
             new LatLon(37.70671679458664, -122.21835798527978),
             heading: 129,
@@ -1792,7 +1804,7 @@ public class GroundConflictDetectorTests
             taxiRoute: winnerRoute,
             phase: new TaxiingPhase()
         );
-        var yielder = MakeAircraft(
+        AircraftState yielder = MakeAircraft(
             "SWA897",
             new LatLon(37.70679525153174, -122.21799088712922),
             heading: 221,
@@ -1836,15 +1848,15 @@ public class GroundConflictDetectorTests
         // A throwaway edge so both aircraft classify as Taxiing (routes only need a current
         // segment; layout is passed null so the pair resolves via the Crossing path — matching
         // the real bug, where FindSharedUpcomingNode misses the route-start merge node).
-        var (layout, _, _, _) = BuildSimpleLayout();
-        var edge = layout.Edges[0];
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge = layout.Edges[0];
 
         var swa863Pos = new LatLon(37.709154, -122.214694);
         // SWA1182 sits 90 ft from SWA863 on bearing 036°, so SWA863 is dead ahead on
         // SWA1182's 216° nose (216 = 036 + 180) while SWA1182 is ~71° off SWA863's nose.
-        var swa1182Pos = GeoMath.ProjectPoint(swa863Pos, new TrueHeading(36.0), 90.0 / FtPerNm);
+        LatLon swa1182Pos = GeoMath.ProjectPoint(swa863Pos, new TrueHeading(36.0), 90.0 / FtPerNm);
 
-        var swa863 = MakeAircraft(
+        AircraftState swa863 = MakeAircraft(
             "SWA863",
             swa863Pos,
             heading: 107.5,
@@ -1852,7 +1864,7 @@ public class GroundConflictDetectorTests
             taxiRoute: MakeRoute(MakeSeg(949, 1, "TE", edge)),
             phase: new TaxiingPhase()
         );
-        var swa1182 = MakeAircraft(
+        AircraftState swa1182 = MakeAircraft(
             "SWA1182",
             swa1182Pos,
             heading: 216.0,

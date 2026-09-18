@@ -36,14 +36,14 @@ public class Issue405ExitDirectionOverrideTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("MIA");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("MIA");
         if (layout is null)
         {
             return;
         }
 
-        var rwy26R = NavigationDatabase.Instance.GetRunway("MIA", "26R");
-        var rwy8L = NavigationDatabase.Instance.GetRunway("MIA", "8L");
+        RunwayInfo? rwy26R = NavigationDatabase.Instance.GetRunway("MIA", "26R");
+        RunwayInfo? rwy8L = NavigationDatabase.Instance.GetRunway("MIA", "8L");
         Assert.NotNull(rwy26R);
         Assert.NotNull(rwy8L);
 
@@ -75,13 +75,13 @@ public class Issue405ExitDirectionOverrideTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("MIA");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("MIA");
         if (layout is null)
         {
             return;
         }
 
-        var rwy26R = NavigationDatabase.Instance.GetRunway("MIA", "26R");
+        RunwayInfo? rwy26R = NavigationDatabase.Instance.GetRunway("MIA", "26R");
         Assert.NotNull(rwy26R);
 
         Assert.Equal(ExitSide.Left, NavigationDatabase.Instance.AirportSidecars.GetExitDirection("KMIA", "26R"));
@@ -102,14 +102,14 @@ public class Issue405ExitDirectionOverrideTests(ITestOutputHelper output)
             return;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var rwy26R = navDb.GetRunway("MIA", "26R");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? rwy26R = navDb.GetRunway("MIA", "26R");
         if (rwy26R is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("MIA");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("MIA");
         if (layout is null)
         {
             return;
@@ -120,7 +120,7 @@ public class Issue405ExitDirectionOverrideTests(ITestOutputHelper output)
         var engine = new SimulationEngine(new TestAirportGroundData());
 
         double reciprocal = (rwy26R.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(rwy26R.ThresholdLatitude, rwy26R.ThresholdLongitude, reciprocal, 1.0);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(rwy26R.ThresholdLatitude, rwy26R.ThresholdLongitude, reciprocal, 1.0);
 
         var aircraft = new AircraftState
         {
@@ -147,7 +147,7 @@ public class Issue405ExitDirectionOverrideTests(ITestOutputHelper output)
         aircraft.Phases.Add(new HoldingAfterExitPhase());
         aircraft.Ground.Layout = layout;
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         engine.World.AddAircraft(aircraft);
@@ -160,10 +160,10 @@ public class Issue405ExitDirectionOverrideTests(ITestOutputHelper output)
             PrimaryAirportId = "MIA",
         };
 
-        var clear = engine.SendCommand(Callsign, "CLAND");
+        CommandResult clear = engine.SendCommand(Callsign, "CLAND");
         Assert.True(clear.Success, $"CLAND failed: {clear.Message}");
 
-        var threshold = LandingThreshold.Resolve(rwy26R, layout);
+        LatLon threshold = LandingThreshold.Resolve(rwy26R, layout);
         string? exitTaxiway = null;
         double stoppedCrossTrackFt = double.NaN;
 

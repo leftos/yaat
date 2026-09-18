@@ -71,7 +71,7 @@ public static class GroundCommandHandler
         // The clearance as the controller worded it. When a cleared taxiway has to be dropped below, the
         // pilot's readback is built from this minus the dropped lane — not from the internally folded /
         // prepended working copy — so the solo student hears "unable M4, taxi via M1 …" and nothing else.
-        var asCleared = taxi;
+        TaxiCommand asCleared = taxi;
         TaxiCommand? effectiveCommand = null;
 
         // A taxiway named only as a hold-short target ("... HS E") can also be a directional hint.
@@ -79,7 +79,7 @@ public static class GroundCommandHandler
         // the path only when that route cannot honor it (see ResolveRoute below — issue #395: SFO
         // "TAXI T7A A A1 1R HS H" crosses H on A and must not detour back to H after A1). Without a
         // destination the hint is the only direction cue, so it is folded up front.
-        var foldTargets = HoldShortTaxiwaysToFold(groundLayout, taxi);
+        List<HoldShortTarget> foldTargets = HoldShortTaxiwaysToFold(groundLayout, taxi);
         if ((foldTargets.Count > 0) && !HasDestination(taxi))
         {
             taxi = AugmentPathWithHoldShortTaxiways(taxi, foldTargets);
@@ -90,7 +90,7 @@ public static class GroundCommandHandler
         // nearest taxi edge (handles post-pushback poses where the aircraft
         // rests between graph nodes — see issue #161); fall back to the
         // absolute nearest node when the aircraft is genuinely off-graph.
-        var startNode =
+        GroundNode? startNode =
             groundLayout.FindNearestNodeForTaxi(aircraft.Position, aircraft.TrueHeading) ?? groundLayout.FindNearestNode(aircraft.Position);
 
         // Anchor the start node to the first cleared taxiway when the aircraft is sitting on a node
@@ -148,8 +148,8 @@ public static class GroundCommandHandler
         //     SFO M↔H across 01L/19R, zero shared nodes) prepending would re-route the crossing through a
         //     named-junction search instead of the runway-crossing bridge, so it is left to that path.
         // Remember the as-cleared path so the prepend can be undone below if it strands the route.
-        var pathAsCleared = taxi.Path;
-        var pathTurnHintsAsCleared = taxi.PathTurnHints;
+        List<string> pathAsCleared = taxi.Path;
+        List<TurnDirection?>? pathTurnHintsAsCleared = taxi.PathTurnHints;
         bool prependedCurrentTaxiway = false;
         if (
             taxi.Path.Count > 0
@@ -186,7 +186,7 @@ public static class GroundCommandHandler
             taxi.DestinationSpot ?? "(none)"
         );
 
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         double startHeadingTrueDeg = aircraft.TrueHeading.Degrees;
         TaxiRoute? ResolveDirect(TaxiCommand command, out PathfindingFailure? routeFailure)
@@ -198,7 +198,13 @@ public static class GroundCommandHandler
 
             if ((command.Path.Count == 0) && (command.DestinationRunway is not null))
             {
-                var adjacent = ResolveAdjacentRunwayRoute(groundLayout, startNode, aircraft, command.DestinationRunway, out string? adjacentReason);
+                TaxiRoute? adjacent = ResolveAdjacentRunwayRoute(
+                    groundLayout,
+                    startNode,
+                    aircraft,
+                    command.DestinationRunway,
+                    out string? adjacentReason
+                );
                 // TAXIAUTO at the bar has nothing to route either — the full-length auto-route would
                 // otherwise return an empty fallback with no destination hold-short to hold at.
                 if (!allowRemoteRunwayAutoRoute || (adjacent is { Segments.Count: 0 }))
@@ -221,7 +227,7 @@ public static class GroundCommandHandler
                 return ResolveDirect(command, out routeFailure);
             }
 
-            var asClearedRoute = ResolveDirect(command, out routeFailure);
+            TaxiRoute? asClearedRoute = ResolveDirect(command, out routeFailure);
             string? rejection = asClearedRoute is null
                 ? routeFailure?.HumanMessage ?? "no route"
                 : AsClearedRejectionReason(asClearedRoute, command, foldTargets);
@@ -240,7 +246,7 @@ public static class GroundCommandHandler
             return ResolveDirect(AugmentPathWithHoldShortTaxiways(command, foldTargets), out routeFailure);
         }
 
-        var route = ResolveRoute(taxi, out PathfindingFailure? failure);
+        TaxiRoute? route = ResolveRoute(taxi, out PathfindingFailure? failure);
         string? failReason = failure?.HumanMessage;
 
         // The current-taxiway prepend above is an optimization: start on the taxiway the aircraft
@@ -267,7 +273,7 @@ public static class GroundCommandHandler
         // open apron; see RampLaneReposition.
         if (route is null && failure is not null && !AirportGroundLayout.HasRunwayCenterlineEdge(startNode))
         {
-            var plan = RampLaneReposition.TryPlan(
+            RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
                 groundLayout,
                 aircraft.Position,
                 aircraft.TrueHeading,
@@ -300,7 +306,7 @@ public static class GroundCommandHandler
             && FindTaxiDestinationNode(groundLayout, taxi) is { } cutDestination
         )
         {
-            var cut = RampLaneReposition.TryPlanDestinationCut(
+            RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanDestinationCut(
                 groundLayout,
                 startNode.Id,
                 taxi.Path,
@@ -329,7 +335,7 @@ public static class GroundCommandHandler
         // drivable and materially shorter.
         if ((route is not null) && (FindTaxiDestinationNode(groundLayout, taxi) is { } resolvedDestination))
         {
-            var improved = RampLaneReposition.TryPlanResolvedRouteCut(groundLayout, route, resolvedDestination);
+            RampLaneDestinationCutPlan? improved = RampLaneReposition.TryPlanResolvedRouteCut(groundLayout, route, resolvedDestination);
             if (improved is not null)
             {
                 route = improved.Route;
@@ -340,7 +346,7 @@ public static class GroundCommandHandler
         // exactly one cleared taxiway, re-resolves, and records the as-applied command for the readback.
         if (route is null && startNode.Type == GroundNodeType.Parking)
         {
-            var leadOut = TryDropGateLeadOut(aircraft, groundLayout, taxi, failure, cmd => ResolveRoute(cmd, out _));
+            DroppedTaxiwayRoute? leadOut = TryDropGateLeadOut(aircraft, groundLayout, taxi, failure, cmd => ResolveRoute(cmd, out _));
             if (leadOut is not null)
             {
                 effectiveCommand = WithoutPathToken(asCleared, leadOut.DroppedName);
@@ -353,7 +359,7 @@ public static class GroundCommandHandler
 
         if (route is null)
         {
-            var via = TryDropContradictoryVia(aircraft, taxi, cmd => ResolveRoute(cmd, out _));
+            DroppedTaxiwayRoute? via = TryDropContradictoryVia(aircraft, taxi, cmd => ResolveRoute(cmd, out _));
             if (via is not null)
             {
                 effectiveCommand = WithoutPathToken(asCleared, via.DroppedName);
@@ -372,7 +378,7 @@ public static class GroundCommandHandler
                 return new CommandResult(false, failReason);
             }
 
-            var pathStr = string.Join(" ", taxi.Path);
+            string pathStr = string.Join(" ", taxi.Path);
             return new CommandResult(false, $"Cannot resolve taxi route: {pathStr}");
         }
 
@@ -385,7 +391,7 @@ public static class GroundCommandHandler
             FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
         HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
 
-        var hsDetails = string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason})"));
+        string hsDetails = string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason})"));
         Log.LogInformation(
             "[TryTaxi] {Callsign}: route resolved — {SegCount} segments, {HsCount} hold-shorts [{HsDetails}], summary: {Summary}",
             aircraft.Callsign,
@@ -428,7 +434,7 @@ public static class GroundCommandHandler
         string? implicitCrossLabel = null;
         if (priorRwy is not null)
         {
-            var firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
+            HoldShortPoint? firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
             if (firstCrossing is not null && firstCrossing.TargetName is { Length: > 0 } crossingRwy)
             {
                 if (RunwayIdentifier.Parse(crossingRwy).Overlaps(RunwayIdentifier.Parse(priorRwy)))
@@ -452,12 +458,12 @@ public static class GroundCommandHandler
         if (taxi.CrossRunways is { Count: > 0 })
         {
             var matchedCrossRunways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var hs in route.HoldShortPoints)
+            foreach (HoldShortPoint hs in route.HoldShortPoints)
             {
                 if (hs.Reason == HoldShortReason.RunwayCrossing && hs.TargetName is not null)
                 {
                     var hsRwyId = RunwayIdentifier.Parse(hs.TargetName);
-                    foreach (var crossRwy in taxi.CrossRunways)
+                    foreach (string crossRwy in taxi.CrossRunways)
                     {
                         if (hsRwyId.Contains(crossRwy))
                         {
@@ -474,7 +480,7 @@ public static class GroundCommandHandler
             }
 
             // A CROSS runway that pre-cleared nothing was silently inert; tell the controller.
-            foreach (var crossRwy in taxi.CrossRunways)
+            foreach (string crossRwy in taxi.CrossRunways)
             {
                 if (!matchedCrossRunways.Contains(crossRwy))
                 {
@@ -496,10 +502,10 @@ public static class GroundCommandHandler
 
         // Captured before the fresh PhaseList below drops the old clearance: both the arrival gate and the
         // runway-change warning read state this reset erases.
-        var priorAssignment = CaptureDepartureRunwayAssignment(aircraft);
+        DepartureRunwayAssignment priorAssignment = CaptureDepartureRunwayAssignment(aircraft);
 
         // Clear current phases
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         if (aircraft.Phases is not null)
         {
             aircraft.Phases.Clear(ctx);
@@ -530,7 +536,7 @@ public static class GroundCommandHandler
         // Only skip TaxiingPhase when the aircraft is genuinely at the spot; if it's
         // physically distant (e.g. after pushback), re-route from the nearest neighbor
         // so TaxiingPhase drives the aircraft back to the parking position.
-        var parkingName = route.DestinationParking ?? route.DestinationSpot;
+        string? parkingName = route.DestinationParking ?? route.DestinationSpot;
         if (route.Segments.Count == 0 && parkingName is not null)
         {
             // A gate or helipad is a stand the aircraft parks on; a taxi spot is an intermediate waypoint
@@ -555,9 +561,9 @@ public static class GroundCommandHandler
                 // Re-route from the neighbor of destNode closest to the aircraft.
                 GroundNode? bestNeighbor = null;
                 double bestNeighborDist = double.MaxValue;
-                foreach (var edge in destNode.Edges)
+                foreach (IGroundEdge edge in destNode.Edges)
                 {
-                    var neighbor = edge.OtherNode(destNode);
+                    GroundNode neighbor = edge.OtherNode(destNode);
                     double d = GeoMath.DistanceNm(aircraft.Position, neighbor.Position);
                     if (d < bestNeighborDist)
                     {
@@ -568,7 +574,7 @@ public static class GroundCommandHandler
 
                 if (bestNeighbor is not null)
                 {
-                    var reroute = TaxiPathfinder.FindRoute(
+                    TaxiRoute? reroute = TaxiPathfinder.FindRoute(
                         groundLayout,
                         bestNeighbor.Id,
                         destNode.Id,
@@ -799,7 +805,7 @@ public static class GroundCommandHandler
     {
         var candidates = new List<HoldShortTarget>();
         var named = new HashSet<string>(taxi.Path, StringComparer.OrdinalIgnoreCase);
-        foreach (var target in taxi.HoldShorts)
+        foreach (HoldShortTarget target in taxi.HoldShorts)
         {
             if (target.IsSpot)
             {
@@ -837,7 +843,7 @@ public static class GroundCommandHandler
 
         List<string> path = [.. taxi.Path];
         List<TurnDirection?>? hints = taxi.PathTurnHints is null ? null : [.. taxi.PathTurnHints];
-        foreach (var target in foldTargets)
+        foreach (HoldShortTarget target in foldTargets)
         {
             path.Add(target.OnTaxiway ?? target.Target);
             hints?.Add(null);
@@ -868,9 +874,9 @@ public static class GroundCommandHandler
             return $"route does not reach runway {command.DestinationRunway}";
         }
 
-        foreach (var target in foldTargets)
+        foreach (HoldShortTarget target in foldTargets)
         {
-            var bound = RouteMaterialiser.FindBoundHoldShort(route.HoldShortPoints, target);
+            HoldShortPoint? bound = RouteMaterialiser.FindBoundHoldShort(route.HoldShortPoints, target);
             if (bound is null)
             {
                 return $"HS {target.ToCanonical()} is not on the route";
@@ -962,9 +968,9 @@ public static class GroundCommandHandler
     /// </summary>
     private static bool SharesDirectJunction(AirportGroundLayout groundLayout, string fromTaxiway, string toTaxiway)
     {
-        foreach (var node in groundLayout.GetNodesOnTaxiway(fromTaxiway))
+        foreach (GroundNode node in groundLayout.GetNodesOnTaxiway(fromTaxiway))
         {
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway(toTaxiway))
                 {
@@ -1020,7 +1026,7 @@ public static class GroundCommandHandler
 
         // Then consume any further leading nodes the aircraft has already driven through on its
         // current route — this is what catches a start node that snapped off the drawn line.
-        var passed = PassedRouteNodeIds(aircraft);
+        HashSet<int> passed = PassedRouteNodeIds(aircraft);
         while ((drop < leadingRun) && passed.Contains(NodeRefToken.ParseNodeId(taxi.Path[drop])))
         {
             drop++;
@@ -1078,12 +1084,12 @@ public static class GroundCommandHandler
     /// <summary>True when a single graph edge joins the two nodes.</summary>
     private static bool AreNodesAdjacent(AirportGroundLayout groundLayout, int fromNodeId, int toNodeId)
     {
-        if (!groundLayout.Nodes.TryGetValue(fromNodeId, out var fromNode))
+        if (!groundLayout.Nodes.TryGetValue(fromNodeId, out GroundNode? fromNode))
         {
             return false;
         }
 
-        foreach (var edge in fromNode.Edges)
+        foreach (IGroundEdge edge in fromNode.Edges)
         {
             if (edge.OtherNode(fromNode).Id == toNodeId)
             {
@@ -1153,7 +1159,7 @@ public static class GroundCommandHandler
         // Empty path + destination runway → A* to nearest hold-short node
         if (taxi.Path.Count == 0 && taxi.DestinationRunway is not null)
         {
-            var runwayRoute = ResolveRunwayRouteByAStar(groundLayout, startNode, taxi.DestinationRunway, out string? runwayReason, category);
+            TaxiRoute? runwayRoute = ResolveRunwayRouteByAStar(groundLayout, startNode, taxi.DestinationRunway, out string? runwayReason, category);
             failure = runwayRoute is null ? DestinationFailure(runwayReason ?? $"No route to runway {taxi.DestinationRunway}") : null;
             return runwayRoute;
         }
@@ -1241,7 +1247,7 @@ public static class GroundCommandHandler
     )
     {
         var onLast = new List<GroundNode>();
-        foreach (var node in layout.GetRunwayHoldShortNodes(crossedRunwayId))
+        foreach (GroundNode node in layout.GetRunwayHoldShortNodes(crossedRunwayId))
         {
             if (node.Edges.Any(e => e.MatchesTaxiway(lastTaxiway)))
             {
@@ -1278,7 +1284,7 @@ public static class GroundCommandHandler
             return null;
         }
 
-        var route = TaxiPathfinder.FindAdjacentRunwayRoute(
+        TaxiRoute? route = TaxiPathfinder.FindAdjacentRunwayRoute(
             groundLayout,
             startNode,
             (aircraft.Position, aircraft.TrueHeading),
@@ -1312,14 +1318,14 @@ public static class GroundCommandHandler
     )
     {
         failReason = null;
-        var holdShortNodes = groundLayout.GetRunwayHoldShortNodes(runwayId);
+        List<GroundNode> holdShortNodes = groundLayout.GetRunwayHoldShortNodes(runwayId);
         if (holdShortNodes.Count == 0)
         {
             failReason = $"No hold-short nodes for runway {RunwayIdentifier.ToDisplayDesignator(runwayId)}";
             return null;
         }
 
-        var route = TaxiPathfinder.FindRunwayRoute(groundLayout, startNode, runwayId, category);
+        TaxiRoute? route = TaxiPathfinder.FindRunwayRoute(groundLayout, startNode, runwayId, category);
         if (route is null)
         {
             failReason = $"No route to runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} hold-short";
@@ -1375,12 +1381,12 @@ public static class GroundCommandHandler
         }
 
         string dropped = taxi.Path[0];
-        var withoutLeadOut = taxi with
+        TaxiCommand withoutLeadOut = taxi with
         {
             Path = [.. taxi.Path.Skip(1)],
             PathTurnHints = taxi.PathTurnHints is null ? null : [.. taxi.PathTurnHints.Skip(1)],
         };
-        var route = resolve(withoutLeadOut);
+        TaxiRoute? route = resolve(withoutLeadOut);
         if (route is null)
         {
             return null;
@@ -1429,8 +1435,8 @@ public static class GroundCommandHandler
 
             var reducedPath = taxi.Path.Where((_, idx) => idx != drop).ToList();
             var reducedHints = taxi.PathTurnHints?.Where((_, idx) => idx != drop).ToList();
-            var reduced = taxi with { Path = reducedPath, PathTurnHints = reducedHints };
-            var candidate = resolve(reduced);
+            TaxiCommand reduced = taxi with { Path = reducedPath, PathTurnHints = reducedHints };
+            TaxiRoute? candidate = resolve(reduced);
             if (candidate is not null && (bestDropRoute is null || candidate.TotalDistanceNm < bestDropRoute.TotalDistanceNm))
             {
                 bestDropRoute = candidate;
@@ -1461,7 +1467,7 @@ public static class GroundCommandHandler
     /// </summary>
     private static string? FirstNonRampTaxiway(TaxiRoute route)
     {
-        foreach (var segment in route.Segments)
+        foreach (TaxiRouteSegment segment in route.Segments)
         {
             foreach (string name in segment.TaxiwayName.Split(" - ", StringSplitOptions.RemoveEmptyEntries))
             {
@@ -1506,7 +1512,7 @@ public static class GroundCommandHandler
         failure = null;
 
         string destLabel = taxi.DestinationSpot ?? taxi.DestinationParking!;
-        var destNode = FindTaxiDestinationNode(groundLayout, taxi);
+        GroundNode? destNode = FindTaxiDestinationNode(groundLayout, taxi);
         if (destNode is null)
         {
             failure = DestinationFailure($"Cannot find {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'");
@@ -1516,7 +1522,7 @@ public static class GroundCommandHandler
         if (taxi.Path.Count == 0)
         {
             // No explicit path — A* direct to destination
-            var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, destNode.Id, category);
+            TaxiRoute? route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, destNode.Id, category);
             if (route is null)
             {
                 failure = DestinationFailure($"No route to {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'");
@@ -1527,7 +1533,7 @@ public static class GroundCommandHandler
         }
 
         // Explicit path given — resolve it, then extend to destination via A*
-        var explicitRoute = TaxiPathfinder.ResolveExplicitPathDetailed(
+        TaxiRoute? explicitRoute = TaxiPathfinder.ResolveExplicitPathDetailed(
             groundLayout,
             startNode.Id,
             taxi.Path,
@@ -1568,7 +1574,7 @@ public static class GroundCommandHandler
         else
         {
             // Extend from end of explicit path to destination node via A*
-            var extension = TaxiPathfinder.FindRoute(groundLayout, endNodeId, destNode.Id, category);
+            TaxiRoute? extension = TaxiPathfinder.FindRoute(groundLayout, endNodeId, destNode.Id, category);
             if (extension is null)
             {
                 Log.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to {DestLabel}", endNodeId, destLabel);
@@ -1590,8 +1596,8 @@ public static class GroundCommandHandler
         // than quietly producing U-turns.
         for (int i = 0; i + 1 < combined.Count; i++)
         {
-            var a = combined[i];
-            var b = combined[i + 1];
+            TaxiRouteSegment a = combined[i];
+            TaxiRouteSegment b = combined[i + 1];
             if (a.FromNodeId == b.ToNodeId && a.ToNodeId == b.FromNodeId)
             {
                 Log.LogWarning(
@@ -1662,13 +1668,13 @@ public static class GroundCommandHandler
             return new CommandResult(false, "Pushback requires aircraft to be at parking");
         }
 
-        var resolved = ResolvePushTarget(aircraft, push, groundLayout);
+        PushResolution resolved = ResolvePushTarget(aircraft, push, groundLayout);
         if (resolved.Target is not { } target)
         {
             return new CommandResult(false, resolved.Refusal);
         }
 
-        var start = PoseOf(aircraft);
+        TugPose start = PoseOf(aircraft);
         bool atStand = aircraft.Phases.CurrentPhase is AtParkingPhase;
         var request = new TugRequest
         {
@@ -1679,7 +1685,7 @@ public static class GroundCommandHandler
             FinalFacingTrueDeg = target.FinalFacingTrueDeg,
             PreviousKind = null,
         };
-        var plan = TugMovePlanner.Plan(groundLayout, request, out string refusal);
+        TugPlan? plan = TugMovePlanner.Plan(groundLayout, request, out string refusal);
         if (plan is null)
         {
             return new CommandResult(false, refusal);
@@ -1764,7 +1770,7 @@ public static class GroundCommandHandler
         }
 
         string taxiway = push.Taxiway!;
-        var exitNode = groundLayout.FindExitByTaxiway(aircraft.Position, taxiway);
+        GroundNode? exitNode = groundLayout.FindExitByTaxiway(aircraft.Position, taxiway);
         if (exitNode is null)
         {
             return PushResolution.Refused($"Cannot find taxiway '{taxiway}' near aircraft");
@@ -1823,7 +1829,7 @@ public static class GroundCommandHandler
             return edgeDeg ?? hintTrueDeg;
         }
 
-        var facingNode = groundLayout.FindExitByTaxiway(exitNode.Position, push.FacingTaxiway!);
+        GroundNode? facingNode = groundLayout.FindExitByTaxiway(exitNode.Position, push.FacingTaxiway!);
         if (facingNode is null)
         {
             Log.LogDebug("[Pushback] {Callsign}: cannot find facing taxiway '{FTwy}' near exit node", aircraft.Callsign, push.FacingTaxiway);
@@ -1933,7 +1939,7 @@ public static class GroundCommandHandler
     /// <summary>The <c>PUSH</c> readback: <c>Pushing back[ onto X][ facing Y | , face heading NNN]</c>.</summary>
     private static string PushMessage(PushbackCommand push, int? faceHeading)
     {
-        var message = "Pushing back";
+        string message = "Pushing back";
         if (push.Taxiway is not null)
         {
             message += $" onto {push.Taxiway}";
@@ -1971,10 +1977,10 @@ public static class GroundCommandHandler
             return new CommandResult(false, "Unable, only face/tail amendment accepted during pushback");
         }
 
-        var heading = push.MagneticHeading!.Value;
+        MagneticHeading heading = push.MagneticHeading!.Value;
         var turnInProgress = new CommandResult(false, "Unable, pushback turn in progress");
-        var amendedMessage = $"Pushback amended, face heading {heading.ToDisplayInt():000}";
-        var current = aircraft.Phases!.CurrentPhase;
+        string amendedMessage = $"Pushback amended, face heading {heading.ToDisplayInt():000}";
+        Phase? current = aircraft.Phases!.CurrentPhase;
         if ((current is PushbackPhase) && (aircraft.Phases.Phases[^1] is AtParkingPhase))
         {
             return new CommandResult(false, "Unable, a pushback to a stand keeps the stand's heading");
@@ -1985,7 +1991,7 @@ public static class GroundCommandHandler
             return turnInProgress;
         }
 
-        var amendment = pushOff.Amendment!;
+        TugAmendment amendment = pushOff.Amendment!;
         double facingTrueDeg = MagneticDeclination.MagneticToTrue(heading.Degrees, aircraft.Position);
         if (AmendedGoal(amendment, facingTrueDeg, groundLayout) is not { } amended)
         {
@@ -2002,7 +2008,7 @@ public static class GroundCommandHandler
             FinalFacingTrueDeg = amended.FinalFacingTrueDeg,
             PreviousKind = LastTugMotionKind(pushOff),
         };
-        var plan = TugMovePlanner.Plan(groundLayout, request, out string refusal);
+        TugPlan? plan = TugMovePlanner.Plan(groundLayout, request, out string refusal);
         if (plan is null)
         {
             return new CommandResult(false, refusal);
@@ -2035,7 +2041,7 @@ public static class GroundCommandHandler
             return (TugGoal.Facing(facingTrueDeg), null);
         }
 
-        if ((groundLayout is null) || (amendment.NodeId is not { } nodeId) || !groundLayout.Nodes.TryGetValue(nodeId, out var node))
+        if ((groundLayout is null) || (amendment.NodeId is not { } nodeId) || !groundLayout.Nodes.TryGetValue(nodeId, out GroundNode? node))
         {
             return null;
         }
@@ -2122,15 +2128,15 @@ public static class GroundCommandHandler
             FinalFacingTrueDeg = finalFacingTrueDeg,
             PreviousKind = LastTugMotionKind(aircraft.Phases.CurrentPhase as PushbackPhase),
         };
-        var plan = TugMovePlanner.Plan(groundLayout, request, out string refusal);
+        TugPlan? plan = TugMovePlanner.Plan(groundLayout, request, out string refusal);
         if (plan is null)
         {
             return new CommandResult(false, refusal);
         }
 
-        var last = goals[^1];
+        TugGoal last = goals[^1];
         string destination = TugGoalName(last);
-        var terminus = last.Kind switch
+        TugTerminus terminus = last.Kind switch
         {
             TugGoalKind.Stand => TugTerminus.AtStand(destination),
             TugGoalKind.Spot => TugTerminus.OnSpot,
@@ -2172,7 +2178,7 @@ public static class GroundCommandHandler
         }
 
         bool towedNoseFirst = (plan.Moves.Count > 0) && (plan.Moves[0].Move.Kind == PushbackLegKind.Pull);
-        foreach (var other in listAircraft())
+        foreach (AircraftState other in listAircraft())
         {
             // A dry-run dispatch plans against a clone of the aircraft standing exactly where the original does, so the
             // callsign — not the reference — is what tells the aircraft apart from itself.
@@ -2225,10 +2231,10 @@ public static class GroundCommandHandler
     )
     {
         bool atStand = aircraft.Phases?.CurrentPhase is AtParkingPhase;
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases!.Clear(ctx);
         aircraft.Phases = new PhaseList();
-        foreach (var phase in TugMovePhases(plan, atStand, terminus.Kind == TugTerminusKind.Stand, amendment, 0))
+        foreach (Phase phase in TugMovePhases(plan, atStand, terminus.Kind == TugTerminusKind.Stand, amendment, 0))
         {
             aircraft.Phases.Add(phase);
         }
@@ -2271,7 +2277,7 @@ public static class GroundCommandHandler
         bool inFirstLeg = fromStand;
         for (int i = firstMove; i < plan.Moves.Count; i++)
         {
-            var trace = plan.Moves[i];
+            TugMoveTrace trace = plan.Moves[i];
             bool pushOff = fromStand && (i == 0);
             bool continues = (i + 1 < plan.Moves.Count) && !plan.Moves[i + 1].Move.DwellBefore;
             if (trace.Move.DwellBefore)
@@ -2344,7 +2350,7 @@ public static class GroundCommandHandler
             case '@':
                 return (groundLayout.FindHelipadByName(name) ?? groundLayout.FindParkingByName(name)) is { } stand ? TugGoal.Stand(stand) : null;
             case '#':
-                var node = NodeRefToken.IsNodeReference(token) ? groundLayout.Nodes.GetValueOrDefault(NodeRefToken.ParseNodeId(token)) : null;
+                GroundNode? node = NodeRefToken.IsNodeReference(token) ? groundLayout.Nodes.GetValueOrDefault(NodeRefToken.ParseNodeId(token)) : null;
                 return node?.Type switch
                 {
                     null => null,
@@ -2371,7 +2377,7 @@ public static class GroundCommandHandler
 
     internal static CommandResult TryAssignRunway(AircraftState aircraft, string runwayId)
     {
-        var runway = CommandDispatcher.ResolveRunway(aircraft, runwayId);
+        RunwayInfo? runway = CommandDispatcher.ResolveRunway(aircraft, runwayId);
         if (runway is null)
         {
             return new CommandResult(false, $"Unknown runway {RunwayIdentifier.ToDisplayDesignator(runwayId)}");
@@ -2415,7 +2421,7 @@ public static class GroundCommandHandler
             return new CommandResult(false, "Hold position requires aircraft on the ground");
         }
 
-        var phase = aircraft.Phases?.CurrentPhase;
+        Phase? phase = aircraft.Phases?.CurrentPhase;
 
         // On the takeoff roll the aircraft is committed; hold position does not apply.
         // Cancelling the takeoff clearance (CTOC) is the way to stop it (7110.65 3-9-11).
@@ -2441,7 +2447,7 @@ public static class GroundCommandHandler
 
     private static string BuildHoldMessage(AircraftState aircraft)
     {
-        var phase = aircraft.Phases?.CurrentPhase;
+        Phase? phase = aircraft.Phases?.CurrentPhase;
         string? where = phase switch
         {
             TaxiingPhase => aircraft.Ground.CurrentTaxiway is { } twy ? $"on taxiway {twy}" : "while taxiing",
@@ -2488,16 +2494,16 @@ public static class GroundCommandHandler
             return CommandDispatcher.Ok("");
         }
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
         }
 
-        foreach (var rwy in runways)
+        foreach (string rwy in runways)
         {
             bool matchedAny = false;
-            foreach (var hs in route.HoldShortPoints)
+            foreach (HoldShortPoint hs in route.HoldShortPoints)
             {
                 if (hs.TargetName is null)
                 {
@@ -2529,9 +2535,9 @@ public static class GroundCommandHandler
         }
 
         // All runways validated — now actually mark each matching crossing as cleared.
-        foreach (var rwy in runways)
+        foreach (string rwy in runways)
         {
-            foreach (var hs in route.HoldShortPoints)
+            foreach (HoldShortPoint hs in route.HoldShortPoints)
             {
                 if (
                     hs.TargetName is not null
@@ -2570,16 +2576,16 @@ public static class GroundCommandHandler
             return CommandDispatcher.Ok("");
         }
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
         }
 
         var plans = new List<ExplicitHoldShortPlan>(targets.Count);
-        foreach (var target in targets)
+        foreach (HoldShortTarget target in targets)
         {
-            var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, target);
+            ExplicitHoldShortPlan plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, target);
             if (DescribeHoldShortFailure(plan.Outcome, target) is { } failure)
             {
                 return failure;
@@ -2642,7 +2648,7 @@ public static class GroundCommandHandler
         IReadOnlyList<HoldShortTarget> holdShorts
     )
     {
-        var preClear = TryPreClearRouteCrossings(aircraft, crossRunways);
+        CommandResult preClear = TryPreClearRouteCrossings(aircraft, crossRunways);
         if (!preClear.Success)
         {
             return preClear;
@@ -2682,7 +2688,7 @@ public static class GroundCommandHandler
         string? currentHoldMatch = null;
         if (holdPhase is not null)
         {
-            foreach (var rwy in cross.RunwayIds)
+            foreach (string rwy in cross.RunwayIds)
             {
                 if (HoldShortAnnotator.TargetMatches(holdPhase.HoldShort.TargetName, rwy))
                 {
@@ -2703,11 +2709,11 @@ public static class GroundCommandHandler
 
         // The current-hold runway is satisfied via the phase, so only the remaining listed
         // runways are pre-cleared as upcoming crossings.
-        var upcoming = currentHoldMatch is null
+        IReadOnlyList<string> upcoming = currentHoldMatch is null
             ? cross.RunwayIds
             : cross.RunwayIds.Where(r => !string.Equals(r, currentHoldMatch, StringComparison.OrdinalIgnoreCase)).ToList();
 
-        var applied = TryApplyRouteCrossingsAndHoldShorts(aircraft, layout, upcoming, cross.HoldShorts);
+        CommandResult applied = TryApplyRouteCrossingsAndHoldShorts(aircraft, layout, upcoming, cross.HoldShorts);
         if (!applied.Success)
         {
             return applied;
@@ -2715,7 +2721,7 @@ public static class GroundCommandHandler
 
         if (currentHoldMatch is not null)
         {
-            var continuation = TryPrepareCompletedRouteCrossing(aircraft, holdPhase!);
+            CommandResult continuation = TryPrepareCompletedRouteCrossing(aircraft, holdPhase!);
             if (!continuation.Success)
             {
                 return continuation;
@@ -2745,7 +2751,7 @@ public static class GroundCommandHandler
                 );
             }
 
-            var continuation = TryPrepareCompletedRouteCrossing(aircraft, holdPhase);
+            CommandResult continuation = TryPrepareCompletedRouteCrossing(aircraft, holdPhase);
             if (!continuation.Success)
             {
                 return continuation;
@@ -2758,14 +2764,14 @@ public static class GroundCommandHandler
         // Either not holding short, or holding short of a different target:
         // pre-clear matching upcoming hold-short(s) on the taxi route. Accepts
         // both runway designators and taxiway/intersection names.
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
         }
 
         bool matchedAny = false;
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             if (!HoldShortAnnotator.TargetMatches(hs.TargetName, target))
             {
@@ -2785,7 +2791,7 @@ public static class GroundCommandHandler
             return new CommandResult(false, $"No hold-short for {target} in taxi route");
         }
 
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             if (HoldShortAnnotator.TargetMatches(hs.TargetName, target) && hs.Reason != HoldShortReason.DestinationRunway)
             {
@@ -2817,18 +2823,18 @@ public static class GroundCommandHandler
             return CommandDispatcher.Ok("");
         }
 
-        if (!IsRunwayHoldShort(aircraft, holdPhase.HoldShort, out var runwayId))
+        if (!IsRunwayHoldShort(aircraft, holdPhase.HoldShort, out RunwayIdentifier runwayId))
         {
             return CommandDispatcher.Ok("");
         }
 
-        var layout = aircraft.Ground.Layout;
+        AirportGroundLayout? layout = aircraft.Ground.Layout;
         if (layout is null)
         {
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        var crossing = FindCompletedRouteCrossing(aircraft, layout, holdPhase.HoldShort.NodeId, runwayId);
+        CompletedRouteCrossing? crossing = FindCompletedRouteCrossing(aircraft, layout, holdPhase.HoldShort.NodeId, runwayId);
         if (crossing is null)
         {
             return new CommandResult(false, $"No crossing route found for {holdPhase.HoldShort.TargetName ?? "runway"}");
@@ -2849,10 +2855,10 @@ public static class GroundCommandHandler
     private static bool IsRunwayHoldShort(AircraftState aircraft, HoldShortPoint holdShort, out RunwayIdentifier runwayId)
     {
         runwayId = default;
-        var layout = aircraft.Ground.Layout;
+        AirportGroundLayout? layout = aircraft.Ground.Layout;
         if (
             layout is null
-            || !layout.Nodes.TryGetValue(holdShort.NodeId, out var node)
+            || !layout.Nodes.TryGetValue(holdShort.NodeId, out GroundNode? node)
             || node.Type != GroundNodeType.RunwayHoldShort
             || node.RunwayId is not { } nodeRunwayId
         )
@@ -2871,11 +2877,11 @@ public static class GroundCommandHandler
         RunwayIdentifier runwayId
     )
     {
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         CompletedRouteCrossing? best = null;
         double bestDistance = double.MaxValue;
 
-        foreach (var candidate in layout.Nodes.Values)
+        foreach (GroundNode candidate in layout.Nodes.Values)
         {
             if (
                 candidate.Id == holdShortNodeId
@@ -2887,7 +2893,7 @@ public static class GroundCommandHandler
                 continue;
             }
 
-            var route = TaxiPathfinder.FindRoute(layout, holdShortNodeId, candidate.Id, category);
+            TaxiRoute? route = TaxiPathfinder.FindRoute(layout, holdShortNodeId, candidate.Id, category);
             if (route is null || !RouteTraversesRunway(layout, route, runwayId))
             {
                 continue;
@@ -2912,7 +2918,7 @@ public static class GroundCommandHandler
 
     private static bool RouteTraversesRunway(AirportGroundLayout layout, TaxiRoute route, RunwayIdentifier runwayId)
     {
-        foreach (var segment in route.Segments)
+        foreach (TaxiRouteSegment segment in route.Segments)
         {
             if (segment.Edge.Edge.MatchesRunway(runwayId.End1) || segment.Edge.Edge.MatchesRunway(runwayId.End2))
             {
@@ -2933,12 +2939,12 @@ public static class GroundCommandHandler
 
     private static bool NodeIsOnRunwayCenterline(AirportGroundLayout layout, int nodeId, RunwayIdentifier runwayId)
     {
-        if (!layout.Nodes.TryGetValue(nodeId, out var node))
+        if (!layout.Nodes.TryGetValue(nodeId, out GroundNode? node))
         {
             return false;
         }
 
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge.IsRunwayCenterline && (edge.MatchesRunway(runwayId.End1) || edge.MatchesRunway(runwayId.End2)))
             {
@@ -2960,13 +2966,13 @@ public static class GroundCommandHandler
     /// </summary>
     private static CommandResult TryExtendRouteAcrossDestinationRunway(AircraftState aircraft, HoldShortPoint terminalHoldShort)
     {
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
         }
 
-        if (!IsRunwayHoldShort(aircraft, terminalHoldShort, out var runwayId))
+        if (!IsRunwayHoldShort(aircraft, terminalHoldShort, out RunwayIdentifier runwayId))
         {
             return new CommandResult(
                 false,
@@ -2974,13 +2980,13 @@ public static class GroundCommandHandler
             );
         }
 
-        var layout = aircraft.Ground.Layout;
+        AirportGroundLayout? layout = aircraft.Ground.Layout;
         if (layout is null)
         {
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        var crossing = FindCompletedRouteCrossing(aircraft, layout, terminalHoldShort.NodeId, runwayId);
+        CompletedRouteCrossing? crossing = FindCompletedRouteCrossing(aircraft, layout, terminalHoldShort.NodeId, runwayId);
         if (crossing is null)
         {
             return new CommandResult(false, $"No crossing route found for {terminalHoldShort.TargetName ?? "runway"}");
@@ -2989,7 +2995,7 @@ public static class GroundCommandHandler
         // Append the crossing (terminal hold-short → far-side hold-short) onto the live route
         // so TaxiingPhase finds a forward same-runway exit when it reaches the hold-short.
         route.Segments.AddRange(crossing.Route.Segments);
-        foreach (var hs in crossing.Route.HoldShortPoints)
+        foreach (HoldShortPoint hs in crossing.Route.HoldShortPoints)
         {
             if (hs.NodeId != terminalHoldShort.NodeId && route.GetHoldShortAt(hs.NodeId) is null)
             {
@@ -3023,7 +3029,7 @@ public static class GroundCommandHandler
                 );
             }
 
-            var continuation = TryPrepareCompletedRouteCrossing(aircraft, holdPhase);
+            CommandResult continuation = TryPrepareCompletedRouteCrossing(aircraft, holdPhase);
             if (!continuation.Success)
             {
                 return continuation;
@@ -3033,14 +3039,14 @@ public static class GroundCommandHandler
             return CommandDispatcher.Ok(DescribeHoldShortRelease(holdPhase.HoldShort.TargetName));
         }
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
         }
 
         HoldShortPoint? next = null;
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             if (!hs.IsCleared)
             {
@@ -3082,7 +3088,7 @@ public static class GroundCommandHandler
             return new CommandResult(false, "Hold short requires aircraft on the ground");
         }
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");
@@ -3093,7 +3099,7 @@ public static class GroundCommandHandler
             return new CommandResult(false, "No ground layout available");
         }
 
-        var plan = HoldShortAnnotator.PlanExplicitHoldShort(groundLayout, route, hs.Target);
+        ExplicitHoldShortPlan plan = HoldShortAnnotator.PlanExplicitHoldShort(groundLayout, route, hs.Target);
         if (DescribeHoldShortFailure(plan.Outcome, hs.Target) is { } failure)
         {
             return failure;
@@ -3115,7 +3121,7 @@ public static class GroundCommandHandler
         Func<string, AircraftState?>? findAircraft
     )
     {
-        var currentPhase = aircraft.Phases?.CurrentPhase;
+        Phase? currentPhase = aircraft.Phases?.CurrentPhase;
         if (currentPhase is null)
         {
             return new CommandResult(false, "Aircraft has no active phase");
@@ -3136,7 +3142,7 @@ public static class GroundCommandHandler
         // same graceful contract as DispatchContext.FindAircraft's other consumers).
         if (findAircraft is not null)
         {
-            var leader = findAircraft(follow.TargetCallsign);
+            AircraftState? leader = findAircraft(follow.TargetCallsign);
             if (leader is null)
             {
                 return new CommandResult(false, $"No aircraft {follow.TargetCallsign}");
@@ -3148,17 +3154,17 @@ public static class GroundCommandHandler
             }
         }
 
-        var acceptance = currentPhase.CanAcceptCommand(CanonicalCommandType.FollowGround);
+        CommandAcceptance acceptance = currentPhase.CanAcceptCommand(CanonicalCommandType.FollowGround);
         if (acceptance.IsRejected)
         {
-            var reason = acceptance.Reason ?? $"Cannot follow during {currentPhase.Name}";
+            string reason = acceptance.Reason ?? $"Cannot follow during {currentPhase.Name}";
             return new CommandResult(false, reason);
         }
 
         // Replace phases with FollowingPhase. Clear() marks the active phase as Skipped
         // and advances CurrentIndex past the end, but does not remove the phase entries —
         // truncate the list before adding so Start() lands on the new FollowingPhase at index 0.
-        var phases = aircraft.Phases!;
+        PhaseList phases = aircraft.Phases!;
         // Clear any active ground hold (HOLD/GIVEWAY) so FollowingPhase is not frozen by IsImmobile —
         // FOLLOWG is a fresh movement clearance, same as TryTaxi/TryAirTaxi which also reset Hold.
         aircraft.Ground.Hold = null;
@@ -3189,7 +3195,7 @@ public static class GroundCommandHandler
 
     internal static CommandResult TryAirTaxi(AircraftState aircraft, string? destination, AirportGroundLayout? groundLayout)
     {
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         if (cat != AircraftCategory.Helicopter)
         {
             return new CommandResult(false, "Air taxi is only available for helicopters");
@@ -3205,7 +3211,7 @@ public static class GroundCommandHandler
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        if (!TryResolveAirTaxiDestination(groundLayout, destination, out var resolved))
+        if (!TryResolveAirTaxiDestination(groundLayout, destination, out AirTaxiDestination? resolved))
         {
             return new CommandResult(
                 false,
@@ -3238,7 +3244,7 @@ public static class GroundCommandHandler
         // HoldShortAnnotator.ComputeHoldShortPositions, which never runs on this path.
         resolved = WithHoldShortSetback(groundLayout, aircraft, resolved);
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         if (!IsOnFieldForAirTaxi(aircraft, groundLayout, ctx.FieldElevation))
         {
             // Air taxi is a ground movement on the airport (AIM §4-3-17.b; 7110.65 §3-11-1.c NOTE, §3-11-3
@@ -3254,7 +3260,7 @@ public static class GroundCommandHandler
 
         // Captured before the fresh PhaseList drops the old clearance — a runway destination assigns the
         // departure runway exactly as a taxi clearance does, warning included.
-        var priorAssignment = CaptureDepartureRunwayAssignment(aircraft);
+        DepartureRunwayAssignment priorAssignment = CaptureDepartureRunwayAssignment(aircraft);
 
         // Clear current phases and chain air-taxi → land → the terminus the destination class implies, so the
         // heli lifts off, cruises to the destination, descends, and settles there.
@@ -3311,12 +3317,15 @@ public static class GroundCommandHandler
             return resolved;
         }
 
-        if (!layout.Nodes.TryGetValue(nodeId, out var bar) || (layout.FindRunway(resolved.RunwayId!) is not { } runway))
+        if (!layout.Nodes.TryGetValue(nodeId, out GroundNode? bar) || (layout.FindRunway(resolved.RunwayId!) is not { } runway))
         {
             return resolved;
         }
 
-        var away = bar.Edges.Where(e => !e.IsRunwayCenterline).Select(e => e.OtherNode(bar)).MaxBy(n => DistanceToCenterlineFt(runway, n.Position));
+        GroundNode? away = bar
+            .Edges.Where(e => !e.IsRunwayCenterline)
+            .Select(e => e.OtherNode(bar))
+            .MaxBy(n => DistanceToCenterlineFt(runway, n.Position));
         if ((away is null) || (DistanceToCenterlineFt(runway, away.Position) <= DistanceToCenterlineFt(runway, bar.Position)))
         {
             return resolved;
@@ -3427,7 +3436,7 @@ public static class GroundCommandHandler
             return true;
         }
 
-        var nearest = layout.FindNearestNode(aircraft.Position);
+        GroundNode? nearest = layout.FindNearestNode(aircraft.Position);
         if (nearest is null)
         {
             return false;
@@ -3481,7 +3490,7 @@ public static class GroundCommandHandler
     )
     {
         resolved = null;
-        if (!HoldShortTarget.TryParse(destination, out var target, out _))
+        if (!HoldShortTarget.TryParse(destination, out HoldShortTarget target, out _))
         {
             return false;
         }
@@ -3537,7 +3546,7 @@ public static class GroundCommandHandler
     /// </summary>
     private static GroundNode? ResolveRunwayHoldShortNode(AirportGroundLayout layout, HoldShortTarget target)
     {
-        var candidates = layout.GetRunwayHoldShortNodes(target.Target);
+        List<GroundNode> candidates = layout.GetRunwayHoldShortNodes(target.Target);
         if (target.OnTaxiway is { } taxiway)
         {
             candidates = candidates.Where(node => HoldShortAnnotator.NodeOnLocationTaxiway(layout, node.Id, taxiway)).ToList();
@@ -3550,7 +3559,7 @@ public static class GroundCommandHandler
 
         // The same threshold reference TAXIAUTO's runway routing measures from, so both pick the same bar even on
         // a displaced threshold. Node id breaks a tie only when the airport has no resolvable threshold.
-        var threshold = RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, target.Target);
+        LatLon? threshold = RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, target.Target);
         return threshold is { } reference
             ? candidates.MinBy(node => GeoMath.DistanceNm(reference, node.Position))
             : candidates.OrderBy(node => node.Id).First();
@@ -3558,7 +3567,7 @@ public static class GroundCommandHandler
 
     internal static CommandResult TryLand(AircraftState aircraft, LandCommand land, AirportGroundLayout? groundLayout)
     {
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         if (cat != AircraftCategory.Helicopter)
         {
             return new CommandResult(false, "LAND is only available for helicopters (use CLAND for fixed-wing)");
@@ -3576,7 +3585,7 @@ public static class GroundCommandHandler
         if (land.IsTaxiway)
         {
             // Resolve nearest node on the named taxiway
-            var node = groundLayout.FindExitByTaxiway(aircraft.Position, land.SpotName);
+            GroundNode? node = groundLayout.FindExitByTaxiway(aircraft.Position, land.SpotName);
             if (node is null)
             {
                 return new CommandResult(false, $"Cannot find taxiway '{land.SpotName}' near aircraft");
@@ -3588,7 +3597,7 @@ public static class GroundCommandHandler
         }
         else
         {
-            var spot = groundLayout.FindSpotByName(land.SpotName);
+            GroundNode? spot = groundLayout.FindSpotByName(land.SpotName);
             if (spot is null)
             {
                 return new CommandResult(false, $"Cannot find spot '{land.SpotName}' in airport layout");
@@ -3608,7 +3617,7 @@ public static class GroundCommandHandler
         // at pattern altitude or below) that is an air taxi to the spot; from anywhere else it is a landing
         // clearance flown as an approach (7110.65 §3-11-6), because air taxi is a ground movement on the
         // airport (AIM §4-3-17.b; §3-11-1.c NOTE) and must not carry a helicopter miles across the bay at 100 ft.
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         bool onField = IsOnFieldForAirTaxi(aircraft, groundLayout, ctx.FieldElevation);
         if (aircraft.Phases is not null)
         {
@@ -3639,7 +3648,7 @@ public static class GroundCommandHandler
     private static RunwayInfo? DetectRunwayFromRoute(TaxiRoute route, AirportGroundLayout layout, AircraftState aircraft)
     {
         int finalNodeId = route.Segments[^1].ToNodeId;
-        if (!layout.Nodes.TryGetValue(finalNodeId, out var node))
+        if (!layout.Nodes.TryGetValue(finalNodeId, out GroundNode? node))
         {
             return null;
         }
@@ -3654,11 +3663,11 @@ public static class GroundCommandHandler
         else
         {
             // Case 2: Runway surface node (edge named "RWY...")
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.IsRunwayCenterline)
                 {
-                    var rawDesignator = edge.TaxiwayName[3..];
+                    string rawDesignator = edge.TaxiwayName[3..];
                     rwyId = RunwayIdentifier.Parse(rawDesignator);
                     break;
                 }
@@ -3670,7 +3679,7 @@ public static class GroundCommandHandler
             return null;
         }
 
-        var runway = ResolveClosestRunwayEnd(rwyId.Value, node.Position.Lat, node.Position.Lon, aircraft);
+        RunwayInfo? runway = ResolveClosestRunwayEnd(rwyId.Value, node.Position.Lat, node.Position.Lon, aircraft);
         if (runway is not null)
         {
             Log.LogDebug(
@@ -3686,14 +3695,14 @@ public static class GroundCommandHandler
 
     private static RunwayInfo? ResolveClosestRunwayEnd(RunwayIdentifier rwyId, double nodeLat, double nodeLon, AircraftState aircraft)
     {
-        var airportId = aircraft.FlightPlan.Departure;
+        string? airportId = aircraft.FlightPlan.Departure;
         if (airportId is null)
         {
             return null;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var info = navDb.GetRunway(airportId, rwyId.End1) ?? navDb.GetRunway(airportId, rwyId.End2);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? info = navDb.GetRunway(airportId, rwyId.End1) ?? navDb.GetRunway(airportId, rwyId.End2);
         if (info is null)
         {
             return null;
@@ -3762,7 +3771,7 @@ public static class GroundCommandHandler
         holdPhase.HoldShort.IsCleared = true;
         holdPhase.HoldShort.TailOverRunwayNodeId = null;
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new ClearRunwayPhase(runwayNodeId, approachNodeId));
         aircraft.Phases.Add(new HoldingInPositionPhase());
@@ -3821,7 +3830,7 @@ public static class GroundCommandHandler
         // as "right at D", not as a bare D.
         if (aircraft.Phases.CurrentPhase is Phases.Ground.RunwayExitPhase exitPhase)
         {
-            var verdict = exitPhase.EvaluateRetarget(aircraft, preference);
+            ExitRetargetVerdict verdict = exitPhase.EvaluateRetarget(aircraft, preference);
             if (!verdict.Allowed)
             {
                 return new CommandResult(false, verdict.UnableReason!);
@@ -3842,7 +3851,7 @@ public static class GroundCommandHandler
         string expediteText = expedite ? ", without delay" : "";
         if (preference.Taxiway is not null)
         {
-            var sideText = preference.Side switch
+            string sideText = preference.Side switch
             {
                 ExitSide.Left => "left ",
                 ExitSide.Right => "right ",
@@ -3867,7 +3876,7 @@ public static class GroundCommandHandler
             return false;
         }
 
-        foreach (var phase in aircraft.Phases.Phases)
+        foreach (Phase phase in aircraft.Phases.Phases)
         {
             bool statusMatch =
                 minStatus == PhaseStatus.Active ? phase.Status is PhaseStatus.Active : phase.Status is PhaseStatus.Pending or PhaseStatus.Active;

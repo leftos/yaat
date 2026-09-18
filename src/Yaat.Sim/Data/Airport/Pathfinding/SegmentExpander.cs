@@ -64,18 +64,18 @@ public static class SegmentExpander
     /// </summary>
     public static (TaxiRoute? Route, PathfindingFailure? Failure) Run(SearchContext ctx)
     {
-        var variants = BuildConnectorVariants(ctx);
+        List<IReadOnlyList<string>> variants = BuildConnectorVariants(ctx);
         if (variants.Count == 0)
         {
-            var only = ResolveExplicit(ctx);
+            (TaxiRoute? Route, PathfindingFailure? Failure) only = ResolveExplicit(ctx);
             return only.Route is not null ? only : TryRunwayConnectorFallback(ctx, only);
         }
 
-        var primary = ResolveExplicit(ctx);
+        (TaxiRoute? Route, PathfindingFailure? Failure) primary = ResolveExplicit(ctx);
         TaxiRoute? best = primary.Route;
-        foreach (var variant in variants)
+        foreach (IReadOnlyList<string> variant in variants)
         {
-            var (route, _) = ResolveExplicit(ctx with { WaypointSequence = variant });
+            (TaxiRoute? route, PathfindingFailure? _) = ResolveExplicit(ctx with { WaypointSequence = variant });
             if (route is not null && (best is null || IsBetterRoute(route, best)))
             {
                 best = route;
@@ -107,7 +107,7 @@ public static class SegmentExpander
 
         string lastTaxiway = ctx.WaypointSequence[^1];
         string runwayId = ctx.Destination.RunwayId!;
-        foreach (var candidate in FindRunwayConnectorsOffTaxiway(ctx.Layout, lastTaxiway, runwayId, ctx.WaypointSequence))
+        foreach (RunwayConnectorCandidate candidate in FindRunwayConnectorsOffTaxiway(ctx.Layout, lastTaxiway, runwayId, ctx.WaypointSequence))
         {
             if (ResolveThroughConnector(ctx, candidate, lastTaxiway, runwayId) is { } route)
             {
@@ -153,7 +153,7 @@ public static class SegmentExpander
     /// </summary>
     private static TaxiRoute? ResolveThroughConnector(SearchContext ctx, RunwayConnectorCandidate candidate, string lastTaxiway, string runwayId)
     {
-        var (route, _) = ResolveExplicit(
+        (TaxiRoute? route, PathfindingFailure? _) = ResolveExplicit(
             ctx with
             {
                 WaypointSequence = [.. ctx.WaypointSequence, candidate.Connector],
@@ -203,7 +203,7 @@ public static class SegmentExpander
     /// </summary>
     private static List<IReadOnlyList<string>> BuildConnectorVariants(SearchContext ctx)
     {
-        var seq = ctx.WaypointSequence;
+        IReadOnlyList<string> seq = ctx.WaypointSequence;
         if (seq.Count < 2 || ctx.ImplicitConnectors.Count == 0)
         {
             return [];
@@ -253,13 +253,13 @@ public static class SegmentExpander
         }
 
         // Resolve node-reference tokens (#NNNN) in the waypoint sequence.
-        var resolvedWaypoints = ResolveWaypoints(ctx);
+        List<WaypointToken> resolvedWaypoints = ResolveWaypoints(ctx);
 
         // Reject a clearance naming a taxiway that is absent from the layout. Otherwise the
         // per-segment walk finds no matching edge, silently yields an empty/partial route, and the
         // command would succeed against a route that goes nowhere. (Node-ref tokens are validated
         // when routed.) Mirrors v1's "Cannot reach taxiway X" rejection.
-        foreach (var wp in resolvedWaypoints)
+        foreach (WaypointToken wp in resolvedWaypoints)
         {
             if (!wp.IsNodeRef && (ctx.Layout.GetNodesOnTaxiway(wp.Name).Count == 0))
             {
@@ -284,8 +284,8 @@ public static class SegmentExpander
         // branch, after which the correct branch fails the U-turn admissibility check.
         if (!resolvedWaypoints[0].IsNodeRef)
         {
-            var bridgeBias = ResolveBridgeBias(resolvedWaypoints, head, ctx);
-            var (bridgeEdges, bridgeHead) = BridgeStartToTaxiway(head, resolvedWaypoints[0].Name, bridgeBias, ctx);
+            LatLon? bridgeBias = ResolveBridgeBias(resolvedWaypoints, head, ctx);
+            (List<DirectionalEdge>? bridgeEdges, PartialRoute? bridgeHead) = BridgeStartToTaxiway(head, resolvedWaypoints[0].Name, bridgeBias, ctx);
             if (bridgeEdges.Count > 0)
             {
                 edges.AddRange(bridgeEdges);
@@ -297,7 +297,11 @@ public static class SegmentExpander
             // The node-ref counterpart of the bridge above. ExpandSegment dispatches on the NEXT token,
             // so without this the first node-ref is never a routing target and the walk jumps straight to
             // the second — reaching it by whatever path the A* likes rather than the one that was drawn.
-            var (leadEdges, leadHead, leadFailure) = RouteToSpecificNode(head, resolvedWaypoints[0].ResolvedNodeId, ctx);
+            (List<DirectionalEdge>? leadEdges, PartialRoute? leadHead, PathfindingFailure? leadFailure) = RouteToSpecificNode(
+                head,
+                resolvedWaypoints[0].ResolvedNodeId,
+                ctx
+            );
             if (leadFailure is not null)
             {
                 return (null, leadFailure);
@@ -313,7 +317,14 @@ public static class SegmentExpander
         // Mandatory-connector insertions (two cleared taxiways with no direct junction) are
         // collected so the materialiser can notify the controller instead of warning.
         var insertions = new List<ConnectorInsertion>();
-        var (seqEdges, seqHead, seqFailure) = ResolveSequence(head, resolvedWaypoints, 0, enableLookahead: true, insertions, ctx);
+        (List<DirectionalEdge>? seqEdges, PartialRoute? seqHead, PathfindingFailure? seqFailure) = ResolveSequence(
+            head,
+            resolvedWaypoints,
+            0,
+            enableLookahead: true,
+            insertions,
+            ctx
+        );
         if (seqFailure is not null)
         {
             return (null, seqFailure);
@@ -333,10 +344,10 @@ public static class SegmentExpander
             && !RouteReachesRunwayHoldShort(edges, destRunway, ctx)
         )
         {
-            var lastWaypoint = resolvedWaypoints[^1];
+            WaypointToken lastWaypoint = resolvedWaypoints[^1];
             if (!lastWaypoint.IsNodeRef)
             {
-                var (varEdges, varFailure) = TryVariantExtension(head, lastWaypoint.Name, destRunway, ctx);
+                (List<DirectionalEdge>? varEdges, PathfindingFailure? varFailure) = TryVariantExtension(head, lastWaypoint.Name, destRunway, ctx);
                 if (varFailure is not null)
                 {
                     return (null, varFailure);
@@ -367,14 +378,14 @@ public static class SegmentExpander
             && !RouteReachesRunwayHoldShort(edges, fallbackRunway, ctx)
         )
         {
-            var unauthorized = UnnamedLetterTaxiways(ctx.Layout, ctx.AuthorizedTaxiways);
-            var autoCtx = ctx with
+            IReadOnlySet<string> unauthorized = UnnamedLetterTaxiways(ctx.Layout, ctx.AuthorizedTaxiways);
+            SearchContext autoCtx = ctx with
             {
                 WaypointSequence = [],
                 AvoidedTaxiways = unauthorized,
                 AvoidMode = unauthorized.Count > 0 ? AvoidTaxiwayMode.HardExclude : AvoidTaxiwayMode.Off,
             };
-            var (autoRoute, autoFailure) = AutoRouter.Run(autoCtx);
+            (TaxiRoute? autoRoute, PathfindingFailure? autoFailure) = AutoRouter.Run(autoCtx);
             if (autoRoute is not null)
             {
                 var autoEdges = autoRoute.Segments.Select(s => s.Edge).ToList();
@@ -404,7 +415,7 @@ public static class SegmentExpander
         {
             if (ctx.Destination.TargetNodeId is { } destId && head.HeadNodeId != destId)
             {
-                var (extEdges, extFailure) = ExtendToDestination(head, destId, ctx);
+                (List<DirectionalEdge>? extEdges, PathfindingFailure? extFailure) = ExtendToDestination(head, destId, ctx);
                 if (extFailure is not null)
                 {
                     return (null, extFailure);
@@ -417,7 +428,7 @@ public static class SegmentExpander
             }
         }
 
-        var route = RouteMaterialiser.Materialise(edges, ctx, insertions);
+        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, insertions);
 
         // Honor the clearance: every named taxiway the controller specified must be REACHED by the
         // resolved route — either traversed (an edge labeled for it) or at least touched (the route
@@ -430,7 +441,7 @@ public static class SegmentExpander
         // from which taxiway A lies across active runways), so the resolver bypassed it entirely.
         // Clearing via a taxiway the aircraft cannot reach is worse than rejecting. (Node-ref tokens
         // are validated when routed.)
-        foreach (var wp in resolvedWaypoints)
+        foreach (WaypointToken wp in resolvedWaypoints)
         {
             if (wp.IsNodeRef || RouteReachesTaxiway(route, wp.Name))
             {
@@ -463,9 +474,9 @@ public static class SegmentExpander
     /// </summary>
     private static bool RouteReachesTaxiway(TaxiRoute route, string taxiwayName)
     {
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
-            var e = seg.Edge;
+            DirectionalEdge e = seg.Edge;
             if (e.Edge.MatchesTaxiway(taxiwayName) || NodeIncidentToTaxiway(e.FromNode, taxiwayName) || NodeIncidentToTaxiway(e.ToNode, taxiwayName))
             {
                 return true;
@@ -487,7 +498,7 @@ public static class SegmentExpander
     /// <summary>True if any edge incident to <paramref name="node"/> belongs to <paramref name="taxiwayName"/>.</summary>
     private static bool NodeIncidentToTaxiway(GroundNode node, string taxiwayName)
     {
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge.MatchesTaxiway(taxiwayName))
             {
@@ -527,17 +538,27 @@ public static class SegmentExpander
     )
     {
         var edges = new List<DirectionalEdge>();
-        var current = head;
+        PartialRoute current = head;
 
         for (int i = startIndex; i < tokens.Count; i++)
         {
-            var token = tokens[i];
+            WaypointToken token = tokens[i];
 
             if (i + 1 < tokens.Count)
             {
-                var next = tokens[i + 1];
-                var lookahead = i + 2 < tokens.Count ? tokens[i + 2] : null;
-                var (segEdges, newHead, failure) = ExpandSegment(current, token, next, lookahead, tokens, i, enableLookahead, insertions, ctx);
+                WaypointToken next = tokens[i + 1];
+                WaypointToken? lookahead = i + 2 < tokens.Count ? tokens[i + 2] : null;
+                (List<DirectionalEdge>? segEdges, PartialRoute? newHead, PathfindingFailure? failure) = ExpandSegment(
+                    current,
+                    token,
+                    next,
+                    lookahead,
+                    tokens,
+                    i,
+                    enableLookahead,
+                    insertions,
+                    ctx
+                );
                 if (failure is not null)
                 {
                     return (null, null, failure);
@@ -565,7 +586,12 @@ public static class SegmentExpander
                 // bar (MIA TAXI M1 RWY08R/26L L1 stopped on the 08R centerline), so the final
                 // taxiway is walked clear of the runway as before.
                 string? precedingTaxiway = (i > 0 && !tokens[i - 1].IsNodeRef && !tokens[i - 1].IsRunway) ? tokens[i - 1].Name : null;
-                var (segEdges, newHead, failure) = ExpandLastWaypoint(current, token, precedingTaxiway, ctx);
+                (List<DirectionalEdge>? segEdges, PartialRoute? newHead, PathfindingFailure? failure) = ExpandLastWaypoint(
+                    current,
+                    token,
+                    precedingTaxiway,
+                    ctx
+                );
                 if (failure is not null)
                 {
                     return (null, null, failure);
@@ -607,13 +633,20 @@ public static class SegmentExpander
     {
         // Mirror the main loop's reset of VisitedNodeIds before the next segment so the probe
         // cost matches what the real resolution would produce from this junction.
-        var probeStart = headAtJunction with
+        PartialRoute probeStart = headAtJunction with
         {
             VisitedNodeIds = VisitedNodeSet.Single(headAtJunction.HeadNodeId),
         };
         // Probes never reach the detour (it is suppressed when enableLookahead is false), so no
         // connector insertions are recorded — pass a throwaway list.
-        var (_, tailHead, failure) = ResolveSequence(probeStart, tokens, startIndex, enableLookahead: false, [], ctx);
+        (List<DirectionalEdge>? _, PartialRoute? tailHead, PathfindingFailure? failure) = ResolveSequence(
+            probeStart,
+            tokens,
+            startIndex,
+            enableLookahead: false,
+            [],
+            ctx
+        );
         if (failure is not null || tailHead is null)
         {
             return TailUnresolvablePenaltyNm;
@@ -657,7 +690,7 @@ public static class SegmentExpander
     /// </summary>
     private static double ProbeDestinationReachCost(PartialRoute tailHead, int destinationNodeId, SearchContext ctx)
     {
-        var reachCtx = ctx with
+        SearchContext reachCtx = ctx with
         {
             StartNodeId = tailHead.HeadNodeId,
             Destination = new DestinationDescriptor(
@@ -671,7 +704,7 @@ public static class SegmentExpander
             AuthorizedTaxiways = null,
         };
 
-        var (route, failure, reachCost) = AutoRouter.RunWithCost(reachCtx, tailHead, MaxDetourExpansions);
+        (TaxiRoute? route, PathfindingFailure? failure, double reachCost) = AutoRouter.RunWithCost(reachCtx, tailHead, MaxDetourExpansions);
         if (failure is not null || route is null)
         {
             return TailUnresolvablePenaltyNm;
@@ -688,12 +721,12 @@ public static class SegmentExpander
 
     private static List<WaypointToken> ResolveWaypoints(SearchContext ctx)
     {
-        var hints = ctx.WaypointTurnHints;
+        IReadOnlyList<TurnDirection?>? hints = ctx.WaypointTurnHints;
         var result = new List<WaypointToken>(ctx.WaypointSequence.Count);
         for (int i = 0; i < ctx.WaypointSequence.Count; i++)
         {
             string token = ctx.WaypointSequence[i];
-            var hint = (hints is not null && i < hints.Count) ? hints[i] : null;
+            TurnDirection? hint = (hints is not null && i < hints.Count) ? hints[i] : null;
             if (token.StartsWith('#') && int.TryParse(token.AsSpan(1), out int nodeId))
             {
                 result.Add(new WaypointToken(token, IsNodeRef: true, ResolvedNodeId: nodeId, TurnHint: hint, IsRunway: false));
@@ -786,7 +819,7 @@ public static class SegmentExpander
             && head.HeadNodeId != destId
         )
         {
-            var (toDestEdges, toDestHead, _) = LocalSearchToJunction(head, waypoint.Name, destId, ctx);
+            (List<DirectionalEdge>? toDestEdges, PartialRoute? toDestHead, double _) = LocalSearchToJunction(head, waypoint.Name, destId, ctx);
             if (toDestEdges is not null)
             {
                 return (toDestEdges, toDestHead, null);
@@ -797,7 +830,7 @@ public static class SegmentExpander
             // lowest total (walk + extension) cost instead of committing to the greedy terminus —
             // mirrors V1's SelectBestStopNode. The greedy terminus is direction-blind and its single
             // from-terminus extension is often inadmissible (a U-turn at a dead-end) or wrong-way.
-            var (stopEdges, stopHead, _) = SelectBestParkingStop(head, waypoint.Name, destId, ctx);
+            (List<DirectionalEdge>? stopEdges, PartialRoute? stopHead, double _) = SelectBestParkingStop(head, waypoint.Name, destId, ctx);
             if (stopEdges is not null)
             {
                 return (stopEdges, stopHead, null);
@@ -811,7 +844,7 @@ public static class SegmentExpander
         // direction-blind terminus walk picking the wrong way (e.g. back across a parallel runway behind).
         if (ctx.Destination.Kind == DestinationKind.Node && ctx.Destination.TargetNodeId is { } crossDestId && head.HeadNodeId != crossDestId)
         {
-            var (toCrossEdges, toCrossHead, _) = LocalSearchToJunction(head, waypoint.Name, crossDestId, ctx);
+            (List<DirectionalEdge>? toCrossEdges, PartialRoute? toCrossHead, double _) = LocalSearchToJunction(head, waypoint.Name, crossDestId, ctx);
             if (toCrossEdges is not null)
             {
                 return (toCrossEdges, toCrossHead, null);
@@ -826,7 +859,7 @@ public static class SegmentExpander
         // from the destination (post-landing arrival heading) or when the destination-runway
         // hold-short sits the opposite way along the named taxiway. The bias only breaks ties on
         // the first step; once moving, admissibility constrains direction as before.
-        var bias = ResolveTerminusBias(head, waypoint.Name, ctx);
+        LatLon? bias = ResolveTerminusBias(head, waypoint.Name, ctx);
 
         // Single-taxiway clearance with a turn hint (e.g. "TAXI >A"): there is no junction transition
         // to bias, so steer the first (momentum-free) step toward the hinted turn from the aircraft's
@@ -851,7 +884,12 @@ public static class SegmentExpander
         // turn hint on the final taxiway gives a direction, so those keep walking.
         if (precedingTaxiway is not null && bias is null && waypoint.TurnHint is null && ctx.Destination.Kind == DestinationKind.EndOfLastTaxiway)
         {
-            var terminate = TerminateAtTransitionJunction(head, precedingTaxiway, waypoint.Name, ctx);
+            (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure)? terminate = TerminateAtTransitionJunction(
+                head,
+                precedingTaxiway,
+                waypoint.Name,
+                ctx
+            );
             if (terminate is not null)
             {
                 return terminate.Value;
@@ -882,18 +920,19 @@ public static class SegmentExpander
     )
     {
         List<DirectionalEdge> edges = [];
-        var junctionHead = head;
+        PartialRoute? junctionHead = head;
 
-        var intersection = ctx.Layout.FindIntersectionNode(precedingTaxiway, finalTaxiway);
+        GroundNode? intersection = ctx.Layout.FindIntersectionNode(precedingTaxiway, finalTaxiway);
         if (intersection is not null && head.HeadNodeId != intersection.Id)
         {
-            (var searchEdges, junctionHead, _) = LocalSearchToJunction(head, precedingTaxiway, intersection.Id, ctx);
+            (List<DirectionalEdge>? searchEdges, junctionHead, _) = LocalSearchToJunction(head, precedingTaxiway, intersection.Id, ctx);
             if (searchEdges is null || junctionHead is null)
             {
                 // The canonical intersection is behind or otherwise unreachable from the junction the
                 // preceding segment committed to. The head already sits at (or one fillet node short
                 // of) a junction with the final taxiway — that pick is the stop.
-                bool headOnFinal = ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var headNode) && NodeIncidentToTaxiway(headNode, finalTaxiway);
+                bool headOnFinal =
+                    ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? headNode) && NodeIncidentToTaxiway(headNode, finalTaxiway);
                 if (!headOnFinal)
                 {
                     return null;
@@ -909,7 +948,8 @@ public static class SegmentExpander
         }
         else if (intersection is null)
         {
-            bool headOnFinal = ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var headNode) && NodeIncidentToTaxiway(headNode, finalTaxiway);
+            bool headOnFinal =
+                ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? headNode) && NodeIncidentToTaxiway(headNode, finalTaxiway);
             if (!headOnFinal)
             {
                 return null;
@@ -949,15 +989,15 @@ public static class SegmentExpander
         int maxStopCandidates = MaxParkingStopCandidates
     )
     {
-        if (!ctx.Layout.Nodes.TryGetValue(destId, out var destNode))
+        if (!ctx.Layout.Nodes.TryGetValue(destId, out GroundNode? destNode))
         {
             return (null, null, double.MaxValue);
         }
 
-        var onTaxiway = ctx.Layout.GetNodesOnTaxiway(taxiwayName);
+        List<GroundNode> onTaxiway = ctx.Layout.GetNodesOnTaxiway(taxiwayName);
 
         // Nearest-by-straight-line stop candidates (original behaviour).
-        var nearest = onTaxiway.OrderBy(n => GeoMath.DistanceNm(n.Position, destNode.Position)).Take(maxStopCandidates);
+        IEnumerable<GroundNode> nearest = onTaxiway.OrderBy(n => GeoMath.DistanceNm(n.Position, destNode.Position)).Take(maxStopCandidates);
 
         // Ramp-connector stop candidates: the junction where the cleared taxiway meets each numbered
         // connector or RAMP. A parking/spot gate hangs off a RAMP reached via such a connector, and that
@@ -968,33 +1008,33 @@ public static class SegmentExpander
         // without a nearer connector (e.g. RAMP, which meets the taxiway at many nodes) crowding it out —
         // so the walk+extend reach-cost picker below can select it (e.g. SFO B/T9 for "TAXI B @F1"),
         // mirroring the issue-#235 reach-probe for the no-junction case.
-        var connectorJunctions = onTaxiway
+        IEnumerable<GroundNode> connectorJunctions = onTaxiway
             .SelectMany(n => RampConnectorNames(n, taxiwayName).Select(name => (Name: name, Node: n)))
             .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.OrderBy(x => GeoMath.DistanceNm(x.Node.Position, destNode.Position)).First().Node);
 
-        var candidates = nearest.Concat(connectorJunctions).DistinctBy(n => n.Id);
+        IEnumerable<GroundNode> candidates = nearest.Concat(connectorJunctions).DistinctBy(n => n.Id);
 
         List<DirectionalEdge>? bestWalk = null;
         PartialRoute? bestStopHead = null;
         double bestTotal = double.MaxValue;
 
-        foreach (var cand in candidates)
+        foreach (GroundNode? cand in candidates)
         {
-            var (walkEdges, candHead, walkCost) = LocalSearchToJunction(head, taxiwayName, cand.Id, ctx);
+            (List<DirectionalEdge>? walkEdges, PartialRoute? candHead, double walkCost) = LocalSearchToJunction(head, taxiwayName, cand.Id, ctx);
             if (walkEdges is null || candHead is null)
             {
                 continue;
             }
 
-            var (extEdges, extFailure) = ExtendToDestination(candHead, destId, ctx);
+            (List<DirectionalEdge>? extEdges, PathfindingFailure? extFailure) = ExtendToDestination(candHead, destId, ctx);
             if (extFailure is not null || extEdges is null)
             {
                 continue;
             }
 
             double extCost = 0.0;
-            foreach (var e in extEdges)
+            foreach (DirectionalEdge e in extEdges)
             {
                 extCost += e.DistanceNm;
             }
@@ -1028,9 +1068,9 @@ public static class SegmentExpander
     private static IEnumerable<string> RampConnectorNames(GroundNode node, string clearedTaxiway)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
-            foreach (var name in edge.TaxiwayName.Split(" - ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            foreach (string name in edge.TaxiwayName.Split(" - ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             {
                 if (
                     !name.Equals(clearedTaxiway, StringComparison.OrdinalIgnoreCase)
@@ -1074,18 +1114,24 @@ public static class SegmentExpander
 
         // Mirror ResolveSequence's per-segment VisitedNodeIds reset (the real terminus walk starts from
         // a reset head, so the probe must too, or it under-counts reachability).
-        var probeHead = segHead with
+        PartialRoute probeHead = segHead with
         {
             VisitedNodeIds = VisitedNodeSet.Single(segHead.HeadNodeId),
         };
 
-        var (directEdges, _, directCost) = LocalSearchToJunction(probeHead, toTaxiway, destId, ctx);
+        (List<DirectionalEdge>? directEdges, PartialRoute? _, double directCost) = LocalSearchToJunction(probeHead, toTaxiway, destId, ctx);
         if (directEdges is not null)
         {
             return directCost;
         }
 
-        var (stopEdges, _, stopCost) = SelectBestParkingStop(probeHead, toTaxiway, destId, ctx, ProbeStopCandidateCap);
+        (List<DirectionalEdge>? stopEdges, PartialRoute? _, double stopCost) = SelectBestParkingStop(
+            probeHead,
+            toTaxiway,
+            destId,
+            ctx,
+            ProbeStopCandidateCap
+        );
         return stopEdges is not null ? stopCost : TailUnresolvablePenaltyNm;
     }
 
@@ -1116,12 +1162,12 @@ public static class SegmentExpander
         SearchContext ctx
     )
     {
-        if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var startNode))
+        if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? startNode))
         {
             return ([], head);
         }
 
-        foreach (var edge in startNode.Edges)
+        foreach (IGroundEdge edge in startNode.Edges)
         {
             if (edge.MatchesTaxiway(taxiwayName))
             {
@@ -1129,14 +1175,26 @@ public static class SegmentExpander
             }
         }
 
-        var best = PickBridgeCandidate(head, taxiwayName, bias, ctx, MaxBridgeHops);
+        (List<DirectionalEdge>? Edges, PartialRoute? Head, double Score, bool HasOnward) best = PickBridgeCandidate(
+            head,
+            taxiwayName,
+            bias,
+            ctx,
+            MaxBridgeHops
+        );
 
         // Every access node within the shallow reach commits the head to a U-turn onto the taxiway (the
         // shallow pick still carries BridgeNoOnwardPenaltyNm). The real entry may simply lie a hop or two
         // further along the gate's lead-out lane, so look deeper before settling for the dead end.
         if (best.Edges is not null && !best.HasOnward)
         {
-            var deeper = PickBridgeCandidate(head, taxiwayName, bias, ctx, MaxBridgeHopsDeep);
+            (List<DirectionalEdge>? Edges, PartialRoute? Head, double Score, bool HasOnward) deeper = PickBridgeCandidate(
+                head,
+                taxiwayName,
+                bias,
+                ctx,
+                MaxBridgeHopsDeep
+            );
             if (deeper.Edges is not null && deeper.HasOnward)
             {
                 ctx.DiagnosticLog?.Invoke(
@@ -1171,7 +1229,12 @@ public static class SegmentExpander
         int maxHops
     )
     {
-        var (candidates, cameFrom) = CollectBridgeCandidates(head.HeadNodeId, taxiwayName, ctx, maxHops);
+        (List<int>? candidates, Dictionary<int, (int ParentId, IGroundEdge Edge)>? cameFrom) = CollectBridgeCandidates(
+            head.HeadNodeId,
+            taxiwayName,
+            ctx,
+            maxHops
+        );
 
         List<DirectionalEdge>? bestEdges = null;
         PartialRoute? bestHead = null;
@@ -1181,7 +1244,7 @@ public static class SegmentExpander
 
         foreach (int candidateId in candidates)
         {
-            var (candEdges, candHead) = BuildBridgePath(head, candidateId, cameFrom, ctx);
+            (List<DirectionalEdge>? candEdges, PartialRoute? candHead) = BuildBridgePath(head, candidateId, cameFrom, ctx);
             if (candEdges.Count == 0)
             {
                 continue;
@@ -1234,13 +1297,13 @@ public static class SegmentExpander
 
         while (queue.Count > 0)
         {
-            var (nodeId, depth) = queue.Dequeue();
-            if (!ctx.Layout.Nodes.TryGetValue(nodeId, out var node))
+            (int nodeId, int depth) = queue.Dequeue();
+            if (!ctx.Layout.Nodes.TryGetValue(nodeId, out GroundNode? node))
             {
                 continue;
             }
 
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 // The bridge may not hop over runway pavement the route isn't allowed on.
                 if (ctx.IsForbiddenCenterlineEdge(edge))
@@ -1248,7 +1311,7 @@ public static class SegmentExpander
                     continue;
                 }
 
-                var neighbor = edge.OtherNode(node);
+                GroundNode neighbor = edge.OtherNode(node);
                 if (!visited.Add(neighbor.Id))
                 {
                     continue;
@@ -1293,7 +1356,7 @@ public static class SegmentExpander
         while (trace != head.HeadNodeId)
         {
             pathNodes.Add(trace);
-            if (!cameFrom.TryGetValue(trace, out var step))
+            if (!cameFrom.TryGetValue(trace, out (int ParentId, IGroundEdge Edge) step))
             {
                 return ([], head);
             }
@@ -1304,11 +1367,14 @@ public static class SegmentExpander
         pathNodes.Reverse();
 
         var bridgeEdges = new List<DirectionalEdge>(pathNodes.Count);
-        var current = head;
+        PartialRoute current = head;
         foreach (int id in pathNodes)
         {
-            var (_, edge) = cameFrom[id];
-            if (!ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out var fromNode) || !ctx.Layout.Nodes.TryGetValue(id, out var toNode))
+            (int _, IGroundEdge? edge) = cameFrom[id];
+            if (
+                !ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out GroundNode? fromNode)
+                || !ctx.Layout.Nodes.TryGetValue(id, out GroundNode? toNode)
+            )
             {
                 break;
             }
@@ -1345,13 +1411,13 @@ public static class SegmentExpander
     /// </summary>
     private static double ScoreBridgeCandidate(PartialRoute candHead, string taxiwayName, LatLon bias, SearchContext ctx)
     {
-        if (!ctx.Layout.Nodes.TryGetValue(candHead.HeadNodeId, out var node))
+        if (!ctx.Layout.Nodes.TryGetValue(candHead.HeadNodeId, out GroundNode? node))
         {
             return double.MaxValue;
         }
 
         double best = double.MaxValue;
-        foreach (var neighbor in AdmissibleOnwardNeighbors(candHead, taxiwayName, ctx))
+        foreach (GroundNode neighbor in AdmissibleOnwardNeighbors(candHead, taxiwayName, ctx))
         {
             double d = GeoMath.DistanceNm(neighbor.Position, bias);
             if (d < best)
@@ -1376,19 +1442,19 @@ public static class SegmentExpander
     /// </summary>
     private static IEnumerable<GroundNode> AdmissibleOnwardNeighbors(PartialRoute candHead, string taxiwayName, SearchContext ctx)
     {
-        if (!ctx.Layout.Nodes.TryGetValue(candHead.HeadNodeId, out var node))
+        if (!ctx.Layout.Nodes.TryGetValue(candHead.HeadNodeId, out GroundNode? node))
         {
             yield break;
         }
 
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (!edge.MatchesTaxiway(taxiwayName))
             {
                 continue;
             }
 
-            var neighbor = edge.OtherNode(node);
+            GroundNode neighbor = edge.OtherNode(node);
             if (candHead.VisitedNodeIds.Contains(neighbor.Id))
             {
                 continue;
@@ -1409,27 +1475,27 @@ public static class SegmentExpander
     /// </summary>
     private static LatLon? ResolveBridgeBias(IReadOnlyList<WaypointToken> tokens, PartialRoute head, SearchContext ctx)
     {
-        var first = tokens[0];
+        WaypointToken first = tokens[0];
 
         // Route continues past the first taxiway: head toward the junction with the next token.
         if (tokens.Count >= 2)
         {
-            var next = tokens[1];
+            WaypointToken next = tokens[1];
             if (next.IsNodeRef)
             {
-                if (ctx.Layout.Nodes.TryGetValue(next.ResolvedNodeId, out var nextNode))
+                if (ctx.Layout.Nodes.TryGetValue(next.ResolvedNodeId, out GroundNode? nextNode))
                 {
                     return nextNode.Position;
                 }
             }
             else
             {
-                var junctions = FindJunctionCandidates(ctx.Layout, first.Name, next.Name);
+                List<GroundNode> junctions = FindJunctionCandidates(ctx.Layout, first.Name, next.Name);
                 if (junctions.Count > 0)
                 {
                     double sumLat = 0;
                     double sumLon = 0;
-                    foreach (var j in junctions)
+                    foreach (GroundNode j in junctions)
                     {
                         sumLat += j.Position.Lat;
                         sumLon += j.Position.Lon;
@@ -1441,7 +1507,7 @@ public static class SegmentExpander
         }
 
         // Single cleared taxiway: head toward the destination node when known.
-        if (ctx.Destination.TargetNodeId is { } destId && ctx.Layout.Nodes.TryGetValue(destId, out var destNode))
+        if (ctx.Destination.TargetNodeId is { } destId && ctx.Layout.Nodes.TryGetValue(destId, out GroundNode? destNode))
         {
             return destNode.Position;
         }
@@ -1468,7 +1534,7 @@ public static class SegmentExpander
     )
     {
         // Find all junction candidates: nodes on fromTaxiway with at least one edge onto toTaxiway.
-        var junctionCandidates = FindJunctionCandidates(ctx.Layout, fromTaxiway, toTaxiway);
+        List<GroundNode> junctionCandidates = FindJunctionCandidates(ctx.Layout, fromTaxiway, toTaxiway);
 
         // When the route continues past toTaxiway and look-ahead is enabled, score each junction
         // by the cost of resolving the remaining sequence from it (recursive probe). Otherwise
@@ -1482,12 +1548,12 @@ public static class SegmentExpander
         (double Lat, double Lon)? lookaheadAnchor = null;
         if (lookaheadTaxiway is not null)
         {
-            var anchors = FindJunctionCandidates(ctx.Layout, toTaxiway, lookaheadTaxiway);
+            List<GroundNode> anchors = FindJunctionCandidates(ctx.Layout, toTaxiway, lookaheadTaxiway);
             if (anchors.Count > 0)
             {
                 double sumLat = 0;
                 double sumLon = 0;
-                foreach (var a in anchors)
+                foreach (GroundNode a in anchors)
                 {
                     sumLat += a.Position.Lat;
                     sumLon += a.Position.Lon;
@@ -1526,7 +1592,7 @@ public static class SegmentExpander
             && lookaheadTaxiway is null
             && ctx.Destination.Kind is DestinationKind.Parking or DestinationKind.Spot or DestinationKind.Helipad
             && ctx.Destination.TargetNodeId is { } destNodeId
-            && ctx.Layout.Nodes.TryGetValue(destNodeId, out var destNode)
+            && ctx.Layout.Nodes.TryGetValue(destNodeId, out GroundNode? destNode)
         )
         {
             lookaheadAnchor = (destNode.Position.Lat, destNode.Position.Lon);
@@ -1549,7 +1615,7 @@ public static class SegmentExpander
                 return (null, null, DetourSuppressedFailure(fromTaxiway, toTaxiway, head));
             }
 
-            var detour = TryDetour(head, fromTaxiway, toTaxiway, ctx);
+            (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) detour = TryDetour(head, fromTaxiway, toTaxiway, ctx);
             if (detour.Failure is null && detour.Edges is not null)
             {
                 RecordConnectorInsertion(insertions, fromTaxiway, toTaxiway, detour.Edges, tokens);
@@ -1564,9 +1630,9 @@ public static class SegmentExpander
         List<DirectionalEdge>? bestSegEdges = null;
         double bestArrivalBearing = 0.0;
 
-        foreach (var junctionNode in junctionCandidates)
+        foreach (GroundNode junctionNode in junctionCandidates)
         {
-            var (segEdges, segHead, cost) = LocalSearchToJunction(head, fromTaxiway, junctionNode.Id, ctx);
+            (List<DirectionalEdge>? segEdges, PartialRoute? segHead, double cost) = LocalSearchToJunction(head, fromTaxiway, junctionNode.Id, ctx);
             if (segEdges is null)
             {
                 continue;
@@ -1678,14 +1744,14 @@ public static class SegmentExpander
 
         double junctionToAnchorNm = GeoMath.DistanceNm(junction.Position.Lat, junction.Position.Lon, a.Lat, a.Lon);
 
-        foreach (var edge in junction.Edges)
+        foreach (IGroundEdge edge in junction.Edges)
         {
             if (!edge.MatchesTaxiway(toTaxiway))
             {
                 continue;
             }
 
-            var neighbor = edge.OtherNode(junction);
+            GroundNode neighbor = edge.OtherNode(junction);
             double neighborToAnchorNm = GeoMath.DistanceNm(neighbor.Position.Lat, neighbor.Position.Lon, a.Lat, a.Lon);
             if (neighborToAnchorNm < junctionToAnchorNm)
             {
@@ -1764,14 +1830,14 @@ public static class SegmentExpander
             return 0.0;
         }
 
-        foreach (var edge in junction.Edges)
+        foreach (IGroundEdge edge in junction.Edges)
         {
             if (!edge.MatchesTaxiway(toTaxiway))
             {
                 continue;
             }
 
-            var neighbor = edge.OtherNode(junction);
+            GroundNode neighbor = edge.OtherNode(junction);
             double departure = edge.Directed(junction, neighbor).DepartureBearing;
             if (TurnMatchesHint(SignedTurnDeg(arrivalBearing, departure), hint))
             {
@@ -1818,19 +1884,19 @@ public static class SegmentExpander
     /// </summary>
     private static LatLon? ResolveTurnHintBias(PartialRoute head, string taxiwayName, double startHeadingTrue, TurnDirection hint, SearchContext ctx)
     {
-        if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var node))
+        if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? node))
         {
             return null;
         }
 
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (!edge.MatchesTaxiway(taxiwayName))
             {
                 continue;
             }
 
-            var neighbor = edge.OtherNode(node);
+            GroundNode neighbor = edge.OtherNode(node);
             double departure = edge.Directed(node, neighbor).DepartureBearing;
             if (TurnMatchesHint(SignedTurnDeg(startHeadingTrue, departure), hint))
             {
@@ -1857,7 +1923,7 @@ public static class SegmentExpander
         double sumLat = 0;
         double sumLon = 0;
         int count = 0;
-        foreach (var node in ctx.Layout.Nodes.Values)
+        foreach (GroundNode node in ctx.Layout.Nodes.Values)
         {
             if (!IsRunwayHoldShort(node.Id, runwayId, ctx))
             {
@@ -1865,7 +1931,7 @@ public static class SegmentExpander
             }
 
             bool onTaxiway = false;
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway(taxiway))
                 {
@@ -1894,11 +1960,11 @@ public static class SegmentExpander
     private static List<GroundNode> FindJunctionCandidates(AirportGroundLayout layout, string fromTaxiway, string toTaxiway)
     {
         var result = new List<GroundNode>();
-        var onFromTaxiway = layout.GetNodesOnTaxiway(fromTaxiway);
+        List<GroundNode> onFromTaxiway = layout.GetNodesOnTaxiway(fromTaxiway);
 
-        foreach (var node in onFromTaxiway)
+        foreach (GroundNode node in onFromTaxiway)
         {
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway(toTaxiway))
                 {
@@ -1935,7 +2001,7 @@ public static class SegmentExpander
             return ([], startHead, 0.0);
         }
 
-        if (!ctx.Layout.Nodes.TryGetValue(junctionNodeId, out var destNode))
+        if (!ctx.Layout.Nodes.TryGetValue(junctionNodeId, out GroundNode? destNode))
         {
             ctx.DiagnosticLog?.Invoke($"[local] twy={taxiwayName} dest={junctionNodeId} NOT IN LAYOUT");
             return (null, null, double.MaxValue);
@@ -1957,7 +2023,7 @@ public static class SegmentExpander
         int admittedTotal = 0;
         int rejectedTotal = 0;
 
-        double h0 = ctx.Layout.Nodes.TryGetValue(startHead.HeadNodeId, out var sn) ? RouteCostFunction.Heuristic(sn, destNode) : 0.0;
+        double h0 = ctx.Layout.Nodes.TryGetValue(startHead.HeadNodeId, out GroundNode? sn) ? RouteCostFunction.Heuristic(sn, destNode) : 0.0;
 
         openSet.Enqueue(startHead, startHead.AccumulatedCost + h0);
         bestGScore[GeometricAdmissibility.PruningStateKey(startHead.HeadNodeId, startHead.ArrivalBearing, startHead.LastTaxiwayName)] =
@@ -1965,7 +2031,7 @@ public static class SegmentExpander
 
         while (openSet.Count > 0)
         {
-            var current = openSet.Dequeue();
+            PartialRoute current = openSet.Dequeue();
             expansions++;
 
             if (expansions > MaxLocalExpansions)
@@ -1995,7 +2061,7 @@ public static class SegmentExpander
             if (current.HeadNodeId == junctionNodeId)
             {
                 // Found the junction: extract edges accumulated since the start.
-                var edges = ExtractEdgesSince(current, startHead.HeadNodeId, startHead.Depth);
+                List<DirectionalEdge> edges = ExtractEdgesSince(current, startHead.HeadNodeId, startHead.Depth);
                 ctx.DiagnosticLog?.Invoke(
                     $"[local] SUCCESS twy={taxiwayName} dest={junctionNodeId} expansions={expansions} "
                         + $"edges={edges.Count} cost={current.AccumulatedCost - startHead.AccumulatedCost:F3} "
@@ -2004,7 +2070,7 @@ public static class SegmentExpander
                 return (edges, current, current.AccumulatedCost - startHead.AccumulatedCost);
             }
 
-            if (!ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out var headNode))
+            if (!ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out GroundNode? headNode))
             {
                 continue;
             }
@@ -2012,9 +2078,9 @@ public static class SegmentExpander
             int admittedHere = 0;
             int rejectedHere = 0;
 
-            foreach (var edge in headNode.Edges)
+            foreach (IGroundEdge edge in headNode.Edges)
             {
-                var nextNode = edge.OtherNode(headNode);
+                GroundNode nextNode = edge.OtherNode(headNode);
 
                 if (current.VisitedNodeIds.Contains(nextNode.Id))
                 {
@@ -2101,7 +2167,7 @@ public static class SegmentExpander
                     : GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
 
                 string twyName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
-                var nextKey = GeometricAdmissibility.PruningStateKey(nextNode.Id, arrival, twyName);
+                (int Node, int Bucket, string Taxiway) nextKey = GeometricAdmissibility.PruningStateKey(nextNode.Id, arrival, twyName);
                 if (bestGScore.TryGetValue(nextKey, out double existing) && (newGScore >= existing - 1e-9))
                 {
                     ctx.DiagnosticLog?.Invoke(
@@ -2119,7 +2185,7 @@ public static class SegmentExpander
                         + $"arr={current.ArrivalBearing:F1} arr'={arrival:F1} g={newGScore:F3} h={RouteCostFunction.Heuristic(nextNode, destNode):F3}"
                 );
 
-                var extended = current with
+                PartialRoute extended = current with
                 {
                     HeadNodeId = nextNode.Id,
                     ArrivalBearing = arrival,
@@ -2185,13 +2251,13 @@ public static class SegmentExpander
         }
 
         var result = new DirectionalEdge[edgeCount];
-        var current = route;
+        PartialRoute current = route;
 
         for (int i = edgeCount - 1; i >= 0; i--)
         {
-            var prevNodeId = current.Previous!.HeadNodeId;
-            var prevNode = FindNodeInChain(current, prevNodeId);
-            var headNode = FindNodeInChain(current, current.HeadNodeId);
+            int prevNodeId = current.Previous!.HeadNodeId;
+            GroundNode prevNode = FindNodeInChain(current, prevNodeId);
+            GroundNode headNode = FindNodeInChain(current, current.HeadNodeId);
             result[i] = current.LastEdge!.Directed(prevNode, headNode);
             current = current.Previous;
         }
@@ -2201,12 +2267,12 @@ public static class SegmentExpander
 
     private static GroundNode FindNodeInChain(PartialRoute route, int nodeId)
     {
-        var cursor = route;
+        PartialRoute? cursor = route;
         while (cursor is not null)
         {
             if (cursor.LastEdge is not null)
             {
-                foreach (var n in cursor.LastEdge.Nodes)
+                foreach (GroundNode n in cursor.LastEdge.Nodes)
                 {
                     if (n.Id == nodeId)
                     {
@@ -2235,14 +2301,14 @@ public static class SegmentExpander
         // Walk forward along the taxiway from current head, staying on the named taxiway,
         // following the geometrically admissible continuation until no more edges remain.
         var edges = new List<DirectionalEdge>();
-        var current = head;
+        PartialRoute current = head;
         bool madeProgress = true;
 
         while (madeProgress)
         {
             madeProgress = false;
 
-            if (!ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out var headNode))
+            if (!ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out GroundNode? headNode))
             {
                 break;
             }
@@ -2259,14 +2325,14 @@ public static class SegmentExpander
             // Sentinel true so the first single-name candidate always displaces it.
             bool bestIsJunctionArc = true;
 
-            foreach (var edge in headNode.Edges)
+            foreach (IGroundEdge edge in headNode.Edges)
             {
                 if (!edge.MatchesTaxiway(taxiwayName))
                 {
                     continue;
                 }
 
-                var nextNode = edge.OtherNode(headNode);
+                GroundNode nextNode = edge.OtherNode(headNode);
                 if (current.VisitedNodeIds.Contains(nextNode.Id))
                 {
                     continue;
@@ -2328,8 +2394,8 @@ public static class SegmentExpander
                 break;
             }
 
-            var arrival = GeometricAdmissibility.GetArrivalBearing(bestEdge, headNode, bestNext!);
-            var twyName = RouteCostFunction.ResolveTaxiwayName(bestEdge, current.HeadNodeId);
+            double arrival = GeometricAdmissibility.GetArrivalBearing(bestEdge, headNode, bestNext!);
+            string twyName = RouteCostFunction.ResolveTaxiwayName(bestEdge, current.HeadNodeId);
 
             edges.Add(bestEdge.Directed(headNode, bestNext!));
             current = current with
@@ -2365,7 +2431,7 @@ public static class SegmentExpander
     /// </summary>
     private static LatLon? ResolveTerminusBias(PartialRoute head, string taxiwayName, SearchContext ctx)
     {
-        if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var headNode))
+        if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? headNode))
         {
             return null;
         }
@@ -2382,7 +2448,7 @@ public static class SegmentExpander
 
         LatLon? taxiwayCrossingBias = null;
         double taxiwayCrossingDistNm = double.MaxValue;
-        foreach (var holdShort in ctx.ExplicitHoldShorts)
+        foreach (HoldShortTarget holdShort in ctx.ExplicitHoldShorts)
         {
             // A spot target is a node the route passes through, not a bar or crossing to aim the walk at.
             if (holdShort.IsSpot)
@@ -2402,7 +2468,7 @@ public static class SegmentExpander
             // the target taxiway on this taxiway instead, so the walk heads for the C∩J junction.
             if (holdShort.OnTaxiway is not null && !ctx.Layout.TryGetRunwayCenterlineName(holdShort.Target, out _))
             {
-                var crossing = ctx.Layout.FindIntersectionNode(taxiwayName, holdShort.Target, headNode.Position);
+                GroundNode? crossing = ctx.Layout.FindIntersectionNode(taxiwayName, holdShort.Target, headNode.Position);
                 if (crossing is not null)
                 {
                     double crossingDistNm = GeoMath.DistanceNm(crossing.Position, headNode.Position);
@@ -2422,7 +2488,7 @@ public static class SegmentExpander
 
         GroundNode? best = null;
         double bestDistNm = double.MaxValue;
-        foreach (var node in ctx.Layout.Nodes.Values)
+        foreach (GroundNode node in ctx.Layout.Nodes.Values)
         {
             bool isTarget = false;
             foreach (string target in targets)
@@ -2440,7 +2506,7 @@ public static class SegmentExpander
             }
 
             bool onTaxiway = false;
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway(taxiwayName))
                 {
@@ -2494,7 +2560,7 @@ public static class SegmentExpander
     {
         // Head is already at the node-ref (resolved in previous step).
         // Find junction candidates from that node onto the next taxiway.
-        if (!ctx.Layout.Nodes.TryGetValue(nodeRefId, out var nodeRefNode))
+        if (!ctx.Layout.Nodes.TryGetValue(nodeRefId, out GroundNode? nodeRefNode))
         {
             return (
                 null,
@@ -2504,7 +2570,7 @@ public static class SegmentExpander
         }
 
         // Treat the node-ref as a single-node "taxiway" and find the best junction to nextTaxiway.
-        var junctionCandidates = FindJunctionCandidates(ctx.Layout, nodeRefNode, nextTaxiway);
+        List<GroundNode> junctionCandidates = FindJunctionCandidates(ctx.Layout, nodeRefNode, nextTaxiway);
         if (junctionCandidates.Count == 0)
         {
             return TryDetour(head, $"#{nodeRefId}", nextTaxiway, ctx);
@@ -2512,9 +2578,9 @@ public static class SegmentExpander
 
         (List<DirectionalEdge>? bestEdges, PartialRoute? bestHead, double bestCost) = (null, null, double.MaxValue);
 
-        foreach (var junctionNode in junctionCandidates)
+        foreach (GroundNode junctionNode in junctionCandidates)
         {
-            var (segEdges, segHead, cost) = LocalSearchToJunction(head, nextTaxiway, junctionNode.Id, ctx);
+            (List<DirectionalEdge>? segEdges, PartialRoute? segHead, double cost) = LocalSearchToJunction(head, nextTaxiway, junctionNode.Id, ctx);
             if (segEdges is null)
             {
                 continue;
@@ -2542,7 +2608,7 @@ public static class SegmentExpander
     private static List<GroundNode> FindJunctionCandidates(AirportGroundLayout layout, GroundNode fromNode, string toTaxiway)
     {
         var result = new List<GroundNode>();
-        foreach (var edge in fromNode.Edges)
+        foreach (IGroundEdge edge in fromNode.Edges)
         {
             if (edge.MatchesTaxiway(toTaxiway))
             {
@@ -2565,7 +2631,7 @@ public static class SegmentExpander
             return ([], head, null);
         }
 
-        if (!ctx.Layout.Nodes.TryGetValue(targetNodeId, out var destNode))
+        if (!ctx.Layout.Nodes.TryGetValue(targetNodeId, out GroundNode? destNode))
         {
             return (
                 null,
@@ -2584,14 +2650,14 @@ public static class SegmentExpander
         // consecutive targets are one edge apart. Take that edge directly: the A* below would have to
         // rediscover it, and when it can't (the drawn turn is inadmissible from here) it silently
         // substitutes a long way round instead of failing.
-        var (stepEdges, stepHead) = TryStepToAdjacentNode(head, destNode, ctx);
+        (List<DirectionalEdge>? stepEdges, PartialRoute? stepHead) = TryStepToAdjacentNode(head, destNode, ctx);
         if (stepEdges is not null)
         {
             return (stepEdges, stepHead, null);
         }
 
         // Use AutoRouter from current head to the target node.
-        var detourCtx = ctx with
+        SearchContext detourCtx = ctx with
         {
             StartNodeId = head.HeadNodeId,
             Destination = new DestinationDescriptor(targetNodeId, null, null, null, DestinationKind.Node),
@@ -2599,7 +2665,7 @@ public static class SegmentExpander
             AuthorizedTaxiways = null,
         };
 
-        var (route, failure) = AutoRouter.Run(detourCtx, startOverride: head);
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(detourCtx, startOverride: head);
         if (failure is not null || route is null)
         {
             return (
@@ -2615,7 +2681,7 @@ public static class SegmentExpander
             );
         }
 
-        var newHead = BuildHeadFromRoute(head, route);
+        PartialRoute newHead = BuildHeadFromRoute(head, route);
         return (route.Segments.Select(s => s.Edge).ToList(), newHead, null);
     }
 
@@ -2628,7 +2694,7 @@ public static class SegmentExpander
     /// </summary>
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head) TryStepToAdjacentNode(PartialRoute head, GroundNode target, SearchContext ctx)
     {
-        if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var headNode) || IsBlockedTurnEdge(ctx, head, target.Id))
+        if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? headNode) || IsBlockedTurnEdge(ctx, head, target.Id))
         {
             return (null, null);
         }
@@ -2637,9 +2703,9 @@ public static class SegmentExpander
         GroundNode? bestNext = null;
         double bestCost = double.MaxValue;
 
-        foreach (var edge in headNode.Edges)
+        foreach (IGroundEdge edge in headNode.Edges)
         {
-            var nextNode = edge.OtherNode(headNode);
+            GroundNode nextNode = edge.OtherNode(headNode);
             if ((nextNode.Id != target.Id) || !GeometricAdmissibility.IsAdmissible(head, edge, nextNode, ctx.Category))
             {
                 continue;
@@ -2663,7 +2729,7 @@ public static class SegmentExpander
             ? head.ArrivalBearing
             : GeometricAdmissibility.GetArrivalBearing(best, headNode, bestNext);
 
-        var extended = head with
+        PartialRoute extended = head with
         {
             HeadNodeId = bestNext.Id,
             ArrivalBearing = arrival,
@@ -2697,9 +2763,9 @@ public static class SegmentExpander
     private static IReadOnlySet<string> UnnamedLetterTaxiways(AirportGroundLayout layout, IReadOnlySet<string>? authorized)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge is GroundArc arc)
                 {
@@ -2728,7 +2794,7 @@ public static class SegmentExpander
 
     private static bool RouteReachesRunwayHoldShort(IReadOnlyList<DirectionalEdge> edges, string runwayId, SearchContext ctx)
     {
-        foreach (var edge in edges)
+        foreach (DirectionalEdge edge in edges)
         {
             if (IsRunwayHoldShort(edge.ToNodeId, runwayId, ctx) || IsRunwayHoldShort(edge.FromNodeId, runwayId, ctx))
             {
@@ -2740,7 +2806,7 @@ public static class SegmentExpander
     }
 
     private static bool IsRunwayHoldShort(int nodeId, string runwayId, SearchContext ctx) =>
-        ctx.Layout.Nodes.TryGetValue(nodeId, out var node)
+        ctx.Layout.Nodes.TryGetValue(nodeId, out GroundNode? node)
         && node.Type == GroundNodeType.RunwayHoldShort
         && node.RunwayId is { } rwy
         && rwy.Contains(runwayId);
@@ -2753,7 +2819,7 @@ public static class SegmentExpander
     )
     {
         // Check if we already reached a hold-short for the destination runway.
-        if (ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var currentNode))
+        if (ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? currentNode))
         {
             if (
                 currentNode.Type == GroundNodeType.RunwayHoldShort
@@ -2767,14 +2833,14 @@ public static class SegmentExpander
         }
 
         // Find numbered variants of lastTaxiwayName that have a hold-short for the destination runway.
-        var variants = FindVariantHoldShorts(ctx.Layout, lastTaxiwayName, destinationRunway);
+        List<(GroundNode HsNode, string Name)> variants = FindVariantHoldShorts(ctx.Layout, lastTaxiwayName, destinationRunway);
 
         ctx.DiagnosticLog?.Invoke($"[variant] lastTwy={lastTaxiwayName} destRwy={destinationRunway} variants={variants.Count}");
 
         if (variants.Count == 0)
         {
             // No variants: check for same-name hold-shorts first.
-            var sameNameHs = FindSameNameHoldShorts(ctx.Layout, lastTaxiwayName, destinationRunway);
+            List<GroundNode> sameNameHs = FindSameNameHoldShorts(ctx.Layout, lastTaxiwayName, destinationRunway);
             if (sameNameHs.Count > 0)
             {
                 return ExtendToNearestHoldShort(head, sameNameHs, ctx);
@@ -2801,7 +2867,7 @@ public static class SegmentExpander
 
         // Determine distinct variant names.
         var distinctVariants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (_, name) in variants)
+        foreach ((GroundNode _, string? name) in variants)
         {
             distinctVariants.Add(name);
         }
@@ -2813,12 +2879,12 @@ public static class SegmentExpander
             // runway's threshold — the full-length lineup connector. Only fall back to a TransitionAmbiguous failure
             // when the threshold is unavailable (no navdata), so the controller is never asked to
             // disambiguate a resolvable clearance and we never silently guess without a reference.
-            var threshold = RouteMaterialiser.ResolveRunwayThreshold(ctx.Layout.AirportId, destinationRunway);
+            LatLon? threshold = RouteMaterialiser.ResolveRunwayThreshold(ctx.Layout.AirportId, destinationRunway);
             if (threshold is { } thresholdPos)
             {
                 string bestVariant = variants[0].Name;
                 double bestDist = double.MaxValue;
-                foreach (var (hsNode, name) in variants)
+                foreach ((GroundNode? hsNode, string? name) in variants)
                 {
                     double dist = GeoMath.DistanceNm(hsNode.Position, thresholdPos);
                     if (dist < bestDist)
@@ -2859,7 +2925,7 @@ public static class SegmentExpander
     private static List<(GroundNode HsNode, string Name)> FindVariantHoldShorts(AirportGroundLayout layout, string baseName, string runwayId)
     {
         var result = new List<(GroundNode, string)>();
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (node.Type != GroundNodeType.RunwayHoldShort || node.RunwayId is null)
             {
@@ -2871,7 +2937,7 @@ public static class SegmentExpander
                 continue;
             }
 
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 string edgeName = edge.TaxiwayName;
                 if (IsNumberedVariant(edgeName, baseName))
@@ -2888,7 +2954,7 @@ public static class SegmentExpander
     private static List<GroundNode> FindSameNameHoldShorts(AirportGroundLayout layout, string taxiwayName, string runwayId)
     {
         var result = new List<GroundNode>();
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (node.Type != GroundNodeType.RunwayHoldShort || node.RunwayId is null)
             {
@@ -2900,7 +2966,7 @@ public static class SegmentExpander
                 continue;
             }
 
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.TaxiwayName.Equals(taxiwayName, StringComparison.OrdinalIgnoreCase))
                 {
@@ -2943,7 +3009,7 @@ public static class SegmentExpander
     )
     {
         var shortest = new Dictionary<string, RunwayConnectorCandidate>(StringComparer.OrdinalIgnoreCase);
-        foreach (var bar in layout.GetRunwayHoldShortNodes(runwayId).OrderBy(n => n.Id))
+        foreach (GroundNode? bar in layout.GetRunwayHoldShortNodes(runwayId).OrderBy(n => n.Id))
         {
             foreach (string connector in ConnectorNamesAtBar(bar, lastTaxiway, alreadyNamed))
             {
@@ -2952,7 +3018,7 @@ public static class SegmentExpander
                     continue;
                 }
 
-                if (!shortest.TryGetValue(connector, out var incumbent) || (reach.StubFt < incumbent.StubFt))
+                if (!shortest.TryGetValue(connector, out RunwayConnectorCandidate incumbent) || (reach.StubFt < incumbent.StubFt))
                 {
                     shortest[connector] = new RunwayConnectorCandidate(connector, reach.NodeId, bar.Id, reach.StubFt);
                 }
@@ -2975,7 +3041,7 @@ public static class SegmentExpander
     private static List<string> ConnectorNamesAtBar(GroundNode bar, string lastTaxiway, IReadOnlyCollection<string> alreadyNamed)
     {
         var names = new List<string>();
-        foreach (var edge in bar.Edges)
+        foreach (IGroundEdge edge in bar.Edges)
         {
             if ((edge is not GroundEdge straight) || straight.IsRunwayCenterline || straight.IsRunwayCrossingLink)
             {
@@ -3027,7 +3093,7 @@ public static class SegmentExpander
         queue.Enqueue(bar, (0.0, bar.Id));
         var settled = new HashSet<int>();
 
-        while (queue.TryDequeue(out var node, out var key))
+        while (queue.TryDequeue(out GroundNode? node, out (double Ft, int NodeId) key))
         {
             if (!settled.Add(node.Id))
             {
@@ -3056,14 +3122,14 @@ public static class SegmentExpander
         PriorityQueue<GroundNode, (double Ft, int NodeId)> queue
     )
     {
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge.IsRunwayCenterline || IsRunwayCrossingLinkEdge(edge) || !edge.MatchesTaxiway(connector))
             {
                 continue;
             }
 
-            var next = edge.OtherNode(node);
+            GroundNode next = edge.OtherNode(node);
             double ft = reachedFt + (edge.DistanceNm * GeoMath.FeetPerNm);
             if ((ft <= RunwayConnectorStubMaxFt) && !settled.Contains(next.Id))
             {
@@ -3084,7 +3150,7 @@ public static class SegmentExpander
             return false;
         }
 
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (IsThirdTaxiwayStraight(edge, connector, lastTaxiway))
             {
@@ -3169,9 +3235,9 @@ public static class SegmentExpander
         GroundNode? targetHs = null;
         double bestDist = double.MaxValue;
 
-        if (ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var headNode))
+        if (ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? headNode))
         {
-            foreach (var hs in variantHsNodes)
+            foreach (GroundNode hs in variantHsNodes)
             {
                 double dist = GeoMath.DistanceNm(headNode.Position, hs.Position);
                 if (dist < bestDist)
@@ -3194,7 +3260,7 @@ public static class SegmentExpander
         ctx.DiagnosticLog?.Invoke($"[variant] extending {baseTaxiway}→{variantName} to hold-short #{targetHs.Id}");
 
         // Route from head to the variant hold-short via local search.
-        var (segEdges, _, cost) = LocalSearchToJunction(head, variantName, targetHs.Id, ctx);
+        (List<DirectionalEdge>? segEdges, PartialRoute? _, double cost) = LocalSearchToJunction(head, variantName, targetHs.Id, ctx);
         if (segEdges is not null)
         {
             return (segEdges, null);
@@ -3213,9 +3279,9 @@ public static class SegmentExpander
         GroundNode? best = null;
         double bestDist = double.MaxValue;
 
-        if (ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var headNode))
+        if (ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? headNode))
         {
-            foreach (var hs in holdShortNodes)
+            foreach (GroundNode hs in holdShortNodes)
             {
                 double dist = GeoMath.DistanceNm(headNode.Position, hs.Position);
                 if (dist < bestDist)
@@ -3235,7 +3301,7 @@ public static class SegmentExpander
             return (null, null);
         }
 
-        var detourCtx = ctx with
+        SearchContext detourCtx = ctx with
         {
             StartNodeId = head.HeadNodeId,
             Destination = new DestinationDescriptor(best.Id, null, null, null, DestinationKind.Node),
@@ -3243,7 +3309,7 @@ public static class SegmentExpander
             AuthorizedTaxiways = null,
         };
 
-        var (route, _) = AutoRouter.Run(detourCtx, startOverride: head);
+        (TaxiRoute? route, PathfindingFailure? _) = AutoRouter.Run(detourCtx, startOverride: head);
         if (route is null)
         {
             return (null, null);
@@ -3274,7 +3340,7 @@ public static class SegmentExpander
     )
     {
         var cleared = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var token in tokens)
+        foreach (WaypointToken token in tokens)
         {
             if (!token.IsNodeRef)
             {
@@ -3283,7 +3349,7 @@ public static class SegmentExpander
         }
 
         var connectors = new List<string>();
-        foreach (var edge in detourEdges)
+        foreach (DirectionalEdge edge in detourEdges)
         {
             if (edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 })
             {
@@ -3351,7 +3417,7 @@ public static class SegmentExpander
         }
 
         // Find entry nodes onto toTaxiway — any node on that taxiway.
-        var toTaxiwayNodes = ctx.Layout.GetNodesOnTaxiway(toTaxiway);
+        List<GroundNode> toTaxiwayNodes = ctx.Layout.GetNodesOnTaxiway(toTaxiway);
         if (toTaxiwayNodes.Count == 0)
         {
             return (
@@ -3367,7 +3433,7 @@ public static class SegmentExpander
             );
         }
 
-        var (bestEntry, bestRoute, bestScore) = PickDetourEntry(head, fromTaxiway, toTaxiway, ctx);
+        (GroundNode? bestEntry, TaxiRoute? bestRoute, double bestScore) = PickDetourEntry(head, fromTaxiway, toTaxiway, ctx);
 
         if (bestRoute is null)
         {
@@ -3388,7 +3454,7 @@ public static class SegmentExpander
             $"[detour] found detour {fromTaxiway}→{toTaxiway} via #{bestEntry!.Id} segs={bestRoute.Segments.Count} score={bestScore:F3}"
         );
 
-        var newHead = BuildHeadFromRoute(head, bestRoute);
+        PartialRoute newHead = BuildHeadFromRoute(head, bestRoute);
         return (bestRoute.Segments.Select(s => s.Edge).ToList(), newHead, null);
     }
 
@@ -3434,14 +3500,14 @@ public static class SegmentExpander
         (GroundNode? Entry, TaxiRoute? Route, double Score) best = (null, null, double.MaxValue);
         (GroundNode? Entry, TaxiRoute? Route, double Score) shortest = (null, null, double.MaxValue);
 
-        foreach (var entryNode in ctx.Layout.GetNodesOnTaxiway(toTaxiway))
+        foreach (GroundNode entryNode in ctx.Layout.GetNodesOnTaxiway(toTaxiway))
         {
             if (entryNode.Id == head.HeadNodeId)
             {
                 continue;
             }
 
-            var (route, _) = RunBoundedDetour(BuildDetourContext(ctx, head.HeadNodeId, entryNode.Id), head);
+            (TaxiRoute? route, PathfindingFailure? _) = RunBoundedDetour(BuildDetourContext(ctx, head.HeadNodeId, entryNode.Id), head);
             if (route is null)
             {
                 continue;
@@ -3500,9 +3566,9 @@ public static class SegmentExpander
         double cost = 0.0;
         var chargedTaxiways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
-            var edge = seg.Edge.Edge;
+            IGroundEdge edge = seg.Edge.Edge;
             cost += edge.DistanceNm * (edge.IsRunwayCenterline ? RouteCostFunction.RunwayCenterlineDistanceMultiplier : 1.0);
 
             string name = RouteCostFunction.ResolveTaxiwayName(edge, seg.FromNodeId);
@@ -3592,12 +3658,12 @@ public static class SegmentExpander
     /// </summary>
     private static bool HeadHasReachedTaxiway(PartialRoute head, string taxiwayName, SearchContext ctx)
     {
-        if (ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var node) && NodeIncidentToTaxiway(node, taxiwayName))
+        if (ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? node) && NodeIncidentToTaxiway(node, taxiwayName))
         {
             return true;
         }
 
-        for (var cursor = head; cursor?.LastEdge is not null; cursor = cursor.Previous)
+        for (PartialRoute? cursor = head; cursor?.LastEdge is not null; cursor = cursor.Previous)
         {
             if (cursor.LastEdge.MatchesTaxiway(taxiwayName))
             {
@@ -3620,7 +3686,7 @@ public static class SegmentExpander
     {
         ctx.DiagnosticLog?.Invoke($"[extend] extending to destination #{destinationNodeId} from head={head.HeadNodeId}");
 
-        var extCtx = ctx with
+        SearchContext extCtx = ctx with
         {
             StartNodeId = head.HeadNodeId,
             Destination = new DestinationDescriptor(
@@ -3642,11 +3708,11 @@ public static class SegmentExpander
         // branches off. Fall back to an unconstrained search only when the confined one finds no route,
         // so a gate genuinely reachable only across an uncleared taxiway still resolves. Mirrors the
         // runway-destination fallback's hard-constraint (see ResolveExplicit's last-resort A*).
-        var unauthorized = UnnamedLetterTaxiways(ctx.Layout, ctx.AuthorizedTaxiways);
+        IReadOnlySet<string> unauthorized = UnnamedLetterTaxiways(ctx.Layout, ctx.AuthorizedTaxiways);
         if (unauthorized.Count > 0)
         {
-            var confinedCtx = extCtx with { AvoidedTaxiways = unauthorized, AvoidMode = AvoidTaxiwayMode.HardExclude };
-            var (confinedRoute, _) = AutoRouter.Run(confinedCtx, startOverride: head);
+            SearchContext confinedCtx = extCtx with { AvoidedTaxiways = unauthorized, AvoidMode = AvoidTaxiwayMode.HardExclude };
+            (TaxiRoute? confinedRoute, PathfindingFailure? _) = AutoRouter.Run(confinedCtx, startOverride: head);
             if (confinedRoute is not null)
             {
                 return (confinedRoute.Segments.Select(s => s.Edge).ToList(), null);
@@ -3655,7 +3721,7 @@ public static class SegmentExpander
             ctx.DiagnosticLog?.Invoke("[extend] confined (cleared+numbered+RAMP) extension found no route; retrying unconstrained");
         }
 
-        var (route, failure) = AutoRouter.Run(extCtx, startOverride: head);
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(extCtx, startOverride: head);
         if (failure is not null || route is null)
         {
             return (
@@ -3688,8 +3754,8 @@ public static class SegmentExpander
             return startHead;
         }
 
-        var current = startHead;
-        foreach (var seg in route.Segments)
+        PartialRoute current = startHead;
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             current = current with
             {

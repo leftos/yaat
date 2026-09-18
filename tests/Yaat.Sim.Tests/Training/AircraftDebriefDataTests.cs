@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Training;
 
@@ -25,7 +26,7 @@ public class AircraftDebriefDataTests
     [Fact]
     public void AircraftState_DefaultCompletionState_IsActive()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         Assert.Equal(0.0, ac.SpawnedAtSeconds);
         Assert.Null(ac.CompletedAtSeconds);
@@ -36,10 +37,10 @@ public class AircraftDebriefDataTests
     [Fact]
     public void FrequencyChangeApproved_StampsHandedOffCompletion()
     {
-        var ac = MakeAircraft();
-        var ctx = MakeCtx(scenarioElapsedSeconds: 182.5);
+        AircraftState ac = MakeAircraft();
+        DispatchContext ctx = MakeCtx(scenarioElapsedSeconds: 182.5);
 
-        var result = ContactCommandHandler.HandleFrequencyChangeApproved(ac, ctx);
+        CommandResult result = ContactCommandHandler.HandleFrequencyChangeApproved(ac, ctx);
 
         Assert.True(result.Success);
         Assert.Equal(182.5, ac.CompletedAtSeconds);
@@ -52,12 +53,12 @@ public class AircraftDebriefDataTests
     {
         // CT/FCA can be re-issued legitimately (controller corrects a typo, bounces a handoff).
         // The first one owns the completion stamp; later ones don't move it.
-        var ac = MakeAircraft();
-        var firstCtx = MakeCtx(scenarioElapsedSeconds: 100);
+        AircraftState ac = MakeAircraft();
+        DispatchContext firstCtx = MakeCtx(scenarioElapsedSeconds: 100);
         ContactCommandHandler.HandleFrequencyChangeApproved(ac, firstCtx);
 
-        var secondCtx = MakeCtx(scenarioElapsedSeconds: 150);
-        var result = ContactCommandHandler.HandleFrequencyChangeApproved(ac, secondCtx);
+        DispatchContext secondCtx = MakeCtx(scenarioElapsedSeconds: 150);
+        CommandResult result = ContactCommandHandler.HandleFrequencyChangeApproved(ac, secondCtx);
 
         Assert.True(result.Success);
         Assert.Equal(100.0, ac.CompletedAtSeconds);
@@ -69,7 +70,7 @@ public class AircraftDebriefDataTests
     {
         // Landing → CT (controller hands off to ground after rollout). The landed stamp
         // is the canonical completion; the CT must not relabel it as HandedOff.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.SpawnedAtSeconds = 10;
         ac.CompletedAtSeconds = 200;
         ac.CompletionReason = CompletionReason.Landed;
@@ -102,7 +103,7 @@ public class AircraftDebriefDataTests
         world.RemoveAircraft("N123AB");
 
         Assert.Empty(world.GetSnapshot());
-        var record = Assert.Single(world.GetCompletedAircraft());
+        CompletedAircraftRecord record = Assert.Single(world.GetCompletedAircraft());
         Assert.Equal("N123AB", record.Callsign);
         Assert.Equal("C172", record.AircraftType);
         Assert.Equal("500", record.Cid);
@@ -120,7 +121,7 @@ public class AircraftDebriefDataTests
         // Aircraft that disappear without a completion stamp (scenario unload, manual
         // delete on an active aircraft) get no debrief block.
         var world = new SimulationWorld();
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         world.AddAircraft(ac);
 
         world.RemoveAircraft("N123AB");
@@ -163,7 +164,7 @@ public class AircraftDebriefDataTests
             CompletionDetail = "10R",
         };
 
-        var dto = ac.ToSnapshot();
+        AircraftSnapshotDto dto = ac.ToSnapshot();
         var restored = AircraftState.FromSnapshot(dto, groundLayout: null);
 
         Assert.Equal(42.5, restored.SpawnedAtSeconds);
@@ -177,10 +178,10 @@ public class AircraftDebriefDataTests
     {
         // Pre-feature aircraft (no completion stamped) must round-trip as Active so the
         // M12.4 debrief tab keeps showing them in-service.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.SpawnedAtSeconds = 0;
 
-        var dto = ac.ToSnapshot();
+        AircraftSnapshotDto dto = ac.ToSnapshot();
         var restored = AircraftState.FromSnapshot(dto, groundLayout: null);
 
         Assert.Equal(0.0, restored.SpawnedAtSeconds);
@@ -208,7 +209,7 @@ public class AircraftDebriefDataTests
 
         world.RemoveAircraft("N123AB");
 
-        var record = Assert.Single(world.GetCompletedAircraft());
+        CompletedAircraftRecord record = Assert.Single(world.GetCompletedAircraft());
         Assert.Null(record.FiledDeparture);
         Assert.Null(record.FiledDestination);
     }
@@ -258,7 +259,7 @@ public class AircraftDebriefDataTests
             world.RemoveAircraft(callsign);
         }
 
-        var records = world.GetCompletedAircraft();
+        IReadOnlyList<CompletedAircraftRecord> records = world.GetCompletedAircraft();
         Assert.Equal(SimulationWorld.CompletedAircraftCapacity, records.Count);
         // The first 50 (AC0000..AC0049) should have been evicted; AC0050 is now the oldest.
         Assert.Equal("AC0050", records[0].Callsign);

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Avalonia.Headless.XUnit;
 using Xunit;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
@@ -66,7 +67,7 @@ public class SettingsViewModelCatalogLoadTests
         // reads them during layout. If either were still a live pass-through to ModelCard, this loop
         // would re-enter the same sync-over-async resolve and hang exactly like construction did.
         var elapsed = Stopwatch.StartNew();
-        foreach (var entry in vm.WhisperLmKitModels.Concat(vm.LlmLmKitModels))
+        foreach (LmKitModelEntry? entry in vm.WhisperLmKitModels.Concat(vm.LlmLmKitModels))
         {
             _ = entry.ApproxSizeMb;
             _ = entry.IsLocallyAvailable;

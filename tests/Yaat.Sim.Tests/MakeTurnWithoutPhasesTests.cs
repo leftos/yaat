@@ -38,7 +38,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
 
     private static AircraftState MakeGroundAircraftWithoutPhases()
     {
-        var ac = MakeAirborneAircraft();
+        AircraftState ac = MakeAirborneAircraft();
         ac.Altitude = 9;
         ac.IndicatedAirspeed = 0;
         ac.IsOnGround = true;
@@ -62,13 +62,13 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
     [InlineData("L360", false, "there is no 360 departure form — clear for takeoff, then issue R360/L360 once airborne")]
     public void MakeTurn_OnGround_IsRejected(string command, bool withTakeoffPhases, string expectedHint)
     {
-        var ac = withTakeoffPhases ? LinedUpAircraft.AtOak28R("TEST1") : MakeGroundAircraftWithoutPhases();
-        var phaseBefore = ac.Phases?.CurrentPhase;
+        AircraftState ac = withTakeoffPhases ? LinedUpAircraft.AtOak28R("TEST1") : MakeGroundAircraftWithoutPhases();
+        Phase? phaseBefore = ac.Phases?.CurrentPhase;
 
-        var parsed = CommandParser.Parse(command);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
         Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.Reason}");
 
-        var result = CommandDispatcher.Dispatch(parsed.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.Dispatch(parsed.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
 
         output.WriteLine($"{command} (takeoffPhases={withTakeoffPhases}): Success={result.Success} Message={result.Message}");
 
@@ -94,13 +94,17 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
     [InlineData("L270", "Make left 270")]
     public void MakeTurn_WithoutPhases_Succeeds(string command, string expectedMessage)
     {
-        var ac = MakeAirborneAircraft();
+        AircraftState ac = MakeAirborneAircraft();
         Assert.Null(ac.Phases);
 
-        var parseResult = CommandParser.ParseCompound(command, ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound(command, ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parseResult.Value!,
+            ac,
+            TestDispatch.Context(new Random(0), validateDctFixes: false)
+        );
 
         output.WriteLine($"{command}: Success={result.Success} Message={result.Message}");
 
@@ -115,18 +119,22 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
     [InlineData("DM 020", 2000)]
     public void MakeTurn_VerticalCommand_DoesNotClearPhase(string verticalCmd, int expectedAlt)
     {
-        var ac = MakeAirborneAircraft();
+        AircraftState ac = MakeAirborneAircraft();
 
-        var r360Parse = CommandParser.ParseCompound("R360", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> r360Parse = CommandParser.ParseCompound("R360", ac.FlightPlan.Route);
         Assert.True(r360Parse.IsSuccess, $"R360 parse failed: {r360Parse.Reason}");
-        var r360Result = CommandDispatcher.DispatchCompound(r360Parse.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        CommandResult r360Result = CommandDispatcher.DispatchCompound(
+            r360Parse.Value!,
+            ac,
+            TestDispatch.Context(new Random(0), validateDctFixes: false)
+        );
         Assert.True(r360Result.Success, $"R360 dispatch failed: {r360Result.Message}");
         Assert.IsType<MakeTurnPhase>(ac.Phases?.CurrentPhase);
-        var turnPhase = ac.Phases!.CurrentPhase!;
+        Phase turnPhase = ac.Phases!.CurrentPhase!;
 
-        var parsed = CommandParser.ParseCompound(verticalCmd, ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(verticalCmd, ac.FlightPlan.Route);
         Assert.True(parsed.IsSuccess, $"{verticalCmd} parse failed: {parsed.Reason}");
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
 
         output.WriteLine($"{verticalCmd}: Success={result.Success} Message={result.Message}");
         Assert.True(result.Success, $"{verticalCmd}: {result.Message}");
@@ -137,17 +145,17 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
     [Fact]
     public void MakeTurn_SpeedCommand_DoesNotClearPhase()
     {
-        var ac = MakeAirborneAircraft();
+        AircraftState ac = MakeAirborneAircraft();
 
-        var r360 = CommandParser.ParseCompound("R360", ac.FlightPlan.Route);
-        var r360Result = CommandDispatcher.DispatchCompound(r360.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        ParseResult<CompoundCommand> r360 = CommandParser.ParseCompound("R360", ac.FlightPlan.Route);
+        CommandResult r360Result = CommandDispatcher.DispatchCompound(r360.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
         Assert.True(r360Result.Success);
-        var turnPhase = ac.Phases?.CurrentPhase;
+        Phase? turnPhase = ac.Phases?.CurrentPhase;
         Assert.IsType<MakeTurnPhase>(turnPhase);
 
-        var parsed = CommandParser.ParseCompound("SPD 90", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("SPD 90", ac.FlightPlan.Route);
         Assert.True(parsed.IsSuccess, $"SPD 90 parse failed: {parsed.Reason}");
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
 
         output.WriteLine($"SPD 90: Success={result.Success} Message={result.Message}");
         Assert.True(result.Success, $"SPD 90: {result.Message}");
@@ -158,7 +166,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
     [Fact]
     public void MakeTurn_WithExistingPhases_StillWorks()
     {
-        var runway = TestRunwayFactory.Make(
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "OAK",
             thresholdLat: 37.72,
@@ -169,15 +177,19 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
             elevationFt: 9
         );
 
-        var ac = MakeAirborneAircraft();
+        AircraftState ac = MakeAirborneAircraft();
         ac.Phases = new PhaseList { AssignedRunway = runway };
         ac.Phases.Add(new VfrHoldPhase());
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var parseResult = CommandParser.ParseCompound("R360", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound("R360", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
 
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parseResult.Value!,
+            ac,
+            TestDispatch.Context(new Random(0), validateDctFixes: false)
+        );
 
         output.WriteLine($"R360 with phases: Success={result.Success} Message={result.Message}");
         Assert.True(result.Success, $"R360 with phases should succeed but got: {result.Message}");
@@ -191,8 +203,8 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
     [Fact]
     public void Recording_N805FM_R360_Succeeds()
     {
-        var recording = RecordingLoader.Load("TestData/f8e389804194.zip");
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load("TestData/f8e389804194.zip");
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -201,13 +213,13 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
         // Replay to just before the R360 command was sent (t=771 based on server logs)
         engine.Replay(recording, 770);
 
-        var ac = engine.FindAircraft("N805FM");
+        AircraftState? ac = engine.FindAircraft("N805FM");
         Assert.NotNull(ac);
 
         output.WriteLine($"t=770: N805FM alt={ac.Altitude:F0} phases={ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)"}");
 
         // Send R360 — this is the command that failed in the bug report
-        var result = engine.SendCommand("N805FM", "R360");
+        CommandResult result = engine.SendCommand("N805FM", "R360");
 
         output.WriteLine($"R360 result: Success={result.Success} Message={result.Message}");
 

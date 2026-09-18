@@ -30,7 +30,7 @@ public class SpawnParserAltitudeTests
     [InlineData("10000", 10000)]
     public void Parse_BearingVariant_ResolvesAltitudeShorthand(string altToken, double expected)
     {
-        var (request, error) = SpawnParser.Parse($"V S P -360 15 {altToken}");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse($"V S P -360 15 {altToken}");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -43,9 +43,9 @@ public class SpawnParserAltitudeTests
     [Fact]
     public void Parse_BearingVariant_AglAltitude_AddsFieldElevation()
     {
-        using var _ = NavigationDatabase.ScopedOverride(Elevations);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(Elevations);
 
-        var (request, error) = SpawnParser.Parse("V S P -270 8 KOAK+010");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S P -270 8 KOAK+010");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -58,7 +58,7 @@ public class SpawnParserAltitudeTests
     [InlineData("abcde")]
     public void Parse_BearingVariant_InvalidAltitude_IsRejected(string altToken)
     {
-        var (request, error) = SpawnParser.Parse($"V S P -360 15 {altToken}");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse($"V S P -360 15 {altToken}");
 
         Assert.Null(request);
         Assert.NotNull(error);
@@ -68,7 +68,7 @@ public class SpawnParserAltitudeTests
     [Fact]
     public void Parse_BearingVariant_ExtraPositionToken_IsRejected()
     {
-        var (request, error) = SpawnParser.Parse("V S P -360 15 035 42");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S P -360 15 035 42");
 
         Assert.Null(request);
         Assert.NotNull(error);
@@ -83,7 +83,7 @@ public class SpawnParserAltitudeTests
     [InlineData("8000", 8000)]
     public void Parse_FixVariant_ResolvesAltitudeShorthand(string altToken, double expected)
     {
-        var (request, error) = SpawnParser.Parse($"V S P @BERKS {altToken}");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse($"V S P @BERKS {altToken}");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -95,9 +95,9 @@ public class SpawnParserAltitudeTests
     [Fact]
     public void Parse_FixVariant_AglAltitude_ResolvesAsFixNotParking()
     {
-        using var _ = NavigationDatabase.ScopedOverride(Elevations);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(Elevations);
 
-        var (request, error) = SpawnParser.Parse("V S P @BERKS KOAK+010");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S P @BERKS KOAK+010");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -109,7 +109,7 @@ public class SpawnParserAltitudeTests
     [Fact]
     public void Parse_FixVariant_ZeroAltitude_IsRejected()
     {
-        var (request, error) = SpawnParser.Parse("V S P @BERKS 0");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S P @BERKS 0");
 
         Assert.Null(request);
         Assert.NotNull(error);
@@ -122,7 +122,7 @@ public class SpawnParserAltitudeTests
     [Fact]
     public void Parse_FixVariant_ExtraPositionToken_IsRejected()
     {
-        var (request, error) = SpawnParser.Parse("V S P @BERKS 0 035");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S P @BERKS 0 035");
 
         Assert.Null(request);
         Assert.NotNull(error);
@@ -134,7 +134,7 @@ public class SpawnParserAltitudeTests
     [Fact]
     public void Parse_ParkingVariant_BareSpot_IsParking()
     {
-        var (request, error) = SpawnParser.Parse("V S H @H1");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S H @H1");
 
         Assert.Null(error);
         Assert.NotNull(request);

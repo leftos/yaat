@@ -54,7 +54,7 @@ public sealed class TaxiRoute
     private List<(string Display, bool IsRunway)> TaxiwaySequence(IReadOnlyCollection<string> clearedRunways)
     {
         var taxiways = new List<(string, bool)>();
-        foreach (var leg in TaxiRouteFormatter.TaxiwayLegs(this))
+        foreach (TaxiRouteFormatter.TaxiwayLeg leg in TaxiRouteFormatter.TaxiwayLegs(this))
         {
             taxiways.Add(leg.IsRunway ? (RunwayDisplay(leg.Segment, clearedRunways), true) : (leg.Name, false));
         }
@@ -164,7 +164,7 @@ public sealed class TaxiRoute
     /// </summary>
     public HoldShortPoint? GetHoldShortAt(int nodeId)
     {
-        foreach (var hs in HoldShortPoints)
+        foreach (HoldShortPoint hs in HoldShortPoints)
         {
             if (hs.NodeId == nodeId)
             {
@@ -194,7 +194,7 @@ public sealed class TaxiRoute
     public string ToSummary(IReadOnlyDictionary<string, TurnDirection>? turnHints, IReadOnlyCollection<string> clearedRunways)
     {
         var parts = new List<string>();
-        foreach (var (twy, isRunway) in TaxiwaySequence(clearedRunways))
+        foreach ((string? twy, bool isRunway) in TaxiwaySequence(clearedRunways))
         {
             if (isRunway)
             {
@@ -203,7 +203,7 @@ public sealed class TaxiRoute
             else
             {
                 parts.Add(
-                    turnHints is not null && turnHints.TryGetValue(twy, out var dir)
+                    turnHints is not null && turnHints.TryGetValue(twy, out TurnDirection dir)
                         ? $"{(dir == TurnDirection.Left ? "left" : "right")} on {twy}"
                         : twy
                 );
@@ -219,7 +219,7 @@ public sealed class TaxiRoute
         string? lastHoldShort = null;
         for (int i = 0; i < HoldShortPoints.Count; i++)
         {
-            var hs = HoldShortPoints[i];
+            HoldShortPoint hs = HoldShortPoints[i];
             if (hs.Reason != HoldShortReason.ExplicitHoldShort || hs.TargetName is null)
             {
                 continue;
@@ -242,7 +242,7 @@ public sealed class TaxiRoute
         }
 
         // Append destination runway assignment
-        foreach (var hs in HoldShortPoints)
+        foreach (HoldShortPoint hs in HoldShortPoints)
         {
             if (hs.Reason == HoldShortReason.DestinationRunway && hs.TargetName is not null)
             {
@@ -274,7 +274,7 @@ public sealed class TaxiRoute
     private string DisplayHoldShortTarget(HoldShortPoint hs, IReadOnlyCollection<string> clearedRunways)
     {
         string target = hs.TargetName!;
-        var node = FindRouteNode(hs.NodeId);
+        GroundNode? node = FindRouteNode(hs.NodeId);
         if (node is null || node.Type != GroundNodeType.RunwayHoldShort)
         {
             return target;
@@ -291,7 +291,7 @@ public sealed class TaxiRoute
             }
         }
 
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             string name = edge.TaxiwayName;
             if (edge is GroundArc arc)
@@ -320,7 +320,7 @@ public sealed class TaxiRoute
     /// <summary>The route's node instance for <paramref name="nodeId"/>, or null when no segment touches it.</summary>
     private GroundNode? FindRouteNode(int nodeId)
     {
-        foreach (var seg in Segments)
+        foreach (TaxiRouteSegment seg in Segments)
         {
             if (seg.FromNodeId == nodeId)
             {
@@ -377,7 +377,7 @@ public sealed class TaxiRoute
     /// </summary>
     private static GroundNode? ResolveSnapshotNode(AirportGroundLayout layout, int nodeId, double? latitude, double? longitude)
     {
-        if (layout.Nodes.TryGetValue(nodeId, out var node))
+        if (layout.Nodes.TryGetValue(nodeId, out GroundNode? node))
         {
             return node;
         }
@@ -393,10 +393,10 @@ public sealed class TaxiRoute
         }
 
         var segments = new List<TaxiRouteSegment>();
-        foreach (var seg in dto.Segments)
+        foreach (TaxiSegmentDto seg in dto.Segments)
         {
-            var fromNode = ResolveSnapshotNode(layout, seg.FromNodeId, seg.FromLatitude, seg.FromLongitude);
-            var toNode = ResolveSnapshotNode(layout, seg.ToNodeId, seg.ToLatitude, seg.ToLongitude);
+            GroundNode? fromNode = ResolveSnapshotNode(layout, seg.FromNodeId, seg.FromLatitude, seg.FromLongitude);
+            GroundNode? toNode = ResolveSnapshotNode(layout, seg.ToNodeId, seg.ToLatitude, seg.ToLongitude);
             if (fromNode is null || toNode is null)
             {
                 return null;
@@ -410,7 +410,7 @@ public sealed class TaxiRoute
             }
 
             IGroundEdge? edge = null;
-            foreach (var e in fromNode.Edges)
+            foreach (IGroundEdge e in fromNode.Edges)
             {
                 if (e.HasNode(seg.ToNodeId))
                 {
@@ -430,7 +430,7 @@ public sealed class TaxiRoute
         var holdShorts = new List<HoldShortPoint>();
         if (dto.HoldShortPoints is not null)
         {
-            foreach (var hs in dto.HoldShortPoints)
+            foreach (HoldShortPointDto hs in dto.HoldShortPoints)
             {
                 holdShorts.Add(
                     new HoldShortPoint

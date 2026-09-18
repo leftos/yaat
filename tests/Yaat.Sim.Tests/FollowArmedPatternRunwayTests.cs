@@ -37,15 +37,15 @@ public class FollowArmedPatternRunwayTests
     [Fact]
     public void PatternJoin_ArmedParallel_FollowingALeadOnTheFlownRunway_KeepsTheArmedPatternRunway()
     {
-        var navDb = TestVnasData.NavigationDb;
-        var flown = navDb?.GetRunway("KOAK", "28R");
-        var armed = navDb?.GetRunway("KOAK", "28L");
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? armed = navDb?.GetRunway("KOAK", "28L");
         if (navDb is null || flown is null || armed is null)
         {
             return;
         }
 
-        var joined = JoinLeadPattern(leadRunway: flown, flownRunway: flown, armedRunway: armed, direction: PatternDirection.Right);
+        AircraftState joined = JoinLeadPattern(leadRunway: flown, flownRunway: flown, armedRunway: armed, direction: PatternDirection.Right);
 
         Assert.Equal("28R", joined.Phases?.AssignedRunway?.Designator);
         Assert.Equal("28L", joined.Phases?.PatternRunway?.Designator);
@@ -59,15 +59,15 @@ public class FollowArmedPatternRunwayTests
     [Fact]
     public void PatternJoin_ArmedRunwayIsTheLeadRunway_SatisfiesTheArmingOnBothFields()
     {
-        var navDb = TestVnasData.NavigationDb;
-        var flown = navDb?.GetRunway("KOAK", "28R");
-        var armed = navDb?.GetRunway("KOAK", "28L");
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? armed = navDb?.GetRunway("KOAK", "28L");
         if (navDb is null || flown is null || armed is null)
         {
             return;
         }
 
-        var joined = JoinLeadPattern(leadRunway: armed, flownRunway: flown, armedRunway: armed, direction: PatternDirection.Left);
+        AircraftState joined = JoinLeadPattern(leadRunway: armed, flownRunway: flown, armedRunway: armed, direction: PatternDirection.Left);
 
         Assert.Equal("28L", joined.Phases?.AssignedRunway?.Designator);
         Assert.Equal("28L", joined.Phases?.PatternRunway?.Designator);
@@ -81,15 +81,15 @@ public class FollowArmedPatternRunwayTests
     [Fact]
     public void PatternJoin_ArmedRunwayAtAnotherAirport_IsNotCarriedOver()
     {
-        var navDb = TestVnasData.NavigationDb;
-        var flown = navDb?.GetRunway("KOAK", "28R");
-        var armedElsewhere = navDb?.GetRunway("KSFO", "28L");
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? armedElsewhere = navDb?.GetRunway("KSFO", "28L");
         if (navDb is null || flown is null || armedElsewhere is null)
         {
             return;
         }
 
-        var joined = JoinLeadPattern(leadRunway: flown, flownRunway: flown, armedRunway: armedElsewhere, direction: PatternDirection.Right);
+        AircraftState joined = JoinLeadPattern(leadRunway: flown, flownRunway: flown, armedRunway: armedElsewhere, direction: PatternDirection.Right);
 
         Assert.Equal("28R", joined.Phases?.AssignedRunway?.Designator);
         Assert.Equal("28R", joined.Phases?.PatternRunway?.Designator);
@@ -104,15 +104,15 @@ public class FollowArmedPatternRunwayTests
     [Fact]
     public void PatternJoin_ArmedCrossingRunway_WarnsThatTheCarriedTransitionCrossesTheField()
     {
-        var navDb = TestVnasData.NavigationDb;
-        var flown = navDb?.GetRunway("KOAK", "28R");
-        var armed = navDb?.GetRunway("KOAK", "33");
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? armed = navDb?.GetRunway("KOAK", "33");
         if (navDb is null || flown is null || armed is null)
         {
             return;
         }
 
-        var joined = JoinLeadPattern(leadRunway: flown, flownRunway: flown, armedRunway: armed, direction: PatternDirection.Right);
+        AircraftState joined = JoinLeadPattern(leadRunway: flown, flownRunway: flown, armedRunway: armed, direction: PatternDirection.Right);
 
         Assert.Equal("28R", joined.Phases?.AssignedRunway?.Designator);
         Assert.Equal("33", joined.Phases?.PatternRunway?.Designator);
@@ -127,9 +127,9 @@ public class FollowArmedPatternRunwayTests
     [Fact]
     public void FinalSequence_ArmedParallel_AfterTheLeadLands_KeepsTheArmedPatternRunway()
     {
-        var navDb = TestVnasData.NavigationDb;
-        var flown = navDb?.GetRunway("KOAK", "28R");
-        var armed = navDb?.GetRunway("KOAK", "28L");
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? armed = navDb?.GetRunway("KOAK", "28L");
         if (navDb is null || flown is null || armed is null)
         {
             return;
@@ -137,11 +137,11 @@ public class FollowArmedPatternRunwayTests
 
         // Free (north) side of 28R and tracking away from the final course, so the airborne
         // final-join gates never fire and the lead-landed sequence is the only capture path.
-        var lead = MakeVfr(Lead, OffFinal(flown, 0.8, 0), flown.TrueHeading, altitude: 300);
+        AircraftState lead = MakeVfr(Lead, OffFinal(flown, 0.8, 0), flown.TrueHeading, altitude: 300);
         lead.Phases = new PhaseList { AssignedRunway = flown, PatternRunway = flown };
         lead.Phases.Add(new FinalApproachPhase());
 
-        var follower = MakeVfr(Follower, OffFinal(flown, 3.5, 0.6), new TrueHeading(112), altitude: 1200);
+        AircraftState follower = MakeVfr(Follower, OffFinal(flown, 3.5, 0.6), new TrueHeading(112), altitude: 1200);
         follower.Approach.FollowingCallsign = Lead;
         var phase = new VfrFollowPhase(Lead);
         follower.Phases = new PhaseList
@@ -152,7 +152,7 @@ public class FollowArmedPatternRunwayTests
         };
         follower.Phases.Add(phase);
 
-        var ctx = Ctx(follower, flown, cs => cs == Lead ? lead : null);
+        PhaseContext ctx = Ctx(follower, flown, cs => cs == Lead ? lead : null);
         follower.Phases.Start(ctx);
 
         // First tick captures the lead's landing runway while it is still airborne on final.
@@ -180,8 +180,8 @@ public class FollowArmedPatternRunwayTests
     /// </summary>
     private static AircraftState JoinLeadPattern(RunwayInfo leadRunway, RunwayInfo flownRunway, RunwayInfo armedRunway, PatternDirection direction)
     {
-        var airportRunways = NavigationDatabase.Instance.GetRunways(leadRunway.AirportId);
-        var waypoints = PatternGeometry.Compute(
+        IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(leadRunway.AirportId);
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             leadRunway,
             AircraftCategory.Piston,
             "C172",
@@ -194,7 +194,12 @@ public class FollowArmedPatternRunwayTests
         );
 
         var abeam = new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon);
-        var lead = MakeVfr(Lead, GeoMath.ProjectPoint(abeam, waypoints.DownwindHeading, 0.5), waypoints.DownwindHeading, waypoints.PatternAltitude);
+        AircraftState lead = MakeVfr(
+            Lead,
+            GeoMath.ProjectPoint(abeam, waypoints.DownwindHeading, 0.5),
+            waypoints.DownwindHeading,
+            waypoints.PatternAltitude
+        );
         lead.Phases = new PhaseList
         {
             AssignedRunway = leadRunway,
@@ -203,7 +208,7 @@ public class FollowArmedPatternRunwayTests
         };
         lead.Phases.Add(new DownwindPhase { Waypoints = waypoints });
 
-        var follower = MakeVfr(Follower, abeam, waypoints.DownwindHeading, waypoints.PatternAltitude);
+        AircraftState follower = MakeVfr(Follower, abeam, waypoints.DownwindHeading, waypoints.PatternAltitude);
         follower.Approach.FollowingCallsign = Lead;
         follower.Pattern.TrafficDirection = direction;
         var phase = new VfrFollowPhase(Lead);
@@ -215,7 +220,7 @@ public class FollowArmedPatternRunwayTests
         };
         follower.Phases.Add(phase);
 
-        var ctx = Ctx(follower, leadRunway, cs => cs == Lead ? lead : null);
+        PhaseContext ctx = Ctx(follower, leadRunway, cs => cs == Lead ? lead : null);
         follower.Phases.Start(ctx);
 
         phase.OnTick(ctx);
@@ -258,13 +263,17 @@ public class FollowArmedPatternRunwayTests
     /// (positive toward the runway heading's right-hand side).</summary>
     private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
     {
-        var onCenterline = GeoMath.ProjectPoint(new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading.ToReciprocal(), alongNm);
+        LatLon onCenterline = GeoMath.ProjectPoint(
+            new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude),
+            rwy.TrueHeading.ToReciprocal(),
+            alongNm
+        );
         if (Math.Abs(crossNm) < 1e-9)
         {
             return onCenterline;
         }
 
-        var perp = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
+        TrueHeading perp = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
         return GeoMath.ProjectPoint(onCenterline, perp, Math.Abs(crossNm));
     }
 }

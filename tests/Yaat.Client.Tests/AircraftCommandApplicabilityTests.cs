@@ -201,7 +201,7 @@ public class AircraftCommandApplicabilityTests
     [InlineData("TeardropReentry", "TeardropReentry > HoldingPattern", false)] // pure holding entry
     public void TransientManeuver_ClearToLandFollowsPendingLanding(string phase, string sequence, bool expected)
     {
-        var ac = Ac(phase, false, "IFR", phaseSequence: sequence);
+        AircraftModel ac = Ac(phase, false, "IFR", phaseSequence: sequence);
         Assert.Equal(expected, AircraftCommandApplicability.CanClearToLand(ac));
         Assert.Equal(expected, AircraftCommandApplicability.CanGoAround(ac));
     }
@@ -209,7 +209,7 @@ public class AircraftCommandApplicabilityTests
     [Fact]
     public void TransientManeuver_VfrInPattern_KeepsOptionClearances()
     {
-        var ac = Ac("TurnL360", false, "VFR", phaseSequence: "TurnL360 > Downwind > Base > FinalApproach > Landing");
+        AircraftModel ac = Ac("TurnL360", false, "VFR", phaseSequence: "TurnL360 > Downwind > Base > FinalApproach > Landing");
         Assert.True(AircraftCommandApplicability.CanIssueVfrOption(ac, VfrCommandsForIfr.None));
     }
 
@@ -221,7 +221,7 @@ public class AircraftCommandApplicabilityTests
     [Fact]
     public void QueuedPatternEntry_OffersClearancesWithNoArrivalPhase()
     {
-        var ac = Ac("", false, "VFR");
+        AircraftModel ac = Ac("", false, "VFR");
         Assert.False(AircraftCommandApplicability.CanClearToLand(ac));
 
         ac.HasQueuedPatternEntry = true;
@@ -244,7 +244,7 @@ public class AircraftCommandApplicabilityTests
     [Fact]
     public void CanCancelLandingClearance_CoversPreIssuedClearance()
     {
-        var ac = Ac("", false, "VFR");
+        AircraftModel ac = Ac("", false, "VFR");
         ac.HasQueuedPatternEntry = true;
         Assert.False(AircraftCommandApplicability.CanCancelLandingClearance(ac));
 
@@ -290,7 +290,7 @@ public class AircraftCommandApplicabilityTests
     [InlineData(VfrCommandsForIfr.All, true, true)]
     public void CanEnterPatternVsFinal_IfrDependsOnMode(VfrCommandsForIfr mode, bool circuitLegs, bool straightIn)
     {
-        var ac = Ac("", false, "IFR");
+        AircraftModel ac = Ac("", false, "IFR");
 
         Assert.Equal(circuitLegs, AircraftCommandApplicability.CanEnterPattern(ac, mode));
         Assert.Equal(straightIn, AircraftCommandApplicability.CanEnterFinal(ac, mode));
@@ -350,7 +350,7 @@ public class AircraftCommandApplicabilityTests
 
     private static AircraftModel Shadow(bool onGround)
     {
-        var ac = Ac("", onGround, rules: "VFR", assignedRunway: "28R", landingClearance: "CL");
+        AircraftModel ac = Ac("", onGround, rules: "VFR", assignedRunway: "28R", landingClearance: "CL");
         ac.IsLiveTraffic = true;
         return ac;
     }
@@ -358,7 +358,7 @@ public class AircraftCommandApplicabilityTests
     [Fact]
     public void AirborneShadow_OnlyAssumeApplies()
     {
-        var ac = Shadow(onGround: false);
+        AircraftModel ac = Shadow(onGround: false);
         Assert.True(AircraftCommandApplicability.CanAssume(ac));
         Assert.False(AircraftCommandApplicability.IsControllable(ac));
         Assert.False(AircraftCommandApplicability.CanClearToLand(ac));
@@ -373,7 +373,7 @@ public class AircraftCommandApplicabilityTests
     [Fact]
     public void SurfaceShadow_NothingApplies_NotEvenAssume()
     {
-        var ac = Shadow(onGround: true);
+        AircraftModel ac = Shadow(onGround: true);
         ac.CurrentPhase = "Taxiing";
         Assert.False(AircraftCommandApplicability.CanAssume(ac));
         Assert.False(AircraftCommandApplicability.CanLineUpAndWait(ac));
@@ -387,7 +387,7 @@ public class AircraftCommandApplicabilityTests
     [Fact]
     public void AssumedAircraft_IsControllableAgain()
     {
-        var ac = Shadow(onGround: false);
+        AircraftModel ac = Shadow(onGround: false);
         ac.IsLiveTraffic = false;
         ac.CurrentPhase = "FinalApproach";
         Assert.False(AircraftCommandApplicability.CanAssume(ac));

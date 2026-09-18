@@ -26,12 +26,12 @@ public class GroundArcSpeedProfileTests
     private static GroundArc DistortedArc()
     {
         var p0 = new LatLon(37.700, -122.200);
-        var (p1Lat, p1Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(90.0), 120.0 / GeoMath.FeetPerNm);
-        var (p3Lat, p3Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(80.0), 150.0 / GeoMath.FeetPerNm);
+        (double p1Lat, double p1Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(90.0), 120.0 / GeoMath.FeetPerNm);
+        (double p3Lat, double p3Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(80.0), 150.0 / GeoMath.FeetPerNm);
         var p3 = new LatLon(p3Lat, p3Lon);
-        var (p2Lat, p2Lon) = GeoMath.ProjectPoint(p3, new TrueHeading(200.0), 12.0 / GeoMath.FeetPerNm);
-        var from = Node(1, p0);
-        var to = Node(2, p3);
+        (double p2Lat, double p2Lon) = GeoMath.ProjectPoint(p3, new TrueHeading(200.0), 12.0 / GeoMath.FeetPerNm);
+        GroundNode from = Node(1, p0);
+        GroundNode to = Node(2, p3);
         var curve = new CubicBezier(p0.Lat, p0.Lon, p1Lat, p1Lon, p2Lat, p2Lon, p3.Lat, p3.Lon);
         return new GroundArc
         {
@@ -50,8 +50,8 @@ public class GroundArcSpeedProfileTests
     [Fact]
     public void DistortedArc_IsSlowOnlyWhereItIsTight()
     {
-        var arc = DistortedArc();
-        var profile = arc.SpeedProfile(AircraftCategory.Jet);
+        GroundArc arc = DistortedArc();
+        IReadOnlyList<GroundArc.SpeedSample> profile = arc.SpeedProfile(AircraftCategory.Jet);
         double floorKts = arc.MaxSafeSpeedKts(AircraftCategory.Jet);
 
         Assert.True(profile.Count >= 8, "profile should sample the curve at several points");
@@ -70,7 +70,7 @@ public class GroundArcSpeedProfileTests
     [Fact]
     public void DistortedArc_TraversalIsFasterThanCrawlingItAtTheMinimum()
     {
-        var arc = DistortedArc();
+        GroundArc arc = DistortedArc();
         double crawlSeconds = arc.DistanceNm / (arc.MaxSafeSpeedKts(AircraftCategory.Jet) / 3600.0);
 
         double profiledSeconds = arc.TraversalSeconds(AircraftCategory.Jet);
@@ -87,10 +87,10 @@ public class GroundArcSpeedProfileTests
         // A near-circular quarter fillet: every sample sits at the same radius, so the profile is flat.
         var p0 = new LatLon(37.700, -122.200);
         const double radiusFt = 75.0;
-        var (p3Lat, p3Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(45.0), radiusFt * Math.Sqrt(2.0) / GeoMath.FeetPerNm);
+        (double p3Lat, double p3Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(45.0), radiusFt * Math.Sqrt(2.0) / GeoMath.FeetPerNm);
         double kappa = 0.5523 * radiusFt;
-        var (p1Lat, p1Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(90.0), kappa / GeoMath.FeetPerNm);
-        var (p2Lat, p2Lon) = GeoMath.ProjectPoint(new LatLon(p3Lat, p3Lon), new TrueHeading(180.0), kappa / GeoMath.FeetPerNm);
+        (double p1Lat, double p1Lon) = GeoMath.ProjectPoint(p0, new TrueHeading(90.0), kappa / GeoMath.FeetPerNm);
+        (double p2Lat, double p2Lon) = GeoMath.ProjectPoint(new LatLon(p3Lat, p3Lon), new TrueHeading(180.0), kappa / GeoMath.FeetPerNm);
         var curve = new CubicBezier(p0.Lat, p0.Lon, p1Lat, p1Lon, p2Lat, p2Lon, p3Lat, p3Lon);
         var arc = new GroundArc
         {
@@ -105,7 +105,7 @@ public class GroundArcSpeedProfileTests
             TurnAngleDeg = 90.0,
         };
 
-        var profile = arc.SpeedProfile(AircraftCategory.Jet);
+        IReadOnlyList<GroundArc.SpeedSample> profile = arc.SpeedProfile(AircraftCategory.Jet);
         double cap = arc.MaxSafeSpeedKts(AircraftCategory.Jet);
 
         Assert.All(profile, s => Assert.InRange(s.SpeedKts, cap - 0.01, cap * 1.1));

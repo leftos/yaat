@@ -36,8 +36,8 @@ public class ConsolidationArmTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = Student;
         scenario.StudentTcp = TrackResolver.FindTcpByCode(scenario, "2B")!;
         return engine;
@@ -56,15 +56,15 @@ public class ConsolidationArmTests
         }
 
         var host = new AttendanceActionHost();
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Nct4Q;
 
-        var outcome = engine.Actions.Apply(Recorded("CON 2B 4U"), host);
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("CON 2B 4U"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("Basic consolidation: 4U → 2B", outcome.Result.Message);
         Assert.Equal(new ActionTrace(RecordedCommandKind.Consolidate, ActionScope.Global), outcome.Trace);
-        var over = engine.ConsolidationState.GetOverride(TcpId(engine, "4U"));
+        ConsolidationState.ManualOverride? over = engine.ConsolidationState.GetOverride(TcpId(engine, "4U"));
         Assert.NotNull(over);
         Assert.Equal(TcpId(engine, "2B"), over!.ReceivingTcpId);
         Assert.True(over.IsBasic);
@@ -82,15 +82,15 @@ public class ConsolidationArmTests
         }
 
         var host = new AttendanceActionHost();
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Nct4Q;
         ac.Track.HandoffPeer = Nct4U;
 
-        var outcome = engine.Actions.Apply(Recorded("CON+ 2B 4U"), host);
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("CON+ 2B 4U"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("Full consolidation: 4U → 2B (1 track(s) transferred, 1 handoff(s) redirected)", outcome.Result.Message);
-        var over = engine.ConsolidationState.GetOverride(TcpId(engine, "4U"));
+        ConsolidationState.ManualOverride? over = engine.ConsolidationState.GetOverride(TcpId(engine, "4U"));
         Assert.NotNull(over);
         Assert.False(over!.IsBasic);
         Assert.True(ac.Track.Owner!.MatchesPosition(Student));
@@ -109,10 +109,10 @@ public class ConsolidationArmTests
 
         var host = new AttendanceActionHost();
         AttendanceTestSupport.Attend(engine, "4Q");
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Nct4Q;
 
-        var outcome = engine.Actions.Apply(Recorded("CON+ 2B 4U"), host);
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("CON+ 2B 4U"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("Full consolidation: 4U → 2B", outcome.Result.Message);
@@ -129,9 +129,9 @@ public class ConsolidationArmTests
 
         var host = new AttendanceActionHost();
 
-        var unknown = engine.Actions.Apply(Recorded("CON 2B 6Q"), host);
-        var first = engine.Actions.Apply(Recorded("CON 2B 4U"), host);
-        var loop = engine.Actions.Apply(Recorded("CON 4U 2B"), host);
+        ActionOutcome unknown = engine.Actions.Apply(Recorded("CON 2B 6Q"), host);
+        ActionOutcome first = engine.Actions.Apply(Recorded("CON 2B 4U"), host);
+        ActionOutcome loop = engine.Actions.Apply(Recorded("CON 4U 2B"), host);
 
         Assert.False(unknown.Result.Success);
         Assert.Equal("Unknown position: 6Q", unknown.Result.Message);
@@ -153,7 +153,7 @@ public class ConsolidationArmTests
         var host = new AttendanceActionHost();
         engine.Actions.Apply(Recorded("CON 2B 4U"), host);
 
-        var outcome = engine.Actions.Apply(Recorded("DECON 4U"), host);
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("DECON 4U"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("Deconsolidated: 4U", outcome.Result.Message);

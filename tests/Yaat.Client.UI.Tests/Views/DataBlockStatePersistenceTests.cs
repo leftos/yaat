@@ -37,9 +37,9 @@ public class DataBlockStatePersistenceTests
     [AvaloniaFact]
     public void GroundCanvas_LayoutAssignment_PreservesManualDataBlockOffset()
     {
-        var ac = MakeAircraft();
-        var canvas = MakeGroundCanvas(ac);
-        var window = ShowInWindow(canvas);
+        AircraftModel ac = MakeAircraft();
+        GroundCanvas canvas = MakeGroundCanvas(ac);
+        Window window = ShowInWindow(canvas);
 
         DragDataBlock(window, canvas, ac);
         Assert.True(canvas.HasManualDataBlockOffset(Callsign), "drag should have produced a manual offset");
@@ -68,10 +68,10 @@ public class DataBlockStatePersistenceTests
     {
         // The pop-out contract: the embedded tab view and the pop-out window are two GroundView
         // instances over the same GroundViewModel, and must see the same datablock state.
-        var vm = NewGroundVm();
-        var ac = MakeAircraft();
-        var (canvas1, window1) = BindGroundView(vm, ac);
-        var (canvas2, _) = BindGroundView(vm, ac);
+        GroundViewModel vm = NewGroundVm();
+        AircraftModel ac = MakeAircraft();
+        (GroundCanvas? canvas1, Window? window1) = BindGroundView(vm, ac);
+        (GroundCanvas? canvas2, Window _) = BindGroundView(vm, ac);
 
         DragDataBlock(window1, canvas1, ac);
         Assert.True(canvas1.HasManualDataBlockOffset(Callsign), "drag should have produced a manual offset");
@@ -84,14 +84,14 @@ public class DataBlockStatePersistenceTests
     {
         // Opening a pop-out AFTER hiding a datablock: the fresh view's OnLoaded runs
         // SetStartWithAllHidden(preference) and must not wipe existing per-callsign choices.
-        var vm = NewGroundVm();
-        var ac = MakeAircraft();
-        var (canvas1, _) = BindGroundView(vm, ac);
+        GroundViewModel vm = NewGroundVm();
+        AircraftModel ac = MakeAircraft();
+        (GroundCanvas? canvas1, Window _) = BindGroundView(vm, ac);
 
         canvas1.ToggleHiddenDataBlock(Callsign);
         Assert.True(canvas1.IsDataBlockHidden(Callsign));
 
-        var (canvas2, _) = BindGroundView(vm, ac);
+        (GroundCanvas? canvas2, Window _) = BindGroundView(vm, ac);
 
         Assert.True(canvas2.IsDataBlockHidden(Callsign), "a late-opened view must see the existing hidden choice");
         Assert.True(canvas1.IsDataBlockHidden(Callsign), "opening a second view must not reset the first view's hidden choice");
@@ -101,8 +101,8 @@ public class DataBlockStatePersistenceTests
     public void RadarViews_BoundToSameViewModel_ShareMinifiedState()
     {
         var vm = new RadarViewModel(new ServerConnection(), new VideoMapService(), (_, _, _) => Task.CompletedTask);
-        var canvas1 = BindRadarView(vm);
-        var canvas2 = BindRadarView(vm);
+        RadarCanvas canvas1 = BindRadarView(vm);
+        RadarCanvas canvas2 = BindRadarView(vm);
 
         canvas1.ToggleMinifiedDataBlock(Callsign);
 
@@ -127,15 +127,15 @@ public class DataBlockStatePersistenceTests
         vm.IsRadarViewPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
 
-        var tabs = window.FindControl<TabControl>("MainTabControl");
+        TabControl? tabs = window.FindControl<TabControl>("MainTabControl");
         Assert.NotNull(tabs);
 
         vm.Ground.SetLayoutForTesting(SfoLayout());
         tabs!.SelectedIndex = 1; // Ground View tab
         PumpLayout(window);
 
-        var canvas = WaitForDockedGroundCanvas(window, vm);
-        var ac = MakeAircraft();
+        GroundCanvas canvas = WaitForDockedGroundCanvas(window, vm);
+        AircraftModel ac = MakeAircraft();
         canvas.Aircraft = new[] { ac };
         canvas.Viewport.CenterLat = FieldLat;
         canvas.Viewport.CenterLon = FieldLon;
@@ -158,7 +158,7 @@ public class DataBlockStatePersistenceTests
     {
         // The clear moved from the canvas's Layout-changed handler to the view-model's layout
         // lifecycle: a real load or unload resets per-callsign state, binding churn does not.
-        var vm = NewGroundVm();
+        GroundViewModel vm = NewGroundVm();
 
         vm.DataBlockState.ManualOffsets[Callsign] = new SKPoint(12, 34);
         vm.SetLayoutForTesting(SfoLayout());
@@ -199,9 +199,9 @@ public class DataBlockStatePersistenceTests
     /// </summary>
     private static GroundCanvas WaitForDockedGroundCanvas(Window window, MainViewModel vm)
     {
-        for (var i = 0; i < 40; i++)
+        for (int i = 0; i < 40; i++)
         {
-            var canvas = window.GetVisualDescendants().OfType<GroundCanvas>().FirstOrDefault();
+            GroundCanvas? canvas = window.GetVisualDescendants().OfType<GroundCanvas>().FirstOrDefault();
             if (canvas is not null)
             {
                 return canvas;
@@ -224,19 +224,19 @@ public class DataBlockStatePersistenceTests
     [AvaloniaFact]
     public void GroundCanvas_DragOfDeconflictedBlock_StartsFromDrawnOffset()
     {
-        var ac = MakeAircraft();
-        var other = MakeAircraft();
+        AircraftModel ac = MakeAircraft();
+        AircraftModel other = MakeAircraft();
         other.Callsign = "DAL1";
-        var canvas = MakeGroundCanvas(ac);
+        GroundCanvas canvas = MakeGroundCanvas(ac);
         canvas.Aircraft = new[] { ac, other };
         canvas.DeconflictMode = DatablockDeconflictMode.FreeForm;
-        var window = ShowInWindow(canvas);
+        Window window = ShowInWindow(canvas);
 
-        var resolved = SettleDeconfliction(canvas, window, Callsign);
+        SKPoint resolved = SettleDeconfliction(canvas, window, Callsign);
         Assert.NotEqual(DataBlockLayout.DefaultOffset, resolved);
 
-        var (sx, sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-        var origin = canvas.TranslatePoint(new Point(0, 0), window);
+        (float sx, float sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        Point? origin = canvas.TranslatePoint(new Point(0, 0), window);
         Assert.NotNull(origin);
         var grab = new Point(origin!.Value.X + sx + resolved.X + 1, origin.Value.Y + sy + resolved.Y + 8);
         var grabInCanvas = new Point(sx + resolved.X + 1, sy + resolved.Y + 8);
@@ -244,7 +244,7 @@ public class DataBlockStatePersistenceTests
         window.MouseDrag(grab, new Point(grab.X + 10, grab.Y + 10));
 
         Assert.True(canvas.HasManualDataBlockOffset(Callsign));
-        var manual = canvas.ResolvedDataBlockOffset(Callsign);
+        SKPoint manual = canvas.ResolvedDataBlockOffset(Callsign);
         Assert.Equal(resolved.X + 10, manual.X, 0.5);
         Assert.Equal(resolved.Y + 10, manual.Y, 0.5);
     }
@@ -259,9 +259,9 @@ public class DataBlockStatePersistenceTests
     /// </summary>
     private static SKPoint SettleDeconfliction(GroundCanvas canvas, Window window, string callsign)
     {
-        var prev = canvas.ResolvedDataBlockOffset(callsign);
-        var stableFrames = 0;
-        for (var i = 0; i < 120; i++)
+        SKPoint prev = canvas.ResolvedDataBlockOffset(callsign);
+        int stableFrames = 0;
+        for (int i = 0; i < 120; i++)
         {
             canvas.InvalidateVisual();
             Dispatcher.UIThread.RunJobs();
@@ -269,7 +269,7 @@ public class DataBlockStatePersistenceTests
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
 
-            var cur = canvas.ResolvedDataBlockOffset(callsign);
+            SKPoint cur = canvas.ResolvedDataBlockOffset(callsign);
             bool stable = (Math.Abs(cur.X - prev.X) < 0.01) && (Math.Abs(cur.Y - prev.Y) < 0.01);
             stableFrames = stable ? stableFrames + 1 : 0;
             if (stableFrames >= 2)
@@ -330,8 +330,8 @@ public class DataBlockStatePersistenceTests
     private static (GroundCanvas Canvas, Window Window) BindGroundView(GroundViewModel vm, AircraftModel ac)
     {
         var view = new GroundView { DataContext = vm };
-        var window = ShowInWindow(view);
-        var canvas = view.FindControl<GroundCanvas>("Canvas");
+        Window window = ShowInWindow(view);
+        GroundCanvas? canvas = view.FindControl<GroundCanvas>("Canvas");
         Assert.NotNull(canvas);
         canvas!.Viewport.CenterLat = FieldLat;
         canvas.Viewport.CenterLon = FieldLon;
@@ -344,8 +344,8 @@ public class DataBlockStatePersistenceTests
     private static RadarCanvas BindRadarView(RadarViewModel vm)
     {
         var view = new RadarView { DataContext = vm };
-        var window = ShowInWindow(view);
-        var canvas = view.FindControl<RadarCanvas>("Canvas");
+        Window window = ShowInWindow(view);
+        RadarCanvas? canvas = view.FindControl<RadarCanvas>("Canvas");
         Assert.NotNull(canvas);
         return canvas!;
     }
@@ -353,8 +353,8 @@ public class DataBlockStatePersistenceTests
     /// <summary>Drags the aircraft's datablock 40 px down-right with the headless mouse.</summary>
     private static void DragDataBlock(Window window, GroundCanvas canvas, AircraftModel ac)
     {
-        var (sx, sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-        var origin = canvas.TranslatePoint(new Point(0, 0), window);
+        (float sx, float sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        Point? origin = canvas.TranslatePoint(new Point(0, 0), window);
         Assert.NotNull(origin);
         var from = new Point(origin!.Value.X + sx + BlockGrabDelta.X, origin.Value.Y + sy + BlockGrabDelta.Y);
         var to = new Point(from.X + 40, from.Y + 40);
@@ -363,7 +363,7 @@ public class DataBlockStatePersistenceTests
 
     private static void PumpLayout(Window window)
     {
-        for (var i = 0; i < 5; i++)
+        for (int i = 0; i < 5; i++)
         {
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();

@@ -13,7 +13,7 @@ public class FlightRulesInferenceTests
     [Fact]
     public void NullFlightPlan_InfersVfr()
     {
-        var result = ScenarioLoader.InferFlightRules(null);
+        string result = ScenarioLoader.InferFlightRules(null);
         Assert.Equal("VFR", result);
     }
 
@@ -21,7 +21,7 @@ public class FlightRulesInferenceTests
     public void FlightPlan_NoRules_NoAltitude_InfersVfr()
     {
         var fp = new ScenarioFlightPlan { CruiseAltitude = 0 };
-        var result = ScenarioLoader.InferFlightRules(fp);
+        string result = ScenarioLoader.InferFlightRules(fp);
         Assert.Equal("VFR", result);
     }
 
@@ -29,7 +29,7 @@ public class FlightRulesInferenceTests
     public void FlightPlan_NoRules_WithAltitude_InfersIfr()
     {
         var fp = new ScenarioFlightPlan { CruiseAltitude = 12000 };
-        var result = ScenarioLoader.InferFlightRules(fp);
+        string result = ScenarioLoader.InferFlightRules(fp);
         Assert.Equal("IFR", result);
     }
 
@@ -37,7 +37,7 @@ public class FlightRulesInferenceTests
     public void FlightPlan_ExplicitIfr_ReturnsIfr()
     {
         var fp = new ScenarioFlightPlan { Rules = "IFR", CruiseAltitude = 0 };
-        var result = ScenarioLoader.InferFlightRules(fp);
+        string result = ScenarioLoader.InferFlightRules(fp);
         Assert.Equal("IFR", result);
     }
 
@@ -45,7 +45,7 @@ public class FlightRulesInferenceTests
     public void FlightPlan_ExplicitVfr_ReturnsVfr()
     {
         var fp = new ScenarioFlightPlan { Rules = "VFR", CruiseAltitude = 0 };
-        var result = ScenarioLoader.InferFlightRules(fp);
+        string result = ScenarioLoader.InferFlightRules(fp);
         Assert.Equal("VFR", result);
     }
 
@@ -53,7 +53,7 @@ public class FlightRulesInferenceTests
     public void FlightPlan_ExplicitVfr_WithAltitude_ReturnsVfr()
     {
         var fp = new ScenarioFlightPlan { Rules = "VFR", CruiseAltitude = 3000 };
-        var result = ScenarioLoader.InferFlightRules(fp);
+        string result = ScenarioLoader.InferFlightRules(fp);
         Assert.Equal("VFR", result);
     }
 }

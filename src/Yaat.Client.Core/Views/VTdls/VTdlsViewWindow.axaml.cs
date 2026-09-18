@@ -31,8 +31,8 @@ public partial class VTdlsViewWindow : Window, IAlwaysOnTopToggle
     {
         InitializeComponent();
 
-        var geometryKey = !string.IsNullOrEmpty(facilityIdForGeometry) ? $"VTdlsView:{facilityIdForGeometry}" : "VTdlsView";
-        var hasSavedGeometry = preferences.GetWindowGeometry(geometryKey) is not null;
+        string geometryKey = !string.IsNullOrEmpty(facilityIdForGeometry) ? $"VTdlsView:{facilityIdForGeometry}" : "VTdlsView";
+        bool hasSavedGeometry = preferences.GetWindowGeometry(geometryKey) is not null;
         _geometryHelper = new WindowGeometryHelper(this, preferences, geometryKey, 900, 600);
         _geometryHelper.Restore();
 
@@ -41,7 +41,7 @@ public partial class VTdlsViewWindow : Window, IAlwaysOnTopToggle
         // facility-scoped windows too. Mirrors the Strips behavior.
         if (!hasSavedGeometry && !string.IsNullOrEmpty(facilityIdForGeometry))
         {
-            var globalGeometry = preferences.GetWindowGeometry("VTdlsView");
+            SavedWindowGeometry? globalGeometry = preferences.GetWindowGeometry("VTdlsView");
             if (globalGeometry?.IsTopmost == true)
             {
                 Topmost = true;

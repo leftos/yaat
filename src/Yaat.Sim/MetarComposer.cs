@@ -88,13 +88,13 @@ public static partial class MetarComposer
         body = PatchAltimeter(body, conditions);
         body = MultiSpaceRegex().Replace(body, " ").Trim();
 
-        var result = (isSpeci ? "SPECI " : "METAR ") + body;
+        string result = (isSpeci ? "SPECI " : "METAR ") + body;
 
         string? peakRemark = ComposePeakWindRemark(conditions);
 
         if (remarks is not null)
         {
-            var cleaned = StripStaleRemarks(remarks);
+            string cleaned = StripStaleRemarks(remarks);
             if (peakRemark is not null)
             {
                 // The base's own PK WND was stripped as stale; ours goes in FMH-1 remark
@@ -122,11 +122,11 @@ public static partial class MetarComposer
             return "RMK " + peakRemark;
         }
 
-        var rest = cleaned["RMK ".Length..];
+        string rest = cleaned["RMK ".Length..];
         if (rest.StartsWith("AO1", StringComparison.Ordinal) || rest.StartsWith("AO2", StringComparison.Ordinal))
         {
-            var stationType = rest[..3];
-            var tail = rest[3..].TrimStart();
+            string stationType = rest[..3];
+            string tail = rest[3..].TrimStart();
             return tail.Length > 0 ? $"RMK {stationType} {peakRemark} {tail}" : $"RMK {stationType} {peakRemark}";
         }
 
@@ -141,13 +141,13 @@ public static partial class MetarComposer
             return null;
         }
 
-        var speed = peak.ToString(peak >= 100 ? "D3" : "D2", CultureInfo.InvariantCulture);
+        string speed = peak.ToString(peak >= 100 ? "D3" : "D2", CultureInfo.InvariantCulture);
         return $"PK WND {c.PeakWindDirTrueDeg:D3}{speed}/{peakUtc:HHmm}";
     }
 
     private static string PatchTimestamp(string body, DateTime observationUtc)
     {
-        var stamp = observationUtc.ToString("ddHHmm", CultureInfo.InvariantCulture) + "Z";
+        string stamp = observationUtc.ToString("ddHHmm", CultureInfo.InvariantCulture) + "Z";
         if (TimestampRegex().IsMatch(body))
         {
             return TimestampRegex().Replace(body, stamp, 1);
@@ -159,7 +159,7 @@ public static partial class MetarComposer
 
     private static string PatchWind(string body, ReportedConditions c)
     {
-        var windMatch = WindRegex().Match(body);
+        Match windMatch = WindRegex().Match(body);
         if (!windMatch.Success)
         {
             return body;
@@ -175,7 +175,7 @@ public static partial class MetarComposer
         }
 
         body = WindRegex().Replace(body, wind, 1);
-        var existingVar = WindVariabilityRegex().Match(body);
+        Match existingVar = WindVariabilityRegex().Match(body);
         if (existingVar.Success)
         {
             return body[..existingVar.Index] + (varGroup ?? "") + body[(existingVar.Index + existingVar.Length)..];
@@ -202,21 +202,21 @@ public static partial class MetarComposer
 
     private static string PatchSky(string body, ReportedConditions c)
     {
-        var sky = ComposeSky(c.Layers);
+        string sky = ComposeSky(c.Layers);
 
-        var run = SkyRunRegex().Match(body);
+        Match run = SkyRunRegex().Match(body);
         if (run.Success)
         {
             return body[..run.Index] + sky + body[(run.Index + run.Length)..];
         }
 
-        var tempDew = TempDewRegex().Match(body);
+        Match tempDew = TempDewRegex().Match(body);
         if (tempDew.Success)
         {
             return body[..tempDew.Index] + sky + " " + body[tempDew.Index..];
         }
 
-        var altimeter = AltimeterRegex().Match(body);
+        Match altimeter = AltimeterRegex().Match(body);
         if (altimeter.Success)
         {
             return body[..altimeter.Index] + sky + " " + body[altimeter.Index..];
@@ -242,9 +242,9 @@ public static partial class MetarComposer
             return "00000KT";
         }
 
-        var direction = c.WindVariable ? "VRB" : c.WindDirTrueDeg.ToString("D3", CultureInfo.InvariantCulture);
-        var speed = c.WindSpeedKt.ToString(c.WindSpeedKt >= 100 ? "D3" : "D2", CultureInfo.InvariantCulture);
-        var gust = c.WindGustKt is { } g ? "G" + g.ToString(g >= 100 ? "D3" : "D2", CultureInfo.InvariantCulture) : "";
+        string direction = c.WindVariable ? "VRB" : c.WindDirTrueDeg.ToString("D3", CultureInfo.InvariantCulture);
+        string speed = c.WindSpeedKt.ToString(c.WindSpeedKt >= 100 ? "D3" : "D2", CultureInfo.InvariantCulture);
+        string gust = c.WindGustKt is { } g ? "G" + g.ToString(g >= 100 ? "D3" : "D2", CultureInfo.InvariantCulture) : "";
         return direction + speed + gust + "KT";
     }
 
@@ -267,7 +267,7 @@ public static partial class MetarComposer
             int quarters = Math.Min(11, (int)Math.Round(vis * 4.0, MidpointRounding.AwayFromZero));
             int whole = quarters / 4;
             int remainder = quarters % 4;
-            var fraction = remainder switch
+            string fraction = remainder switch
             {
                 1 => "1/4",
                 2 => "1/2",
@@ -303,9 +303,9 @@ public static partial class MetarComposer
         }
 
         var sb = new StringBuilder();
-        foreach (var layer in reportable)
+        foreach (MetarParser.CloudLayer? layer in reportable)
         {
-            var cover = layer.Cover switch
+            string cover = layer.Cover switch
             {
                 MetarParser.CloudCover.Few => "FEW",
                 MetarParser.CloudCover.Scattered => "SCT",

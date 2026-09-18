@@ -15,7 +15,7 @@ public class ScenarioCallsignExtractorTests
     [InlineData("cs \"shamrock\"", "SHAMROCK")]
     public void Extract_LabeledQuoted(string remarks, string expected)
     {
-        var result = ScenarioCallsignExtractor.Extract(remarks);
+        IReadOnlyList<string> result = ScenarioCallsignExtractor.Extract(remarks);
         Assert.Single(result);
         Assert.Equal(expected, result[0]);
     }
@@ -28,7 +28,7 @@ public class ScenarioCallsignExtractorTests
     [InlineData("/V/ \"FLEX MALTA\" 1385", "FLEX MALTA")]
     public void Extract_BareQuoted(string remarks, string expected)
     {
-        var result = ScenarioCallsignExtractor.Extract(remarks);
+        IReadOnlyList<string> result = ScenarioCallsignExtractor.Extract(remarks);
         Assert.Single(result);
         Assert.Equal(expected, result[0]);
     }
@@ -58,7 +58,7 @@ public class ScenarioCallsignExtractorTests
     [Fact]
     public void Extract_MultipleQuoted_ReturnsAll()
     {
-        var result = ScenarioCallsignExtractor.Extract("CALLSIGN \"FOO\" /V/ \"BAR\"");
+        IReadOnlyList<string> result = ScenarioCallsignExtractor.Extract("CALLSIGN \"FOO\" /V/ \"BAR\"");
         Assert.Equal(2, result.Count);
         Assert.Contains("FOO", result);
         Assert.Contains("BAR", result);
@@ -67,7 +67,7 @@ public class ScenarioCallsignExtractorTests
     [Fact]
     public void Extract_DuplicateQuoted_Deduped()
     {
-        var result = ScenarioCallsignExtractor.Extract("CALLSIGN \"FOO\" \"FOO\"");
+        IReadOnlyList<string> result = ScenarioCallsignExtractor.Extract("CALLSIGN \"FOO\" \"FOO\"");
         Assert.Single(result);
         Assert.Equal("FOO", result[0]);
     }
@@ -82,7 +82,7 @@ public class ScenarioCallsignExtractorTests
     [Fact]
     public void Extract_RejectsOverlongQuoted()
     {
-        var longNoise = new string('A', 50);
+        string longNoise = new string('A', 50);
         Assert.Empty(ScenarioCallsignExtractor.Extract($"\"{longNoise}\""));
     }
 }

@@ -45,7 +45,7 @@ public class MainViewModelCommandSelectTests
     [AvaloniaFact]
     public async Task BareCommand_DoesNotSelectAircraftBySubstringCallsign()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         vm.OnAircraftUpdated(MakeAircraft("N172TB"));
         Dispatcher.UIThread.RunJobs();
 

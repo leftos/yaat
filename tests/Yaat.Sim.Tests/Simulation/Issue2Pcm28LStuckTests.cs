@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -77,8 +78,8 @@ public class Issue2Pcm28LStuckTests
     [Fact]
     public void ScenarioRun_PcmDepartsAfterCto()
     {
-        var recording = RecordingLoader.Load(BundlePath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(BundlePath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -94,7 +95,7 @@ public class Issue2Pcm28LStuckTests
         for (int t = 1; t <= taxiBudget; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             if (ac is null)
             {
                 continue;
@@ -113,12 +114,12 @@ public class Issue2Pcm28LStuckTests
             }
         }
 
-        var atHold = engine.FindAircraft(Callsign);
+        AircraftState? atHold = engine.FindAircraft(Callsign);
         Assert.NotNull(atHold);
         Assert.True(holdingShortAt > 0, $"{Callsign} never reached HoldingShort of 28L within {taxiBudget}s. Last state: {Describe(atHold)}");
 
         // Issue CTO at the moment it is holding short (mirrors the controller's t=197 CTO).
-        var result = engine.SendCommand(Callsign, "CTO");
+        CommandResult result = engine.SendCommand(Callsign, "CTO");
         output.WriteLine($"CTO -> Success={result.Success} Message=\"{result.Message}\"");
         Assert.True(result.Success, $"CTO rejected: {result.Message}");
 
@@ -128,7 +129,7 @@ public class Issue2Pcm28LStuckTests
         for (int t = 1; t <= departBudget; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
             if (t % 5 == 0 || ac.Phases?.CurrentPhase is TakeoffPhase or InitialClimbPhase)
@@ -144,7 +145,7 @@ public class Issue2Pcm28LStuckTests
             }
         }
 
-        var final = engine.FindAircraft(Callsign);
+        AircraftState? final = engine.FindAircraft(Callsign);
         Assert.True(
             departed,
             $"{Callsign} never departed within {departBudget}s of CTO — stuck. " + $"Final state: {(final is null ? "(removed)" : Describe(final))}"
@@ -159,8 +160,8 @@ public class Issue2Pcm28LStuckTests
     [Fact]
     public void Replay_PcmDepartsAfterRecordedCto()
     {
-        var recording = RecordingLoader.Load(BundlePath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(BundlePath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -168,7 +169,7 @@ public class Issue2Pcm28LStuckTests
 
         engine.Replay(recording, 190);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         output.WriteLine($"t=190: {Describe(ac)}");
 
@@ -197,7 +198,7 @@ public class Issue2Pcm28LStuckTests
             }
         }
 
-        var final = engine.FindAircraft(Callsign);
+        AircraftState? final = engine.FindAircraft(Callsign);
         Assert.True(
             departed,
             $"{Callsign} never departed in the recorded CTO window (t=197..266) — stuck. "

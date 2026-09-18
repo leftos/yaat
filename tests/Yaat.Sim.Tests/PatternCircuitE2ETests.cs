@@ -46,7 +46,7 @@ public class PatternCircuitE2ETests : IDisposable
 
     private static PhaseContext Ctx(AircraftState ac, double dt = 1.0)
     {
-        var rwy = ac.Phases!.AssignedRunway!;
+        RunwayInfo rwy = ac.Phases!.AssignedRunway!;
         return new PhaseContext
         {
             Aircraft = ac,
@@ -70,7 +70,7 @@ public class PatternCircuitE2ETests : IDisposable
 
         for (int i = 0; i < maxTicks; i++)
         {
-            var current = ac.Phases?.CurrentPhase;
+            Phase? current = ac.Phases?.CurrentPhase;
             if (current is null || ac.Phases!.IsComplete)
             {
                 break;
@@ -86,7 +86,7 @@ public class PatternCircuitE2ETests : IDisposable
                 lastPhaseName = phaseName;
             }
 
-            var ctx = Ctx(ac);
+            PhaseContext ctx = Ctx(ac);
 
             // Move aircraft toward its targets each tick
             FlightPhysics.Update(ac, ctx.DeltaSeconds);
@@ -109,11 +109,11 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void FullCircuit_FromUpwind_CompletesAllPhases()
     {
-        var rwy = DefaultRunway();
-        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 200, heading: rwy.TrueHeading.Degrees, ias: 180);
+        RunwayInfo rwy = DefaultRunway();
+        AircraftState ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 200, heading: rwy.TrueHeading.Degrees, ias: 180);
 
         // Build a non-touch-and-go circuit (landing)
-        var phases = PatternBuilder.BuildCircuit(
+        List<Phase> phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -127,7 +127,7 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             authoredRunway: null
         );
-        foreach (var p in phases)
+        foreach (Phase p in phases)
         {
             ac.Phases!.Add(p);
         }
@@ -136,7 +136,7 @@ public class PatternCircuitE2ETests : IDisposable
         // Set landing clearance so FinalApproachPhase doesn't auto-go-around
         ac.Phases.LandingClearance = ClearanceType.ClearedToLand;
 
-        var completed = RunCircuit(ac);
+        List<string> completed = RunCircuit(ac);
 
         // Should pass through: Upwind, Crosswind, Downwind, Base, FinalApproach, Landing
         Assert.Contains("UpwindPhase", completed);
@@ -149,12 +149,22 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void FullCircuit_FromDownwind_SkipsUpwindCrosswind()
     {
-        var rwy = DefaultRunway();
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
-        var ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading.Degrees);
+        RunwayInfo rwy = DefaultRunway();
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
+        AircraftState ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading.Degrees);
         ac.Position = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
-        var phases = PatternBuilder.BuildCircuit(
+        List<Phase> phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -168,14 +178,14 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             authoredRunway: null
         );
-        foreach (var p in phases)
+        foreach (Phase p in phases)
         {
             ac.Phases!.Add(p);
         }
         ac.Phases!.Start(Ctx(ac));
         ac.Phases.LandingClearance = ClearanceType.ClearedToLand;
 
-        var completed = RunCircuit(ac);
+        List<string> completed = RunCircuit(ac);
 
         // Should NOT have Upwind or Crosswind
         Assert.DoesNotContain("UpwindPhase", completed);
@@ -193,13 +203,23 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void TouchAndGo_AutoCyclesIntoNextCircuit()
     {
-        var rwy = DefaultRunway();
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
-        var ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading.Degrees);
+        RunwayInfo rwy = DefaultRunway();
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
+        AircraftState ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading.Degrees);
         ac.Position = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
         // Build a touch-and-go circuit from downwind
-        var phases = PatternBuilder.BuildCircuit(
+        List<Phase> phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -213,7 +233,7 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             authoredRunway: null
         );
-        foreach (var p in phases)
+        foreach (Phase p in phases)
         {
             ac.Phases!.Add(p);
         }
@@ -228,7 +248,7 @@ public class PatternCircuitE2ETests : IDisposable
 
         for (int i = 0; i < 3000; i++)
         {
-            var current = ac.Phases?.CurrentPhase;
+            Phase? current = ac.Phases?.CurrentPhase;
             if (current is null)
             {
                 break;
@@ -249,7 +269,7 @@ public class PatternCircuitE2ETests : IDisposable
                 lastPhaseName = phaseName;
             }
 
-            var ctx = Ctx(ac);
+            PhaseContext ctx = Ctx(ac);
             FlightPhysics.Update(ac, ctx.DeltaSeconds);
             PhaseRunner.Tick(ac, ctx);
         }
@@ -265,15 +285,15 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void GoAround_FromFinal_ClearsPhases()
     {
-        var rwy = DefaultRunway();
-        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 800, heading: rwy.TrueHeading.Degrees, ias: 150);
+        RunwayInfo rwy = DefaultRunway();
+        AircraftState ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 800, heading: rwy.TrueHeading.Degrees, ias: 150);
 
         // Set up on final (close to runway)
-        var approachPos = GeoMath.ProjectPoint(new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading.ToReciprocal(), 3.0);
+        LatLon approachPos = GeoMath.ProjectPoint(new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading.ToReciprocal(), 3.0);
         ac.Position = approachPos;
 
         // Build circuit from final entry
-        var phases = PatternBuilder.BuildCircuit(
+        List<Phase> phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -287,7 +307,7 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             authoredRunway: null
         );
-        foreach (var p in phases)
+        foreach (Phase p in phases)
         {
             ac.Phases!.Add(p);
         }
@@ -297,14 +317,14 @@ public class PatternCircuitE2ETests : IDisposable
         // Run a few ticks to get FinalApproachPhase started
         for (int i = 0; i < 50; i++)
         {
-            var ctx = Ctx(ac);
+            PhaseContext ctx = Ctx(ac);
             FlightPhysics.Update(ac, ctx.DeltaSeconds);
             PhaseRunner.Tick(ac, ctx);
         }
 
         // Issue go-around command via DispatchCompound (phase interaction path)
         var compound = new CompoundCommand([new ParsedBlock(null, [new GoAroundCommand(null, null, null)])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared));
 
         // Go-around should succeed (clears phase, sets up GoAroundPhase)
         Assert.True(result.Success, $"Go-around should succeed, got: {result.Message}");
@@ -318,16 +338,26 @@ public class PatternCircuitE2ETests : IDisposable
         // AIM 4-3-2: VFR pattern traffic may turn crosswind once within 300ft of
         // pattern altitude. Auto-triggered go-arounds should hand off to UpwindPhase
         // 300ft below pattern altitude so the turn matches a normal departure.
-        var rwy = DefaultRunway();
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
-        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
+        RunwayInfo rwy = DefaultRunway();
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
+        AircraftState ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
         ac.Phases!.TrafficDirection = PatternDirection.Left;
         ac.Phases.Add(new FinalApproachPhase());
         ac.Phases.Start(Ctx(ac));
 
         GoAroundHelper.Trigger(Ctx(ac), "test");
 
-        var ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
+        GoAroundPhase ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
         Assert.True(ga.ReenterPattern);
         Assert.Equal((int)(wp.PatternAltitude - 300), ga.TargetAltitude);
     }
@@ -339,8 +369,8 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void GoAroundHelper_PendingLandingPhase_CapturesFullStopIntent()
     {
-        var rwy = DefaultRunway();
-        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
+        RunwayInfo rwy = DefaultRunway();
+        AircraftState ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
         ac.Phases!.TrafficDirection = PatternDirection.Left;
 
         // Aircraft on final with a pending full-stop landing.
@@ -350,15 +380,15 @@ public class PatternCircuitE2ETests : IDisposable
 
         GoAroundHelper.Trigger(Ctx(ac), "test");
 
-        var ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
+        GoAroundPhase ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
         Assert.True(ga.NextLandingFullStop, "GoAroundHelper should capture full-stop intent from pending LandingPhase");
     }
 
     [Fact]
     public void GoAroundHelper_PendingTouchAndGoPhase_CapturesTouchAndGoIntent()
     {
-        var rwy = DefaultRunway();
-        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
+        RunwayInfo rwy = DefaultRunway();
+        AircraftState ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
         ac.Phases!.TrafficDirection = PatternDirection.Left;
 
         // Pattern aircraft on final with a pending touch-and-go.
@@ -368,15 +398,15 @@ public class PatternCircuitE2ETests : IDisposable
 
         GoAroundHelper.Trigger(Ctx(ac), "test");
 
-        var ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
+        GoAroundPhase ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
         Assert.False(ga.NextLandingFullStop, "GoAroundHelper should capture touch-and-go intent from pending TouchAndGoPhase");
     }
 
     [Fact]
     public void AutoCycle_AfterGoAroundFromLandingIntent_NextCircuitEndsWithLandingPhase()
     {
-        var rwy = DefaultRunway();
-        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
+        RunwayInfo rwy = DefaultRunway();
+        AircraftState ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
         ac.Phases!.TrafficDirection = PatternDirection.Left;
 
         // Aircraft on final with full-stop intent.
@@ -385,7 +415,7 @@ public class PatternCircuitE2ETests : IDisposable
         ac.Phases.Start(Ctx(ac));
 
         GoAroundHelper.Trigger(Ctx(ac), "test");
-        var ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
+        GoAroundPhase ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
 
         // Bump altitude past the GA target so OnTick completes on the next tick.
         Assert.NotNull(ga.TargetAltitude);
@@ -396,15 +426,15 @@ public class PatternCircuitE2ETests : IDisposable
         // Auto-cycle should have appended a next circuit ending in LandingPhase
         // (preserved full-stop intent), not TouchAndGoPhase.
         Assert.Contains(ac.Phases.Phases, p => p is UpwindPhase);
-        var lastPending = ac.Phases.Phases.Last();
+        Phase lastPending = ac.Phases.Phases.Last();
         Assert.IsType<LandingPhase>(lastPending);
     }
 
     [Fact]
     public void AutoCycle_AfterGoAroundFromTouchAndGoIntent_NextCircuitEndsWithTouchAndGoPhase()
     {
-        var rwy = DefaultRunway();
-        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
+        RunwayInfo rwy = DefaultRunway();
+        AircraftState ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
         ac.Phases!.TrafficDirection = PatternDirection.Left;
 
         // Pattern aircraft on final with touch-and-go intent.
@@ -413,7 +443,7 @@ public class PatternCircuitE2ETests : IDisposable
         ac.Phases.Start(Ctx(ac));
 
         GoAroundHelper.Trigger(Ctx(ac), "test");
-        var ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
+        GoAroundPhase ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
 
         Assert.NotNull(ga.TargetAltitude);
         ac.Altitude = ga.TargetAltitude!.Value + 100;
@@ -422,7 +452,7 @@ public class PatternCircuitE2ETests : IDisposable
 
         // Auto-cycle should have appended a next circuit ending in TouchAndGoPhase.
         Assert.Contains(ac.Phases.Phases, p => p is UpwindPhase);
-        var lastPending = ac.Phases.Phases.Last();
+        Phase lastPending = ac.Phases.Phases.Last();
         Assert.IsType<TouchAndGoPhase>(lastPending);
     }
 
@@ -433,8 +463,8 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void BuildCircuit_Upwind_HasAllPhases()
     {
-        var rwy = DefaultRunway();
-        var phases = PatternBuilder.BuildCircuit(
+        RunwayInfo rwy = DefaultRunway();
+        List<Phase> phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -461,8 +491,8 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void BuildCircuit_Downwind_SkipsUpwindCrosswind()
     {
-        var rwy = DefaultRunway();
-        var phases = PatternBuilder.BuildCircuit(
+        RunwayInfo rwy = DefaultRunway();
+        List<Phase> phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -487,8 +517,8 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void BuildCircuit_Base_SkipsDownwind()
     {
-        var rwy = DefaultRunway();
-        var phases = PatternBuilder.BuildCircuit(
+        RunwayInfo rwy = DefaultRunway();
+        List<Phase> phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -512,8 +542,8 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void BuildCircuit_Final_OnlyFinalAndLanding()
     {
-        var rwy = DefaultRunway();
-        var phases = PatternBuilder.BuildCircuit(
+        RunwayInfo rwy = DefaultRunway();
+        List<Phase> phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -536,8 +566,8 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void BuildCircuit_TouchAndGo_ReplacesFinalPhase()
     {
-        var rwy = DefaultRunway();
-        var phases = PatternBuilder.BuildCircuit(
+        RunwayInfo rwy = DefaultRunway();
+        List<Phase> phases = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -560,8 +590,8 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void BuildNextCircuit_TouchAndGo_IsFullCircuitWithTouchAndGo()
     {
-        var rwy = DefaultRunway();
-        var phases = PatternBuilder.BuildNextCircuit(
+        RunwayInfo rwy = DefaultRunway();
+        List<Phase> phases = PatternBuilder.BuildNextCircuit(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -582,8 +612,8 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void BuildNextCircuit_FullStop_EndsWithLandingPhase()
     {
-        var rwy = DefaultRunway();
-        var phases = PatternBuilder.BuildNextCircuit(
+        RunwayInfo rwy = DefaultRunway();
+        List<Phase> phases = PatternBuilder.BuildNextCircuit(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -604,10 +634,30 @@ public class PatternCircuitE2ETests : IDisposable
     [Fact]
     public void UpdateWaypoints_UpdatesAllPatternPhases()
     {
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         var phaseList = new PhaseList { AssignedRunway = rwy };
-        var oldWp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
-        var newWp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        PatternWaypoints oldWp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
+        PatternWaypoints newWp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
 
         var downwind = new DownwindPhase { Waypoints = oldWp };
         var basep = new BasePhase { Waypoints = oldWp };

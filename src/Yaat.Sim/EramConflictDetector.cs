@@ -40,7 +40,7 @@ public static class EramConflictDetector
     {
         var results = new List<ConflictPair>();
         var eligible = new List<AircraftState>(aircraft.Count);
-        foreach (var ac in aircraft)
+        foreach (AircraftState ac in aircraft)
         {
             // A QH-frozen track is unpaired from the target and holds a static position, so it must not be
             // used in separation/conflict prediction (7110.65 §5-13-7). A coasting track (below the ERAM
@@ -56,8 +56,8 @@ public static class EramConflictDetector
         {
             for (int j = i + 1; j < eligible.Count; j++)
             {
-                var a = eligible[i];
-                var b = eligible[j];
+                AircraftState a = eligible[i];
+                AircraftState b = eligible[j];
                 if (!ConflictAlertDetector.IsPairEligible(a, b, []))
                 {
                     continue;
@@ -105,8 +105,8 @@ public static class EramConflictDetector
         double rx = (b.Position.Lon - a.Position.Lon) * cosLat * 60.0;
         double ry = (b.Position.Lat - a.Position.Lat) * 60.0;
 
-        var (avx, avy) = VelocityNmPerSecond(a);
-        var (bvx, bvy) = VelocityNmPerSecond(b);
+        (double avx, double avy) = VelocityNmPerSecond(a);
+        (double bvx, double bvy) = VelocityNmPerSecond(b);
         double vx = bvx - avx;
         double vy = bvy - avy;
 
@@ -134,8 +134,8 @@ public static class EramConflictDetector
     /// </summary>
     private static double VerticalGapFt(AircraftState a, AircraftState b)
     {
-        var (loA, hiA) = AltitudeEnvelopeFt(a);
-        var (loB, hiB) = AltitudeEnvelopeFt(b);
+        (double loA, double hiA) = AltitudeEnvelopeFt(a);
+        (double loB, double hiB) = AltitudeEnvelopeFt(b);
         return Math.Max(0.0, Math.Max(loA - hiB, loB - hiA));
     }
 

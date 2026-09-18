@@ -173,8 +173,8 @@ public static class RunwayOccupancy
     /// </summary>
     public static RunwayUseKind? ClassifyByPhase(AircraftState ac, RunwayInfo? runway)
     {
-        var phases = ac.Phases;
-        var phase = phases?.CurrentPhase;
+        PhaseList? phases = ac.Phases;
+        Phase? phase = phases?.CurrentPhase;
         if ((phases is null) || (phase is null))
         {
             return null;
@@ -187,7 +187,7 @@ public static class RunwayOccupancy
 
         if (runway is not null)
         {
-            var own = phases.DepartureRunway ?? phases.AssignedRunway;
+            RunwayInfo? own = phases.DepartureRunway ?? phases.AssignedRunway;
             bool sameRunway = (own is not null) && SameAirport(own.AirportId, runway.AirportId) && own.Id.Overlaps(runway.Id);
             if (!sameRunway)
             {
@@ -240,7 +240,7 @@ public static class RunwayOccupancy
             return ClassifyAirborneRotorcraft(ac, runway);
         }
 
-        var alignedEnd = AlignedEnd(ac.TrueTrack.Degrees, runway);
+        RunwayInfo alignedEnd = AlignedEnd(ac.TrueTrack.Degrees, runway);
         if (GeoMath.AbsBearingDifference(ac.TrueTrack.Degrees, alignedEnd.TrueHeading.Degrees) > FinalTrackToleranceDeg)
         {
             return null;
@@ -257,7 +257,7 @@ public static class RunwayOccupancy
             return null;
         }
 
-        var landingThreshold = LandingThreshold.Resolve(alignedEnd, layout);
+        LatLon landingThreshold = LandingThreshold.Resolve(alignedEnd, layout);
         double along = GeoMath.AlongTrackDistanceNm(ac.Position, landingThreshold, alignedEnd.TrueHeading);
         double cross = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Position, landingThreshold, alignedEnd.TrueHeading));
         bool onFinal = (along < 0) && (-along <= ShortFinalDistanceNm) && (cross <= ShortFinalCrossTrackNm);
@@ -336,8 +336,8 @@ public static class RunwayOccupancy
     /// </summary>
     public static double DistanceToLandingThresholdNm(AircraftState ac, RunwayInfo runway, AirportGroundLayout? layout)
     {
-        var alignedEnd = AlignedEnd(ac.TrueTrack.Degrees, runway);
-        var landingThreshold = LandingThreshold.Resolve(alignedEnd, layout);
+        RunwayInfo alignedEnd = AlignedEnd(ac.TrueTrack.Degrees, runway);
+        LatLon landingThreshold = LandingThreshold.Resolve(alignedEnd, layout);
         return -GeoMath.AlongTrackDistanceNm(ac.Position, landingThreshold, alignedEnd.TrueHeading);
     }
 
@@ -398,7 +398,11 @@ public static class RunwayOccupancy
     /// <summary>Airborne counterpart of <see cref="IsOnPavement"/>: between the two ends and inside the pavement edge.</summary>
     private static bool IsOverPavement(AircraftState ac, RunwayInfo runway)
     {
-        var (_, _, clamped) = GeoMath.FootOfPerpendicular(ac.Position, new LatLon(runway.Lat1, runway.Lon1), new LatLon(runway.Lat2, runway.Lon2));
+        (LatLon _, double _, bool clamped) = GeoMath.FootOfPerpendicular(
+            ac.Position,
+            new LatLon(runway.Lat1, runway.Lon1),
+            new LatLon(runway.Lat2, runway.Lon2)
+        );
         return (!clamped) && IsWithinPavement(ac.Position, runway);
     }
 
@@ -422,13 +426,13 @@ public static class RunwayOccupancy
             return false;
         }
 
-        var end = AlignedEnd(ac.TrueTrack.Degrees, runway);
+        RunwayInfo end = AlignedEnd(ac.TrueTrack.Degrees, runway);
         if (GeoMath.AbsBearingDifference(ac.TrueTrack.Degrees, end.TrueHeading.Degrees) > OnFinalTrackToleranceDeg)
         {
             return false;
         }
 
-        var threshold = LandingThreshold.Resolve(end, layout);
+        LatLon threshold = LandingThreshold.Resolve(end, layout);
         double distNm = -GeoMath.AlongTrackDistanceNm(ac.Position, threshold, end.TrueHeading);
         double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Position, threshold, end.TrueHeading));
         double wedgeNm = Math.Min(OnFinalCrossTrackNm, Math.Max(OnFinalCrossTrackFloorNm, distNm * Math.Tan(OnFinalWedgeDeg * Math.PI / 180.0)));
@@ -443,9 +447,9 @@ public static class RunwayOccupancy
     {
         RunwayInfo? best = null;
         double bestXtk = double.MaxValue;
-        foreach (var pavement in runways)
+        foreach (RunwayInfo pavement in runways)
         {
-            var end = AlignedEnd(ac.TrueTrack.Degrees, pavement);
+            RunwayInfo end = AlignedEnd(ac.TrueTrack.Degrees, pavement);
             if (!IsOnFinal(ac, end, layout, maxNm))
             {
                 continue;
@@ -473,7 +477,7 @@ public static class RunwayOccupancy
             return [];
         }
 
-        var runways = navDb.GetRunways(airport);
+        IReadOnlyList<RunwayInfo> runways = navDb.GetRunways(airport);
         if (runways.Count == 0 && airport.Length == 4 && airport.StartsWith('K'))
         {
             runways = navDb.GetRunways(airport[1..]);
@@ -490,9 +494,9 @@ public static class RunwayOccupancy
     public static RunwayUse? ClassifyBest(AircraftState ac, IReadOnlyList<RunwayInfo> runways, AirportGroundLayout? layout)
     {
         RunwayUse? best = null;
-        foreach (var pavement in runways)
+        foreach (RunwayInfo pavement in runways)
         {
-            var use = Classify(ac, AlignedEnd(ac.TrueTrack.Degrees, pavement), layout);
+            RunwayUse? use = Classify(ac, AlignedEnd(ac.TrueTrack.Degrees, pavement), layout);
             if (use is null || (best is not null && use.Kind >= best.Kind))
             {
                 continue;

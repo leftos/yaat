@@ -25,7 +25,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     public void S2Oak4Bundle_AutoClearedToLandAndAutoCrossRunway_ApplyDuringReplay()
     {
         const string bundlePath = "TestData/66fd6538542e.zip";
-        var recording = RecordingLoader.Load(bundlePath);
+        SessionRecording? recording = RecordingLoader.Load(bundlePath);
         if (recording is null)
         {
             output.WriteLine($"Skipped: {bundlePath} not present");
@@ -69,7 +69,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     public void RpoShowPilotSpeech_RoundTripsThroughReplay()
     {
         const string bundlePath = "TestData/66fd6538542e.zip";
-        var baseline = RecordingLoader.Load(bundlePath);
+        SessionRecording? baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {
             output.WriteLine($"Skipped: {bundlePath} not present");
@@ -105,7 +105,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     public void AutoGoAroundOnOccupiedRunway_RoundTripsThroughReplay()
     {
         const string bundlePath = "TestData/66fd6538542e.zip";
-        var baseline = RecordingLoader.Load(bundlePath);
+        SessionRecording? baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {
             output.WriteLine($"Skipped: {bundlePath} not present");
@@ -141,7 +141,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     public void AutoArrivalSpacingOnOccupiedRunway_RoundTripsThroughReplay()
     {
         const string bundlePath = "TestData/66fd6538542e.zip";
-        var baseline = RecordingLoader.Load(bundlePath);
+        SessionRecording? baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {
             output.WriteLine($"Skipped: {bundlePath} not present");
@@ -177,7 +177,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     public void AutoRejectTakeoffOnOccupiedRunway_RoundTripsThroughReplay()
     {
         const string bundlePath = "TestData/66fd6538542e.zip";
-        var baseline = RecordingLoader.Load(bundlePath);
+        SessionRecording? baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {
             output.WriteLine($"Skipped: {bundlePath} not present");
@@ -213,7 +213,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     public void LiveTrafficSettings_RoundTripThroughReplay()
     {
         const string bundlePath = "TestData/66fd6538542e.zip";
-        var baseline = RecordingLoader.Load(bundlePath);
+        SessionRecording? baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {
             output.WriteLine($"Skipped: {bundlePath} not present");
@@ -250,7 +250,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     public void SoloTrainingMode_RoundTripsThroughReplay()
     {
         const string bundlePath = "TestData/66fd6538542e.zip";
-        var baseline = RecordingLoader.Load(bundlePath);
+        SessionRecording? baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {
             output.WriteLine($"Skipped: {bundlePath} not present");
@@ -286,7 +286,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     public void SoloPacingRates_RoundTripThroughReplay()
     {
         const string bundlePath = "TestData/66fd6538542e.zip";
-        var baseline = RecordingLoader.Load(bundlePath);
+        SessionRecording? baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {
             return;
@@ -326,7 +326,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     public void AllFourSettingTypes_RoundTripThroughReplay()
     {
         const string bundlePath = "TestData/66fd6538542e.zip";
-        var baseline = RecordingLoader.Load(bundlePath);
+        SessionRecording? baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {
             output.WriteLine($"Skipped: {bundlePath} not present");
@@ -385,7 +385,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     public void AutoAcceptDelay_ParsesAndClamps(string value, int expectedSeconds)
     {
         const string bundlePath = "TestData/66fd6538542e.zip";
-        var baseline = RecordingLoader.Load(bundlePath);
+        SessionRecording? baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {
             return;
@@ -427,7 +427,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
     public void AutoDeleteMode_NullOrEmptyClearsOverride(string? value, string? expected)
     {
         const string bundlePath = "TestData/66fd6538542e.zip";
-        var baseline = RecordingLoader.Load(bundlePath);
+        SessionRecording? baseline = RecordingLoader.Load(bundlePath);
         if (baseline is null)
         {
             return;

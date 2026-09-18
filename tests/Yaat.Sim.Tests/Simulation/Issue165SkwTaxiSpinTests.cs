@@ -51,8 +51,8 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
     [Fact]
     public void Skw3404_FullResolvedRoute_Diagnostic()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -64,9 +64,9 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
             engine.ReplayOneSecond();
         }
 
-        var ac = engine.FindAircraft("SKW3404");
+        AircraftState? ac = engine.FindAircraft("SKW3404");
         Assert.NotNull(ac);
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         output.WriteLine($"Resolved route summary: {route.ToSummary()}");
@@ -78,7 +78,7 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
         string? prevTwy = null;
         for (int i = 0; i < route.Segments.Count; i++)
         {
-            var seg = route.Segments[i];
+            TaxiRouteSegment seg = route.Segments[i];
             double dep = seg.Edge.DepartureBearing;
             double arr = seg.Edge.ArrivalBearing;
             double distFt = seg.Edge.DistanceNm * 6076.12;
@@ -110,8 +110,8 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
     [Fact]
     public void Skw3404_TickByTick_Diagnostic()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -121,12 +121,12 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
         for (int t = 1; t <= 457; t++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft("SKW3404");
+            AircraftState? ac = engine.FindAircraft("SKW3404");
             if (ac is null)
             {
                 continue;
             }
-            var route = ac.Ground.AssignedTaxiRoute;
+            TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
             string phaseName = ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
             int segIdx = route?.CurrentSegmentIndex ?? -1;
             int segTotal = route?.Segments.Count ?? 0;
@@ -142,7 +142,7 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {
             return;
@@ -154,7 +154,7 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
         var diagLines = new System.Collections.Generic.List<string>();
         // SKW3404 is a CRJ (jet). The pathfinder-level equivalent of this sequence is
         // Issue165_SkwRoute_ResolvesWithoutFailure.
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: startNode,
             taxiwayNames: ["A", "E", "B", "B3", "A", "B1", "Z", "S"],
@@ -163,7 +163,7 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
             AircraftCategory.Jet
         );
 
-        foreach (var line in diagLines)
+        foreach (string line in diagLines)
         {
             output.WriteLine(line);
         }
@@ -174,7 +174,7 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
         double prevArr = double.NaN;
         for (int i = 0; i < route.Segments.Count; i++)
         {
-            var s = route.Segments[i];
+            TaxiRouteSegment s = route.Segments[i];
             double dep = s.Edge.DepartureBearing;
             double arr = s.Edge.ArrivalBearing;
             string kind = s.Edge.Edge is GroundArc ? "arc" : "   ";
@@ -207,8 +207,8 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
     [Fact]
     public void Skw3404_DoesNotOrbitDuringTaxi()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -232,7 +232,7 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
         {
             engine.ReplayOneSecond();
 
-            var ac = engine.FindAircraft("SKW3404");
+            AircraftState? ac = engine.FindAircraft("SKW3404");
             if (ac is null)
             {
                 continue;

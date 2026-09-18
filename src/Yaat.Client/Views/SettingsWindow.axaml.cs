@@ -44,59 +44,66 @@ public partial class SettingsWindow : Window
 
         new WindowGeometryHelper(this, preferences, "Settings", 560, 440).Restore();
 
-        var saveBtn = this.FindControl<Button>("SaveButton");
+        Button? saveBtn = this.FindControl<Button>("SaveButton");
         if (saveBtn is not null)
         {
             saveBtn.Click += OnSaveClick;
         }
 
-        var cancelBtn = this.FindControl<Button>("CancelButton");
+        Button? cancelBtn = this.FindControl<Button>("CancelButton");
         if (cancelBtn is not null)
         {
             cancelBtn.Click += OnCancelClick;
         }
 
-        var importBtn = this.FindControl<Button>("ImportMacrosButton");
+        Button? importBtn = this.FindControl<Button>("ImportMacrosButton");
         if (importBtn is not null)
         {
             importBtn.Click += OnImportMacrosClick;
         }
 
-        var exportSelectedBtn = this.FindControl<Button>("ExportSelectedMacrosButton");
+        Button? exportSelectedBtn = this.FindControl<Button>("ExportSelectedMacrosButton");
         if (exportSelectedBtn is not null)
         {
             exportSelectedBtn.Click += OnExportSelectedClick;
         }
 
-        var exportAllBtn = this.FindControl<Button>("ExportAllMacrosButton");
+        Button? exportAllBtn = this.FindControl<Button>("ExportAllMacrosButton");
         if (exportAllBtn is not null)
         {
             exportAllBtn.Click += OnExportAllClick;
         }
 
-        var importVerbsBtn = this.FindControl<Button>("ImportVerbsButton");
+        Button? importVerbsBtn = this.FindControl<Button>("ImportVerbsButton");
         if (importVerbsBtn is not null)
         {
             importVerbsBtn.Click += OnImportVerbsClick;
         }
 
-        var exportVerbsBtn = this.FindControl<Button>("ExportVerbsButton");
+        Button? exportVerbsBtn = this.FindControl<Button>("ExportVerbsButton");
         if (exportVerbsBtn is not null)
         {
             exportVerbsBtn.Click += OnExportVerbsClick;
         }
 
-        var browseAliasesBtn = this.FindControl<Button>("BrowseCrcAliasDirectoryButton");
+        Button? browseAliasesBtn = this.FindControl<Button>("BrowseCrcAliasDirectoryButton");
         if (browseAliasesBtn is not null)
         {
             browseAliasesBtn.Click += OnBrowseCrcAliasDirectoryClick;
         }
 
         foreach (
-            var btnName in new[] { "AircraftSelectKeyButton", "FocusInputKeyButton", "TakeControlKeyButton", "AlwaysOnTopKeyButton", "PttKeyButton" }
+            string? btnName in new[]
+            {
+                "AircraftSelectKeyButton",
+                "FocusInputKeyButton",
+                "TakeControlKeyButton",
+                "AlwaysOnTopKeyButton",
+                "PttKeyButton",
+            }
         )
         {
-            var btn = this.FindControl<Button>(btnName);
+            Button? btn = this.FindControl<Button>(btnName);
             if (btn is not null)
             {
                 btn.KeyDown += OnKeyCaptureKeyDown;
@@ -112,7 +119,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var path = await _filePicker.OpenFileAsync(
+        string? path = await _filePicker.OpenFileAsync(
             new OpenFileOptions("Select LLM Model File (GGUF)", [new FilePickerFilter("GGUF Models", ["*.gguf"])])
         );
         if (!string.IsNullOrEmpty(path))
@@ -143,7 +150,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var folder = await _filePicker.OpenFolderAsync(new OpenFolderOptions("Select CRC Aliases Folder"));
+        string? folder = await _filePicker.OpenFolderAsync(new OpenFolderOptions("Select CRC Aliases Folder"));
         if (folder is not null)
         {
             vm.CrcAliasDirectory = folder;
@@ -157,7 +164,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var path = await _filePicker.OpenFileAsync(new OpenFileOptions("Import Macros", [MacroFileType, JsonFileType]));
+        string? path = await _filePicker.OpenFileAsync(new OpenFileOptions("Import Macros", [MacroFileType, JsonFileType]));
         if (path is null)
         {
             return;
@@ -165,8 +172,8 @@ public partial class SettingsWindow : Window
 
         try
         {
-            await using var stream = File.OpenRead(path);
-            var macros = await JsonSerializer.DeserializeAsync<List<SavedMacro>>(stream, UserPreferences.JsonOptions);
+            await using FileStream stream = File.OpenRead(path);
+            List<SavedMacro>? macros = await JsonSerializer.DeserializeAsync<List<SavedMacro>>(stream, UserPreferences.JsonOptions);
             if (macros is null || macros.Count == 0)
             {
                 return;
@@ -180,17 +187,17 @@ public partial class SettingsWindow : Window
             var newMacros = new List<SavedMacro>();
             var conflicts = new List<MacroImportItem>();
 
-            foreach (var m in macros)
+            foreach (SavedMacro m in macros)
             {
-                var baseName = MacroDefinition.ExtractBaseName(m.Name);
+                string baseName = MacroDefinition.ExtractBaseName(m.Name);
                 if (existingBaseNames.Contains(baseName))
                 {
-                    var existingRow = vm.MacroRows.First(r =>
+                    MacroRow existingRow = vm.MacroRows.First(r =>
                         string.Equals(MacroDefinition.ExtractBaseName(r.Name), baseName, StringComparison.OrdinalIgnoreCase)
                     );
 
                     // Generate a default rename suggestion
-                    var renameCandidate = GenerateRenameSuggestion(baseName, existingBaseNames, macros);
+                    string renameCandidate = GenerateRenameSuggestion(baseName, existingBaseNames, macros);
 
                     conflicts.Add(
                         new MacroImportItem
@@ -215,7 +222,7 @@ public partial class SettingsWindow : Window
             }
 
             var importWindow = new MacroImportWindow(conflicts, newMacros, existingBaseNames);
-            var result = await importWindow.ShowDialog<MacroImportResult?>(this);
+            MacroImportResult? result = await importWindow.ShowDialog<MacroImportResult?>(this);
             if (result is not null)
             {
                 vm.ImportMacros(result);
@@ -234,7 +241,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var path = await _filePicker.OpenFileAsync(new OpenFileOptions("Import Command Verbs", [VerbsFileType, JsonFileType]));
+        string? path = await _filePicker.OpenFileAsync(new OpenFileOptions("Import Command Verbs", [VerbsFileType, JsonFileType]));
         if (path is null)
         {
             return;
@@ -242,7 +249,7 @@ public partial class SettingsWindow : Window
 
         try
         {
-            var json = await File.ReadAllTextAsync(path);
+            string json = await File.ReadAllTextAsync(path);
             vm.ImportVerbs(CommandSchemeFile.Deserialize(json));
         }
         catch (Exception ex) when ((ex is JsonException) || (ex is IOException))
@@ -260,7 +267,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var path = await _filePicker.SaveFileAsync(
+        string? path = await _filePicker.SaveFileAsync(
             new SaveFileOptions(
                 Title: "Export Command Verbs",
                 SuggestedFileName: "yaat-command-verbs" + CommandSchemeFile.Extension,
@@ -295,9 +302,9 @@ public partial class SettingsWindow : Window
             StringComparer.OrdinalIgnoreCase
         );
 
-        for (var i = 2; i < 100; i++)
+        for (int i = 2; i < 100; i++)
         {
-            var candidate = $"{baseName}_{i}";
+            string candidate = $"{baseName}_{i}";
             if (!existingBaseNames.Contains(candidate) && !incomingBaseNames.Contains(candidate))
             {
                 return candidate;
@@ -314,7 +321,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var grid = this.FindControl<DataGrid>("MacroDataGrid");
+        DataGrid? grid = this.FindControl<DataGrid>("MacroDataGrid");
         if (grid is null)
         {
             return;
@@ -336,7 +343,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var all = vm.ExportMacros();
+        List<SavedMacro> all = vm.ExportMacros();
         if (all.Count == 0)
         {
             return;
@@ -364,7 +371,7 @@ public partial class SettingsWindow : Window
 
     private async Task ExportMacrosAsync(List<SavedMacro> macros)
     {
-        var path = await _filePicker.SaveFileAsync(
+        string? path = await _filePicker.SaveFileAsync(
             new SaveFileOptions(
                 Title: "Export Macros",
                 SuggestedFileName: "macros.yaat-macros.json",
@@ -378,7 +385,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        await using var stream = File.Create(path);
+        await using FileStream stream = File.Create(path);
         await JsonSerializer.SerializeAsync(stream, macros, UserPreferences.JsonOptions);
     }
 }

@@ -25,9 +25,9 @@ internal static class ScratchpadFlyout
 
     public static Popup Build(Control anchor, AircraftModel aircraft, RadarViewModel radarVm, string initials, int slot)
     {
-        var verb = slot == 2 ? "SP2" : "SP1";
-        var current = slot == 2 ? aircraft.Scratchpad2 : aircraft.Scratchpad1;
-        var subtitle = string.IsNullOrEmpty(current) ? null : $"Current: \"{current}\"";
+        string verb = slot == 2 ? "SP2" : "SP1";
+        string? current = slot == 2 ? aircraft.Scratchpad2 : aircraft.Scratchpad1;
+        string? subtitle = string.IsNullOrEmpty(current) ? null : $"Current: \"{current}\"";
 
         return TextEntryPopup.Build(
             anchor,
@@ -39,8 +39,8 @@ internal static class ScratchpadFlyout
             extraActions: [],
             onSubmit: async value =>
             {
-                var trimmed = value.Trim();
-                var command = trimmed.Length == 0 ? verb : $"{verb} {trimmed}";
+                string trimmed = value.Trim();
+                string command = trimmed.Length == 0 ? verb : $"{verb} {trimmed}";
                 await radarVm.SendRawCommandAsync(aircraft.Callsign, initials, command);
             }
         );

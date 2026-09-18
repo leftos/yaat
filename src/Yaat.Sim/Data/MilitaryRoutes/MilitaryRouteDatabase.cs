@@ -35,7 +35,7 @@ public sealed class MilitaryRouteDatabase
     {
         Routes = routes;
         _byDesignator = new Dictionary<string, MilitaryRoute>(StringComparer.OrdinalIgnoreCase);
-        foreach (var route in routes)
+        foreach (MilitaryRoute route in routes)
         {
             _byDesignator.TryAdd(route.Designator, route);
         }
@@ -76,7 +76,7 @@ public sealed class MilitaryRouteDatabase
             return null;
         }
 
-        var normalized = Normalize(designator);
+        string normalized = Normalize(designator);
         return _byDesignator.GetValueOrDefault(normalized);
     }
 
@@ -89,9 +89,9 @@ public sealed class MilitaryRouteDatabase
 
     public static MilitaryRouteDatabase LoadDefault()
     {
-        var baseDir = AppContext.BaseDirectory;
-        var dataDir = Path.Combine(baseDir, DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        var files = FindFixtureFiles(dataDir);
+        string baseDir = AppContext.BaseDirectory;
+        string dataDir = Path.Combine(baseDir, DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        string[] files = FindFixtureFiles(dataDir);
 
         if (files.Length == 0)
         {
@@ -117,7 +117,7 @@ public sealed class MilitaryRouteDatabase
         var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, "src", "Yaat.Sim", DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string candidate = Path.Combine(dir.FullName, "src", "Yaat.Sim", DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
             if (Directory.Exists(candidate))
             {
                 return [.. FindFixtureFiles(candidate)];
@@ -143,7 +143,7 @@ public sealed class MilitaryRouteDatabase
     {
         var ordered = paths.Order(StringComparer.OrdinalIgnoreCase).ToList();
         var routes = new List<MilitaryRoute>();
-        foreach (var path in ordered)
+        foreach (string? path in ordered)
         {
             try
             {
@@ -166,7 +166,7 @@ public sealed class MilitaryRouteDatabase
             return File.ReadAllText(path);
         }
 
-        using var file = File.OpenRead(path);
+        using FileStream file = File.OpenRead(path);
         using var brotli = new BrotliStream(file, CompressionMode.Decompress);
         using var reader = new StreamReader(brotli);
         return reader.ReadToEnd();
@@ -175,15 +175,15 @@ public sealed class MilitaryRouteDatabase
     public static MilitaryRouteDatabase FromJson(string json)
     {
         using var doc = JsonDocument.Parse(json);
-        if (!doc.RootElement.TryGetProperty("routes", out var routes) || routes.ValueKind != JsonValueKind.Array)
+        if (!doc.RootElement.TryGetProperty("routes", out JsonElement routes) || routes.ValueKind != JsonValueKind.Array)
         {
             return new MilitaryRouteDatabase([]);
         }
 
         var parsed = new List<MilitaryRoute>();
-        foreach (var element in routes.EnumerateArray())
+        foreach (JsonElement element in routes.EnumerateArray())
         {
-            var route = ParseRoute(element);
+            MilitaryRoute? route = ParseRoute(element);
             if (route is not null)
             {
                 parsed.Add(route);
@@ -195,18 +195,18 @@ public sealed class MilitaryRouteDatabase
 
     private static MilitaryRoute? ParseRoute(JsonElement element)
     {
-        var designator = element.GetPropertyOrNull("designator")?.GetString();
-        var typeText = element.GetPropertyOrNull("type")?.GetString();
-        if (string.IsNullOrEmpty(designator) || !TryParseType(typeText, out var type))
+        string? designator = element.GetPropertyOrNull("designator")?.GetString();
+        string? typeText = element.GetPropertyOrNull("type")?.GetString();
+        if (string.IsNullOrEmpty(designator) || !TryParseType(typeText, out MilitaryRouteType type))
         {
             Log.LogWarning("Skipping military route with missing designator or unknown type '{Type}'", typeText);
             return null;
         }
 
-        var variants = ParseVariants(element, designator);
+        List<MilitaryRouteVariant> variants = ParseVariants(element, designator);
         // A chapter 5 entry publishes its geometry per direction, so the first variant supplies the
         // Points the expander and the airway shadow index read; chapters 2-4 publish points directly.
-        var points = variants.Count > 0 ? variants[0].Points : ParsePoints(element, "points", designator);
+        IReadOnlyList<MilitaryRoutePoint> points = variants.Count > 0 ? variants[0].Points : ParsePoints(element, "points", designator);
         if (points.Count == 0)
         {
             Log.LogWarning("Skipping military route {Designator}: no usable points", designator);
@@ -241,9 +241,9 @@ public sealed class MilitaryRouteDatabase
             return variants;
         }
 
-        foreach (var item in array.EnumerateArray())
+        foreach (JsonElement item in array.EnumerateArray())
         {
-            var points = ParsePoints(item, "points", designator);
+            List<MilitaryRoutePoint> points = ParsePoints(item, "points", designator);
             if (points.Count == 0)
             {
                 continue;
@@ -272,7 +272,7 @@ public sealed class MilitaryRouteDatabase
             return vertices;
         }
 
-        foreach (var item in array.EnumerateArray())
+        foreach (JsonElement item in array.EnumerateArray())
         {
             if (item.ValueKind == JsonValueKind.Array && item.GetArrayLength() == 2)
             {
@@ -291,11 +291,11 @@ public sealed class MilitaryRouteDatabase
             return points;
         }
 
-        foreach (var item in array.EnumerateArray())
+        foreach (JsonElement item in array.EnumerateArray())
         {
-            var id = item.GetPropertyOrNull("id")?.GetString();
-            var lat = item.GetPropertyOrNull("lat")?.GetDouble();
-            var lon = item.GetPropertyOrNull("lon")?.GetDouble();
+            string? id = item.GetPropertyOrNull("id")?.GetString();
+            double? lat = item.GetPropertyOrNull("lat")?.GetDouble();
+            double? lon = item.GetPropertyOrNull("lon")?.GetDouble();
             if (string.IsNullOrEmpty(id) || lat is null || lon is null)
             {
                 continue;
@@ -343,7 +343,7 @@ public sealed class MilitaryRouteDatabase
             return widths;
         }
 
-        foreach (var item in array.EnumerateArray())
+        foreach (JsonElement item in array.EnumerateArray())
         {
             double left = item.GetPropertyOrNull("left_nm")?.GetDouble() ?? 0;
             double right = item.GetPropertyOrNull("right_nm")?.GetDouble() ?? 0;
@@ -368,7 +368,7 @@ public sealed class MilitaryRouteDatabase
             return values;
         }
 
-        foreach (var item in array.EnumerateArray())
+        foreach (JsonElement item in array.EnumerateArray())
         {
             if (item.GetString() is { Length: > 0 } value)
             {
@@ -448,5 +448,5 @@ internal static class JsonElementExtensions
 {
     /// <summary>The named property, or null when absent or JSON null.</summary>
     internal static JsonElement? GetPropertyOrNull(this JsonElement element, string name) =>
-        element.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null ? value : null;
+        element.TryGetProperty(name, out JsonElement value) && value.ValueKind != JsonValueKind.Null ? value : null;
 }

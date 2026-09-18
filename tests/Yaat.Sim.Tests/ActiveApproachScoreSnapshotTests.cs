@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
 
@@ -35,7 +36,7 @@ public class ActiveApproachScoreSnapshotTests
             EstablishedAtSeconds = 120.0,
         };
 
-        var dto = ac.ToSnapshot();
+        AircraftSnapshotDto dto = ac.ToSnapshot();
         var restored = AircraftState.FromSnapshot(dto, groundLayout: null);
 
         Assert.NotNull(restored.ActiveApproachScore);

@@ -86,14 +86,14 @@ public class S2Oak4FollowSpamTests(ITestOutputHelper output)
 
         // Lead a touch ahead of follower on a 280° heading (KOAK 28R-ish track).
         // 0.3 nm spacing puts the follower well inside desired*0.5 = 0.75 nm.
-        var lead = MakePiston(Leader, "C182", 37.7250, -122.2300, heading: 280, ias: 75);
+        AircraftState lead = MakePiston(Leader, "C182", 37.7250, -122.2300, heading: 280, ias: 75);
         // 0.3 nm at this latitude ≈ 0.005 deg lon to the east of the lead.
         // Follower sits behind (east) and tracks the same direction.
-        var follower = MakePiston(Follower, "P28A", 37.7250, -122.2240, heading: 280, ias: 75);
+        AircraftState follower = MakePiston(Follower, "P28A", 37.7250, -122.2240, heading: 280, ias: 75);
         follower.Phases!.Add(new VfrFollowPhase(Leader));
 
         var byCallsign = new Dictionary<string, AircraftState> { [lead.Callsign] = lead, [follower.Callsign] = follower };
-        Func<string, AircraftState?> lookup = cs => byCallsign.TryGetValue(cs, out var ac) ? ac : null;
+        Func<string, AircraftState?> lookup = cs => byCallsign.TryGetValue(cs, out AircraftState? ac) ? ac : null;
 
         // Sanity: the synthetic spacing must actually trip the gate.
         double spacingNm = GeoMath.DistanceNm(follower.Position, lead.Position);

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Services;
 using Yaat.Sim;
@@ -49,13 +50,13 @@ public partial class AircraftModel : ObservableObject
     {
         get
         {
-            var record = FaaAircraftDatabase.Get(AircraftType);
-            if (record is not null && AircraftDisplayNames.TryGet(record.IcaoCode, out var name))
+            FaaAircraftRecord? record = FaaAircraftDatabase.Get(AircraftType);
+            if (record is not null && AircraftDisplayNames.TryGet(record.IcaoCode, out string? name))
             {
                 return name;
             }
             // No sibling/database hit — fall back to a direct lookup on the bare ICAO.
-            return AircraftDisplayNames.TryGet(BaseAircraftType, out var direct) ? direct : "";
+            return AircraftDisplayNames.TryGet(BaseAircraftType, out string? direct) ? direct : "";
         }
     }
 
@@ -265,11 +266,11 @@ public partial class AircraftModel : ObservableObject
     {
         if (status.StartsWith("Delayed (", StringComparison.Ordinal) && status.EndsWith("s)", StringComparison.Ordinal))
         {
-            var numStr = status.AsSpan(9, status.Length - 11);
-            if (int.TryParse(numStr, out var seconds))
+            ReadOnlySpan<char> numStr = status.AsSpan(9, status.Length - 11);
+            if (int.TryParse(numStr, out int seconds))
             {
-                var minutes = seconds / 60;
-                var secs = seconds % 60;
+                int minutes = seconds / 60;
+                int secs = seconds % 60;
                 return $"Delayed {minutes}:{secs:D2}";
             }
         }
@@ -537,7 +538,7 @@ public partial class AircraftModel : ObservableObject
                 return "";
             }
 
-            var parts = PhaseSequence.Split(" > ");
+            string[] parts = PhaseSequence.Split(" > ");
             if (ActivePhaseIndex < 0 || ActivePhaseIndex >= parts.Length)
             {
                 return PhaseSequence;
@@ -561,7 +562,7 @@ public partial class AircraftModel : ObservableObject
                 return "";
             }
 
-            var humanized = LandingClearance switch
+            string humanized = LandingClearance switch
             {
                 "ClearedToLand" => "Cleared to land",
                 "ClearedForOption" => "Cleared for the option",
@@ -589,7 +590,7 @@ public partial class AircraftModel : ObservableObject
                 return "";
             }
 
-            var shorthand = LandingClearance switch
+            string shorthand = LandingClearance switch
             {
                 "ClearedToLand" => "CLAND",
                 "ClearedForOption" => "COPT",
@@ -623,7 +624,7 @@ public partial class AircraftModel : ObservableObject
 
             if (!string.IsNullOrEmpty(FlightRules) || !string.IsNullOrEmpty(FiledAircraftType))
             {
-                var rulesLabel = IsVfrOnTop ? "OTP" : FlightRules;
+                string rulesLabel = IsVfrOnTop ? "OTP" : FlightRules;
                 parts.Add($"{rulesLabel} {FiledAircraftType}".Trim());
             }
 
@@ -634,7 +635,7 @@ public partial class AircraftModel : ObservableObject
 
             if (CruiseAltitude > 0)
             {
-                var altStr = CruiseAltitude >= 18000 ? $"FL{CruiseAltitude / 100}" : $"{CruiseAltitude}";
+                string altStr = CruiseAltitude >= 18000 ? $"FL{CruiseAltitude / 100}" : $"{CruiseAltitude}";
                 parts.Add(CruiseSpeed > 0 ? $"{altStr}/{CruiseSpeed}kt" : altStr);
             }
 
@@ -647,7 +648,7 @@ public partial class AircraftModel : ObservableObject
                 parts.Add($"STAR:{ActiveStarId}");
             }
 
-            var header = string.Join("  ", parts);
+            string header = string.Join("  ", parts);
             return string.IsNullOrEmpty(Route) ? header : $"{header}\n{Route}";
         }
     }
@@ -662,7 +663,7 @@ public partial class AircraftModel : ObservableObject
         }
 
         var routeFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var token in Route.Split(['.', ' '], StringSplitOptions.RemoveEmptyEntries))
+        foreach (string token in Route.Split(['.', ' '], StringSplitOptions.RemoveEmptyEntries))
         {
             if (token.Length >= 2 && "VJTQ".Contains(token[0]) && char.IsDigit(token[1]))
             {
@@ -671,7 +672,7 @@ public partial class AircraftModel : ObservableObject
             routeFixes.Add(token);
         }
 
-        foreach (var fix in NavigationRoute)
+        foreach (string fix in NavigationRoute)
         {
             if (!routeFixes.Contains(fix))
             {
@@ -692,7 +693,7 @@ public partial class AircraftModel : ObservableObject
                 return "";
             }
 
-            var altStr = CruiseAltitude >= 18000 ? $"FL{CruiseAltitude / 100}" : $"{CruiseAltitude}";
+            string altStr = CruiseAltitude >= 18000 ? $"FL{CruiseAltitude / 100}" : $"{CruiseAltitude}";
 
             if (CruiseSpeed > 0)
             {
@@ -711,7 +712,7 @@ public partial class AircraftModel : ObservableObject
             {
                 return PlannedAltitude.Block(floor, CruiseAltitude);
             }
-            var alt = CruiseAltitude > 0 ? CruiseAltitude : (int?)null;
+            int? alt = CruiseAltitude > 0 ? CruiseAltitude : (int?)null;
             if (IsAbove)
             {
                 return PlannedAltitude.Above(CruiseAltitude);
@@ -1040,7 +1041,7 @@ public partial class AircraftModel : ObservableObject
             return;
         }
 
-        var remaining = CfrCountdown.Evaluate(new ReleaseWindow(start, end), nowUtc);
+        CfrRemaining remaining = CfrCountdown.Evaluate(new ReleaseWindow(start, end), nowUtc);
         (CfrBadge, CfrBadgeExpired) = remaining.Phase switch
         {
             CfrPhase.BeforeOpen => ($"CFR opens {FormatMinSec(remaining.Seconds)}", false),
@@ -1288,8 +1289,8 @@ public partial class AircraftModel : ObservableObject
     {
         if (status.StartsWith("Delayed (", StringComparison.Ordinal) && status.EndsWith("s)", StringComparison.Ordinal))
         {
-            var numStr = status.AsSpan(9, status.Length - 11);
-            if (int.TryParse(numStr, out var seconds))
+            ReadOnlySpan<char> numStr = status.AsSpan(9, status.Length - 11);
+            if (int.TryParse(numStr, out int seconds))
             {
                 return (1, seconds);
             }
@@ -1309,10 +1310,10 @@ public sealed class StatusSortComparer : IComparer
             return 0;
         }
 
-        var ka = AircraftModel.ParseStatusSortKey(a.Status);
-        var kb = AircraftModel.ParseStatusSortKey(b.Status);
+        (int Order, int Seconds) ka = AircraftModel.ParseStatusSortKey(a.Status);
+        (int Order, int Seconds) kb = AircraftModel.ParseStatusSortKey(b.Status);
 
-        var orderCmp = ka.Order.CompareTo(kb.Order);
+        int orderCmp = ka.Order.CompareTo(kb.Order);
         if (orderCmp != 0)
         {
             return orderCmp;
@@ -1332,9 +1333,9 @@ public sealed class PropertySortComparer : IComparer
 
     public PropertySortComparer(string propertyName)
     {
-        if (!_accessorCache.TryGetValue(propertyName, out var accessor))
+        if (!_accessorCache.TryGetValue(propertyName, out Func<AircraftModel, IComparable?>? accessor))
         {
-            var prop = typeof(AircraftModel).GetProperty(propertyName);
+            PropertyInfo? prop = typeof(AircraftModel).GetProperty(propertyName);
             if (prop is not null)
             {
                 accessor = ac => prop.GetValue(ac) as IComparable;
@@ -1355,8 +1356,8 @@ public sealed class PropertySortComparer : IComparer
             return 0;
         }
 
-        var va = _accessor(a);
-        var vb = _accessor(b);
+        IComparable? va = _accessor(a);
+        IComparable? vb = _accessor(b);
 
         if (va is null && vb is null)
         {
@@ -1396,7 +1397,7 @@ public sealed class GroupStableSortComparer : IComparer
         }
 
         // Active (false=0) before Delayed (true=1)
-        var groupCmp = a.IsDelayed.CompareTo(b.IsDelayed);
+        int groupCmp = a.IsDelayed.CompareTo(b.IsDelayed);
         if (groupCmp != 0)
         {
             return groupCmp;

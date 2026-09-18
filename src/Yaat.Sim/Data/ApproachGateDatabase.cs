@@ -38,40 +38,40 @@ public static class ApproachGateDatabase
     /// </summary>
     public static void Initialize(CifpParseResult cifpData, IReadOnlyList<CifpParseResult> additional)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         var result = new Dictionary<(string Airport, string Runway), double>();
         int computed = 0;
         int skipped = 0;
 
         var fafFixes = new Dictionary<(string Airport, string Runway), string>();
-        foreach (var extra in additional)
+        foreach (CifpParseResult extra in additional)
         {
-            foreach (var (key, fix) in extra.FafFixes)
+            foreach (((string Airport, string Runway) key, string? fix) in extra.FafFixes)
             {
                 fafFixes[key] = fix;
             }
         }
 
-        foreach (var (key, fix) in cifpData.FafFixes)
+        foreach (((string Airport, string Runway) key, string? fix) in cifpData.FafFixes)
         {
             fafFixes[key] = fix;
         }
 
-        foreach (var ((airport, runway), fafFixName) in fafFixes)
+        foreach (((string? airport, string? runway), string? fafFixName) in fafFixes)
         {
             // Resolve FAF fix position
             (double Lat, double Lon)? fafPos = navDb.GetFixPosition(fafFixName);
 
-            if (fafPos is null && cifpData.TerminalWaypoints.TryGetValue(fafFixName, out var terminalPos))
+            if (fafPos is null && cifpData.TerminalWaypoints.TryGetValue(fafFixName, out (double Lat, double Lon) terminalPos))
             {
                 fafPos = terminalPos;
             }
 
             if (fafPos is null)
             {
-                foreach (var extra in additional)
+                foreach (CifpParseResult extra in additional)
                 {
-                    if (extra.TerminalWaypoints.TryGetValue(fafFixName, out var extraPos))
+                    if (extra.TerminalWaypoints.TryGetValue(fafFixName, out (double Lat, double Lon) extraPos))
                     {
                         fafPos = extraPos;
                         break;
@@ -86,7 +86,7 @@ public static class ApproachGateDatabase
             }
 
             // Get runway threshold
-            var runwayInfo = navDb.GetRunway(airport, runway) ?? navDb.GetRunway($"K{airport}", runway);
+            RunwayInfo? runwayInfo = navDb.GetRunway(airport, runway) ?? navDb.GetRunway($"K{airport}", runway);
             if (runwayInfo is null)
             {
                 skipped++;

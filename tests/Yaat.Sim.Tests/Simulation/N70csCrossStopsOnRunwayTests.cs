@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -47,7 +49,7 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
     }
 
     private static bool Is28RHoldShort(AirportGroundLayout layout, int nodeId) =>
-        layout.Nodes.TryGetValue(nodeId, out var node)
+        layout.Nodes.TryGetValue(nodeId, out GroundNode? node)
         && node.Type == GroundNodeType.RunwayHoldShort
         && node.RunwayId is { } rwy
         && rwy.Contains("28R");
@@ -61,7 +63,7 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
@@ -70,7 +72,7 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
         // "TAXI J HS 28R" — J is the only cleared taxiway and it crosses 28R. The route must extend
         // through the crossing to the far-side 28R hold-short bar so a later CROSS leaves the aircraft
         // just clear, rather than truncating one segment past the near bar onto the runway.
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: JApproachNode,
             taxiwayNames: ["J"],
@@ -84,7 +86,7 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
         output.WriteLine($"Route: {route.ToSummary()} ({route.Segments.Count} segments)");
         for (int i = 0; i < route.Segments.Count; i++)
         {
-            var s = route.Segments[i];
+            TaxiRouteSegment s = route.Segments[i];
             output.WriteLine($"  [{i, 2}] {s.FromNodeId, 5} -> {s.ToNodeId, 5} ({s.TaxiwayName})");
         }
 
@@ -114,17 +116,17 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
         // descent-physics-sensitive — a full replay from t=0 puts it at a different exit under
         // current physics and the recorded command resolves a different route. Restore the
         // snapshot just before the TAXI, then replay the recorded command through CURRENT code.
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             return;
         }
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
 
-        var snapshot = archive.ReadSnapshotAt(2410);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(2410);
         if (snapshot is null)
         {
             return;
@@ -135,7 +137,7 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
         // Apply the recorded "TAXI >J HS 28R" (t=2417); stop before the recorded CROSS at t=2518 —
         // the test issues its own. Then tick physics only until N70CS settles holding short of 28R.
         engine.ReplayRange((int)snapshot.ElapsedSeconds, 2430, recording.Actions);
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac); // fixture drift, not a machine difference — the replay is deterministic once the layout loads
 
         bool holdingShort = false;
@@ -161,24 +163,24 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
 
         Assert.NotNull(ac);
         Assert.True(holdingShort, $"N70CS should hold short of 28R; phase={ac.Phases?.CurrentPhase?.GetType().Name ?? "null"}");
-        var holdShortPos = ac.Position;
+        LatLon holdShortPos = ac.Position;
         output.WriteLine($"holding short at ({holdShortPos.Lat:F6},{holdShortPos.Lon:F6})");
         if (ac.Ground.AssignedTaxiRoute is { } diagRoute)
         {
             output.WriteLine($"route: {diagRoute.ToSummary()}");
             for (int i = 0; i < diagRoute.Segments.Count; i++)
             {
-                var s = diagRoute.Segments[i];
+                TaxiRouteSegment s = diagRoute.Segments[i];
                 output.WriteLine($"  [{i, 2}] {s.FromNodeId, 5} -> {s.ToNodeId, 5} ({s.TaxiwayName})");
             }
 
-            foreach (var h in diagRoute.HoldShortPoints)
+            foreach (HoldShortPoint h in diagRoute.HoldShortPoints)
             {
                 output.WriteLine($"  HS node={h.NodeId} target={h.TargetName} reason={h.Reason} cleared={h.IsCleared}");
             }
         }
 
-        var crossResult = engine.SendCommand(Callsign, "CROSS");
+        CommandResult crossResult = engine.SendCommand(Callsign, "CROSS");
         Assert.True(crossResult.Success, $"CROSS failed: {crossResult.Message}");
 
         bool sawCrossing = false;

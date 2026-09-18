@@ -70,16 +70,16 @@ public class OakResHsAutoCrossTests(ITestOutputHelper output)
     /// </summary>
     private (SimulationEngine Engine, AircraftState Aircraft, AirportGroundLayout Layout)? SetUpHoldingShortOfTaxiwayC()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return null;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
 
-        var parking = FindParking(layout, "JSX1");
+        GroundNode? parking = FindParking(layout, "JSX1");
         Assert.NotNull(parking);
 
         var aircraft = new AircraftState
@@ -115,13 +115,13 @@ public class OakResHsAutoCrossTests(ITestOutputHelper output)
             AutoCrossRunway = true,
         };
 
-        var taxiResult = engine.SendCommand("JSX28R", "RWY 30 TAXI C B W HS C");
+        CommandResult taxiResult = engine.SendCommand("JSX28R", "RWY 30 TAXI C B W HS C");
         Assert.True(taxiResult.Success, $"RWY 30 TAXI C B W HS C failed: {taxiResult.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine($"Route: {route.ToSummary()} ({route.Segments.Count} segments)");
-        foreach (var h in route.HoldShortPoints)
+        foreach (HoldShortPoint h in route.HoldShortPoints)
         {
             output.WriteLine(
                 $"  HS node={h.NodeId} target={h.TargetName} reason={h.Reason} cleared={h.IsCleared} byAutoCross={h.ClearedByAutoCross}"
@@ -129,7 +129,7 @@ public class OakResHsAutoCrossTests(ITestOutputHelper output)
         }
 
         // Precondition: AutoCross pre-cleared both parallels, so nothing stops the aircraft at 28R.
-        var hs28R = HoldShortFor(route, "28R");
+        HoldShortPoint hs28R = HoldShortFor(route, "28R");
         Assert.True(hs28R.IsCleared, "AutoCross should have pre-cleared the 28R crossing");
         Assert.True(hs28R.ClearedByAutoCross);
         Assert.Contains(route.HoldShortPoints, h => h.TargetName is { } n && n.Contains("28L", StringComparison.OrdinalIgnoreCase));
@@ -148,21 +148,21 @@ public class OakResHsAutoCrossTests(ITestOutputHelper output)
     /// </summary>
     private void AssertStopsAtEntrySideOf28R(SimulationEngine engine, AircraftState aircraft, AirportGroundLayout layout)
     {
-        var route = aircraft.Ground.AssignedTaxiRoute!;
-        var hs28R = HoldShortFor(route, "28R");
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
+        HoldShortPoint hs28R = HoldShortFor(route, "28R");
         Assert.Equal(HoldShortReason.ExplicitHoldShort, hs28R.Reason);
         Assert.False(hs28R.IsCleared, "the controller-issued hold-short must revoke the AutoCross clearance");
         Assert.False(hs28R.ClearedByAutoCross);
 
         int entryNodeId = hs28R.NodeId;
-        var entryBar = layout.Nodes[entryNodeId];
+        GroundNode entryBar = layout.Nodes[entryNodeId];
         Assert.Equal(GroundNodeType.RunwayHoldShort, entryBar.Type);
         output.WriteLine($"28R entry bar = node {entryNodeId} at ({entryBar.Position.Lat:F6},{entryBar.Position.Lon:F6})");
 
         // Taxiway B runs north→south across 28R, so the route's far-side 28R bar sits at a strictly
         // lower latitude than the entry bar. Anything at or south of it means the aircraft was on the
         // runway. Resolve it from the route, not the airport at large — 28R has bars at many taxiways.
-        var barsOnRoute = Bars28ROnRoute(route, layout);
+        List<GroundNode> barsOnRoute = Bars28ROnRoute(route, layout);
         Assert.Equal(2, barsOnRoute.Count);
         Assert.Equal(entryNodeId, barsOnRoute[0].Id);
         double farSideLat = barsOnRoute[1].Position.Lat;
@@ -189,14 +189,14 @@ public class OakResHsAutoCrossTests(ITestOutputHelper output)
     [Fact]
     public void ResHs28R_WithAutoCrossOn_HoldsShortOnEntrySide()
     {
-        var setup = SetUpHoldingShortOfTaxiwayC();
+        (SimulationEngine Engine, AircraftState Aircraft, AirportGroundLayout Layout)? setup = SetUpHoldingShortOfTaxiwayC();
         if (setup is null)
         {
             return;
         }
-        var (engine, aircraft, layout) = setup.Value;
+        (SimulationEngine? engine, AircraftState? aircraft, AirportGroundLayout? layout) = setup.Value;
 
-        var result = engine.SendCommand("JSX28R", "RES HS 28R");
+        CommandResult result = engine.SendCommand("JSX28R", "RES HS 28R");
         Assert.True(result.Success, $"RES HS 28R failed: {result.Message}");
 
         AssertStopsAtEntrySideOf28R(engine, aircraft, layout);
@@ -205,17 +205,17 @@ public class OakResHsAutoCrossTests(ITestOutputHelper output)
     [Fact]
     public void ResThenStandaloneHs28R_WithAutoCrossOn_HoldsShortOnEntrySide()
     {
-        var setup = SetUpHoldingShortOfTaxiwayC();
+        (SimulationEngine Engine, AircraftState Aircraft, AirportGroundLayout Layout)? setup = SetUpHoldingShortOfTaxiwayC();
         if (setup is null)
         {
             return;
         }
-        var (engine, aircraft, layout) = setup.Value;
+        (SimulationEngine? engine, AircraftState? aircraft, AirportGroundLayout? layout) = setup.Value;
 
-        var resResult = engine.SendCommand("JSX28R", "RES");
+        CommandResult resResult = engine.SendCommand("JSX28R", "RES");
         Assert.True(resResult.Success, $"RES failed: {resResult.Message}");
 
-        var hsResult = engine.SendCommand("JSX28R", "HS 28R");
+        CommandResult hsResult = engine.SendCommand("JSX28R", "HS 28R");
         Assert.True(hsResult.Success, $"HS 28R failed: {hsResult.Message}");
 
         AssertStopsAtEntrySideOf28R(engine, aircraft, layout);
@@ -224,16 +224,16 @@ public class OakResHsAutoCrossTests(ITestOutputHelper output)
     [Fact]
     public void Hs28R_AfterTheAircraftIsAlreadyAcross_IsRejected()
     {
-        var setup = SetUpHoldingShortOfTaxiwayC();
+        (SimulationEngine Engine, AircraftState Aircraft, AirportGroundLayout Layout)? setup = SetUpHoldingShortOfTaxiwayC();
         if (setup is null)
         {
             return;
         }
-        var (engine, aircraft, layout) = setup.Value;
+        (SimulationEngine? engine, AircraftState? aircraft, AirportGroundLayout? layout) = setup.Value;
 
         // Resume without naming a hold-short: AutoCross carries the aircraft across 28R.
         Assert.True(engine.SendCommand("JSX28R", "RES").Success);
-        var route = aircraft.Ground.AssignedTaxiRoute!;
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
         int entry28R = HoldShortFor(route, "28R").NodeId;
         int exit28R = Bars28ROnRoute(route, layout)[1].Id;
 
@@ -245,7 +245,7 @@ public class OakResHsAutoCrossTests(ITestOutputHelper output)
             $"aircraft should taxi across 28R with AutoCross on; phase={aircraft.Phases?.CurrentPhase?.GetType().Name ?? "null"}"
         );
 
-        var result = engine.SendCommand("JSX28R", "HS 28R");
+        CommandResult result = engine.SendCommand("JSX28R", "HS 28R");
 
         Assert.False(result.Success, "HS 28R must be rejected once the aircraft is on or past the runway");
         Assert.Contains("28R", result.Message!);
@@ -256,10 +256,10 @@ public class OakResHsAutoCrossTests(ITestOutputHelper output)
     private static List<GroundNode> Bars28ROnRoute(TaxiRoute route, AirportGroundLayout layout)
     {
         var bars = new List<GroundNode>();
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             if (
-                layout.Nodes.TryGetValue(seg.ToNodeId, out var node)
+                layout.Nodes.TryGetValue(seg.ToNodeId, out GroundNode? node)
                 && node.Type == GroundNodeType.RunwayHoldShort
                 && (node.RunwayId?.Contains("28R") ?? false)
                 && !bars.Contains(node)

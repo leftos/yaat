@@ -15,7 +15,7 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_ThreePartToken_WithAltitude_DescendsViaByDefault()
     {
-        var (request, error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 230");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 230");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -32,7 +32,7 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_TwoPartToken_HasNullRunway()
     {
-        var (request, error) = SpawnParser.Parse("I H J TBARR.TBARR4 230");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I H J TBARR.TBARR4 230");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -45,7 +45,7 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_AltitudeOmitted_LeavesAltitudeNull()
     {
-        var (request, error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -57,21 +57,21 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_AltitudeShorthand_ExpandsToHundreds()
     {
-        var (request, _) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 110");
+        (SpawnRequest? request, string? _) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 110");
         Assert.Equal(11000, request!.StarAltitude!.Value);
     }
 
     [Fact]
     public void Parse_AltitudeFullFeet_KeptAsIs()
     {
-        var (request, _) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 11000");
+        (SpawnRequest? request, string? _) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 11000");
         Assert.Equal(11000, request!.StarAltitude!.Value);
     }
 
     [Fact]
     public void Parse_LvlKeyword_DisablesDescendVia()
     {
-        var (request, error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 110 LVL");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 110 LVL");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -82,7 +82,7 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_SpeedPrefix_SetsSpeedOverride()
     {
-        var (request, error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 110 SP250");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 110 SP250");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -93,7 +93,7 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_TrailingAirport_SetsDestination()
     {
-        var (request, error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 110 KOAK");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 110 KOAK");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -103,7 +103,7 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_AllTrailingArgs_AnyOrder_AllParsed()
     {
-        var (request, error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R SP250 110 LVL KOAK B738");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R SP250 110 LVL KOAK B738");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -118,7 +118,7 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_TypeOverride_NotMistakenForAirport()
     {
-        var (request, error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 110 B738");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 110 B738");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -129,7 +129,7 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_AirlineOverride_Parsed()
     {
-        var (request, error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 110 *UAL");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R 110 *UAL");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -139,7 +139,7 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_VfrArrival_Rejected()
     {
-        var (request, error) = SpawnParser.Parse("V H J TBARR.TBARR4.34R 230");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V H J TBARR.TBARR4.34R 230");
 
         Assert.NotNull(error);
         Assert.Null(request);
@@ -148,7 +148,7 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_EmptyStarComponent_Rejected()
     {
-        var (request, error) = SpawnParser.Parse("I H J TBARR. 230");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I H J TBARR. 230");
 
         Assert.NotNull(error);
         Assert.Null(request);
@@ -157,7 +157,7 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_TooManyDotParts_Rejected()
     {
-        var (request, error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R.EXTRA 230");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R.EXTRA 230");
 
         Assert.NotNull(error);
         Assert.Null(request);
@@ -166,7 +166,7 @@ public class SpawnParserOnStarTests
     [Fact]
     public void Parse_EntryFixAndStarUppercased()
     {
-        var (request, _) = SpawnParser.Parse("i h j tbarr.tbarr4.34r 230");
+        (SpawnRequest? request, string? _) = SpawnParser.Parse("i h j tbarr.tbarr4.34r 230");
 
         Assert.NotNull(request);
         Assert.Equal("TBARR", request!.StarEntryFix);

@@ -36,8 +36,8 @@ public class FlightPlanAndQueryArmTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = Student;
         scenario.StudentTcp = TrackResolver.FindTcpByCode(scenario, "2B")!;
         return engine;
@@ -54,9 +54,9 @@ public class FlightPlanAndQueryArmTests
         }
 
         var host = new AttendanceActionHost();
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
 
-        var outcome = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "AS 4U FP C172/G 050 OAK SFO"), host);
+        ActionOutcome outcome = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "AS 4U FP C172/G 050 OAK SFO"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal(new ActionTrace(RecordedCommandKind.FlightPlan, ActionScope.Callsign), outcome.Trace);
@@ -73,10 +73,10 @@ public class FlightPlanAndQueryArmTests
         Assert.Contains($"{AiTestFixture.Callsign} C172/G", outcome.Result.Message);
 
         // The amendment the state travels in is recorded before the command's text, both by the router's run.
-        var log = engine.Scenario!.ActionLog;
-        var amendment = Assert.IsType<RecordedAmendFlightPlan>(log[^2]);
+        List<RecordedAction> log = engine.Scenario!.ActionLog;
+        RecordedAmendFlightPlan amendment = Assert.IsType<RecordedAmendFlightPlan>(log[^2]);
         Assert.Equal("KSFO", amendment.Amendment.Destination);
-        var command = Assert.IsType<RecordedCommand>(log[^1]);
+        RecordedCommand command = Assert.IsType<RecordedCommand>(log[^1]);
         Assert.Equal("AS 4U FP C172/G 050 OAK SFO", command.Command);
         Assert.True(command.Accepted);
     }
@@ -89,16 +89,16 @@ public class FlightPlanAndQueryArmTests
             return;
         }
 
-        var duplicate = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "DA C172 050"));
+        ActionOutcome duplicate = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "DA C172 050"));
         Assert.False(duplicate.Result.Success);
         Assert.Equal("DUP NEW ID", duplicate.Result.Message);
         Assert.Equal("C172", engine.FindAircraft(AiTestFixture.Callsign)!.FlightPlan.AircraftType);
 
-        var invalid = engine.Actions.Issue(Fresh("FOO/BAR", "DA C172 050"));
+        ActionOutcome invalid = engine.Actions.Issue(Fresh("FOO/BAR", "DA C172 050"));
         Assert.False(invalid.Result.Success);
         Assert.Equal("INVALID CALLSIGN", invalid.Result.Message);
 
-        var unknown = engine.Actions.Issue(Fresh("N99999", "DA C172 050"));
+        ActionOutcome unknown = engine.Actions.Issue(Fresh("N99999", "DA C172 050"));
         Assert.False(unknown.Result.Success);
         Assert.Equal("Aircraft 'N99999' not found", unknown.Result.Message);
         Assert.Null(engine.FindAircraft("N99999"));
@@ -112,10 +112,10 @@ public class FlightPlanAndQueryArmTests
             return;
         }
 
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
-        var before = aircraft.FlightPlan.Destination;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        string before = aircraft.FlightPlan.Destination;
 
-        var outcome = engine.Actions.Apply(new RecordedCommand(0, AiTestFixture.Callsign, "AS 4U FP B738 100 SFO LAX", "CRC", ""));
+        ActionOutcome outcome = engine.Actions.Apply(new RecordedCommand(0, AiTestFixture.Callsign, "AS 4U FP B738 100 SFO LAX", "CRC", ""));
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal(before, aircraft.FlightPlan.Destination);
@@ -133,7 +133,7 @@ public class FlightPlanAndQueryArmTests
             return;
         }
 
-        var outcome = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "REMARKS /v/ student solo"));
+        ActionOutcome outcome = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "REMARKS /v/ student solo"));
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("Remarks updated", outcome.Result.Message);
@@ -150,17 +150,17 @@ public class FlightPlanAndQueryArmTests
         }
 
         var host = new AttendanceActionHost();
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         aircraft.Approach.Expected = "I28R";
 
-        var outcome = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "APT SFO"), host);
+        ActionOutcome outcome = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "APT SFO"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal(RecordedCommandKind.Compound, outcome.Trace.Kind);
         Assert.Equal("KSFO", aircraft.FlightPlan.Destination);
         Assert.Null(aircraft.Approach.Expected);
         Assert.Equal($"STRIP_{AiTestFixture.Callsign}", Assert.Single(engine.Strips.Items.Values).Id);
-        var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog, a => a is RecordedCommand));
+        RecordedCommand recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog, a => a is RecordedCommand));
         Assert.Equal("APT SFO", recorded.Command);
         Assert.DoesNotContain(engine.Scenario.ActionLog, a => a is RecordedAmendFlightPlan);
     }
@@ -175,12 +175,12 @@ public class FlightPlanAndQueryArmTests
 
         var host = new AttendanceActionHost();
 
-        var outcome = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "SHOWAT"), host);
+        ActionOutcome outcome = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "SHOWAT"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Null(outcome.Result.Message);
         Assert.Equal(new ActionTrace(RecordedCommandKind.ShowQueued, ActionScope.Aircraft), outcome.Trace);
-        var shown = Assert.Single(host.ShownQueues);
+        (string ConnectionId, string Callsign, List<string> Lines) shown = Assert.Single(host.ShownQueues);
         Assert.Equal(("conn-1", AiTestFixture.Callsign), (shown.ConnectionId, shown.Callsign));
         Assert.Equal(["No pending commands"], shown.Lines);
         Assert.Null(outcome.ToRecord);
@@ -196,12 +196,12 @@ public class FlightPlanAndQueryArmTests
         }
 
         var host = new AttendanceActionHost();
-        var placed = engine.Actions.Issue(Fresh("N77GH", "AS 4U GHOST N77GH 37.72 -122.22"), host);
+        ActionOutcome placed = engine.Actions.Issue(Fresh("N77GH", "AS 4U GHOST N77GH 37.72 -122.22"), host);
         Assert.True(placed.Result.Success, placed.Result.Message);
         Assert.Equal(["N77GH"], host.SpawnedCallsigns);
         Assert.True(engine.FindAircraft("N77GH")!.Ghost.IsUnsupported);
 
-        var dropped = engine.Actions.Issue(Fresh("N77GH", "AS 4U DROP"), host);
+        ActionOutcome dropped = engine.Actions.Issue(Fresh("N77GH", "AS 4U DROP"), host);
 
         Assert.True(dropped.Result.Success, dropped.Result.Message);
         Assert.Null(engine.FindAircraft("N77GH"));
@@ -229,7 +229,7 @@ public class FlightPlanAndQueryArmTests
             CallsignB = "UAL3",
         };
 
-        var outcome = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "AS 4U CAINH"));
+        ActionOutcome outcome = engine.Actions.Issue(Fresh(AiTestFixture.Callsign, "AS 4U CAINH"));
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.True(engine.FindAircraft(AiTestFixture.Callsign)!.Stars.IsCaInhibited);

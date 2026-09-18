@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -99,7 +101,7 @@ public class Sfo28rArrivalOccupancyTests(ITestOutputHelper output)
     /// </summary>
     private VacateTrace? Observe(string callsign, string runway, int restoreAt, int replayUntil, int endAt)
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return null;
@@ -118,11 +120,11 @@ public class Sfo28rArrivalOccupancyTests(ITestOutputHelper output)
             // default and is switched on for an investigation run.
             SimLogBuilder.CreateForTest(output).EnableCategory("RunwayExitPhase", LogLevel.Debug).InitializeSimLog();
 
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             var engine = new SimulationEngine(new TestAirportGroundData());
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(restoreAt);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(restoreAt);
             if (snapshot is null)
             {
                 return null;
@@ -130,7 +132,7 @@ public class Sfo28rArrivalOccupancyTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
 
             string tickJson = Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", $"{callsign.ToLowerInvariant()}-exit-ticks.json");
-            using var _ = TickRecorder.Attach(engine, tickJson, callsign);
+            using IDisposable _ = TickRecorder.Attach(engine, tickJson, callsign);
 
             var seconds = new List<Second>();
             int? landingSecond = null;
@@ -152,7 +154,7 @@ public class Sfo28rArrivalOccupancyTests(ITestOutputHelper output)
                     engine.TickOneSecond();
                 }
 
-                var ac = engine.FindAircraft(callsign);
+                AircraftState? ac = engine.FindAircraft(callsign);
                 if (ac?.Phases?.CurrentPhase is not { } phase)
                 {
                     if (ac is null)
@@ -165,7 +167,7 @@ public class Sfo28rArrivalOccupancyTests(ITestOutputHelper output)
 
                 string name = phase.GetType().Name;
                 var exitPhase = phase as RunwayExitPhase;
-                var holdShort = exitPhase?.TargetHoldShortNode;
+                GroundNode? holdShort = exitPhase?.TargetHoldShortNode;
                 double holdShortDistFt = holdShort is null ? double.NaN : GeoMath.DistanceNm(ac.Position, holdShort.Position) * GeoMath.FeetPerNm;
 
                 string nav = ac.Ground.LastNavDiag is { } d
@@ -265,7 +267,7 @@ public class Sfo28rArrivalOccupancyTests(ITestOutputHelper output)
         double meanGs = vacateSeconds.Count == 0 ? 0 : vacateSeconds.Average(s => s.Gs);
 
         output.WriteLine($"--- {trace.Callsign} vacate table (t, phase, ias, gs, targetSpeed, twy, holdShort) ---");
-        foreach (var s in trace.Seconds.Where(s => (s.T >= exitAt - 3) && (s.T <= clearAt + 2)))
+        foreach (Second? s in trace.Seconds.Where(s => (s.T >= exitAt - 3) && (s.T <= clearAt + 2)))
         {
             string hs = s.HoldShortNodeId is { } id ? $"hs={id} @{s.HoldShortDistFt:F0}ft" : "hs=(none)";
             output.WriteLine($"t={s.T} {s.Phase} ias={s.Ias:F1} gs={s.Gs:F1} tgt={s.TargetSpeed:F1} twy={s.Twy} {hs} {s.Nav}");
@@ -298,13 +300,13 @@ public class Sfo28rArrivalOccupancyTests(ITestOutputHelper output)
     [Fact]
     public void SKW3398_VacatesTAt28R_WithinTheExitLegAtTurnOffSpeed()
     {
-        var trace = Observe("SKW3398", "28R", restoreAt: 300, replayUntil: 410, endAt: 460);
+        VacateTrace? trace = Observe("SKW3398", "28R", restoreAt: 300, replayUntil: 410, endAt: 460);
         if (trace is null)
         {
             return;
         }
 
-        var stats = AssertVacatesWithinTheExitLeg(trace, ["T", "E"], SkwMaxVacateSeconds);
+        VacateStats stats = AssertVacatesWithinTheExitLeg(trace, ["T", "E"], SkwMaxVacateSeconds);
 
         Assert.True(
             stats.MeanGs >= SkwMinMeanGroundSpeedKts,
@@ -342,7 +344,7 @@ public class Sfo28rArrivalOccupancyTests(ITestOutputHelper output)
     [Fact]
     public void UAL2627_VacatesAt28L_WithinTheExitLeg()
     {
-        var trace = Observe("UAL2627", "28L", restoreAt: 640, replayUntil: 725, endAt: 820);
+        VacateTrace? trace = Observe("UAL2627", "28L", restoreAt: 640, replayUntil: 725, endAt: 820);
         if (trace is null)
         {
             return;

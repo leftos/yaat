@@ -92,7 +92,7 @@ public sealed class BeaconCodePool
             return AssignSequential();
         }
 
-        var primary = isVfr ? _vfrBanks : _ifrBanks;
+        List<BeaconCodeBankConfig> primary = isVfr ? _vfrBanks : _ifrBanks;
         return AssignFromBanks(primary) ?? AssignFromBanks(_anyBanks) ?? AssignSequential();
     }
 
@@ -136,7 +136,7 @@ public sealed class BeaconCodePool
         _bankCursors.Clear();
         if (bankCursors is not null)
         {
-            foreach (var (key, cursor) in bankCursors)
+            foreach ((int key, uint cursor) in bankCursors)
             {
                 _bankCursors[key] = cursor;
             }
@@ -149,7 +149,7 @@ public sealed class BeaconCodePool
     {
         for (uint attempt = 0; attempt < 4096; attempt++)
         {
-            var code = _nextCandidate;
+            uint code = _nextCandidate;
             _nextCandidate = NextOctalCode(_nextCandidate);
 
             if (!IsAssignableCode(code) || _assigned.Contains(code))
@@ -166,22 +166,22 @@ public sealed class BeaconCodePool
 
     private uint? AssignFromBanks(List<BeaconCodeBankConfig> banks)
     {
-        for (var i = 0; i < banks.Count; i++)
+        for (int i = 0; i < banks.Count; i++)
         {
-            var bank = banks[i];
-            var start = (uint)bank.Start;
-            var end = (uint)bank.End;
+            BeaconCodeBankConfig bank = banks[i];
+            uint start = (uint)bank.Start;
+            uint end = (uint)bank.End;
 
-            if (!_bankCursors.TryGetValue(GetBankKey(bank), out var cursor))
+            if (!_bankCursors.TryGetValue(GetBankKey(bank), out uint cursor))
             {
                 cursor = start;
             }
 
             // Try every code in the bank before giving up.
-            var bankSize = CountOctalRange(start, end);
-            for (var attempt = 0; attempt < bankSize; attempt++)
+            int bankSize = CountOctalRange(start, end);
+            for (int attempt = 0; attempt < bankSize; attempt++)
             {
-                var code = cursor;
+                uint code = cursor;
                 cursor = NextOctalCodeInRange(cursor, start, end);
 
                 if (!IsAssignableCode(code) || _assigned.Contains(code))
@@ -210,8 +210,8 @@ public sealed class BeaconCodePool
     private static int CountOctalRange(uint start, uint end)
     {
         // Count how many valid octal codes exist from start to end inclusive.
-        var count = 0;
-        var code = start;
+        int count = 0;
+        uint code = start;
         while (true)
         {
             count++;
@@ -232,7 +232,7 @@ public sealed class BeaconCodePool
 
     private static uint NextOctalCodeInRange(uint code, uint start, uint end)
     {
-        var next = NextOctalCode(code);
+        uint next = NextOctalCode(code);
         if (next > end || next < start)
         {
             return start;
@@ -244,10 +244,10 @@ public sealed class BeaconCodePool
     private static uint NextOctalCode(uint code)
     {
         // Increment as if octal: each digit 0-7, 4 digits (0001-7777)
-        var d0 = code % 10;
-        var d1 = (code / 10) % 10;
-        var d2 = (code / 100) % 10;
-        var d3 = (code / 1000) % 10;
+        uint d0 = code % 10;
+        uint d1 = (code / 10) % 10;
+        uint d2 = (code / 100) % 10;
+        uint d3 = (code / 1000) % 10;
 
         d0++;
         if (d0 > 7)

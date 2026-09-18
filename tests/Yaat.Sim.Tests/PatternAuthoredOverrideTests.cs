@@ -19,8 +19,8 @@ public class PatternAuthoredOverrideTests
     [Fact]
     public void ResolveOverrides_NoCommandNoData_ReturnsNullPair()
     {
-        var rwy = TestRunwayFactory.Make(elevationFt: 9);
-        var (size, alt) = PatternGeometry.ResolveAuthoredOverrides(
+        RunwayInfo rwy = TestRunwayFactory.Make(elevationFt: 9);
+        (double? size, double? alt) = PatternGeometry.ResolveAuthoredOverrides(
             rwy,
             authoredRunway: null,
             AircraftCategory.Piston,
@@ -35,10 +35,10 @@ public class PatternAuthoredOverrideTests
     public void ResolveOverrides_AuthoredOnly_TranslatesAglToMsl()
     {
         // OAK 28L: 600ft AGL above field elev 9ft → 609ft MSL.
-        var rwy = TestRunwayFactory.Make(elevationFt: 9);
-        var authored = MakeAuthored(aglFt: 600, sizeNm: 0.5);
+        RunwayInfo rwy = TestRunwayFactory.Make(elevationFt: 9);
+        GroundRunway authored = MakeAuthored(aglFt: 600, sizeNm: 0.5);
 
-        var (size, alt) = PatternGeometry.ResolveAuthoredOverrides(
+        (double? size, double? alt) = PatternGeometry.ResolveAuthoredOverrides(
             rwy,
             authored,
             AircraftCategory.Piston,
@@ -53,10 +53,10 @@ public class PatternAuthoredOverrideTests
     [Fact]
     public void ResolveOverrides_CommandWinsOverAuthored()
     {
-        var rwy = TestRunwayFactory.Make(elevationFt: 9);
-        var authored = MakeAuthored(aglFt: 600, sizeNm: 0.5);
+        RunwayInfo rwy = TestRunwayFactory.Make(elevationFt: 9);
+        GroundRunway authored = MakeAuthored(aglFt: 600, sizeNm: 0.5);
 
-        var (size, alt) = PatternGeometry.ResolveAuthoredOverrides(
+        (double? size, double? alt) = PatternGeometry.ResolveAuthoredOverrides(
             rwy,
             authored,
             AircraftCategory.Piston,
@@ -71,11 +71,11 @@ public class PatternAuthoredOverrideTests
     [Fact]
     public void ResolveOverrides_CommandPartial_FillsRemainderFromAuthored()
     {
-        var rwy = TestRunwayFactory.Make(elevationFt: 9);
-        var authored = MakeAuthored(aglFt: 600, sizeNm: 0.5);
+        RunwayInfo rwy = TestRunwayFactory.Make(elevationFt: 9);
+        GroundRunway authored = MakeAuthored(aglFt: 600, sizeNm: 0.5);
 
         // command altitude only — size falls through to authored
-        var (size1, alt1) = PatternGeometry.ResolveAuthoredOverrides(
+        (double? size1, double? alt1) = PatternGeometry.ResolveAuthoredOverrides(
             rwy,
             authored,
             AircraftCategory.Piston,
@@ -86,7 +86,7 @@ public class PatternAuthoredOverrideTests
         Assert.Equal(1500, alt1);
 
         // command size only — altitude falls through to authored
-        var (size2, alt2) = PatternGeometry.ResolveAuthoredOverrides(
+        (double? size2, double? alt2) = PatternGeometry.ResolveAuthoredOverrides(
             rwy,
             authored,
             AircraftCategory.Piston,
@@ -102,17 +102,17 @@ public class PatternAuthoredOverrideTests
     {
         // Field elev 9ft. Piston default = 1000 AGL → 1009 MSL.
         // Authored 600 AGL → 609 MSL. Resolution should produce 609.
-        var rwy = TestRunwayFactory.Make(elevationFt: 9);
-        var authored = MakeAuthored(aglFt: 600, sizeNm: null);
+        RunwayInfo rwy = TestRunwayFactory.Make(elevationFt: 9);
+        GroundRunway authored = MakeAuthored(aglFt: 600, sizeNm: null);
 
-        var (_, alt) = PatternGeometry.ResolveAuthoredOverrides(
+        (double? _, double? alt) = PatternGeometry.ResolveAuthoredOverrides(
             rwy,
             authored,
             AircraftCategory.Piston,
             commandSizeNm: null,
             commandAltitudeMslFt: null
         );
-        var wp = PatternGeometry.Compute(
+        PatternWaypoints wp = PatternGeometry.Compute(
             rwy,
             AircraftCategory.Piston,
             "",

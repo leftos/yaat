@@ -19,12 +19,12 @@ public static partial class MacroExpander
     {
         error = null;
 
-        var current = commandText;
-        var everExpanded = false;
+        string current = commandText;
+        bool everExpanded = false;
 
-        for (var depth = 0; depth < MaxExpansionDepth; depth++)
+        for (int depth = 0; depth < MaxExpansionDepth; depth++)
         {
-            var result = ExpandOnce(current, macros, out error);
+            string? result = ExpandOnce(current, macros, out error);
             if (error is not null)
             {
                 return null;
@@ -52,22 +52,22 @@ public static partial class MacroExpander
         }
 
         var result = new StringBuilder(commandText.Length * 2);
-        var i = 0;
-        var expanded = false;
+        int i = 0;
+        bool expanded = false;
 
         while (i < commandText.Length)
         {
             if (commandText[i] == '!' && IsMacroBoundary(commandText, i))
             {
-                var nameStart = i + 1;
-                var nameEnd = nameStart;
+                int nameStart = i + 1;
+                int nameEnd = nameStart;
                 while (nameEnd < commandText.Length && !IsSeparator(commandText[nameEnd]))
                 {
                     nameEnd++;
                 }
 
-                var name = commandText[nameStart..nameEnd];
-                var macro = FindMacro(name, macros);
+                string name = commandText[nameStart..nameEnd];
+                MacroDefinition? macro = FindMacro(name, macros);
 
                 if (macro is null)
                 {
@@ -77,7 +77,7 @@ public static partial class MacroExpander
 
                 if (macro.HasExplicitParameters)
                 {
-                    var validationError = macro.Validate();
+                    string? validationError = macro.Validate();
                     if (validationError is not null)
                     {
                         error = $"Macro \"!{macro.BaseName}\": {validationError}";
@@ -85,11 +85,11 @@ public static partial class MacroExpander
                     }
                 }
 
-                var paramNames = macro.ParameterNames;
+                IReadOnlyList<string> paramNames = macro.ParameterNames;
                 var args = new List<string>(paramNames.Count);
-                var pos = nameEnd;
+                int pos = nameEnd;
 
-                for (var p = 0; p < paramNames.Count; p++)
+                for (int p = 0; p < paramNames.Count; p++)
                 {
                     while (pos < commandText.Length && commandText[pos] == ' ')
                     {
@@ -98,12 +98,12 @@ public static partial class MacroExpander
 
                     if (pos >= commandText.Length || commandText[pos] is ';' or ',')
                     {
-                        var hint = paramNames.Count > 0 ? $" ({string.Join(", ", paramNames.Select(n => $"&{n}"))})" : "";
+                        string hint = paramNames.Count > 0 ? $" ({string.Join(", ", paramNames.Select(n => $"&{n}"))})" : "";
                         error = $"Macro \"!{macro.BaseName}\" expects {paramNames.Count} parameter(s), got {p}{hint}";
                         return null;
                     }
 
-                    var argStart = pos;
+                    int argStart = pos;
                     while (pos < commandText.Length && commandText[pos] != ' ' && commandText[pos] != ';' && commandText[pos] != ',')
                     {
                         pos++;
@@ -112,7 +112,7 @@ public static partial class MacroExpander
                     args.Add(commandText[argStart..pos]);
                 }
 
-                var expansion = SubstituteParams(macro.Expansion, paramNames, args);
+                string expansion = SubstituteParams(macro.Expansion, paramNames, args);
                 result.Append(expansion);
                 i = pos;
                 expanded = true;
@@ -134,7 +134,7 @@ public static partial class MacroExpander
             return true;
         }
 
-        var prev = text[bangIndex - 1];
+        char prev = text[bangIndex - 1];
         return prev is ' ' or ';' or ',';
     }
 
@@ -145,7 +145,7 @@ public static partial class MacroExpander
 
     private static MacroDefinition? FindMacro(string name, IReadOnlyList<MacroDefinition> macros)
     {
-        for (var i = 0; i < macros.Count; i++)
+        for (int i = 0; i < macros.Count; i++)
         {
             if (string.Equals(macros[i].BaseName, name, StringComparison.OrdinalIgnoreCase))
             {
@@ -165,7 +165,7 @@ public static partial class MacroExpander
 
         // Build name→value lookup from positional args mapped to parameter names
         var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < paramNames.Count && i < args.Count; i++)
+        for (int i = 0; i < paramNames.Count && i < args.Count; i++)
         {
             lookup[paramNames[i]] = args[i];
         }
@@ -174,8 +174,8 @@ public static partial class MacroExpander
             expansion,
             match =>
             {
-                var token = match.Groups[1].Value;
-                return lookup.TryGetValue(token, out var value) ? value : match.Value;
+                string token = match.Groups[1].Value;
+                return lookup.TryGetValue(token, out string? value) ? value : match.Value;
             }
         );
     }

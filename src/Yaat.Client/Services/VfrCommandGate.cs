@@ -49,22 +49,22 @@ public static class VfrCommandGate
             return VfrGateResult.Pass;
         }
 
-        var text = canonicalCommand.TrimStart();
+        string text = canonicalCommand.TrimStart();
         if (text.StartsWith(ForcePrefix, StringComparison.Ordinal))
         {
             text = text[ForcePrefix.Length..];
         }
 
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         if (!parsed.IsSuccess || parsed.Value is null)
         {
             return VfrGateResult.Pass;
         }
 
         bool bypassed = false;
-        foreach (var block in parsed.Value.Blocks)
+        foreach (ParsedBlock block in parsed.Value.Blocks)
         {
-            foreach (var command in block.Commands)
+            foreach (ParsedCommand command in block.Commands)
             {
                 if (!VfrCommandPolicy.IsVfrOnly(command))
                 {
@@ -92,7 +92,7 @@ public static class VfrCommandGate
 
     private static string BuildRejection(AircraftModel target, ParsedCommand command)
     {
-        var verb = CommandDescriber.DescribeCommand(command);
+        string verb = CommandDescriber.DescribeCommand(command);
         return $"{verb} requires a VFR aircraft — use CIFR on {target.Callsign} first, "
             + "or change Settings > Scenarios > VFR commands for IFR aircraft.";
     }

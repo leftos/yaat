@@ -1,6 +1,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.MilitaryRoutes;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim;
 
@@ -25,7 +26,7 @@ public static class ProgrammedFixResolver
 
         string? resolvedRunway = destinationRunway;
 
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
 
         if (!string.IsNullOrEmpty(expectedApproach))
         {
@@ -33,10 +34,10 @@ public static class ProgrammedFixResolver
             if (!string.IsNullOrEmpty(airport))
             {
                 string resolvedId = navDb.ResolveApproachId(airport, expectedApproach) ?? expectedApproach;
-                var procedure = navDb.GetApproach(airport, resolvedId);
+                CifpApproachProcedure? procedure = navDb.GetApproach(airport, resolvedId);
                 if (procedure is not null)
                 {
-                    foreach (var name in ApproachCommandHandler.GetApproachFixNames(procedure))
+                    foreach (string name in ApproachCommandHandler.GetApproachFixNames(procedure))
                     {
                         fixes.Add(name);
                     }
@@ -52,7 +53,7 @@ public static class ProgrammedFixResolver
 
         if (activeApproachFixNames is not null)
         {
-            foreach (var name in activeApproachFixNames)
+            foreach (string name in activeApproachFixNames)
             {
                 fixes.Add(name);
             }
@@ -64,10 +65,10 @@ public static class ProgrammedFixResolver
             string airport = !string.IsNullOrEmpty(destination) ? destination : (departure ?? "");
             if (!string.IsNullOrEmpty(airport))
             {
-                var rwFixes = navDb.GetStarRunwayTransitions(airport, activeStarId, resolvedRunway);
+                IReadOnlyList<string>? rwFixes = navDb.GetStarRunwayTransitions(airport, activeStarId, resolvedRunway);
                 if (rwFixes is not null)
                 {
-                    foreach (var name in rwFixes)
+                    foreach (string name in rwFixes)
                     {
                         fixes.Add(name);
                     }
@@ -85,12 +86,12 @@ public static class ProgrammedFixResolver
     /// </summary>
     private static void ExpandRouteInto(HashSet<string> fixes, string route)
     {
-        var navDb = NavigationDatabase.Instance;
-        var tokens = route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string[] tokens = route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         for (int i = 0; i < tokens.Length; i++)
         {
-            var token = tokens[i];
+            string token = tokens[i];
 
             // Skip numeric-only tokens (altitude/speed constraints)
             if (double.TryParse(token.Split('.')[0], out _))
@@ -106,7 +107,7 @@ public static class ProgrammedFixResolver
             {
                 string? entryAnchor = i > 0 ? tokens[i - 1].Split('.')[0] : null;
                 string? exitAnchor = i + 1 < tokens.Length ? tokens[i + 1].Split('.')[0] : null;
-                foreach (var name in MilitaryRouteExpander.Expand(token, entryAnchor, exitAnchor, navDb))
+                foreach (string name in MilitaryRouteExpander.Expand(token, entryAnchor, exitAnchor, navDb))
                 {
                     fixes.Add(name);
                 }
@@ -131,8 +132,8 @@ public static class ProgrammedFixResolver
                     string nextToken = tokens[i + 1];
                     int nextDot = nextToken.IndexOf('.');
                     string exitFix = nextDot >= 0 ? nextToken[..nextDot] : nextToken;
-                    var segment = navDb.ExpandAirwaySegment(airwayId, fixName, exitFix);
-                    foreach (var segFix in segment)
+                    IReadOnlyList<string> segment = navDb.ExpandAirwaySegment(airwayId, fixName, exitFix);
+                    foreach (string segFix in segment)
                     {
                         fixes.Add(segFix);
                     }
@@ -150,8 +151,8 @@ public static class ProgrammedFixResolver
                 string nextToken = tokens[i + 1];
                 int nextDot = nextToken.IndexOf('.');
                 string exitFix = nextDot >= 0 ? nextToken[..nextDot] : nextToken;
-                var segment = navDb.ExpandAirwaySegment(token, entryFix, exitFix);
-                foreach (var segFix in segment)
+                IReadOnlyList<string> segment = navDb.ExpandAirwaySegment(token, entryFix, exitFix);
+                foreach (string segFix in segment)
                 {
                     fixes.Add(segFix);
                 }

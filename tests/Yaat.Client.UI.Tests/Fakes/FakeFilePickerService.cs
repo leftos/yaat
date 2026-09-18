@@ -50,7 +50,7 @@ internal sealed class FakeFilePickerService : IFilePickerService
             return default;
         }
 
-        var next = _responses.Dequeue();
+        object? next = _responses.Dequeue();
         return next is T typed ? typed : default;
     }
 }

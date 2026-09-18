@@ -14,7 +14,7 @@ public sealed class ConflictAlertInAiJurisdictionRule : IDecisionRule
     {
         var mine = new HashSet<string>(scope.Jurisdiction.Select(ac => ac.Callsign), StringComparer.Ordinal);
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var conflict in scope.Tick.ActiveConflicts.OrderBy(c => c.Id, StringComparer.Ordinal))
+        foreach (ActiveConflict? conflict in scope.Tick.ActiveConflicts.OrderBy(c => c.Id, StringComparer.Ordinal))
         {
             if (conflict.IsAcknowledged || (!mine.Contains(conflict.CallsignA) && !mine.Contains(conflict.CallsignB)))
             {

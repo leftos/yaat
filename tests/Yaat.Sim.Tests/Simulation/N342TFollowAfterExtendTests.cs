@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -57,7 +59,7 @@ public class N342TFollowAfterExtendTests(ITestOutputHelper output)
     [Fact]
     public void FollowAfterExtend_LeavesDownwind_AndKeepsFollowing()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -65,8 +67,8 @@ public class N342TFollowAfterExtendTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -79,7 +81,7 @@ public class N342TFollowAfterExtendTests(ITestOutputHelper output)
             // state to what the user actually saw via the snapshot stream.
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(3527);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(3527);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=3527 — skipping");
@@ -91,9 +93,9 @@ public class N342TFollowAfterExtendTests(ITestOutputHelper output)
 
             // Sanity: at the restored snapshot the follower is on extended Downwind
             // (the EXT at t=3429 set IsExtended; it has not been cleared since).
-            var preFollower = engine.FindAircraft(Follower);
+            AircraftState? preFollower = engine.FindAircraft(Follower);
             Assert.NotNull(preFollower);
-            var preCurrent = preFollower.Phases?.CurrentPhase;
+            Phase? preCurrent = preFollower.Phases?.CurrentPhase;
             Assert.IsType<DownwindPhase>(preCurrent);
             Assert.True(
                 ((DownwindPhase)preCurrent!).IsExtended,
@@ -111,9 +113,9 @@ public class N342TFollowAfterExtendTests(ITestOutputHelper output)
             {
                 engine.ReplayOneSecond();
                 int now = snapshotTime + dt;
-                var ac = engine.FindAircraft(Follower);
+                AircraftState? ac = engine.FindAircraft(Follower);
                 Assert.NotNull(ac);
-                var phase = ac.Phases?.CurrentPhase;
+                Phase? phase = ac.Phases?.CurrentPhase;
                 if (phase is not DownwindPhase)
                 {
                     leftDownwindAt = now;
@@ -127,7 +129,7 @@ public class N342TFollowAfterExtendTests(ITestOutputHelper output)
                 }
             }
 
-            var post = engine.FindAircraft(Follower);
+            AircraftState? post = engine.FindAircraft(Follower);
             Assert.NotNull(post);
 
             Assert.True(

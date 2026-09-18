@@ -23,9 +23,9 @@ public static class HalfStripEditCanonicalRewriter
 
     private static string RewriteUnit(string unit)
     {
-        var spaceIdx = unit.IndexOf(' ');
-        var verb = spaceIdx < 0 ? unit : unit[..spaceIdx];
-        foreach (var retired in RetiredVerbs)
+        int spaceIdx = unit.IndexOf(' ');
+        string verb = spaceIdx < 0 ? unit : unit[..spaceIdx];
+        foreach (string retired in RetiredVerbs)
         {
             if (verb.Equals(retired, StringComparison.OrdinalIgnoreCase))
             {

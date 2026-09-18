@@ -2,6 +2,7 @@ namespace Yaat.Sim.Tests.Simulation;
 
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -24,14 +25,14 @@ public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 
         return new SimulationEngine(groundData);
@@ -46,8 +47,8 @@ public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
     [Fact]
     public void WJA1508_NotSlowedByStationarySKW3398PastHoldShort()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -57,8 +58,8 @@ public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
         // stationary in "Holding After Exit" ~416 ft away.
         engine.Replay(recording, 430);
 
-        var wja = engine.FindAircraft("WJA1508");
-        var skw = engine.FindAircraft("SKW3398");
+        AircraftState? wja = engine.FindAircraft("WJA1508");
+        AircraftState? skw = engine.FindAircraft("SKW3398");
         Assert.NotNull(wja);
         Assert.NotNull(skw);
         Assert.Equal("Holding After Exit", skw.Phases?.CurrentPhase?.Name);
@@ -109,8 +110,8 @@ public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
     [Fact]
     public void WJA1508_TakesStandardExitWithDefaultSelection()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -122,7 +123,7 @@ public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
         for (int t = 1; t <= 200; t++)
         {
             engine.ReplayOneSecond();
-            var wja = engine.FindAircraft("WJA1508");
+            AircraftState? wja = engine.FindAircraft("WJA1508");
             if (wja is null)
             {
                 break;

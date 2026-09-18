@@ -31,7 +31,7 @@ public sealed class HtmlRenderCommand : ICommand
             htmlRenderer.HighlightNode(n);
         }
 
-        foreach (var (nid, text) in options.HtmlAnnotations)
+        foreach ((int nid, string? text) in options.HtmlAnnotations)
         {
             htmlRenderer.AnnotateNode(nid, text);
         }
@@ -46,7 +46,7 @@ public sealed class HtmlRenderCommand : ICommand
         // node ids as route overlays.
         if ((options.PathfinderNodeId is not null) && (options.PathfinderTaxiways.Count > 0))
         {
-            var pfRoute = TaxiPathfinder.ResolveExplicitPath(
+            TaxiRoute? pfRoute = TaxiPathfinder.ResolveExplicitPath(
                 analyzer.Layout,
                 options.PathfinderNodeId.Value,
                 options.PathfinderTaxiways,
@@ -62,7 +62,7 @@ public sealed class HtmlRenderCommand : ICommand
             if (pfRoute is not null)
             {
                 var routeNodeIds = new HashSet<int>();
-                foreach (var seg in pfRoute.Segments)
+                foreach (TaxiRouteSegment seg in pfRoute.Segments)
                 {
                     routeNodeIds.Add(seg.FromNodeId);
                     routeNodeIds.Add(seg.ToNodeId);
@@ -77,7 +77,7 @@ public sealed class HtmlRenderCommand : ICommand
 
         if (options.TicksJsonPath is not null)
         {
-            var recording = TickJsonReader.Read(options.TicksJsonPath);
+            TickRecording? recording = TickJsonReader.Read(options.TicksJsonPath);
             if (recording is null)
             {
                 Console.Error.WriteLine($"warning: --ticks {options.TicksJsonPath} is empty or unreadable; HTML will render without tick overlay");

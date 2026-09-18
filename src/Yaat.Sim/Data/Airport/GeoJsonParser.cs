@@ -47,8 +47,14 @@ public static class GeoJsonParser
     {
         string sanitized = SanitizeJson(geoJson);
         using var doc = JsonDocument.Parse(sanitized, LenientJsonOptions);
-        var features = doc.RootElement.GetProperty("features");
-        var classified = ClassifyFeatures(airportId, features.EnumerateArray());
+        JsonElement features = doc.RootElement.GetProperty("features");
+        (
+            List<ParkingFeature> Parkings,
+            List<ParkingFeature> Helipads,
+            List<SpotFeature> Spots,
+            List<TaxiwayFeature> Taxiways,
+            List<RunwayFeature> Runways
+        ) classified = ClassifyFeatures(airportId, features.EnumerateArray());
         return BuildLayout(
             airportId,
             classified.Parkings,
@@ -89,14 +95,20 @@ public static class GeoJsonParser
         {
             string sanitized = SanitizeJson(json);
             using var doc = JsonDocument.Parse(sanitized, LenientJsonOptions);
-            var features = doc.RootElement.GetProperty("features");
-            foreach (var f in features.EnumerateArray())
+            JsonElement features = doc.RootElement.GetProperty("features");
+            foreach (JsonElement f in features.EnumerateArray())
             {
                 allFeatures.Add(f.Clone());
             }
         }
 
-        var classified = ClassifyFeatures(airportId, allFeatures);
+        (
+            List<ParkingFeature> Parkings,
+            List<ParkingFeature> Helipads,
+            List<SpotFeature> Spots,
+            List<TaxiwayFeature> Taxiways,
+            List<RunwayFeature> Runways
+        ) classified = ClassifyFeatures(airportId, allFeatures);
         return BuildLayout(
             airportId,
             classified.Parkings,
@@ -124,11 +136,11 @@ public static class GeoJsonParser
         var runways = new List<RunwayFeature>();
 
         int skipped = 0;
-        foreach (var feature in features)
+        foreach (JsonElement feature in features)
         {
-            var props = feature.GetProperty("properties");
+            JsonElement props = feature.GetProperty("properties");
             string type = props.GetProperty("type").GetString() ?? "";
-            var geom = feature.GetProperty("geometry");
+            JsonElement geom = feature.GetProperty("geometry");
 
             try
             {
@@ -156,7 +168,7 @@ public static class GeoJsonParser
             }
             catch (InvalidOperationException ex)
             {
-                string name = props.TryGetProperty("name", out var n) ? n.GetString() ?? "?" : "?";
+                string name = props.TryGetProperty("name", out JsonElement n) ? n.GetString() ?? "?" : "?";
                 Log.LogWarning("Skipping malformed {Type} feature '{Name}' in {Airport}: {Message}", type, name, airportId, ex.Message);
                 skipped++;
             }
@@ -191,7 +203,7 @@ public static class GeoJsonParser
         var coordIndex = new CoordinateIndex(SnapToleranceDeg);
 
         // Step 1: Create spot nodes (named intersection / hold-short points)
-        foreach (var spot in spots)
+        foreach (SpotFeature spot in spots)
         {
             int id = nextNodeId++;
             var node = new GroundNode
@@ -209,9 +221,9 @@ public static class GeoJsonParser
         // Step 2: Process taxiway LineStrings — insert nodes at each vertex,
         // snap to existing nodes, detect intersections
         var taxiwaySegments = new List<ProcessedTaxiway>();
-        foreach (var tw in taxiways)
+        foreach (TaxiwayFeature tw in taxiways)
         {
-            var processed = TaxiwayGraphBuilder.ProcessTaxiway(tw, layout, coordIndex, ref nextNodeId);
+            ProcessedTaxiway processed = TaxiwayGraphBuilder.ProcessTaxiway(tw, layout, coordIndex, ref nextNodeId);
             taxiwaySegments.Add(processed);
         }
 
@@ -219,7 +231,7 @@ public static class GeoJsonParser
         TaxiwayGraphBuilder.DetectIntersections(taxiwaySegments, layout, coordIndex, ref nextNodeId);
 
         // Step 4: Build edges from processed taxiway vertex chains
-        foreach (var tw in taxiwaySegments)
+        foreach (ProcessedTaxiway tw in taxiwaySegments)
         {
             TaxiwayGraphBuilder.BuildEdgesFromTaxiway(tw, layout);
         }
@@ -230,7 +242,7 @@ public static class GeoJsonParser
         RemoveOverlappingEdges(layout);
 
         // Step 5: Process runway LineStrings, detect taxiway-runway crossings
-        foreach (var rwy in runways)
+        foreach (RunwayFeature rwy in runways)
         {
             double rwyWidthFt = RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, runwayAirportCode);
 
@@ -252,7 +264,7 @@ public static class GeoJsonParser
 
         // Step 6: Create parking nodes and connect to nearest taxiway
         var parkingNodes = new List<GroundNode>();
-        foreach (var pkg in parkings)
+        foreach (ParkingFeature pkg in parkings)
         {
             int id = nextNodeId++;
             var node = new GroundNode
@@ -271,7 +283,7 @@ public static class GeoJsonParser
         }
 
         // Step 6b: Create helipad nodes and connect to nearest taxiway (larger radius)
-        foreach (var hp in helipads)
+        foreach (ParkingFeature hp in helipads)
         {
             int id = nextNodeId++;
             var node = new GroundNode
@@ -319,14 +331,14 @@ public static class GeoJsonParser
 
     private static void ConnectGateGroupsToAnchors(IReadOnlyList<GroundNode> parkingNodes, AirportGroundLayout layout)
     {
-        foreach (var gate in parkingNodes)
+        foreach (GroundNode gate in parkingNodes)
         {
             if (!TryExtractGatePrefix(gate.Name, out string prefix))
             {
                 continue;
             }
 
-            var anchor = FindConnectedGateAnchor(prefix, gate, parkingNodes, layout);
+            GroundNode? anchor = FindConnectedGateAnchor(prefix, gate, parkingNodes, layout);
             if (anchor is null)
             {
                 continue;
@@ -391,7 +403,7 @@ public static class GeoJsonParser
         GroundNode? best = null;
         double bestDistanceNm = double.MaxValue;
 
-        foreach (var candidate in parkingNodes)
+        foreach (GroundNode candidate in parkingNodes)
         {
             if (!string.Equals(candidate.Name, prefix, StringComparison.OrdinalIgnoreCase))
             {
@@ -430,12 +442,12 @@ public static class GeoJsonParser
     {
         // Group edges by node pair (order-independent)
         var byNodePair = new Dictionary<(int, int), List<GroundEdge>>();
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             int a = Math.Min(edge.Nodes[0].Id, edge.Nodes[1].Id);
             int b = Math.Max(edge.Nodes[0].Id, edge.Nodes[1].Id);
-            var key = (a, b);
-            if (!byNodePair.TryGetValue(key, out var list))
+            (int a, int b) key = (a, b);
+            if (!byNodePair.TryGetValue(key, out List<GroundEdge>? list))
             {
                 list = [];
                 byNodePair[key] = list;
@@ -444,7 +456,7 @@ public static class GeoJsonParser
         }
 
         var toRemove = new HashSet<GroundEdge>();
-        foreach (var (pair, edges) in byNodePair)
+        foreach (((int, int) pair, List<GroundEdge>? edges) in byNodePair)
         {
             if (edges.Count < 2)
             {
@@ -456,8 +468,8 @@ public static class GeoJsonParser
             {
                 for (int j = i + 1; j < edges.Count; j++)
                 {
-                    var edgeA = edges[i];
-                    var edgeB = edges[j];
+                    GroundEdge edgeA = edges[i];
+                    GroundEdge edgeB = edges[j];
                     if (edgeA.TaxiwayName == edgeB.TaxiwayName)
                     {
                         continue;
@@ -499,7 +511,7 @@ public static class GeoJsonParser
     private static int CountOtherEdgesForTaxiway(AirportGroundLayout layout, int nodeId, string taxiwayName, (int, int) excludePair)
     {
         int count = 0;
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             if (edge.TaxiwayName != taxiwayName)
             {
@@ -522,7 +534,7 @@ public static class GeoJsonParser
 
     private static void ConnectToNearestTaxiway(GroundNode node, AirportGroundLayout layout, double maxDistNm)
     {
-        var target = FindNearestConnectorTarget(node, layout);
+        ConnectorTarget? target = FindNearestConnectorTarget(node, layout);
 
         if (target is null || target.Value.DistanceNm > maxDistNm)
         {
@@ -534,14 +546,14 @@ public static class GeoJsonParser
         // closest taxiway line (e.g. MIA's south D-gates onto the concourse alley rather than the
         // Euclidean-nearest node on taxiway N). Connecting to a real vertex keeps every geojson
         // node ID stable and never mints a coincident split node or a zero-distance RAMP edge.
-        var edge = target.Value.Edge;
-        var nearer = target.Value.AlongNm <= edge.DistanceNm - target.Value.AlongNm ? edge.Nodes[0] : edge.Nodes[1];
-        var farther = ReferenceEquals(nearer, edge.Nodes[0]) ? edge.Nodes[1] : edge.Nodes[0];
+        GroundEdge edge = target.Value.Edge;
+        GroundNode nearer = target.Value.AlongNm <= edge.DistanceNm - target.Value.AlongNm ? edge.Nodes[0] : edge.Nodes[1];
+        GroundNode farther = ReferenceEquals(nearer, edge.Nodes[0]) ? edge.Nodes[1] : edge.Nodes[0];
 
         // The nearer vertex is normally the right attachment, but if it sits within a fillet no-op
         // of the parking node (gate essentially on the vertex) the connector would be zero-distance;
         // fall back to the far endpoint, which is non-degenerate on any real taxiway edge.
-        var endpoint = GeoMath.DistanceNm(node.Position, nearer.Position) < GeometricAdmissibility.NoOpEdgeThresholdNm ? farther : nearer;
+        GroundNode endpoint = GeoMath.DistanceNm(node.Position, nearer.Position) < GeometricAdmissibility.NoOpEdgeThresholdNm ? farther : nearer;
         double connectorNm = GeoMath.DistanceNm(node.Position, endpoint.Position);
         if (connectorNm < GeometricAdmissibility.NoOpEdgeThresholdNm)
         {
@@ -569,14 +581,14 @@ public static class GeoJsonParser
     private static ConnectorTarget? FindNearestConnectorTarget(GroundNode node, AirportGroundLayout layout)
     {
         ConnectorTarget? best = null;
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             if (!CanConnectToEdge(edge))
             {
                 continue;
             }
 
-            var (footLat, footLon, alongNm, _) = GeoMath.FootOfPerpendicular(
+            (double footLat, double footLon, double alongNm, bool _) = GeoMath.FootOfPerpendicular(
                 node.Position.Lat,
                 node.Position.Lon,
                 edge.Nodes[0].Position.Lat,
@@ -608,12 +620,12 @@ public static class GeoJsonParser
 
     private static ParkingFeature ParseParking(JsonElement props, JsonElement geom)
     {
-        var coords = geom.GetProperty("coordinates");
+        JsonElement coords = geom.GetProperty("coordinates");
         double lon = coords[0].GetDouble();
         double lat = coords[1].GetDouble();
         string name = props.GetProperty("name").GetString() ?? "";
         int heading = 0;
-        if (props.TryGetProperty("heading", out var h))
+        if (props.TryGetProperty("heading", out JsonElement h))
         {
             if (h.ValueKind == JsonValueKind.String)
             {
@@ -629,7 +641,7 @@ public static class GeoJsonParser
 
     private static SpotFeature ParseSpot(JsonElement props, JsonElement geom)
     {
-        var coords = geom.GetProperty("coordinates");
+        JsonElement coords = geom.GetProperty("coordinates");
         double lon = coords[0].GetDouble();
         double lat = coords[1].GetDouble();
         string name = props.GetProperty("name").GetString() ?? "";
@@ -639,9 +651,9 @@ public static class GeoJsonParser
     private static (string Name, List<(double Lat, double Lon)> Coords) ParseLineString(JsonElement props, JsonElement geom)
     {
         string name = props.GetProperty("name").GetString() ?? "";
-        var coordsArray = geom.GetProperty("coordinates");
+        JsonElement coordsArray = geom.GetProperty("coordinates");
         var coords = new List<(double Lat, double Lon)>();
-        foreach (var coord in coordsArray.EnumerateArray())
+        foreach (JsonElement coord in coordsArray.EnumerateArray())
         {
             double lon = coord[0].GetDouble();
             double lat = coord[1].GetDouble();
@@ -653,26 +665,26 @@ public static class GeoJsonParser
 
     private static TaxiwayFeature ParseTaxiway(JsonElement props, JsonElement geom)
     {
-        var (name, coords) = ParseLineString(props, geom);
+        (string? name, List<(double Lat, double Lon)>? coords) = ParseLineString(props, geom);
         return new TaxiwayFeature(name, coords);
     }
 
     private static RunwayFeature ParseRunway(JsonElement props, JsonElement geom)
     {
-        var (name, coords) = ParseLineString(props, geom);
+        (string? name, List<(double Lat, double Lon)>? coords) = ParseLineString(props, geom);
 
-        var turnoff = ParseTurnoff(name, props);
+        IReadOnlyDictionary<string, ExitSide> turnoff = ParseTurnoff(name, props);
 
         double? patternAltAgl = ReadOptionalDouble(props, "patternAltitude");
         double? patternSize = ReadOptionalDouble(props, "patternSize");
 
-        var noTurnoff = ParseNoTurnoff(name, props);
+        IReadOnlyDictionary<string, IReadOnlyList<string>> noTurnoff = ParseNoTurnoff(name, props);
 
         // Authoritative per-runway hold-short standoff (ft from centerline) from the vNAS map;
         // when absent RunwayCrossingDetector falls back to the width-based FAA Table 3-2 heuristic.
         double? holdShortDistance = ReadOptionalDouble(props, "holdShortDistance");
 
-        var thresholdDisplacement = ParseThresholdDisplacement(name, props);
+        IReadOnlyDictionary<string, double> thresholdDisplacement = ParseThresholdDisplacement(name, props);
 
         return new RunwayFeature(name, coords, turnoff, patternAltAgl, patternSize, noTurnoff, holdShortDistance, thresholdDisplacement);
     }
@@ -686,7 +698,7 @@ public static class GeoJsonParser
     private static IReadOnlyDictionary<string, double> ParseThresholdDisplacement(string runwayName, JsonElement props)
     {
         var empty = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        if (!props.TryGetProperty("threshold", out var t) || (t.ValueKind != JsonValueKind.String))
+        if (!props.TryGetProperty("threshold", out JsonElement t) || (t.ValueKind != JsonValueKind.String))
         {
             return empty;
         }
@@ -717,7 +729,7 @@ public static class GeoJsonParser
     private static IReadOnlyDictionary<string, ExitSide> ParseTurnoff(string runwayName, JsonElement props)
     {
         var empty = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
-        if (!props.TryGetProperty("turnoff", out var t) || (t.ValueKind != JsonValueKind.String))
+        if (!props.TryGetProperty("turnoff", out JsonElement t) || (t.ValueKind != JsonValueKind.String))
         {
             return empty;
         }
@@ -750,7 +762,7 @@ public static class GeoJsonParser
 
     private static double? ReadOptionalDouble(JsonElement props, string fieldName)
     {
-        if (!props.TryGetProperty(fieldName, out var v))
+        if (!props.TryGetProperty(fieldName, out JsonElement v))
         {
             return null;
         }
@@ -769,7 +781,7 @@ public static class GeoJsonParser
     private static IReadOnlyDictionary<string, IReadOnlyList<string>> ParseNoTurnoff(string runwayName, JsonElement props)
     {
         var empty = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
-        if (!props.TryGetProperty("noTurnoff", out var arr) || arr.ValueKind != JsonValueKind.Array)
+        if (!props.TryGetProperty("noTurnoff", out JsonElement arr) || arr.ValueKind != JsonValueKind.Array)
         {
             return empty;
         }
@@ -782,7 +794,7 @@ public static class GeoJsonParser
 
         var result = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         int idx = 0;
-        foreach (var subArr in arr.EnumerateArray())
+        foreach (JsonElement subArr in arr.EnumerateArray())
         {
             if ((idx >= ends.Length) || (subArr.ValueKind != JsonValueKind.Array))
             {
@@ -790,7 +802,7 @@ public static class GeoJsonParser
                 continue;
             }
             var names = new List<string>();
-            foreach (var item in subArr.EnumerateArray())
+            foreach (JsonElement item in subArr.EnumerateArray())
             {
                 if (item.ValueKind == JsonValueKind.String)
                 {

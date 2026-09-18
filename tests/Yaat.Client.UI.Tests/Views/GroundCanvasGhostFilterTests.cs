@@ -102,7 +102,7 @@ public class GroundCanvasGhostFilterTests
         canvas.AirportElevation = 0;
         canvas.Aircraft = [ac];
 
-        var (sx, sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        (float sx, float sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
         return ReferenceEquals(canvas.FindAircraftAtPoint(new Point(sx, sy)), ac);
     }
 }

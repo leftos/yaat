@@ -59,7 +59,7 @@ public sealed class SaidConfigParseTests
     [Fact]
     public void Deserialize_NestedVendorShape_PopulatesSaabConfiguration()
     {
-        var said = Oak(Load(SaidFacilityJson)).SaidConfiguration!;
+        SaidConfig said = Oak(Load(SaidFacilityJson)).SaidConfiguration!;
 
         Assert.Equal(SaidVendor.Saab, said.Vendor);
         Assert.NotNull(said.SaabConfiguration);
@@ -70,7 +70,7 @@ public sealed class SaidConfigParseTests
         Assert.Equal(37.72, said.SaabConfiguration.TowerLocation!.Lat);
         Assert.Equal(-122.22, said.SaabConfiguration.TowerLocation.Lon);
 
-        var rule = Assert.Single(said.SaabConfiguration.FixRules);
+        AsdexFixRuleConfig rule = Assert.Single(said.SaabConfiguration.FixRules);
         Assert.Equal("SEGUL#", rule.SearchPattern);
         Assert.Equal("SEGUL", rule.FixId);
     }
@@ -78,7 +78,7 @@ public sealed class SaidConfigParseTests
     [Fact]
     public void GetAllSaidAirports_EmitsSaabAirport_WithDefaultRangeAndTowerCoords()
     {
-        var airport = Assert.Single(Load(SaidFacilityJson).GetAllSaidAirports());
+        SaidAirportInfo airport = Assert.Single(Load(SaidFacilityJson).GetAllSaidAirports());
 
         Assert.Equal("OAK", airport.AirportId);
         Assert.Equal(37.72, airport.Lat);
@@ -90,14 +90,14 @@ public sealed class SaidConfigParseTests
     [Fact]
     public void GetAllSaidAirports_NonSaabVendor_EmitsNothing()
     {
-        var json = SaidFacilityJson.Replace("\"vendor\": \"Saab\"", "\"vendor\": \"UAvionix\"", StringComparison.Ordinal);
+        string json = SaidFacilityJson.Replace("\"vendor\": \"Saab\"", "\"vendor\": \"UAvionix\"", StringComparison.Ordinal);
         Assert.Empty(Load(json).GetAllSaidAirports());
     }
 
     [Fact]
     public void FacilityWithoutSaidConfiguration_HasNullConfig()
     {
-        var json = SaidFacilityJson.Replace("\"saidConfiguration\"", "\"unusedConfiguration\"", StringComparison.Ordinal);
+        string json = SaidFacilityJson.Replace("\"saidConfiguration\"", "\"unusedConfiguration\"", StringComparison.Ordinal);
         Assert.Null(Oak(Load(json)).SaidConfiguration);
         Assert.Empty(Load(json).GetAllSaidAirports());
     }

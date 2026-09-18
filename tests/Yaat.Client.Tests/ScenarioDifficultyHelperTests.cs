@@ -96,7 +96,7 @@ public class ScenarioDifficultyHelperTests
     [Fact]
     public void GetAvailableDifficulties_AllPresent_ReturnsOrdered()
     {
-        var result = ScenarioDifficultyHelper.GetAvailableDifficulties(AllDifficulties);
+        List<string> result = ScenarioDifficultyHelper.GetAvailableDifficulties(AllDifficulties);
 
         Assert.Equal(["Easy", "Medium", "Hard"], result);
     }
@@ -104,7 +104,7 @@ public class ScenarioDifficultyHelperTests
     [Fact]
     public void GetAvailableDifficulties_EasyOnly_ReturnsSingle()
     {
-        var result = ScenarioDifficultyHelper.GetAvailableDifficulties(EasyOnly);
+        List<string> result = ScenarioDifficultyHelper.GetAvailableDifficulties(EasyOnly);
 
         Assert.Equal(["Easy"], result);
     }
@@ -112,7 +112,7 @@ public class ScenarioDifficultyHelperTests
     [Fact]
     public void GetAvailableDifficulties_NoDifficultyField_ReturnsEmpty()
     {
-        var result = ScenarioDifficultyHelper.GetAvailableDifficulties(NoDifficulty);
+        List<string> result = ScenarioDifficultyHelper.GetAvailableDifficulties(NoDifficulty);
 
         Assert.Empty(result);
     }
@@ -120,7 +120,7 @@ public class ScenarioDifficultyHelperTests
     [Fact]
     public void GetAvailableDifficulties_NoAircraftArray_ReturnsEmpty()
     {
-        var result = ScenarioDifficultyHelper.GetAvailableDifficulties(NoAircraft);
+        List<string> result = ScenarioDifficultyHelper.GetAvailableDifficulties(NoAircraft);
 
         Assert.Empty(result);
     }
@@ -132,8 +132,8 @@ public class ScenarioDifficultyHelperTests
     [Fact]
     public void GetCountsPerCeiling_AllDifficulties_ProgressiveCounts()
     {
-        var available = ScenarioDifficultyHelper.GetAvailableDifficulties(AllDifficulties);
-        var counts = ScenarioDifficultyHelper.GetCountsPerCeiling(AllDifficulties, available);
+        List<string> available = ScenarioDifficultyHelper.GetAvailableDifficulties(AllDifficulties);
+        Dictionary<string, int> counts = ScenarioDifficultyHelper.GetCountsPerCeiling(AllDifficulties, available);
 
         // Easy ceiling: 2 Easy + 0 null-difficulty = 2
         Assert.Equal(2, counts["Easy"]);
@@ -147,7 +147,7 @@ public class ScenarioDifficultyHelperTests
     public void GetCountsPerCeiling_NoAircraft_ReturnsZeros()
     {
         var available = new List<string> { "Easy", "Hard" };
-        var counts = ScenarioDifficultyHelper.GetCountsPerCeiling(NoAircraft, available);
+        Dictionary<string, int> counts = ScenarioDifficultyHelper.GetCountsPerCeiling(NoAircraft, available);
 
         Assert.Equal(0, counts["Easy"]);
         Assert.Equal(0, counts["Hard"]);
@@ -160,28 +160,28 @@ public class ScenarioDifficultyHelperTests
     [Fact]
     public void FilterByDifficulty_EasyCeiling_RemovesMediumAndHard()
     {
-        var (json, warnings) = ScenarioDifficultyHelper.FilterByDifficulty(AllDifficulties, "Easy");
+        (string? json, List<string>? warnings) = ScenarioDifficultyHelper.FilterByDifficulty(AllDifficulties, "Easy");
 
         Assert.Empty(warnings);
         // Re-parse to check aircraft count
-        var available = ScenarioDifficultyHelper.GetAvailableDifficulties(json);
+        List<string> available = ScenarioDifficultyHelper.GetAvailableDifficulties(json);
         Assert.Equal(["Easy"], available);
     }
 
     [Fact]
     public void FilterByDifficulty_HardCeiling_KeepsAll()
     {
-        var (json, warnings) = ScenarioDifficultyHelper.FilterByDifficulty(AllDifficulties, "Hard");
+        (string? json, List<string>? warnings) = ScenarioDifficultyHelper.FilterByDifficulty(AllDifficulties, "Hard");
 
         Assert.Empty(warnings);
-        var available = ScenarioDifficultyHelper.GetAvailableDifficulties(json);
+        List<string> available = ScenarioDifficultyHelper.GetAvailableDifficulties(json);
         Assert.Equal(["Easy", "Medium", "Hard"], available);
     }
 
     [Fact]
     public void FilterByDifficulty_NullDifficulty_AlwaysIncluded()
     {
-        var json = """
+        string json = """
             {
               "aircraft": [
                 { "callsign": "A1" },
@@ -190,7 +190,7 @@ public class ScenarioDifficultyHelperTests
             }
             """;
 
-        var (filtered, warnings) = ScenarioDifficultyHelper.FilterByDifficulty(json, "Easy");
+        (string? filtered, List<string>? warnings) = ScenarioDifficultyHelper.FilterByDifficulty(json, "Easy");
 
         Assert.Empty(warnings);
         // null-difficulty aircraft should be included (rank -1 ≤ any ceiling)
@@ -201,7 +201,7 @@ public class ScenarioDifficultyHelperTests
     [Fact]
     public void FilterByDifficulty_UnknownDifficulty_IncludedWithWarning()
     {
-        var json = """
+        string json = """
             {
               "aircraft": [
                 { "callsign": "A1", "difficulty": "Insane" }
@@ -209,7 +209,7 @@ public class ScenarioDifficultyHelperTests
             }
             """;
 
-        var (filtered, warnings) = ScenarioDifficultyHelper.FilterByDifficulty(json, "Easy");
+        (string? filtered, List<string>? warnings) = ScenarioDifficultyHelper.FilterByDifficulty(json, "Easy");
 
         Assert.Single(warnings);
         Assert.Contains("Insane", warnings[0]);
@@ -220,7 +220,7 @@ public class ScenarioDifficultyHelperTests
     [Fact]
     public void FilterByDifficulty_NoAircraftKey_ReturnsOriginal()
     {
-        var (json, warnings) = ScenarioDifficultyHelper.FilterByDifficulty(NoAircraft, "Easy");
+        (string? json, List<string>? warnings) = ScenarioDifficultyHelper.FilterByDifficulty(NoAircraft, "Easy");
 
         Assert.Empty(warnings);
         Assert.Contains("test", json);

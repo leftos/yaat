@@ -31,8 +31,8 @@ public class Issue187DepartureCapTests(ITestOutputHelper output)
 
     private void AssertHoldsInitialAltitude(string callsign, int expectedCapFt)
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -41,7 +41,7 @@ public class Issue187DepartureCapTests(ITestOutputHelper output)
 
         engine.Replay(recording, 92); // departures spawn at t=90; the CTO preset fires at spawn
 
-        var aircraft = engine.FindAircraft(callsign);
+        AircraftState? aircraft = engine.FindAircraft(callsign);
         Assert.NotNull(aircraft);
         output.WriteLine($"{callsign}: SidInitialAltitudeFt={aircraft.Procedure.SidInitialAltitudeFt}");
 

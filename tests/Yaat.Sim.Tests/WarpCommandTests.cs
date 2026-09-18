@@ -45,8 +45,8 @@ public class WarpCommandTests
     [Fact]
     public void Warp_PositionOnly_LeavesHeadingAltitudeSpeedUnset()
     {
-        using var _ = WithFix();
-        var cmd = Assert.IsType<WarpCommand>(CommandParser.Parse("WARP SUNOL").Value);
+        using IDisposable _ = WithFix();
+        WarpCommand cmd = Assert.IsType<WarpCommand>(CommandParser.Parse("WARP SUNOL").Value);
         Assert.Equal("SUNOL", cmd.PositionLabel);
         Assert.Equal(FixLat, cmd.Latitude);
         Assert.Equal(FixLon, cmd.Longitude);
@@ -58,8 +58,8 @@ public class WarpCommandTests
     [Fact]
     public void Warp_HeadingOnly_FillsHeadingAndLeavesOthersUnset()
     {
-        using var _ = WithFix();
-        var cmd = Assert.IsType<WarpCommand>(CommandParser.Parse("WARP SUNOL 270").Value);
+        using IDisposable _ = WithFix();
+        WarpCommand cmd = Assert.IsType<WarpCommand>(CommandParser.Parse("WARP SUNOL 270").Value);
         Assert.Equal(270, cmd.MagneticHeading?.Degrees);
         Assert.Null(cmd.Altitude);
         Assert.Null(cmd.Speed);
@@ -68,8 +68,8 @@ public class WarpCommandTests
     [Fact]
     public void Warp_FullFeetSecondArg_SkipsHeadingAndFillsAltitude()
     {
-        using var _ = WithFix();
-        var cmd = Assert.IsType<WarpCommand>(CommandParser.Parse("WARP SUNOL 5000").Value);
+        using IDisposable _ = WithFix();
+        WarpCommand cmd = Assert.IsType<WarpCommand>(CommandParser.Parse("WARP SUNOL 5000").Value);
         Assert.Null(cmd.MagneticHeading);
         Assert.Equal(5000, cmd.Altitude);
         Assert.Null(cmd.Speed);
@@ -78,8 +78,8 @@ public class WarpCommandTests
     [Fact]
     public void Warp_HeadingAndShorthandAltitude_LeavesSpeedUnset()
     {
-        using var _ = WithFix();
-        var cmd = Assert.IsType<WarpCommand>(CommandParser.Parse("WARP SUNOL 270 50").Value);
+        using IDisposable _ = WithFix();
+        WarpCommand cmd = Assert.IsType<WarpCommand>(CommandParser.Parse("WARP SUNOL 270 50").Value);
         Assert.Equal(270, cmd.MagneticHeading?.Degrees);
         Assert.Equal(5000, cmd.Altitude);
         Assert.Null(cmd.Speed);
@@ -88,8 +88,8 @@ public class WarpCommandTests
     [Fact]
     public void Warp_FullFeetThenSpeed_SkipsHeading()
     {
-        using var _ = WithFix();
-        var cmd = Assert.IsType<WarpCommand>(CommandParser.Parse("WARP SUNOL 5000 220").Value);
+        using IDisposable _ = WithFix();
+        WarpCommand cmd = Assert.IsType<WarpCommand>(CommandParser.Parse("WARP SUNOL 5000 220").Value);
         Assert.Null(cmd.MagneticHeading);
         Assert.Equal(5000, cmd.Altitude);
         Assert.Equal(220, cmd.Speed);
@@ -98,8 +98,8 @@ public class WarpCommandTests
     [Fact]
     public void Warp_AllFourArgs_SetsEverything()
     {
-        using var _ = WithFix();
-        var cmd = Assert.IsType<WarpCommand>(CommandParser.Parse("WARP SUNOL 270 5000 220").Value);
+        using IDisposable _ = WithFix();
+        WarpCommand cmd = Assert.IsType<WarpCommand>(CommandParser.Parse("WARP SUNOL 270 5000 220").Value);
         Assert.Equal(270, cmd.MagneticHeading?.Degrees);
         Assert.Equal(5000, cmd.Altitude);
         Assert.Equal(220, cmd.Speed);
@@ -110,24 +110,24 @@ public class WarpCommandTests
     [Fact]
     public void Warp_NoArg_Fails()
     {
-        using var _ = WithFix();
-        var result = CommandParser.Parse("WARP");
+        using IDisposable _ = WithFix();
+        ParseResult<ParsedCommand> result = CommandParser.Parse("WARP");
         Assert.False(result.IsSuccess);
     }
 
     [Fact]
     public void Warp_TooManyArgs_Fails()
     {
-        using var _ = WithFix();
-        var result = CommandParser.Parse("WARP SUNOL 270 5000 220 99");
+        using IDisposable _ = WithFix();
+        ParseResult<ParsedCommand> result = CommandParser.Parse("WARP SUNOL 270 5000 220 99");
         Assert.False(result.IsSuccess);
     }
 
     [Fact]
     public void Warp_GarbageToken_Fails()
     {
-        using var _ = WithFix();
-        var result = CommandParser.Parse("WARP SUNOL abc");
+        using IDisposable _ = WithFix();
+        ParseResult<ParsedCommand> result = CommandParser.Parse("WARP SUNOL abc");
         Assert.False(result.IsSuccess);
     }
 
@@ -136,8 +136,8 @@ public class WarpCommandTests
     {
         // -50: heading rejects (out of range); altitude rejects (resolver returns null for <=0); speed rejects (<=0).
         // Whole command should fail because no slot accepts the token.
-        using var _ = WithFix();
-        var result = CommandParser.Parse("WARP SUNOL -50");
+        using IDisposable _ = WithFix();
+        ParseResult<ParsedCommand> result = CommandParser.Parse("WARP SUNOL -50");
         Assert.False(result.IsSuccess);
     }
 
@@ -146,7 +146,7 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_DollarSpot_ParsesSpotName()
     {
-        var cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG $9").Value);
+        WarpGroundCommand cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG $9").Value);
         Assert.Equal("9", cmd.SpotName);
         Assert.Null(cmd.NodeId);
         Assert.Null(cmd.ParkingName);
@@ -157,14 +157,14 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_DollarSpot_Uppercases()
     {
-        var cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG $t9").Value);
+        WarpGroundCommand cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG $t9").Value);
         Assert.Equal("T9", cmd.SpotName);
     }
 
     [Fact]
     public void WarpGround_NodeRef_StillParses()
     {
-        var cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG #42").Value);
+        WarpGroundCommand cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG #42").Value);
         Assert.Equal(42, cmd.NodeId);
         Assert.Null(cmd.SpotName);
     }
@@ -172,7 +172,7 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_AtParking_StillParses()
     {
-        var cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG @B12").Value);
+        WarpGroundCommand cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG @B12").Value);
         Assert.Equal("B12", cmd.ParkingName);
         Assert.Null(cmd.SpotName);
     }
@@ -180,7 +180,7 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_TwoTaxiways_StillParses()
     {
-        var cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG C B").Value);
+        WarpGroundCommand cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG C B").Value);
         Assert.Equal("C", cmd.Taxiway1);
         Assert.Equal("B", cmd.Taxiway2);
         Assert.Null(cmd.SpotName);
@@ -189,7 +189,7 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_BareDollar_Fails()
     {
-        var result = CommandParser.Parse("WARPG $");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("WARPG $");
         Assert.False(result.IsSuccess);
     }
 
@@ -198,10 +198,10 @@ public class WarpCommandTests
     [Fact]
     public void ApplyWarpGround_SpotName_WarpsToSpotNode()
     {
-        var layout = BuildLayoutWithSpot();
-        var ac = MakeGroundAircraft(layout);
+        AirportGroundLayout layout = BuildLayoutWithSpot();
+        AircraftState ac = MakeGroundAircraft(layout);
 
-        var result = DispatchWarp(ac, new WarpGroundCommand("", "", SpotName: "9"), layout);
+        CommandResult result = DispatchWarp(ac, new WarpGroundCommand("", "", SpotName: "9"), layout);
 
         Assert.True(result.Success, $"Expected success, got: {result.Message}");
         Assert.Equal(layout.Nodes[2].Position.Lat, ac.Position.Lat, 6);
@@ -211,10 +211,10 @@ public class WarpCommandTests
     [Fact]
     public void ApplyWarpGround_UnknownSpot_ReturnsClearError()
     {
-        var layout = BuildLayoutWithSpot();
-        var ac = MakeGroundAircraft(layout);
+        AirportGroundLayout layout = BuildLayoutWithSpot();
+        AircraftState ac = MakeGroundAircraft(layout);
 
-        var result = DispatchWarp(ac, new WarpGroundCommand("", "", SpotName: "NOPE"), layout);
+        CommandResult result = DispatchWarp(ac, new WarpGroundCommand("", "", SpotName: "NOPE"), layout);
 
         Assert.False(result.Success);
         Assert.Contains("NOPE", result.Message);
@@ -225,7 +225,7 @@ public class WarpCommandTests
     [Fact]
     public void ApplyWarp_NullHeading_KeepsCurrentHeading()
     {
-        var ac = MakeAircraft(heading: 123, altitude: 4500, ias: 210);
+        AircraftState ac = MakeAircraft(heading: 123, altitude: 4500, ias: 210);
         var cmd = new WarpCommand("X", FixLat, FixLon, MagneticHeading: null, Altitude: 6000, Speed: 250);
         FlightCommandHandler.ApplyWarp(cmd, ac);
         Assert.Equal(123, ac.MagneticHeading.Degrees, 6);
@@ -236,7 +236,7 @@ public class WarpCommandTests
     [Fact]
     public void ApplyWarp_NullAltitude_KeepsCurrentAltitude()
     {
-        var ac = MakeAircraft(heading: 90, altitude: 4500, ias: 210);
+        AircraftState ac = MakeAircraft(heading: 90, altitude: 4500, ias: 210);
         var cmd = new WarpCommand("X", FixLat, FixLon, new MagneticHeading(270), Altitude: null, Speed: 250);
         FlightCommandHandler.ApplyWarp(cmd, ac);
         Assert.Equal(270, ac.MagneticHeading.Degrees, 6);
@@ -247,7 +247,7 @@ public class WarpCommandTests
     [Fact]
     public void ApplyWarp_NullSpeed_KeepsCurrentSpeed()
     {
-        var ac = MakeAircraft(heading: 90, altitude: 4500, ias: 210);
+        AircraftState ac = MakeAircraft(heading: 90, altitude: 4500, ias: 210);
         var cmd = new WarpCommand("X", FixLat, FixLon, new MagneticHeading(270), Altitude: 6000, Speed: null);
         FlightCommandHandler.ApplyWarp(cmd, ac);
         Assert.Equal(270, ac.MagneticHeading.Degrees, 6);
@@ -258,7 +258,7 @@ public class WarpCommandTests
     [Fact]
     public void ApplyWarp_AllNull_KeepsAllExceptPosition()
     {
-        var ac = MakeAircraft(heading: 90, altitude: 4500, ias: 210);
+        AircraftState ac = MakeAircraft(heading: 90, altitude: 4500, ias: 210);
         var cmd = new WarpCommand("X", FixLat, FixLon, MagneticHeading: null, Altitude: null, Speed: null);
         FlightCommandHandler.ApplyWarp(cmd, ac);
         Assert.Equal(FixLat, ac.Position.Lat);
@@ -271,7 +271,7 @@ public class WarpCommandTests
     [Fact]
     public void ApplyWarp_AllSet_AppliesAll()
     {
-        var ac = MakeAircraft(heading: 90, altitude: 4500, ias: 210);
+        AircraftState ac = MakeAircraft(heading: 90, altitude: 4500, ias: 210);
         var cmd = new WarpCommand("X", FixLat, FixLon, new MagneticHeading(180), Altitude: 8000, Speed: 250);
         FlightCommandHandler.ApplyWarp(cmd, ac);
         Assert.Equal(180, ac.MagneticHeading.Degrees, 6);
@@ -314,7 +314,7 @@ public class WarpCommandTests
 
     private static AirportGroundLayout BuildLayoutWithSpot()
     {
-        var layout = BuildSimpleLayout();
+        AirportGroundLayout layout = BuildSimpleLayout();
         var spot = new GroundNode
         {
             Id = 2,
@@ -344,7 +344,7 @@ public class WarpCommandTests
     /// <returns>The simple layout plus a named helipad with its own landing heading.</returns>
     private static AirportGroundLayout BuildLayoutWithHelipad()
     {
-        var layout = BuildSimpleLayout();
+        AirportGroundLayout layout = BuildSimpleLayout();
         var helipad = new GroundNode
         {
             Id = 2,
@@ -389,7 +389,7 @@ public class WarpCommandTests
     private static CommandResult DispatchWarp(AircraftState ac, ParsedCommand cmd, AirportGroundLayout? layout)
     {
         var compound = new CompoundCommand([new ParsedBlock(null, [cmd])]);
-        var ctx = TestDispatch.Context(new Random(42), validateDctFixes: false, groundLayout: layout);
+        DispatchContext ctx = TestDispatch.Context(new Random(42), validateDctFixes: false, groundLayout: layout);
         return CommandDispatcher.DispatchCompound(compound, ac, ctx);
     }
 
@@ -403,14 +403,14 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_SucceedsFromHoldingInPositionPhase()
     {
-        var layout = BuildSimpleLayout();
-        var ac = MakeGroundAircraft(layout);
+        AirportGroundLayout layout = BuildSimpleLayout();
+        AircraftState ac = MakeGroundAircraft(layout);
         ac.Phases = new PhaseList();
         ac.Phases.Add(new HoldingInPositionPhase());
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
         Assert.IsType<HoldingInPositionPhase>(ac.Phases.CurrentPhase);
 
-        var result = DispatchWarp(ac, new WarpGroundCommand("", "", NodeId: 1), layout);
+        CommandResult result = DispatchWarp(ac, new WarpGroundCommand("", "", NodeId: 1), layout);
 
         Assert.True(result.Success, $"Expected success, got: {result.Message}");
         Assert.Equal(layout.Nodes[1].Position.Lat, ac.Position.Lat, 6);
@@ -427,14 +427,14 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_SucceedsFromAtParkingPhase()
     {
-        var layout = BuildSimpleLayout();
-        var ac = MakeGroundAircraft(layout);
+        AirportGroundLayout layout = BuildSimpleLayout();
+        AircraftState ac = MakeGroundAircraft(layout);
         ac.Phases = new PhaseList();
         ac.Phases.Add(new AtParkingPhase());
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
         Assert.IsType<AtParkingPhase>(ac.Phases.CurrentPhase);
 
-        var result = DispatchWarp(ac, new WarpGroundCommand("", "", NodeId: 1), layout);
+        CommandResult result = DispatchWarp(ac, new WarpGroundCommand("", "", NodeId: 1), layout);
 
         Assert.True(result.Success, $"Expected success, got: {result.Message}");
         Assert.Equal(layout.Nodes[1].Position.Lat, ac.Position.Lat, 6);
@@ -451,7 +451,7 @@ public class WarpCommandTests
     [Fact]
     public void Warp_SucceedsFromAirbornePhaseThatDoesNotWhitelistWarp()
     {
-        var rwy = TestRunwayFactory.Make(designator: "28R", heading: 280, elevationFt: 100);
+        RunwayInfo rwy = TestRunwayFactory.Make(designator: "28R", heading: 280, elevationFt: 100);
         var ac = new AircraftState
         {
             Callsign = "JSX170",
@@ -471,7 +471,7 @@ public class WarpCommandTests
         Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
 
         var cmd = new WarpCommand("DEST", FixLat, FixLon, new MagneticHeading(180), Altitude: 8000, Speed: 250);
-        var result = DispatchWarp(ac, cmd, layout: null);
+        CommandResult result = DispatchWarp(ac, cmd, layout: null);
 
         Assert.True(result.Success, $"Expected success, got: {result.Message}");
         Assert.Equal(FixLat, ac.Position.Lat, 6);
@@ -517,7 +517,7 @@ public class WarpCommandTests
 
     private static CommandResult DispatchText(AircraftState ac, string text, AirportGroundLayout layout)
     {
-        var parsed = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
         Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
         return DispatchWarp(ac, parsed.Value!, layout);
     }
@@ -532,18 +532,18 @@ public class WarpCommandTests
     [InlineData("D2")]
     public void WarpGround_ToGate_LeavesAircraftAtParking(string gate)
     {
-        var layout = SfoLayout();
+        AirportGroundLayout? layout = SfoLayout();
         if (layout is null)
         {
             return;
         }
 
-        var node = layout.FindParkingByName(gate);
+        GroundNode? node = layout.FindParkingByName(gate);
         Assert.NotNull(node);
         Assert.NotNull(node.TrueHeading);
-        var ac = MakeSfoAircraft(layout);
+        AircraftState ac = MakeSfoAircraft(layout);
 
-        var result = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: gate), layout);
+        CommandResult result = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: gate), layout);
 
         Assert.True(result.Success, $"Expected success, got: {result.Message}");
         Assert.NotNull(ac.Phases);
@@ -555,17 +555,17 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_ToGate_ThenPushbackIsAccepted()
     {
-        var layout = SfoLayout();
+        AirportGroundLayout? layout = SfoLayout();
         if (layout is null)
         {
             return;
         }
 
-        var ac = MakeSfoAircraft(layout);
-        var warp = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "D3"), layout);
+        AircraftState ac = MakeSfoAircraft(layout);
+        CommandResult warp = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "D3"), layout);
         Assert.True(warp.Success, $"Expected WARPG success, got: {warp.Message}");
 
-        var push = DispatchText(ac, "PUSH $5A", layout);
+        CommandResult push = DispatchText(ac, "PUSH $5A", layout);
 
         Assert.True(push.Success, $"Expected PUSH success, got: {push.Message}");
     }
@@ -573,18 +573,18 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_ByNodeId_ToGate_LeavesAircraftAtParking()
     {
-        var layout = SfoLayout();
+        AirportGroundLayout? layout = SfoLayout();
         if (layout is null)
         {
             return;
         }
 
-        var node = layout.FindParkingByName("D3");
+        GroundNode? node = layout.FindParkingByName("D3");
         Assert.NotNull(node);
         Assert.NotNull(node.TrueHeading);
-        var ac = MakeSfoAircraft(layout);
+        AircraftState ac = MakeSfoAircraft(layout);
 
-        var result = DispatchWarp(ac, new WarpGroundCommand("", "", NodeId: node.Id), layout);
+        CommandResult result = DispatchWarp(ac, new WarpGroundCommand("", "", NodeId: node.Id), layout);
 
         Assert.True(result.Success, $"Expected success, got: {result.Message}");
         Assert.NotNull(ac.Phases);
@@ -600,15 +600,15 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_ToGate_SetsAutoDeleteExemptAndSuppressesCallup()
     {
-        var layout = SfoLayout();
+        AirportGroundLayout? layout = SfoLayout();
         if (layout is null)
         {
             return;
         }
 
-        var ac = MakeSfoAircraft(layout);
+        AircraftState ac = MakeSfoAircraft(layout);
 
-        var result = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "D3"), layout);
+        CommandResult result = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "D3"), layout);
 
         Assert.True(result.Success, $"Expected success, got: {result.Message}");
         Assert.True(ac.Ground.AutoDeleteExempt, "a warped-in aircraft must not auto-delete at the gate");
@@ -622,22 +622,22 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_ToSpot_StillHoldsInPosition()
     {
-        var layout = SfoLayout();
+        AirportGroundLayout? layout = SfoLayout();
         if (layout is null)
         {
             return;
         }
 
-        var ac = MakeSfoAircraft(layout);
+        AircraftState ac = MakeSfoAircraft(layout);
 
-        var result = DispatchWarp(ac, new WarpGroundCommand("", "", SpotName: "5A"), layout);
+        CommandResult result = DispatchWarp(ac, new WarpGroundCommand("", "", SpotName: "5A"), layout);
 
         Assert.True(result.Success, $"Expected success, got: {result.Message}");
         Assert.NotNull(ac.Phases);
         Assert.IsType<HoldingInPositionPhase>(ac.Phases.CurrentPhase);
         Assert.Null(ac.Ground.ParkingSpot);
 
-        var push = DispatchText(ac, "PUSH $5A", layout);
+        CommandResult push = DispatchText(ac, "PUSH $5A", layout);
 
         Assert.False(push.Success);
         Assert.Contains(PushbackRefusal, push.Message);
@@ -650,10 +650,10 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_ToHelipad_LeavesAircraftAtParking()
     {
-        var layout = BuildLayoutWithHelipad();
-        var ac = MakeGroundAircraft(layout);
+        AirportGroundLayout layout = BuildLayoutWithHelipad();
+        AircraftState ac = MakeGroundAircraft(layout);
 
-        var result = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "H1"), layout);
+        CommandResult result = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "H1"), layout);
 
         Assert.True(result.Success, $"Expected success, got: {result.Message}");
         Assert.NotNull(ac.Phases);
@@ -670,19 +670,19 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_FromGateToTaxiwayIntersection_ClearsParkingSpot()
     {
-        var layout = SfoLayout();
+        AirportGroundLayout? layout = SfoLayout();
         if (layout is null)
         {
             return;
         }
 
-        var ac = MakeSfoAircraft(layout);
-        var toGate = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "D3"), layout);
+        AircraftState ac = MakeSfoAircraft(layout);
+        CommandResult toGate = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "D3"), layout);
         Assert.True(toGate.Success, $"Expected success, got: {toGate.Message}");
         Assert.Equal("D3", ac.Ground.ParkingSpot);
 
         // Alpha crosses Echo on the real SFO layout.
-        var offGate = DispatchWarp(ac, new WarpGroundCommand("A", "E"), layout);
+        CommandResult offGate = DispatchWarp(ac, new WarpGroundCommand("A", "E"), layout);
 
         Assert.True(offGate.Success, $"Expected success, got: {offGate.Message}");
         Assert.Null(ac.Ground.ParkingSpot);
@@ -693,18 +693,18 @@ public class WarpCommandTests
     [Fact]
     public void WarpGround_AwayFromGate_ClearsParkingSpot()
     {
-        var layout = SfoLayout();
+        AirportGroundLayout? layout = SfoLayout();
         if (layout is null)
         {
             return;
         }
 
-        var ac = MakeSfoAircraft(layout);
-        var toGate = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "D3"), layout);
+        AircraftState ac = MakeSfoAircraft(layout);
+        CommandResult toGate = DispatchWarp(ac, new WarpGroundCommand("", "", ParkingName: "D3"), layout);
         Assert.True(toGate.Success, $"Expected success, got: {toGate.Message}");
         Assert.Equal("D3", ac.Ground.ParkingSpot);
 
-        var offGate = DispatchWarp(ac, new WarpGroundCommand("", "", SpotName: "5A"), layout);
+        CommandResult offGate = DispatchWarp(ac, new WarpGroundCommand("", "", SpotName: "5A"), layout);
 
         Assert.True(offGate.Success, $"Expected success, got: {offGate.Message}");
         Assert.Null(ac.Ground.ParkingSpot);

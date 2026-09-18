@@ -16,11 +16,11 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void CanInitiate_TowerStudent_AllowsPendingHandoff()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Track.Owner = OtherApproach;
         aircraft.Track.HandoffPeer = StudentTower;
 
-        var allowed = PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, Context(StudentTower, "TWR"));
+        bool allowed = PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, Context(StudentTower, "TWR"));
 
         Assert.True(allowed);
     }
@@ -28,15 +28,15 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void CanInitiate_ApproachStudent_RequiresAcceptedHandoff()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Track.Owner = TrackOwner.CreateStars("ZOA_CTR", "ZOA", 1, "C");
         aircraft.Track.HandoffPeer = StudentApproach;
 
-        var pendingAllowed = PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, Context(StudentApproach, "APP"));
+        bool pendingAllowed = PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, Context(StudentApproach, "APP"));
 
         aircraft.Track.Owner = StudentApproach;
         aircraft.Track.HandoffPeer = null;
-        var acceptedAllowed = PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, Context(StudentApproach, "APP"));
+        bool acceptedAllowed = PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, Context(StudentApproach, "APP"));
 
         Assert.False(pendingAllowed);
         Assert.True(acceptedAllowed);
@@ -45,10 +45,10 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void CanInitiate_TowerStudent_BlocksOtherOwnerWithoutHandoffOrSopException()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Track.Owner = OtherApproach;
 
-        var allowed = PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, Context(StudentTower, "TWR"));
+        bool allowed = PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, Context(StudentTower, "TWR"));
 
         Assert.False(allowed);
     }
@@ -56,7 +56,7 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void CanInitiate_TowerStudent_AllowsConfiguredApproachToTowerTransferWithoutTrackHandoff()
     {
-        var aircraft = MakeAircraft(destination: "KSFO");
+        AircraftState aircraft = MakeAircraft(destination: "KSFO");
         aircraft.Track.Owner = OtherApproach;
         var transfers = new InitialContactTransferCatalog([
             new InitialContactTransferRule
@@ -70,7 +70,7 @@ public sealed class PilotInitialContactEligibilityTests
             },
         ]);
 
-        var allowed = PilotInitialContactEligibility.CanInitiateWithStudent(
+        bool allowed = PilotInitialContactEligibility.CanInitiateWithStudent(
             aircraft,
             new InitialContactEligibilityContext(StudentTower, "TWR", "ZOA", "KSFO", transfers)
         );
@@ -81,7 +81,7 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void CanInitiate_CustomArtccRulesOverrideFallbackDefaults()
     {
-        var aircraft = MakeAircraft(destination: "KSFO");
+        AircraftState aircraft = MakeAircraft(destination: "KSFO");
         aircraft.Track.Owner = OtherApproach;
         aircraft.Track.HandoffPeer = StudentTower;
         var transfers = new InitialContactTransferCatalog([
@@ -95,7 +95,7 @@ public sealed class PilotInitialContactEligibilityTests
             },
         ]);
 
-        var allowed = PilotInitialContactEligibility.CanInitiateWithStudent(
+        bool allowed = PilotInitialContactEligibility.CanInitiateWithStudent(
             aircraft,
             new InitialContactEligibilityContext(StudentTower, "TWR", "ZOA", "KSFO", transfers)
         );
@@ -106,12 +106,12 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void CanInitiate_FallbackDefaultsApplyWhenArtccHasNoCustomRules()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Track.Owner = OtherApproach;
         aircraft.Track.HandoffPeer = StudentTower;
         var transfers = new InitialContactTransferCatalog([]);
 
-        var allowed = PilotInitialContactEligibility.CanInitiateWithStudent(
+        bool allowed = PilotInitialContactEligibility.CanInitiateWithStudent(
             aircraft,
             new InitialContactEligibilityContext(StudentTower, "TWR", "ZAB", "KSFO", transfers)
         );
@@ -122,12 +122,12 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void CanInitiate_FallbackDefaultsAllowCenterToTowerOnInitiatedHandoff()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Track.Owner = OtherCenter;
         aircraft.Track.HandoffPeer = StudentTower;
         var transfers = new InitialContactTransferCatalog([]);
 
-        var allowed = PilotInitialContactEligibility.CanInitiateWithStudent(
+        bool allowed = PilotInitialContactEligibility.CanInitiateWithStudent(
             aircraft,
             new InitialContactEligibilityContext(StudentTower, "TWR", "ZAB", "KSFO", transfers)
         );
@@ -138,7 +138,7 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void CanInitiate_CustomRulesRequireAcceptedCenterToApproachHandoff()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Track.Owner = OtherCenter;
         aircraft.Track.HandoffPeer = StudentApproach;
         var transfers = new InitialContactTransferCatalog([
@@ -152,14 +152,14 @@ public sealed class PilotInitialContactEligibilityTests
             },
         ]);
 
-        var pendingAllowed = PilotInitialContactEligibility.CanInitiateWithStudent(
+        bool pendingAllowed = PilotInitialContactEligibility.CanInitiateWithStudent(
             aircraft,
             new InitialContactEligibilityContext(StudentApproach, "APP", "ZOA", "KSFO", transfers)
         );
 
         aircraft.Track.Owner = StudentApproach;
         aircraft.Track.HandoffPeer = null;
-        var acceptedAllowed = PilotInitialContactEligibility.CanInitiateWithStudent(
+        bool acceptedAllowed = PilotInitialContactEligibility.CanInitiateWithStudent(
             aircraft,
             new InitialContactEligibilityContext(StudentApproach, "APP", "ZOA", "KSFO", transfers)
         );
@@ -171,7 +171,7 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void RegisterControllerContact_NoHandoff_WorkingCommand_EstablishesTwoWayComms()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Track.Owner = OtherApproach; // owned by approach, never handed off to the tower student
 
         PilotInitialContactEligibility.RegisterControllerContact(
@@ -187,7 +187,7 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void RegisterControllerContact_NoHandoff_DirectedReportRequest_EstablishesTwoWayComms()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Track.Owner = OtherApproach;
 
         PilotInitialContactEligibility.RegisterControllerContact(aircraft, TowerStudentScenario(), Compound(new SayAltitudeCommand()));
@@ -201,7 +201,7 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void RegisterControllerContact_NoHandoff_VerbatimSayBroadcast_DoesNotEstablishInitialContact()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Track.Owner = OtherApproach;
 
         PilotInitialContactEligibility.RegisterControllerContact(aircraft, TowerStudentScenario(), Compound(new SayCommand("traffic in sight")));
@@ -215,7 +215,7 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void RegisterControllerContact_NoHandoff_ShowQueued_DoesNotEstablishInitialContact()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Track.Owner = OtherApproach;
 
         PilotInitialContactEligibility.RegisterControllerContact(aircraft, TowerStudentScenario(), Compound(new ShowQueuedCommand()));
@@ -228,7 +228,7 @@ public sealed class PilotInitialContactEligibilityTests
     [Fact]
     public void RegisterControllerContact_PilotCanInitiate_LeavesCheckInToThePilot()
     {
-        var aircraft = MakeAircraft();
+        AircraftState aircraft = MakeAircraft();
         aircraft.Track.Owner = OtherApproach;
         aircraft.Track.HandoffPeer = StudentTower; // handoff inbound → the pilot will check in normally
 

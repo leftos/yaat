@@ -64,8 +64,8 @@ public class TugMovePlannerTests
             return;
         }
 
-        var sixA = Spot(layout, "6A");
-        var plan = PlanFromD15(layout, "6A");
+        GroundNode sixA = Spot(layout, "6A");
+        TugPlan plan = PlanFromD15(layout, "6A");
 
         AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push, PushbackLegKind.Pull);
         Assert.True(plan.Moves[2].Move.DwellBefore, "the pull onto 6A reverses the push before it, so it has to dwell first");
@@ -80,8 +80,8 @@ public class TugMovePlannerTests
             return;
         }
 
-        var sixB = Spot(layout, "6B");
-        var plan = PlanFromD15(layout, "6A", "6B");
+        GroundNode sixB = Spot(layout, "6B");
+        TugPlan plan = PlanFromD15(layout, "6A", "6B");
         LogSideTest(layout, Spot(layout, "6A"), sixB, plan.Moves[2].End);
 
         AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push, PushbackLegKind.Pull, PushbackLegKind.Push, PushbackLegKind.Pull);
@@ -98,7 +98,7 @@ public class TugMovePlannerTests
         }
 
         double straightFt = FeetBetween(Parking(layout, "D15").Position, Spot(layout, "6A").Position);
-        var plan = PlanFromD15(layout, "6A");
+        TugPlan plan = PlanFromD15(layout, "6A");
 
         double totalFt = plan.Moves.Sum(m => m.PathLengthFt);
         _output.WriteLine($"D15 → 6A: straight line {straightFt:F1} ft, flown {totalFt:F1} ft ({totalFt / straightFt:F2}×)");
@@ -118,7 +118,7 @@ public class TugMovePlannerTests
         }
 
         using var tap = new CapturingSimLogProvider(LogLevel.Debug, 1000);
-        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
         SimLog.InitializeForTest(factory);
 
         PlanFromD15(layout, "6A", "6B");
@@ -144,7 +144,7 @@ public class TugMovePlannerTests
             return;
         }
 
-        var plan = PlanFromD15(layout, targets);
+        TugPlan plan = PlanFromD15(layout, targets);
         var alpha = layout.AllEdges.Where(e => e.MatchesTaxiway("A")).ToList();
         Assert.NotEmpty(alpha);
         double halfLengthNm = (Assert.NotNull(FaaAircraftDatabase.Get(Narrowbody)?.LengthFt) / 2.0) / GeoMath.FeetPerNm;
@@ -152,14 +152,14 @@ public class TugMovePlannerTests
         double closestFt = double.PositiveInfinity;
         for (int m = 0; m < plan.Moves.Count; m++)
         {
-            foreach (var sample in plan.Moves[m].Samples)
+            foreach (TugPose sample in plan.Moves[m].Samples)
             {
-                var nose = GeoMath.ProjectPoint(sample.Position, new TrueHeading(sample.NoseTrueDeg), halfLengthNm);
-                var tail = GeoMath.ProjectPoint(sample.Position, new TrueHeading(sample.NoseTrueDeg + 180.0), halfLengthNm);
-                foreach (var edge in alpha)
+                LatLon nose = GeoMath.ProjectPoint(sample.Position, new TrueHeading(sample.NoseTrueDeg), halfLengthNm);
+                LatLon tail = GeoMath.ProjectPoint(sample.Position, new TrueHeading(sample.NoseTrueDeg + 180.0), halfLengthNm);
+                foreach (IGroundEdge? edge in alpha)
                 {
-                    var a = edge.Nodes[0].Position;
-                    var b = edge.Nodes[1].Position;
+                    LatLon a = edge.Nodes[0].Position;
+                    LatLon b = edge.Nodes[1].Position;
                     closestFt = Math.Min(closestFt, Math.Min(GeoMath.DistanceToSegmentFt(nose, a, b), GeoMath.DistanceToSegmentFt(tail, a, b)));
                     Assert.True(
                         GeoMath.SegmentsIntersect(nose, tail, a, b) is null,
@@ -181,9 +181,9 @@ public class TugMovePlannerTests
             return;
         }
 
-        var d16 = Parking(layout, "D16");
+        GroundNode d16 = Parking(layout, "D16");
         double standDeg = Assert.NotNull(d16.TrueHeading).Degrees;
-        var plan = PlanFromD15(layout, "6A", "@D16");
+        TugPlan plan = PlanFromD15(layout, "6A", "@D16");
 
         double endFt = FeetBetween(plan.End.Position, d16.Position);
         double endDeg = AbsDiffDeg(plan.End.NoseTrueDeg, standDeg);
@@ -204,7 +204,7 @@ public class TugMovePlannerTests
             return;
         }
 
-        var plan = PlanFromD15(layout, targets);
+        TugPlan plan = PlanFromD15(layout, targets);
 
         AssertNoLoop(plan);
     }
@@ -221,17 +221,17 @@ public class TugMovePlannerTests
             return;
         }
 
-        var stand = Parking(layout, "B12");
-        var exit = layout.FindExitByTaxiway(stand.Position, "Y") ?? throw new InvalidOperationException("no taxiway Y exit near B12");
-        var towardA1 = layout.FindExitByTaxiway(exit.Position, "A1") ?? throw new InvalidOperationException("no taxiway A1 exit near Y");
+        GroundNode stand = Parking(layout, "B12");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "Y") ?? throw new InvalidOperationException("no taxiway Y exit near B12");
+        GroundNode towardA1 = layout.FindExitByTaxiway(exit.Position, "A1") ?? throw new InvalidOperationException("no taxiway A1 exit near Y");
         double facingDeg = Assert.NotNull(layout.GetEdgeBearingForTaxiway(exit, "Y", GeoMath.BearingTo(exit.Position, towardA1.Position)));
         _output.WriteLine($"B12 heading {Assert.NotNull(stand.TrueHeading).Degrees:F1}°, facing along Y toward A1 {facingDeg:F1}°");
 
-        var plan = PlanOrFail(layout, StandStart(stand, TugGoal.TaxiwayLine(exit, "Y", facingDeg)));
+        TugPlan plan = PlanOrFail(layout, StandStart(stand, TugGoal.TaxiwayLine(exit, "Y", facingDeg)));
 
         AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push);
         Assert.Equal(TugMoveShape.Straight, plan.Moves[0].Move.Shape);
-        var line = plan.Moves[1];
+        TugMoveTrace line = plan.Moves[1];
         Assert.Equal(TugMoveShape.ViaLine, line.Move.Shape);
         Assert.Null(line.Move.StopAt);
         double crossFt = Assert.NotNull(line.EndCrossTrackFt);
@@ -248,19 +248,19 @@ public class TugMovePlannerTests
             return;
         }
 
-        var stand = Parking(layout, "D15");
+        GroundNode stand = Parking(layout, "D15");
         double facingDeg = Assert.NotNull(stand.TrueHeading).Degrees + 150.0;
         double radiusFt = TugKinematics.TurnRadiusFt(Narrowbody, tight: true);
 
-        var plan = PlanOrFail(layout, StandStart(stand, TugGoal.Facing(facingDeg)));
+        TugPlan plan = PlanOrFail(layout, StandStart(stand, TugGoal.Facing(facingDeg)));
 
-        var turn = Assert.Single(plan.Moves, m => m.Move.Shape == TugMoveShape.TurnTo);
+        TugMoveTrace turn = Assert.Single(plan.Moves, m => m.Move.Shape == TugMoveShape.TurnTo);
         Assert.Equal(PushbackLegKind.Push, turn.Move.Kind);
         Assert.True(turn.Move.Tight, "a facing change over 135° is flown on the tight radius");
         Assert.True(turn.Samples.Count >= 5, "too few samples to fit an arc");
 
-        var origin = turn.Samples[0].Position;
-        var centre = Circumcentre(
+        LatLon origin = turn.Samples[0].Position;
+        (double X, double Y) centre = Circumcentre(
             LocalFt(origin, turn.Samples[0].Position),
             LocalFt(origin, turn.Samples[turn.Samples.Count / 2].Position),
             LocalFt(origin, turn.Samples[^1].Position)
@@ -281,9 +281,9 @@ public class TugMovePlannerTests
             return;
         }
 
-        var plan = PlanOrFail(layout, StandStart(Parking(layout, "D15"), TugGoal.Clear()));
+        TugPlan plan = PlanOrFail(layout, StandStart(Parking(layout, "D15"), TugGoal.Clear()));
 
-        var move = Assert.Single(plan.Moves).Move;
+        TugMove move = Assert.Single(plan.Moves).Move;
         Assert.Equal(PushbackLegKind.Push, move.Kind);
         Assert.Equal(TugMoveShape.Straight, move.Shape);
         Assert.Equal(CategoryPerformance.SimplePushbackDistanceNm(Narrowbody) * GeoMath.FeetPerNm, move.StraightDistanceFt, 6);
@@ -301,20 +301,20 @@ public class TugMovePlannerTests
             return;
         }
 
-        var stand = Parking(layout, "D15");
+        GroundNode stand = Parking(layout, "D15");
         var standPose = new TugPose(stand.Position, Assert.NotNull(stand.TrueHeading).Degrees);
         double facingDeg = standPose.NoseTrueDeg + 90.0;
 
-        var clear = Assert.IsType<TugPlan>(TugMovePlanner.Plan(null, StandStart(stand, TugGoal.Clear()), out string clearRefusal));
-        var facing = Assert.IsType<TugPlan>(TugMovePlanner.Plan(null, StandStart(stand, TugGoal.Facing(facingDeg)), out string facingRefusal));
-        var withLayout = PlanOrFail(layout, StandStart(stand, TugGoal.Facing(facingDeg)));
+        TugPlan clear = Assert.IsType<TugPlan>(TugMovePlanner.Plan(null, StandStart(stand, TugGoal.Clear()), out string clearRefusal));
+        TugPlan facing = Assert.IsType<TugPlan>(TugMovePlanner.Plan(null, StandStart(stand, TugGoal.Facing(facingDeg)), out string facingRefusal));
+        TugPlan withLayout = PlanOrFail(layout, StandStart(stand, TugGoal.Facing(facingDeg)));
         _output.WriteLine(
             $"no layout: clear {clear.Moves.Count} move(s), facing {string.Join(", ", facing.Moves.Select(m => $"{m.Move.Kind} {m.Move.Shape}"))}"
         );
 
         Assert.Empty(clearRefusal);
         Assert.Empty(facingRefusal);
-        var straight = Assert.Single(clear.Moves).Move;
+        TugMove straight = Assert.Single(clear.Moves).Move;
         Assert.Equal(TugMoveShape.Straight, straight.Shape);
         Assert.Equal(CategoryPerformance.SimplePushbackDistanceNm(Narrowbody) * GeoMath.FeetPerNm, straight.StraightDistanceFt, 6);
         Assert.Equal(withLayout.Moves.Select(m => m.Move), facing.Moves.Select(m => m.Move));
@@ -331,8 +331,8 @@ public class TugMovePlannerTests
             return;
         }
 
-        var stand = Parking(layout, "B12");
-        var exit = layout.FindExitByTaxiway(stand.Position, "Y") ?? throw new InvalidOperationException("no taxiway Y exit near B12");
+        GroundNode stand = Parking(layout, "B12");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "Y") ?? throw new InvalidOperationException("no taxiway Y exit near B12");
         var start = new TugPose(stand.Position, Assert.NotNull(stand.TrueHeading).Degrees + 180.0);
 
         string refusal = Refusal(layout, OffStand(start, TugGoal.StraightBackTo(exit, "Y")));
@@ -349,7 +349,7 @@ public class TugMovePlannerTests
             return;
         }
 
-        var eighteen = Spot(layout, "18");
+        GroundNode eighteen = Spot(layout, "18");
         var goal = TugGoal.Spot(Spot(layout, "33"));
         var start = new TugPose(eighteen.Position, GeoMath.BearingTo(eighteen.Position, goal.Node!.Position));
 
@@ -389,8 +389,10 @@ public class TugMovePlannerTests
             return;
         }
 
-        var eighteen = Spot(layout, "18");
-        var hold = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort).MinBy(n => FeetBetween(n.Position, eighteen.Position));
+        GroundNode eighteen = Spot(layout, "18");
+        GroundNode? hold = layout
+            .Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort)
+            .MinBy(n => FeetBetween(n.Position, eighteen.Position));
         Assert.NotNull(hold);
         _output.WriteLine($"hold-short node {hold.Id} is {FeetBetween(hold.Position, eighteen.Position):F0} ft from spot 18");
         var goal = TugGoal.AtNode(hold, facingTrueDeg: null);
@@ -433,9 +435,9 @@ public class TugMovePlannerTests
         }
 
         using var tap = new CapturingSimLogProvider(LogLevel.Debug, 1000);
-        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
         SimLog.InitializeForTest(factory);
-        var request = StandStart(Parking(layout, "B24"), TugGoal.Stand(Parking(layout, "B21"))) with { FinalFacingTrueDeg = 180.0 };
+        TugRequest request = StandStart(Parking(layout, "B24"), TugGoal.Stand(Parking(layout, "B21"))) with { FinalFacingTrueDeg = 180.0 };
 
         string refusal = Refusal(layout, request);
 
@@ -483,7 +485,7 @@ public class TugMovePlannerTests
             return;
         }
 
-        var plan = PlanOrFail(layout, StandStart(Parking(layout, "B12"), TugGoal.Stand(Parking(layout, "B13"))));
+        TugPlan plan = PlanOrFail(layout, StandStart(Parking(layout, "B12"), TugGoal.Stand(Parking(layout, "B13"))));
 
         AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push, PushbackLegKind.Pull);
         Assert.Equal(TugMoveShape.Straight, plan.Moves[0].Move.Shape);
@@ -503,10 +505,10 @@ public class TugMovePlannerTests
             return;
         }
 
-        var stand = Parking(layout, "B12");
-        var exit = layout.FindExitByTaxiway(stand.Position, "A") ?? throw new InvalidOperationException("no taxiway A exit near B12");
+        GroundNode stand = Parking(layout, "B12");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "A") ?? throw new InvalidOperationException("no taxiway A exit near B12");
 
-        var plan = PlanOrFail(layout, StandStart(stand, "B752", TugGoal.StraightBackTo(exit, "A")));
+        TugPlan plan = PlanOrFail(layout, StandStart(stand, "B752", TugGoal.StraightBackTo(exit, "A")));
 
         AssertKinds(plan, PushbackLegKind.Push);
         AssertEndsOnTaxiway(layout, plan, "A");
@@ -524,8 +526,8 @@ public class TugMovePlannerTests
             return;
         }
 
-        var stand = Parking(layout, "B12");
-        var exit = layout.FindExitByTaxiway(stand.Position, "B") ?? throw new InvalidOperationException("no taxiway B exit near B12");
+        GroundNode stand = Parking(layout, "B12");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "B") ?? throw new InvalidOperationException("no taxiway B exit near B12");
 
         string refusal = Refusal(layout, StandStart(stand, TugGoal.StraightBackTo(exit, "B")));
 
@@ -547,17 +549,17 @@ public class TugMovePlannerTests
             return;
         }
 
-        var stand = Parking(layout, "B2");
-        var exit = layout.FindExitByTaxiway(stand.Position, "M4") ?? throw new InvalidOperationException("no taxiway M4 exit near B2");
-        var (edge, behindFt) = NearestAlongsideEdge(layout, stand, "M4");
+        GroundNode stand = Parking(layout, "B2");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "M4") ?? throw new InvalidOperationException("no taxiway M4 exit near B2");
+        (IGroundEdge? edge, double behindFt) = NearestAlongsideEdge(layout, stand, "M4");
 
-        var plan = PlanOrFail(layout, StandStart(stand, "B737", TugGoal.StraightBackTo(exit, "M4")));
+        TugPlan plan = PlanOrFail(layout, StandStart(stand, "B737", TugGoal.StraightBackTo(exit, "M4")));
 
         AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push);
         Assert.Equal(TugMoveShape.Straight, plan.Moves[0].Move.Shape);
         Assert.Equal(TugMoveShape.ViaLine, plan.Moves[1].Move.Shape);
-        var a = edge.Nodes[0].Position;
-        var b = edge.Nodes[1].Position;
+        LatLon a = edge.Nodes[0].Position;
+        LatLon b = edge.Nodes[1].Position;
         double lineDeg = GeoMath.BearingTo(a, b);
         double offEdgeFt = GeoMath.DistanceToSegmentFt(plan.End.Position, a, b);
         double noseOffLineDeg = OffLineDeg(plan.End.NoseTrueDeg, lineDeg);
@@ -583,8 +585,8 @@ public class TugMovePlannerTests
             return;
         }
 
-        var stand = Parking(layout, "B2");
-        var exit = layout.FindExitByTaxiway(stand.Position, "H") ?? throw new InvalidOperationException("no taxiway H exit near B2");
+        GroundNode stand = Parking(layout, "B2");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "H") ?? throw new InvalidOperationException("no taxiway H exit near B2");
         _output.WriteLine($"taxiway H exit node {exit.Id} is {FeetBetween(stand.Position, exit.Position):F0} ft from B2");
 
         string refusal = Refusal(layout, StandStart(stand, "B737", TugGoal.StraightBackTo(exit, "H")));
@@ -605,11 +607,11 @@ public class TugMovePlannerTests
             return;
         }
 
-        var stand = layout.FindParkingByName("25") ?? throw new InvalidOperationException("OAK layout carries no parking named 25");
-        var exit = layout.FindExitByTaxiway(stand.Position, "TE") ?? throw new InvalidOperationException("no taxiway TE exit near gate 25");
+        GroundNode stand = layout.FindParkingByName("25") ?? throw new InvalidOperationException("OAK layout carries no parking named 25");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "TE") ?? throw new InvalidOperationException("no taxiway TE exit near gate 25");
         _output.WriteLine($"gate 25 heading {Assert.NotNull(stand.TrueHeading).Degrees:F1}°, TE exit node {exit.Id}");
 
-        var plan = PlanOrFail(layout, StandStart(stand, "B737", TugGoal.StraightBackTo(exit, "TE")));
+        TugPlan plan = PlanOrFail(layout, StandStart(stand, "B737", TugGoal.StraightBackTo(exit, "TE")));
 
         AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push);
         Assert.Equal(TugMoveShape.Straight, plan.Moves[0].Move.Shape);
@@ -633,15 +635,15 @@ public class TugMovePlannerTests
             return;
         }
 
-        var stand = layout.FindParkingByName("32") ?? throw new InvalidOperationException("OAK layout carries no parking named 32");
-        var exit = layout.FindExitByTaxiway(stand.Position, "TE") ?? throw new InvalidOperationException("no taxiway TE exit near gate 32");
+        GroundNode stand = layout.FindParkingByName("32") ?? throw new InvalidOperationException("OAK layout carries no parking named 32");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "TE") ?? throw new InvalidOperationException("no taxiway TE exit near gate 32");
         _output.WriteLine($"gate 32 heading {Assert.NotNull(stand.TrueHeading).Degrees:F1}°, TE exit node {exit.Id}");
 
-        var plan = PlanOrFail(layout, StandStart(stand, Narrowbody, TugGoal.StraightBackTo(exit, "TE")));
+        TugPlan plan = PlanOrFail(layout, StandStart(stand, Narrowbody, TugGoal.StraightBackTo(exit, "TE")));
 
         AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push);
         AssertEndsInTheTaxiwayCorridor(layout, plan, "TE");
-        var (capturedEdge, behindFt) = NearestAlongsideEdge(layout, stand, "TE");
+        (IGroundEdge? capturedEdge, double behindFt) = NearestAlongsideEdge(layout, stand, "TE");
         double capturedLineDeg = GeoMath.BearingTo(capturedEdge.Nodes[0].Position, capturedEdge.Nodes[1].Position);
         double noseOffLineDeg = OffLineDeg(plan.End.NoseTrueDeg, capturedLineDeg);
         double pathFt = plan.Moves.Sum(m => m.PathLengthFt);
@@ -672,10 +674,10 @@ public class TugMovePlannerTests
             return;
         }
 
-        var spot = Spot(layout, spotName);
+        GroundNode spot = Spot(layout, spotName);
         _output.WriteLine($"{standName} → {spotName}, {aircraftType}");
 
-        var plan = PlanOrFail(layout, StandStart(Parking(layout, standName), aircraftType, TugGoal.Spot(spot)));
+        TugPlan plan = PlanOrFail(layout, StandStart(Parking(layout, standName), aircraftType, TugGoal.Spot(spot)));
 
         AssertNoLoop(plan);
         AssertEndsOnSpot(layout, plan, spot, aircraftType);
@@ -695,14 +697,14 @@ public class TugMovePlannerTests
             return;
         }
 
-        var sixA = Spot(layout, "6A");
-        var alpha = NearestMovementAreaNode(layout, "A", sixA.Position);
+        GroundNode sixA = Spot(layout, "6A");
+        GroundNode alpha = NearestMovementAreaNode(layout, "A", sixA.Position);
         _output.WriteLine(
             $"taxiway A node {alpha.Id} is {FeetBetween(alpha.Position, sixA.Position):F0} ft from spot 6A "
                 + $"and {FeetBetween(alpha.Position, Parking(layout, "D15").Position):F0} ft from D15"
         );
 
-        var plan = PlanOrFail(layout, StandStart(Parking(layout, "D15"), TugGoal.AtNode(alpha, facingTrueDeg: null), TugGoal.Spot(sixA)));
+        TugPlan plan = PlanOrFail(layout, StandStart(Parking(layout, "D15"), TugGoal.AtNode(alpha, facingTrueDeg: null), TugGoal.Spot(sixA)));
 
         int legOneEnd = plan
             .Moves.Select((m, i) => (Move: m, Index: i))
@@ -734,10 +736,10 @@ public class TugMovePlannerTests
             return;
         }
 
-        var alpha = NearestMovementAreaNode(layout, "A", Spot(layout, "6A").Position);
+        GroundNode alpha = NearestMovementAreaNode(layout, "A", Spot(layout, "6A").Position);
         double alongDeg = AlongTaxiwayDeg(layout, "A", alpha);
-        var downField = GeoMath.ProjectPoint(alpha.Position, new TrueHeading(alongDeg), AlongTaxiwayProbeFt / GeoMath.FeetPerNm);
-        var bravo = NearestMovementAreaNode(layout, "B", downField);
+        LatLon downField = GeoMath.ProjectPoint(alpha.Position, new TrueHeading(alongDeg), AlongTaxiwayProbeFt / GeoMath.FeetPerNm);
+        GroundNode bravo = NearestMovementAreaNode(layout, "B", downField);
         _output.WriteLine(
             $"taxiway A node {alpha.Id} runs on {alongDeg:F1}°; taxiway B node {bravo.Id} is {FeetBetween(alpha.Position, bravo.Position):F0} ft "
                 + $"away on {GeoMath.BearingTo(alpha.Position, bravo.Position):F1}°, so the leg runs down A at a shallow angle"
@@ -760,12 +762,12 @@ public class TugMovePlannerTests
     /// <summary>The direction the taxiway runs at one of its nodes, taken from the longest of its edges there.</summary>
     private static double AlongTaxiwayDeg(AirportGroundLayout layout, string taxiway, GroundNode node)
     {
-        var edge =
+        GroundEdge edge =
             MovementAreaEdges(layout, taxiway)
                 .Where(e => e.Nodes.Any(n => n.Id == node.Id))
                 .MaxBy(e => GeoMath.DistanceNm(e.Nodes[0].Position, e.Nodes[1].Position))
             ?? throw new InvalidOperationException($"node {node.Id} is on no movement-area taxiway {taxiway} edge");
-        var far = edge.Nodes[0].Id == node.Id ? edge.Nodes[1] : edge.Nodes[0];
+        GroundNode far = edge.Nodes[0].Id == node.Id ? edge.Nodes[1] : edge.Nodes[0];
         return GeoMath.BearingTo(node.Position, far.Position);
     }
 
@@ -782,7 +784,7 @@ public class TugMovePlannerTests
     /// <summary>A stand start off D15 through <paramref name="targets"/>: a spot name, or <c>@stand</c>.</summary>
     private TugPlan PlanFromD15(AirportGroundLayout layout, params string[] targets)
     {
-        var goals = targets.Select(t => t.StartsWith('@') ? TugGoal.Stand(Parking(layout, t[1..])) : TugGoal.Spot(Spot(layout, t))).ToArray();
+        TugGoal[] goals = targets.Select(t => t.StartsWith('@') ? TugGoal.Stand(Parking(layout, t[1..])) : TugGoal.Spot(Spot(layout, t))).ToArray();
         _output.WriteLine($"D15 → {string.Join(" → ", targets)}");
         return PlanOrFail(layout, StandStart(Parking(layout, "D15"), goals));
     }
@@ -815,7 +817,7 @@ public class TugMovePlannerTests
     private TugPlan PlanOrFail(AirportGroundLayout layout, TugRequest request)
     {
         var watch = Stopwatch.StartNew();
-        var plan = TugMovePlanner.Plan(layout, request, out string refusal);
+        TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
         double firstMs = watch.Elapsed.TotalMilliseconds;
         watch.Restart();
         TugMovePlanner.Plan(layout, request, out _);
@@ -828,7 +830,7 @@ public class TugMovePlannerTests
 
     private string Refusal(AirportGroundLayout layout, TugRequest request)
     {
-        var plan = TugMovePlanner.Plan(layout, request, out string refusal);
+        TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
         _output.WriteLine($"refusal: {refusal}");
         if (plan is not null)
         {
@@ -847,8 +849,8 @@ public class TugMovePlannerTests
         );
         for (int i = 0; i < plan.Moves.Count; i++)
         {
-            var trace = plan.Moves[i];
-            var move = trace.Move;
+            TugMoveTrace trace = plan.Moves[i];
+            TugMove move = trace.Move;
             string flags = $"{(move.DwellBefore ? " dwell" : "")}{(move.Tight ? " tight" : "")}{(move.Creep ? " creep" : "")}";
             _output.WriteLine(
                 $"move {i + 1}: {move.Kind} {move.Shape}{flags}, path {trace.PathLengthFt:F1} ft, max deviation {trace.MaxTravelDeviationDeg:F1}°, "
@@ -866,8 +868,8 @@ public class TugMovePlannerTests
     {
         Assert.True(layout.TryGetSpotOutboundHeading(first, out double firstDeg));
         Assert.True(layout.TryGetSpotOutboundHeading(second, out double secondDeg));
-        var firstStop = TugMovePlanner.SpotStopGeometry(first, firstDeg, Narrowbody).Stop;
-        var secondStop = TugMovePlanner.SpotStopGeometry(second, secondDeg, Narrowbody).Stop;
+        LatLon firstStop = TugMovePlanner.SpotStopGeometry(first, firstDeg, Narrowbody).Stop;
+        LatLon secondStop = TugMovePlanner.SpotStopGeometry(second, secondDeg, Narrowbody).Stop;
         double fromStopDeg = AbsDiffDeg(GeoMath.BearingTo(firstStop, secondStop), secondDeg);
         double fromEndDeg = AbsDiffDeg(GeoMath.BearingTo(firstGoalEnd.Position, secondStop), secondDeg);
         _output.WriteLine(
@@ -911,7 +913,7 @@ public class TugMovePlannerTests
         int runStart = 0;
         while (runStart < plan.Moves.Count)
         {
-            var kind = plan.Moves[runStart].Move.Kind;
+            PushbackLegKind kind = plan.Moves[runStart].Move.Kind;
             int runEnd = runStart;
             while ((runEnd + 1 < plan.Moves.Count) && (plan.Moves[runEnd + 1].Move.Kind == kind))
             {
@@ -936,7 +938,7 @@ public class TugMovePlannerTests
     private static (IGroundEdge Edge, double BehindFt) NearestAlongsideEdge(AirportGroundLayout layout, GroundNode stand, string taxiway)
     {
         double pushRad = (Assert.NotNull(stand.TrueHeading).Degrees + 180.0) * Math.PI / 180.0;
-        var candidates =
+        IEnumerable<(IGroundEdge edge, double behindFt)> candidates =
             from edge in layout.AllEdges
             where (edge is GroundEdge) && edge.MatchesTaxiway(taxiway)
             let a = LocalFt(stand.Position, edge.Nodes[0].Position)
@@ -969,7 +971,7 @@ public class TugMovePlannerTests
     /// <summary>The plan ends on the taxiway's nearest straight centreline edge with the nose along it, either way.</summary>
     private void AssertEndsOnTaxiwayLine(AirportGroundLayout layout, TugPlan plan, string taxiway)
     {
-        var nearest = layout
+        (GroundEdge Edge, double OffFt) nearest = layout
             .AllEdges.OfType<GroundEdge>()
             .Where(e => e.MatchesTaxiway(taxiway))
             .Select(e => (Edge: e, OffFt: GeoMath.DistanceToSegmentFt(plan.End.Position, e.Nodes[0].Position, e.Nodes[1].Position)))
@@ -1004,12 +1006,12 @@ public class TugMovePlannerTests
         var inCorridor = projections
             .Where(p => (p.AlongFt >= -ExtentSlackFt) && (p.AlongFt <= (p.LengthFt + ExtentSlackFt)) && (p.CrossFt <= CorridorFt))
             .ToList();
-        var nearest = projections[0];
+        EdgeProjection nearest = projections[0];
         _output.WriteLine(
             $"nearest taxiway {taxiway} edge {nearest.Edge}: ended {nearest.AlongFt:F1} ft along its {nearest.LengthFt:F1} ft, "
                 + $"{nearest.CrossFt:F2} ft off its {nearest.LineDeg:F1}° line; nose {plan.End.NoseTrueDeg:F1}°"
         );
-        foreach (var p in inCorridor)
+        foreach (EdgeProjection? p in inCorridor)
         {
             _output.WriteLine(
                 $"in the {CorridorFt:F0} ft corridor: edge {p.Edge} on {p.LineDeg:F1}°, {p.AlongFt:F1} ft along its "
@@ -1030,8 +1032,8 @@ public class TugMovePlannerTests
     /// </summary>
     private static EdgeProjection Project(LatLon point, GroundEdge edge)
     {
-        var a = LocalFt(point, edge.Nodes[0].Position);
-        var b = LocalFt(point, edge.Nodes[1].Position);
+        (double X, double Y) a = LocalFt(point, edge.Nodes[0].Position);
+        (double X, double Y) b = LocalFt(point, edge.Nodes[1].Position);
         double dx = b.X - a.X;
         double dy = b.Y - a.Y;
         double lengthFt = Math.Sqrt(Sq(dx) + Sq(dy));
@@ -1055,7 +1057,7 @@ public class TugMovePlannerTests
     private void AssertEndsOnSpot(AirportGroundLayout layout, TugPlan plan, GroundNode spot, string aircraftType)
     {
         Assert.True(layout.TryGetSpotOutboundHeading(spot, out double facingDeg), $"spot {spot.Name} has no nose-out heading");
-        var stop = TugMovePlanner.SpotStopGeometry(spot, facingDeg, aircraftType).Stop;
+        LatLon stop = TugMovePlanner.SpotStopGeometry(spot, facingDeg, aircraftType).Stop;
         double endFt = FeetBetween(plan.End.Position, stop);
         double endDeg = AbsDiffDeg(plan.End.NoseTrueDeg, facingDeg);
         _output.WriteLine($"spot {spot.Name} nose-out {facingDeg:F1}°: ended {endFt:F2} ft from the stop point, nose {endDeg:F2}° off");

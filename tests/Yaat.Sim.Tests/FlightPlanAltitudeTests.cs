@@ -15,7 +15,7 @@ public class FlightPlanAltitudeTests
     [Fact]
     public void Parse_Empty_ReturnsVfrNoAltitude()
     {
-        var result = FlightPlanAltitude.Parse("");
+        (string Rules, PlannedAltitude Altitude)? result = FlightPlanAltitude.Parse("");
         Assert.NotNull(result);
         Assert.Equal("VFR", result.Value.Rules);
         Assert.Equal(PlannedAltitude.Vfr(null), result.Value.Altitude);
@@ -24,7 +24,7 @@ public class FlightPlanAltitudeTests
     [Fact]
     public void Parse_Whitespace_ReturnsVfrNoAltitude()
     {
-        var result = FlightPlanAltitude.Parse("   ");
+        (string Rules, PlannedAltitude Altitude)? result = FlightPlanAltitude.Parse("   ");
         Assert.NotNull(result);
         Assert.Equal("VFR", result.Value.Rules);
         Assert.Equal(PlannedAltitude.Vfr(null), result.Value.Altitude);
@@ -33,7 +33,7 @@ public class FlightPlanAltitudeTests
     [Fact]
     public void Parse_BareNumber_ReturnsIfr()
     {
-        var result = FlightPlanAltitude.Parse("050");
+        (string Rules, PlannedAltitude Altitude)? result = FlightPlanAltitude.Parse("050");
         Assert.NotNull(result);
         Assert.Equal("IFR", result.Value.Rules);
         Assert.Equal(PlannedAltitude.Ifr(5000), result.Value.Altitude);
@@ -42,7 +42,7 @@ public class FlightPlanAltitudeTests
     [Fact]
     public void Parse_HighAltitude_ReturnsIfr()
     {
-        var result = FlightPlanAltitude.Parse("240");
+        (string Rules, PlannedAltitude Altitude)? result = FlightPlanAltitude.Parse("240");
         Assert.NotNull(result);
         Assert.Equal("IFR", result.Value.Rules);
         Assert.Equal(24000, result.Value.Altitude.CruiseFeet);
@@ -51,7 +51,7 @@ public class FlightPlanAltitudeTests
     [Fact]
     public void Parse_Vfr_ReturnsVfrNoAltitude()
     {
-        var result = FlightPlanAltitude.Parse("VFR");
+        (string Rules, PlannedAltitude Altitude)? result = FlightPlanAltitude.Parse("VFR");
         Assert.NotNull(result);
         Assert.Equal("VFR", result.Value.Rules);
         Assert.True(result.Value.Altitude.IsVfr);
@@ -61,7 +61,7 @@ public class FlightPlanAltitudeTests
     [Fact]
     public void Parse_Otp_ReturnsIfrRulesVfrOnTopNotation()
     {
-        var result = FlightPlanAltitude.Parse("OTP");
+        (string Rules, PlannedAltitude Altitude)? result = FlightPlanAltitude.Parse("OTP");
         Assert.NotNull(result);
         // VFR-on-top is an IFR flight (AIM 4-4-8); the "VFR" is only in the altitude notation.
         Assert.Equal("IFR", result.Value.Rules);
@@ -72,7 +72,7 @@ public class FlightPlanAltitudeTests
     [Fact]
     public void Parse_VfrSlashAltitude_ReturnsVfrAlt()
     {
-        var result = FlightPlanAltitude.Parse("VFR/065");
+        (string Rules, PlannedAltitude Altitude)? result = FlightPlanAltitude.Parse("VFR/065");
         Assert.NotNull(result);
         Assert.Equal("VFR", result.Value.Rules);
         Assert.Equal(PlannedAltitude.Vfr(6500), result.Value.Altitude);
@@ -81,7 +81,7 @@ public class FlightPlanAltitudeTests
     [Fact]
     public void Parse_OtpSlashAltitude_ReturnsOtpAlt()
     {
-        var result = FlightPlanAltitude.Parse("OTP/120");
+        (string Rules, PlannedAltitude Altitude)? result = FlightPlanAltitude.Parse("OTP/120");
         Assert.NotNull(result);
         Assert.Equal("IFR", result.Value.Rules);
         Assert.Equal(PlannedAltitude.Otp(12000), result.Value.Altitude);
@@ -90,7 +90,7 @@ public class FlightPlanAltitudeTests
     [Fact]
     public void Parse_LowercaseInput_NormalizesToUpper()
     {
-        var result = FlightPlanAltitude.Parse("vfr/050");
+        (string Rules, PlannedAltitude Altitude)? result = FlightPlanAltitude.Parse("vfr/050");
         Assert.NotNull(result);
         Assert.Equal("VFR", result.Value.Rules);
         Assert.Equal(PlannedAltitude.Vfr(5000), result.Value.Altitude);
@@ -159,8 +159,8 @@ public class FlightPlanAltitudeTests
     [MemberData(nameof(RoundTripCases))]
     public void RoundTrip_FormatThenParse_PreservesState(PlannedAltitude altitude)
     {
-        var formatted = FlightPlanAltitude.Format(altitude);
-        var parsed = FlightPlanAltitude.Parse(formatted);
+        string formatted = FlightPlanAltitude.Format(altitude);
+        (string Rules, PlannedAltitude Altitude)? parsed = FlightPlanAltitude.Parse(formatted);
         Assert.NotNull(parsed);
         Assert.Equal(altitude, parsed.Value.Altitude);
     }

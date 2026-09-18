@@ -35,7 +35,7 @@ public static class BookmarkCommandHandler
 
     private static CommandResult HandleAdd(SimulationEngine engine, SimScenarioState scenario, BookmarkCommand command, string initials)
     {
-        var added = engine.AddBookmark(scenario.ElapsedSeconds, command.Name, initials);
+        CommandResult added = engine.AddBookmark(scenario.ElapsedSeconds, command.Name, initials);
         return new CommandResult(
             added.Success,
             added.Success
@@ -46,8 +46,8 @@ public static class BookmarkCommandHandler
 
     private static CommandResult HandleRename(SimulationEngine engine, BookmarkCommand command)
     {
-        var renamed = engine.RenameBookmark(command.Id!, command.Name);
-        var message = renamed.Success
+        CommandResult renamed = engine.RenameBookmark(command.Id!, command.Name);
+        string message = renamed.Success
             ? (command.Name is null ? $"Bookmark {command.Id} name cleared" : $"Bookmark {command.Id} renamed to \"{command.Name}\"")
             : renamed.Message ?? "Rename bookmark failed";
         return new CommandResult(renamed.Success, message);
@@ -55,13 +55,13 @@ public static class BookmarkCommandHandler
 
     private static CommandResult HandleDelete(SimulationEngine engine, BookmarkCommand command)
     {
-        var deleted = engine.DeleteBookmark(command.Id!);
+        CommandResult deleted = engine.DeleteBookmark(command.Id!);
         return new CommandResult(deleted.Success, deleted.Success ? $"Bookmark {command.Id} deleted" : deleted.Message ?? "Delete bookmark failed");
     }
 
     private static CommandResult HandleDeleteAll(SimulationEngine engine)
     {
-        var removed = engine.DeleteAllBookmarks();
+        int removed = engine.DeleteAllBookmarks();
         return new CommandResult(removed > 0, removed > 0 ? $"Deleted {removed} bookmark(s)" : "No bookmarks");
     }
 

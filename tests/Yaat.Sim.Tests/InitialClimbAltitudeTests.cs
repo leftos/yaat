@@ -39,7 +39,7 @@ public class InitialClimbAltitudeTests
             IsVfr = isVfr,
         };
 
-        var runway = MakeRunway();
+        RunwayInfo runway = MakeRunway();
         var phaseList = new PhaseList { AssignedRunway = runway };
         var aircraft = new AircraftState
         {
@@ -49,7 +49,7 @@ public class InitialClimbAltitudeTests
             Altitude = FieldElevation + 400,
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -175,7 +175,7 @@ public class InitialClimbAltitudeTests
             IsVfr = false,
         };
 
-        var runway = MakeRunway();
+        RunwayInfo runway = MakeRunway();
         var phaseList = new PhaseList { AssignedRunway = runway };
         var aircraft = new AircraftState
         {
@@ -185,7 +185,7 @@ public class InitialClimbAltitudeTests
             Altitude = FieldElevation + 400,
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,
@@ -222,7 +222,7 @@ public class InitialClimbAltitudeTests
             IsVfr = isVfr,
         };
 
-        var runway = MakeRunway();
+        RunwayInfo runway = MakeRunway();
         var phaseList = new PhaseList { AssignedRunway = runway };
         var aircraft = new AircraftState
         {
@@ -251,7 +251,11 @@ public class InitialClimbAltitudeTests
     public void MR270_NoAltitude_CompletesOnHeadingReached()
     {
         // Runway heading 280 + 270 right = 190 (normalized)
-        var (phase, ac, ctx) = SetUpPhase(new RelativeTurnDeparture(270, TurnDirection.Right), assignedAltitude: null, cruiseAltitude: 35000);
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = SetUpPhase(
+            new RelativeTurnDeparture(270, TurnDirection.Right),
+            assignedAltitude: null,
+            cruiseAltitude: 35000
+        );
 
         // Aircraft well below cruise, heading not yet reached
         ac.Altitude = 2000;
@@ -266,7 +270,11 @@ public class InitialClimbAltitudeTests
     [Fact]
     public void MR270_WithAltitude_RequiresBothHeadingAndAltitude()
     {
-        var (phase, ac, ctx) = SetUpPhase(new RelativeTurnDeparture(270, TurnDirection.Right), assignedAltitude: 3000, cruiseAltitude: 35000);
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = SetUpPhase(
+            new RelativeTurnDeparture(270, TurnDirection.Right),
+            assignedAltitude: 3000,
+            cruiseAltitude: 35000
+        );
 
         // Neither met
         ac.Altitude = 2000;
@@ -292,7 +300,11 @@ public class InitialClimbAltitudeTests
     [Fact]
     public void FlyHeading_NoAltitude_CompletesOnHeadingReached()
     {
-        var (phase, ac, ctx) = SetUpPhase(new FlyHeadingDeparture(new MagneticHeading(180), null), assignedAltitude: null, cruiseAltitude: 35000);
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = SetUpPhase(
+            new FlyHeadingDeparture(new MagneticHeading(180), null),
+            assignedAltitude: null,
+            cruiseAltitude: 35000
+        );
 
         ac.Altitude = 1500;
         ac.TrueHeading = new TrueHeading(280);
@@ -305,7 +317,11 @@ public class InitialClimbAltitudeTests
     [Fact]
     public void DefaultDeparture_NoAltitude_CompletesAtSelfClear()
     {
-        var (phase, ac, ctx) = SetUpPhase(new DefaultDeparture(), assignedAltitude: null, cruiseAltitude: 35000);
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = SetUpPhase(
+            new DefaultDeparture(),
+            assignedAltitude: null,
+            cruiseAltitude: 35000
+        );
 
         // Below self-clear (field + 1500 = 1600)
         ac.Altitude = 1000;
@@ -324,7 +340,12 @@ public class InitialClimbAltitudeTests
         // _targetAltitude, the phase loops: aircraft levels at filed cruise (1400),
         // never reaches self-clear (1600), and InitialClimbPhase keeps re-evaluating
         // DefaultSpeed until the auto-cruise branch pushes IAS toward profile cruise.
-        var (phase, ac, ctx) = SetUpPhase(new DefaultDeparture(), assignedAltitude: null, cruiseAltitude: 1400, isVfr: true);
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = SetUpPhase(
+            new DefaultDeparture(),
+            assignedAltitude: null,
+            cruiseAltitude: 1400,
+            isVfr: true
+        );
 
         // Climbing, well below filed cruise alt (1400)
         ac.Altitude = 800;
@@ -338,7 +359,11 @@ public class InitialClimbAltitudeTests
     [Fact]
     public void DefaultDeparture_WithAltitude_CompletesAtAssignedAltitude()
     {
-        var (phase, ac, ctx) = SetUpPhase(new DefaultDeparture(), assignedAltitude: 5000, cruiseAltitude: 35000);
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = SetUpPhase(
+            new DefaultDeparture(),
+            assignedAltitude: 5000,
+            cruiseAltitude: 35000
+        );
 
         ac.Altitude = 4000;
         Assert.False(phase.OnTick(ctx), "Below assigned altitude");
@@ -350,7 +375,11 @@ public class InitialClimbAltitudeTests
     [Fact]
     public void RunwayHeading_CompletesAtSelfClear()
     {
-        var (phase, ac, ctx) = SetUpPhase(new RunwayHeadingDeparture(), assignedAltitude: null, cruiseAltitude: 35000);
+        (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = SetUpPhase(
+            new RunwayHeadingDeparture(),
+            assignedAltitude: null,
+            cruiseAltitude: 35000
+        );
 
         ac.Altitude = 1000;
         Assert.False(phase.OnTick(ctx), "Below self-clear");
@@ -371,7 +400,7 @@ public class InitialClimbAltitudeTests
             IsVfr = true,
         };
 
-        var runway = MakeRunway();
+        RunwayInfo runway = MakeRunway();
         var phaseList = new PhaseList { AssignedRunway = runway };
         var aircraft = new AircraftState
         {
@@ -381,7 +410,7 @@ public class InitialClimbAltitudeTests
             Altitude = FieldElevation + 400,
             Phases = phaseList,
         };
-        var targets = aircraft.Targets;
+        ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
             Aircraft = aircraft,

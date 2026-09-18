@@ -24,7 +24,7 @@ internal static class PilotVoicePack
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, developmentRelative);
+            string candidate = Path.Combine(dir.FullName, developmentRelative);
             if (IsComplete(candidate))
             {
                 return candidate;

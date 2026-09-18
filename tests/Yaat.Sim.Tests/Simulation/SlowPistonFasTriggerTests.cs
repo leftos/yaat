@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -55,24 +56,24 @@ public class SlowPistonFasTriggerTests(ITestOutputHelper output)
     [Fact]
     public void C172_HoldsCruiseSpeedPast4nm_WhenSmallSpeedDelta()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var runway = navDb.GetRunway("OAK", "28R");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? runway = navDb.GetRunway("OAK", "28R");
         Assert.NotNull(runway);
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
 
         const double startDistNm = 6.0;
         const double startIas = 100;
 
         double reciprocal = (runway.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, startDistNm);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, startDistNm);
         // 3° glideslope: tan(3°) ≈ 0.0524, i.e. ~318 ft per NM.
         double altAboveField = startDistNm * 318;
 
@@ -99,11 +100,11 @@ public class SlowPistonFasTriggerTests(ITestOutputHelper output)
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Ground.Layout = layout;
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
         engine.World.AddAircraft(aircraft);
 
-        var category = AircraftCategorization.Categorize("C172");
+        AircraftCategory category = AircraftCategorization.Categorize("C172");
         double fas = AircraftPerformance.ApproachSpeed("C172", category);
         output.WriteLine($"C172 FAS = {fas:F0} kt, start IAS = {startIas:F0} kt, speed delta = {startIas - fas:F0} kt");
         double decelRate = AircraftPerformance.DecelRate("C172", category);
@@ -119,7 +120,7 @@ public class SlowPistonFasTriggerTests(ITestOutputHelper output)
         for (int t = 1; t <= 600; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft("TSTAC");
+            AircraftState? ac = engine.FindAircraft("TSTAC");
             if (ac is null)
             {
                 break;

@@ -26,9 +26,9 @@ public static class FacilityRunwaySelector
             return null;
         }
 
-        foreach (var coupling in policy.PartnerCouplings)
+        foreach (PartnerCoupling coupling in policy.PartnerCouplings)
         {
-            var partner = partnerConfiguration(coupling.PartnerAirportId);
+            string? partner = partnerConfiguration(coupling.PartnerAirportId);
             if (string.Equals(partner, coupling.PartnerConfiguration, StringComparison.OrdinalIgnoreCase))
             {
                 return Decision(
@@ -50,7 +50,7 @@ public static class FacilityRunwaySelector
 
         string? best = null;
         double bestHeadwind = double.NegativeInfinity;
-        foreach (var candidate in policy.WindAlignedCandidates)
+        foreach (string candidate in policy.WindAlignedCandidates)
         {
             double headwind = BestHeadwind(ops, airportId, candidate, wind, runways, magneticModelDateUtc);
             bool wins =
@@ -93,16 +93,16 @@ public static class FacilityRunwaySelector
         DateTime date
     )
     {
-        var sets = ops.RunwaysAt(configuration, airportId);
+        ConfigurationRunways? sets = ops.RunwaysAt(configuration, airportId);
         if (sets is null)
         {
             return double.NegativeInfinity;
         }
 
         double best = double.NegativeInfinity;
-        foreach (var end in sets.Departure)
+        foreach (string end in sets.Departure)
         {
-            var pavement = RunwayInUseResolver.PavementOf(runways, end);
+            RunwayInfo? pavement = RunwayInUseResolver.PavementOf(runways, end);
             if (pavement is null)
             {
                 continue;
@@ -116,7 +116,7 @@ public static class FacilityRunwaySelector
 
     private static RunwayUseDecision? Decision(FacilityOps ops, string airportId, string configuration, string rationale)
     {
-        var sets = ops.RunwaysAt(configuration, airportId);
+        ConfigurationRunways? sets = ops.RunwaysAt(configuration, airportId);
         if (sets is null || (sets.Departure.Count == 0))
         {
             return null;
@@ -155,7 +155,7 @@ public static class FacilityRunwayAssigner
             allowed = decision.DepartureRunways.ToList();
         }
 
-        var ordered =
+        IOrderedEnumerable<string> ordered =
             matching.Count > 0
                 ? allowed
                     .OrderByDescending(end => PavementLengthFt(end, runways))
@@ -172,14 +172,14 @@ public static class FacilityRunwayAssigner
 
     private static double DistanceToDepartureThresholdNm(AircraftState aircraft, string end, IReadOnlyList<RunwayInfo> runways)
     {
-        var pavement = RunwayInUseResolver.PavementOf(runways, end);
+        RunwayInfo? pavement = RunwayInUseResolver.PavementOf(runways, end);
         if (pavement is null)
         {
             return double.MaxValue;
         }
 
         bool isEnd1 = string.Equals(pavement.Id.End1, RunwayIdentifier.NormalizeDesignator(end), StringComparison.OrdinalIgnoreCase);
-        var threshold = isEnd1 ? new LatLon(pavement.Lat1, pavement.Lon1) : new LatLon(pavement.Lat2, pavement.Lon2);
+        LatLon threshold = isEnd1 ? new LatLon(pavement.Lat1, pavement.Lon1) : new LatLon(pavement.Lat2, pavement.Lon2);
         return GeoMath.DistanceNm(aircraft.Position, threshold);
     }
 }

@@ -9,13 +9,13 @@ public static class AtcPositionTypeClassifier
             return null;
         }
 
-        var lastUnderscore = callsign.LastIndexOf('_');
+        int lastUnderscore = callsign.LastIndexOf('_');
         if (lastUnderscore < 0)
         {
             return null;
         }
 
-        var suffix = callsign[(lastUnderscore + 1)..];
+        string suffix = callsign[(lastUnderscore + 1)..];
         return suffix.ToUpperInvariant() switch
         {
             "TWR" => "TWR",

@@ -43,7 +43,14 @@ public class SpawnBeaconCodePoolTests
 
     private static AircraftState? Spawn(FlightRulesKind rules, BeaconCodePool pool, int seed)
     {
-        var (state, error) = AircraftGenerator.Generate(BearingRequest(rules), "OAK", [], groundLayout: null, new Random(seed), pool);
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
+            BearingRequest(rules),
+            "OAK",
+            [],
+            groundLayout: null,
+            new Random(seed),
+            pool
+        );
         Assert.Null(error);
         return state;
     }
@@ -57,7 +64,7 @@ public class SpawnBeaconCodePoolTests
             return;
         }
 
-        var state = Spawn(FlightRulesKind.Ifr, ZoaPool(), 42);
+        AircraftState? state = Spawn(FlightRulesKind.Ifr, ZoaPool(), 42);
 
         Assert.NotNull(state);
         Assert.InRange(state.Transponder.AssignedCode, 401u, 436u);
@@ -76,11 +83,11 @@ public class SpawnBeaconCodePoolTests
             return;
         }
 
-        var pool = ZoaPool();
+        BeaconCodePool pool = ZoaPool();
         var codes = new HashSet<uint>();
         for (int i = 0; i < 12; i++)
         {
-            var state = Spawn(FlightRulesKind.Ifr, pool, 42);
+            AircraftState? state = Spawn(FlightRulesKind.Ifr, pool, 42);
             Assert.NotNull(state);
             Assert.True(codes.Add(state.Transponder.AssignedCode), $"duplicate beacon code {state.Transponder.AssignedCode:D4} on spawn {i}");
         }
@@ -99,14 +106,14 @@ public class SpawnBeaconCodePoolTests
             return;
         }
 
-        var pool = ZoaPool();
+        BeaconCodePool pool = ZoaPool();
 
-        var vfr = Spawn(FlightRulesKind.Vfr, pool, 42);
+        AircraftState? vfr = Spawn(FlightRulesKind.Vfr, pool, 42);
         Assert.NotNull(vfr);
         Assert.Equal(0u, vfr.Transponder.AssignedCode);
         Assert.Equal(1200u, vfr.Transponder.Code);
 
-        var ifr = Spawn(FlightRulesKind.Ifr, pool, 43);
+        AircraftState? ifr = Spawn(FlightRulesKind.Ifr, pool, 43);
         Assert.NotNull(ifr);
         Assert.Equal(401u, ifr.Transponder.AssignedCode);
     }
@@ -133,7 +140,7 @@ public class SpawnBeaconCodePoolTests
             },
         ]);
 
-        var state = Spawn(FlightRulesKind.Ifr, pool, 42);
+        AircraftState? state = Spawn(FlightRulesKind.Ifr, pool, 42);
 
         Assert.NotNull(state);
         Assert.NotEqual(0u, state.Transponder.Code);

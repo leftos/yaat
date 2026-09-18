@@ -12,7 +12,7 @@ internal static class SceneActions
 {
     public static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout, string description)
     {
-        var deadline = DateTime.UtcNow + timeout;
+        DateTime deadline = DateTime.UtcNow + timeout;
         while (!predicate() && DateTime.UtcNow < deadline)
         {
             await Task.Delay(50);
@@ -36,8 +36,8 @@ internal static class SceneActions
 
     public static async Task LoadScenarioAsync(MainViewModel vm, string scenarioPath, TimeSpan timeout)
     {
-        var json = await File.ReadAllTextAsync(scenarioPath);
-        var displayName = Path.GetFileNameWithoutExtension(scenarioPath);
+        string json = await File.ReadAllTextAsync(scenarioPath);
+        string displayName = Path.GetFileNameWithoutExtension(scenarioPath);
         await vm.AutoLoadScenarioFromJsonAsync(json, displayName, displayName);
         await WaitUntilAsync(() => vm.HasScenario, timeout, "scenario load");
     }

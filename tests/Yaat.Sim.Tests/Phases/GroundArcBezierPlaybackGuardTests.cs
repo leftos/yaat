@@ -30,7 +30,7 @@ public class GroundArcBezierPlaybackGuardTests(ITestOutputHelper output)
     [InlineData("FLL")]
     public void EveryArc_BezierPlayback_EndsOnToNode(string airport)
     {
-        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
+        AirportGroundLayout? layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
         if (layout is null)
         {
             return; // test data absent — skip silently (offline convention)
@@ -40,7 +40,7 @@ public class GroundArcBezierPlaybackGuardTests(ITestOutputHelper output)
         double worstBezierErrFt = 0;
         string worstArc = "";
 
-        foreach (var arc in layout.Arcs)
+        foreach (GroundArc arc in layout.Arcs)
         {
             if (arc.MinRadiusOfCurvatureFt < MinUsableRadiusFt || arc.Nodes[0].Id == arc.Nodes[1].Id)
             {
@@ -49,10 +49,10 @@ public class GroundArcBezierPlaybackGuardTests(ITestOutputHelper output)
 
             foreach (bool reversed in new[] { false, true })
             {
-                var (from, to) = reversed ? (arc.Nodes[1], arc.Nodes[0]) : (arc.Nodes[0], arc.Nodes[1]);
+                (GroundNode? from, GroundNode? to) = reversed ? (arc.Nodes[1], arc.Nodes[0]) : (arc.Nodes[0], arc.Nodes[1]);
                 var segment = new TaxiRouteSegment { Edge = arc.Directed(from, to), TaxiwayName = arc.TaxiwayName };
 
-                var bez = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegment(segment));
+                PathPrimitiveBezier bez = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegment(segment));
                 arcsChecked++;
 
                 double bezErrFt = PlaybackEndErrorFt(bez, to);
@@ -83,7 +83,7 @@ public class GroundArcBezierPlaybackGuardTests(ITestOutputHelper output)
             double speedFt = bez.Curve.DerivativeMagnitudeFt(t);
             t = speedFt > 1e-6 ? Math.Min(1.0, t + (stepFt / speedFt)) : 1.0;
         }
-        var (lat, lon) = bez.Curve.Evaluate(Math.Min(t, 1.0));
+        (double lat, double lon) = bez.Curve.Evaluate(Math.Min(t, 1.0));
         return GeoMath.DistanceNm(lat, lon, toNode.Position.Lat, toNode.Position.Lon) * GeoMath.FeetPerNm;
     }
 }

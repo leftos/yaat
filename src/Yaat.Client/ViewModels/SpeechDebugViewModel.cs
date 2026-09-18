@@ -75,9 +75,9 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
             {
                 return "Capture: OFF — enable in Settings to save samples";
             }
-            var usedMb = _sampleStore.TotalBytes / (1024.0 * 1024.0);
-            var maxMb = _preferences.SpeechSampleCacheMaxMb;
-            var count = _sampleStore.Entries.Count;
+            double usedMb = _sampleStore.TotalBytes / (1024.0 * 1024.0);
+            int maxMb = _preferences.SpeechSampleCacheMaxMb;
+            int count = _sampleStore.Entries.Count;
             return $"Capture: ON · {usedMb:F1} / {maxMb} MB · {count} saved";
         }
     }
@@ -114,7 +114,7 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
         {
             return 0;
         }
-        var written = _sampleStore.ExportBundle(ids, destinationPath);
+        int written = _sampleStore.ExportBundle(ids, destinationPath);
         if (written == 0)
         {
             Log.LogWarning("Failed to write speech sample bundle ({Count} ids) to {Path}", ids.Count, destinationPath);
@@ -140,7 +140,7 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SelectAllForExport()
     {
-        foreach (var row in Rows)
+        foreach (SpeechDebugSessionRow row in Rows)
         {
             if (row.HasSavedAudio)
             {
@@ -152,7 +152,7 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void UnselectAllForExport()
     {
-        foreach (var row in Rows)
+        foreach (SpeechDebugSessionRow row in Rows)
         {
             row.IsSelectedForExport = false;
         }
@@ -177,7 +177,7 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
 
     private void OnSampleStoreChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        foreach (var row in Rows)
+        foreach (SpeechDebugSessionRow row in Rows)
         {
             row.RefreshSample(_sampleStore);
         }
@@ -187,16 +187,16 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
 
     private void RebuildRows()
     {
-        var previouslySelectedId = SelectedRow?.Session.TimestampUtc;
+        DateTime? previouslySelectedId = SelectedRow?.Session.TimestampUtc;
         var previouslyExportSelected = Rows.Where(r => r.IsSelectedForExport).Select(r => r.Session.TimestampUtc).ToHashSet();
 
-        foreach (var row in Rows)
+        foreach (SpeechDebugSessionRow row in Rows)
         {
             row.PropertyChanged -= OnRowPropertyChanged;
         }
         Rows.Clear();
 
-        foreach (var session in _service.SessionHistory)
+        foreach (SpeechSession session in _service.SessionHistory)
         {
             var row = new SpeechDebugSessionRow(session);
             row.RefreshSample(_sampleStore);
@@ -231,7 +231,7 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
     {
         _service.SessionHistory.CollectionChanged -= OnSessionHistoryChanged;
         _sampleStore.Entries.CollectionChanged -= OnSampleStoreChanged;
-        foreach (var row in Rows)
+        foreach (SpeechDebugSessionRow row in Rows)
         {
             row.PropertyChanged -= OnRowPropertyChanged;
         }
@@ -317,7 +317,7 @@ public sealed class SpeechDebugSessionRow : INotifyPropertyChanged
     {
         get
         {
-            var t = Session.Transcript;
+            string t = Session.Transcript;
             if (string.IsNullOrWhiteSpace(t))
             {
                 return "(no speech detected)";
@@ -333,8 +333,8 @@ public sealed class SpeechDebugSessionRow : INotifyPropertyChanged
     /// <summary>Re-resolve the sample link from the store. Called after the store changes or after deleting.</summary>
     public void RefreshSample(SpeechSampleStore store)
     {
-        var id = Session.SampleId;
-        var sample = id is null ? null : store.Entries.FirstOrDefault(e => string.Equals(e.Id, id, StringComparison.Ordinal));
+        string? id = Session.SampleId;
+        SpeechSampleEntry? sample = id is null ? null : store.Entries.FirstOrDefault(e => string.Equals(e.Id, id, StringComparison.Ordinal));
         if (!ReferenceEquals(sample, Sample))
         {
             Sample = sample;

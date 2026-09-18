@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.ControllerAi;
@@ -23,10 +24,10 @@ public class AiStaffingTests
             return;
         }
 
-        var ground = TestAiPositions.OakGround(_zoa);
-        var tower = TestAiPositions.OakTower(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        AiPositionConfig tower = TestAiPositions.OakTower(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         var staffing = new HeadlessAiStaffing([ground, tower], scenario);
 
         Assert.False(staffing.IsHumanHeld(tower));

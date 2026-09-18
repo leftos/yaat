@@ -38,7 +38,7 @@ public static class AircraftDisplayNames
 
     private static IReadOnlyDictionary<string, string> Load()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Data", "aircraft-display-names.json");
+        string path = Path.Combine(AppContext.BaseDirectory, "Data", "aircraft-display-names.json");
         if (!File.Exists(path))
         {
             Log.LogWarning("aircraft-display-names.json not found at {Path}; display-name map will be empty", path);
@@ -47,8 +47,8 @@ public static class AircraftDisplayNames
 
         try
         {
-            using var stream = File.OpenRead(path);
-            var raw = JsonSerializer.Deserialize<Dictionary<string, string>>(stream);
+            using FileStream stream = File.OpenRead(path);
+            Dictionary<string, string>? raw = JsonSerializer.Deserialize<Dictionary<string, string>>(stream);
             if (raw is null || raw.Count == 0)
             {
                 Log.LogWarning("aircraft-display-names.json at {Path} parsed empty", path);
@@ -56,7 +56,7 @@ public static class AircraftDisplayNames
             }
 
             var dict = new Dictionary<string, string>(raw.Count, StringComparer.OrdinalIgnoreCase);
-            foreach (var (k, v) in raw)
+            foreach ((string? k, string? v) in raw)
             {
                 if (!string.IsNullOrWhiteSpace(k) && !string.IsNullOrWhiteSpace(v))
                 {

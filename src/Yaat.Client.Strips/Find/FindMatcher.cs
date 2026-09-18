@@ -16,16 +16,16 @@ public static class FindMatcher
     /// </summary>
     public static List<IFindableItem> ComputeMatches(IReadOnlyList<IFindableItem> items, string query)
     {
-        var tokens = (query ?? "").Split(TokenSeparators, StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = (query ?? "").Split(TokenSeparators, StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return [];
         }
 
         var matches = new List<IFindableItem>();
-        foreach (var item in items)
+        foreach (IFindableItem item in items)
         {
-            var text = item.GetFindText();
+            string text = item.GetFindText();
             if (MatchesAllTokens(text, tokens))
             {
                 matches.Add(item);
@@ -36,7 +36,7 @@ public static class FindMatcher
 
     private static bool MatchesAllTokens(string text, string[] tokens)
     {
-        foreach (var token in tokens)
+        foreach (string token in tokens)
         {
             if (text.IndexOf(token, StringComparison.OrdinalIgnoreCase) < 0)
             {

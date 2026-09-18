@@ -32,7 +32,7 @@ public static class RunwayArgument
             return null;
         }
 
-        var upper = token.ToUpperInvariant();
+        string upper = token.ToUpperInvariant();
         int digitCount = upper.Length;
         if (upper[^1] is 'L' or 'C' or 'R')
         {

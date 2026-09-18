@@ -4,6 +4,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -65,7 +66,7 @@ public class Issue396GateTaxiPresetTests
 
     private static void AssertTaxiing(AircraftState aircraft, List<TerminalEntry> terminal)
     {
-        var warnings = string.Join(" | ", terminal.Where(e => e.Callsign == aircraft.Callsign && e.Kind == "Warning").Select(e => e.Message));
+        string warnings = string.Join(" | ", terminal.Where(e => e.Callsign == aircraft.Callsign && e.Kind == "Warning").Select(e => e.Message));
         string phase = aircraft.Phases?.CurrentPhase?.Name ?? "(no phase)";
         Assert.True(
             aircraft.Phases?.CurrentPhase is TaxiingPhase,
@@ -76,8 +77,8 @@ public class Issue396GateTaxiPresetTests
     [Fact]
     public void Asa811_TaxiPresetFromGateB4_Taxis()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -88,11 +89,11 @@ public class Issue396GateTaxiPresetTests
 
         engine.Replay(recording, 646);
 
-        var aircraft = engine.FindAircraft("ASA811");
+        AircraftState? aircraft = engine.FindAircraft("ASA811");
         Assert.NotNull(aircraft);
         AssertTaxiing(aircraft, terminal);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         _output.WriteLine("ASA811 route: " + string.Join(" ", route.Segments.Select(s => s.TaxiwayName)));
         Assert.True(Traverses(route, "M3"), "route must leave the gate along M3");
@@ -103,8 +104,8 @@ public class Issue396GateTaxiPresetTests
     [Fact]
     public void Aal436_TaxiPresetFromGateB20S_RepositionsOntoM4()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -115,11 +116,11 @@ public class Issue396GateTaxiPresetTests
 
         engine.Replay(recording, 621);
 
-        var aircraft = engine.FindAircraft("AAL436");
+        AircraftState? aircraft = engine.FindAircraft("AAL436");
         Assert.NotNull(aircraft);
         AssertTaxiing(aircraft, terminal);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         _output.WriteLine("AAL436 route: " + string.Join(" ", route.Segments.Select(s => s.TaxiwayName)));
         Assert.True(route.Segments[0].FromNodeId < 0, "the scripted TAXI M4 must start with a free-space cut across the ramp onto M4");
@@ -134,8 +135,8 @@ public class Issue396GateTaxiPresetTests
     [Fact]
     public void StripLocalPresets_ApplyAfterWait_NoWarning()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -151,10 +152,10 @@ public class Issue396GateTaxiPresetTests
             engine.ReplayOneSecond();
         }
 
-        foreach (var callsign in new[] { "AAL436", "ASA811" })
+        foreach (string? callsign in new[] { "AAL436", "ASA811" })
         {
             Assert.Empty(engine.FindAircraft(callsign)!.PendingStripDispatches);
-            var strip = engine.Strips.Items.Values.FirstOrDefault(i => i.AircraftId == callsign);
+            StripItemRecord? strip = engine.Strips.Items.Values.FirstOrDefault(i => i.AircraftId == callsign);
             Assert.True(strip is not null, $"{callsign}: deferred STRIP Local never reached the strip handler");
             Assert.False(string.IsNullOrEmpty(strip.BayId), $"{callsign}: deferred STRIP Local never filed the strip into a bay");
             Assert.DoesNotContain(terminal, e => e.Callsign == callsign && e.Message.Contains("could not apply", StringComparison.OrdinalIgnoreCase));

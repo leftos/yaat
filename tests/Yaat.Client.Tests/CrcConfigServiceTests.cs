@@ -11,12 +11,12 @@ public class CrcConfigServiceTests
     [Fact]
     public void FindFirstConfigDir_returns_dir_when_marker_present()
     {
-        var temp = Directory.CreateTempSubdirectory("yaat-crc-test-").FullName;
+        string temp = Directory.CreateTempSubdirectory("yaat-crc-test-").FullName;
         try
         {
             File.WriteAllText(Path.Combine(temp, "GeneralSettings.json"), "{}");
 
-            var result = CrcConfigService.FindFirstConfigDir([temp]);
+            string? result = CrcConfigService.FindFirstConfigDir([temp]);
 
             Assert.Equal(temp, result);
         }
@@ -29,10 +29,10 @@ public class CrcConfigServiceTests
     [Fact]
     public void FindFirstConfigDir_returns_null_when_marker_missing()
     {
-        var temp = Directory.CreateTempSubdirectory("yaat-crc-test-").FullName;
+        string temp = Directory.CreateTempSubdirectory("yaat-crc-test-").FullName;
         try
         {
-            var result = CrcConfigService.FindFirstConfigDir([temp]);
+            string? result = CrcConfigService.FindFirstConfigDir([temp]);
 
             Assert.Null(result);
         }
@@ -45,9 +45,9 @@ public class CrcConfigServiceTests
     [Fact]
     public void FindFirstConfigDir_returns_null_when_directory_does_not_exist()
     {
-        var nonExistent = Path.Combine(Path.GetTempPath(), $"yaat-crc-nonexistent-{Guid.NewGuid():N}");
+        string nonExistent = Path.Combine(Path.GetTempPath(), $"yaat-crc-nonexistent-{Guid.NewGuid():N}");
 
-        var result = CrcConfigService.FindFirstConfigDir([nonExistent]);
+        string? result = CrcConfigService.FindFirstConfigDir([nonExistent]);
 
         Assert.Null(result);
     }
@@ -55,13 +55,13 @@ public class CrcConfigServiceTests
     [Fact]
     public void FindFirstConfigDir_skips_to_next_candidate_when_first_lacks_marker()
     {
-        var first = Directory.CreateTempSubdirectory("yaat-crc-test-first-").FullName;
-        var second = Directory.CreateTempSubdirectory("yaat-crc-test-second-").FullName;
+        string first = Directory.CreateTempSubdirectory("yaat-crc-test-first-").FullName;
+        string second = Directory.CreateTempSubdirectory("yaat-crc-test-second-").FullName;
         try
         {
             File.WriteAllText(Path.Combine(second, "GeneralSettings.json"), "{}");
 
-            var result = CrcConfigService.FindFirstConfigDir([first, second]);
+            string? result = CrcConfigService.FindFirstConfigDir([first, second]);
 
             Assert.Equal(second, result);
         }
@@ -75,14 +75,14 @@ public class CrcConfigServiceTests
     [Fact]
     public void FindFirstConfigDir_prefers_earlier_candidate_when_both_have_marker()
     {
-        var first = Directory.CreateTempSubdirectory("yaat-crc-test-first-").FullName;
-        var second = Directory.CreateTempSubdirectory("yaat-crc-test-second-").FullName;
+        string first = Directory.CreateTempSubdirectory("yaat-crc-test-first-").FullName;
+        string second = Directory.CreateTempSubdirectory("yaat-crc-test-second-").FullName;
         try
         {
             File.WriteAllText(Path.Combine(first, "GeneralSettings.json"), "{}");
             File.WriteAllText(Path.Combine(second, "GeneralSettings.json"), "{}");
 
-            var result = CrcConfigService.FindFirstConfigDir([first, second]);
+            string? result = CrcConfigService.FindFirstConfigDir([first, second]);
 
             Assert.Equal(first, result);
         }
@@ -96,23 +96,23 @@ public class CrcConfigServiceTests
     [Fact]
     public void EnumerateCandidates_includes_platform_default()
     {
-        var candidates = CrcConfigService.EnumerateCandidates().ToArray();
+        string[] candidates = CrcConfigService.EnumerateCandidates().ToArray();
 
         Assert.NotEmpty(candidates);
 
         if (OperatingSystem.IsWindows())
         {
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             Assert.Contains(Path.Combine(localAppData, "CRC"), candidates);
         }
         else if (OperatingSystem.IsMacOS())
         {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             Assert.Contains(Path.Combine(home, "Library", "Application Support", "CRC"), candidates);
         }
         else if (OperatingSystem.IsLinux())
         {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             Assert.Contains(Path.Combine(home, ".config", "CRC"), candidates);
         }
     }
@@ -125,9 +125,9 @@ public class CrcConfigServiceTests
     [Fact]
     public void YaatEntries_loaded_from_embedded_resource_match_canonical_list()
     {
-        var entries = CrcConfigService.YaatEntries;
+        CrcConfigService.CrcEnvironmentEntry[] entries = CrcConfigService.YaatEntries;
 
-        var prod = Assert.Single(entries);
+        CrcConfigService.CrcEnvironmentEntry prod = Assert.Single(entries);
         Assert.Equal("YAAT1", prod.Name);
         Assert.Equal("https://yaat1.leftos.dev/hubs/client", prod.ClientHubUrl);
         Assert.Equal("https://yaat1.leftos.dev", prod.ApiBaseUrl);

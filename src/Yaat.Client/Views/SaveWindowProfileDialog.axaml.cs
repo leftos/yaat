@@ -24,10 +24,10 @@ public partial class SaveWindowProfileDialog : Window
         InitializeComponent();
         _existingNames = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
 
-        var nameBox = this.FindControl<TextBox>("NameTextBox");
-        var okBtn = this.FindControl<Button>("OkButton");
-        var cancelBtn = this.FindControl<Button>("CancelButton");
-        var status = this.FindControl<TextBlock>("StatusText");
+        TextBox? nameBox = this.FindControl<TextBox>("NameTextBox");
+        Button? okBtn = this.FindControl<Button>("OkButton");
+        Button? cancelBtn = this.FindControl<Button>("CancelButton");
+        TextBlock? status = this.FindControl<TextBlock>("StatusText");
 
         if (nameBox is not null)
         {
@@ -54,7 +54,7 @@ public partial class SaveWindowProfileDialog : Window
         {
             return;
         }
-        var trimmed = (text ?? "").Trim();
+        string trimmed = (text ?? "").Trim();
         if (string.IsNullOrEmpty(trimmed))
         {
             status.IsVisible = false;
@@ -73,8 +73,8 @@ public partial class SaveWindowProfileDialog : Window
 
     private void OnOkClick(object? sender, RoutedEventArgs e)
     {
-        var nameBox = this.FindControl<TextBox>("NameTextBox");
-        var entered = (nameBox?.Text ?? "").Trim();
+        TextBox? nameBox = this.FindControl<TextBox>("NameTextBox");
+        string entered = (nameBox?.Text ?? "").Trim();
         if (string.IsNullOrEmpty(entered))
         {
             return;

@@ -36,7 +36,7 @@ public class HasBeenAirborneTests
     public void Tick_AirborneAircraft_LatchesHasBeenAirborne()
     {
         var world = new SimulationWorld();
-        var ac = MakeAircraft(onGround: false);
+        AircraftState ac = MakeAircraft(onGround: false);
         world.AddAircraft(ac);
         Assert.False(ac.HasBeenAirborne);
 
@@ -49,7 +49,7 @@ public class HasBeenAirborneTests
     public void Tick_GroundAircraft_DoesNotSetHasBeenAirborne()
     {
         var world = new SimulationWorld();
-        var ac = MakeAircraft(onGround: true);
+        AircraftState ac = MakeAircraft(onGround: true);
         world.AddAircraft(ac);
 
         world.Tick(1.0, 1.0);
@@ -60,7 +60,7 @@ public class HasBeenAirborneTests
     [Fact]
     public void Snapshot_RoundTripsHasBeenAirborne()
     {
-        var ac = MakeAircraft(onGround: true);
+        AircraftState ac = MakeAircraft(onGround: true);
         ac.HasBeenAirborne = true;
 
         var restored = AircraftState.FromSnapshot(ac.ToSnapshot(), groundLayout: null);

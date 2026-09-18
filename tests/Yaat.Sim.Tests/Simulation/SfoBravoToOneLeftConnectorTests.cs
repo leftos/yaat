@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Phases.Ground;
@@ -38,7 +39,7 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
     private TaxiRoute? Resolve(AirportGroundLayout layout, GroundNode start, string[] path, string runway, out string? failReason)
     {
         var diag = new List<string>();
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             start.Id,
             [.. path],
@@ -89,7 +90,7 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
     {
         for (int i = 0; i < route.Segments.Count; i++)
         {
-            var edge = route.Segments[i].Edge;
+            DirectionalEdge edge = route.Segments[i].Edge;
             bool reached =
                 edge.Edge.MatchesTaxiway(taxiway)
                 || edge.FromNode.Edges.Any(e => e.MatchesTaxiway(taxiway))
@@ -129,7 +130,7 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
     /// <summary>The shared shape assertions: one 1L destination stop on the M1 bar, a contiguous, flyable route ending there.</summary>
     private static void AssertThreadsM1ToOneLeft(TaxiRoute route, GroundNode m1Bar)
     {
-        var destination = Assert.Single(route.HoldShortPoints, h => h.Reason == HoldShortReason.DestinationRunway);
+        HoldShortPoint destination = Assert.Single(route.HoldShortPoints, h => h.Reason == HoldShortReason.DestinationRunway);
         Assert.NotNull(destination.TargetName);
         Assert.True(
             RunwayIdentifier.Parse(destination.TargetName).Contains("1L"),
@@ -149,8 +150,8 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
         double limit = CategoryLimits.MaxHeadingChangeDeg(AircraftCategory.Jet);
         for (int i = 1; i < route.Segments.Count; i++)
         {
-            var previous = route.Segments[i - 1].Edge;
-            var current = route.Segments[i].Edge;
+            DirectionalEdge previous = route.Segments[i - 1].Edge;
+            DirectionalEdge current = route.Segments[i].Edge;
             if (GeometricAdmissibility.IsNoOpEdge(previous.Edge) || GeometricAdmissibility.IsNoOpEdge(current.Edge))
             {
                 continue;
@@ -168,20 +169,20 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
     [Fact]
     public void AF1B_To1L_FromSpot2_ThreadsM1()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var start = layout.FindSpotNodeByName("2");
-        var m1Bar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "1L", "M1");
+        GroundNode? start = layout.FindSpotNodeByName("2");
+        GroundNode? m1Bar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "1L", "M1");
         if (start is null || m1Bar is null)
         {
             return;
         }
 
-        var route = Resolve(layout, start, ["A", "F1", "B"], "1L", out string? failReason);
+        TaxiRoute? route = Resolve(layout, start, ["A", "F1", "B"], "1L", out string? failReason);
 
         Assert.True(route is not null, $"TAXI A F1 B 1L from spot 2 must resolve via the M1 stub: {failReason}");
         AssertOrderedTaxiways(route, ["A", "F1", "B", "M1"]);
@@ -192,20 +193,20 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
     [Fact]
     public void CZB_To1L_FromGate50_1_ThreadsM1()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var start = layout.FindParkingByName("50-1");
-        var m1Bar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "1L", "M1");
+        GroundNode? start = layout.FindParkingByName("50-1");
+        GroundNode? m1Bar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "1L", "M1");
         if (start is null || m1Bar is null)
         {
             return;
         }
 
-        var route = Resolve(layout, start, ["C", "Z", "B"], "1L", out string? failReason);
+        TaxiRoute? route = Resolve(layout, start, ["C", "Z", "B"], "1L", out string? failReason);
 
         Assert.True(route is not null, $"TAXI C Z B 1L from cargo gate 50-1 must resolve via the M1 stub: {failReason}");
         AssertOrderedTaxiways(route, ["Z", "B", "M1"]);
@@ -220,14 +221,14 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
     [Fact]
     public void TryTaxi_AF1B_1L_EchoNamesM1()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var start = layout.FindSpotNodeByName("2");
-        var m1Bar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "1L", "M1");
+        GroundNode? start = layout.FindSpotNodeByName("2");
+        GroundNode? m1Bar = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "1L", "M1");
         if (start is null || m1Bar is null)
         {
             return;
@@ -241,15 +242,15 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
             sessionStartUtc: MagneticDeclination.EvaluationDateUtc
         );
 
-        var result = engine.SendCommand(Callsign, "TAXI A F1 B 1L");
+        CommandResult result = engine.SendCommand(Callsign, "TAXI A F1 B 1L");
         output.WriteLine($"echo: {result.Message}");
         Assert.True(result.Success, $"TAXI A F1 B 1L from spot 2 must be accepted: {result.Message}");
         Assert.Contains("A F1 B M1", result.Message, StringComparison.Ordinal);
         Assert.Contains("[via M1 — B reaches 1L through M1]", result.Message, StringComparison.Ordinal);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         AssertTravelsBravoThenM1(route);
         AssertThreadsM1ToOneLeft(route, m1Bar);
@@ -259,7 +260,7 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
         for (int t = 1; t <= HoldShortBudgetSeconds; t++)
         {
             engine.TickOneSecond();
-            var live = engine.FindAircraft(Callsign);
+            AircraftState? live = engine.FindAircraft(Callsign);
             if (live?.Phases?.CurrentPhase is HoldingShortPhase phase)
             {
                 holding = phase;
@@ -295,19 +296,19 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
 
     private void AssertUnreachableRunway(string runway)
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var start = layout.FindSpotNodeByName("2");
+        GroundNode? start = layout.FindSpotNodeByName("2");
         if (start is null)
         {
             return;
         }
 
-        var route = Resolve(layout, start, ["A", "F1", "B"], runway, out string? failReason);
+        TaxiRoute? route = Resolve(layout, start, ["A", "F1", "B"], runway, out string? failReason);
 
         Assert.Null(route);
         Assert.Equal($"Taxiway B does not reach runway {runway} — specify a connecting taxiway.", failReason);
@@ -316,21 +317,26 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
     [Fact]
     public void FindRunwayConnectorsOffTaxiway_B_1L_YieldsM1()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var toOneLeft = SegmentExpander.FindRunwayConnectorsOffTaxiway(layout, "B", "1L", ["A", "F1", "B"]);
-        foreach (var candidate in toOneLeft)
+        List<SegmentExpander.RunwayConnectorCandidate> toOneLeft = SegmentExpander.FindRunwayConnectorsOffTaxiway(
+            layout,
+            "B",
+            "1L",
+            ["A", "F1", "B"]
+        );
+        foreach (SegmentExpander.RunwayConnectorCandidate candidate in toOneLeft)
         {
             output.WriteLine(
                 $"1L connector off B: {candidate.Connector} via node {candidate.JunctionNodeId} to bar {candidate.BarNodeId} ({candidate.StubFt:F0} ft)"
             );
         }
 
-        var only = Assert.Single(toOneLeft);
+        SegmentExpander.RunwayConnectorCandidate only = Assert.Single(toOneLeft);
         Assert.Equal("M1", only.Connector);
         Assert.True(only.StubFt < 200.0, $"the M1 stub to the 1L bar measured {only.StubFt:F0} ft, expected the short lead-in off the B/M1 corner");
 
@@ -343,7 +349,7 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
     /// <summary>A heading along the first leg of the clearance, so the spawned aircraft is not asked to start with a pirouette.</summary>
     private static int HeadingTowardOneLeft(AirportGroundLayout layout, GroundNode start)
     {
-        var junction = layout.FindIntersectionNode("A", "F1");
+        GroundNode? junction = layout.FindIntersectionNode("A", "F1");
         return junction is null ? 180 : (int)Math.Round(GeoMath.BearingTo(start.Position, junction.Position));
     }
 

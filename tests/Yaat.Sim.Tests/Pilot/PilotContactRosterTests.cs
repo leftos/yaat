@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Tests.Helpers;
@@ -36,10 +37,10 @@ public class PilotContactRosterTests
             return;
         }
 
-        var tower = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_TWR")!.Id)!;
+        TrackOwner tower = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_TWR")!.Id)!;
         var roster = PilotContactRoster.Build(true, tower, "TWR", [], _zoa);
 
-        var answering = roster.ResolveFor(OakAircraft(), "TWR", "OAK", Eligibility(tower, "TWR"), true);
+        PilotAnsweringPosition? answering = roster.ResolveFor(OakAircraft(), "TWR", "OAK", Eligibility(tower, "TWR"), true);
         Assert.NotNull(answering);
         Assert.Equal(PilotAnsweringAgent.Student, answering.Agent);
         Assert.Equal("Oakland Tower", PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower"));
@@ -55,11 +56,11 @@ public class PilotContactRosterTests
             return;
         }
 
-        var tower = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_TWR")!.Id)!;
+        TrackOwner tower = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_TWR")!.Id)!;
         var roster = PilotContactRoster.Build(true, tower, "TWR", [TestAiPositions.OakGround(_zoa)], _zoa);
 
-        var ground = roster.ResolveFor(OakAircraft(), "GND", "OAK", Eligibility(tower, "TWR"), true);
-        var local = roster.ResolveFor(OakAircraft(), "TWR", "OAK", Eligibility(tower, "TWR"), false);
+        PilotAnsweringPosition? ground = roster.ResolveFor(OakAircraft(), "GND", "OAK", Eligibility(tower, "TWR"), true);
+        PilotAnsweringPosition? local = roster.ResolveFor(OakAircraft(), "TWR", "OAK", Eligibility(tower, "TWR"), false);
         Assert.Equal(PilotAnsweringAgent.ControllerAi, ground!.Agent);
         Assert.Equal("Oakland Ground", PilotResponder.ResolveAnsweringCallName(ground, "GND", "ground"));
         Assert.Equal(PilotAnsweringAgent.Student, local!.Agent);
@@ -74,7 +75,7 @@ public class PilotContactRosterTests
             return;
         }
 
-        var ground = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_GND")!.Id)!;
+        TrackOwner ground = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_GND")!.Id)!;
         var roster = PilotContactRoster.Build(true, ground, "GND", [TestAiPositions.OakTower(_zoa)], _zoa);
 
         // The student ground takes the ground call ahead of the AI tower's combined-cab fallback.
@@ -107,10 +108,10 @@ public class PilotContactRosterTests
         }
 
         // An OAK departure filed to SFO calls Oakland Ground — not San Francisco Ground, whatever the position-id order.
-        var toSfo = OakAircraft();
+        AircraftState toSfo = OakAircraft();
         toSfo.FlightPlan.Destination = "KSFO";
         var both = PilotContactRoster.Build(false, null, null, [TestAiPositions.SfoGround(_zoa), TestAiPositions.OakGround(_zoa)], _zoa);
-        var answering = both.ResolveFor(toSfo, "GND", "OAK", Eligibility(null, null), true);
+        PilotAnsweringPosition? answering = both.ResolveFor(toSfo, "GND", "OAK", Eligibility(null, null), true);
         Assert.Equal("OAK_GND", answering!.Owner!.Callsign);
 
         var sfoOnly = PilotContactRoster.Build(false, null, null, [TestAiPositions.SfoGround(_zoa)], _zoa);
@@ -127,11 +128,11 @@ public class PilotContactRosterTests
             return;
         }
 
-        var aiTower = TestAiPositions.OakTower(_zoa);
-        var approach = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("NCT_APP")!.Id)!;
+        AiPositionConfig aiTower = TestAiPositions.OakTower(_zoa);
+        TrackOwner approach = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("NCT_APP")!.Id)!;
         var roster = PilotContactRoster.Build(false, null, null, [aiTower], _zoa);
-        var eligibility = Eligibility(null, null);
-        var owned = OakAircraft();
+        InitialContactEligibilityContext eligibility = Eligibility(null, null);
+        AircraftState owned = OakAircraft();
         owned.Track.Owner = approach;
 
         // ZOA SOP: approach → tower contact only once a handoff is initiated. Owned by approach with no handoff, the
@@ -153,7 +154,7 @@ public class PilotContactRosterTests
 
         var roster = PilotContactRoster.Build(false, null, null, [TestAiPositions.OakTower(_zoa)], _zoa);
 
-        var ground = roster.ResolveFor(OakAircraft(), "GND", "OAK", Eligibility(null, null), true);
+        PilotAnsweringPosition? ground = roster.ResolveFor(OakAircraft(), "GND", "OAK", Eligibility(null, null), true);
         Assert.NotNull(ground);
         Assert.Equal("OAK_TWR", ground.Owner!.Callsign);
         Assert.Equal("ground", PilotResponder.ResolveAnsweringCallName(ground, "GND", "ground"));
@@ -184,10 +185,10 @@ public class PilotContactRosterTests
             return;
         }
 
-        var ai = TestAiPositions.OakGround(_zoa);
+        AiPositionConfig ai = TestAiPositions.OakGround(_zoa);
         var roster = PilotContactRoster.Build(true, ai.Identity, "GND", [ai], _zoa);
 
-        var answering = Assert.Single(roster.Positions);
+        PilotAnsweringPosition answering = Assert.Single(roster.Positions);
         Assert.Equal(PilotAnsweringAgent.Student, answering.Agent);
     }
 
@@ -199,15 +200,15 @@ public class PilotContactRosterTests
             return;
         }
 
-        var tower = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_TWR")!.Id)!;
-        var approach = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("NCT_APP")!.Id)!;
+        TrackOwner tower = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_TWR")!.Id)!;
+        TrackOwner approach = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("NCT_APP")!.Id)!;
         var roster = PilotContactRoster.Build(true, tower, "TWR", [], _zoa);
-        var owned = OakAircraft();
+        AircraftState owned = OakAircraft();
         owned.Track.Owner = approach;
 
         // Owned by approach with no handoff: the parking / final call-ups check the SOP and stay silent,
         // exactly as CanInitiateWithStudent decided before the roster.
-        var eligibility = Eligibility(tower, "TWR");
+        InitialContactEligibilityContext eligibility = Eligibility(tower, "TWR");
         Assert.Equal(
             PilotInitialContactEligibility.CanInitiateWithStudent(owned, eligibility),
             roster.ResolveFor(owned, "TWR", "OAK", eligibility, true) is not null
@@ -224,11 +225,11 @@ public class PilotContactRosterTests
             return;
         }
 
-        var oakGround = TestAiPositions.OakGround(_zoa);
+        AiPositionConfig oakGround = TestAiPositions.OakGround(_zoa);
         var roster = PilotContactRoster.Build(false, null, null, [oakGround, TestAiPositions.SfoGround(_zoa)], _zoa);
-        var aircraft = OakAircraft();
-        var oak = roster.ResolveFor(aircraft, "GND", "OAK", Eligibility(null, null), true)!;
-        var sfo = roster.ResolveFor(aircraft, "GND", "SFO", Eligibility(null, null, "SFO"), true)!;
+        AircraftState aircraft = OakAircraft();
+        PilotAnsweringPosition oak = roster.ResolveFor(aircraft, "GND", "OAK", Eligibility(null, null), true)!;
+        PilotAnsweringPosition sfo = roster.ResolveFor(aircraft, "GND", "SFO", Eligibility(null, null, "SFO"), true)!;
 
         oak.MarkInitialContact(aircraft);
 

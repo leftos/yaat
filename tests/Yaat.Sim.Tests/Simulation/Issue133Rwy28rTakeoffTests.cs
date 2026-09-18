@@ -1,4 +1,6 @@
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -28,7 +30,7 @@ public class Issue133Rwy28rTakeoffTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -48,8 +50,8 @@ public class Issue133Rwy28rTakeoffTests(ITestOutputHelper output)
     [Fact]
     public void N172SP_ReachesHoldShort_AfterTaxiDCB28R()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -59,7 +61,7 @@ public class Issue133Rwy28rTakeoffTests(ITestOutputHelper output)
         // 440 seconds is plenty of time for the aircraft to complete the taxi.
         engine.Replay(recording, 440);
 
-        var n172sp = engine.FindAircraft("N172SP");
+        AircraftState? n172sp = engine.FindAircraft("N172SP");
         Assert.NotNull(n172sp);
 
         // The aircraft should have reached the hold-short by now and be in HoldingShortPhase,
@@ -78,8 +80,8 @@ public class Issue133Rwy28rTakeoffTests(ITestOutputHelper output)
     [Fact]
     public void N172SP_LinesUpOnRunway_AfterLuaw()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -88,10 +90,10 @@ public class Issue133Rwy28rTakeoffTests(ITestOutputHelper output)
         // Replay to t=440 and issue LUAW
         engine.Replay(recording, 440);
 
-        var n172sp = engine.FindAircraft("N172SP");
+        AircraftState? n172sp = engine.FindAircraft("N172SP");
         Assert.NotNull(n172sp);
 
-        var result = engine.SendCommand("N172SP", "LUAW");
+        CommandResult result = engine.SendCommand("N172SP", "LUAW");
         Assert.True(result.Success, $"LUAW failed: {result.Message}");
 
         // Tick forward up to 60 seconds — the aircraft should transition through

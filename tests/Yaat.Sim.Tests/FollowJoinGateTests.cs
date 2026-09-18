@@ -38,9 +38,9 @@ public class FollowJoinGateTests
     /// <summary>A close parallel 28L whose centerline sits 0.15 nm on the LEFT (south) side of 28R's.</summary>
     private static RunwayInfo Runway28LParallel()
     {
-        var r28R = Runway28R();
-        var offsetThreshold = GeoMath.ProjectPoint(new LatLon(r28R.ThresholdLatitude, r28R.ThresholdLongitude), r28R.TrueHeading - 90.0, 0.15);
-        var offsetEnd = GeoMath.ProjectPoint(new LatLon(r28R.EndLatitude, r28R.EndLongitude), r28R.TrueHeading - 90.0, 0.15);
+        RunwayInfo r28R = Runway28R();
+        LatLon offsetThreshold = GeoMath.ProjectPoint(new LatLon(r28R.ThresholdLatitude, r28R.ThresholdLongitude), r28R.TrueHeading - 90.0, 0.15);
+        LatLon offsetEnd = GeoMath.ProjectPoint(new LatLon(r28R.EndLatitude, r28R.EndLongitude), r28R.TrueHeading - 90.0, 0.15);
         return TestRunwayFactory.Make(
             designator: "28L",
             heading: 280,
@@ -84,12 +84,16 @@ public class FollowJoinGateTests
     /// (positive toward the runway heading's right-hand side).</summary>
     private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double crossNm)
     {
-        var onCenterline = GeoMath.ProjectPoint(new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading.ToReciprocal(), alongNm);
+        LatLon onCenterline = GeoMath.ProjectPoint(
+            new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude),
+            rwy.TrueHeading.ToReciprocal(),
+            alongNm
+        );
         if (Math.Abs(crossNm) < 1e-9)
         {
             return onCenterline;
         }
-        var perp = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
+        TrueHeading perp = crossNm > 0 ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
         return GeoMath.ProjectPoint(onCenterline, perp, Math.Abs(crossNm));
     }
 
@@ -102,11 +106,11 @@ public class FollowJoinGateTests
         double followerTrackDeg
     )
     {
-        var lead = MakeVfr(Leader, OffFinal(rwy, leadDistNm, 0), rwy.TrueHeading, altitude: leadDistNm * 318.0, ias: 75);
+        AircraftState lead = MakeVfr(Leader, OffFinal(rwy, leadDistNm, 0), rwy.TrueHeading, altitude: leadDistNm * 318.0, ias: 75);
         lead.Phases = new PhaseList { AssignedRunway = rwy };
         lead.Phases.Add(new FinalApproachPhase());
 
-        var follower = MakeVfr(Follower, OffFinal(rwy, followerAlongNm, followerCrossNm), new TrueHeading(followerTrackDeg), 1000, ias: 90);
+        AircraftState follower = MakeVfr(Follower, OffFinal(rwy, followerAlongNm, followerCrossNm), new TrueHeading(followerTrackDeg), 1000, ias: 90);
         follower.Approach.FollowingCallsign = Leader;
         var phase = new VfrFollowPhase(Leader);
         follower.Phases = new PhaseList();
@@ -116,7 +120,7 @@ public class FollowJoinGateTests
             cs == Leader ? lead
             : cs == Follower ? follower
             : null;
-        var ctx = Ctx(follower, rwy, lookup);
+        PhaseContext ctx = Ctx(follower, rwy, lookup);
         follower.Phases.Start(ctx);
         return (follower, phase, ctx);
     }
@@ -126,10 +130,16 @@ public class FollowJoinGateTests
     [Fact]
     public void JoinLeadFinal_SteepIntercept_DoesNotJoin()
     {
-        var rwy = Runway28R();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        RunwayInfo rwy = Runway28R();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
         // Converging at 35° — beyond the 30° visual-intercept gate; keep pursuing until shallower.
-        var (follower, phase, ctx) = SetupFinalJoin(rwy, leadDistNm: 1.8, followerAlongNm: 3.5, followerCrossNm: 0.3, followerTrackDeg: 245);
+        (AircraftState? follower, VfrFollowPhase? phase, PhaseContext? ctx) = SetupFinalJoin(
+            rwy,
+            leadDistNm: 1.8,
+            followerAlongNm: 3.5,
+            followerCrossNm: 0.3,
+            followerTrackDeg: 245
+        );
 
         phase.OnTick(ctx);
 
@@ -139,10 +149,16 @@ public class FollowJoinGateTests
     [Fact]
     public void JoinLeadFinal_ShallowIntercept_Joins()
     {
-        var rwy = Runway28R();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        RunwayInfo rwy = Runway28R();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
         // 25° intercept, trailing spacing satisfied — commits the join.
-        var (follower, phase, ctx) = SetupFinalJoin(rwy, leadDistNm: 1.8, followerAlongNm: 3.5, followerCrossNm: 0.3, followerTrackDeg: 255);
+        (AircraftState? follower, VfrFollowPhase? phase, PhaseContext? ctx) = SetupFinalJoin(
+            rwy,
+            leadDistNm: 1.8,
+            followerAlongNm: 3.5,
+            followerCrossNm: 0.3,
+            followerTrackDeg: 255
+        );
 
         phase.OnTick(ctx);
 
@@ -160,15 +176,15 @@ public class FollowJoinGateTests
     [Fact]
     public void JoinCapturePathCrossesParallelFinal_RealKoak_FiresAcross28L()
     {
-        var navDb = TestVnasData.NavigationDb;
-        var rwy = navDb?.GetRunway("KOAK", "28R");
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? rwy = navDb?.GetRunway("KOAK", "28R");
         if (navDb is null || rwy is null)
         {
             return;
         }
 
-        var southOf28L = OffFinal(rwy, 3.5, -0.6);
-        var northSide = OffFinal(rwy, 3.5, 0.6);
+        LatLon southOf28L = OffFinal(rwy, 3.5, -0.6);
+        LatLon northSide = OffFinal(rwy, 3.5, 0.6);
         Assert.True(
             VfrFollowPhase.JoinCapturePathCrossesParallelFinal(southOf28L, rwy),
             "A follower on the far side of 28L must not capture 28R's final across it."
@@ -182,12 +198,18 @@ public class FollowJoinGateTests
     [Fact]
     public void JoinLeadFinal_FromFarSideOfParallel_DoesNotJoin()
     {
-        var rwy28R = Runway28R();
-        var rwy28L = Runway28LParallel();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy28R, rwy28L));
+        RunwayInfo rwy28R = Runway28R();
+        RunwayInfo rwy28L = Runway28LParallel();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy28R, rwy28L));
         // Follower 0.6 nm on the LEFT (28L) side of 28R's centerline: capturing 28R final
         // from there slices through 28L's final approach course.
-        var (follower, phase, ctx) = SetupFinalJoin(rwy28R, leadDistNm: 1.8, followerAlongNm: 3.5, followerCrossNm: -0.6, followerTrackDeg: 300);
+        (AircraftState? follower, VfrFollowPhase? phase, PhaseContext? ctx) = SetupFinalJoin(
+            rwy28R,
+            leadDistNm: 1.8,
+            followerAlongNm: 3.5,
+            followerCrossNm: -0.6,
+            followerTrackDeg: 300
+        );
 
         phase.OnTick(ctx);
 
@@ -197,12 +219,18 @@ public class FollowJoinGateTests
     [Fact]
     public void JoinLeadFinal_FromFreeSideOfParallel_Joins()
     {
-        var rwy28R = Runway28R();
-        var rwy28L = Runway28LParallel();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy28R, rwy28L));
+        RunwayInfo rwy28R = Runway28R();
+        RunwayInfo rwy28L = Runway28LParallel();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy28R, rwy28L));
         // Same geometry mirrored to the RIGHT (north) side — no runway between the
         // follower and 28R's centerline.
-        var (follower, phase, ctx) = SetupFinalJoin(rwy28R, leadDistNm: 1.8, followerAlongNm: 3.5, followerCrossNm: 0.6, followerTrackDeg: 260);
+        (AircraftState? follower, VfrFollowPhase? phase, PhaseContext? ctx) = SetupFinalJoin(
+            rwy28R,
+            leadDistNm: 1.8,
+            followerAlongNm: 3.5,
+            followerCrossNm: 0.6,
+            followerTrackDeg: 260
+        );
 
         phase.OnTick(ctx);
 
@@ -219,8 +247,14 @@ public class FollowJoinGateTests
     {
         // Track 180° off the final course so the airborne TryJoinLeadFinal never fires and
         // the lead-landed shortcut is the only capture path under test.
-        var (follower, phase, ctx) = SetupFinalJoin(rwy, leadDistNm: 0.8, followerAlongNm: 3.5, followerCrossNm, followerTrackDeg: 112);
-        var lead = ctx.AircraftLookup!(Leader)!;
+        (AircraftState? follower, VfrFollowPhase? phase, PhaseContext? ctx) = SetupFinalJoin(
+            rwy,
+            leadDistNm: 0.8,
+            followerAlongNm: 3.5,
+            followerCrossNm,
+            followerTrackDeg: 112
+        );
+        AircraftState lead = ctx.AircraftLookup!(Leader)!;
         phase.OnTick(ctx);
         Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
         lead.IsOnGround = true;
@@ -230,13 +264,13 @@ public class FollowJoinGateTests
     [Fact]
     public void LeadLandedShortcut_FromFarSideOfParallel_EndsFollowInsteadOfCapturing()
     {
-        var navDb = TestVnasData.NavigationDb;
-        var rwy = navDb?.GetRunway("KOAK", "28R");
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? rwy = navDb?.GetRunway("KOAK", "28R");
         if (navDb is null || rwy is null)
         {
             return;
         }
-        var (follower, phase, ctx, _) = SetupLeadLandedShortcut(rwy, followerCrossNm: -0.6);
+        (AircraftState? follower, VfrFollowPhase? phase, PhaseContext? ctx, AircraftState _) = SetupLeadLandedShortcut(rwy, followerCrossNm: -0.6);
 
         bool done = phase.OnTick(ctx);
 
@@ -248,13 +282,13 @@ public class FollowJoinGateTests
     [Fact]
     public void LeadLandedShortcut_FromFreeSide_StillSequencesOntoRunwayFinal()
     {
-        var navDb = TestVnasData.NavigationDb;
-        var rwy = navDb?.GetRunway("KOAK", "28R");
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? rwy = navDb?.GetRunway("KOAK", "28R");
         if (navDb is null || rwy is null)
         {
             return;
         }
-        var (follower, phase, ctx, _) = SetupLeadLandedShortcut(rwy, followerCrossNm: 0.6);
+        (AircraftState? follower, VfrFollowPhase? phase, PhaseContext? ctx, AircraftState _) = SetupLeadLandedShortcut(rwy, followerCrossNm: 0.6);
 
         bool done = phase.OnTick(ctx);
 
@@ -267,17 +301,27 @@ public class FollowJoinGateTests
 
     private static (PatternWaypoints Wp, RunwayInfo Rwy) ComputePattern()
     {
-        var rwy = Runway28R();
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, [rwy], authoredRunway: null);
+        RunwayInfo rwy = Runway28R();
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Piston,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            [rwy],
+            authoredRunway: null
+        );
         return (wp, rwy);
     }
 
     [Fact]
     public void IsAtOrPastDownwindEntry_PastAbeamOnTrack_True()
     {
-        var (wp, rwy) = ComputePattern();
+        (PatternWaypoints? wp, RunwayInfo? rwy) = ComputePattern();
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
-        var ac = MakeVfr(Follower, GeoMath.ProjectPoint(abeam, wp.DownwindHeading, 0.5), wp.DownwindHeading, wp.PatternAltitude, 90);
+        AircraftState ac = MakeVfr(Follower, GeoMath.ProjectPoint(abeam, wp.DownwindHeading, 0.5), wp.DownwindHeading, wp.PatternAltitude, 90);
 
         Assert.True(PatternCommandHandler.IsAtOrPastDownwindEntry(ac, wp, AircraftCategory.Piston, wp.DownwindAbeamLat, wp.DownwindAbeamLon));
     }
@@ -285,9 +329,15 @@ public class FollowJoinGateTests
     [Fact]
     public void IsAtOrPastDownwindEntry_WellBeforeAbeam_False()
     {
-        var (wp, rwy) = ComputePattern();
+        (PatternWaypoints? wp, RunwayInfo? rwy) = ComputePattern();
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
-        var ac = MakeVfr(Follower, GeoMath.ProjectPoint(abeam, wp.DownwindHeading.ToReciprocal(), 1.5), wp.DownwindHeading, wp.PatternAltitude, 90);
+        AircraftState ac = MakeVfr(
+            Follower,
+            GeoMath.ProjectPoint(abeam, wp.DownwindHeading.ToReciprocal(), 1.5),
+            wp.DownwindHeading,
+            wp.PatternAltitude,
+            90
+        );
 
         Assert.False(PatternCommandHandler.IsAtOrPastDownwindEntry(ac, wp, AircraftCategory.Piston, wp.DownwindAbeamLat, wp.DownwindAbeamLon));
     }
@@ -297,9 +347,15 @@ public class FollowJoinGateTests
     {
         // 6 nm past the abeam point is out on the ARRIVAL side of the circuit (well past the
         // base turn) — that aircraft flies a normal entry, not a present-position join.
-        var (wp, rwy) = ComputePattern();
+        (PatternWaypoints? wp, RunwayInfo? rwy) = ComputePattern();
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
-        var ac = MakeVfr(Follower, GeoMath.ProjectPoint(abeam, wp.DownwindHeading, 6.0), wp.DownwindHeading.ToReciprocal(), wp.PatternAltitude, 90);
+        AircraftState ac = MakeVfr(
+            Follower,
+            GeoMath.ProjectPoint(abeam, wp.DownwindHeading, 6.0),
+            wp.DownwindHeading.ToReciprocal(),
+            wp.PatternAltitude,
+            90
+        );
 
         Assert.False(PatternCommandHandler.IsAtOrPastDownwindEntry(ac, wp, AircraftCategory.Piston, wp.DownwindAbeamLat, wp.DownwindAbeamLon));
     }
@@ -307,12 +363,12 @@ public class FollowJoinGateTests
     [Fact]
     public void IsAtOrPastDownwindEntry_PastAbeamButFarOffTrack_False()
     {
-        var (wp, rwy) = ComputePattern();
+        (PatternWaypoints? wp, RunwayInfo? rwy) = ComputePattern();
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
         double patternWidthNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(abeam, new LatLon(wp.ThresholdLat, wp.ThresholdLon), wp.FinalHeading));
-        var alongPast = GeoMath.ProjectPoint(abeam, wp.DownwindHeading, 0.5);
-        var farOut = GeoMath.ProjectPoint(alongPast, rwy.TrueHeading + 90.0, patternWidthNm * 2.5);
-        var ac = MakeVfr(Follower, farOut, wp.DownwindHeading, wp.PatternAltitude, 90);
+        LatLon alongPast = GeoMath.ProjectPoint(abeam, wp.DownwindHeading, 0.5);
+        LatLon farOut = GeoMath.ProjectPoint(alongPast, rwy.TrueHeading + 90.0, patternWidthNm * 2.5);
+        AircraftState ac = MakeVfr(Follower, farOut, wp.DownwindHeading, wp.PatternAltitude, 90);
 
         Assert.False(PatternCommandHandler.IsAtOrPastDownwindEntry(ac, wp, AircraftCategory.Piston, wp.DownwindAbeamLat, wp.DownwindAbeamLon));
     }
@@ -324,9 +380,9 @@ public class FollowJoinGateTests
         // cannot absorb the descent at the pattern rate, so the aircraft takes the normal
         // (longer) entry, whose extra track miles are the descent room (mirrors the ERB
         // "too high for base" feasibility check).
-        var (wp, rwy) = ComputePattern();
+        (PatternWaypoints? wp, RunwayInfo? rwy) = ComputePattern();
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
-        var ac = MakeVfr(Follower, GeoMath.ProjectPoint(abeam, wp.DownwindHeading, 0.5), wp.DownwindHeading, wp.PatternAltitude + 3000, 90);
+        AircraftState ac = MakeVfr(Follower, GeoMath.ProjectPoint(abeam, wp.DownwindHeading, 0.5), wp.DownwindHeading, wp.PatternAltitude + 3000, 90);
 
         Assert.False(PatternCommandHandler.IsAtOrPastDownwindEntry(ac, wp, AircraftCategory.Piston, wp.DownwindAbeamLat, wp.DownwindAbeamLon));
     }
@@ -341,7 +397,7 @@ public class FollowJoinGateTests
 
     private static AircraftState MakeLeadOnFinal(RunwayInfo rwy, PatternDirection? trafficDirection)
     {
-        var lead = MakeVfr(Leader, OffFinal(rwy, 2.0, 0), rwy.TrueHeading, altitude: 650, ias: 75);
+        AircraftState lead = MakeVfr(Leader, OffFinal(rwy, 2.0, 0), rwy.TrueHeading, altitude: 650, ias: 75);
         lead.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = trafficDirection };
         lead.Phases.Add(new FinalApproachPhase());
         return lead;
@@ -350,11 +406,11 @@ public class FollowJoinGateTests
     [Fact]
     public void ChooseFollowJoinDirection_LeadCircuitDirection_WinsOverFollowerSide()
     {
-        var rwy = Runway28R();
-        var lead = MakeLeadOnFinal(rwy, PatternDirection.Right);
+        RunwayInfo rwy = Runway28R();
+        AircraftState lead = MakeLeadOnFinal(rwy, PatternDirection.Right);
         // Follower on the LEFT (south) side — the lead's right circuit still wins; the
         // follower crosses midfield per AIM §4-3-3.1.b rather than flying an opposing circuit.
-        var follower = MakeVfr(Follower, OffFinal(rwy, 1.0, -1.0), new TrueHeading(100), 1000, 90);
+        AircraftState follower = MakeVfr(Follower, OffFinal(rwy, 1.0, -1.0), new TrueHeading(100), 1000, 90);
 
         Assert.Equal(PatternDirection.Right, CommandDispatcher.ChooseFollowJoinDirection(follower, lead, rwy));
     }
@@ -363,14 +419,14 @@ public class FollowJoinGateTests
     public void ChooseFollowJoinDirection_NoLeadDirection_UsesRunwayNaturalSide()
     {
         // Real KOAK: 28R with 28L present naturally flies right traffic (parallel inference).
-        var navDb = TestVnasData.NavigationDb;
-        var rwy = navDb?.GetRunway("KOAK", "28R");
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? rwy = navDb?.GetRunway("KOAK", "28R");
         if (navDb is null || rwy is null)
         {
             return;
         }
-        var lead = MakeLeadOnFinal(rwy, trafficDirection: null);
-        var follower = MakeVfr(Follower, OffFinal(rwy, 1.0, -1.0), new TrueHeading(112), 1000, 90);
+        AircraftState lead = MakeLeadOnFinal(rwy, trafficDirection: null);
+        AircraftState follower = MakeVfr(Follower, OffFinal(rwy, 1.0, -1.0), new TrueHeading(112), 1000, 90);
 
         Assert.Equal(PatternDirection.Right, CommandDispatcher.ChooseFollowJoinDirection(follower, lead, rwy));
     }
@@ -380,11 +436,11 @@ public class FollowJoinGateTests
     {
         // Synthetic single runway "28R" with no sibling in the navdb scope: no natural side,
         // so the follower's own side decides. 280° runway: right-hand side is +90° (north).
-        var rwy = Runway28R();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
-        var lead = MakeLeadOnFinal(rwy, trafficDirection: null);
-        var north = MakeVfr(Follower, OffFinal(rwy, 1.0, 1.0), new TrueHeading(100), 1000, 90);
-        var south = MakeVfr(Follower, OffFinal(rwy, 1.0, -1.0), new TrueHeading(100), 1000, 90);
+        RunwayInfo rwy = Runway28R();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        AircraftState lead = MakeLeadOnFinal(rwy, trafficDirection: null);
+        AircraftState north = MakeVfr(Follower, OffFinal(rwy, 1.0, 1.0), new TrueHeading(100), 1000, 90);
+        AircraftState south = MakeVfr(Follower, OffFinal(rwy, 1.0, -1.0), new TrueHeading(100), 1000, 90);
 
         Assert.Equal(PatternDirection.Right, CommandDispatcher.ChooseFollowJoinDirection(north, lead, rwy));
         Assert.Equal(PatternDirection.Left, CommandDispatcher.ChooseFollowJoinDirection(south, lead, rwy));

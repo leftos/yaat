@@ -19,13 +19,13 @@ public class NavigationDatabaseAirportResolutionTests
     [Fact]
     public void TryResolveAirport_FaaCode_ReturnsIcao()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        bool ok = navDb.TryResolveAirport("OAK", out var canonical);
+        bool ok = navDb.TryResolveAirport("OAK", out string? canonical);
 
         Assert.True(ok);
         Assert.Equal("KOAK", canonical);
@@ -34,13 +34,13 @@ public class NavigationDatabaseAirportResolutionTests
     [Fact]
     public void TryResolveAirport_IcaoCode_ReturnsIcao()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        bool ok = navDb.TryResolveAirport("KOAK", out var canonical);
+        bool ok = navDb.TryResolveAirport("KOAK", out string? canonical);
 
         Assert.True(ok);
         Assert.Equal("KOAK", canonical);
@@ -49,13 +49,13 @@ public class NavigationDatabaseAirportResolutionTests
     [Fact]
     public void TryResolveAirport_Lowercase_Resolves()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        bool ok = navDb.TryResolveAirport("oak", out var canonical);
+        bool ok = navDb.TryResolveAirport("oak", out string? canonical);
 
         Assert.True(ok);
         Assert.Equal("KOAK", canonical);
@@ -64,13 +64,13 @@ public class NavigationDatabaseAirportResolutionTests
     [Fact]
     public void TryResolveAirport_WithSurroundingWhitespace_Resolves()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        bool ok = navDb.TryResolveAirport("  KSFO  ", out var canonical);
+        bool ok = navDb.TryResolveAirport("  KSFO  ", out string? canonical);
 
         Assert.True(ok);
         Assert.Equal("KSFO", canonical);
@@ -79,13 +79,13 @@ public class NavigationDatabaseAirportResolutionTests
     [Fact]
     public void TryResolveAirport_Unknown_ReturnsFalse()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        bool ok = navDb.TryResolveAirport("ZZZZ", out var canonical);
+        bool ok = navDb.TryResolveAirport("ZZZZ", out string? canonical);
 
         Assert.False(ok);
         Assert.Equal(string.Empty, canonical);
@@ -94,13 +94,13 @@ public class NavigationDatabaseAirportResolutionTests
     [Fact]
     public void TryResolveAirport_Empty_ReturnsFalse()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        bool ok = navDb.TryResolveAirport("", out var canonical);
+        bool ok = navDb.TryResolveAirport("", out string? canonical);
 
         Assert.False(ok);
         Assert.Equal(string.Empty, canonical);
@@ -111,13 +111,13 @@ public class NavigationDatabaseAirportResolutionTests
     {
         // BERKS is a named intersection in the SF Bay area — it is a fix in NavData
         // but not an airport. The resolver must reject it.
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        bool ok = navDb.TryResolveAirport("BERKS", out var canonical);
+        bool ok = navDb.TryResolveAirport("BERKS", out string? canonical);
 
         Assert.False(ok);
         Assert.Equal(string.Empty, canonical);
@@ -130,13 +130,13 @@ public class NavigationDatabaseAirportResolutionTests
     [InlineData("  KSFO  ", "SFO")]
     public void TryResolveFaaId_ConusForms_ReturnFaaId(string input, string expected)
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        bool ok = navDb.TryResolveFaaId(input, out var faaId);
+        bool ok = navDb.TryResolveFaaId(input, out string? faaId);
 
         Assert.True(ok);
         Assert.Equal(expected, faaId);
@@ -151,13 +151,13 @@ public class NavigationDatabaseAirportResolutionTests
         // The repo-wide NormalizeAirport K-strip only handles CONUS "K" prefixes and would
         // return these unchanged. Resolving through the published FAA id is the difference
         // between displaying "ANC" and displaying "PANC" in the STARS scratchpad slot.
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        bool ok = navDb.TryResolveFaaId(icao, out var faaId);
+        bool ok = navDb.TryResolveFaaId(icao, out string? faaId);
 
         Assert.True(ok);
         Assert.Equal(expectedFaa, faaId);
@@ -170,13 +170,13 @@ public class NavigationDatabaseAirportResolutionTests
     [InlineData("BERKS")]
     public void TryResolveFaaId_UnknownOrEmpty_ReturnsFalse(string input)
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        bool ok = navDb.TryResolveFaaId(input, out var faaId);
+        bool ok = navDb.TryResolveFaaId(input, out string? faaId);
 
         Assert.False(ok);
         Assert.Equal(string.Empty, faaId);
@@ -187,7 +187,7 @@ public class NavigationDatabaseAirportResolutionTests
     {
         // Heathrow publishes no FAA id. Reporting failure (rather than substituting the ICAO
         // form) is what lets the display path fall back to the identifier as filed.
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
@@ -199,7 +199,7 @@ public class NavigationDatabaseAirportResolutionTests
             return;
         }
 
-        bool ok = navDb.TryResolveFaaId("EGLL", out var faaId);
+        bool ok = navDb.TryResolveFaaId("EGLL", out string? faaId);
 
         Assert.False(ok);
         Assert.Equal(string.Empty, faaId);

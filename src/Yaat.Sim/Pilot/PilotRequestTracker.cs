@@ -15,7 +15,7 @@ public static class PilotRequestTracker
         PilotRequestContext context
     )
     {
-        var firstRequestedAt =
+        double firstRequestedAt =
             aircraft.PendingPilotRequest is { IsOpen: true, Kind: var existingKind } existing && existingKind == kind
                 ? existing.FirstRequestedAtSeconds
                 : nowSeconds;
@@ -40,14 +40,14 @@ public static class PilotRequestTracker
 
     public static void ApplyControllerResponse(AircraftState aircraft, CompoundCommand compound, double nowSeconds)
     {
-        var pending = aircraft.PendingPilotRequest;
+        PilotPendingRequest? pending = aircraft.PendingPilotRequest;
         if (pending is not { IsOpen: true })
         {
             return;
         }
 
-        var sawStandby = false;
-        foreach (var command in compound.Blocks.SelectMany(block => block.Commands))
+        bool sawStandby = false;
+        foreach (ParsedCommand? command in compound.Blocks.SelectMany(block => block.Commands))
         {
             if (command is AcknowledgePilotContactCommand)
             {
@@ -55,7 +55,7 @@ public static class PilotRequestTracker
                 continue;
             }
 
-            var response = ResolveResponse(pending.Kind, command);
+            PilotPendingRequestResponseState response = ResolveResponse(pending.Kind, command);
             switch (response)
             {
                 case PilotPendingRequestResponseState.Satisfied:
@@ -78,7 +78,7 @@ public static class PilotRequestTracker
 
     public static bool TryQueueFollowUp(AircraftState aircraft, double nowSeconds)
     {
-        var pending = aircraft.PendingPilotRequest;
+        PilotPendingRequest? pending = aircraft.PendingPilotRequest;
         if (pending is not { IsOpen: true })
         {
             return false;

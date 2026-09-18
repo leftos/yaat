@@ -406,7 +406,7 @@ public static class LineUpGeometry
         double rolloutLengthFt
     )
     {
-        var (stopLat, stopLon) = GeoMath.ProjectPoint(acLat, acLon, runway.TrueHeading, rolloutLengthFt / GeoMath.FeetPerNm);
+        (double stopLat, double stopLon) = GeoMath.ProjectPoint(acLat, acLon, runway.TrueHeading, rolloutLengthFt / GeoMath.FeetPerNm);
         return new LineUpPathPlan
         {
             Kind = LineUpPathKind.Aligned,
@@ -474,12 +474,12 @@ public static class LineUpGeometry
         }
         double noseOutNmClamped = Math.Max(0.0, noseOutNm);
 
-        var (cornerLat, cornerLon) = GeoMath.ProjectPoint(acLat, acLon, acHeading, distToCornerNm);
-        var (entryLat, entryLon) = GeoMath.ProjectPoint(acLat, acLon, acHeading, noseOutNmClamped);
-        var (exitLat, exitLon) = GeoMath.ProjectPoint(cornerLat, cornerLon, runway.TrueHeading, tangentDistNm);
+        (double cornerLat, double cornerLon) = GeoMath.ProjectPoint(acLat, acLon, acHeading, distToCornerNm);
+        (double entryLat, double entryLon) = GeoMath.ProjectPoint(acLat, acLon, acHeading, noseOutNmClamped);
+        (double exitLat, double exitLon) = GeoMath.ProjectPoint(cornerLat, cornerLon, runway.TrueHeading, tangentDistNm);
 
         double perpHdgDeg = ((acHdgDeg + (rightTurn ? 90.0 : -90.0)) + 360.0) % 360.0;
-        var (centerLat, centerLon) = GeoMath.ProjectPoint(entryLat, entryLon, new TrueHeading(perpHdgDeg), radiusFt / GeoMath.FeetPerNm);
+        (double centerLat, double centerLon) = GeoMath.ProjectPoint(entryLat, entryLon, new TrueHeading(perpHdgDeg), radiusFt / GeoMath.FeetPerNm);
         double initialBearingFromCenterDeg = ((perpHdgDeg + 180.0) % 360.0 + 360.0) % 360.0;
 
         var arcState = new LineUpArcPlayback
@@ -492,7 +492,7 @@ public static class LineUpGeometry
             RightTurn = rightTurn,
         };
 
-        var (stopLat, stopLon) = GeoMath.ProjectPoint(exitLat, exitLon, runway.TrueHeading, RolloutLengthFt / GeoMath.FeetPerNm);
+        (double stopLat, double stopLon) = GeoMath.ProjectPoint(exitLat, exitLon, runway.TrueHeading, RolloutLengthFt / GeoMath.FeetPerNm);
 
         return new LineUpPathPlan
         {
@@ -548,7 +548,7 @@ public static class LineUpGeometry
         double pivotTurnSpeedKts = CategoryPerformance.TurnRateLimitedSpeedKts(category, noseWheelRadiusFt);
 
         // First turn: aircraft heading → perpendicular-toward-centerline.
-        var pivotTurn1 = PathPrimitiveBuilder.SlowTurn(
+        PathPrimitiveSlowTurn pivotTurn1 = PathPrimitiveBuilder.SlowTurn(
             fromLat: acLat,
             fromLon: acLon,
             fromHdgDeg: acHdgDeg,
@@ -559,7 +559,7 @@ public static class LineUpGeometry
         );
 
         // Compute end position of PivotTurn1.
-        var (turn1ExitLat, turn1ExitLon) = SlowTurnExitPosition(pivotTurn1);
+        (double turn1ExitLat, double turn1ExitLon) = SlowTurnExitPosition(pivotTurn1);
 
         // Cross-track of PivotTurn1 exit.
         double exit1SignedCrossNm = GeoMath.SignedCrossTrackDistanceNm(
@@ -590,7 +590,7 @@ public static class LineUpGeometry
         }
         double straightLengthFtClamped = Math.Max(0.0, straightLengthFt);
 
-        var (turn2EntryLat, turn2EntryLon) = GeoMath.ProjectPoint(
+        (double turn2EntryLat, double turn2EntryLon) = GeoMath.ProjectPoint(
             turn1ExitLat,
             turn1ExitLon,
             new TrueHeading(perpTowardDeg),
@@ -598,7 +598,7 @@ public static class LineUpGeometry
         );
 
         // Second turn: perpendicular → runway heading, ending on centerline.
-        var pivotTurn2 = PathPrimitiveBuilder.SlowTurn(
+        PathPrimitiveSlowTurn pivotTurn2 = PathPrimitiveBuilder.SlowTurn(
             fromLat: turn2EntryLat,
             fromLon: turn2EntryLon,
             fromHdgDeg: perpTowardDeg,
@@ -608,9 +608,9 @@ public static class LineUpGeometry
             toNodeId: -2
         );
 
-        var (turn2ExitLat, turn2ExitLon) = SlowTurnExitPosition(pivotTurn2);
+        (double turn2ExitLat, double turn2ExitLon) = SlowTurnExitPosition(pivotTurn2);
 
-        var (stopLat, stopLon) = GeoMath.ProjectPoint(turn2ExitLat, turn2ExitLon, runway.TrueHeading, RolloutLengthFt / GeoMath.FeetPerNm);
+        (double stopLat, double stopLon) = GeoMath.ProjectPoint(turn2ExitLat, turn2ExitLon, runway.TrueHeading, RolloutLengthFt / GeoMath.FeetPerNm);
 
         return new LineUpPathPlan
         {

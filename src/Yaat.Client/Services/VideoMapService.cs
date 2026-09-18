@@ -41,25 +41,25 @@ public sealed class VideoMapService
     /// </summary>
     public async Task<List<VideoMapData>> LoadMapsAsync(string artccId, IReadOnlyList<VideoMapInfoDto> maps)
     {
-        var artccCacheDir = Path.Combine(CacheDir, artccId);
+        string artccCacheDir = Path.Combine(CacheDir, artccId);
         Directory.CreateDirectory(artccCacheDir);
 
         var results = new List<VideoMapData>();
         var tasks = new List<Task>();
 
-        foreach (var map in maps)
+        foreach (VideoMapInfoDto map in maps)
         {
-            if (_cache.TryGetValue(map.Id, out var cached) && (DateTime.UtcNow - cached.FetchedUtc <= CacheTtl))
+            if (_cache.TryGetValue(map.Id, out CachedVideoMap? cached) && (DateTime.UtcNow - cached.FetchedUtc <= CacheTtl))
             {
                 results.Add(cached.Data);
                 continue;
             }
 
-            var localMap = map;
+            VideoMapInfoDto localMap = map;
             tasks.Add(
                 Task.Run(async () =>
                 {
-                    var data = await LoadSingleMapAsync(artccId, localMap.Id, artccCacheDir);
+                    VideoMapData? data = await LoadSingleMapAsync(artccId, localMap.Id, artccCacheDir);
                     if (data is not null)
                     {
                         lock (_cache)
@@ -82,10 +82,12 @@ public sealed class VideoMapService
 
     private async Task<VideoMapData?> LoadSingleMapAsync(string artccId, string mapId, string artccCacheDir)
     {
-        var cachePath = Path.Combine(artccCacheDir, $"{mapId}.geojson");
-        var url = $"{DataApiBase}/{artccId}/{mapId}.geojson";
+        string cachePath = Path.Combine(artccCacheDir, $"{mapId}.geojson");
+        string url = $"{DataApiBase}/{artccId}/{mapId}.geojson";
 
-        var json = (await HttpFileCache.GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log)).Content;
+        string? json = (
+            await HttpFileCache.GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log)
+        ).Content;
         if (json is null)
         {
             return null;

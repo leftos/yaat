@@ -26,7 +26,7 @@ public class RunwayAndAltitudeArgumentTests
     /// <summary>Every numeric token 0–9999, its zero-padded two-digit form, each with no suffix and with L/C/R.</summary>
     private static IEnumerable<string> AllTokens()
     {
-        foreach (var suffix in new[] { "", "L", "C", "R" })
+        foreach (string? suffix in new[] { "", "L", "C", "R" })
         {
             for (int number = 0; number <= 9999; number++)
             {
@@ -42,16 +42,16 @@ public class RunwayAndAltitudeArgumentTests
     /// <summary>The rule as stated: one or two digits naming 01–36, with an optional L/C/R suffix.</summary>
     private static bool IsRunwayShaped(string token)
     {
-        var digits = (token.Length > 0) && (token[^1] is 'L' or 'C' or 'R') ? token[..^1] : token;
+        string digits = (token.Length > 0) && (token[^1] is 'L' or 'C' or 'R') ? token[..^1] : token;
         return (digits.Length is 1 or 2) && int.TryParse(digits, out int number) && (number is >= 1 and <= 36);
     }
 
     [Fact]
     public void AmbiguousPosition_BindsARunwayWhenTheTokenIsRunwayShaped_AnAltitudeOtherwise()
     {
-        foreach (var token in AllTokens())
+        foreach (string token in AllTokens())
         {
-            var resolution = CommandArgumentResolver.Resolve([token], Shapes);
+            CommandArgumentResolution resolution = CommandArgumentResolver.Resolve([token], Shapes);
 
             if (IsRunwayShaped(token))
             {
@@ -74,10 +74,10 @@ public class RunwayAndAltitudeArgumentTests
     [Fact]
     public void AfterABoundRunway_EveryAltitudeTokenBindsAsAnAltitude()
     {
-        foreach (var token in AllTokens())
+        foreach (string token in AllTokens())
         {
-            var resolution = CommandArgumentResolver.Resolve(["28R", token], Shapes);
-            var expected = AltitudeResolver.Resolve(token);
+            CommandArgumentResolution resolution = CommandArgumentResolver.Resolve(["28R", token], Shapes);
+            int? expected = AltitudeResolver.Resolve(token);
 
             if (expected is { } feet)
             {
@@ -152,7 +152,7 @@ public class RunwayAndAltitudeArgumentTests
     [Fact]
     public void Resolve_NoTokens_MatchesTheEmptyShape()
     {
-        var resolution = CommandArgumentResolver.Resolve([], Shapes);
+        CommandArgumentResolution resolution = CommandArgumentResolver.Resolve([], Shapes);
 
         Assert.Null(resolution.Failure);
         Assert.False(resolution.Has(CommandArgumentType.Runway));
@@ -162,7 +162,7 @@ public class RunwayAndAltitudeArgumentTests
     [Fact]
     public void Resolve_RunwayOnly_PicksTheRunwayOverload()
     {
-        var resolution = CommandArgumentResolver.Resolve(["33"], Shapes);
+        CommandArgumentResolution resolution = CommandArgumentResolver.Resolve(["33"], Shapes);
 
         Assert.Null(resolution.Failure);
         Assert.Equal("33", resolution.ValueOf<string>(CommandArgumentType.Runway));
@@ -172,7 +172,7 @@ public class RunwayAndAltitudeArgumentTests
     [Fact]
     public void Resolve_ThreeDigitToken_PicksTheAltitudeOverload()
     {
-        var resolution = CommandArgumentResolver.Resolve(["015"], Shapes);
+        CommandArgumentResolution resolution = CommandArgumentResolver.Resolve(["015"], Shapes);
 
         Assert.Null(resolution.Failure);
         Assert.False(resolution.Has(CommandArgumentType.Runway));
@@ -182,7 +182,7 @@ public class RunwayAndAltitudeArgumentTests
     [Fact]
     public void Resolve_RunwayThenTwoDigitAltitude_FillsBothSlots()
     {
-        var resolution = CommandArgumentResolver.Resolve(["28R", "15"], Shapes);
+        CommandArgumentResolution resolution = CommandArgumentResolver.Resolve(["28R", "15"], Shapes);
 
         Assert.Null(resolution.Failure);
         Assert.Equal("28R", resolution.ValueOf<string>(CommandArgumentType.Runway));
@@ -194,7 +194,7 @@ public class RunwayAndAltitudeArgumentTests
     [Fact]
     public void Resolve_SecondRunwayDesignator_FailsNamingThePosition()
     {
-        var resolution = CommandArgumentResolver.Resolve(["28R", "28L"], Shapes);
+        CommandArgumentResolution resolution = CommandArgumentResolver.Resolve(["28R", "28L"], Shapes);
 
         Assert.NotNull(resolution.Failure);
         Assert.Contains("'28L'", resolution.Failure, StringComparison.Ordinal);
@@ -204,7 +204,7 @@ public class RunwayAndAltitudeArgumentTests
     [Fact]
     public void Resolve_UnreadableFirstToken_NamesBothCandidateTypes()
     {
-        var resolution = CommandArgumentResolver.Resolve(["BOGUS"], Shapes);
+        CommandArgumentResolution resolution = CommandArgumentResolver.Resolve(["BOGUS"], Shapes);
 
         Assert.NotNull(resolution.Failure);
         Assert.Contains("BOGUS", resolution.Failure, StringComparison.Ordinal);
@@ -215,7 +215,7 @@ public class RunwayAndAltitudeArgumentTests
     [Fact]
     public void Resolve_MoreTokensThanAnyOverloadTakes_Fails()
     {
-        var resolution = CommandArgumentResolver.Resolve(["28R", "015", "020"], Shapes);
+        CommandArgumentResolution resolution = CommandArgumentResolver.Resolve(["28R", "015", "020"], Shapes);
 
         Assert.NotNull(resolution.Failure);
         Assert.Contains("'020'", resolution.Failure, StringComparison.Ordinal);
@@ -231,7 +231,7 @@ public class RunwayAndAltitudeArgumentTests
             [CommandArgumentType.Runway, CommandArgumentType.Altitude],
         ];
 
-        var resolution = CommandArgumentResolver.Resolve(["28R"], runwayThenAltitudeOnly);
+        CommandArgumentResolution resolution = CommandArgumentResolver.Resolve(["28R"], runwayThenAltitudeOnly);
 
         Assert.NotNull(resolution.Failure);
         Assert.Contains("altitude", resolution.Failure, StringComparison.Ordinal);

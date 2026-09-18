@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -33,7 +34,7 @@ public class PistonArrivalOverspeedTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -60,7 +61,7 @@ public class PistonArrivalOverspeedTests(ITestOutputHelper output)
         Assert.Equal(AircraftCategory.Piston, AircraftCategorization.Categorize("P28A"));
 
         // The Cherokee profile must exist and report a piston-realistic FAS (Vref).
-        var profile = AircraftProfileDatabase.Get("P28A");
+        AircraftProfile? profile = AircraftProfileDatabase.Get("P28A");
         Assert.NotNull(profile);
         Assert.True(profile!.FinalApproachSpeed <= 90, $"P28A FAS should be piston-realistic (≤ 90), got {profile.FinalApproachSpeed}");
 
@@ -68,7 +69,7 @@ public class PistonArrivalOverspeedTests(ITestOutputHelper output)
         // still resolve correctly via the sibling-map alias — otherwise replay-driven
         // tests against historical bundles silently use jet defaults.
         Assert.Equal(AircraftCategory.Piston, AircraftCategorization.Categorize("PA28"));
-        var aliased = AircraftProfileDatabase.Get("PA28");
+        AircraftProfile? aliased = AircraftProfileDatabase.Get("PA28");
         Assert.NotNull(aliased);
         Assert.True(aliased!.FinalApproachSpeed <= 90, $"PA28 alias should resolve to P28A's piston FAS, got {aliased.FinalApproachSpeed}");
     }
@@ -80,8 +81,8 @@ public class PistonArrivalOverspeedTests(ITestOutputHelper output)
     [Fact]
     public void Eny3196_SpawnSpeedRespectsPistonEnvelope()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -90,7 +91,7 @@ public class PistonArrivalOverspeedTests(ITestOutputHelper output)
         // Replay just past spawn (t=195). Snapshot at t=200 has the post-spawn state.
         engine.Replay(recording, 200);
 
-        var ac = engine.FindAircraft("ENY3196");
+        AircraftState? ac = engine.FindAircraft("ENY3196");
         Assert.NotNull(ac);
         output.WriteLine($"ENY3196 type={ac!.AircraftType} ias={ac.IndicatedAirspeed:F0} alt={ac.Altitude:F0}");
 
@@ -108,8 +109,8 @@ public class PistonArrivalOverspeedTests(ITestOutputHelper output)
     [Fact]
     public void Eny3196_FinalApproachTargetIsPistonVref()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -126,7 +127,7 @@ public class PistonArrivalOverspeedTests(ITestOutputHelper output)
         for (int t = 1; t <= 500; t++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft("ENY3196");
+            AircraftState? ac = engine.FindAircraft("ENY3196");
             if (ac is null)
             {
                 continue;
@@ -174,8 +175,8 @@ public class PistonArrivalOverspeedTests(ITestOutputHelper output)
     [Fact]
     public void Eny3196_ExitsRunwayBeforeDepartureEnd()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -196,13 +197,13 @@ public class PistonArrivalOverspeedTests(ITestOutputHelper output)
         for (int t = 1; t <= 1100; t++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft("ENY3196");
+            AircraftState? ac = engine.FindAircraft("ENY3196");
             if (ac is null)
             {
                 continue;
             }
 
-            var runway = ac.Phases?.AssignedRunway;
+            RunwayInfo? runway = ac.Phases?.AssignedRunway;
             if (runway is not null && thresholdLat == 0)
             {
                 thresholdLat = runway.ThresholdLatitude;

@@ -20,7 +20,7 @@ public class FinalApproachCourseExtractorTests
     )
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -28,8 +28,8 @@ public class FinalApproachCourseExtractorTests
 
         NavigationDatabase.SetInstance(navDb);
 
-        var procedure = navDb.GetApproach(airport, approachId);
-        var runway = navDb.GetRunway(airport, runwayDesignator);
+        CifpApproachProcedure? procedure = navDb.GetApproach(airport, approachId);
+        RunwayInfo? runway = navDb.GetRunway(airport, runwayDesignator);
         if (procedure is null || runway is null)
         {
             return null;
@@ -47,14 +47,14 @@ public class FinalApproachCourseExtractorTests
     {
         // KCCR VOR Rwy 19R: published final approach course is 171.7° magnetic via the CCR VOR.
         // Runway 19R magnetic heading is ~190°. The approach is offset by ~18°.
-        var loaded = Load("CCR", "S19R", "19R");
+        (NavigationDatabase NavDb, CifpApproachProcedure Procedure, RunwayInfo Runway)? loaded = Load("CCR", "S19R", "19R");
         if (loaded is null)
         {
             return;
         }
-        var (navDb, procedure, runway) = loaded.Value;
+        (NavigationDatabase? navDb, CifpApproachProcedure? procedure, RunwayInfo? runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+        FinalApproachCourseResult result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         // The offset should be at least 10° relative to the runway heading
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
@@ -75,14 +75,14 @@ public class FinalApproachCourseExtractorTests
         // Runway 10L magnetic heading ~096°. Whether this approach is genuinely offset depends
         // on the leg endpoints — the test asserts the extractor returns a sensible value (not
         // the runway heading via fallback) and is in the general "easterly" sector.
-        var loaded = Load("SFO", "R10L", "10L");
+        (NavigationDatabase NavDb, CifpApproachProcedure Procedure, RunwayInfo Runway)? loaded = Load("SFO", "R10L", "10L");
         if (loaded is null)
         {
             return;
         }
-        var (navDb, procedure, runway) = loaded.Value;
+        (NavigationDatabase? navDb, CifpApproachProcedure? procedure, RunwayInfo? runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+        FinalApproachCourseResult result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         // Course is in the easterly sector (50°-150° true).
         Assert.InRange(result.Course.Degrees, 50.0, 150.0);
@@ -109,14 +109,14 @@ public class FinalApproachCourseExtractorTests
         // True parallel-offset LDAs (where the FAS is laterally displaced from the threshold
         // and pilots execute a visual sidestep) are rare in published CIFP data; if such an
         // approach is added to the test corpus, expand DetermineAnchor coverage at that point.
-        var loaded = Load("DCA", "X19-Z", "19");
+        (NavigationDatabase NavDb, CifpApproachProcedure Procedure, RunwayInfo Runway)? loaded = Load("DCA", "X19-Z", "19");
         if (loaded is null)
         {
             return;
         }
-        var (navDb, procedure, runway) = loaded.Value;
+        (NavigationDatabase? navDb, CifpApproachProcedure? procedure, RunwayInfo? runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+        FinalApproachCourseResult result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
         Assert.True(
@@ -136,14 +136,14 @@ public class FinalApproachCourseExtractorTests
     [Fact]
     public void Extract_KsfoI28R_AlignedIls_ReturnsCourseMatchingRunway()
     {
-        var loaded = Load("SFO", "I28R", "28R");
+        (NavigationDatabase NavDb, CifpApproachProcedure Procedure, RunwayInfo Runway)? loaded = Load("SFO", "I28R", "28R");
         if (loaded is null)
         {
             return;
         }
-        var (navDb, procedure, runway) = loaded.Value;
+        (NavigationDatabase? navDb, CifpApproachProcedure? procedure, RunwayInfo? runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+        FinalApproachCourseResult result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
         Assert.True(
@@ -160,14 +160,14 @@ public class FinalApproachCourseExtractorTests
         // KOAK ILS 12 is the Issue #101 precedent: ~10° magnetic-vs-true variation between
         // runway designator and CIFP course. Both should still resolve close together once
         // the extractor converts mag→true.
-        var loaded = Load("OAK", "I12", "12");
+        (NavigationDatabase NavDb, CifpApproachProcedure Procedure, RunwayInfo Runway)? loaded = Load("OAK", "I12", "12");
         if (loaded is null)
         {
             return;
         }
-        var (navDb, procedure, runway) = loaded.Value;
+        (NavigationDatabase? navDb, CifpApproachProcedure? procedure, RunwayInfo? runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+        FinalApproachCourseResult result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
         Assert.True(
@@ -185,14 +185,14 @@ public class FinalApproachCourseExtractorTests
         // course to the runway directly (123° magnetic), so the extractor's CF path should
         // give a result that aligns with runway 12's heading without any special back-course
         // handling.
-        var loaded = Load("MCE", "B12", "12");
+        (NavigationDatabase NavDb, CifpApproachProcedure Procedure, RunwayInfo Runway)? loaded = Load("MCE", "B12", "12");
         if (loaded is null)
         {
             return;
         }
-        var (navDb, procedure, runway) = loaded.Value;
+        (NavigationDatabase? navDb, CifpApproachProcedure? procedure, RunwayInfo? runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+        FinalApproachCourseResult result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
         Assert.True(
@@ -210,14 +210,14 @@ public class FinalApproachCourseExtractorTests
         // record E0030). Converting 267° with the current WMM declination (~+1.7°) instead yields
         // ~268.7° true — ~1.24° north of the centerline. With the correct (CIFP) variation the FAC
         // lands on the runway centerline.
-        var loaded = Load("IAH", "I26R", "26R");
+        (NavigationDatabase NavDb, CifpApproachProcedure Procedure, RunwayInfo Runway)? loaded = Load("IAH", "I26R", "26R");
         if (loaded is null)
         {
             return;
         }
-        var (navDb, procedure, runway) = loaded.Value;
+        (NavigationDatabase? navDb, CifpApproachProcedure? procedure, RunwayInfo? runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+        FinalApproachCourseResult result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
         Assert.True(
@@ -232,14 +232,14 @@ public class FinalApproachCourseExtractorTests
     {
         // KCCR RNAV (GPS) RWY 19R: aligned RNAV with TF legs (no OutboundCourse). The extractor
         // must compute bearing from the FAF→MAP segment. Result should be close to runway 19R heading.
-        var loaded = Load("CCR", "R19R", "19R");
+        (NavigationDatabase NavDb, CifpApproachProcedure Procedure, RunwayInfo Runway)? loaded = Load("CCR", "R19R", "19R");
         if (loaded is null)
         {
             return;
         }
-        var (navDb, procedure, runway) = loaded.Value;
+        (NavigationDatabase? navDb, CifpApproachProcedure? procedure, RunwayInfo? runway) = loaded.Value;
 
-        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+        FinalApproachCourseResult result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
 
         double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
         Assert.True(

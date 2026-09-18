@@ -204,9 +204,9 @@ public static class WhisperBiasingPrompt
         var phoneticNumberSet = new HashSet<string>(PhoneticNumbers, StringComparer.OrdinalIgnoreCase);
         var ruleVocab = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var rule in PhraseologyRules.All)
+        foreach (PhraseologyRule rule in PhraseologyRules.All)
         {
-            foreach (var token in rule.Pattern)
+            foreach (string token in rule.Pattern)
             {
                 // Skip capture groups — they're {name} placeholders, not vocabulary.
                 if (token.StartsWith('{') && token.EndsWith('}'))
@@ -215,7 +215,7 @@ public static class WhisperBiasingPrompt
                 }
 
                 // Strip the optional-marker suffix so "and?" → "and".
-                var literal = token.EndsWith('?') ? token[..^1] : token;
+                string literal = token.EndsWith('?') ? token[..^1] : token;
                 if (literal.Length > 0 && !NatoPhoneticAlphabet.WordSet.Contains(literal) && !phoneticNumberSet.Contains(literal))
                 {
                     ruleVocab.Add(literal);
@@ -228,8 +228,8 @@ public static class WhisperBiasingPrompt
         // separation by spaces is the standard form (matches whisper.cpp's example prompts and
         // the form Whisper.net's WithPrompt expected).
         var sb = new StringBuilder(capacity: (ruleVocab.Count + PhoneticNumbers.Length + ScrambledNatoAlphabet.Length) * 8);
-        var first = true;
-        foreach (var word in ruleVocab)
+        bool first = true;
+        foreach (string word in ruleVocab)
         {
             if (!first)
             {
@@ -238,11 +238,11 @@ public static class WhisperBiasingPrompt
             sb.Append(word);
             first = false;
         }
-        foreach (var word in PhoneticNumbers)
+        foreach (string word in PhoneticNumbers)
         {
             sb.Append(' ').Append(word);
         }
-        foreach (var word in ScrambledNatoAlphabet)
+        foreach (string word in ScrambledNatoAlphabet)
         {
             sb.Append(' ').Append(word);
         }

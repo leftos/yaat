@@ -90,11 +90,11 @@ public class PatternEnterFinalDirectionTests : IDisposable
     [Fact]
     public void EF_28R_AtOAK_DefaultsToRightTraffic()
     {
-        var aircraft = MakeAircraft(37.68, -122.14, 2000, 292);
+        AircraftState aircraft = MakeAircraft(37.68, -122.14, 2000, 292);
         aircraft.Phases!.AssignedRunway = MakeOak28R();
 
         var cmd = new EnterFinalCommand(RunwayId: "28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(PatternDirection.Right, aircraft.Phases!.TrafficDirection);
@@ -107,11 +107,11 @@ public class PatternEnterFinalDirectionTests : IDisposable
     [Fact]
     public void EF_28L_AtOAK_DefaultsToLeftTraffic()
     {
-        var aircraft = MakeAircraft(37.68, -122.14, 2000, 292);
+        AircraftState aircraft = MakeAircraft(37.68, -122.14, 2000, 292);
         aircraft.Phases!.AssignedRunway = MakeOak28L();
 
         var cmd = new EnterFinalCommand(RunwayId: "28L");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(PatternDirection.Left, aircraft.Phases!.TrafficDirection);
@@ -124,11 +124,11 @@ public class PatternEnterFinalDirectionTests : IDisposable
     [Fact]
     public void EF_SingleRunway_DefaultsToLeftTraffic()
     {
-        var aircraft = MakeAircraft(38.05, -121.00, 2000, 180);
+        AircraftState aircraft = MakeAircraft(38.05, -121.00, 2000, 180);
         aircraft.Phases!.AssignedRunway = MakeSingleRunway18();
 
         var cmd = new EnterFinalCommand(RunwayId: "18");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(PatternDirection.Left, aircraft.Phases!.TrafficDirection);

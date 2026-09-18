@@ -177,7 +177,7 @@ public static class SnapshotSchemaMigrator
         //   instruction on the next tick if the conflict persists and the follower is still outside 5 nm.
         if (snapshot.SchemaVersion < 4)
         {
-            foreach (var ac in snapshot.Aircraft)
+            foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
             {
                 // A legacy snapshot can carry a null FlightPlan (the lenient resolver permits it);
                 // there is nothing to seed then, so skip rather than dereference.

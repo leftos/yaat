@@ -51,18 +51,18 @@ public static class ConditionalList
     public static List<ConditionalEntry> Enumerate(AircraftState aircraft, bool liveCountdown)
     {
         var entries = new List<ConditionalEntry>();
-        var queue = aircraft.Queue;
+        CommandQueue queue = aircraft.Queue;
 
         int number = 1;
         for (int i = Math.Max(0, queue.CurrentBlockIndex); i < queue.Blocks.Count; i++)
         {
-            var block = queue.Blocks[i];
+            CommandBlock block = queue.Blocks[i];
             if (block.IsApplied && block.AllComplete)
             {
                 continue; // finished — nothing pending
             }
 
-            var desc = Describe(block);
+            string desc = Describe(block);
             if (string.IsNullOrEmpty(desc))
             {
                 continue;
@@ -84,7 +84,7 @@ public static class ConditionalList
 
         for (int j = 0; j < aircraft.DeferredDispatches.Count; j++)
         {
-            var d = aircraft.DeferredDispatches[j];
+            DeferredDispatch d = aircraft.DeferredDispatches[j];
             if (d.IsReactionDelay)
             {
                 continue;
@@ -104,7 +104,7 @@ public static class ConditionalList
     public static List<string> ToLines(AircraftState aircraft, bool liveCountdown)
     {
         var lines = new List<string>();
-        foreach (var e in Enumerate(aircraft, liveCountdown))
+        foreach (ConditionalEntry e in Enumerate(aircraft, liveCountdown))
         {
             lines.Add(e.Kind == ConditionalEntryKind.ActiveBlock ? $"[Active] {e.Description}" : $"[{e.Number}] {e.Description}");
         }
@@ -142,7 +142,7 @@ public static class ConditionalList
                 .Select(e => e.QueueBlockIndex!.Value)
                 .OrderByDescending(x => x)
                 .ToList();
-            foreach (var qi in queueIndices)
+            foreach (int qi in queueIndices)
             {
                 aircraft.Queue.Blocks.RemoveAt(qi);
             }
@@ -155,7 +155,7 @@ public static class ConditionalList
         }
 
         ConditionalEntry? match = null;
-        foreach (var e in deletable)
+        foreach (ConditionalEntry e in deletable)
         {
             if (e.Number == number.Value)
             {
@@ -194,7 +194,7 @@ public static class ConditionalList
     /// </summary>
     public static string DescribeDeferred(DeferredDispatch d, bool liveCountdown)
     {
-        var payload = string.Join("; then ", d.Payload.Blocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeNatural))));
+        string payload = string.Join("; then ", d.Payload.Blocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeNatural))));
 
         if (d.GiveWayTarget is not null)
         {

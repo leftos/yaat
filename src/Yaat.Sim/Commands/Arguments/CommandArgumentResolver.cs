@@ -25,7 +25,7 @@ public sealed record CommandArgumentResolution(IReadOnlyList<CommandArgumentValu
     public T? ValueOf<T>(CommandArgumentType type)
         where T : notnull
     {
-        foreach (var argument in Values)
+        foreach (CommandArgumentValue argument in Values)
         {
             if ((argument.Type == type) && (argument.Value is T typed))
             {
@@ -39,7 +39,7 @@ public sealed record CommandArgumentResolution(IReadOnlyList<CommandArgumentValu
     /// <summary>The token as typed for the first argument of <paramref name="type"/>, or null.</summary>
     public string? TokenOf(CommandArgumentType type)
     {
-        foreach (var argument in Values)
+        foreach (CommandArgumentValue argument in Values)
         {
             if (argument.Type == type)
             {
@@ -86,14 +86,14 @@ public static class CommandArgumentResolver
 
         for (int i = 0; i < tokens.Count; i++)
         {
-            var token = tokens[i];
+            string token = tokens[i];
             var candidates = viable.Where(shape => shape.Length > i).Select(shape => shape[i]).Distinct().OrderBy(PrecedenceOf).ToList();
             if (candidates.Count == 0)
             {
                 return Failed(values, token, i, "no more arguments are expected");
             }
 
-            var matched = candidates.Select(type => TryParse(type, token)).FirstOrDefault(value => value is not null);
+            CommandArgumentValue? matched = candidates.Select(type => TryParse(type, token)).FirstOrDefault(value => value is not null);
             if (matched is not { } value)
             {
                 return Failed(values, token, i, string.Join(", or ", candidates.Select(Expectation)));
@@ -105,7 +105,10 @@ public static class CommandArgumentResolver
 
         if (!viable.Exists(shape => shape.Length == tokens.Count))
         {
-            var missing = viable.Where(shape => shape.Length > tokens.Count).Select(shape => shape[tokens.Count]).Distinct();
+            IEnumerable<CommandArgumentType> missing = viable
+                .Where(shape => shape.Length > tokens.Count)
+                .Select(shape => shape[tokens.Count])
+                .Distinct();
             return new CommandArgumentResolution(values, $"needs {string.Join(", or ", missing.Select(Expectation))}");
         }
 

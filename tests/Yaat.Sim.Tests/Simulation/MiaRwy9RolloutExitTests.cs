@@ -41,18 +41,18 @@ public class MiaRwy9RolloutExitTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("MIA");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("MIA");
         if (layout is null)
         {
             return;
         }
 
-        var rwy9 = NavigationDatabase.Instance.GetRunway("MIA", "9");
+        RunwayInfo? rwy9 = NavigationDatabase.Instance.GetRunway("MIA", "9");
         Assert.NotNull(rwy9);
         Assert.Equal("09", rwy9.Designator);
 
-        var sidePadded = layout.InferPreferredExitSide("09", rwy9.TrueHeading);
-        var sideUnpadded = layout.InferPreferredExitSide("9", rwy9.TrueHeading);
+        ExitSide? sidePadded = layout.InferPreferredExitSide("09", rwy9.TrueHeading);
+        ExitSide? sideUnpadded = layout.InferPreferredExitSide("9", rwy9.TrueHeading);
         output.WriteLine($"InferPreferredExitSide: 09 -> {sidePadded}, 9 -> {sideUnpadded} (authored turnoff = left)");
 
         Assert.Equal(ExitSide.Left, sidePadded);
@@ -72,14 +72,14 @@ public class MiaRwy9RolloutExitTests(ITestOutputHelper output)
             return;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var rwy9 = navDb.GetRunway("MIA", "9");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? rwy9 = navDb.GetRunway("MIA", "9");
         if (rwy9 is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("MIA");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("MIA");
         if (layout is null)
         {
             return;
@@ -90,7 +90,7 @@ public class MiaRwy9RolloutExitTests(ITestOutputHelper output)
         var engine = new SimulationEngine(new TestAirportGroundData());
 
         double reciprocal = (rwy9.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(rwy9.ThresholdLatitude, rwy9.ThresholdLongitude, reciprocal, 1.0);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(rwy9.ThresholdLatitude, rwy9.ThresholdLongitude, reciprocal, 1.0);
 
         var aircraft = new AircraftState
         {
@@ -117,7 +117,7 @@ public class MiaRwy9RolloutExitTests(ITestOutputHelper output)
         aircraft.Phases.Add(new HoldingAfterExitPhase());
         aircraft.Ground.Layout = layout;
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         engine.World.AddAircraft(aircraft);
@@ -130,13 +130,13 @@ public class MiaRwy9RolloutExitTests(ITestOutputHelper output)
             PrimaryAirportId = "MIA",
         };
 
-        var clear = engine.SendCommand(Callsign, "CLAND");
+        CommandResult clear = engine.SendCommand(Callsign, "CLAND");
         Assert.True(clear.Success, $"CLAND failed: {clear.Message}");
 
         // Rollout distances are measured from the landing threshold — KMIA runway 9 is displaced
         // 1,375 ft, and touchdown starts there, so a pavement-end datum would charge the aircraft for
         // pavement it is never allowed to land on.
-        var threshold = LandingThreshold.Resolve(rwy9, layout);
+        LatLon threshold = LandingThreshold.Resolve(rwy9, layout);
         string? exitTaxiway = null;
         double exitCommitDistFt = -1;
         double maxAlongFt = 0;

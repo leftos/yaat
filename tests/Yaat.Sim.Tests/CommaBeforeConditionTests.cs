@@ -33,7 +33,7 @@ public class CommaBeforeConditionTests : IDisposable
     [InlineData("fh 090, at sunol cm 030", "FH 090; AT SUNOL CM 030")]
     public void CommaBeforeCondition_PromotedToSemicolon(string input, string expected)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme, out ParseFailure? failure);
 
         Assert.NotNull(result);
         Assert.Null(failure);
@@ -43,7 +43,7 @@ public class CommaBeforeConditionTests : IDisposable
     [Fact]
     public void SemicolonBeforeCondition_StillWorks()
     {
-        var result = CommandSchemeParser.ParseCompound("cm 020; at oak30num cm 014", Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("cm 020; at oak30num cm 014", Scheme, out ParseFailure? failure);
 
         Assert.NotNull(result);
         Assert.Null(failure);
@@ -53,7 +53,7 @@ public class CommaBeforeConditionTests : IDisposable
     [Fact]
     public void PlainCommaParallelCommands_Unaffected()
     {
-        var result = CommandSchemeParser.ParseCompound("cm 020, fh 090", Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("cm 020, fh 090", Scheme, out ParseFailure? failure);
 
         Assert.NotNull(result);
         Assert.Null(failure);

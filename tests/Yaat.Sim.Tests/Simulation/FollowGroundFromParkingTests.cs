@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -44,8 +45,8 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
 
     private (SimulationEngine Engine, AircraftState Fth, AircraftState Kpo)? ReplayToParkedFollower()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return null;
@@ -53,8 +54,8 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
 
         engine.Replay(recording, ReplayTime);
 
-        var fth = engine.FindAircraft("FTH399");
-        var kpo = engine.FindAircraft("KPO83");
+        AircraftState? fth = engine.FindAircraft("FTH399");
+        AircraftState? kpo = engine.FindAircraft("KPO83");
         Assert.NotNull(fth);
         Assert.NotNull(kpo);
 
@@ -76,16 +77,16 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
             return;
         }
 
-        var result = engine.SendCommand("FTH399", "FOLLOWG KPO83");
+        CommandResult result = engine.SendCommand("FTH399", "FOLLOWG KPO83");
         output.WriteLine($"FOLLOWG KPO83 result: success={result.Success} msg={result.Message}");
         Assert.True(result.Success, $"FOLLOWG should succeed but got: {result.Message}");
 
-        var fth = engine.FindAircraft("FTH399");
+        AircraftState? fth = engine.FindAircraft("FTH399");
         Assert.NotNull(fth);
         Assert.IsType<FollowingPhase>(fth.Phases?.CurrentPhase);
 
         // The follower should spool up and close on the leader.
-        var startPos = fth.Position;
+        LatLon startPos = fth.Position;
         double maxSpeed = 0;
         for (int i = 0; i < 60; i++)
         {
@@ -95,7 +96,7 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
             maxSpeed = Math.Max(maxSpeed, fth.GroundSpeed);
         }
 
-        var kpo = engine.FindAircraft("KPO83");
+        AircraftState? kpo = engine.FindAircraft("KPO83");
         Assert.NotNull(kpo);
         double movedNm = GeoMath.DistanceNm(startPos.Lat, startPos.Lon, fth.Position.Lat, fth.Position.Lon);
         double gapNm = GeoMath.DistanceNm(fth.Position.Lat, fth.Position.Lon, kpo.Position.Lat, kpo.Position.Lon);
@@ -124,15 +125,15 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
         }
 
         // KPO83 is taxiing; hold it in position (a HoldPosition directive that only RES/TAXI clears).
-        var holdResult = engine.SendCommand("KPO83", "HOLD");
+        CommandResult holdResult = engine.SendCommand("KPO83", "HOLD");
         Assert.True(holdResult.Success, $"HOLD should succeed but got: {holdResult.Message}");
-        var kpo = engine.FindAircraft("KPO83");
+        AircraftState? kpo = engine.FindAircraft("KPO83");
         Assert.NotNull(kpo);
         Assert.True(kpo.Ground.IsImmobile, "KPO83 should be immobile after HOLDPOSITION");
         Assert.IsType<TaxiingPhase>(kpo.Phases?.CurrentPhase);
 
         // Now tell the held aircraft to follow the (on-ground) leader FTH399.
-        var result = engine.SendCommand("KPO83", "FOLLOWG FTH399");
+        CommandResult result = engine.SendCommand("KPO83", "FOLLOWG FTH399");
         output.WriteLine($"FOLLOWG FTH399 result: success={result.Success} msg={result.Message}");
         Assert.True(result.Success, $"FOLLOWG should succeed but got: {result.Message}");
 
@@ -146,7 +147,7 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
         // inside the first 15 s and then holds 87.6 ft behind the leader. A window opening at t=15 would see
         // only the last 59 ft. Over 0-60 s the follower covers 450 ft = 0.074 nm against ~0 nm for a frozen
         // (still-held) follower, so the assertion still reads "FOLLOWG released the hold and it moved".
-        var startPos = kpo.Position;
+        LatLon startPos = kpo.Position;
         for (int i = 0; i < 60; i++)
         {
             engine.TickOneSecond();
@@ -154,7 +155,7 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
 
         kpo = engine.FindAircraft("KPO83");
         Assert.NotNull(kpo);
-        var fth = engine.FindAircraft("FTH399");
+        AircraftState? fth = engine.FindAircraft("FTH399");
         Assert.NotNull(fth);
         double movedNm = GeoMath.DistanceNm(startPos.Lat, startPos.Lon, kpo.Position.Lat, kpo.Position.Lon);
         double gapFt = GeoMath.DistanceNm(kpo.Position, fth.Position) * GeoMath.FeetPerNm;
@@ -183,7 +184,7 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
             return;
         }
 
-        var result = engine.SendCommand("FTH399", "BEHIND KPO83 FOLLOWG KPO83");
+        CommandResult result = engine.SendCommand("FTH399", "BEHIND KPO83 FOLLOWG KPO83");
         output.WriteLine($"BEHIND KPO83 FOLLOWG KPO83 result: success={result.Success} msg={result.Message}");
         Assert.True(result.Success, $"deferred FOLLOWG should be accepted but got: {result.Message}");
 

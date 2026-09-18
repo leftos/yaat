@@ -76,7 +76,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        foreach (var w in engine.LoadScenario(scenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc))
+        foreach (string w in engine.LoadScenario(scenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc))
         {
             output.WriteLine($"[load-warn] {w}");
         }
@@ -88,7 +88,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
     [Fact]
     public void VfrArrivalGenerator_SpawnsInsideItsConfiguredRanges()
     {
-        var engine = BuildEngine(VfrArrivalScenario);
+        SimulationEngine? engine = BuildEngine(VfrArrivalScenario);
         if (engine?.Scenario is null)
         {
             return;
@@ -98,17 +98,17 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
 
         // Sample each aircraft on the tick it appears: a VFR arrival flies straight at the field, so by the
         // end of the run its bearing and distance no longer reflect where the generator placed it.
-        var spawns = CollectSpawns(engine, seconds: 600);
+        List<(AircraftState Aircraft, LatLon Position, double Altitude, string RouteFixes)> spawns = CollectSpawns(engine, seconds: 600);
         Assert.NotEmpty(spawns);
         output.WriteLine($"spawned {spawns.Count} VFR arrivals");
 
-        var (airportLat, airportLon) = Airport();
-        foreach (var spawn in spawns)
+        (double airportLat, double airportLon) = Airport();
+        foreach ((AircraftState Aircraft, LatLon Position, double Altitude, string RouteFixes) spawn in spawns)
         {
-            var ac = spawn.Aircraft;
-            var distanceNm = GeoMath.DistanceNm(spawn.Position.Lat, spawn.Position.Lon, airportLat, airportLon);
-            var bearingTrue = GeoMath.BearingTo(airportLat, airportLon, spawn.Position.Lat, spawn.Position.Lon);
-            var bearingMagnetic = MagneticDeclination.TrueToMagnetic(bearingTrue, airportLat, airportLon);
+            AircraftState ac = spawn.Aircraft;
+            double distanceNm = GeoMath.DistanceNm(spawn.Position.Lat, spawn.Position.Lon, airportLat, airportLon);
+            double bearingTrue = GeoMath.BearingTo(airportLat, airportLon, spawn.Position.Lat, spawn.Position.Lon);
+            double bearingMagnetic = MagneticDeclination.TrueToMagnetic(bearingTrue, airportLat, airportLon);
 
             output.WriteLine(
                 $"{ac.Callsign} {ac.AircraftType} {distanceNm:F1}nm brg {bearingMagnetic:F0} at {spawn.Altitude:F0}ft code {ac.Transponder.Code} route={spawn.RouteFixes}"
@@ -146,10 +146,10 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
         var spawns = new List<(AircraftState, LatLon, double, string)>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        for (var t = 0; t < seconds; t++)
+        for (int t = 0; t < seconds; t++)
         {
             engine.TickOneSecond();
-            foreach (var ac in engine.World.GetSnapshot())
+            foreach (AircraftState ac in engine.World.GetSnapshot())
             {
                 if (seen.Add(ac.Callsign))
                 {
@@ -164,7 +164,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
     [Fact]
     public void VfrArrivalGenerator_NeverSpawnsInsideClassBOrC()
     {
-        var engine = BuildEngine(VfrArrivalScenario);
+        SimulationEngine? engine = BuildEngine(VfrArrivalScenario);
         if (engine?.Scenario is null)
         {
             return;
@@ -172,7 +172,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
 
         // Guard against a vacuous pass: if the Class B/C set failed to load, every point is "clear" and this
         // test proves nothing. OAK sits under the SFO Bravo, so something must contain a point overhead.
-        var (oakLat, oakLon) = Airport();
+        (double oakLat, double oakLon) = Airport();
         Assert.NotEmpty(AirspaceDatabase.Default.FindContaining(new LatLon(oakLat, oakLon), altitudeFtMsl: 5000));
 
         // A generous band that would otherwise place aircraft inside the SFO Bravo / OAK Charlie.
@@ -184,11 +184,11 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
         engine.Scenario.VfrArrivalGenerators[0].Config.BearingTo = 360;
 
         var spawnAltitudes = new List<(LatLon Position, double Altitude, string Callsign)>();
-        for (var t = 0; t < 600; t++)
+        for (int t = 0; t < 600; t++)
         {
             var before = engine.World.GetSnapshot().Select(a => a.Callsign).ToHashSet(StringComparer.Ordinal);
             engine.TickOneSecond();
-            foreach (var ac in engine.World.GetSnapshot().Where(a => !before.Contains(a.Callsign)))
+            foreach (AircraftState? ac in engine.World.GetSnapshot().Where(a => !before.Contains(a.Callsign)))
             {
                 spawnAltitudes.Add((ac.Position, ac.Altitude, ac.Callsign));
             }
@@ -197,7 +197,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
         Assert.NotEmpty(spawnAltitudes);
         output.WriteLine($"checked {spawnAltitudes.Count} spawn points");
 
-        foreach (var (position, altitude, callsign) in spawnAltitudes)
+        foreach ((LatLon position, double altitude, string? callsign) in spawnAltitudes)
         {
             var containing = AirspaceDatabase.Default.FindContaining(position, altitude).ToList();
             Assert.True(
@@ -210,7 +210,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
     [Fact]
     public void VfrArrivalGenerator_DescendingSpawn_ActuallyDescends()
     {
-        var engine = BuildEngine(VfrArrivalScenario);
+        SimulationEngine? engine = BuildEngine(VfrArrivalScenario);
         if (engine?.Scenario is null)
         {
             return;
@@ -219,7 +219,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
         engine.Scenario.VfrArrivalGenerators[0].Config.InitialVsFpm = -500;
 
         AircraftState? arrival = null;
-        for (var t = 0; t < 120 && arrival is null; t++)
+        for (int t = 0; t < 120 && arrival is null; t++)
         {
             engine.TickOneSecond();
             arrival = engine.World.GetSnapshot().FirstOrDefault();
@@ -229,10 +229,10 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
 
         // Physics zeroes vertical speed with no target altitude, so the descent target must have been set.
         Assert.NotNull(arrival.Targets.TargetAltitude);
-        var fieldElevation = Yaat.Sim.Data.NavigationDatabase.Instance.GetAirportElevation("OAK") ?? 0;
+        double fieldElevation = Yaat.Sim.Data.NavigationDatabase.Instance.GetAirportElevation("OAK") ?? 0;
         Assert.Equal(Math.Round((fieldElevation + 1000) / 100.0) * 100.0, arrival.Targets.TargetAltitude!.Value);
 
-        for (var t = 0; t < 10; t++)
+        for (int t = 0; t < 10; t++)
         {
             engine.TickOneSecond();
         }
@@ -244,24 +244,24 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
     [Fact]
     public void VfrArrivalGenerator_LevelSpawn_HoldsAltitudeForTheController()
     {
-        var engine = BuildEngine(VfrArrivalScenario);
+        SimulationEngine? engine = BuildEngine(VfrArrivalScenario);
         if (engine?.Scenario is null)
         {
             return;
         }
 
         AircraftState? arrival = null;
-        for (var t = 0; t < 120 && arrival is null; t++)
+        for (int t = 0; t < 120 && arrival is null; t++)
         {
             engine.TickOneSecond();
             arrival = engine.World.GetSnapshot().FirstOrDefault();
         }
 
         Assert.NotNull(arrival);
-        var spawnAltitude = arrival.Altitude;
+        double spawnAltitude = arrival.Altitude;
         Assert.Null(arrival.Targets.TargetAltitude);
 
-        for (var t = 0; t < 30; t++)
+        for (int t = 0; t < 30; t++)
         {
             engine.TickOneSecond();
         }
@@ -273,7 +273,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
     [Fact]
     public void OverflightGenerator_SpawnsTransitsWithHemisphericAltitudeAndExitRoute()
     {
-        var engine = BuildEngine(OverflightScenario);
+        SimulationEngine? engine = BuildEngine(OverflightScenario);
         if (engine?.Scenario is null)
         {
             return;
@@ -281,17 +281,17 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
 
         Assert.Single(engine.Scenario.OverflightGenerators);
 
-        for (var t = 0; t < 600; t++)
+        for (int t = 0; t < 600; t++)
         {
             engine.TickOneSecond();
         }
 
-        var spawned = engine.World.GetSnapshot();
+        List<AircraftState> spawned = engine.World.GetSnapshot();
         Assert.NotEmpty(spawned);
         output.WriteLine($"spawned {spawned.Count} overflights");
 
-        var (airportLat, airportLon) = Airport();
-        foreach (var ac in spawned)
+        (double airportLat, double airportLon) = Airport();
+        foreach (AircraftState ac in spawned)
         {
             Assert.True(ac.IsGeneratedOverflight);
             Assert.Equal(30, ac.OverflightExitDistanceNm);
@@ -303,18 +303,18 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
             Assert.Equal(1200u, ac.Transponder.Code);
 
             // Routed to an exit point on the "to" arc, at the exit distance.
-            var exit = Assert.Single(ac.Targets.NavigationRoute);
-            var exitDistance = GeoMath.DistanceNm(exit.Position.Lat, exit.Position.Lon, airportLat, airportLon);
+            NavigationTarget exit = Assert.Single(ac.Targets.NavigationRoute);
+            double exitDistance = GeoMath.DistanceNm(exit.Position.Lat, exit.Position.Lon, airportLat, airportLon);
             Assert.Equal(30, exitDistance, precision: 0);
 
-            var exitBearingTrue = GeoMath.BearingTo(airportLat, airportLon, exit.Position.Lat, exit.Position.Lon);
-            var exitBearingMagnetic = MagneticDeclination.TrueToMagnetic(exitBearingTrue, airportLat, airportLon);
+            double exitBearingTrue = GeoMath.BearingTo(airportLat, airportLon, exit.Position.Lat, exit.Position.Lon);
+            double exitBearingMagnetic = MagneticDeclination.TrueToMagnetic(exitBearingTrue, airportLat, airportLon);
             Assert.InRange(exitBearingMagnetic, 259, 281);
 
             // 91.159(a): a level transit above 3000 AGL flies a hemispheric cruising altitude, keyed on its
             // actual course over the ground toward the exit point.
-            var courseTrue = GeoMath.BearingTo(ac.Position, exit.Position);
-            var courseMagnetic = MagneticDeclination.TrueToMagnetic(courseTrue, ac.Position);
+            double courseTrue = GeoMath.BearingTo(ac.Position, exit.Position);
+            double courseMagnetic = MagneticDeclination.TrueToMagnetic(courseTrue, ac.Position);
             output.WriteLine($"{ac.Callsign} alt={ac.Altitude:F0} course={courseMagnetic:F0} exitBrg={exitBearingMagnetic:F0}");
             Assert.True(
                 HemisphericAltitude.IsConforming(courseMagnetic, ac.Altitude),
@@ -326,7 +326,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
     [Fact]
     public void OverflightGenerator_SnapDisabled_KeepsTheRolledAltitude()
     {
-        var engine = BuildEngine(OverflightScenario);
+        SimulationEngine? engine = BuildEngine(OverflightScenario);
         if (engine?.Scenario is null)
         {
             return;
@@ -336,12 +336,12 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
         engine.Scenario.OverflightGenerators[0].Config.AltitudeMin = 5000;
         engine.Scenario.OverflightGenerators[0].Config.AltitudeMax = 5000;
 
-        for (var t = 0; t < 120; t++)
+        for (int t = 0; t < 120; t++)
         {
             engine.TickOneSecond();
         }
 
-        var spawned = engine.World.GetSnapshot();
+        List<AircraftState> spawned = engine.World.GetSnapshot();
         Assert.NotEmpty(spawned);
         Assert.All(spawned, ac => Assert.Equal(5000, ac.Altitude, precision: 3));
     }
@@ -361,7 +361,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
             }
             """;
 
-        var engine = BuildEngine(plainScenario);
+        SimulationEngine? engine = BuildEngine(plainScenario);
         if (engine?.Scenario is null)
         {
             return;
@@ -371,7 +371,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
         Assert.Empty(engine.Scenario.VfrArrivalGenerators);
         Assert.Empty(engine.Scenario.OverflightGenerators);
 
-        for (var t = 0; t < 120; t++)
+        for (int t = 0; t < 120; t++)
         {
             engine.TickOneSecond();
         }

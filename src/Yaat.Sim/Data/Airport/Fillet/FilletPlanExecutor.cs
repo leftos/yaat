@@ -16,14 +16,14 @@ internal static class FilletPlanExecutor
         NextNodeIdCounter idCounter
     )
     {
-        var cutNode = MaterializeCutNodes(layout, plan, junctionPlans, idCounter);
+        Dictionary<CutId, GroundNode> cutNode = MaterializeCutNodes(layout, plan, junctionPlans, idCounter);
 
         var cornerByKey = new Dictionary<(int Junction, int Corner), CornerSpec>();
         var junctionPosById = new Dictionary<int, LatLon>();
-        foreach (var jp in junctionPlans)
+        foreach (JunctionPlan jp in junctionPlans)
         {
             junctionPosById[jp.JunctionNodeId] = jp.JunctionNode.Position;
-            foreach (var corner in jp.Corners)
+            foreach (CornerSpec corner in jp.Corners)
             {
                 cornerByKey[(jp.JunctionNodeId, corner.CornerId)] = corner;
             }
@@ -41,10 +41,10 @@ internal static class FilletPlanExecutor
         // sub-segment identical to a consumed edge is not deduped away then orphaned.
         layout.Edges.RemoveAll(e => plan.EdgesToRemove.Contains(e));
 
-        foreach (var op in plan.SurvivingEdges)
+        foreach (SurvivingEdgeOp op in plan.SurvivingEdges)
         {
-            var from = ResolveEndpoint(op.From);
-            var to = ResolveEndpoint(op.To);
+            GroundNode? from = ResolveEndpoint(op.From);
+            GroundNode? to = ResolveEndpoint(op.To);
             if ((from is null) || (to is null))
             {
                 continue;
@@ -54,15 +54,15 @@ internal static class FilletPlanExecutor
         }
 
         int arcsCreated = 0;
-        foreach (var arcOp in plan.CornerArcs)
+        foreach (CornerArcOp arcOp in plan.CornerArcs)
         {
-            if (!cornerByKey.TryGetValue((arcOp.JunctionNodeId, arcOp.CornerId), out var corner))
+            if (!cornerByKey.TryGetValue((arcOp.JunctionNodeId, arcOp.CornerId), out CornerSpec? corner))
             {
                 continue;
             }
 
-            var tanA = ResolveEndpoint(arcOp.EndpointAtArmA);
-            var tanB = ResolveEndpoint(arcOp.EndpointAtArmB);
+            GroundNode? tanA = ResolveEndpoint(arcOp.EndpointAtArmA);
+            GroundNode? tanB = ResolveEndpoint(arcOp.EndpointAtArmB);
             if ((tanA is null) || (tanB is null) || (tanA.Id == tanB.Id))
             {
                 continue;
@@ -72,7 +72,7 @@ internal static class FilletPlanExecutor
             // radius the cut spacing supports (capped by the corner's policy radius), so the stored
             // MinRadiusOfCurvatureFt is honest instead of an over-bulged requested-radius bezier.
             double arcRadiusFt = corner.RequestedRadiusFt;
-            if (junctionPosById.TryGetValue(arcOp.JunctionNodeId, out var junctionPos))
+            if (junctionPosById.TryGetValue(arcOp.JunctionNodeId, out LatLon junctionPos))
             {
                 double taFt = GeoMath.DistanceNm(junctionPos, tanA.Position) * GeoMath.FeetPerNm;
                 double tbFt = GeoMath.DistanceNm(junctionPos, tanB.Position) * GeoMath.FeetPerNm;
@@ -87,7 +87,7 @@ internal static class FilletPlanExecutor
                 arcRadiusFt = Math.Min(corner.RequestedRadiusFt, effectiveR);
             }
 
-            var bez = FilletGeometry.BuildBezier(
+            FilletGeometry.BezierBuildResult bez = FilletGeometry.BuildBezier(
                 tanA.Position,
                 tanB.Position,
                 corner.BearingAToJunctionDeg,
@@ -124,10 +124,10 @@ internal static class FilletPlanExecutor
             arcsCreated++;
         }
 
-        foreach (var op in plan.StraightConnectors)
+        foreach (StraightConnectorOp op in plan.StraightConnectors)
         {
-            var tanA = ResolveEndpoint(op.EndpointAtArmA);
-            var tanB = ResolveEndpoint(op.EndpointAtArmB);
+            GroundNode? tanA = ResolveEndpoint(op.EndpointAtArmA);
+            GroundNode? tanB = ResolveEndpoint(op.EndpointAtArmB);
             if ((tanA is null) || (tanB is null) || (tanA.Id == tanB.Id))
             {
                 continue;
@@ -170,10 +170,10 @@ internal static class FilletPlanExecutor
     )
     {
         var cutNode = new Dictionary<CutId, GroundNode>();
-        foreach (var (cutId, cut) in plan.Cuts)
+        foreach ((CutId cutId, ResolvedArmCut? cut) in plan.Cuts)
         {
-            var junctionPlan = junctionPlans.FirstOrDefault(j => j.JunctionNodeId == cut.JunctionNodeId);
-            var junctionPos = junctionPlan?.JunctionNode.Position ?? cut.Position;
+            JunctionPlan? junctionPlan = junctionPlans.FirstOrDefault(j => j.JunctionNodeId == cut.JunctionNodeId);
+            LatLon junctionPos = junctionPlan?.JunctionNode.Position ?? cut.Position;
 
             int id = idCounter.Next++;
             while (layout.Nodes.ContainsKey(id))

@@ -30,7 +30,7 @@ public class EramEntryEngineTests
     [Fact]
     public void Track_TakesTheTrack_ClearsTheHandoff_AndUnfreezes()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.HandoffPeer = Sector45;
         ac.Track.HandoffInitiatedAt = 12;
         ac.Eram.IsFrozen = true;
@@ -38,7 +38,7 @@ public class EramEntryEngineTests
         ac.Eram.FrozenLon = -122.0;
         ac.Eram.FrozenAltitude = 110;
 
-        var result = EramEntryEngine.Apply(ac, "TRACK", Sector44);
+        CommandResult result = EramEntryEngine.Apply(ac, "TRACK", Sector44);
 
         Assert.True(result.Success, result.Message);
         Assert.Same(Sector44, ac.Track.Owner);
@@ -56,10 +56,10 @@ public class EramEntryEngineTests
     [InlineData("TRACK /OK", true)]
     public void Track_OnAnotherSectorsTrack_IsRefusedUnlessForced(string entry, bool taken)
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Track.Owner = Sector45;
 
-        var result = EramEntryEngine.Apply(ac, entry, Sector44);
+        CommandResult result = EramEntryEngine.Apply(ac, entry, Sector44);
 
         Assert.Equal(taken, result.Success);
         Assert.Same(taken ? Sector44 : Sector45, ac.Track.Owner);
@@ -72,9 +72,9 @@ public class EramEntryEngineTests
     [Fact]
     public void Track_WithoutAnIdentity_IsRefused()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
-        var result = EramEntryEngine.Apply(ac, "TRACK", null);
+        CommandResult result = EramEntryEngine.Apply(ac, "TRACK", null);
 
         Assert.False(result.Success);
         Assert.Equal("NOT ACTIVE", result.Message);
@@ -84,9 +84,9 @@ public class EramEntryEngineTests
     [Fact]
     public void Freeze_ParksTheTrack_AndSnapshotsTheAltitude()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
-        var result = EramEntryEngine.Apply(ac, "FREEZE 37.25 -121.75", null);
+        CommandResult result = EramEntryEngine.Apply(ac, "FREEZE 37.25 -121.75", null);
 
         Assert.True(result.Success, result.Message);
         Assert.True(ac.Eram.IsFrozen);
@@ -101,7 +101,7 @@ public class EramEntryEngineTests
     [InlineData("FREEZE north west")]
     public void Freeze_WithoutACoordinate_IsRefused(string entry)
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
         Assert.False(EramEntryEngine.Apply(ac, entry, null).Success);
         Assert.False(ac.Eram.IsFrozen);
@@ -114,9 +114,9 @@ public class EramEntryEngineTests
     [InlineData("QQ P070", null, null, 70, null, "QQ P70 UAL1")]
     public void Qq_SetsTheAltitudeTier(string entry, int? interim, int? local, int? procedure, int? cera, string message)
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
-        var result = EramEntryEngine.Apply(ac, entry, null);
+        CommandResult result = EramEntryEngine.Apply(ac, entry, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(message, result.Message);
@@ -129,7 +129,7 @@ public class EramEntryEngineTests
     [Fact]
     public void Qq_InterimAndProcedure_AreMutuallyExclusive()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
         EramEntryEngine.Apply(ac, "QQ 110", null);
         EramEntryEngine.Apply(ac, "QQ P070", null);
@@ -141,7 +141,7 @@ public class EramEntryEngineTests
     [Fact]
     public void Qq_Bare_ClearsInterimAndProcedure_AndQqL_ClearsTheLocalOnly()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Eram.InterimAltitude = 110;
         ac.Eram.ProcedureAltitude = 70;
         ac.Eram.LocalInterimAltitude = 90;
@@ -158,9 +158,9 @@ public class EramEntryEngineTests
     [Fact]
     public void Qq_WithNoNumericToken_IsRefused()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
-        var result = EramEntryEngine.Apply(ac, "QQ ABC", null);
+        CommandResult result = EramEntryEngine.Apply(ac, "QQ ABC", null);
 
         Assert.False(result.Success);
         Assert.Equal("FORMAT", result.Message);
@@ -169,9 +169,9 @@ public class EramEntryEngineTests
     [Fact]
     public void Qr_SetsTheControllerEnteredAltitude()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
-        var result = EramEntryEngine.Apply(ac, "QR 250", null);
+        CommandResult result = EramEntryEngine.Apply(ac, "QR 250", null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("QR 250 UAL1", result.Message);
@@ -197,9 +197,9 @@ public class EramEntryEngineTests
     [InlineData("QS 5R", "5R")]
     public void Qs_Heading_StoresTheCanonicalForm(string entry, string stored)
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
-        var result = EramEntryEngine.Apply(ac, entry, null);
+        CommandResult result = EramEntryEngine.Apply(ac, entry, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(stored, ac.Eram.AssignedHeading);
@@ -213,9 +213,9 @@ public class EramEntryEngineTests
     [InlineData("QS ABC")]
     public void Qs_BadHeading_IsRefused(string entry)
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
-        var result = EramEntryEngine.Apply(ac, entry, null);
+        CommandResult result = EramEntryEngine.Apply(ac, entry, null);
 
         Assert.False(result.Success);
         Assert.Equal("FORMAT", result.Message);
@@ -230,9 +230,9 @@ public class EramEntryEngineTests
     [InlineData("QS /M100-", "M100-")]
     public void Qs_Speed_StoresTheCanonicalForm(string entry, string stored)
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
-        var result = EramEntryEngine.Apply(ac, entry, null);
+        CommandResult result = EramEntryEngine.Apply(ac, entry, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(stored, ac.Eram.AssignedSpeed);
@@ -246,7 +246,7 @@ public class EramEntryEngineTests
     [InlineData("QS /")]
     public void Qs_BadSpeed_IsRefused(string entry)
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
         Assert.False(EramEntryEngine.Apply(ac, entry, null).Success);
         Assert.Null(ac.Eram.AssignedSpeed);
@@ -255,15 +255,15 @@ public class EramEntryEngineTests
     [Fact]
     public void Qs_FreeText_IsUpperCased_AndCapped()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
-        var result = EramEntryEngine.Apply(ac, "QS `expect ils 28r", null);
+        CommandResult result = EramEntryEngine.Apply(ac, "QS `expect ils 28r", null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("EXPECT ILS 28R", ac.Eram.FreeText);
         Assert.Equal("QS EXPECT ILS 28R UAL1", result.Message);
 
-        var longText = new string('X', EramEntryEngine.FreeTextMaxLength + 5);
+        string longText = new string('X', EramEntryEngine.FreeTextMaxLength + 5);
         Assert.True(EramEntryEngine.Apply(ac, $"QS `{longText}", null).Success);
         Assert.Equal(EramEntryEngine.FreeTextMaxLength, ac.Eram.FreeText!.Length);
     }
@@ -271,9 +271,9 @@ public class EramEntryEngineTests
     [Fact]
     public void Qs_EmptyFreeText_IsRefused()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
-        var result = EramEntryEngine.Apply(ac, "QS `", null);
+        CommandResult result = EramEntryEngine.Apply(ac, "QS `", null);
 
         Assert.False(result.Success);
         Assert.Equal("FORMAT", result.Message);
@@ -285,12 +285,12 @@ public class EramEntryEngineTests
     [InlineData("QS /*", "H270", null, "TXT")]
     public void Qs_DeleteForms_ClearTheNamedFields(string entry, string? heading, string? speed, string? text)
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
         ac.Eram.AssignedHeading = "H270";
         ac.Eram.AssignedSpeed = "250";
         ac.Eram.FreeText = "TXT";
 
-        var result = EramEntryEngine.Apply(ac, entry, null);
+        CommandResult result = EramEntryEngine.Apply(ac, entry, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(heading, ac.Eram.AssignedHeading);
@@ -301,7 +301,7 @@ public class EramEntryEngineTests
     [Fact]
     public void Lf_SetsTheGroupLabel_AndBareLfClearsIt()
     {
-        var ac = Aircraft();
+        AircraftState ac = Aircraft();
 
         Assert.True(EramEntryEngine.Apply(ac, "LF ABC", null).Success);
         Assert.Equal("ABC", ac.Eram.CrrGroupLabel);

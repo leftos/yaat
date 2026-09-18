@@ -21,14 +21,14 @@ public class LiveWeatherRealDataTests
     [Fact]
     public void RealMetars_AllParseable()
     {
-        var json = ReadTestFile("zoa_metars.json");
-        var metars = JsonSerializer.Deserialize<List<MetarJsonDto>>(json, JsonOpts)!;
+        string json = ReadTestFile("zoa_metars.json");
+        List<MetarJsonDto> metars = JsonSerializer.Deserialize<List<MetarJsonDto>>(json, JsonOpts)!;
         Assert.NotEmpty(metars);
 
-        foreach (var m in metars)
+        foreach (MetarJsonDto m in metars)
         {
             Assert.False(string.IsNullOrWhiteSpace(m.RawOb), $"Empty rawOb for {m.IcaoId}");
-            var parsed = MetarParser.Parse(m.RawOb);
+            MetarParser.ParsedMetar? parsed = MetarParser.Parse(m.RawOb);
             Assert.NotNull(parsed);
             Assert.Equal(m.IcaoId, parsed.StationId);
             Assert.NotNull(parsed.VisibilityStatuteMiles);
@@ -38,11 +38,11 @@ public class LiveWeatherRealDataTests
     [Fact]
     public void RealMetars_SfoHasCorrectStation()
     {
-        var json = ReadTestFile("zoa_metars.json");
-        var metars = JsonSerializer.Deserialize<List<MetarJsonDto>>(json, JsonOpts)!;
+        string json = ReadTestFile("zoa_metars.json");
+        List<MetarJsonDto> metars = JsonSerializer.Deserialize<List<MetarJsonDto>>(json, JsonOpts)!;
 
-        var sfoRaw = metars.First(m => m.IcaoId == "KSFO").RawOb;
-        var parsed = MetarParser.Parse(sfoRaw);
+        string sfoRaw = metars.First(m => m.IcaoId == "KSFO").RawOb;
+        MetarParser.ParsedMetar? parsed = MetarParser.Parse(sfoRaw);
         Assert.NotNull(parsed);
         Assert.Equal("KSFO", parsed.StationId);
     }
@@ -54,8 +54,8 @@ public class LiveWeatherRealDataTests
     [Fact]
     public void RealFdWinds_ParsesStations()
     {
-        var text = ReadTestFile("zoa_fd_winds.txt");
-        var stations = WindsAloftParser.Parse(text);
+        string text = ReadTestFile("zoa_fd_winds.txt");
+        List<StationWinds> stations = WindsAloftParser.Parse(text);
         Assert.NotNull(stations);
         Assert.NotEmpty(stations);
 
@@ -67,13 +67,13 @@ public class LiveWeatherRealDataTests
     [Fact]
     public void RealFdWinds_StationsHaveWindData()
     {
-        var text = ReadTestFile("zoa_fd_winds.txt");
-        var stations = WindsAloftParser.Parse(text);
+        string text = ReadTestFile("zoa_fd_winds.txt");
+        List<StationWinds> stations = WindsAloftParser.Parse(text);
 
-        foreach (var station in stations)
+        foreach (StationWinds station in stations)
         {
             Assert.NotEmpty(station.Winds);
-            foreach (var wind in station.Winds)
+            foreach (WindAtLevel wind in station.Winds)
             {
                 Assert.True(wind.AltitudeFt >= 3000 && wind.AltitudeFt <= 39000, $"Unexpected altitude {wind.AltitudeFt} for {station.StationId}");
                 if (!wind.IsLightVariable)
@@ -94,8 +94,8 @@ public class LiveWeatherRealDataTests
     [Fact]
     public void RealFdWinds_StandardLevelsPresent()
     {
-        var text = ReadTestFile("zoa_fd_winds.txt");
-        var stations = WindsAloftParser.Parse(text);
+        string text = ReadTestFile("zoa_fd_winds.txt");
+        List<StationWinds> stations = WindsAloftParser.Parse(text);
 
         var allLevels = stations.SelectMany(s => s.Winds).Select(w => w.AltitudeFt).Distinct().Order().ToList();
 
@@ -112,11 +112,11 @@ public class LiveWeatherRealDataTests
     [Fact]
     public void RealMetars_FindStation_SfoMatch()
     {
-        var json = ReadTestFile("zoa_metars.json");
-        var metars = JsonSerializer.Deserialize<List<MetarJsonDto>>(json, JsonOpts)!;
+        string json = ReadTestFile("zoa_metars.json");
+        List<MetarJsonDto> metars = JsonSerializer.Deserialize<List<MetarJsonDto>>(json, JsonOpts)!;
         var rawMetars = metars.Select(m => m.RawOb).ToList();
 
-        var result = MetarParser.FindStation(rawMetars, "SFO");
+        MetarParser.ParsedMetar? result = MetarParser.FindStation(rawMetars, "SFO");
         Assert.NotNull(result);
         Assert.Equal("KSFO", result.StationId);
     }
@@ -124,11 +124,11 @@ public class LiveWeatherRealDataTests
     [Fact]
     public void RealMetars_FindStation_OakMatch()
     {
-        var json = ReadTestFile("zoa_metars.json");
-        var metars = JsonSerializer.Deserialize<List<MetarJsonDto>>(json, JsonOpts)!;
+        string json = ReadTestFile("zoa_metars.json");
+        List<MetarJsonDto> metars = JsonSerializer.Deserialize<List<MetarJsonDto>>(json, JsonOpts)!;
         var rawMetars = metars.Select(m => m.RawOb).ToList();
 
-        var result = MetarParser.FindStation(rawMetars, "OAK");
+        MetarParser.ParsedMetar? result = MetarParser.FindStation(rawMetars, "OAK");
         Assert.NotNull(result);
         Assert.Equal("KOAK", result.StationId);
     }

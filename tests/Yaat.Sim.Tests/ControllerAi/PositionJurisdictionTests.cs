@@ -30,24 +30,24 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var staffed = Staffed();
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var resolve = (AircraftState ac) => Resolve(engine, ac, staffed)?.Callsign;
+        IReadOnlyList<AiPositionConfig> staffed = Staffed();
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        Func<AircraftState, string?> resolve = (AircraftState ac) => Resolve(engine, ac, staffed)?.Callsign;
 
         Assert.Equal("OAK_GND", resolve(engine.FindAircraft(AiTestFixture.Callsign)!));
 
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 28R").Success);
-        var taxiing = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is TaxiingPhase, 30);
+        AircraftState taxiing = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is TaxiingPhase, 30);
         Assert.Equal("OAK_GND", resolve(taxiing));
 
-        var holdingShort = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 900);
+        AircraftState holdingShort = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 900);
         Assert.Equal("OAK_TWR", resolve(holdingShort));
 
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "CTO").Success);
-        var rolling = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is TakeoffPhase, 120);
+        AircraftState rolling = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is TakeoffPhase, 120);
         Assert.Equal("OAK_TWR", resolve(rolling));
 
-        var climbing = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => !ac.IsOnGround, 120);
+        AircraftState climbing = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => !ac.IsOnGround, 120);
         Assert.Equal("OAK_TWR", resolve(climbing));
     }
 
@@ -59,10 +59,10 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, []);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, []);
         AiTestFixture.Tick(engine, 2);
 
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.IsType<FinalApproachPhase>(aircraft.Phases?.CurrentPhase);
         Assert.Equal("OAK_TWR", Resolve(engine, aircraft, Staffed())?.Callsign);
     }
@@ -75,10 +75,10 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var staffed = Staffed();
-        var approach = staffed.Single(p => p.Callsign == "NCT_APP");
-        var cruising = AiTestFixture.Airborne("AAL1", 37.9, -122.0, 8000);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        IReadOnlyList<AiPositionConfig> staffed = Staffed();
+        AiPositionConfig approach = staffed.Single(p => p.Callsign == "NCT_APP");
+        AircraftState cruising = AiTestFixture.Airborne("AAL1", 37.9, -122.0, 8000);
 
         Assert.Null(Resolve(engine, cruising, staffed));
 
@@ -86,7 +86,7 @@ public class PositionJurisdictionTests
         Assert.Equal("NCT_APP", Resolve(engine, cruising, staffed)?.Callsign);
 
         // The solo student holds the track: the AI does not act for a human, whatever the phase family says.
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.SoloTrainingMode = true;
         scenario.StudentPosition = approach.Identity;
         Assert.Null(Resolve(engine, cruising, staffed));
@@ -100,8 +100,8 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var atSfo = AiTestFixture.Airborne("UAL2", 37.62, -122.38, 1200);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        AircraftState atSfo = AiTestFixture.Airborne("UAL2", 37.62, -122.38, 1200);
         atSfo.AirportId = "SFO";
         atSfo.FlightPlan.Destination = "KSFO";
         atSfo.Phases = new PhaseList();
@@ -118,16 +118,16 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var staffed = Staffed();
-        var approach = staffed.Single(p => p.Callsign == "NCT_APP");
-        var b = AiTestFixture.Airborne("B", 37.9, -122.0, 8000);
-        var a = AiTestFixture.Airborne("A", 37.8, -122.1, 9000);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        IReadOnlyList<AiPositionConfig> staffed = Staffed();
+        AiPositionConfig approach = staffed.Single(p => p.Callsign == "NCT_APP");
+        AircraftState b = AiTestFixture.Airborne("B", 37.9, -122.0, 8000);
+        AircraftState a = AiTestFixture.Airborne("A", 37.8, -122.1, 9000);
         a.Track.Owner = approach.Identity;
         b.Track.Owner = approach.Identity;
-        var parked = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState parked = engine.FindAircraft(AiTestFixture.Callsign)!;
 
-        var view = AiTestFixture.Context(engine, [parked, b, a], staffed, 0, [], new EngineAiCommandSink(engine)).View;
+        AiWorldView view = AiTestFixture.Context(engine, [parked, b, a], staffed, 0, [], new EngineAiCommandSink(engine)).View;
 
         Assert.Equal(["A", "B", AiTestFixture.Callsign], view.Snapshot.Select(ac => ac.Callsign));
         Assert.Equal(["A", "B"], view.Jurisdiction(approach).Select(ac => ac.Callsign));
@@ -148,10 +148,10 @@ public class PositionJurisdictionTests
 
         // Nobody plays the tower: the AI approach that owns the track stays responsible on final instead of the
         // aircraft dropping out of every jurisdiction.
-        var approach = TestAiPositions.NorCalApproach(_zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, []);
+        AiPositionConfig approach = TestAiPositions.NorCalApproach(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.OnFinalAtOak, _zoa, 7, []);
         AiTestFixture.Tick(engine, 2);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.IsType<FinalApproachPhase>(aircraft.Phases?.CurrentPhase);
 
         Assert.Null(Resolve(engine, aircraft, [approach]));
@@ -167,8 +167,8 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var runway = RunwayOccupancy.AirportRunways("OAK").Single(r => r.Id.End1 == "28R" || r.Id.End2 == "28R");
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        RunwayInfo runway = RunwayOccupancy.AirportRunways("OAK").Single(r => r.Id.End1 == "28R" || r.Id.End2 == "28R");
         var onRunway = new AircraftState
         {
             Callsign = "N9",
@@ -202,8 +202,8 @@ public class PositionJurisdictionTests
             return;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var parked = engine.FindAircraft(AiTestFixture.Callsign)!;
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        AircraftState parked = engine.FindAircraft(AiTestFixture.Callsign)!;
         var staffing = new HeadlessAiStaffing(Staffed(), engine.Scenario!);
 
         Assert.NotNull(

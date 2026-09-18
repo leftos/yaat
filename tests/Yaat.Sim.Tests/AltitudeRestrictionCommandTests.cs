@@ -38,10 +38,10 @@ public class AltitudeRestrictionCommandTests
         string expectedReadback
     )
     {
-        var parsed = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
-        var command = Assert.IsType<ClimbMaintainCommand>(parsed.Value);
+        ClimbMaintainCommand command = Assert.IsType<ClimbMaintainCommand>(parsed.Value);
         Assert.Equal(expectedAltitude, command.Altitude);
         Assert.Equal(expectedModifier, command.Modifier);
 
@@ -53,7 +53,7 @@ public class AltitudeRestrictionCommandTests
         };
         var compound = new CompoundCommand([new ParsedBlock(null, [command])]);
 
-        var readback = PilotResponder.BuildReadback(compound, aircraft)?.Tts;
+        string? readback = PilotResponder.BuildReadback(compound, aircraft)?.Tts;
         Assert.Equal(expectedReadback, readback);
     }
 
@@ -67,7 +67,10 @@ public class AltitudeRestrictionCommandTests
             Altitude = 1800,
             FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" },
         };
-        var result = FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(2500, AltitudeAssignmentModifier.AtOrBelow), aircraft);
+        CommandResult result = FlightCommandHandler.ApplyClimbMaintain(
+            new ClimbMaintainCommand(2500, AltitudeAssignmentModifier.AtOrBelow),
+            aircraft
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(2500, aircraft.Targets.AltitudeCeiling);
@@ -85,7 +88,10 @@ public class AltitudeRestrictionCommandTests
             Altitude = 1800,
             FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" },
         };
-        var result = FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(2500, AltitudeAssignmentModifier.AtOrAbove), aircraft);
+        CommandResult result = FlightCommandHandler.ApplyClimbMaintain(
+            new ClimbMaintainCommand(2500, AltitudeAssignmentModifier.AtOrAbove),
+            aircraft
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(2500, aircraft.Targets.AltitudeFloor);
@@ -98,7 +104,7 @@ public class AltitudeRestrictionCommandTests
     [InlineData("CM 025+")]
     public void ClimbMaintain_TrailingAltitudeRestrictionSyntax_IsNotSupported(string text)
     {
-        var parsed = CommandParser.Parse(text);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
         Assert.False(parsed.IsSuccess);
     }
 }

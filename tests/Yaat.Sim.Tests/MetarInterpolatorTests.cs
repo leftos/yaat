@@ -18,8 +18,8 @@ public class MetarInterpolatorTests
     [Fact]
     public void GetWeather_ExactMatch_ReturnsThatStation()
     {
-        var metars = new[] { "KOAK 121853Z 27012KT 10SM BKN025 20/12 A2992" };
-        var result = MetarInterpolator.GetWeatherForAirport(metars, "OAK");
+        string[] metars = new[] { "KOAK 121853Z 27012KT 10SM BKN025 20/12 A2992" };
+        MetarParser.ParsedMetar? result = MetarInterpolator.GetWeatherForAirport(metars, "OAK");
         Assert.NotNull(result);
         Assert.Equal("KOAK", result.StationId);
         Assert.Equal(2500, result.CeilingFeetAgl);
@@ -33,8 +33,8 @@ public class MetarInterpolatorTests
     [Fact]
     public void GetWeather_NoMatch_NoFixes_ReturnsNull()
     {
-        var metars = new[] { "KSFO 121853Z 27012KT 10SM CLR 20/12 A2992" };
-        var result = MetarInterpolator.GetWeatherForAirport(metars, "LAX");
+        string[] metars = new[] { "KSFO 121853Z 27012KT 10SM CLR 20/12 A2992" };
+        MetarParser.ParsedMetar? result = MetarInterpolator.GetWeatherForAirport(metars, "LAX");
         Assert.Null(result);
     }
 
@@ -49,9 +49,9 @@ public class MetarInterpolatorTests
             fixes: new Dictionary<string, (double Lat, double Lon)> { ["LAX"] = (33.9425, -118.408), ["KLAX"] = (33.9425, -118.408) }
         );
 
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var metars = new[] { "KLAX 121853Z 27012KT 5SM BKN030 20/12 A2992" };
-        var result = MetarInterpolator.GetWeatherForAirport(metars, "LAX");
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        string[] metars = new[] { "KLAX 121853Z 27012KT 5SM BKN030 20/12 A2992" };
+        MetarParser.ParsedMetar? result = MetarInterpolator.GetWeatherForAirport(metars, "LAX");
         Assert.NotNull(result);
         Assert.Equal(3000, result.CeilingFeetAgl);
         Assert.Equal(5.0, result.VisibilityStatuteMiles);
@@ -75,10 +75,10 @@ public class MetarInterpolatorTests
             }
         );
 
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var metars = new[] { "KSTA 121853Z 27012KT 10SM BKN050 20/12 A2992", "KSTB 121853Z 27012KT 3SM BKN020 20/12 A2992" };
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        string[] metars = new[] { "KSTA 121853Z 27012KT 10SM BKN050 20/12 A2992", "KSTB 121853Z 27012KT 3SM BKN020 20/12 A2992" };
 
-        var result = MetarInterpolator.GetWeatherForAirport(metars, "TSTA");
+        MetarParser.ParsedMetar? result = MetarInterpolator.GetWeatherForAirport(metars, "TSTA");
         Assert.NotNull(result);
         // Min ceiling: 2000
         Assert.Equal(2000, result.CeilingFeetAgl);
@@ -100,9 +100,9 @@ public class MetarInterpolatorTests
             }
         );
 
-        using var _ = NavigationDatabase.ScopedOverride(fixes);
-        var metars = new[] { "KJFK 121853Z 27012KT 10SM CLR 20/12 A2992" };
-        var result = MetarInterpolator.GetWeatherForAirport(metars, "TSTA");
+        using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
+        string[] metars = new[] { "KJFK 121853Z 27012KT 10SM CLR 20/12 A2992" };
+        MetarParser.ParsedMetar? result = MetarInterpolator.GetWeatherForAirport(metars, "TSTA");
         Assert.Null(result);
     }
 
@@ -115,8 +115,8 @@ public class MetarInterpolatorTests
     {
         var profile = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 10SM BKN025 20/12 A2992"] };
 
-        var r1 = profile.GetWeatherForAirport("OAK");
-        var r2 = profile.GetWeatherForAirport("OAK");
+        MetarParser.ParsedMetar? r1 = profile.GetWeatherForAirport("OAK");
+        MetarParser.ParsedMetar? r2 = profile.GetWeatherForAirport("OAK");
         Assert.NotNull(r1);
         Assert.Same(r1, r2);
     }

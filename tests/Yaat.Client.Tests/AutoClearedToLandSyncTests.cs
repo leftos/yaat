@@ -31,8 +31,8 @@ public class AutoClearedToLandSyncTests
     [Fact]
     public void ApplyToAircraft_True_SetsFlagOnEveryModel()
     {
-        var n80zu = OnFinalApproach("N80ZU");
-        var n2bp = OnFinalApproach("N2BP");
+        AircraftModel n80zu = OnFinalApproach("N80ZU");
+        AircraftModel n2bp = OnFinalApproach("N2BP");
         Assert.False(n80zu.IsAutoClearedToLand);
         Assert.False(n2bp.IsAutoClearedToLand);
 
@@ -45,7 +45,7 @@ public class AutoClearedToLandSyncTests
     [Fact]
     public void ApplyToAircraft_False_ClearsFlag()
     {
-        var ac = OnFinalApproach("N80ZU");
+        AircraftModel ac = OnFinalApproach("N80ZU");
         ac.IsAutoClearedToLand = true;
 
         AutoClearedToLandSync.ApplyToAircraft([ac], false);

@@ -18,19 +18,19 @@ public sealed class ConsolidationRedirect(SimScenarioState scenario, Consolidati
     /// </summary>
     public TrackOwner? TryRedirect(TrackOwner target)
     {
-        var facilityId = target.FacilityId ?? "";
+        string facilityId = target.FacilityId ?? "";
         if ((scenario.ArtccConfig is not { } config) || string.IsNullOrEmpty(facilityId))
         {
             return null;
         }
 
-        var targetTcp = TrackResolver.FindTcpForOwner(target, scenario);
+        Tcp? targetTcp = TrackResolver.FindTcpForOwner(target, scenario);
         if ((targetTcp is null) || isAttended(targetTcp))
         {
             return null;
         }
 
-        var ownerTcp = config.GetConsolidationOwner(facilityId, targetTcp, isAttended, overrides);
+        Tcp? ownerTcp = config.GetConsolidationOwner(facilityId, targetTcp, isAttended, overrides);
         if ((ownerTcp is null) || (ownerTcp.Id == targetTcp.Id))
         {
             return null;

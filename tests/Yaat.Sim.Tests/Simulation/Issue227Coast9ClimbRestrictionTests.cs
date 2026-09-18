@@ -32,7 +32,7 @@ public class Issue227Coast9ClimbRestrictionTests
 
     private static RunwayInfo? Koak30()
     {
-        var phys = NavigationDatabase
+        RunwayInfo? phys = NavigationDatabase
             .Instance.GetRunways("KOAK")
             .FirstOrDefault(r => r.Id.End1 == "30" || r.Id.End2 == "30" || r.Designator.Contains("30", StringComparison.Ordinal));
         if (phys is null)
@@ -59,7 +59,7 @@ public class Issue227Coast9ClimbRestrictionTests
     [Fact]
     public void Coast9_LevelsOffAtWindowCeiling_UntilOak4Dme_ThenResumesClimb()
     {
-        var rwy = Koak30();
+        RunwayInfo? rwy = Koak30();
         if (rwy is null)
         {
             _output.WriteLine("KOAK RWY30 not in test nav data — skipping.");
@@ -67,7 +67,7 @@ public class Issue227Coast9ClimbRestrictionTests
         }
 
         // Ensure the COAST9 procedure and the OAK reference navaid are available in test data.
-        var oakPos = NavigationDatabase.Instance.GetFixPosition("OAK");
+        (double Lat, double Lon)? oakPos = NavigationDatabase.Instance.GetFixPosition("OAK");
         if (oakPos is null || NavigationDatabase.Instance.GetSid("KOAK", "COAST9") is null)
         {
             _output.WriteLine("COAST9 / OAK not in test nav data — skipping.");
@@ -98,7 +98,7 @@ public class Issue227Coast9ClimbRestrictionTests
         ac.Phases.Add(holding);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var cto = DepartureClearanceHandler.TryDepartureClearance(
+        CommandResult cto = DepartureClearanceHandler.TryDepartureClearance(
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
@@ -109,11 +109,11 @@ public class Issue227Coast9ClimbRestrictionTests
         );
         Assert.True(cto.Success, cto.Message);
 
-        var climb = ac.Phases.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
+        InitialClimbPhase? climb = ac.Phases.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
         _output.WriteLine($"InitialClimb procedureLegs={climb?.DepartureProcedureLegs?.Count.ToString() ?? "null"}");
         if (climb?.DepartureProcedureLegs is { } legs)
         {
-            foreach (var l in legs)
+            foreach (ProcedureLeg l in legs)
             {
                 _output.WriteLine($"  leg {l.Type} course={l.CourseMagnetic} alt={l.TargetAltitudeFt} fix={l.FixName}");
             }
@@ -126,7 +126,7 @@ public class Issue227Coast9ClimbRestrictionTests
         ac.Altitude = rwy.ElevationFt + 450;
         ac.IndicatedAirspeed = 170;
 
-        var cat = AircraftCategorization.Categorize(ac.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
         var ctx = new PhaseContext
         {
             Aircraft = ac,

@@ -35,7 +35,7 @@ public class Issue236LaneChangeArcTests(ITestOutputHelper output)
     [Fact]
     public void Sfo_TaxiAF1B_UsesAF1CornerArc_NotJunctionPivot()
     {
-        var layout = Layout();
+        AirportGroundLayout? layout = Layout();
         if (layout is null)
         {
             output.WriteLine("sfo.geojson not found — skipping");
@@ -46,13 +46,13 @@ public class Issue236LaneChangeArcTests(ITestOutputHelper output)
         // approaches southbound and turns left (east) onto F1 — the reporter's direction.
         const double StartLat = 37.617800;
         const double StartLon = -122.379400;
-        var startNode = layout
+        GroundNode startNode = layout
             .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("A")))
             .OrderBy(n => GeoMath.DistanceNm(StartLat, StartLon, n.Position.Lat, n.Position.Lon))
             .First();
         output.WriteLine($"Start: #{startNode.Id} at ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})");
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode.Id,
             ["A", "F1", "B"],
@@ -65,7 +65,7 @@ public class Issue236LaneChangeArcTests(ITestOutputHelper output)
         Assert.Null(failReason);
 
         output.WriteLine($"Route: {route.Segments.Count} segments");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             bool arc = seg.Edge.Edge is GroundArc;
             output.WriteLine($"  {seg.TaxiwayName, -10} #{seg.FromNodeId} -> #{seg.ToNodeId} {(arc ? "[arc]" : "")}");

@@ -76,9 +76,9 @@ public class AtpaProcessorExclusionTests
     {
         var owner4A = TrackOwner.CreateStars("NCT_APP", "NCT", 4, "A");
         List<AircraftState> snapshot = [MakeApproachAircraft("SWA101", 4, owner4A), MakeApproachAircraft("UAL202", 6, owner4A)];
-        var volume = MakeVolume([TcpUlid4A]);
+        AtpaVolumeConfig volume = MakeVolume([TcpUlid4A]);
 
-        var results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
+        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
 
         // Both aircraft are owned by the excluded TCP 4A — the volume drops to fewer than two
         // eligible aircraft, so no in-trail pairing (and no result) is produced.
@@ -91,9 +91,9 @@ public class AtpaProcessorExclusionTests
         var owner4A = TrackOwner.CreateStars("NCT_APP", "NCT", 4, "A");
         List<AircraftState> snapshot = [MakeApproachAircraft("SWA101", 4, owner4A), MakeApproachAircraft("UAL202", 6, owner4A)];
         // Exclude a different TCP (9Z) that neither aircraft is owned by.
-        var volume = MakeVolume([TcpUlid9Z]);
+        AtpaVolumeConfig volume = MakeVolume([TcpUlid9Z]);
 
-        var results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
+        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
 
         // The trailing aircraft is paired against the lead — exclusion must not over-fire.
         Assert.True(results.ContainsKey("UAL202"));
@@ -110,9 +110,9 @@ public class AtpaProcessorExclusionTests
             MakeApproachAircraft("DAL150", 5, owner9Z), // excluded — dropped from the chain
             MakeApproachAircraft("UAL202", 7, owner4A), // trailing — must re-pair against the lead
         ];
-        var volume = MakeVolume([TcpUlid9Z]);
+        AtpaVolumeConfig volume = MakeVolume([TcpUlid9Z]);
 
-        var results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
+        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
 
         Assert.False(results.ContainsKey("DAL150"));
         Assert.True(results.ContainsKey("UAL202"));
@@ -135,7 +135,7 @@ public class AtpaProcessorExclusionTests
         ];
         snapshot[1].Stars.Scratchpad1 = "NORD";
 
-        var volume = MakeVolume([]);
+        AtpaVolumeConfig volume = MakeVolume([]);
         volume.Scratchpads =
         [
             new AtpaScratchpadConfig
@@ -146,7 +146,7 @@ public class AtpaProcessorExclusionTests
             },
         ];
 
-        var results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
+        Dictionary<string, AtpaResult> results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
 
         // The matched middle track never gets a cone of its own, regardless of type.
         Assert.False(results.ContainsKey("DAL150"));

@@ -44,8 +44,8 @@ public class CfrAlertMonitorTests
         var m = new CfrAlertMonitor();
         Assert.Equal(CfrAlertKind.ExpiredGrounded, m.Evaluate("N1", Start, End, isOnGround: true, wasOnGround: true, Utc(18, 32)));
         // A re-issued window (different bounds) resets the latch and can alert again.
-        var start2 = Utc(18, 40);
-        var end2 = Utc(18, 43);
+        DateTime start2 = Utc(18, 40);
+        DateTime end2 = Utc(18, 43);
         Assert.Null(m.Evaluate("N1", start2, end2, isOnGround: true, wasOnGround: true, Utc(18, 41)));
         Assert.Equal(CfrAlertKind.ExpiredGrounded, m.Evaluate("N1", start2, end2, isOnGround: true, wasOnGround: true, Utc(18, 44)));
     }

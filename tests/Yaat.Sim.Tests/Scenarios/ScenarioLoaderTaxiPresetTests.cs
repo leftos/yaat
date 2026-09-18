@@ -72,7 +72,12 @@ public class ScenarioLoaderTaxiPresetTests
     [Fact]
     public void HasParkingSpawns_AllScripted_IsFalse()
     {
-        var result = ScenarioLoader.Load(ParkingWithTaxiPreset, groundData: null, new Random(0), MagneticDeclination.EvaluationDateUtc);
+        ScenarioLoadResult result = ScenarioLoader.Load(
+            ParkingWithTaxiPreset,
+            groundData: null,
+            new Random(0),
+            MagneticDeclination.EvaluationDateUtc
+        );
 
         Assert.False(result.HasParkingSpawns);
     }
@@ -80,7 +85,7 @@ public class ScenarioLoaderTaxiPresetTests
     [Fact]
     public void HasParkingSpawns_NoPresets_IsTrue()
     {
-        var result = ScenarioLoader.Load(ParkingWithoutPreset, groundData: null, new Random(0), MagneticDeclination.EvaluationDateUtc);
+        ScenarioLoadResult result = ScenarioLoader.Load(ParkingWithoutPreset, groundData: null, new Random(0), MagneticDeclination.EvaluationDateUtc);
 
         Assert.True(result.HasParkingSpawns);
     }
@@ -89,7 +94,12 @@ public class ScenarioLoaderTaxiPresetTests
     public void HasParkingSpawns_MixedScriptedAndUnscripted_IsTrue()
     {
         // A single unscripted parking aircraft is enough for the slider to remain available.
-        var result = ScenarioLoader.Load(MixedScriptedAndUnscripted, groundData: null, new Random(0), MagneticDeclination.EvaluationDateUtc);
+        ScenarioLoadResult result = ScenarioLoader.Load(
+            MixedScriptedAndUnscripted,
+            groundData: null,
+            new Random(0),
+            MagneticDeclination.EvaluationDateUtc
+        );
 
         Assert.True(result.HasParkingSpawns);
     }

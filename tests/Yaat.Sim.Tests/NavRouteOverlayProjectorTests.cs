@@ -19,7 +19,7 @@ public class NavRouteOverlayProjectorTests
     [Fact]
     public void HoldRacetrack_IsClosedLoopThroughFix()
     {
-        var points = NavRouteOverlayProjector.HoldRacetrackPoints(Fix, inboundCourse: 90, isRight: true, legNm: 5.0, radiusNm: 1.0);
+        List<LatLon> points = NavRouteOverlayProjector.HoldRacetrackPoints(Fix, inboundCourse: 90, isRight: true, legNm: 5.0, radiusNm: 1.0);
 
         Assert.True(points.Count > 4, "racetrack should be densified (arcs + legs)");
         // Closed loop: starts and ends at the far end of the inbound leg.
@@ -32,7 +32,7 @@ public class NavRouteOverlayProjectorTests
     public void HoldRacetrack_RightTurns_ManeuveringSideIsRightOfInbound()
     {
         // Inbound course 090 (east); right turns → the pattern lies to the right of travel = south.
-        var points = NavRouteOverlayProjector.HoldRacetrackPoints(Fix, inboundCourse: 90, isRight: true, legNm: 5.0, radiusNm: 1.0);
+        List<LatLon> points = NavRouteOverlayProjector.HoldRacetrackPoints(Fix, inboundCourse: 90, isRight: true, legNm: 5.0, radiusNm: 1.0);
 
         // Far end of the inbound leg is west of the fix (outbound bearing 270).
         Assert.True(points[0].Lon < Fix.Lon, "inbound leg extends west of the fix");
@@ -44,7 +44,7 @@ public class NavRouteOverlayProjectorTests
     [Fact]
     public void HoldRacetrack_LeftTurns_MirrorsToOppositeSide()
     {
-        var points = NavRouteOverlayProjector.HoldRacetrackPoints(Fix, inboundCourse: 90, isRight: false, legNm: 5.0, radiusNm: 1.0);
+        List<LatLon> points = NavRouteOverlayProjector.HoldRacetrackPoints(Fix, inboundCourse: 90, isRight: false, legNm: 5.0, radiusNm: 1.0);
 
         // Left turns on an easterly inbound → pattern extends north.
         Assert.True(points.Any(p => p.Lat > Fix.Lat + (1.5 / 60.0)), "left-turn hold on an easterly inbound should extend north");
@@ -74,9 +74,9 @@ public class NavRouteOverlayProjectorTests
         ac.Phases = new PhaseList();
         ac.Phases.Add(hold);
 
-        var shapes = NavRouteOverlayProjector.BuildShapes(ac);
+        List<NavRouteShapeDto> shapes = NavRouteOverlayProjector.BuildShapes(ac);
 
-        var shape = Assert.Single(shapes);
+        NavRouteShapeDto shape = Assert.Single(shapes);
         Assert.Equal(NavRouteShapeKind.HoldRacetrack, shape.Kind);
         Assert.True(shape.Points.Count > 4);
         Assert.All(shape.Points, p => Assert.Equal(2, p.Length));
@@ -124,7 +124,7 @@ public class NavRouteOverlayProjectorTests
         ac.Phases = new PhaseList();
         ac.Phases.Add(departure);
 
-        var shapes = NavRouteOverlayProjector.BuildShapes(ac);
+        List<NavRouteShapeDto> shapes = NavRouteOverlayProjector.BuildShapes(ac);
 
         Assert.Equal(2, shapes.Count);
         Assert.All(shapes, s => Assert.Equal(NavRouteShapeKind.CodedLegVector, s.Kind));
@@ -166,9 +166,9 @@ public class NavRouteOverlayProjectorTests
         ac.Phases = new PhaseList();
         ac.Phases.Add(pt);
 
-        var shapes = NavRouteOverlayProjector.BuildShapes(ac);
+        List<NavRouteShapeDto> shapes = NavRouteOverlayProjector.BuildShapes(ac);
 
-        var shape = Assert.Single(shapes);
+        NavRouteShapeDto shape = Assert.Single(shapes);
         Assert.Equal(NavRouteShapeKind.ProcedureTurn, shape.Kind);
         Assert.True(shape.Points.Count > 4, "PT should include the densified 180° turn");
         // Starts at the fix and returns to it.

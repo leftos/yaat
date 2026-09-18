@@ -72,9 +72,9 @@ public class TransparentCommandQueuePreservationTests : IDisposable
 
     private static void DispatchOk(AircraftState ac, string text, DispatchContext ctx)
     {
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
         Assert.True(result.Success, result.Message);
     }
 
@@ -83,7 +83,7 @@ public class TransparentCommandQueuePreservationTests : IDisposable
         _output.WriteLine($"=== {label} (queue {ac.Queue.Blocks.Count} blocks) ===");
         for (int i = 0; i < ac.Queue.Blocks.Count; i++)
         {
-            var b = ac.Queue.Blocks[i];
+            CommandBlock b = ac.Queue.Blocks[i];
             _output.WriteLine($"  [{i}] applied={b.IsApplied} desc='{b.NaturalDescription}'");
         }
     }
@@ -91,8 +91,8 @@ public class TransparentCommandQueuePreservationTests : IDisposable
     [Fact]
     public void Rtis_WithNullPhases_PreservesQueuedErd()
     {
-        var ac = MakeAirborneVfr();
-        var ctx = CtxWithLookup(MakeTrafficTarget());
+        AircraftState ac = MakeAirborneVfr();
+        DispatchContext ctx = CtxWithLookup(MakeTrafficTarget());
 
         DispatchOk(ac, "DCT OAK; ERD 28R", ctx);
         DumpQueue("After DCT OAK; ERD 28R", ac);
@@ -109,8 +109,8 @@ public class TransparentCommandQueuePreservationTests : IDisposable
     [Fact]
     public void Rfis_WithNullPhases_PreservesQueuedErd()
     {
-        var ac = MakeAirborneVfr();
-        var ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false);
+        AircraftState ac = MakeAirborneVfr();
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false);
 
         DispatchOk(ac, "DCT OAK; ERD 28R", ctx);
         Assert.Equal(2, ac.Queue.Blocks.Count);
@@ -123,8 +123,8 @@ public class TransparentCommandQueuePreservationTests : IDisposable
     [Fact]
     public void Squawk_WithNullPhases_PreservesQueuedErd()
     {
-        var ac = MakeAirborneVfr();
-        var ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false);
+        AircraftState ac = MakeAirborneVfr();
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false);
 
         DispatchOk(ac, "DCT OAK; ERD 28R", ctx);
         Assert.Equal(2, ac.Queue.Blocks.Count);
@@ -148,12 +148,12 @@ public class TransparentCommandQueuePreservationTests : IDisposable
     public void TransparentVerb_WithNullPhases_PreservesQueuedErd(string verb, string label)
     {
         _output.WriteLine($"Verb: {verb} ({label})");
-        var ac = MakeAirborneVfr();
+        AircraftState ac = MakeAirborneVfr();
         // EXP requires an active altitude assignment to succeed past dry-run; setting
         // it here guarantees we exercise the transparent classification, not an
         // accidental dry-run rejection.
         ac.Targets.TargetAltitude = 5000;
-        var ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false);
 
         DispatchOk(ac, "DCT OAK; ERD 28R", ctx);
         Assert.Equal(2, ac.Queue.Blocks.Count);
@@ -161,7 +161,7 @@ public class TransparentCommandQueuePreservationTests : IDisposable
         // Dispatch the verb. Some verbs may legitimately fail validation depending
         // on context (e.g. EAPP with an unknown approach ID); what we care about
         // here is that the queue isn't wiped regardless of success.
-        var parsed = CommandParser.ParseCompound(verb);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(verb);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
 

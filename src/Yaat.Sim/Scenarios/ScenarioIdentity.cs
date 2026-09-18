@@ -22,11 +22,11 @@ public static class ScenarioIdentity
             using var doc = JsonDocument.Parse(scenarioJson);
             if (
                 doc.RootElement.ValueKind == JsonValueKind.Object
-                && doc.RootElement.TryGetProperty("id", out var idElement)
+                && doc.RootElement.TryGetProperty("id", out JsonElement idElement)
                 && idElement.ValueKind == JsonValueKind.String
             )
             {
-                var id = idElement.GetString();
+                string? id = idElement.GetString();
                 if (!string.IsNullOrWhiteSpace(id))
                 {
                     return id;
@@ -44,7 +44,7 @@ public static class ScenarioIdentity
 
     public static string ComputeFallbackHash(string json)
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(json));
+        byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(json));
         return Convert.ToHexString(bytes)[..16];
     }
 }

@@ -31,12 +31,12 @@ public static class OracleAutoRouter
 
     public static OracleResult Run(SearchContext ctx, int bearingBucketDeg, int maxExpansions)
     {
-        if (ctx.Destination.TargetNodeId is not { } destId || !ctx.Layout.Nodes.TryGetValue(destId, out var destinationNode))
+        if (ctx.Destination.TargetNodeId is not { } destId || !ctx.Layout.Nodes.TryGetValue(destId, out GroundNode? destinationNode))
         {
             return new OracleResult(null, "Oracle requires a resolved Node destination.", 0, false);
         }
 
-        if (!ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out var startNode))
+        if (!ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out GroundNode? startNode))
         {
             return new OracleResult(null, "StartNodeUnreachable", 0, false);
         }
@@ -62,7 +62,7 @@ public static class OracleAutoRouter
         int expansions = 0;
         while (openSet.Count > 0)
         {
-            var current = openSet.Dequeue();
+            PartialRoute current = openSet.Dequeue();
             expansions++;
 
             if (expansions > maxExpansions)
@@ -81,16 +81,16 @@ public static class OracleAutoRouter
 
             if (current.HeadNodeId == destinationNode.Id)
             {
-                var edges = current.MaterialiseEdges();
+                List<DirectionalEdge> edges = current.MaterialiseEdges();
                 return new OracleResult(RouteMaterialiser.Materialise(edges, ctx, []), null, expansions, false);
             }
 
-            if (!ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out var headNode))
+            if (!ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out GroundNode? headNode))
             {
                 continue;
             }
 
-            foreach (var edge in headNode.Edges)
+            foreach (IGroundEdge edge in headNode.Edges)
             {
                 GroundNode nextNode = edge.OtherNode(headNode);
 
@@ -115,7 +115,7 @@ public static class OracleAutoRouter
 
                 if (dedup)
                 {
-                    var key = Key(nextNode.Id, arrivalBearing, bearingBucketDeg);
+                    (int Node, int Bucket) key = Key(nextNode.Id, arrivalBearing, bearingBucketDeg);
                     if (bestG.TryGetValue(key, out double existingBest) && (newGScore >= existingBest - 1e-9))
                     {
                         continue;
@@ -126,7 +126,7 @@ public static class OracleAutoRouter
 
                 string taxiwayName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
 
-                var extended = current with
+                PartialRoute extended = current with
                 {
                     HeadNodeId = nextNode.Id,
                     ArrivalBearing = arrivalBearing,

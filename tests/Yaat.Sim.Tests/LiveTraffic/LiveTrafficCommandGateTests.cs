@@ -33,7 +33,7 @@ public class LiveTrafficCommandGateTests
 
     private static CommandResult Send(AircraftState ac, string input, DispatchContext ctx)
     {
-        var parsed = CommandParser.ParseCompound(input);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(input);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         return CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
     }
@@ -45,9 +45,9 @@ public class LiveTrafficCommandGateTests
     [InlineData("SPD 210")]
     public void AnyCommandOnAShadow_AssumesItFirst_ThenApplies(string input)
     {
-        var ac = Shadow("UAL123");
+        AircraftState ac = Shadow("UAL123");
 
-        var result = CommandDispatcher.Dispatch(CommandParser.Parse(input).Value!, ac, Ctx(ac));
+        CommandResult result = CommandDispatcher.Dispatch(CommandParser.Parse(input).Value!, ac, Ctx(ac));
 
         Assert.True(result.Success, result.Message);
         Assert.False(ac.IsShadow);
@@ -57,12 +57,12 @@ public class LiveTrafficCommandGateTests
     [Fact]
     public void TheAutoAssumedState_IsTheOneAnExplicitAssumeProduces()
     {
-        var auto = Shadow("UAL123");
-        var explicitly = Shadow("UAL123");
+        AircraftState auto = Shadow("UAL123");
+        AircraftState explicitly = Shadow("UAL123");
 
-        var autoResult = Send(auto, "H 180");
+        CommandResult autoResult = Send(auto, "H 180");
         Assert.True(CommandDispatcher.Dispatch(new AssumeCommand(), explicitly, Ctx(explicitly)).Success);
-        var explicitResult = Send(explicitly, "H 180");
+        CommandResult explicitResult = Send(explicitly, "H 180");
 
         Assert.True(autoResult.Success, autoResult.Message);
         Assert.True(explicitResult.Success, explicitResult.Message);
@@ -82,9 +82,9 @@ public class LiveTrafficCommandGateTests
     [Fact]
     public void AParallelBlock_AssumesOnce_AndAppliesEveryCommand()
     {
-        var ac = Shadow("UAL123");
+        AircraftState ac = Shadow("UAL123");
 
-        var result = Send(ac, "FH 070, DM 3000");
+        CommandResult result = Send(ac, "FH 070, DM 3000");
 
         Assert.True(result.Success, result.Message);
         Assert.False(ac.IsShadow);
@@ -101,9 +101,9 @@ public class LiveTrafficCommandGateTests
     [Fact]
     public void ASequentialChain_AssumesOnce_AndKeepsItsQueuedTail()
     {
-        var ac = Shadow("UAL123");
+        AircraftState ac = Shadow("UAL123");
 
-        var result = Send(ac, "FH 070; DM 3000");
+        CommandResult result = Send(ac, "FH 070; DM 3000");
 
         Assert.True(result.Success, result.Message);
         Assert.False(ac.IsShadow);
@@ -121,9 +121,9 @@ public class LiveTrafficCommandGateTests
     [InlineData("SAYEXIT")]
     public void AReadOnlyQuery_IsStillRefused_AndNeverAssumes(string input)
     {
-        var ac = Shadow("UAL123");
+        AircraftState ac = Shadow("UAL123");
 
-        var result = Send(ac, input);
+        CommandResult result = Send(ac, input);
 
         Assert.False(result.Success);
         Assert.Contains("ASSUME UAL123", result.Message, StringComparison.Ordinal);
@@ -137,15 +137,15 @@ public class LiveTrafficCommandGateTests
     [Fact]
     public void AScriptedDispatch_NeverAssumes()
     {
-        var ac = Shadow("UAL123");
-        var scripted = TestDispatch.Context(
+        AircraftState ac = Shadow("UAL123");
+        DispatchContext scripted = TestDispatch.Context(
             new Random(1),
             findAircraft: cs => cs == ac.Callsign ? ac : null,
             listAircraft: () => [ac],
             isScenarioScripted: true
         );
 
-        var result = Send(ac, "FH 070", scripted);
+        CommandResult result = Send(ac, "FH 070", scripted);
 
         Assert.False(result.Success);
         Assert.Contains("ASSUME UAL123", result.Message, StringComparison.Ordinal);
@@ -161,10 +161,10 @@ public class LiveTrafficCommandGateTests
     [Fact]
     public void AGroundShadow_IsRefused_ButATypedAssumeStillWorks()
     {
-        var ac = Shadow("UAL123");
+        AircraftState ac = Shadow("UAL123");
         ac.IsOnGround = true;
 
-        var result = Send(ac, "TAXI 28R");
+        CommandResult result = Send(ac, "TAXI 28R");
 
         Assert.False(result.Success);
         Assert.Contains("ASSUME UAL123", result.Message, StringComparison.Ordinal);
@@ -181,11 +181,11 @@ public class LiveTrafficCommandGateTests
     [Fact]
     public void ACoastingShadowWithNoHistory_StillAssumes()
     {
-        var ac = Shadow("UAL123");
+        AircraftState ac = Shadow("UAL123");
         ac.LiveTraffic!.IsCoasting = true;
         ac.LiveTraffic.History.Clear();
 
-        var result = Send(ac, "H 180");
+        CommandResult result = Send(ac, "H 180");
 
         Assert.True(result.Success, result.Message);
         Assert.False(ac.IsShadow);

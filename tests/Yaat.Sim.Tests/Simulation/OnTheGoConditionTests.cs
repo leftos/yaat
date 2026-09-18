@@ -8,6 +8,7 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -55,12 +56,12 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
 
-        var result = CommandParser.ParseCompound("OTG MLT 28L");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("OTG MLT 28L");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var block = Assert.Single(result.Value!.Blocks);
+        ParsedBlock block = Assert.Single(result.Value!.Blocks);
         Assert.IsType<OnTheGoCondition>(block.Condition);
-        var mlt = Assert.IsType<MakeLeftTrafficCommand>(Assert.Single(block.Commands));
+        MakeLeftTrafficCommand mlt = Assert.IsType<MakeLeftTrafficCommand>(Assert.Single(block.Commands));
         Assert.Equal("28L", mlt.RunwayId);
         Assert.Null(mlt.Altitude);
     }
@@ -74,14 +75,14 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
 
-        var result = CommandParser.ParseCompound("OTG AT LIVVY DEL");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("OTG AT LIVVY DEL");
 
         Assert.True(result.IsSuccess, result.Reason);
         Assert.Equal(2, result.Value!.Blocks.Count);
         Assert.IsType<OnTheGoCondition>(result.Value!.Blocks[0].Condition);
         Assert.Empty(result.Value!.Blocks[0].Commands);
 
-        var at = Assert.IsType<AtFixCondition>(result.Value!.Blocks[1].Condition);
+        AtFixCondition at = Assert.IsType<AtFixCondition>(result.Value!.Blocks[1].Condition);
         Assert.Equal("LIVVY", at.FixName);
         Assert.IsType<DeleteCommand>(Assert.Single(result.Value!.Blocks[1].Commands));
     }
@@ -94,7 +95,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
 
-        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme);
 
         Assert.NotNull(result);
         Assert.Equal(expected, result.CanonicalString);
@@ -116,8 +117,8 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
 
-        var otg = CommandSchemeParser.ParseCompound(otgInput, Scheme, out var otgFailure);
-        var onhs = CommandSchemeParser.ParseCompound(onhsInput, Scheme, out var onhsFailure);
+        CompoundParseResult? otg = CommandSchemeParser.ParseCompound(otgInput, Scheme, out ParseFailure? otgFailure);
+        CompoundParseResult? onhs = CommandSchemeParser.ParseCompound(onhsInput, Scheme, out ParseFailure? onhsFailure);
 
         Assert.Equal(onhs?.CanonicalString.Replace("ONHS", "OTG"), otg?.CanonicalString);
         Assert.Equal(onhsFailure?.Verb.Replace("ONHS", "OTG"), otgFailure?.Verb);
@@ -135,7 +136,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     [Fact]
     public void OtgMlt_QueuedOnFinal_FiresOnTheClimbOutAfterTheTouchAndGo()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -143,13 +144,13 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            var ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
+            AircraftState? ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
             if (ac is null)
             {
                 return;
@@ -159,7 +160,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
             Assert.Equal("28R", ac.Phases?.AssignedRunway?.Designator);
             Assert.NotNull(ac.Phases?.LandingClearance);
 
-            var result = engine.SendCommand(Callsign, "OTG MLT 28L");
+            CommandResult result = engine.SendCommand(Callsign, "OTG MLT 28L");
             Assert.True(result.Success, $"OTG MLT 28L was refused: {result.Message}");
             Assert.Contains("On the go", result.Message ?? "", StringComparison.Ordinal);
 
@@ -176,7 +177,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     [Fact]
     public void OtgMlt_QueuedOnFinal_FiresAfterAGoAround()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -184,13 +185,13 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            var ac = RestoreAt(engine, archive, FinalBeforeGoAroundTime);
+            AircraftState? ac = RestoreAt(engine, archive, FinalBeforeGoAroundTime);
             if (ac is null)
             {
                 return;
@@ -199,7 +200,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
             Assert.IsType<FinalApproachPhase>(ac.Phases?.CurrentPhase);
             Assert.Equal("28R", ac.Phases?.AssignedRunway?.Designator);
 
-            var result = engine.SendCommand(Callsign, "OTG MLT 28L");
+            CommandResult result = engine.SendCommand(Callsign, "OTG MLT 28L");
             Assert.True(result.Success, $"OTG MLT 28L was refused: {result.Message}");
 
             bool sawGoAround = FlyUntilTheBlockFires(engine, [typeof(FinalApproachPhase), typeof(GoAroundPhase)]);
@@ -214,7 +215,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     [Fact]
     public void OtgMlt_QueuedOnUpwind_WaitsForTheNextTerminator()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -222,13 +223,13 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            var ac = RestoreAt(engine, archive, UpwindAfterTouchAndGoTime);
+            AircraftState? ac = RestoreAt(engine, archive, UpwindAfterTouchAndGoTime);
             if (ac is null)
             {
                 return;
@@ -237,7 +238,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
             Assert.IsType<UpwindPhase>(ac.Phases?.CurrentPhase);
             Assert.Equal("28R", ac.Phases?.AssignedRunway?.Designator);
 
-            var result = engine.SendCommand(Callsign, "OTG MLT 28L");
+            CommandResult result = engine.SendCommand(Callsign, "OTG MLT 28L");
             Assert.True(result.Success, $"OTG MLT 28L was refused: {result.Message}");
 
             bool sawCrosswind = false;
@@ -245,7 +246,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
             for (int t = 1; t <= 60; t++)
             {
                 engine.TickOneSecond();
-                var live = engine.FindAircraft(Callsign);
+                AircraftState? live = engine.FindAircraft(Callsign);
                 Assert.NotNull(live);
 
                 sawCrosswind |= live.Phases?.CurrentPhase is CrosswindPhase;
@@ -255,7 +256,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
                 Assert.Equal(PatternDirection.Right, live.Phases?.TrafficDirection);
             }
 
-            var final = engine.FindAircraft(Callsign);
+            AircraftState? final = engine.FindAircraft(Callsign);
             Assert.NotNull(final);
             Assert.False(final.Queue.IsComplete, "the OTG block fired without a cycle terminator");
             Assert.Contains(final.Queue.Blocks, b => (b.Trigger?.Type == BlockTriggerType.AfterCycleTerminator) && !b.IsApplied);
@@ -273,7 +274,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     [Fact]
     public void OtgMlt_QueuedOnFinal_IsDiscardedWhenTheAircraftLandsFullStop()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -281,7 +282,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -290,7 +291,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
             var warnings = new List<string>();
             engine.WarningEmitted += (_, warning) => warnings.Add(warning);
 
-            var ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
+            AircraftState? ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
             if (ac is null)
             {
                 return;
@@ -299,9 +300,9 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
             Assert.IsType<FinalApproachPhase>(ac.Phases?.CurrentPhase);
 
             // Full stop instead of the recorded option: the touch-and-go terminator never happens.
-            var cland = engine.SendCommand(Callsign, "CLAND");
+            CommandResult cland = engine.SendCommand(Callsign, "CLAND");
             Assert.True(cland.Success, $"CLAND was refused: {cland.Message}");
-            var otg = engine.SendCommand(Callsign, "OTG MLT 28L");
+            CommandResult otg = engine.SendCommand(Callsign, "OTG MLT 28L");
             Assert.True(otg.Success, $"OTG MLT 28L was refused: {otg.Message}");
             Assert.Contains(ac.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.AfterCycleTerminator);
 
@@ -309,7 +310,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
             for (int t = 1; t <= MaxTicks; t++)
             {
                 engine.TickOneSecond();
-                var live = engine.FindAircraft(Callsign);
+                AircraftState? live = engine.FindAircraft(Callsign);
                 if (live is null)
                 {
                     break;
@@ -341,7 +342,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     [Fact]
     public void OtgMlt_FullStop_QuotesAThreeDigitPatternAltitudeVerbatim()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -349,7 +350,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -358,17 +359,17 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
             var warnings = new List<string>();
             engine.WarningEmitted += (_, warning) => warnings.Add(warning);
 
-            var ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
+            AircraftState? ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
             if (ac is null)
             {
                 return;
             }
 
             Assert.True(engine.SendCommand(Callsign, "CLAND").Success);
-            var otg = engine.SendCommand(Callsign, "OTG MLT 28R 015");
+            CommandResult otg = engine.SendCommand(Callsign, "OTG MLT 28R 015");
             Assert.True(otg.Success, $"OTG MLT 28R 015 was refused: {otg.Message}");
 
-            var afterRollout = FlyToRollout(engine);
+            AircraftState? afterRollout = FlyToRollout(engine);
             Assert.NotNull(afterRollout);
 
             Assert.DoesNotContain(afterRollout.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.AfterCycleTerminator);
@@ -384,7 +385,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     [Fact]
     public void OtgMlt_FullStop_DiscardsTheRestOfItsTransmission()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -392,7 +393,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -401,18 +402,18 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
             var warnings = new List<string>();
             engine.WarningEmitted += (_, warning) => warnings.Add(warning);
 
-            var ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
+            AircraftState? ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
             if (ac is null)
             {
                 return;
             }
 
             Assert.True(engine.SendCommand(Callsign, "CLAND").Success);
-            var otg = engine.SendCommand(Callsign, "OTG MLT 28L; SPD 200");
+            CommandResult otg = engine.SendCommand(Callsign, "OTG MLT 28L; SPD 200");
             Assert.True(otg.Success, $"OTG MLT 28L; SPD 200 was refused: {otg.Message}");
             Assert.Equal(2, ac.Queue.Blocks.Count);
 
-            var afterRollout = FlyToRollout(engine);
+            AircraftState? afterRollout = FlyToRollout(engine);
             Assert.NotNull(afterRollout);
             output.WriteLine($"after rollout: {afterRollout.Queue.Blocks.Count} blocks, warnings: {string.Join(" | ", warnings)}");
 
@@ -431,7 +432,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     [Fact]
     public void OtgMlt_FailingAtFireTime_QuotesTheSourceTextVerbatim()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -439,7 +440,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -448,14 +449,14 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
             var warnings = new List<string>();
             engine.WarningEmitted += (_, warning) => warnings.Add(warning);
 
-            var ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
+            AircraftState? ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
             if (ac is null)
             {
                 return;
             }
 
             // OAK has no runway 01L, so the block fires on the climb-out and is refused there.
-            var otg = engine.SendCommand(Callsign, "OTG MLT 01L 015");
+            CommandResult otg = engine.SendCommand(Callsign, "OTG MLT 01L 015");
             Assert.True(otg.Success, $"OTG MLT 01L 015 was refused at issue: {otg.Message}");
 
             // The refusal fires on the climb-out: from the t=890 snapshot the touch-and-go ends and
@@ -481,7 +482,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
         for (int t = 1; t <= MaxTicks; t++)
         {
             engine.TickOneSecond();
-            var live = engine.FindAircraft(Callsign);
+            AircraftState? live = engine.FindAircraft(Callsign);
             if (live is null)
             {
                 return null;
@@ -504,7 +505,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     [Fact]
     public void OtgMlt_QueuedBlockAndLatchSurviveSnapshotRoundTrip()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -512,30 +513,30 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            var ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
+            AircraftState? ac = RestoreAt(engine, archive, FinalBeforeTouchAndGoTime);
             if (ac is null)
             {
                 return;
             }
 
-            var result = engine.SendCommand(Callsign, "OTG MLT 28L");
+            CommandResult result = engine.SendCommand(Callsign, "OTG MLT 28L");
             Assert.True(result.Success, $"OTG MLT 28L was refused: {result.Message}");
 
             var beforeLatch = CommandQueue.FromSnapshot(ac.Queue.ToSnapshot());
-            var armed = Assert.Single(beforeLatch.Blocks, b => b.Trigger?.Type == BlockTriggerType.AfterCycleTerminator);
+            CommandBlock armed = Assert.Single(beforeLatch.Blocks, b => b.Trigger?.Type == BlockTriggerType.AfterCycleTerminator);
             Assert.False(armed.TriggerTerminatorObserved);
 
             AircraftState? latched = null;
             for (int t = 1; t <= MaxTicks; t++)
             {
                 engine.TickOneSecond();
-                var live = engine.FindAircraft(Callsign);
+                AircraftState? live = engine.FindAircraft(Callsign);
                 Assert.NotNull(live);
 
                 if (live.Queue.Blocks.Exists(b => b.TriggerTerminatorObserved))
@@ -578,7 +579,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     {
         engine.Replay(archive.ToBaseSessionRecording(), 0);
 
-        var snapshot = archive.ReadSnapshotAt(elapsedSeconds);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(elapsedSeconds);
         if (snapshot is null)
         {
             output.WriteLine($"No snapshot near t={elapsedSeconds} — skipping");
@@ -587,7 +588,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
 
         engine.RestoreFromSnapshot(snapshot.State);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         if (ac is null)
         {
             output.WriteLine($"{Callsign} is not in the t={elapsedSeconds} snapshot — skipping");
@@ -602,7 +603,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     /// </summary>
     private static void AssertQueuedBlockDescribesAndRoundTrips(AircraftState aircraft)
     {
-        var block = Assert.Single(aircraft.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.AfterCycleTerminator);
+        CommandBlock block = Assert.Single(aircraft.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.AfterCycleTerminator);
 
         Assert.Equal("on the go: ", block.DescriptionPrefix);
         Assert.Equal("On the go: ", block.NaturalDescriptionPrefix);
@@ -610,9 +611,9 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
         Assert.StartsWith("On the go: ", block.NaturalDescription, StringComparison.Ordinal);
 
         Assert.NotNull(block.SourceCommandText);
-        var reparsed = CommandParser.ParseCompound(block.SourceCommandText!);
+        ParseResult<CompoundCommand> reparsed = CommandParser.ParseCompound(block.SourceCommandText!);
         Assert.True(reparsed.IsSuccess, reparsed.Reason);
-        var reparsedBlock = Assert.Single(reparsed.Value!.Blocks);
+        ParsedBlock reparsedBlock = Assert.Single(reparsed.Value!.Blocks);
         Assert.IsType<OnTheGoCondition>(reparsedBlock.Condition);
         Assert.Equal("28L", Assert.IsType<MakeLeftTrafficCommand>(Assert.Single(reparsedBlock.Commands)).RunwayId);
     }
@@ -625,17 +626,17 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     /// </summary>
     private bool FlyUntilTheBlockFires(SimulationEngine engine, Type[] phasesBeforeTheClimbOut)
     {
-        var terminatorPhase = phasesBeforeTheClimbOut[^1];
+        Type terminatorPhase = phasesBeforeTheClimbOut[^1];
         bool sawTerminator = false;
         int upwindAt = -1;
 
         for (int t = 1; t <= MaxTicks; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
-            var phase = ac.Phases?.CurrentPhase;
+            Phase? phase = ac.Phases?.CurrentPhase;
             sawTerminator |= (phase is not null) && (phase.GetType() == terminatorPhase);
 
             if ((phase is UpwindPhase) && (upwindAt < 0))
@@ -674,18 +675,18 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
     /// </summary>
     private void AssertTransitionInstalled(AircraftState aircraft)
     {
-        var rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
-        var rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
+        RunwayInfo rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
+        RunwayInfo rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
 
-        var chain = aircraft.Phases?.Phases ?? [];
+        List<Phase> chain = aircraft.Phases?.Phases ?? [];
         output.WriteLine($"chain=[{string.Join(",", chain.Select(p => $"{p.GetType().Name}:{p.Status}"))}]");
 
         Assert.Equal("28L", aircraft.Phases?.AssignedRunway?.Designator);
         Assert.Equal(PatternDirection.Left, aircraft.Phases?.TrafficDirection);
         Assert.DoesNotContain(chain, p => p is MidfieldCrossingPhase);
 
-        var upwind = Assert.IsType<UpwindPhase>(aircraft.Phases?.CurrentPhase);
-        var waypoints = upwind.Waypoints;
+        UpwindPhase upwind = Assert.IsType<UpwindPhase>(aircraft.Phases?.CurrentPhase);
+        PatternWaypoints? waypoints = upwind.Waypoints;
         Assert.NotNull(waypoints);
 
         double turnAlongTrack = AlongTrack(rwy28L, waypoints.CrosswindTurnLat, waypoints.CrosswindTurnLon);

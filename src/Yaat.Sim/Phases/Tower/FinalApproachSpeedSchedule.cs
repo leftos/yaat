@@ -88,7 +88,7 @@ public static class FinalApproachSpeedSchedule
 
     private static double JetCleanCapKts(string aircraftType, AircraftCategory category)
     {
-        var wake = WakeTurbulenceData.WakeClassForType(aircraftType, category);
+        WakeTurbulenceData.WakeClass wake = WakeTurbulenceData.WakeClassForType(aircraftType, category);
         if (wake is WakeTurbulenceData.WakeClass.Super or WakeTurbulenceData.WakeClass.Heavy)
         {
             return HeavyCleanCapKts;

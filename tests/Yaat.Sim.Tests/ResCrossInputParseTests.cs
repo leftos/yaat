@@ -23,7 +23,7 @@ public class ResCrossInputParseTests
     [Fact]
     public void ResumeArgMode_IsOptional_BecauseItHasCompoundModifiers()
     {
-        var def = CommandRegistry.Get(CanonicalCommandType.Resume);
+        CommandDefinition? def = CommandRegistry.Get(CanonicalCommandType.Resume);
         Assert.NotNull(def);
         Assert.Equal(ArgMode.Optional, def.ArgMode);
     }
@@ -35,7 +35,7 @@ public class ResCrossInputParseTests
     [InlineData("RES HS B")]
     public void ResWithModifier_ParsesFromCommandBox(string input)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme, out ParseFailure? failure);
         Assert.Null(failure);
         Assert.NotNull(result);
     }
@@ -43,7 +43,7 @@ public class ResCrossInputParseTests
     [Fact]
     public void BareRes_StillParses()
     {
-        var result = CommandSchemeParser.ParseCompound("RES", Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("RES", Scheme, out ParseFailure? failure);
         Assert.Null(failure);
         Assert.NotNull(result);
     }
@@ -52,7 +52,7 @@ public class ResCrossInputParseTests
     public void ModifierOnlyVerb_Cland_ParsesFromCommandBox()
     {
         // Same DeriveArgMode gap affected every modifier-only command, e.g. CLAND NODEL.
-        var result = CommandSchemeParser.ParseCompound("CLAND NODEL", Scheme, out var failure);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("CLAND NODEL", Scheme, out ParseFailure? failure);
         Assert.Null(failure);
         Assert.NotNull(result);
     }

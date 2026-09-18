@@ -37,14 +37,14 @@ public static class RouteExpander
             return [];
         }
 
-        var tokens = route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var result = new List<string>();
 
         for (int i = 0; i < tokens.Length; i++)
         {
-            var token = tokens[i];
-            var dotParts = token.Split('.');
-            var rawName = dotParts[0];
+            string token = tokens[i];
+            string[] dotParts = token.Split('.');
+            string rawName = dotParts[0];
             string? suffix = dotParts.Length > 1 ? dotParts[1] : null;
 
             // Skip empty or numeric tokens (altitude/speed constraints like "050", "250")
@@ -54,7 +54,7 @@ public static class RouteExpander
             }
 
             // 1. SID check
-            var resolvedSidId = navDb.ResolveSidId(rawName);
+            string? resolvedSidId = navDb.ResolveSidId(rawName);
             if (resolvedSidId is not null)
             {
                 ExpandSid(result, resolvedSidId, tokens, i, navDb, includeAllTransitionsOnMismatch);
@@ -62,7 +62,7 @@ public static class RouteExpander
             }
 
             // 2. STAR check
-            var resolvedStarId = navDb.ResolveStarId(rawName);
+            string? resolvedStarId = navDb.ResolveStarId(rawName);
             if (resolvedStarId is not null)
             {
                 ExpandStar(result, resolvedStarId, navDb);
@@ -79,7 +79,7 @@ public static class RouteExpander
             {
                 string? entryAnchor = result.Count > 0 ? result[^1] : null;
                 string? exitAnchor = FindNextNonNumericToken(tokens, i + 1)?.Split('.')[0];
-                foreach (var fix in MilitaryRouteExpander.Expand(rawName, entryAnchor, exitAnchor, navDb))
+                foreach (string fix in MilitaryRouteExpander.Expand(rawName, entryAnchor, exitAnchor, navDb))
                 {
                     EmitDeduped(result, fix);
                 }
@@ -94,8 +94,8 @@ public static class RouteExpander
                 string? nextFix = FindNextNonNumericToken(tokens, i + 1);
                 if (nextFix is not null)
                 {
-                    var segment = navDb.ExpandAirwaySegment(suffix, rawName, nextFix.Split('.')[0]);
-                    foreach (var fix in segment)
+                    IReadOnlyList<string> segment = navDb.ExpandAirwaySegment(suffix, rawName, nextFix.Split('.')[0]);
+                    foreach (string fix in segment)
                     {
                         EmitDeduped(result, fix);
                     }
@@ -111,8 +111,8 @@ public static class RouteExpander
                 string? toFix = FindNextNonNumericToken(tokens, i + 1);
                 if (fromFix is not null && toFix is not null)
                 {
-                    var segment = navDb.ExpandAirwaySegment(rawName, fromFix, toFix.Split('.')[0]);
-                    foreach (var fix in segment)
+                    IReadOnlyList<string> segment = navDb.ExpandAirwaySegment(rawName, fromFix, toFix.Split('.')[0]);
+                    foreach (string fix in segment)
                     {
                         EmitDeduped(result, fix);
                     }
@@ -137,18 +137,18 @@ public static class RouteExpander
         bool includeAllTransitionsOnMismatch
     )
     {
-        var body = navDb.GetSidBody(sidId);
+        IReadOnlyList<string>? body = navDb.GetSidBody(sidId);
         if (body is null)
         {
             return;
         }
 
-        foreach (var fix in body)
+        foreach (string fix in body)
         {
             EmitDeduped(result, fix);
         }
 
-        var transitions = navDb.GetSidTransitions(sidId);
+        IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? transitions = navDb.GetSidTransitions(sidId);
         if (transitions is null || transitions.Count == 0)
         {
             return;
@@ -158,13 +158,13 @@ public static class RouteExpander
         string? nextToken = FindNextNonNumericToken(tokens, tokenIndex + 1);
         if (nextToken is not null)
         {
-            var nextFixName = NavigationDatabase.StripTrailingDigits(nextToken.Split('.')[0]);
+            string nextFixName = NavigationDatabase.StripTrailingDigits(nextToken.Split('.')[0]);
 
-            foreach (var trans in transitions)
+            foreach ((string Name, IReadOnlyList<string> Fixes) trans in transitions)
             {
                 if (trans.Name.Equals(nextFixName, StringComparison.OrdinalIgnoreCase))
                 {
-                    foreach (var fix in trans.Fixes)
+                    foreach (string fix in trans.Fixes)
                     {
                         EmitDeduped(result, fix);
                     }
@@ -185,9 +185,9 @@ public static class RouteExpander
             return;
         }
 
-        foreach (var trans in transitions)
+        foreach ((string Name, IReadOnlyList<string> Fixes) trans in transitions)
         {
-            foreach (var fix in trans.Fixes)
+            foreach (string fix in trans.Fixes)
             {
                 EmitDeduped(result, fix);
             }
@@ -196,7 +196,7 @@ public static class RouteExpander
 
     private static void ExpandStar(List<string> result, string starId, NavigationDatabase navDb)
     {
-        var body = navDb.GetStarBody(starId);
+        IReadOnlyList<string>? body = navDb.GetStarBody(starId);
         if (body is null)
         {
             return;
@@ -207,7 +207,7 @@ public static class RouteExpander
         // If we have a preceding fix, find it in the STAR body to determine the join point
         if (result.Count > 0)
         {
-            var lastFix = result[^1];
+            string lastFix = result[^1];
 
             for (int i = 0; i < body.Count; i++)
             {
@@ -221,10 +221,10 @@ public static class RouteExpander
             // Also check STAR transitions for the join fix
             if (startIdx == 0)
             {
-                var transitions = navDb.GetStarTransitions(starId);
+                IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? transitions = navDb.GetStarTransitions(starId);
                 if (transitions is not null)
                 {
-                    foreach (var trans in transitions)
+                    foreach ((string Name, IReadOnlyList<string> Fixes) trans in transitions)
                     {
                         int transIdx = -1;
                         for (int i = 0; i < trans.Fixes.Count; i++)

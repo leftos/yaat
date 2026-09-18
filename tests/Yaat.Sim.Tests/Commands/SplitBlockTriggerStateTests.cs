@@ -36,23 +36,23 @@ public sealed class SplitBlockTriggerStateTests
 
     private static void Dispatch(AircraftState aircraft, string command, DispatchContext ctx)
     {
-        var parsed = CommandParser.ParseCompound(command);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
         Assert.True(result.Success, result.Message);
     }
 
     [Fact]
     public void PartiallySupersededConditionalBlock_KeepsItsTriggerRuntimeState()
     {
-        var aircraft = MakeAircraft();
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState aircraft = MakeAircraft();
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
         Dispatch(aircraft, "CM 10000; LV 5000 FH 270, SPD 210", ctx);
 
         // The conditional block carrying both FH 270 and SPD 210.
-        var conditional = aircraft.Queue.Blocks.SingleOrDefault(b => b.Trigger is not null);
+        CommandBlock? conditional = aircraft.Queue.Blocks.SingleOrDefault(b => b.Trigger is not null);
         Assert.NotNull(conditional);
 
         // Simulate the lookahead having already fired it as the aircraft climbed through 5,000 ft.
@@ -62,7 +62,7 @@ public sealed class SplitBlockTriggerStateTests
         // A new speed assignment supersedes SPD 210 but not FH 270, so the block is partially split.
         Dispatch(aircraft, "SPD 250", ctx);
 
-        var survivor = aircraft.Queue.Blocks.SingleOrDefault(b => b.Trigger is not null);
+        CommandBlock? survivor = aircraft.Queue.Blocks.SingleOrDefault(b => b.Trigger is not null);
         Assert.NotNull(survivor);
 
         Assert.True(survivor.TriggerMet, "the surviving half re-armed against a trigger the aircraft has already passed");

@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -36,18 +37,18 @@ public sealed class RunwayDesignatorNormalizationTests(ITestOutputHelper output)
             return;
         }
 
-        using var archive = RecordingLoader.OpenArchive("TestData/c000c2b0afc8.zip");
+        using RecordingArchive? archive = RecordingLoader.OpenArchive("TestData/c000c2b0afc8.zip");
         if (archive is null)
         {
             return;
         }
 
-        var layout = archive.ReadLayout("mia");
-        var category = AircraftCategorization.Categorize("E75L");
-        var startNode = layout.Nodes[304];
+        AirportGroundLayout layout = archive.ReadLayout("mia");
+        AircraftCategory category = AircraftCategorization.Categorize("E75L");
+        GroundNode startNode = layout.Nodes[304];
 
-        var padded = TaxiPathfinder.FindRunwayRoute(layout, startNode, "08R", category);
-        var unpadded = TaxiPathfinder.FindRunwayRoute(layout, startNode, "8R", category);
+        TaxiRoute? padded = TaxiPathfinder.FindRunwayRoute(layout, startNode, "08R", category);
+        TaxiRoute? unpadded = TaxiPathfinder.FindRunwayRoute(layout, startNode, "8R", category);
 
         Assert.NotNull(padded);
         Assert.NotNull(unpadded);

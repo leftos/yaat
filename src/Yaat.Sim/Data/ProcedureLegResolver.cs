@@ -19,11 +19,11 @@ internal static class ProcedureLegResolver
     /// </summary>
     public static List<ProcedureLeg> Resolve(IReadOnlyList<CifpLeg> legs)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         var result = new List<ProcedureLeg>();
         LatLon? previousFixPos = null;
 
-        foreach (var leg in legs)
+        foreach (CifpLeg leg in legs)
         {
             // Procedure-turn legs are approach-only (hold-in-lieu); never flown on a SID/STAR body.
             if (leg.PathTerminator == CifpPathTerminator.PI)
@@ -111,7 +111,7 @@ internal static class ProcedureLegResolver
                     or CifpPathTerminator.VR
             )
             {
-                var distanceOrRadial = ResolveDistanceOrRadialLeg(leg, navDb, turn);
+                ProcedureLeg? distanceOrRadial = ResolveDistanceOrRadialLeg(leg, navDb, turn);
                 if (distanceOrRadial is not null)
                 {
                     result.Add(distanceOrRadial);
@@ -125,7 +125,7 @@ internal static class ProcedureLegResolver
                 continue;
             }
 
-            var pos = leg.ResolveFixPosition(navDb);
+            (double Lat, double Lon)? pos = leg.ResolveFixPosition(navDb);
             if (pos is null)
             {
                 continue;
@@ -164,7 +164,7 @@ internal static class ProcedureLegResolver
                 ExpandArc(result, new LatLon(navaid.Lat, navaid.Lon), afRho, afPrev, fixPos, leg.TurnDirection);
             }
 
-            var type = leg.PathTerminator switch
+            ProcedureLegType type = leg.PathTerminator switch
             {
                 CifpPathTerminator.IF => ProcedureLegType.InitialFix,
                 CifpPathTerminator.DF => ProcedureLegType.DirectToFix,
@@ -301,7 +301,7 @@ internal static class ProcedureLegResolver
         double startBearing = GeoMath.BearingTo(center, previousFix);
         double endBearing = GeoMath.BearingTo(center, terminatorFix);
         bool turnRight = GeoMath.ResolveArcTurnRight(turnDirection, startBearing, endBearing);
-        var arcPoints = GeoMath.GenerateArcPoints(center, radiusNm, startBearing, endBearing, turnRight);
+        List<LatLon> arcPoints = GeoMath.GenerateArcPoints(center, radiusNm, startBearing, endBearing, turnRight);
 
         // Insert intermediate points; the terminator fix itself is added by the caller.
         for (int i = 0; i < arcPoints.Count - 1; i++)

@@ -25,11 +25,11 @@ public class ProcedureCommandTests
     [Fact]
     public void Cvia_EnablesSidViaMode()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Procedure.ActiveSidId = "PORTE3";
         aircraft.Procedure.SidViaMode = false;
 
-        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(aircraft.Procedure.SidViaMode);
@@ -39,10 +39,10 @@ public class ProcedureCommandTests
     [Fact]
     public void Cvia_WithAltitude_SetsCeiling()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Procedure.ActiveSidId = "PORTE3";
 
-        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(19000), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ClimbViaCommand(19000), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(aircraft.Procedure.SidViaMode);
@@ -52,9 +52,9 @@ public class ProcedureCommandTests
     [Fact]
     public void Cvia_WithoutActiveSid_Rejected()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
 
-        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("No active SID", result.Message);
@@ -65,10 +65,10 @@ public class ProcedureCommandTests
     [Fact]
     public void Dvia_EnablesStarViaMode()
     {
-        var aircraft = CreateAircraft(altitude: 15000);
+        AircraftState aircraft = CreateAircraft(altitude: 15000);
         aircraft.Procedure.ActiveStarId = "BDEGA3";
 
-        var result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(aircraft.Procedure.StarViaMode);
@@ -78,10 +78,10 @@ public class ProcedureCommandTests
     [Fact]
     public void Dvia_WithAltitude_SetsFloor()
     {
-        var aircraft = CreateAircraft(altitude: 15000);
+        AircraftState aircraft = CreateAircraft(altitude: 15000);
         aircraft.Procedure.ActiveStarId = "BDEGA3";
 
-        var result = CommandDispatcher.Dispatch(new DescendViaCommand(10000), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new DescendViaCommand(10000), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(aircraft.Procedure.StarViaMode);
@@ -93,7 +93,7 @@ public class ProcedureCommandTests
     [Fact]
     public void Cm_DisablesSidViaMode_PreservesLateralPath()
     {
-        var aircraft = CreateAircraft(altitude: 5000);
+        AircraftState aircraft = CreateAircraft(altitude: 5000);
         aircraft.Procedure.ActiveSidId = "PORTE3";
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.SidViaCeiling = 10000;
@@ -101,7 +101,7 @@ public class ProcedureCommandTests
         // Set up a navigation route to verify it's preserved
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "FIX1", Position = new LatLon(37.5, -122.0) });
 
-        var result = CommandDispatcher.Dispatch(new ClimbMaintainCommand(35000), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ClimbMaintainCommand(35000), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.False(aircraft.Procedure.SidViaMode);
@@ -118,14 +118,14 @@ public class ProcedureCommandTests
     [Fact]
     public void Dm_DisablesStarViaMode_PreservesLateralPath()
     {
-        var aircraft = CreateAircraft(altitude: 15000);
+        AircraftState aircraft = CreateAircraft(altitude: 15000);
         aircraft.Procedure.ActiveStarId = "BDEGA3";
         aircraft.Procedure.StarViaMode = true;
         aircraft.Procedure.StarViaFloor = 10000;
 
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "FIX1", Position = new LatLon(37.5, -122.0) });
 
-        var result = CommandDispatcher.Dispatch(new DescendMaintainCommand(10000), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new DescendMaintainCommand(10000), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.False(aircraft.Procedure.StarViaMode);
@@ -140,13 +140,17 @@ public class ProcedureCommandTests
     [Fact]
     public void Fh_ClearsEntireProcedure()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Procedure.ActiveSidId = "PORTE3";
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveStarId = "BDEGA3";
         aircraft.Procedure.StarViaMode = true;
 
-        var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new FlyHeadingCommand(new MagneticHeading(270)),
+            aircraft,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.True(result.Success);
         Assert.Null(aircraft.Procedure.ActiveSidId);
@@ -164,12 +168,12 @@ public class ProcedureCommandTests
     {
         TestVnasData.EnsureInitialized();
 
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Procedure.ActiveSidId = "PORTE3";
         aircraft.Procedure.SidViaMode = true;
 
         var fixes = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
-        var result = CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Null(aircraft.Procedure.ActiveSidId);
@@ -181,11 +185,15 @@ public class ProcedureCommandTests
     [Fact]
     public void TurnLeft_ClearsEntireProcedure()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Procedure.ActiveStarId = "BDEGA3";
         aircraft.Procedure.StarViaMode = true;
 
-        var result = CommandDispatcher.Dispatch(new TurnLeftCommand(new MagneticHeading(180)), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new TurnLeftCommand(new MagneticHeading(180)),
+            aircraft,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.True(result.Success);
         Assert.Null(aircraft.Procedure.ActiveStarId);
@@ -195,11 +203,15 @@ public class ProcedureCommandTests
     [Fact]
     public void TurnRight_ClearsEntireProcedure()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Procedure.ActiveSidId = "PORTE3";
         aircraft.Procedure.SidViaMode = true;
 
-        var result = CommandDispatcher.Dispatch(new TurnRightCommand(new MagneticHeading(90)), aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new TurnRightCommand(new MagneticHeading(90)),
+            aircraft,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.True(result.Success);
         Assert.Null(aircraft.Procedure.ActiveSidId);
@@ -211,7 +223,7 @@ public class ProcedureCommandTests
     [Fact]
     public void Fh_WithoutAltitude_WarnsWhenClearingProcedure()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Procedure.ActiveSidId = "PORTE3";
         aircraft.Procedure.SidViaMode = true;
         aircraft.Targets.TargetAltitude = 10000;
@@ -226,7 +238,7 @@ public class ProcedureCommandTests
     [Fact]
     public void Fh_WithAltitude_InCompound_NoWarning()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Procedure.ActiveStarId = "BDEGA3";
         aircraft.Procedure.StarViaMode = true;
 
@@ -243,7 +255,7 @@ public class ProcedureCommandTests
     [Fact]
     public void TurnLeft_WithoutAltitude_WarnsWhenClearingProcedure()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Procedure.ActiveStarId = "BDEGA3";
         aircraft.Procedure.StarViaMode = true;
         aircraft.Targets.TargetAltitude = 5000;
@@ -258,7 +270,7 @@ public class ProcedureCommandTests
     [Fact]
     public void Fh_NoProcedureActive_NoWarning()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         // No active procedure
 
         CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), aircraft, TestDispatch.Context(Random.Shared));
@@ -269,7 +281,7 @@ public class ProcedureCommandTests
     [Fact]
     public void Cm_ClearingViaMode_NoWarning()
     {
-        var aircraft = CreateAircraft();
+        AircraftState aircraft = CreateAircraft();
         aircraft.Procedure.ActiveSidId = "PORTE3";
         aircraft.Procedure.SidViaMode = true;
 

@@ -63,7 +63,7 @@ public class InterceptCoursePhaseTests
     {
         // Place aircraft to the right of the FAC (positive cross-track)
         // heading 180 — will cross to the left side
-        var aircraft = MakeAircraft(heading: 180, lat: 37.74, lon: -122.23);
+        AircraftState aircraft = MakeAircraft(heading: 180, lat: 37.74, lon: -122.23);
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -75,12 +75,12 @@ public class InterceptCoursePhaseTests
             },
         };
 
-        var phase = MakePhase();
+        InterceptCoursePhase phase = MakePhase();
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -113,10 +113,10 @@ public class InterceptCoursePhaseTests
     public void NormalIntercept_NoBustThrough()
     {
         // Place aircraft slightly right of course, heading nearly aligned
-        var aircraft = MakeAircraft(heading: 270, lat: 37.725, lon: -122.28);
+        AircraftState aircraft = MakeAircraft(heading: 270, lat: 37.725, lon: -122.28);
 
-        var phase = MakePhase();
-        var ctx = MakeContext(aircraft);
+        InterceptCoursePhase phase = MakePhase();
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -139,7 +139,7 @@ public class InterceptCoursePhaseTests
     public void Timeout_NeverCrosses_DetectsAfter180Seconds()
     {
         // Place aircraft parallel to course, offset to the right
-        var aircraft = MakeAircraft(heading: RunwayHeading, lat: 37.75, lon: -122.30);
+        AircraftState aircraft = MakeAircraft(heading: RunwayHeading, lat: 37.75, lon: -122.30);
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -151,12 +151,12 @@ public class InterceptCoursePhaseTests
             },
         };
 
-        var phase = MakePhase();
+        InterceptCoursePhase phase = MakePhase();
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
 
-        var ctx = MakeContext(aircraft, deltaSeconds: 1.0);
+        PhaseContext ctx = MakeContext(aircraft, deltaSeconds: 1.0);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -187,7 +187,7 @@ public class InterceptCoursePhaseTests
     public void Capture_20DegIntercept_CompletesOnCrossing()
     {
         // Aircraft heading 260 on course 280 = 20° intercept
-        var aircraft = MakeAircraft(heading: 260, lat: 37.74, lon: -122.23);
+        AircraftState aircraft = MakeAircraft(heading: 260, lat: 37.74, lon: -122.23);
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -199,12 +199,12 @@ public class InterceptCoursePhaseTests
             },
         };
 
-        var phase = MakePhase();
+        InterceptCoursePhase phase = MakePhase();
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -230,7 +230,7 @@ public class InterceptCoursePhaseTests
     [Fact]
     public void Capture_30DegIntercept_CompletesOnCrossing()
     {
-        var aircraft = MakeAircraft(heading: 250, lat: 37.74, lon: -122.23);
+        AircraftState aircraft = MakeAircraft(heading: 250, lat: 37.74, lon: -122.23);
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -242,12 +242,12 @@ public class InterceptCoursePhaseTests
             },
         };
 
-        var phase = MakePhase();
+        InterceptCoursePhase phase = MakePhase();
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -267,7 +267,7 @@ public class InterceptCoursePhaseTests
     [Fact]
     public void BustThrough_35DegIntercept_DetectsOnCrossing()
     {
-        var aircraft = MakeAircraft(heading: 245, lat: 37.74, lon: -122.23);
+        AircraftState aircraft = MakeAircraft(heading: 245, lat: 37.74, lon: -122.23);
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -279,12 +279,12 @@ public class InterceptCoursePhaseTests
             },
         };
 
-        var phase = MakePhase();
+        InterceptCoursePhase phase = MakePhase();
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -307,7 +307,7 @@ public class InterceptCoursePhaseTests
     [Fact]
     public void Capture_Helicopter_40DegIntercept_CompletesOnCrossing()
     {
-        var aircraft = MakeAircraft(heading: 240, lat: 37.74, lon: -122.23, type: "EC45");
+        AircraftState aircraft = MakeAircraft(heading: 240, lat: 37.74, lon: -122.23, type: "EC45");
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -319,12 +319,12 @@ public class InterceptCoursePhaseTests
             },
         };
 
-        var phase = MakePhase();
+        InterceptCoursePhase phase = MakePhase();
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new HelicopterLandingPhase());
 
-        var ctx = MakeContext(aircraft, category: AircraftCategory.Helicopter);
+        PhaseContext ctx = MakeContext(aircraft, category: AircraftCategory.Helicopter);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -346,7 +346,7 @@ public class InterceptCoursePhaseTests
     [Fact]
     public void BustThrough_Helicopter_50DegIntercept_DetectsOnCrossing()
     {
-        var aircraft = MakeAircraft(heading: 230, lat: 37.74, lon: -122.23, type: "EC45");
+        AircraftState aircraft = MakeAircraft(heading: 230, lat: 37.74, lon: -122.23, type: "EC45");
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -358,12 +358,12 @@ public class InterceptCoursePhaseTests
             },
         };
 
-        var phase = MakePhase();
+        InterceptCoursePhase phase = MakePhase();
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new HelicopterLandingPhase());
 
-        var ctx = MakeContext(aircraft, category: AircraftCategory.Helicopter);
+        PhaseContext ctx = MakeContext(aircraft, category: AircraftCategory.Helicopter);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -384,7 +384,7 @@ public class InterceptCoursePhaseTests
     [Fact]
     public void Capture_5DegShallowIntercept_CompletesOnCrossing()
     {
-        var aircraft = MakeAircraft(heading: 275, lat: 37.74, lon: -122.23);
+        AircraftState aircraft = MakeAircraft(heading: 275, lat: 37.74, lon: -122.23);
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -396,12 +396,12 @@ public class InterceptCoursePhaseTests
             },
         };
 
-        var phase = MakePhase();
+        InterceptCoursePhase phase = MakePhase();
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -423,10 +423,10 @@ public class InterceptCoursePhaseTests
     {
         // Aircraft heading 270 on course 280 (10° off) — will capture
         // Place aircraft ~8nm from threshold, slightly off course
-        var reciprocal = new TrueHeading(RunwayHeading).ToReciprocal();
-        var onCourse = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, reciprocal, 8.0);
+        TrueHeading reciprocal = new TrueHeading(RunwayHeading).ToReciprocal();
+        (double Lat, double Lon) onCourse = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, reciprocal, 8.0);
 
-        var aircraft = MakeAircraft(heading: 270, lat: onCourse.Lat, lon: onCourse.Lon);
+        AircraftState aircraft = MakeAircraft(heading: 270, lat: onCourse.Lat, lon: onCourse.Lon);
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -438,12 +438,12 @@ public class InterceptCoursePhaseTests
             },
         };
 
-        var phase = MakePhase();
+        InterceptCoursePhase phase = MakePhase();
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -465,7 +465,7 @@ public class InterceptCoursePhaseTests
     [Fact]
     public void BustThrough_NotificationContainsApproachId()
     {
-        var aircraft = MakeAircraft(heading: 180, lat: 37.74, lon: -122.23);
+        AircraftState aircraft = MakeAircraft(heading: 180, lat: 37.74, lon: -122.23);
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -477,12 +477,12 @@ public class InterceptCoursePhaseTests
             },
         };
 
-        var phase = MakePhase("ILS10R");
+        InterceptCoursePhase phase = MakePhase("ILS10R");
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -506,7 +506,7 @@ public class InterceptCoursePhaseTests
     [Fact]
     public void ForcedIntercept_CapturesAtSteepAngle_NoNotification()
     {
-        var aircraft = MakeAircraft(heading: 220, lat: 37.74, lon: -122.23);
+        AircraftState aircraft = MakeAircraft(heading: 220, lat: 37.74, lon: -122.23);
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -519,12 +519,12 @@ public class InterceptCoursePhaseTests
             },
         };
 
-        var phase = MakePhase(forced: true);
+        InterceptCoursePhase phase = MakePhase(forced: true);
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -549,7 +549,7 @@ public class InterceptCoursePhaseTests
     [Fact]
     public void NonForced_60DegIntercept_StillBustsThrough()
     {
-        var aircraft = MakeAircraft(heading: 220, lat: 37.74, lon: -122.23);
+        AircraftState aircraft = MakeAircraft(heading: 220, lat: 37.74, lon: -122.23);
         aircraft.Phases = new PhaseList
         {
             ActiveApproach = new ApproachClearance
@@ -561,12 +561,12 @@ public class InterceptCoursePhaseTests
             },
         };
 
-        var phase = MakePhase(forced: false);
+        InterceptCoursePhase phase = MakePhase(forced: false);
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -587,7 +587,7 @@ public class InterceptCoursePhaseTests
     [Fact]
     public void Snapshot_RoundTrip_PreservesForcedIntercept()
     {
-        var phase = MakePhase(forced: true);
+        InterceptCoursePhase phase = MakePhase(forced: true);
         phase.Status = PhaseStatus.Active;
 
         var dto = (InterceptCoursePhaseDto)phase.ToSnapshot();
@@ -611,10 +611,10 @@ public class InterceptCoursePhaseTests
     /// </summary>
     private static (LatLon Before, LatLon Crossed) FatCrossingPositions()
     {
-        var reciprocal = new TrueHeading(FatFinalApproachCourseTrue).ToReciprocal();
-        var onCourse = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, reciprocal, 8.0);
-        var before = GeoMath.ProjectPoint(onCourse.Lat, onCourse.Lon, new TrueHeading(36.0), 1.5);
-        var crossed = GeoMath.ProjectPoint(onCourse.Lat, onCourse.Lon, new TrueHeading(216.0), 1.5);
+        TrueHeading reciprocal = new TrueHeading(FatFinalApproachCourseTrue).ToReciprocal();
+        (double Lat, double Lon) onCourse = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, reciprocal, 8.0);
+        (double Lat, double Lon) before = GeoMath.ProjectPoint(onCourse.Lat, onCourse.Lon, new TrueHeading(36.0), 1.5);
+        (double Lat, double Lon) crossed = GeoMath.ProjectPoint(onCourse.Lat, onCourse.Lon, new TrueHeading(216.0), 1.5);
         return (new LatLon(before.Lat, before.Lon), new LatLon(crossed.Lat, crossed.Lon));
     }
 
@@ -625,9 +625,9 @@ public class InterceptCoursePhaseTests
     /// </summary>
     private static (LatLon Before, LatLon Crossed) CrossingPositions(TrueHeading course)
     {
-        var onCourse = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, course.ToReciprocal(), 8.0);
-        var before = GeoMath.ProjectPoint(onCourse.Lat, onCourse.Lon, new TrueHeading(course.Degrees + 90.0), 1.5);
-        var crossed = GeoMath.ProjectPoint(onCourse.Lat, onCourse.Lon, new TrueHeading(course.Degrees - 90.0), 1.5);
+        (double Lat, double Lon) onCourse = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, course.ToReciprocal(), 8.0);
+        (double Lat, double Lon) before = GeoMath.ProjectPoint(onCourse.Lat, onCourse.Lon, new TrueHeading(course.Degrees + 90.0), 1.5);
+        (double Lat, double Lon) crossed = GeoMath.ProjectPoint(onCourse.Lat, onCourse.Lon, new TrueHeading(course.Degrees - 90.0), 1.5);
         return (new LatLon(before.Lat, before.Lon), new LatLon(crossed.Lat, crossed.Lon));
     }
 
@@ -690,14 +690,14 @@ public class InterceptCoursePhaseTests
     [Fact]
     public void Capture_VnasApproachIdSuffix_UsesRunwayNumberLeniency()
     {
-        var (before, crossed) = FatCrossingPositions();
-        var aircraft = MakeAircraft(heading: 273, lat: before.Lat, lon: before.Lon);
+        (LatLon before, LatLon crossed) = FatCrossingPositions();
+        AircraftState aircraft = MakeAircraft(heading: 273, lat: before.Lat, lon: before.Lon);
         aircraft.Declination = FatDeclination;
-        var phase = MakeFatPhase(assignedHeading: 260);
+        InterceptCoursePhase phase = MakeFatPhase(assignedHeading: 260);
         aircraft.Phases = MakeFatPhaseList(phase);
         Assert.Null(aircraft.Targets.AssignedMagneticHeading);
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -718,13 +718,13 @@ public class InterceptCoursePhaseTests
     [Fact]
     public void BustThrough_AssignedHeading31Deg_StillBusts()
     {
-        var (before, crossed) = FatCrossingPositions();
-        var aircraft = MakeAircraft(heading: 245, lat: before.Lat, lon: before.Lon);
+        (LatLon before, LatLon crossed) = FatCrossingPositions();
+        AircraftState aircraft = MakeAircraft(heading: 245, lat: before.Lat, lon: before.Lon);
         aircraft.Declination = FatDeclination;
-        var phase = MakeFatPhase(assignedHeading: 259);
+        InterceptCoursePhase phase = MakeFatPhase(assignedHeading: 259);
         aircraft.Phases = MakeFatPhaseList(phase);
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -750,8 +750,8 @@ public class InterceptCoursePhaseTests
     public void BustThrough_OffsetFinal_RunwayNumberLeniencyDoesNotApply()
     {
         var course = new TrueHeading(255.0);
-        var (before, crossed) = CrossingPositions(course);
-        var aircraft = MakeAircraft(heading: 290, lat: before.Lat, lon: before.Lon);
+        (LatLon before, LatLon crossed) = CrossingPositions(course);
+        AircraftState aircraft = MakeAircraft(heading: 290, lat: before.Lat, lon: before.Lon);
         var phase = new InterceptCoursePhase
         {
             FinalApproachCourse = course,
@@ -762,7 +762,7 @@ public class InterceptCoursePhaseTests
         };
         aircraft.Phases = MakeCrossingPhaseList(phase, "L28R", "28R", course);
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -786,8 +786,8 @@ public class InterceptCoursePhaseTests
     public void Capture_WestVariation_RunwayNumberTermUsesMagneticHeading()
     {
         var course = new TrueHeading(271.0);
-        var (before, crossed) = CrossingPositions(course);
-        var aircraft = MakeAircraft(heading: 240, lat: before.Lat, lon: before.Lon);
+        (LatLon before, LatLon crossed) = CrossingPositions(course);
+        AircraftState aircraft = MakeAircraft(heading: 240, lat: before.Lat, lon: before.Lon);
         aircraft.Declination = -10.0;
         var phase = new InterceptCoursePhase
         {
@@ -799,7 +799,7 @@ public class InterceptCoursePhaseTests
         };
         aircraft.Phases = MakeCrossingPhaseList(phase, "I28R", "28", course);
 
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 
@@ -820,7 +820,7 @@ public class InterceptCoursePhaseTests
     [Fact]
     public void Snapshot_RoundTrip_PreservesAssignedInterceptHeading()
     {
-        var phase = MakePhase(assignedHeading: 260);
+        InterceptCoursePhase phase = MakePhase(assignedHeading: 260);
         phase.Status = PhaseStatus.Active;
 
         var dto = (InterceptCoursePhaseDto)phase.ToSnapshot();

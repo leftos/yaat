@@ -12,7 +12,7 @@ public class WindInterpolatorTests
     [Fact]
     public void GetWindAt_NullProfile_ReturnsZero()
     {
-        var result = WindInterpolator.GetWindAt(null, 10_000, 0, 0);
+        WindAtAltitude result = WindInterpolator.GetWindAt(null, 10_000, 0, 0);
         Assert.Equal(0, result.DirectionDeg);
         Assert.Equal(0, result.SpeedKts);
     }
@@ -21,7 +21,7 @@ public class WindInterpolatorTests
     public void GetWindAt_EmptyLayers_ReturnsZero()
     {
         var profile = new WeatherProfile();
-        var result = WindInterpolator.GetWindAt(profile, 10_000, 0, 0);
+        WindAtAltitude result = WindInterpolator.GetWindAt(profile, 10_000, 0, 0);
         Assert.Equal(0, result.DirectionDeg);
         Assert.Equal(0, result.SpeedKts);
     }
@@ -33,7 +33,7 @@ public class WindInterpolatorTests
     [Fact]
     public void GetWindAt_SingleLayer_BelowAltitude_ClampsToLayer()
     {
-        var profile = MakeProfile([
+        WeatherProfile profile = MakeProfile([
             new WindLayer
             {
                 Direction = 270,
@@ -41,7 +41,7 @@ public class WindInterpolatorTests
                 Altitude = 5_000,
             },
         ]);
-        var result = WindInterpolator.GetWindAt(profile, 1_000, 0, 0);
+        WindAtAltitude result = WindInterpolator.GetWindAt(profile, 1_000, 0, 0);
         Assert.Equal(270, result.DirectionDeg, precision: 1);
         Assert.Equal(20, result.SpeedKts, precision: 1);
     }
@@ -49,7 +49,7 @@ public class WindInterpolatorTests
     [Fact]
     public void GetWindAt_SingleLayer_AboveAltitude_ClampsToLayer()
     {
-        var profile = MakeProfile([
+        WeatherProfile profile = MakeProfile([
             new WindLayer
             {
                 Direction = 090,
@@ -57,7 +57,7 @@ public class WindInterpolatorTests
                 Altitude = 5_000,
             },
         ]);
-        var result = WindInterpolator.GetWindAt(profile, 20_000, 0, 0);
+        WindAtAltitude result = WindInterpolator.GetWindAt(profile, 20_000, 0, 0);
         Assert.Equal(90, result.DirectionDeg, precision: 1);
         Assert.Equal(30, result.SpeedKts, precision: 1);
     }
@@ -65,7 +65,7 @@ public class WindInterpolatorTests
     [Fact]
     public void GetWindAt_SingleLayer_AtExactAltitude_ReturnsLayer()
     {
-        var profile = MakeProfile([
+        WeatherProfile profile = MakeProfile([
             new WindLayer
             {
                 Direction = 180,
@@ -73,7 +73,7 @@ public class WindInterpolatorTests
                 Altitude = 10_000,
             },
         ]);
-        var result = WindInterpolator.GetWindAt(profile, 10_000, 0, 0);
+        WindAtAltitude result = WindInterpolator.GetWindAt(profile, 10_000, 0, 0);
         Assert.Equal(180, result.DirectionDeg, precision: 1);
         Assert.Equal(15, result.SpeedKts, precision: 1);
     }
@@ -85,7 +85,7 @@ public class WindInterpolatorTests
     [Fact]
     public void GetWindAt_BelowLowestLayer_ClampsToLowest()
     {
-        var profile = MakeProfile([
+        WeatherProfile profile = MakeProfile([
             new WindLayer
             {
                 Direction = 090,
@@ -99,7 +99,7 @@ public class WindInterpolatorTests
                 Altitude = 10_000,
             },
         ]);
-        var result = WindInterpolator.GetWindAt(profile, 500, 0, 0);
+        WindAtAltitude result = WindInterpolator.GetWindAt(profile, 500, 0, 0);
         Assert.Equal(90, result.DirectionDeg, precision: 1);
         Assert.Equal(10, result.SpeedKts, precision: 1);
     }
@@ -107,7 +107,7 @@ public class WindInterpolatorTests
     [Fact]
     public void GetWindAt_AboveHighestLayer_ClampsToHighest()
     {
-        var profile = MakeProfile([
+        WeatherProfile profile = MakeProfile([
             new WindLayer
             {
                 Direction = 090,
@@ -121,7 +121,7 @@ public class WindInterpolatorTests
                 Altitude = 10_000,
             },
         ]);
-        var result = WindInterpolator.GetWindAt(profile, 40_000, 0, 0);
+        WindAtAltitude result = WindInterpolator.GetWindAt(profile, 40_000, 0, 0);
         Assert.Equal(180, result.DirectionDeg, precision: 1);
         Assert.Equal(20, result.SpeedKts, precision: 1);
     }
@@ -133,7 +133,7 @@ public class WindInterpolatorTests
     [Fact]
     public void GetWindAt_BetweenLayers_InterpolatesSpeedLinearly()
     {
-        var profile = MakeProfile([
+        WeatherProfile profile = MakeProfile([
             new WindLayer
             {
                 Direction = 270,
@@ -148,7 +148,7 @@ public class WindInterpolatorTests
             },
         ]);
         // Midpoint: speed should be 20 kts
-        var result = WindInterpolator.GetWindAt(profile, 5_000, 0, 0);
+        WindAtAltitude result = WindInterpolator.GetWindAt(profile, 5_000, 0, 0);
         Assert.Equal(20, result.SpeedKts, precision: 1);
         Assert.Equal(270, result.DirectionDeg, precision: 1);
     }
@@ -157,7 +157,7 @@ public class WindInterpolatorTests
     public void GetWindAt_BetweenLayers_VectorInterpolationHandles360Boundary()
     {
         // 350° and 010° — angular midpoint through 000°, NOT through 180°
-        var profile = MakeProfile([
+        WeatherProfile profile = MakeProfile([
             new WindLayer
             {
                 Direction = 350,
@@ -171,7 +171,7 @@ public class WindInterpolatorTests
                 Altitude = 10_000,
             },
         ]);
-        var result = WindInterpolator.GetWindAt(profile, 5_000, 0, 0);
+        WindAtAltitude result = WindInterpolator.GetWindAt(profile, 5_000, 0, 0);
         // Midpoint through vector interpolation should be ≈ 000°
         double dir = result.DirectionDeg;
         // Normalize: should be 0° or 360°
@@ -191,7 +191,7 @@ public class WindInterpolatorTests
     public void GetWindComponents_WindFrom270_EastwardEffect()
     {
         // Wind FROM 270 (west) → blows eastward
-        var profile = MakeProfile([
+        WeatherProfile profile = MakeProfile([
             new WindLayer
             {
                 Direction = 270,
@@ -199,7 +199,7 @@ public class WindInterpolatorTests
                 Altitude = 5_000,
             },
         ]);
-        var (northKts, eastKts) = WindInterpolator.GetWindComponents(profile, 5_000, 0, 0);
+        (double northKts, double eastKts) = WindInterpolator.GetWindComponents(profile, 5_000, 0, 0);
         Assert.Equal(0, northKts, precision: 1);
         Assert.Equal(10, eastKts, precision: 1);
     }
@@ -208,7 +208,7 @@ public class WindInterpolatorTests
     public void GetWindComponents_WindFrom090_WestwardEffect()
     {
         // Wind FROM 090 (east) → blows westward
-        var profile = MakeProfile([
+        WeatherProfile profile = MakeProfile([
             new WindLayer
             {
                 Direction = 090,
@@ -216,7 +216,7 @@ public class WindInterpolatorTests
                 Altitude = 5_000,
             },
         ]);
-        var (northKts, eastKts) = WindInterpolator.GetWindComponents(profile, 5_000, 0, 0);
+        (double northKts, double eastKts) = WindInterpolator.GetWindComponents(profile, 5_000, 0, 0);
         Assert.Equal(0, northKts, precision: 1);
         Assert.Equal(-10, eastKts, precision: 1);
     }
@@ -224,7 +224,7 @@ public class WindInterpolatorTests
     [Fact]
     public void GetWindComponents_NullProfile_ReturnsZero()
     {
-        var (northKts, eastKts) = WindInterpolator.GetWindComponents(null, 5_000, 0, 0);
+        (double northKts, double eastKts) = WindInterpolator.GetWindComponents(null, 5_000, 0, 0);
         Assert.Equal(0, northKts);
         Assert.Equal(0, eastKts);
     }
@@ -368,11 +368,11 @@ public class WindInterpolatorTests
         int? expectedFirstSpeed
     )
     {
-        var path = Path.Combine(TestHelpers.RepoRoot, "docs", "atctrainer-weather-examples", filename);
+        string path = Path.Combine(TestHelpers.RepoRoot, "docs", "atctrainer-weather-examples", filename);
         Assert.True(File.Exists(path), $"Weather file not found: {path}");
 
-        var json = File.ReadAllText(path);
-        var profile = JsonSerializer.Deserialize<WeatherProfile>(json);
+        string json = File.ReadAllText(path);
+        WeatherProfile? profile = JsonSerializer.Deserialize<WeatherProfile>(json);
 
         Assert.NotNull(profile);
         Assert.False(string.IsNullOrEmpty(profile.Id));

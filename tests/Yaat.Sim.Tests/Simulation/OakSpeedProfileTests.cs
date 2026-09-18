@@ -41,7 +41,7 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
     [Fact]
     public void OAK30_W5_HighSpeedExit_CarriesSpeedThroughTurn_NoSurge()
     {
-        var samples = RunSpeedProfile("OAK", "30", "B738", 130, 1.0, "EXIT W5", "W5");
+        List<ExitSample>? samples = RunSpeedProfile("OAK", "30", "B738", 130, 1.0, "EXIT W5", "W5");
         if (samples is null)
         {
             return;
@@ -57,7 +57,7 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
     [Fact]
     public void OAK30_W6_StandardExit_NoSurge()
     {
-        var samples = RunSpeedProfile("OAK", "30", "B738", 130, 1.0, "EXIT W6", "W6");
+        List<ExitSample>? samples = RunSpeedProfile("OAK", "30", "B738", 130, 1.0, "EXIT W6", "W6");
         if (samples is null)
         {
             return;
@@ -71,7 +71,7 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
     [Fact]
     public void OAK28R_H_StandardExit_NoSurge()
     {
-        var samples = RunSpeedProfile("OAK", "28R", "C172", 70, 0.5, "ER H", "H");
+        List<ExitSample>? samples = RunSpeedProfile("OAK", "28R", "C172", 70, 0.5, "ER H", "H");
         if (samples is null)
         {
             return;
@@ -90,7 +90,7 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
         var onExit = samples.Where(s => s.DistToBranchNm <= 0).ToList();
         Assert.True(onExit.Count > 0, $"[{label}] no exit samples past the branch node");
 
-        var peak = onExit.MaxBy(s => s.Gs);
+        ExitSample peak = onExit.MaxBy(s => s.Gs);
         Assert.True(
             peak.Gs <= taxiSpeedKts + 2.0,
             $"[{label}] exit surged to {peak.Gs:F1} kt at t={peak.T}s past the branch — should stay at/below "
@@ -104,7 +104,7 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
         var turnWindow = samples.Where(s => Math.Abs(s.DistToBranchNm) <= 0.025).ToList();
         Assert.True(turnWindow.Count > 0, $"[{label}] no exit samples near the branch node — trace did not reach the turn");
 
-        var slowest = turnWindow.MinBy(s => s.Gs);
+        ExitSample slowest = turnWindow.MinBy(s => s.Gs);
         Assert.True(
             slowest.Gs >= minKts,
             $"[{label}] slowed to {slowest.Gs:F1} kt through the turn (t={slowest.T}s) — a high-speed exit should "
@@ -122,27 +122,27 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
         string exitTaxiway
     )
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return null;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var runway = navDb.GetRunway(airportId, runwayId);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? runway = navDb.GetRunway(airportId, runwayId);
         Assert.NotNull(runway);
 
-        var layout = new TestAirportGroundData().GetLayout(airportId);
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(airportId);
         Assert.NotNull(layout);
 
         // Find the branch node dynamically: a node that has edges on both the runway and the exit taxiway
-        var branchNode = layout.Nodes.Values.FirstOrDefault(n =>
+        GroundNode? branchNode = layout.Nodes.Values.FirstOrDefault(n =>
             n.Edges.Any(e => e.IsRunwayCenterline) && n.Edges.Any(e => e.MatchesTaxiway(exitTaxiway))
         );
         Assert.True(branchNode is not null, $"No branch node found for exit taxiway {exitTaxiway} on runway {runwayId}");
 
         double reciprocal = (runway.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, finalDistNm);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, finalDistNm);
         double altAboveField = finalDistNm * 318;
 
         var aircraft = new AircraftState
@@ -170,7 +170,7 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
         aircraft.Phases.Add(new HoldingAfterExitPhase());
         aircraft.Ground.Layout = layout;
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
@@ -182,10 +182,10 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
             PrimaryAirportId = airportId,
         };
 
-        var clearResult = engine.SendCommand("TSTAC", "CLAND");
+        CommandResult clearResult = engine.SendCommand("TSTAC", "CLAND");
         Assert.True(clearResult.Success);
 
-        var exitResult = engine.SendCommand("TSTAC", exitCommand);
+        CommandResult exitResult = engine.SendCommand("TSTAC", exitCommand);
         Assert.True(exitResult.Success, $"{exitCommand} failed: {exitResult.Message}");
 
         output.WriteLine($"t(s) | phase            | gs(kts) | hdg   | dist to branch(nm) | twy");

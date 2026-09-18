@@ -42,9 +42,9 @@ public class GiveWayAutoReleaseTests
                 Position = new LatLon(lat, lon),
                 Type = GroundNodeType.TaxiwayIntersection,
             };
-        var n0 = Node(0, BaseLat, BaseLon - 0.001);
-        var n1 = Node(1, BaseLat, BaseLon + 0.001);
-        var n2 = Node(2, BaseLat + 0.001, BaseLon);
+        GroundNode n0 = Node(0, BaseLat, BaseLon - 0.001);
+        GroundNode n1 = Node(1, BaseLat, BaseLon + 0.001);
+        GroundNode n2 = Node(2, BaseLat + 0.001, BaseLon);
         var edge02 = new GroundEdge
         {
             Nodes = [n0, n2],
@@ -66,10 +66,10 @@ public class GiveWayAutoReleaseTests
     public void SafetyTimeout_ReleasesHoldOnDistantTargetThatNeverPasses()
     {
         // Held aircraft heading north; target ahead heading south (head-on) — geometry never met.
-        var held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
         held.Ground.Hold = HoldDirective.GiveWay("UAL2");
         held.Ground.HoldElapsedSeconds = GiveWayConstants.SafetyTimeoutSeconds - 1;
-        var target = MakeGround("UAL2", new LatLon(BaseLat + 0.01, BaseLon), heading: 180);
+        AircraftState target = MakeGround("UAL2", new LatLon(BaseLat + 0.01, BaseLon), heading: 180);
 
         FlightPhysics.UpdateGiveWayResume(held, Lookup(held, target), deltaSeconds: 2);
 
@@ -82,10 +82,10 @@ public class GiveWayAutoReleaseTests
     {
         // Target is close (~365 ft) and directly ahead/head-on — no lateral room. The timeout
         // must NOT drive the aircraft into it; the hold stays (conflict detector manages proximity).
-        var held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
         held.Ground.Hold = HoldDirective.GiveWay("UAL2");
         held.Ground.HoldElapsedSeconds = GiveWayConstants.SafetyTimeoutSeconds + 10;
-        var target = MakeGround("UAL2", new LatLon(BaseLat + 0.001, BaseLon), heading: 180);
+        AircraftState target = MakeGround("UAL2", new LatLon(BaseLat + 0.001, BaseLon), heading: 180);
 
         FlightPhysics.UpdateGiveWayResume(held, Lookup(held, target), deltaSeconds: 1);
 
@@ -95,9 +95,9 @@ public class GiveWayAutoReleaseTests
     [Fact]
     public void BeforeTimeout_HeadOnTargetKeepsHoldActive()
     {
-        var held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
         held.Ground.Hold = HoldDirective.GiveWay("UAL2");
-        var target = MakeGround("UAL2", new LatLon(BaseLat + 0.01, BaseLon), heading: 180);
+        AircraftState target = MakeGround("UAL2", new LatLon(BaseLat + 0.01, BaseLon), heading: 180);
 
         FlightPhysics.UpdateGiveWayResume(held, Lookup(held, target), deltaSeconds: 1);
 
@@ -110,11 +110,11 @@ public class GiveWayAutoReleaseTests
     {
         // Target ahead and same-direction → IsGiveWayMet returns true (geometry says "passed"),
         // but both routes converge on node 2 ahead — the route-intersection check keeps the hold.
-        var (routeA, routeB) = MakeConvergingRoutes();
-        var held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
+        (TaxiRoute? routeA, TaxiRoute? routeB) = MakeConvergingRoutes();
+        AircraftState held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
         held.Ground.Hold = HoldDirective.GiveWay("UAL2");
         held.Ground.AssignedTaxiRoute = routeA;
-        var target = MakeGround("UAL2", new LatLon(BaseLat + 0.01, BaseLon), heading: 0);
+        AircraftState target = MakeGround("UAL2", new LatLon(BaseLat + 0.01, BaseLon), heading: 0);
         target.Ground.AssignedTaxiRoute = routeB;
 
         FlightPhysics.UpdateGiveWayResume(held, Lookup(held, target), deltaSeconds: 1);
@@ -125,10 +125,10 @@ public class GiveWayAutoReleaseTests
     [Fact]
     public void GeometryMet_NoSharedNode_ReleasesHold()
     {
-        var held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
         held.Ground.Hold = HoldDirective.GiveWay("UAL2");
         // Same direction, target ahead (north) → IsGiveWayMet true; no routes → no shared node.
-        var target = MakeGround("UAL2", new LatLon(BaseLat + 0.01, BaseLon), heading: 0);
+        AircraftState target = MakeGround("UAL2", new LatLon(BaseLat + 0.01, BaseLon), heading: 0);
 
         FlightPhysics.UpdateGiveWayResume(held, Lookup(held, target), deltaSeconds: 1);
 
@@ -140,9 +140,9 @@ public class GiveWayAutoReleaseTests
     {
         // Held heading north; target abeam to the east, head-on heading → geometry not met,
         // but the target is abeam (≥90° off our heading) so we have room to pass.
-        var held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
         held.Ground.Hold = HoldDirective.GiveWay("UAL2");
-        var target = MakeGround("UAL2", new LatLon(BaseLat, BaseLon + 0.01), heading: 180);
+        AircraftState target = MakeGround("UAL2", new LatLon(BaseLat, BaseLon + 0.01), heading: 180);
         target.Ground.StationarySeconds = GiveWayConstants.TargetStationaryThresholdSeconds + 1;
 
         FlightPhysics.UpdateGiveWayResume(held, Lookup(held, target), deltaSeconds: 1);
@@ -154,9 +154,9 @@ public class GiveWayAutoReleaseTests
     public void TargetStationary_HeadOnNoClearance_KeepsHoldActive()
     {
         // Target directly ahead and head-on — no lateral room — stays held despite stationary.
-        var held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState held = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0);
         held.Ground.Hold = HoldDirective.GiveWay("UAL2");
-        var target = MakeGround("UAL2", new LatLon(BaseLat + 0.001, BaseLon), heading: 180);
+        AircraftState target = MakeGround("UAL2", new LatLon(BaseLat + 0.001, BaseLon), heading: 180);
         target.Ground.StationarySeconds = GiveWayConstants.TargetStationaryThresholdSeconds + 1;
 
         FlightPhysics.UpdateGiveWayResume(held, Lookup(held, target), deltaSeconds: 1);
@@ -169,9 +169,9 @@ public class GiveWayAutoReleaseTests
     {
         // Both abeam each other and mutually yielding; the higher-callsign aircraft must wait
         // so both never proceed on the same tick.
-        var higher = MakeGround("ZZZ9", new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState higher = MakeGround("ZZZ9", new LatLon(BaseLat, BaseLon), heading: 0);
         higher.Ground.Hold = HoldDirective.GiveWay("AAA1");
-        var lower = MakeGround("AAA1", new LatLon(BaseLat, BaseLon + 0.01), heading: 180);
+        AircraftState lower = MakeGround("AAA1", new LatLon(BaseLat, BaseLon + 0.01), heading: 180);
         lower.Ground.Hold = HoldDirective.GiveWay("ZZZ9");
         lower.Ground.StationarySeconds = GiveWayConstants.TargetStationaryThresholdSeconds + 1;
 
@@ -183,9 +183,9 @@ public class GiveWayAutoReleaseTests
     [Fact]
     public void MutualYield_LowerCallsign_Releases()
     {
-        var lower = MakeGround("AAA1", new LatLon(BaseLat, BaseLon), heading: 0);
+        AircraftState lower = MakeGround("AAA1", new LatLon(BaseLat, BaseLon), heading: 0);
         lower.Ground.Hold = HoldDirective.GiveWay("ZZZ9");
-        var higher = MakeGround("ZZZ9", new LatLon(BaseLat, BaseLon + 0.01), heading: 180);
+        AircraftState higher = MakeGround("ZZZ9", new LatLon(BaseLat, BaseLon + 0.01), heading: 180);
         higher.Ground.Hold = HoldDirective.GiveWay("AAA1");
         higher.Ground.StationarySeconds = GiveWayConstants.TargetStationaryThresholdSeconds + 1;
 
@@ -197,7 +197,7 @@ public class GiveWayAutoReleaseTests
     [Fact]
     public void StationaryTimer_AccumulatesWhenStopped_ResetsWhenMoving()
     {
-        var ac = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0);
+        AircraftState ac = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0);
 
         FlightPhysics.UpdateGroundStationaryTimer(ac, deltaSeconds: 5);
         Assert.Equal(5, ac.Ground.StationarySeconds);
@@ -213,7 +213,7 @@ public class GiveWayAutoReleaseTests
     [Fact]
     public void StationaryTimer_ResetsWhenAirborne()
     {
-        var ac = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0);
+        AircraftState ac = MakeGround("AAL1", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0);
         ac.Ground.StationarySeconds = 42;
         ac.IsOnGround = false;
 

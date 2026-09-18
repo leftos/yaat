@@ -207,7 +207,7 @@ public sealed class HoldingPatternPhase : Phase
         _legTimerSeconds = GetLegTimerSeconds(ctx);
 
         double offset = Direction == TurnDirection.Right ? -TeardropOffsetDeg : TeardropOffsetDeg;
-        TrueHeading teardropHeading = new TrueHeading(_outboundHeading.Degrees + offset);
+        var teardropHeading = new TrueHeading(_outboundHeading.Degrees + offset);
 
         ctx.Targets.NavigationRoute.Clear();
         ctx.Targets.TargetTrueHeading = teardropHeading;
@@ -308,7 +308,7 @@ public sealed class HoldingPatternPhase : Phase
             return targetInboundSeconds;
         }
 
-        var wind = WindInterpolator.GetWindAt(
+        WindAtAltitude wind = WindInterpolator.GetWindAt(
             ctx.Weather,
             ctx.Aircraft.Altitude,
             ctx.ScenarioElapsedSeconds,
@@ -349,7 +349,7 @@ public sealed class HoldingPatternPhase : Phase
         }
 
         double tas = WindInterpolator.IasToTas(ctx.Aircraft.IndicatedAirspeed, ctx.Aircraft.Altitude);
-        var wind = WindInterpolator.GetWindAt(
+        WindAtAltitude wind = WindInterpolator.GetWindAt(
             ctx.Weather,
             ctx.Aircraft.Altitude,
             ctx.ScenarioElapsedSeconds,

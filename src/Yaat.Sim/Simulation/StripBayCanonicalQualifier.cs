@@ -36,7 +36,7 @@ public static class StripBayCanonicalQualifier
             return canonical;
         }
 
-        var tokens = canonical.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = canonical.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length < 2)
         {
             return canonical;
@@ -52,7 +52,7 @@ public static class StripBayCanonicalQualifier
             return canonical;
         }
 
-        if (!TryResolveOwner(tokens, start, bays, out var facilityId))
+        if (!TryResolveOwner(tokens, start, bays, out string? facilityId))
         {
             return canonical;
         }
@@ -68,8 +68,8 @@ public static class StripBayCanonicalQualifier
     /// </summary>
     private static int? ResolveDestStart(string[] tokens)
     {
-        var verb = tokens[0].ToUpperInvariant();
-        var headIsId = IsStripId(tokens[1]);
+        string verb = tokens[0].ToUpperInvariant();
+        bool headIsId = IsStripId(tokens[1]);
         return verb switch
         {
             "STRIP" => headIsId ? 2 : 1,
@@ -95,7 +95,7 @@ public static class StripBayCanonicalQualifier
 
     private static bool IsStripId(string token)
     {
-        foreach (var prefix in IdPrefixes)
+        foreach (string prefix in IdPrefixes)
         {
             if (token.StartsWith(prefix, StringComparison.Ordinal))
             {
@@ -113,20 +113,20 @@ public static class StripBayCanonicalQualifier
     /// </summary>
     private static bool IsAlreadyQualified(string[] tokens, int start, IReadOnlyList<AccessibleBay> bays)
     {
-        var slash = tokens[start].IndexOf('/');
+        int slash = tokens[start].IndexOf('/');
         if (slash <= 0)
         {
             return false;
         }
 
-        var candidateFacility = tokens[start][..slash];
+        string candidateFacility = tokens[start][..slash];
         if (!bays.Any(b => b.Owner.Id.Equals(candidateFacility, StringComparison.OrdinalIgnoreCase)))
         {
             return false;
         }
 
-        var remainder = tokens[start][(slash + 1)..];
-        var inner = remainder.Length == 0 ? tokens.Skip(start + 1).ToArray() : [remainder, .. tokens.Skip(start + 1)];
+        string remainder = tokens[start][(slash + 1)..];
+        string[] inner = remainder.Length == 0 ? tokens.Skip(start + 1).ToArray() : [remainder, .. tokens.Skip(start + 1)];
         var scoped = bays.Where(b => b.Owner.Id.Equals(candidateFacility, StringComparison.OrdinalIgnoreCase)).ToList();
         return TryMatchBayName(inner, scoped, out _);
     }
@@ -140,7 +140,7 @@ public static class StripBayCanonicalQualifier
     private static bool TryResolveOwner(string[] tokens, int start, IReadOnlyList<AccessibleBay> bays, out string facilityId)
     {
         var ordered = bays.OrderBy(b => b.IsExternal ? 1 : 0).ToList();
-        if (TryMatchBayName(tokens.Skip(start).ToArray(), ordered, out var match))
+        if (TryMatchBayName(tokens.Skip(start).ToArray(), ordered, out AccessibleBay? match))
         {
             facilityId = match!.Owner.Id;
             return true;
@@ -165,8 +165,8 @@ public static class StripBayCanonicalQualifier
             return false;
         }
 
-        var slashTokIdx = -1;
-        for (var i = 0; i < tokens.Length; i++)
+        int slashTokIdx = -1;
+        for (int i = 0; i < tokens.Length; i++)
         {
             if (tokens[i].Contains('/', StringComparison.Ordinal))
             {
@@ -178,7 +178,7 @@ public static class StripBayCanonicalQualifier
         if (slashTokIdx >= 0)
         {
             var words = tokens.Take(slashTokIdx).ToList();
-            var head = tokens[slashTokIdx][..tokens[slashTokIdx].IndexOf('/')];
+            string head = tokens[slashTokIdx][..tokens[slashTokIdx].IndexOf('/')];
             if (head.Length > 0)
             {
                 words.Add(head);
@@ -186,7 +186,7 @@ public static class StripBayCanonicalQualifier
             return TryMatchExact(string.Join(' ', words), bays, out match);
         }
 
-        for (var take = tokens.Length; take >= 1; take--)
+        for (int take = tokens.Length; take >= 1; take--)
         {
             if (TryMatchExact(string.Join(' ', tokens.Take(take)), bays, out match))
             {
@@ -198,14 +198,14 @@ public static class StripBayCanonicalQualifier
 
     private static bool TryMatchExact(string bayName, IReadOnlyList<AccessibleBay> bays, out AccessibleBay? match)
     {
-        var normalized = Normalize(bayName);
+        string normalized = Normalize(bayName);
         if (normalized.Length == 0)
         {
             match = null;
             return false;
         }
 
-        foreach (var bay in bays)
+        foreach (AccessibleBay bay in bays)
         {
             if (Normalize(bay.Bay.Name) == normalized)
             {

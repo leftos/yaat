@@ -107,7 +107,7 @@ public sealed class CrossingRunwayPhase : Phase
         }
 
         bool isLastSegment = _crossingRoute.CurrentSegmentIndex + 1 >= _crossingRoute.Segments.Count;
-        var result = _navigator.Tick(ctx, isLastSegment, _ => true);
+        NavigatorResult result = _navigator.Tick(ctx, isLastSegment, _ => true);
 
         if (result == NavigatorResult.ArrivedAtNode)
         {
@@ -183,7 +183,7 @@ public sealed class CrossingRunwayPhase : Phase
             return;
         }
 
-        var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ctx.Aircraft.Ground.AssignedTaxiRoute;
         if (route is null || route.Segments.Count == 0)
         {
             return;
@@ -258,7 +258,7 @@ public sealed class CrossingRunwayPhase : Phase
         int exitIdx = -1;
         for (int i = 0; i < route.Segments.Count; i++)
         {
-            var seg = route.Segments[i];
+            TaxiRouteSegment seg = route.Segments[i];
             if (entryIdx < 0 && seg.FromNodeId == approachNodeId)
             {
                 entryIdx = i;
@@ -281,7 +281,7 @@ public sealed class CrossingRunwayPhase : Phase
             slice.Add(route.Segments[i]);
         }
 
-        var (fullTailSegments, partialTail) = AppendTailClearance(ctx, route, exitIdx, slice);
+        (int fullTailSegments, bool partialTail) = AppendTailClearance(ctx, route, exitIdx, slice);
         return new CrossingSlice(slice, exitIdx, fullTailSegments, partialTail);
     }
 
@@ -310,7 +310,7 @@ public sealed class CrossingRunwayPhase : Phase
         double remainingNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
         for (int i = exitIdx + 1; i < route.Segments.Count; i++)
         {
-            var seg = route.Segments[i];
+            TaxiRouteSegment seg = route.Segments[i];
             if (seg.Edge.DistanceNm <= remainingNm)
             {
                 slice.Add(seg);
@@ -321,8 +321,8 @@ public sealed class CrossingRunwayPhase : Phase
 
             if (seg.Edge.Edge is GroundEdge { IntermediatePoints.Count: 0 })
             {
-                var from = seg.Edge.FromNode;
-                var (lat, lon) = GeoMath.ProjectPointRaw(from.Position.Lat, from.Position.Lon, seg.Edge.DepartureBearing, remainingNm);
+                GroundNode from = seg.Edge.FromNode;
+                (double lat, double lon) = GeoMath.ProjectPointRaw(from.Position.Lat, from.Position.Lon, seg.Edge.DepartureBearing, remainingNm);
                 slice.Add(VirtualNode.CreateSegment(from, VirtualNode.Create(lat, lon), seg.TaxiwayName));
                 return (fullSegments, true);
             }
@@ -383,7 +383,7 @@ public sealed class CrossingRunwayPhase : Phase
     /// </summary>
     private void HandRouteBack(PhaseContext ctx)
     {
-        var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ctx.Aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return;
@@ -427,7 +427,7 @@ public sealed class CrossingRunwayPhase : Phase
             return;
         }
 
-        var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ctx.Aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return;
@@ -453,15 +453,15 @@ public sealed class CrossingRunwayPhase : Phase
         double accumulated = 0;
         for (int i = exitIdx + 1; i < route.Segments.Count; i++)
         {
-            var seg = route.Segments[i];
-            if (!layout.Nodes.TryGetValue(seg.FromNodeId, out var from) || !layout.Nodes.TryGetValue(seg.ToNodeId, out var to))
+            TaxiRouteSegment seg = route.Segments[i];
+            if (!layout.Nodes.TryGetValue(seg.FromNodeId, out GroundNode? from) || !layout.Nodes.TryGetValue(seg.ToNodeId, out GroundNode? to))
             {
                 break;
             }
 
             accumulated += GeoMath.DistanceNm(from.Position, to.Position);
 
-            var hs = route.GetHoldShortAt(seg.ToNodeId);
+            HoldShortPoint? hs = route.GetHoldShortAt(seg.ToNodeId);
             if (hs is not null && !hs.IsCleared && accumulated <= withinNm)
             {
                 return true;

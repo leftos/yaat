@@ -70,7 +70,7 @@ public class DeferredPresetStripAndTrackDispatchTests
     [Fact]
     public void ImmediateAnnotatePreset_QueuesStripDispatch_NoWarning()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         var ac = new AircraftState
         {
             Callsign = "DAL2272",
@@ -82,8 +82,8 @@ public class DeferredPresetStripAndTrackDispatchTests
         var loaded = new LoadedAircraft { State = ac, PresetCommands = [new PresetCommand { Command = $"ANNOTATE 10 {Checkmark}", TimeOffset = 0 }] };
         engine.DispatchPresetCommands(loaded);
 
-        var queued = Assert.Single(ac.PendingStripDispatches);
-        var annotate = Assert.IsType<StripAnnotateCommand>(queued);
+        ParsedCommand queued = Assert.Single(ac.PendingStripDispatches);
+        StripAnnotateCommand annotate = Assert.IsType<StripAnnotateCommand>(queued);
         Assert.Equal("1", annotate.Box); // ANNOTATE 10 aliases to box 1
         Assert.Equal(Checkmark, annotate.Text);
         Assert.Empty(ac.PendingWarnings);
@@ -101,8 +101,8 @@ public class DeferredPresetStripAndTrackDispatchTests
     [InlineData("HSM 2", typeof(HalfStripMoveCommand))]
     public void DeferredStripPreset_WhilePhaseGated_QueuesStripDispatch_NoWarning(string command, Type expectedType)
     {
-        var engine = BuildEngine();
-        var ac = AddParked(engine, "DAL2272");
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddParked(engine, "DAL2272");
         ac.Phases = new PhaseList();
         ac.Phases.Add(new AtParkingPhase());
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
@@ -135,12 +135,12 @@ public class DeferredPresetStripAndTrackDispatchTests
     [Fact]
     public void DeferredAnnotatePreset_QueuesStripDispatch_NoWarning()
     {
-        var engine = BuildEngine();
-        var ac = AddParked(engine, "DAL2272");
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddParked(engine, "DAL2272");
 
         // A strip filed into a bay, which is what the annotation guard requires; the preset then has something to
         // write on, so the drain's effect is visible on the record itself.
-        var printed = StripMutations.RequestDepartureStripForAircraftIntoBay(engine.Strips, ac, engine.Scenario!, "SFO", "bay-1", 0);
+        StripItemRecord? printed = StripMutations.RequestDepartureStripForAircraftIntoBay(engine.Strips, ac, engine.Scenario!, "SFO", "bay-1", 0);
         Assert.NotNull(printed);
 
         var terminal = new List<TerminalEntry>();
@@ -175,8 +175,8 @@ public class DeferredPresetStripAndTrackDispatchTests
     [Fact]
     public void DeferredTransparentTrackPreset_AppliesToTrack_NoWarning()
     {
-        var engine = BuildEngine();
-        var ac = AddParked(engine, "DAL2272");
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddParked(engine, "DAL2272");
 
         var warnings = new List<(string Callsign, string Warning)>();
         engine.WarningEmitted += (cs, w) => warnings.Add((cs, w));
@@ -198,9 +198,9 @@ public class DeferredPresetStripAndTrackDispatchTests
 
     private static AircraftState AddParkedAtGate(SimulationEngine engine, string callsign, string parking)
     {
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
-        var gate = layout.FindParkingByName(parking);
+        GroundNode? gate = layout.FindParkingByName(parking);
         Assert.True(gate is not null, $"parking {parking} not found in the SFO layout");
 
         var ac = new AircraftState
@@ -216,7 +216,7 @@ public class DeferredPresetStripAndTrackDispatchTests
             FlightPlan = new AircraftFlightPlan { Departure = "KSFO", Destination = "KLAX" },
         };
         // A scenario spawn at a gate installs AtParkingPhase; without it a TAXI never reaches the tower path.
-        var init = AircraftInitializer.InitializeAtParking(gate, 13);
+        PhaseInitResult init = AircraftInitializer.InitializeAtParking(gate, 13);
         ac.Phases = init.Phases;
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, layout));
         engine.World.AddAircraft(ac);
@@ -244,8 +244,8 @@ public class DeferredPresetStripAndTrackDispatchTests
         }
 
         // At a real gate with AtParkingPhase installed — the phase whose gate rejected the deferred STRIP.
-        var engine = BuildEngine();
-        var ac = AddParkedAtGate(engine, "DAL2272", "B4");
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddParkedAtGate(engine, "DAL2272", "B4");
 
         var terminal = new List<TerminalEntry>();
         engine.TerminalEntryEmitted += terminal.Add;
@@ -270,9 +270,9 @@ public class DeferredPresetStripAndTrackDispatchTests
             return;
         }
 
-        var engine = BuildEngine();
-        var ac = AddParkedAtGate(engine, "SWA162", "B13");
-        var taxi = engine.SendCommand("SWA162", "TAXI Y H B M1 1L");
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddParkedAtGate(engine, "SWA162", "B13");
+        CommandResult taxi = engine.SendCommand("SWA162", "TAXI Y H B M1 1L");
         Assert.True(taxi.Success, taxi.Message);
 
         var terminal = new List<TerminalEntry>();
@@ -298,7 +298,7 @@ public class DeferredPresetStripAndTrackDispatchTests
     public static TheoryData<CanonicalCommandType> StripFamilyTypes()
     {
         var data = new TheoryData<CanonicalCommandType> { CanonicalCommandType.Annotate };
-        foreach (var type in Enum.GetValues<CanonicalCommandType>())
+        foreach (CanonicalCommandType type in Enum.GetValues<CanonicalCommandType>())
         {
             string name = type.ToString();
             if (
@@ -336,15 +336,15 @@ public class DeferredPresetStripAndTrackDispatchTests
             return;
         }
 
-        var engine = BuildEngine();
-        var ac = AddParkedAtGate(engine, "UAL123", "B13");
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddParkedAtGate(engine, "UAL123", "B13");
         var terminal = new List<TerminalEntry>();
         engine.TerminalEntryEmitted += terminal.Add;
 
         var loaded = new LoadedAircraft { State = ac, PresetCommands = [new PresetCommand { Command = "TAXI ZZ9 1L", TimeOffset = 0 }] };
         engine.DispatchPresetCommands(loaded);
 
-        var warning = terminal.FirstOrDefault(e => e.Callsign == "UAL123" && e.Kind == "Warning");
+        TerminalEntry? warning = terminal.FirstOrDefault(e => e.Callsign == "UAL123" && e.Kind == "Warning");
         Assert.True(warning is not null, "a preset TAXI naming a taxiway that does not exist must surface a terminal warning");
         Assert.Contains("[Preset] could not apply", warning.Message);
         Assert.Contains("ZZ9", warning.Message);
@@ -360,12 +360,12 @@ public class DeferredPresetStripAndTrackDispatchTests
     /// </summary>
     private static (AircraftState Aircraft, ActiveConflict Conflict) AddPairInConflict(SimulationEngine engine, string callsign)
     {
-        var ac = AddAirborne(engine, callsign, new LatLon(37.0, -121.0));
+        AircraftState ac = AddAirborne(engine, callsign, new LatLon(37.0, -121.0));
         AddAirborne(engine, "NKS404", new LatLon(37.005, -121.0));
 
         engine.TickConflictAlerts();
 
-        var conflict = Assert.Single(engine.ConflictAlerts.Conflicts.Values);
+        ActiveConflict conflict = Assert.Single(engine.ConflictAlerts.Conflicts.Values);
         Assert.False(conflict.IsAcknowledged);
         return (ac, conflict);
     }
@@ -389,8 +389,8 @@ public class DeferredPresetStripAndTrackDispatchTests
     [Fact]
     public void ImmediateCaackPreset_AcknowledgesActiveConflict()
     {
-        var engine = BuildEngine();
-        var (ac, conflict) = AddPairInConflict(engine, "DAL2272");
+        SimulationEngine engine = BuildEngine();
+        (AircraftState? ac, ActiveConflict? conflict) = AddPairInConflict(engine, "DAL2272");
 
         var loaded = new LoadedAircraft { State = ac, PresetCommands = [new PresetCommand { Command = "CAACK", TimeOffset = 0 }] };
         engine.DispatchPresetCommands(loaded);
@@ -402,8 +402,8 @@ public class DeferredPresetStripAndTrackDispatchTests
     [Fact]
     public void ChainedFhCaackPreset_AcknowledgesActiveConflict()
     {
-        var engine = BuildEngine();
-        var (ac, conflict) = AddPairInConflict(engine, "DAL2272");
+        SimulationEngine engine = BuildEngine();
+        (AircraftState? ac, ActiveConflict? conflict) = AddPairInConflict(engine, "DAL2272");
         var warnings = new List<(string Callsign, string Warning)>();
         engine.WarningEmitted += (cs, w) => warnings.Add((cs, w));
 
@@ -422,12 +422,12 @@ public class DeferredPresetStripAndTrackDispatchTests
     [Fact]
     public void DeferredCaackPayload_AcknowledgesActiveConflict()
     {
-        var engine = BuildEngine();
-        var (ac, conflict) = AddPairInConflict(engine, "DAL2272");
+        SimulationEngine engine = BuildEngine();
+        (AircraftState? ac, ActiveConflict? conflict) = AddPairInConflict(engine, "DAL2272");
         var warnings = new List<(string Callsign, string Warning)>();
         engine.WarningEmitted += (cs, w) => warnings.Add((cs, w));
 
-        var issued = engine.Actions.Issue(new ActionInput("DAL2272", "WAIT 2 CAACK", "conn-1", "XX", Baked: null));
+        ActionOutcome issued = engine.Actions.Issue(new ActionInput("DAL2272", "WAIT 2 CAACK", "conn-1", "XX", Baked: null));
 
         Assert.True(issued.Result.Success, issued.Result.Message);
         Assert.Single(ac.DeferredDispatches);

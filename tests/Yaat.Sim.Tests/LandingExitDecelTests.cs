@@ -84,22 +84,22 @@ public class LandingExitDecelTests
     [Fact]
     public void OAK28R_NoPreference_CompletesAtReasonableSpeed()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
-        var ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 130);
+        RunwayInfo rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
+        AircraftState ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 130);
         ac.Phases!.AssignedRunway = rwy;
-        var ctx = Ctx(ac, rwy, layout);
+        PhaseContext ctx = Ctx(ac, rwy, layout);
 
         var phase = new LandingPhase();
         phase.OnStart(ctx);
         ac.IsOnGround = true;
 
-        var (_, finalSpeed) = SimulateRollout(phase, ctx);
+        (int _, double finalSpeed) = SimulateRollout(phase, ctx);
 
         // With a ground layout, the pilot plans for the first reachable exit
         // even without an explicit preference. Final speed depends on the exit's
@@ -110,15 +110,15 @@ public class LandingExitDecelTests
     [Fact]
     public void NoGroundLayout_FallsBackToDefault()
     {
-        var rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
-        var ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 130);
+        RunwayInfo rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
+        AircraftState ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 130);
         ac.Phases!.RequestedExit = new ExitPreference { Side = ExitSide.Left };
 
-        var ctx = Ctx(ac, rwy, layout: null);
+        PhaseContext ctx = Ctx(ac, rwy, layout: null);
         var phase = new LandingPhase();
         phase.OnStart(ctx);
 
-        var (_, finalSpeed) = SimulateRollout(phase, ctx);
+        (int _, double finalSpeed) = SimulateRollout(phase, ctx);
 
         // No layout → no exit → completes at coast speed (40 kts for jets)
         Assert.InRange(finalSpeed, 38, 41);
@@ -127,18 +127,18 @@ public class LandingExitDecelTests
     [Fact]
     public void OAK28R_ExitFarAhead_MaintainsCoastSpeed()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
-        var ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 60);
+        RunwayInfo rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
+        AircraftState ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 60);
         ac.Phases!.RequestedExit = new ExitPreference { Taxiway = "H" };
         ac.Phases.AssignedRunway = rwy;
 
-        var ctx = Ctx(ac, rwy, layout);
+        PhaseContext ctx = Ctx(ac, rwy, layout);
         var phase = new LandingPhase();
         phase.OnStart(ctx);
 
@@ -153,17 +153,17 @@ public class LandingExitDecelTests
     [Fact]
     public void OAK28R_ExitPreferenceChanged_ReResolvesExit()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
-        var ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 80);
+        RunwayInfo rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
+        AircraftState ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 80);
         ac.Phases!.AssignedRunway = rwy;
 
-        var ctx = Ctx(ac, rwy, layout);
+        PhaseContext ctx = Ctx(ac, rwy, layout);
         var phase = new LandingPhase();
         phase.OnStart(ctx);
 
@@ -184,23 +184,23 @@ public class LandingExitDecelTests
     [Fact]
     public void OAK28R_ExitBehind_FallsBackToDefault()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
         // Start past P — B is behind
-        var rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
-        var ac = MakeLandedAircraft(37.729433, -122.219017, 280.0, ias: 80);
+        RunwayInfo rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
+        AircraftState ac = MakeLandedAircraft(37.729433, -122.219017, 280.0, ias: 80);
         ac.Phases!.RequestedExit = new ExitPreference { Taxiway = "B" };
         ac.Phases.AssignedRunway = rwy;
 
-        var ctx = Ctx(ac, rwy, layout);
+        PhaseContext ctx = Ctx(ac, rwy, layout);
         var phase = new LandingPhase();
         phase.OnStart(ctx);
 
-        var (_, finalSpeed) = SimulateRollout(phase, ctx);
+        (int _, double finalSpeed) = SimulateRollout(phase, ctx);
 
         // B is behind → no exit resolved → completes at coast speed
         Assert.InRange(finalSpeed, 38, 41);
@@ -211,14 +211,14 @@ public class LandingExitDecelTests
     [Fact]
     public void ComputeExitAngle_OAK30_W5_IsHighSpeed()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var hsNodes = layout.GetRunwayHoldShortNodes("30");
-        var w5Node = hsNodes.FirstOrDefault(n => n.Edges.Any(e => e.TaxiwayName == "W5"));
+        List<GroundNode> hsNodes = layout.GetRunwayHoldShortNodes("30");
+        GroundNode? w5Node = hsNodes.FirstOrDefault(n => n.Edges.Any(e => e.TaxiwayName == "W5"));
         if (w5Node is null)
         {
             return;
@@ -232,13 +232,13 @@ public class LandingExitDecelTests
     [Fact]
     public void ComputeExitAngle_NoMatchingTaxiway_ReturnsNull()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var hsNodes = layout.GetRunwayHoldShortNodes("28R");
+        List<GroundNode> hsNodes = layout.GetRunwayHoldShortNodes("28R");
         if (hsNodes.Count == 0)
         {
             return;
@@ -252,39 +252,45 @@ public class LandingExitDecelTests
     [Fact]
     public void FindExitAhead_OAK28R_H_ReturnsIt()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var result = layout.FindExitAheadOnRunway(37.724806, -122.204721, new TrueHeading(280.0), new ExitPreference { Taxiway = "H" }, "28R");
+        (GroundNode Node, string Taxiway)? result = layout.FindExitAheadOnRunway(
+            37.724806,
+            -122.204721,
+            new TrueHeading(280.0),
+            new ExitPreference { Taxiway = "H" },
+            "28R"
+        );
         Assert.NotNull(result);
     }
 
     [Fact]
     public void FindExitAhead_NoPreference_FindsNearest()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var result = layout.FindExitAheadOnRunway(37.724806, -122.204721, new TrueHeading(280.0), null, "28R");
+        (GroundNode Node, string Taxiway)? result = layout.FindExitAheadOnRunway(37.724806, -122.204721, new TrueHeading(280.0), null, "28R");
         Assert.NotNull(result);
     }
 
     [Fact]
     public void FindExitAhead_SidePreference_FiltersCorrectly()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var rightResult = layout.FindExitAheadOnRunway(
+        (GroundNode Node, string Taxiway)? rightResult = layout.FindExitAheadOnRunway(
             37.724806,
             -122.204721,
             new TrueHeading(280.0),

@@ -29,7 +29,7 @@ public class RunwaySafetyAdvisorTests
     private static RunwayInfo MakeRunway()
     {
         var threshold = new LatLon(37.0, -122.0);
-        var end = GeoMath.ProjectPoint(threshold, new TrueHeading(280), 10_000 / GeoMath.FeetPerNm);
+        LatLon end = GeoMath.ProjectPoint(threshold, new TrueHeading(280), 10_000 / GeoMath.FeetPerNm);
         return TestRunwayFactory.Make(
             designator: "28",
             thresholdLat: threshold.Lat,
@@ -44,7 +44,7 @@ public class RunwaySafetyAdvisorTests
     private static LatLon OnRunway(double alongFt, double rightFt)
     {
         var threshold = new LatLon(Runway.ThresholdLatitude, Runway.ThresholdLongitude);
-        var along = GeoMath.ProjectPoint(threshold, Runway.TrueHeading, alongFt / GeoMath.FeetPerNm);
+        LatLon along = GeoMath.ProjectPoint(threshold, Runway.TrueHeading, alongFt / GeoMath.FeetPerNm);
         return rightFt == 0 ? along : GeoMath.ProjectPoint(along, Runway.TrueHeading + 90, rightFt / GeoMath.FeetPerNm);
     }
 
@@ -82,7 +82,7 @@ public class RunwaySafetyAdvisorTests
 
     private static List<string> WarningsAfterClearance(AircraftState arrival, AircraftState occupant)
     {
-        var ctx = TestDispatch.Context(new Random(1), listAircraft: () => [arrival, occupant]);
+        DispatchContext ctx = TestDispatch.Context(new Random(1), listAircraft: () => [arrival, occupant]);
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, Runway, ctx);
         return arrival.PendingWarnings;
     }
@@ -90,9 +90,9 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void LinedUpAndWaitingOccupant_Warns()
     {
-        var occupant = Occupant("LUAW1", OnRunway(3000, 500), new LinedUpAndWaitingPhase());
+        AircraftState occupant = Occupant("LUAW1", OnRunway(3000, 500), new LinedUpAndWaitingPhase());
 
-        var warnings = WarningsAfterClearance(Arrival(), occupant);
+        List<string> warnings = WarningsAfterClearance(Arrival(), occupant);
 
         Assert.Single(warnings);
         Assert.Contains("LUAW1", warnings[0]);
@@ -101,7 +101,7 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void HoldingInPositionOnTheParallelTaxiway_IsSilent()
     {
-        var occupant = Occupant("HOLD1", OnRunway(3000, 500), new HoldingInPositionPhase());
+        AircraftState occupant = Occupant("HOLD1", OnRunway(3000, 500), new HoldingInPositionPhase());
 
         Assert.Empty(WarningsAfterClearance(Arrival(), occupant));
     }
@@ -109,9 +109,9 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void HoldingInPositionOnThePavement_Warns()
     {
-        var occupant = Occupant("HOLD1", OnRunway(200, 10), new HoldingInPositionPhase());
+        AircraftState occupant = Occupant("HOLD1", OnRunway(200, 10), new HoldingInPositionPhase());
 
-        var warnings = WarningsAfterClearance(Arrival(), occupant);
+        List<string> warnings = WarningsAfterClearance(Arrival(), occupant);
 
         Assert.Single(warnings);
         Assert.Contains("HOLD1", warnings[0]);
@@ -119,7 +119,7 @@ public class RunwaySafetyAdvisorTests
 
     private static List<string> WarningsAfterSecondLuaw(AircraftState second, AircraftState first)
     {
-        var ctx = TestDispatch.Context(new Random(1), listAircraft: () => [second, first]);
+        DispatchContext ctx = TestDispatch.Context(new Random(1), listAircraft: () => [second, first]);
         RunwaySafetyAdvisor.WarnIfAnotherHoldingInPosition(second, Runway, ctx);
         return second.PendingWarnings;
     }
@@ -128,10 +128,10 @@ public class RunwaySafetyAdvisorTests
     public void SecondLuaw_WithAnotherAircraftHoldingInPosition_Warns()
     {
         // 3-9-4.h: two aircraft lined up on the same runway at once needs the local assist/monitor staffed.
-        var first = Occupant("LUAW1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
-        var second = Occupant("LUAW2", OnRunway(4000, 0), new LinedUpAndWaitingPhase());
+        AircraftState first = Occupant("LUAW1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
+        AircraftState second = Occupant("LUAW2", OnRunway(4000, 0), new LinedUpAndWaitingPhase());
 
-        var warnings = WarningsAfterSecondLuaw(second, first);
+        List<string> warnings = WarningsAfterSecondLuaw(second, first);
 
         Assert.Single(warnings);
         Assert.Contains("LUAW1", warnings[0]);
@@ -141,9 +141,9 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void SecondLuaw_BehindADepartureAlreadyClearedForTakeoff_IsSilent()
     {
-        var rolling = Occupant("DEP1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
+        AircraftState rolling = Occupant("DEP1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
         rolling.Phases!.CurrentPhase!.Requirements[0].IsSatisfied = true;
-        var second = Occupant("LUAW2", OnRunway(4000, 0), new LinedUpAndWaitingPhase());
+        AircraftState second = Occupant("LUAW2", OnRunway(4000, 0), new LinedUpAndWaitingPhase());
 
         Assert.Empty(WarningsAfterSecondLuaw(second, rolling));
     }
@@ -151,9 +151,9 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void SecondLuaw_OnTheOppositeEndOfTheSamePavement_Warns()
     {
-        var first = Occupant("LUAW1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
+        AircraftState first = Occupant("LUAW1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
         first.Phases!.AssignedRunway = Runway.ForApproach("10");
-        var second = Occupant("LUAW2", OnRunway(4000, 0), new LinedUpAndWaitingPhase());
+        AircraftState second = Occupant("LUAW2", OnRunway(4000, 0), new LinedUpAndWaitingPhase());
 
         Assert.Single(WarningsAfterSecondLuaw(second, first));
     }
@@ -161,7 +161,7 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void SecondLuaw_OnADifferentRunway_IsSilent()
     {
-        var first = Occupant("LUAW1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
+        AircraftState first = Occupant("LUAW1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
         first.Phases!.AssignedRunway = TestRunwayFactory.Make(
             designator: "33",
             thresholdLat: 37.02,
@@ -170,7 +170,7 @@ public class RunwaySafetyAdvisorTests
             endLon: -122.03,
             heading: 330
         );
-        var second = Occupant("LUAW2", OnRunway(4000, 0), new LinedUpAndWaitingPhase());
+        AircraftState second = Occupant("LUAW2", OnRunway(4000, 0), new LinedUpAndWaitingPhase());
 
         Assert.Empty(WarningsAfterSecondLuaw(second, first));
     }
@@ -178,9 +178,9 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void DesignatorOverload_HoldingInPositionOnItsOwnRunway_Warns()
     {
-        var occupant = Occupant("HOLD1", OnRunway(200, 10), new HoldingInPositionPhase());
-        var arrival = Arrival();
-        var ctx = TestDispatch.Context(new Random(1), listAircraft: () => [arrival, occupant]);
+        AircraftState occupant = Occupant("HOLD1", OnRunway(200, 10), new HoldingInPositionPhase());
+        AircraftState arrival = Arrival();
+        DispatchContext ctx = TestDispatch.Context(new Random(1), listAircraft: () => [arrival, occupant]);
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, "28", ctx);
 
@@ -189,7 +189,7 @@ public class RunwaySafetyAdvisorTests
 
     private static List<string> WarningsAfterTakeoffClearance(AircraftState departure, AircraftState occupant)
     {
-        var ctx = TestDispatch.Context(new Random(1), listAircraft: () => [departure, occupant]);
+        DispatchContext ctx = TestDispatch.Context(new Random(1), listAircraft: () => [departure, occupant]);
         RunwaySafetyAdvisor.WarnIfRunwayOccupiedForTakeoff(departure, Runway, ctx);
         return departure.PendingWarnings;
     }
@@ -199,8 +199,8 @@ public class RunwaySafetyAdvisorTests
     {
         // Issue #409: CTO issued to an aircraft holding short while another aircraft is
         // lined up and waiting on the same runway without a takeoff clearance.
-        var occupant = Occupant("LUAW1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
-        var departure = Occupant(
+        AircraftState occupant = Occupant("LUAW1", OnRunway(200, 0), new LinedUpAndWaitingPhase());
+        AircraftState departure = Occupant(
             "DEP1",
             OnRunway(0, 300),
             new HoldingShortPhase(
@@ -213,7 +213,7 @@ public class RunwaySafetyAdvisorTests
             )
         );
 
-        var warnings = WarningsAfterTakeoffClearance(departure, occupant);
+        List<string> warnings = WarningsAfterTakeoffClearance(departure, occupant);
 
         Assert.Single(warnings);
         Assert.Contains("LUAW1", warnings[0]);
@@ -225,9 +225,9 @@ public class RunwaySafetyAdvisorTests
     {
         // The occupant holds its own takeoff clearance — it is about to roll; clearing the
         // next departure is ordinary anticipated separation (3-9-5).
-        var occupant = Occupant("DEP0", OnRunway(200, 0), new LinedUpAndWaitingPhase());
+        AircraftState occupant = Occupant("DEP0", OnRunway(200, 0), new LinedUpAndWaitingPhase());
         occupant.Phases!.CurrentPhase!.Requirements[0].IsSatisfied = true;
-        var departure = Occupant(
+        AircraftState departure = Occupant(
             "DEP1",
             OnRunway(0, 300),
             new HoldingShortPhase(
@@ -246,8 +246,8 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void TakeoffClearance_HoldingInPositionOnThePavement_Warns()
     {
-        var occupant = Occupant("HOLD1", OnRunway(200, 10), new HoldingInPositionPhase());
-        var departure = Occupant(
+        AircraftState occupant = Occupant("HOLD1", OnRunway(200, 10), new HoldingInPositionPhase());
+        AircraftState departure = Occupant(
             "DEP1",
             OnRunway(0, 300),
             new HoldingShortPhase(
@@ -260,7 +260,7 @@ public class RunwaySafetyAdvisorTests
             )
         );
 
-        var warnings = WarningsAfterTakeoffClearance(departure, occupant);
+        List<string> warnings = WarningsAfterTakeoffClearance(departure, occupant);
 
         Assert.Single(warnings);
         Assert.Contains("HOLD1", warnings[0]);
@@ -269,8 +269,8 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void TakeoffClearance_HoldingInPositionOnTheParallelTaxiway_IsSilent()
     {
-        var occupant = Occupant("HOLD1", OnRunway(3000, 500), new HoldingInPositionPhase());
-        var departure = Occupant(
+        AircraftState occupant = Occupant("HOLD1", OnRunway(3000, 500), new HoldingInPositionPhase());
+        AircraftState departure = Occupant(
             "DEP1",
             OnRunway(0, 300),
             new HoldingShortPhase(
@@ -289,9 +289,9 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void TakeoffClearance_LuawOnTheOppositeEndOfTheSamePavement_Warns()
     {
-        var occupant = Occupant("LUAW1", OnRunway(9800, 0), new LinedUpAndWaitingPhase());
+        AircraftState occupant = Occupant("LUAW1", OnRunway(9800, 0), new LinedUpAndWaitingPhase());
         occupant.Phases!.AssignedRunway = Runway.ForApproach("10");
-        var departure = Occupant(
+        AircraftState departure = Occupant(
             "DEP1",
             OnRunway(0, 300),
             new HoldingShortPhase(
@@ -312,7 +312,7 @@ public class RunwaySafetyAdvisorTests
 
     private static AircraftState StoppedCrossingOccupant(string callsign, LatLon position)
     {
-        var occupant = Occupant(callsign, position, new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28"));
+        AircraftState occupant = Occupant(callsign, position, new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28"));
         occupant.Ground.Hold = HoldDirective.HoldPosition;
         return occupant;
     }
@@ -334,9 +334,9 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void LandingClearance_StoppedMidCrossing_Warns()
     {
-        var occupant = StoppedCrossingOccupant("XNG1", OnRunway(3000, 10));
+        AircraftState occupant = StoppedCrossingOccupant("XNG1", OnRunway(3000, 10));
 
-        var warnings = WarningsAfterClearance(Arrival(), occupant);
+        List<string> warnings = WarningsAfterClearance(Arrival(), occupant);
 
         Assert.Single(warnings);
         Assert.Contains("XNG1", warnings[0]);
@@ -346,10 +346,10 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void LandingClearance_StoppedByGiveWayOnPavement_Warns()
     {
-        var occupant = Occupant("XNG1", OnRunway(3000, 10), new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28"));
+        AircraftState occupant = Occupant("XNG1", OnRunway(3000, 10), new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28"));
         occupant.Ground.Hold = HoldDirective.GiveWay("OTHER1");
 
-        var warnings = WarningsAfterClearance(Arrival(), occupant);
+        List<string> warnings = WarningsAfterClearance(Arrival(), occupant);
 
         Assert.Single(warnings);
         Assert.Contains("XNG1", warnings[0]);
@@ -358,7 +358,7 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void LandingClearance_MovingCrossing_IsSilent()
     {
-        var occupant = Occupant("XNG1", OnRunway(3000, 10), new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28"));
+        AircraftState occupant = Occupant("XNG1", OnRunway(3000, 10), new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28"));
 
         Assert.Empty(WarningsAfterClearance(Arrival(), occupant));
     }
@@ -366,7 +366,7 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void LandingClearance_HeldOnParallelTaxiway_IsSilent()
     {
-        var occupant = Occupant("TAXI1", OnRunway(3000, 500), new TaxiingPhase());
+        AircraftState occupant = Occupant("TAXI1", OnRunway(3000, 500), new TaxiingPhase());
         occupant.Ground.Hold = HoldDirective.HoldPosition;
 
         Assert.Empty(WarningsAfterClearance(Arrival(), occupant));
@@ -375,9 +375,9 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void TakeoffClearance_StoppedMidCrossing_Warns()
     {
-        var occupant = StoppedCrossingOccupant("XNG1", OnRunway(3000, 10));
+        AircraftState occupant = StoppedCrossingOccupant("XNG1", OnRunway(3000, 10));
 
-        var warnings = WarningsAfterTakeoffClearance(HoldingShortDeparture(), occupant);
+        List<string> warnings = WarningsAfterTakeoffClearance(HoldingShortDeparture(), occupant);
 
         Assert.Single(warnings);
         Assert.Contains("XNG1", warnings[0]);
@@ -387,7 +387,7 @@ public class RunwaySafetyAdvisorTests
     [Fact]
     public void TakeoffClearance_MovingCrossing_IsSilent()
     {
-        var occupant = Occupant("XNG1", OnRunway(3000, 10), new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28"));
+        AircraftState occupant = Occupant("XNG1", OnRunway(3000, 10), new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28"));
 
         Assert.Empty(WarningsAfterTakeoffClearance(HoldingShortDeparture(), occupant));
     }
@@ -397,19 +397,19 @@ public class RunwaySafetyAdvisorTests
     {
         // Pre-issued clearance path: only a designator is known; the runway geometry must come
         // from the cleared aircraft's destination airport, so this needs the real nav DB.
-        var oakRunway = RunwayOccupancy.AirportRunways("OAK").FirstOrDefault(r => r.Id.Contains("28R"))?.ForApproach("28R");
+        RunwayInfo? oakRunway = RunwayOccupancy.AirportRunways("OAK").FirstOrDefault(r => r.Id.Contains("28R"))?.ForApproach("28R");
         if (oakRunway is null)
         {
             return;
         }
 
         var threshold = new LatLon(oakRunway.ThresholdLatitude, oakRunway.ThresholdLongitude);
-        var onPavement = GeoMath.ProjectPoint(threshold, oakRunway.TrueHeading, 500 / GeoMath.FeetPerNm);
-        var occupant = Occupant("XNG1", onPavement, new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28R"));
+        LatLon onPavement = GeoMath.ProjectPoint(threshold, oakRunway.TrueHeading, 500 / GeoMath.FeetPerNm);
+        AircraftState occupant = Occupant("XNG1", onPavement, new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 0, runwayId: "28R"));
         occupant.Ground.Hold = HoldDirective.HoldPosition;
-        var arrival = Arrival();
+        AircraftState arrival = Arrival();
         arrival.FlightPlan.Destination = "OAK";
-        var ctx = TestDispatch.Context(new Random(1), listAircraft: () => [arrival, occupant]);
+        DispatchContext ctx = TestDispatch.Context(new Random(1), listAircraft: () => [arrival, occupant]);
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, "28R", ctx);
 

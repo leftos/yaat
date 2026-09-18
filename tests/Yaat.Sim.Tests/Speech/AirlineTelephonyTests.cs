@@ -24,14 +24,14 @@ public class AirlineTelephonyTests
     [InlineData("ACA", "AIR CANADA")]
     public void TryGetTelephony_KnownIcao_ReturnsExpected(string icao, string expectedTelephony)
     {
-        Assert.True(AirlineTelephony.TryGetTelephony(icao, out var telephony));
+        Assert.True(AirlineTelephony.TryGetTelephony(icao, out string? telephony));
         Assert.Equal(expectedTelephony, telephony);
     }
 
     [Fact]
     public void TryGetTelephony_CaseInsensitive()
     {
-        Assert.True(AirlineTelephony.TryGetTelephony("swa", out var telephony));
+        Assert.True(AirlineTelephony.TryGetTelephony("swa", out string? telephony));
         Assert.Equal("SOUTHWEST", telephony);
     }
 
@@ -52,7 +52,7 @@ public class AirlineTelephonyTests
     [Fact]
     public void TryGetIcaos_UniqueCallsign_ReturnsSingleIcao()
     {
-        Assert.True(AirlineTelephony.TryGetIcaos("AMERICAN", out var icaos));
+        Assert.True(AirlineTelephony.TryGetIcaos("AMERICAN", out IReadOnlyList<string>? icaos));
         Assert.Contains("AAL", icaos);
     }
 
@@ -60,7 +60,7 @@ public class AirlineTelephonyTests
     public void TryGetIcaos_SharedCallsign_ReturnsMultipleIcaos()
     {
         // VIRGIN is shared between Virgin Atlantic (VIR) and Virgin Australia (VOZ), both active.
-        Assert.True(AirlineTelephony.TryGetIcaos("VIRGIN", out var icaos));
+        Assert.True(AirlineTelephony.TryGetIcaos("VIRGIN", out IReadOnlyList<string>? icaos));
         Assert.True(icaos.Count >= 2, $"Expected ≥2 ICAOs for VIRGIN, got {icaos.Count}");
         Assert.Contains("VIR", icaos);
         Assert.Contains("VOZ", icaos);
@@ -69,14 +69,14 @@ public class AirlineTelephonyTests
     [Fact]
     public void TryGetIcaos_CaseInsensitive()
     {
-        Assert.True(AirlineTelephony.TryGetIcaos("southwest", out var icaos));
+        Assert.True(AirlineTelephony.TryGetIcaos("southwest", out IReadOnlyList<string>? icaos));
         Assert.Contains("SWA", icaos);
     }
 
     [Fact]
     public void TryGetIcaos_UnknownTelephony_ReturnsFalseAndEmpty()
     {
-        Assert.False(AirlineTelephony.TryGetIcaos("NOSUCHAIRLINE", out var icaos));
+        Assert.False(AirlineTelephony.TryGetIcaos("NOSUCHAIRLINE", out IReadOnlyList<string>? icaos));
         Assert.Empty(icaos);
     }
 }

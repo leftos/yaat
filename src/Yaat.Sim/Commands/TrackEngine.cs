@@ -104,7 +104,7 @@ public static partial class TrackEngine
             return new CommandResult(false, $"{ac.Callsign} is not tracked");
         }
 
-        var ownerDisplay = FormatOwner(ac.Track.Owner);
+        string ownerDisplay = FormatOwner(ac.Track.Owner);
         return new CommandResult(false, $"{ac.Callsign} owned by {ownerDisplay}, not you — use AS to switch position, or HOF to force");
     }
 
@@ -147,7 +147,7 @@ public static partial class TrackEngine
     {
         if (tcpCode is not null)
         {
-            var owner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+            TrackOwner? owner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
             return owner is null ? new CommandResult(false, $"Unknown position: {tcpCode}") : HandleTrack(ac, owner);
         }
 
@@ -183,7 +183,7 @@ public static partial class TrackEngine
             return new CommandResult(false, $"No pending handoff for {ac.Callsign}");
         }
 
-        var previousOwner = ac.Track.Owner;
+        TrackOwner? previousOwner = ac.Track.Owner;
         ac.Track.Owner = ac.Track.HandoffPeer;
         ac.Track.HandoffPeer = null;
         ac.Track.HandoffInitiatedAt = null;
@@ -203,13 +203,13 @@ public static partial class TrackEngine
     /// </summary>
     public static void MarkPreviousOwnerRetained(AircraftState ac, TrackOwner? previousOwner, SimScenarioState scenario)
     {
-        var previousTcp = previousOwner is not null ? TrackResolver.FindTcpForOwner(previousOwner, scenario) : null;
+        Tcp? previousTcp = previousOwner is not null ? TrackResolver.FindTcpForOwner(previousOwner, scenario) : null;
         if (previousTcp is null)
         {
             return;
         }
 
-        if (!ac.Stars.SharedState.TryGetValue(previousTcp.Id, out var shared))
+        if (!ac.Stars.SharedState.TryGetValue(previousTcp.Id, out StarsTrackSharedState? shared))
         {
             shared = new StarsTrackSharedState();
         }
@@ -283,11 +283,11 @@ public static partial class TrackEngine
     /// </summary>
     private static void AcceptIncomingPointout(AircraftState ac)
     {
-        var pointout = ac.Track.Pointout!;
+        StarsPointout pointout = ac.Track.Pointout!;
         pointout.Status = StarsPointoutStatus.Accepted;
 
-        var recipientId = pointout.Recipient.Id;
-        if (!ac.Stars.SharedState.TryGetValue(recipientId, out var shared))
+        string recipientId = pointout.Recipient.Id;
+        if (!ac.Stars.SharedState.TryGetValue(recipientId, out StarsTrackSharedState? shared))
         {
             shared = new StarsTrackSharedState();
             ac.Stars.SharedState[recipientId] = shared;
@@ -319,7 +319,7 @@ public static partial class TrackEngine
             return new CommandResult(false, $"No pending pointout for {ac.Callsign}");
         }
 
-        var tcpStr = $"{identity.Subset}{identity.SectorId}";
+        string tcpStr = $"{identity.Subset}{identity.SectorId}";
 
         if (ac.Track.Pointout.IsPending && ac.Track.Pointout.Recipient.ToString() == tcpStr)
         {
@@ -541,7 +541,7 @@ public static partial class TrackEngine
 
     public static CommandResult HandleCruise(AircraftState ac, int altHundreds)
     {
-        var feet = altHundreds * 100;
+        int feet = altHundreds * 100;
         // Preserve the existing altitude notation (VFR-on-top vs plain VFR vs IFR) while updating the value.
         ac.FlightPlan.Altitude =
             ac.FlightPlan.Altitude.IsVfrOnTop ? PlannedAltitude.Otp(feet)
@@ -553,7 +553,7 @@ public static partial class TrackEngine
     public static CommandResult HandleOnHandoff(AircraftState ac)
     {
         ac.Track.OnHandoff = !ac.Track.OnHandoff;
-        var state = ac.Track.OnHandoff ? "on" : "off";
+        string state = ac.Track.OnHandoff ? "on" : "off";
         return new CommandResult(true, $"On-handoff {state} for {ac.Callsign}");
     }
 
@@ -607,7 +607,8 @@ public static partial class TrackEngine
     /// </summary>
     public static void ApplySharedState(AircraftState ac, string tcpId, SharedStateDto state)
     {
-        var wasRecentlyAccepted = ac.Stars.SharedState.TryGetValue(tcpId, out var prior) && prior.IsRecentlyAcceptedIncomingPointout;
+        bool wasRecentlyAccepted =
+            ac.Stars.SharedState.TryGetValue(tcpId, out StarsTrackSharedState? prior) && prior.IsRecentlyAcceptedIncomingPointout;
         ac.Stars.SharedState[tcpId] = StarsTrackSharedState.FromSnapshot(state);
         ClearDismissedIncomingPointout(ac, tcpId, wasRecentlyAccepted, state.IsRecentlyAcceptedIncomingPointout);
     }
@@ -636,7 +637,7 @@ public static partial class TrackEngine
     /// </summary>
     public static CommandResult HandleSuppressConflictAlert(AircraftState ac, string otherCallsign)
     {
-        var other = otherCallsign.ToUpperInvariant();
+        string other = otherCallsign.ToUpperInvariant();
         if (string.Equals(other, ac.Callsign, StringComparison.OrdinalIgnoreCase))
         {
             return new CommandResult(false, "CASUP needs another aircraft's callsign");
@@ -657,7 +658,7 @@ public static partial class TrackEngine
     public static CommandResult HandleInhibitConflictAlert(AircraftState ac)
     {
         ac.Stars.IsCaInhibited = !ac.Stars.IsCaInhibited;
-        var state = ac.Stars.IsCaInhibited ? "inhibited" : "enabled";
+        string state = ac.Stars.IsCaInhibited ? "inhibited" : "enabled";
         return new CommandResult(true, $"Conflict alert {state} for {ac.Callsign}");
     }
 
@@ -674,7 +675,7 @@ public static partial class TrackEngine
     {
         ac.Stars.TpaType = enable ? TpaJRing : null;
         ac.Stars.TpaSize = enable ? (size ?? 0.0) : 0.0;
-        var detail = enable ? $"on ({ac.Stars.TpaSize:0.#} NM)" : "off";
+        string detail = enable ? $"on ({ac.Stars.TpaSize:0.#} NM)" : "off";
         return new CommandResult(true, $"J-Ring {detail} for {ac.Callsign}");
     }
 
@@ -682,7 +683,7 @@ public static partial class TrackEngine
     {
         ac.Stars.TpaType = enable ? TpaCone : null;
         ac.Stars.TpaSize = enable ? (size ?? 0.0) : 0.0;
-        var detail = enable ? $"on ({ac.Stars.TpaSize:0.#} NM)" : "off";
+        string detail = enable ? $"on ({ac.Stars.TpaSize:0.#} NM)" : "off";
         return new CommandResult(true, $"Cone {detail} for {ac.Callsign}");
     }
 
@@ -709,7 +710,7 @@ public static partial class TrackEngine
 
         if (tcpCode is null)
         {
-            var studentPos = scenario.StudentPosition;
+            TrackOwner? studentPos = scenario.StudentPosition;
             if (studentPos is null)
             {
                 return new CommandResult(false, "No student position configured");
@@ -720,7 +721,7 @@ public static partial class TrackEngine
             return new CommandResult(true, $"Handoff {ac.Callsign} to {FormatOwner(studentPos)}");
         }
 
-        var target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+        TrackOwner? target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
         if (target is null)
         {
             return new CommandResult(false, $"Unknown position: {tcpCode}");
@@ -733,7 +734,7 @@ public static partial class TrackEngine
             && !ac.Track.Owner.MatchesPosition(identity)
         )
         {
-            var manualRedirectFrom = ac.Track.HandoffPeer;
+            TrackOwner manualRedirectFrom = ac.Track.HandoffPeer;
             ac.Track.HandoffPeer = redirect?.TryRedirect(target) ?? target;
             ac.Track.HandoffRedirectedBy = manualRedirectFrom;
             ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
@@ -774,13 +775,13 @@ public static partial class TrackEngine
     /// </summary>
     public static CommandResult ApplyForceHandoff(AircraftState ac, SimScenarioState scenario, string tcpCode)
     {
-        var target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+        TrackOwner? target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
         if (target is null)
         {
             return new CommandResult(false, $"Unknown position: {tcpCode}");
         }
 
-        var previousOwner = ac.Track.Owner;
+        TrackOwner? previousOwner = ac.Track.Owner;
         ac.Track.Owner = target;
         ac.Track.HandoffPeer = null;
         ac.Track.HandoffInitiatedAt = null;
@@ -804,22 +805,22 @@ public static partial class TrackEngine
             return new CommandResult(false, $"{ac.Callsign} is not tracked");
         }
 
-        var targetTcp = TrackResolver.FindTcpByCode(scenario, tcpCode);
+        Tcp? targetTcp = TrackResolver.FindTcpByCode(scenario, tcpCode);
         if (targetTcp is null)
         {
             return new CommandResult(false, $"Unknown position: {tcpCode}");
         }
 
-        var senderTcp = TrackResolver.FindTcpForOwner(ac.Track.Owner, scenario);
+        Tcp? senderTcp = TrackResolver.FindTcpForOwner(ac.Track.Owner, scenario);
         if (senderTcp is null)
         {
             return new CommandResult(false, "Cannot determine sender TCP");
         }
 
-        var targetOwner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+        TrackOwner? targetOwner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
         if ((targetOwner is not null) && (redirect?.TryRedirect(targetOwner) is { } redirectOwner))
         {
-            var redirectedTcp = TrackResolver.FindTcpForOwner(redirectOwner, scenario);
+            Tcp? redirectedTcp = TrackResolver.FindTcpForOwner(redirectOwner, scenario);
             if (redirectedTcp is not null)
             {
                 targetTcp = redirectedTcp;
@@ -842,7 +843,7 @@ public static partial class TrackEngine
             return new CommandResult(false, $"No pointout to convert for {ac.Callsign}");
         }
 
-        var previousOwner = ac.Track.Owner;
+        TrackOwner? previousOwner = ac.Track.Owner;
         ac.Track.Pointout = null;
         ac.Track.Owner = newOwner;
         ac.Track.HandoffPeer = null;
@@ -862,8 +863,8 @@ public static partial class TrackEngine
             return new CommandResult(false, $"No pointout to convert for {ac.Callsign}");
         }
 
-        var recipient = ac.Track.Pointout.Recipient;
-        var newOwner = TrackResolver.ResolveTcpToOwner(scenario, $"{recipient.Subset}{recipient.SectorId}");
+        Tcp recipient = ac.Track.Pointout.Recipient;
+        TrackOwner? newOwner = TrackResolver.ResolveTcpToOwner(scenario, $"{recipient.Subset}{recipient.SectorId}");
         if (newOwner is null)
         {
             return new CommandResult(false, $"Cannot resolve pointout recipient {recipient.Subset}{recipient.SectorId}");
@@ -875,7 +876,7 @@ public static partial class TrackEngine
     /// <summary>STARS force quicklook (<c>**</c> family): adds the TCPs to <see cref="AircraftStarsState.ForcedPointoutsTo"/>.</summary>
     public static CommandResult HandleForceQuicklook(AircraftState ac, List<Tcp> tcps)
     {
-        foreach (var tcp in tcps)
+        foreach (Tcp tcp in tcps)
         {
             if (!ac.Stars.ForcedPointoutsTo.Any(t => t.Id == tcp.Id))
             {
@@ -890,9 +891,9 @@ public static partial class TrackEngine
     public static CommandResult ApplyForceQuicklook(AircraftState ac, SimScenarioState scenario, List<string> tcpCodes)
     {
         var tcps = new List<Tcp>();
-        foreach (var code in tcpCodes)
+        foreach (string code in tcpCodes)
         {
-            var tcp = TrackResolver.FindTcpByCode(scenario, code);
+            Tcp? tcp = TrackResolver.FindTcpByCode(scenario, code);
             if (tcp is null)
             {
                 return new CommandResult(false, $"Unknown position: {code}");
@@ -915,7 +916,7 @@ public static partial class TrackEngine
     /// <summary>Resolves the TCP code, then clears its forced quicklook (see above).</summary>
     public static CommandResult ApplyForceQuicklookClear(AircraftState ac, SimScenarioState scenario, string tcpCode)
     {
-        var tcp = TrackResolver.FindTcpByCode(scenario, tcpCode);
+        Tcp? tcp = TrackResolver.FindTcpByCode(scenario, tcpCode);
         return tcp is null ? new CommandResult(false, $"Unknown position: {tcpCode}") : HandleForceQuicklookClear(ac, tcp);
     }
 
@@ -933,13 +934,13 @@ public static partial class TrackEngine
     /// </summary>
     public static CommandResult? Dispatch(ParsedCommand parsed, AircraftState ac, TrackDispatchContext ctx)
     {
-        var (identity, scenario, redirect, conflicts) = ctx;
+        (TrackOwner? identity, SimScenarioState? scenario, ConsolidationRedirect? redirect, ConflictAlertState? conflicts) = ctx;
         if (identity is null && RequiresIdentity(parsed))
         {
             return new CommandResult(false, "No active position — use AS to set one");
         }
 
-        var starsConfig = scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? "");
+        StarsConfig? starsConfig = scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? "");
         int maxScratchpad = ScratchpadRuleEngine.MaxScratchpadLength(starsConfig);
 
         return parsed switch
@@ -989,15 +990,15 @@ public static partial class TrackEngine
             return new CommandResult(false, "No active position — use AS to set one");
         }
 
-        var snapshot = world.GetSnapshot();
+        List<AircraftState> snapshot = world.GetSnapshot();
         if (cmd is AcceptAllHandoffsCommand)
         {
             int count = 0;
-            foreach (var ac in snapshot)
+            foreach (AircraftState ac in snapshot)
             {
                 if ((ac.Track.HandoffPeer is not null) && (ac.Track.HandoffPeer.Callsign == identity.Callsign))
                 {
-                    var previousOwner = ac.Track.Owner;
+                    TrackOwner? previousOwner = ac.Track.Owner;
                     ac.Track.Owner = ac.Track.HandoffPeer;
                     ac.Track.HandoffPeer = null;
                     ac.Track.HandoffInitiatedAt = null;
@@ -1014,14 +1015,14 @@ public static partial class TrackEngine
 
         if (cmd is InitiateHandoffAllCommand hoAll)
         {
-            var target = TrackResolver.ResolveTcpToOwner(scenario, hoAll.TcpCode);
+            TrackOwner? target = TrackResolver.ResolveTcpToOwner(scenario, hoAll.TcpCode);
             if (target is null)
             {
                 return new CommandResult(false, $"Unknown position: {hoAll.TcpCode}");
             }
 
             int count = 0;
-            foreach (var ac in snapshot)
+            foreach (AircraftState ac in snapshot)
             {
                 if ((ac.Track.Owner is not null) && (ac.Track.Owner.Callsign == identity.Callsign) && (ac.Track.HandoffPeer is null))
                 {
@@ -1041,7 +1042,7 @@ public static partial class TrackEngine
     public static CommandResult AcknowledgeConflictAlert(AircraftState ac, ConflictAlertState conflicts)
     {
         int count = 0;
-        foreach (var conflict in conflicts.Conflicts.Values)
+        foreach (ActiveConflict conflict in conflicts.Conflicts.Values)
         {
             if (((conflict.CallsignA == ac.Callsign) || (conflict.CallsignB == ac.Callsign)) && !conflict.IsAcknowledged)
             {

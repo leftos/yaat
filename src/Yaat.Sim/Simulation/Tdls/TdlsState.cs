@@ -57,7 +57,7 @@ public sealed class TdlsState
     {
         lock (Gate)
         {
-            foreach (var facility in Walk(artccRoot))
+            foreach (FacilityConfig facility in Walk(artccRoot))
             {
                 if (facility.TdlsConfiguration is not null)
                 {
@@ -74,12 +74,12 @@ public sealed class TdlsState
     /// </summary>
     public string? ResolveActiveOpConfigId(string facilityId)
     {
-        if (!Configs.TryGetValue(facilityId, out var config) || !config.DclOpConfigsEnabled || (config.OpConfigs.Count == 0))
+        if (!Configs.TryGetValue(facilityId, out TdlsConfig? config) || !config.DclOpConfigsEnabled || (config.OpConfigs.Count == 0))
         {
             return null;
         }
         if (
-            ActiveOpConfigIds.TryGetValue(facilityId, out var selected)
+            ActiveOpConfigIds.TryGetValue(facilityId, out string? selected)
             && config.OpConfigs.Any(c => string.Equals(c.Id, selected, StringComparison.Ordinal))
         )
         {
@@ -90,7 +90,7 @@ public sealed class TdlsState
 
     /// <summary>The SID list a clearance at this facility must be built from, honouring the active ops config.</summary>
     public List<TdlsSidConfig> ResolveSids(string facilityId) =>
-        Configs.TryGetValue(facilityId, out var config) ? config.ResolveSids(ResolveActiveOpConfigId(facilityId)) : [];
+        Configs.TryGetValue(facilityId, out TdlsConfig? config) ? config.ResolveSids(ResolveActiveOpConfigId(facilityId)) : [];
 
     /// <summary>
     /// Clears the session state — items, dumped lockout, active ops configs, the scheduled WILCOs and the id
@@ -123,9 +123,9 @@ public sealed class TdlsState
     private static IEnumerable<FacilityConfig> Walk(FacilityConfig facility)
     {
         yield return facility;
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            foreach (var descendant in Walk(child))
+            foreach (FacilityConfig descendant in Walk(child))
             {
                 yield return descendant;
             }

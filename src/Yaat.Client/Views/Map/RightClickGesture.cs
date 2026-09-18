@@ -47,8 +47,8 @@ public sealed class RightClickGesture
             return;
         }
 
-        var dx = position.X - _pressPosition.X;
-        var dy = position.Y - _pressPosition.Y;
+        double dx = position.X - _pressPosition.X;
+        double dy = position.Y - _pressPosition.Y;
         if ((dx * dx) + (dy * dy) > DragThresholdSq)
         {
             _hasDragged = true;

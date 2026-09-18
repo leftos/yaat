@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Proto;
 
 namespace Yaat.Sim.Tests;
 
@@ -17,13 +18,13 @@ public class FixPronunciationTests
     {
         string baseDir = Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");
 
-        var result = FixPronunciationLoader.LoadAll(baseDir);
+        FixPronunciationLoadResult result = FixPronunciationLoader.LoadAll(baseDir);
 
         Assert.Empty(result.Warnings);
         Assert.NotEmpty(result.Definitions);
 
         // SYRAH is the canonical example from the feature spec
-        var syrah = result.Definitions.FirstOrDefault(d => d.Fix.Equals("SYRAH", StringComparison.OrdinalIgnoreCase));
+        FixPronunciationDefinition? syrah = result.Definitions.FirstOrDefault(d => d.Fix.Equals("SYRAH", StringComparison.OrdinalIgnoreCase));
         Assert.NotNull(syrah);
         Assert.Contains("see rah", syrah!.Pronunciations);
     }
@@ -33,15 +34,15 @@ public class FixPronunciationTests
     [Fact]
     public void FixPronunciationLoader_MalformedFile_ReportsWarningAndContinues()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"yaat-fp-test-{Guid.NewGuid():N}");
-        var categoryDir = Path.Combine(tempDir, "ZTEST", "FixPronunciations");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"yaat-fp-test-{Guid.NewGuid():N}");
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "FixPronunciations");
         Directory.CreateDirectory(categoryDir);
         try
         {
             File.WriteAllText(Path.Combine(categoryDir, "bad.json"), "{ this is not valid json ]");
             File.WriteAllText(Path.Combine(categoryDir, "good.json"), """[{"fix": "TESTA", "pronunciations": ["test ay"]}]""");
 
-            var result = FixPronunciationLoader.LoadAll(tempDir);
+            FixPronunciationLoadResult result = FixPronunciationLoader.LoadAll(tempDir);
 
             Assert.NotEmpty(result.Warnings);
             Assert.Single(result.Definitions);
@@ -58,12 +59,12 @@ public class FixPronunciationTests
     [Fact]
     public void FixPronunciationLoader_EntriesWithoutFixOrPronunciations_AreSkipped()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"yaat-fp-test-{Guid.NewGuid():N}");
-        var categoryDir = Path.Combine(tempDir, "ZTEST", "FixPronunciations");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"yaat-fp-test-{Guid.NewGuid():N}");
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "FixPronunciations");
         Directory.CreateDirectory(categoryDir);
         try
         {
-            var json = """
+            string json = """
                 [
                     {"fix": "", "pronunciations": ["empty"]},
                     {"fix": "NOHINT", "pronunciations": []},
@@ -72,7 +73,7 @@ public class FixPronunciationTests
                 """;
             File.WriteAllText(Path.Combine(categoryDir, "mixed.json"), json);
 
-            var result = FixPronunciationLoader.LoadAll(tempDir);
+            FixPronunciationLoadResult result = FixPronunciationLoader.LoadAll(tempDir);
 
             Assert.Equal(2, result.Warnings.Count);
             Assert.Single(result.Definitions);
@@ -89,8 +90,8 @@ public class FixPronunciationTests
     [Fact]
     public void NavigationDatabase_GetFixPronunciations_CaseInsensitive()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"yaat-fp-nav-{Guid.NewGuid():N}");
-        var categoryDir = Path.Combine(tempDir, "ZTEST", "FixPronunciations");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"yaat-fp-nav-{Guid.NewGuid():N}");
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "FixPronunciations");
         Directory.CreateDirectory(categoryDir);
         try
         {
@@ -101,7 +102,7 @@ public class FixPronunciationTests
             // We can't easily build a NavDataSet here, so instead we drive LoadFixPronunciations
             // indirectly by calling the loader and asserting its output. The NavigationDatabase
             // behavior is covered by Test 5 below with real data.
-            var result = FixPronunciationLoader.LoadAll(tempDir);
+            FixPronunciationLoadResult result = FixPronunciationLoader.LoadAll(tempDir);
             Assert.Single(result.Definitions);
 
             // Sanity-check case-insensitive key behavior at the dictionary level
@@ -123,29 +124,29 @@ public class FixPronunciationTests
         // Use a real NavigationDatabase via the default constructor path. If test data isn't
         // available, skip — this test depends on the shipped ZOA/ambiguous.json actually being
         // loaded, and that only happens through the full constructor.
-        var navDbPath = Path.Combine("TestData", "NavData.dat");
+        string navDbPath = Path.Combine("TestData", "NavData.dat");
         if (!File.Exists(navDbPath))
         {
             return;
         }
 
-        var cifpPath = TestVnasData.GetCifpPath();
+        string? cifpPath = TestVnasData.GetCifpPath();
         if (cifpPath is null)
         {
             return;
         }
 
-        var bytes = File.ReadAllBytes(navDbPath);
-        var navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
+        byte[] bytes = File.ReadAllBytes(navDbPath);
+        NavDataSet navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
 
         var db = new NavigationDatabase(navData, cifpPath);
 
         // SYRAH is programmed → its phonetic should appear in the hint
-        var hint = db.BuildWhisperPronunciationHint(["SYRAH", "WXYZZ_NOT_REAL"]);
+        string hint = db.BuildWhisperPronunciationHint(["SYRAH", "WXYZZ_NOT_REAL"]);
         Assert.Contains("see rah", hint);
 
         // SYRAH NOT programmed → hint is empty regardless of whether it exists in the DB
-        var emptyHint = db.BuildWhisperPronunciationHint(["WXYZZ_NOT_REAL"]);
+        string emptyHint = db.BuildWhisperPronunciationHint(["WXYZZ_NOT_REAL"]);
         Assert.Equal(string.Empty, emptyHint);
 
         // Empty input → empty hint
@@ -157,25 +158,25 @@ public class FixPronunciationTests
     [Fact]
     public void BuildWhisperPronunciationHint_MultipleMatchedFixes_JoinedBySpaces()
     {
-        var navDbPath = Path.Combine("TestData", "NavData.dat");
+        string navDbPath = Path.Combine("TestData", "NavData.dat");
         if (!File.Exists(navDbPath))
         {
             return;
         }
 
-        var cifpPath = TestVnasData.GetCifpPath();
+        string? cifpPath = TestVnasData.GetCifpPath();
         if (cifpPath is null)
         {
             return;
         }
 
-        var bytes = File.ReadAllBytes(navDbPath);
-        var navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
+        byte[] bytes = File.ReadAllBytes(navDbPath);
+        NavDataSet navData = Yaat.Sim.Proto.NavDataSet.Parser.ParseFrom(bytes);
 
         var db = new NavigationDatabase(navData, cifpPath);
 
         // Both SYRAH and CEPIN have hints in the shipped ZOA file
-        var hint = db.BuildWhisperPronunciationHint(["SYRAH", "CEPIN"]);
+        string hint = db.BuildWhisperPronunciationHint(["SYRAH", "CEPIN"]);
 
         Assert.Contains("see rah", hint);
         Assert.Contains("seppin", hint);

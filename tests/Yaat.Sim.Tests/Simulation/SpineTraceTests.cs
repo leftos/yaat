@@ -71,7 +71,7 @@ public class SpineTraceTests
     [Fact]
     public void TickOneSecond_RunsExactlyTheSpine_InOrder()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
 
         engine.TickOneSecond();
 
@@ -83,7 +83,7 @@ public class SpineTraceTests
     public void EveryStepId_AppearsInTheSpine()
     {
         var traced = OneBareSecond.Select(s => s.Id).ToHashSet();
-        foreach (var id in Enum.GetValues<StepId>())
+        foreach (StepId id in Enum.GetValues<StepId>())
         {
             Assert.Contains(id, traced);
         }
@@ -92,14 +92,14 @@ public class SpineTraceTests
     [Fact]
     public void Counts_AreOnePerStepAndFourPhysicsSubTicks()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
 
         engine.TickOneSecond();
         engine.TickOneSecond();
 
         Assert.Equal(2, engine.StepTrace.LastSecond);
         Assert.Equal(engine.Scenario!.ElapsedSeconds, engine.StepTrace.LastSecond);
-        foreach (var id in Enum.GetValues<StepId>())
+        foreach (StepId id in Enum.GetValues<StepId>())
         {
             int expected = id == StepId.Physics ? SimulationEngine.PhysicsSubTickRate : 1;
             Assert.Equal(expected, engine.StepTrace.CountInLastSecond(id));
@@ -116,8 +116,8 @@ public class SpineTraceTests
     [Fact]
     public void ReplayOneSubTick_TimesFour_MatchesReplayOneSecond()
     {
-        var whole = BuildEngine();
-        var split = BuildEngine();
+        SimulationEngine whole = BuildEngine();
+        SimulationEngine split = BuildEngine();
         whole.ArmReplay([]);
         split.ArmReplay([]);
 
@@ -139,7 +139,7 @@ public class SpineTraceTests
     [Fact]
     public void Digest_ChangesWithTheSecond_AndWithTheSequence()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
 
         engine.TickOneSecond();
         ulong first = engine.StepTrace.LastDigest;
@@ -150,7 +150,7 @@ public class SpineTraceTests
 
         // Two engines at the same second with the same sequence digest identically — the digest is a function of
         // the trace, not of the engine.
-        var other = BuildEngine();
+        SimulationEngine other = BuildEngine();
         other.TickOneSecond();
         Assert.Equal(first, other.StepTrace.LastDigest);
     }

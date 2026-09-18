@@ -58,10 +58,10 @@ public static class FavoriteExport
     /// <summary>Writes one set and its referenced favorites as a zip. Throws when the set id is unknown.</summary>
     public static void ExportSet(FavoriteStore store, string setId, Stream output)
     {
-        var set = store.GetSet(setId) ?? throw new ArgumentException($"Unknown favorite set id '{setId}'", nameof(setId));
+        FavoriteSet set = store.GetSet(setId) ?? throw new ArgumentException($"Unknown favorite set id '{setId}'", nameof(setId));
         using var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true);
         WriteEntry(zip, "set.json", set);
-        foreach (var favorite in store.GetSetFavorites(set.Id))
+        foreach (FavoriteCommand favorite in store.GetSetFavorites(set.Id))
         {
             WriteEntry(zip, FavoriteEntryName(favorite), favorite);
         }
@@ -72,13 +72,13 @@ public static class FavoriteExport
     {
         using var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true);
         WriteEntry(zip, "library.json", new LibraryManifest { LoadedSetIds = [.. loadedSetIds] });
-        foreach (var set in store.OrderedSets)
+        foreach (FavoriteSet set in store.OrderedSets)
         {
-            var stem = FavoriteStore.SanitizeFileName(set.DisplayName, "set");
+            string stem = FavoriteStore.SanitizeFileName(set.DisplayName, "set");
             WriteEntry(zip, $"sets/{stem}.{set.Id}.json", set);
         }
 
-        foreach (var favorite in store.AllFavorites.OrderBy(f => f.Label, StringComparer.OrdinalIgnoreCase))
+        foreach (FavoriteCommand? favorite in store.AllFavorites.OrderBy(f => f.Label, StringComparer.OrdinalIgnoreCase))
         {
             WriteEntry(zip, FavoriteEntryName(favorite), favorite);
         }
@@ -103,7 +103,7 @@ public static class FavoriteExport
         try
         {
             using var zip = new ZipArchive(input, ZipArchiveMode.Read, leaveOpen: true);
-            foreach (var entry in zip.Entries.Where(e => e.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)))
+            foreach (ZipArchiveEntry? entry in zip.Entries.Where(e => e.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)))
             {
                 using var reader = new StreamReader(entry.Open());
                 if (TryParseObject(reader.ReadToEnd()) is { } root)
@@ -121,7 +121,7 @@ public static class FavoriteExport
         var favorites = new List<FavoriteCommand>();
         var sets = new List<FavoriteSet>();
         var manifest = default(LibraryManifest);
-        foreach (var (name, root) in entries)
+        foreach ((string? name, JsonObject? root) in entries)
         {
             if (string.Equals(Path.GetFileName(name), "library.json", StringComparison.OrdinalIgnoreCase))
             {
@@ -145,7 +145,7 @@ public static class FavoriteExport
             return null;
         }
 
-        var loadedSetIds = manifest?.LoadedSetIds ?? SetIdsToLoadWithoutManifest(sets, mode);
+        List<string> loadedSetIds = manifest?.LoadedSetIds ?? SetIdsToLoadWithoutManifest(sets, mode);
         ClearWhenReplacing(store, mode);
         return Merge(store, favorites, sets, loadedSetIds, addLoneFavoritesToGlobal: sets.Count == 0);
     }
@@ -165,7 +165,7 @@ public static class FavoriteExport
                 return null;
             }
 
-            var loadedSetIds = SetIdsToLoadWithoutManifest([set], mode);
+            List<string> loadedSetIds = SetIdsToLoadWithoutManifest([set], mode);
             ClearWhenReplacing(store, mode);
             return Merge(store, [], [set], loadedSetIds, addLoneFavoritesToGlobal: false);
         }
@@ -205,11 +205,11 @@ public static class FavoriteExport
         bool addLoneFavoritesToGlobal
     )
     {
-        var favoritesAdded = 0;
-        var favoritesUpdated = 0;
-        foreach (var favorite in favorites)
+        int favoritesAdded = 0;
+        int favoritesUpdated = 0;
+        foreach (FavoriteCommand favorite in favorites)
         {
-            var isNew = string.IsNullOrWhiteSpace(favorite.Id) || store.GetFavorite(favorite.Id) is null;
+            bool isNew = string.IsNullOrWhiteSpace(favorite.Id) || store.GetFavorite(favorite.Id) is null;
             store.SaveFavorite(favorite);
             if (isNew)
             {
@@ -225,11 +225,11 @@ public static class FavoriteExport
             }
         }
 
-        var setsAdded = 0;
-        var setsUpdated = 0;
-        var missing = 0;
+        int setsAdded = 0;
+        int setsUpdated = 0;
+        int missing = 0;
         var newSetIdsToLoad = new List<string>();
-        foreach (var incoming in sets)
+        foreach (FavoriteSet incoming in sets)
         {
             missing += incoming.FavoriteIds.Count(id => store.GetFavorite(id) is null);
             switch (incoming.Kind)
@@ -247,7 +247,7 @@ public static class FavoriteExport
                     setsUpdated++;
                     break;
                 default:
-                    var (set, added) = store.UpsertImportedNamedSet(incoming);
+                    (FavoriteSet? set, bool added) = store.UpsertImportedNamedSet(incoming);
                     if (added)
                     {
                         setsAdded++;
@@ -269,13 +269,13 @@ public static class FavoriteExport
 
     private static string FavoriteEntryName(FavoriteCommand favorite)
     {
-        var stem = FavoriteStore.SanitizeFileName(favorite.IsSpacer ? "blank" : favorite.Label, "favorite");
+        string stem = FavoriteStore.SanitizeFileName(favorite.IsSpacer ? "blank" : favorite.Label, "favorite");
         return $"favorites/{stem}.{favorite.Id}.json";
     }
 
     private static void WriteEntry<T>(ZipArchive zip, string entryName, T entity)
     {
-        var entry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
+        ZipArchiveEntry entry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
         using var writer = new StreamWriter(entry.Open());
         writer.Write(JsonSerializer.Serialize(entity, JsonOptions));
     }

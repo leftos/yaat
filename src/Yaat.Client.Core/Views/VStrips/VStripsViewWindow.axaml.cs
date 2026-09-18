@@ -25,8 +25,8 @@ public partial class VStripsViewWindow : Window, IAlwaysOnTopToggle
     {
         InitializeComponent();
 
-        var geometryKey = !string.IsNullOrEmpty(facilityIdForGeometry) ? $"VStripsView:{facilityIdForGeometry}" : "VStripsView";
-        var hasSavedGeometry = preferences.GetWindowGeometry(geometryKey) is not null;
+        string geometryKey = !string.IsNullOrEmpty(facilityIdForGeometry) ? $"VStripsView:{facilityIdForGeometry}" : "VStripsView";
+        bool hasSavedGeometry = preferences.GetWindowGeometry(geometryKey) is not null;
         _geometryHelper = new WindowGeometryHelper(this, preferences, geometryKey, 1000, 600);
         _geometryHelper.Restore();
 
@@ -34,7 +34,7 @@ public partial class VStripsViewWindow : Window, IAlwaysOnTopToggle
         // so the Settings checkbox affects newly opened facility-scoped windows too.
         if (!hasSavedGeometry && !string.IsNullOrEmpty(facilityIdForGeometry))
         {
-            var globalGeometry = preferences.GetWindowGeometry("VStripsView");
+            SavedWindowGeometry? globalGeometry = preferences.GetWindowGeometry("VStripsView");
             if (globalGeometry?.IsTopmost == true)
             {
                 Topmost = true;

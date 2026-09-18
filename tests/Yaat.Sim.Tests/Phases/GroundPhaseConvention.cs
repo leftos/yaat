@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using Xunit;
 
 namespace Yaat.Sim.Tests;
@@ -23,7 +24,7 @@ public sealed class GroundPhaseConvention
     [Fact]
     public void EveryGroundMotionPhase_ReferencesIsImmobile()
     {
-        var dir = LocateGroundPhasesDir();
+        string dir = LocateGroundPhasesDir();
         Assert.False(string.IsNullOrEmpty(dir), "Could not locate src/Yaat.Sim/Phases/Ground/ relative to test output dir");
 
         var stationaryWhitelist = new HashSet<string>(System.StringComparer.Ordinal)
@@ -43,15 +44,15 @@ public sealed class GroundPhaseConvention
         };
 
         var violations = new List<string>();
-        foreach (var file in Directory.GetFiles(dir, "*.cs"))
+        foreach (string file in Directory.GetFiles(dir, "*.cs"))
         {
-            var name = Path.GetFileName(file);
+            string name = Path.GetFileName(file);
             if (stationaryWhitelist.Contains(name) || nonPhaseHelpers.Contains(name))
             {
                 continue;
             }
 
-            var source = File.ReadAllText(file);
+            string source = File.ReadAllText(file);
             if (!source.Contains("IsImmobile", System.StringComparison.Ordinal))
             {
                 violations.Add(name);
@@ -86,11 +87,11 @@ public sealed class GroundPhaseConvention
         };
 
         var actual = new HashSet<string>(System.StringComparer.Ordinal);
-        foreach (var type in typeof(Yaat.Sim.Phases.Phase).Assembly.GetTypes())
+        foreach (Type type in typeof(Yaat.Sim.Phases.Phase).Assembly.GetTypes())
         {
             if (!type.IsAbstract && typeof(Yaat.Sim.Phases.Phase).IsAssignableFrom(type))
             {
-                var prop = type.GetProperty(nameof(Yaat.Sim.Phases.Phase.IsIdleAwaitingCommands));
+                PropertyInfo? prop = type.GetProperty(nameof(Yaat.Sim.Phases.Phase.IsIdleAwaitingCommands));
                 if (prop?.DeclaringType == type)
                 {
                     actual.Add(type.Name);
@@ -113,7 +114,7 @@ public sealed class GroundPhaseConvention
         var dir = new DirectoryInfo(System.AppContext.BaseDirectory);
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, "src", "Yaat.Sim", "Phases", "Ground");
+            string candidate = Path.Combine(dir.FullName, "src", "Yaat.Sim", "Phases", "Ground");
             if (Directory.Exists(candidate))
             {
                 return candidate;

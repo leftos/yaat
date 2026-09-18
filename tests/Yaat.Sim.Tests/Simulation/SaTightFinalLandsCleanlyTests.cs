@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
@@ -33,7 +34,7 @@ public class SaTightFinalLandsCleanlyTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -61,8 +62,8 @@ public class SaTightFinalLandsCleanlyTests(ITestOutputHelper output)
     [Fact]
     public void N9225L_ShortApproach_LandsWithoutGoAround()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -85,14 +86,14 @@ public class SaTightFinalLandsCleanlyTests(ITestOutputHelper output)
         {
             engine.ReplayOneSecond();
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             if (ac is null)
             {
                 output.WriteLine($"t={t}: aircraft despawned");
                 break;
             }
 
-            var phases = ac.Phases?.Phases;
+            List<Phase>? phases = ac.Phases?.Phases;
             if (phases is null)
             {
                 continue;
@@ -108,7 +109,7 @@ public class SaTightFinalLandsCleanlyTests(ITestOutputHelper output)
                 break;
             }
 
-            var current = ac.Phases?.CurrentPhase;
+            Phase? current = ac.Phases?.CurrentPhase;
             string currentName = current?.GetType().Name ?? "(none)";
             if (currentName != lastPhaseLogged)
             {

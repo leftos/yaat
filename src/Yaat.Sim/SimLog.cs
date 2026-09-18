@@ -50,7 +50,7 @@ public static class SimLog
     {
         private ILogger Resolve()
         {
-            var factory = _scopedFactory.Value ?? _staticFactory ?? NullLoggerFactory.Instance;
+            ILoggerFactory factory = _scopedFactory.Value ?? _staticFactory ?? NullLoggerFactory.Instance;
             return factory.CreateLogger(category);
         }
 

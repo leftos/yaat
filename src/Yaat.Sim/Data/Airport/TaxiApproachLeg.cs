@@ -65,7 +65,7 @@ public static class TaxiApproachLeg
             return route;
         }
 
-        var from = route.Segments[0].Edge.FromNode;
+        GroundNode from = route.Segments[0].Edge.FromNode;
         double distFt = GeoMath.DistanceNm(position, from.Position) * GeoMath.FeetPerNm;
 
         string? refusal = Refusal(layout, position, heading, route, from, distFt);
@@ -75,7 +75,7 @@ public static class TaxiApproachLeg
             return route;
         }
 
-        var leg = VirtualNode.CreateSegment(VirtualNode.Create(position.Lat, position.Lon), from, "RAMP");
+        TaxiRouteSegment leg = VirtualNode.CreateSegment(VirtualNode.Create(position.Lat, position.Lon), from, "RAMP");
         Log.LogDebug("[ApproachLeg] prepended {DistFt:F0} ft free-space leg to node {NodeId}", distFt, from.Id);
 
         return new TaxiRoute
@@ -147,7 +147,7 @@ public static class TaxiApproachLeg
             return null;
         }
 
-        foreach (var edge in from.Edges)
+        foreach (IGroundEdge edge in from.Edges)
         {
             if (!edge.IsRunwayCenterline || (RunwayForEdge(layout, edge) is not { } runway))
             {
@@ -184,7 +184,7 @@ public static class TaxiApproachLeg
     /// </summary>
     private static GroundRunway? RunwayForEdge(AirportGroundLayout layout, IGroundEdge edge)
     {
-        foreach (var runway in layout.Runways)
+        foreach (GroundRunway runway in layout.Runways)
         {
             if (edge.MatchesRunway(runway.Id.End1) || edge.MatchesRunway(runway.Id.End2))
             {

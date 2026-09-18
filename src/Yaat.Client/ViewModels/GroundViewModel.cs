@@ -11,6 +11,7 @@ using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Pathfinding;
 
 namespace Yaat.Client.ViewModels;
 
@@ -365,7 +366,12 @@ public partial class GroundViewModel : ObservableObject
         {
             try
             {
-                var image = await _towerCabImageService.GetImageAsync(_vnasConfigService.TowerCabImagesBaseUrl, artccId, airportId, highRes: true);
+                TowerCabImage? image = await _towerCabImageService.GetImageAsync(
+                    _vnasConfigService.TowerCabImagesBaseUrl,
+                    artccId,
+                    airportId,
+                    highRes: true
+                );
                 BackgroundImage = image;
                 if (image is not null)
                 {
@@ -383,10 +389,10 @@ public partial class GroundViewModel : ObservableObject
         {
             try
             {
-                var videoMapId = await GetTowerCabVideoMapIdAsync(artccId, airportId);
+                string? videoMapId = await GetTowerCabVideoMapIdAsync(artccId, airportId);
                 if (videoMapId is not null)
                 {
-                    var mapData = await DownloadAndParseTowerCabMapAsync(_vnasConfigService.VideoMapBaseUrl, artccId, videoMapId);
+                    TowerCabMapData? mapData = await DownloadAndParseTowerCabMapAsync(_vnasConfigService.VideoMapBaseUrl, artccId, videoMapId);
                     TowerCabMap = mapData;
                     if (mapData is not null)
                     {
@@ -418,11 +424,13 @@ public partial class GroundViewModel : ObservableObject
 
     private async Task<TowerCabMapData?> DownloadAndParseTowerCabMapAsync(string videoMapBaseUrl, string artccId, string videoMapId)
     {
-        var cachePath = Path.Combine(YaatPaths.Combine("cache", "towercab-maps", artccId), $"{videoMapId}.geojson");
-        var url = $"{videoMapBaseUrl}/{artccId}/{videoMapId}.geojson";
+        string cachePath = Path.Combine(YaatPaths.Combine("cache", "towercab-maps", artccId), $"{videoMapId}.geojson");
+        string url = $"{videoMapBaseUrl}/{artccId}/{videoMapId}.geojson";
 
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        var json = (await HttpFileCache.GetOrRefreshAsync(http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log)).Content;
+        string? json = (
+            await HttpFileCache.GetOrRefreshAsync(http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log)
+        ).Content;
         return json is null ? null : TowerCabMapParser.Parse(json);
     }
 
@@ -537,7 +545,7 @@ public partial class GroundViewModel : ObservableObject
 
         try
         {
-            var dto = await _connection.GetAirportGroundLayoutAsync(airportId);
+            GroundLayoutDto? dto = await _connection.GetAirportGroundLayoutAsync(airportId);
             if (dto is null)
             {
                 _log.LogWarning("No ground layout for airport {Id}", airportId);
@@ -559,7 +567,7 @@ public partial class GroundViewModel : ObservableObject
             {
                 double sumLat = 0,
                     sumLon = 0;
-                foreach (var node in dto.Nodes)
+                foreach (GroundNodeDto node in dto.Nodes)
                 {
                     sumLat += node.Latitude;
                     sumLon += node.Longitude;
@@ -573,7 +581,7 @@ public partial class GroundViewModel : ObservableObject
 
             _activeAirportId = airportId;
             ShownAirportChanged?.Invoke();
-            var savedRotation = Preferences?.GetGroundRotation(airportId);
+            double? savedRotation = Preferences?.GetGroundRotation(airportId);
             if (savedRotation.HasValue)
             {
                 _isRestoring = true;
@@ -700,7 +708,7 @@ public partial class GroundViewModel : ObservableObject
 
     private void CopyLayoutFrom(GroundViewModel source)
     {
-        var layoutChanged = !ReferenceEquals(Layout, source.Layout);
+        bool layoutChanged = !ReferenceEquals(Layout, source.Layout);
 
         _domainLayout = source._domainLayout;
         _activeAirportId = source._activeAirportId;
@@ -783,7 +791,7 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        var saved = Preferences.GetGroundSettings(key);
+        SavedGroundSettings? saved = Preferences.GetGroundSettings(key);
         if (saved is null)
         {
             return;
@@ -795,7 +803,7 @@ public partial class GroundViewModel : ObservableObject
     public void UpdateAircraftList(IEnumerable<AircraftModel> allAircraft)
     {
         GroundAircraft.Clear();
-        foreach (var ac in allAircraft)
+        foreach (AircraftModel ac in allAircraft)
         {
             if (ac.IsOnGround)
             {
@@ -832,8 +840,8 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     public string BuildDrawRouteCopyCommand(TaxiRoute route, TaxiSpotDestination? spot)
     {
-        var readablePath = TaxiRouteFormatter.BuildReadableTaxiPath(route, hasNamedTerminus: spot is not null);
-        var variants = BuildTaxiCrossingVariants(route, spot: spot, pathOverride: readablePath);
+        string readablePath = TaxiRouteFormatter.BuildReadableTaxiPath(route, hasNamedTerminus: spot is not null);
+        List<(string Label, string Command, TaxiRoute Preview)> variants = BuildTaxiCrossingVariants(route, spot: spot, pathOverride: readablePath);
         return variants.Count > 0 ? variants[^1].Command : $"TAXI {readablePath}{(spot is not null ? $" {spot.Token}" : "")}";
     }
 
@@ -844,7 +852,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        var node = _domainLayout.FindNearestNode(position);
+        GroundNode? node = _domainLayout.FindNearestNode(position);
         return node?.Id;
     }
 
@@ -855,7 +863,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        var node = _domainLayout.FindNearestNode(ac.Position);
+        GroundNode? node = _domainLayout.FindNearestNode(ac.Position);
         return node?.Id;
     }
 
@@ -866,13 +874,13 @@ public partial class GroundViewModel : ObservableObject
 
     public List<string> GetNodeTaxiwayNames(int nodeId)
     {
-        if (_domainLayout is null || !_domainLayout.Nodes.TryGetValue(nodeId, out var node))
+        if (_domainLayout is null || !_domainLayout.Nodes.TryGetValue(nodeId, out GroundNode? node))
         {
             return [];
         }
 
         var names = new List<string>();
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (!edge.IsRunwayCenterline && !edge.IsRamp && !names.Contains(edge.TaxiwayName))
             {
@@ -892,20 +900,20 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        var fromNodeId = GetAircraftNearestNodeId(SelectedAircraft);
+        int? fromNodeId = GetAircraftNearestNodeId(SelectedAircraft);
         if (fromNodeId is null)
         {
             return;
         }
 
-        var route = FindRouteToNode(fromNodeId.Value, toNodeId, CategoryFor(SelectedAircraft));
+        TaxiRoute? route = FindRouteToNode(fromNodeId.Value, toNodeId, CategoryFor(SelectedAircraft));
         if (route is null)
         {
             _log.LogWarning("No route from node {From} to {To}", fromNodeId, toNodeId);
             return;
         }
 
-        var taxiways = BuildTaxiCommand(route);
+        string taxiways = BuildTaxiCommand(route);
         if (string.IsNullOrEmpty(taxiways))
         {
             return;
@@ -941,7 +949,7 @@ public partial class GroundViewModel : ObservableObject
 
     public async Task ClearedForTakeoffAsync(string callsign, string initials, string? arg)
     {
-        var cmd = string.IsNullOrWhiteSpace(arg) ? "CTO" : $"CTO {arg.Trim()}";
+        string cmd = string.IsNullOrWhiteSpace(arg) ? "CTO" : $"CTO {arg.Trim()}";
         await _sendCommand(callsign, cmd, initials);
     }
 
@@ -1052,8 +1060,8 @@ public partial class GroundViewModel : ObservableObject
         string? pathOverride
     )
     {
-        var taxiways = pathOverride ?? BuildTaxiCommand(route);
-        var spotSuffix = spot is not null ? $" {spot.Token}" : "";
+        string taxiways = pathOverride ?? BuildTaxiCommand(route);
+        string spotSuffix = spot is not null ? $" {spot.Token}" : "";
 
         if (string.IsNullOrEmpty(taxiways))
         {
@@ -1067,7 +1075,7 @@ public partial class GroundViewModel : ObservableObject
         }
 
         var crossingHoldShorts = new List<(string RwyName, HoldShortPoint Hs)>();
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             if (hs.Reason == HoldShortReason.RunwayCrossing && hs.TargetName is not null)
             {
@@ -1083,21 +1091,21 @@ public partial class GroundViewModel : ObservableObject
         var results = new List<(string Label, string Command, TaxiRoute Preview)>();
 
         // Variation 0: hold short of first crossing
-        var firstHs = crossingHoldShorts[0];
+        (string RwyName, HoldShortPoint Hs) firstHs = crossingHoldShorts[0];
         results.Add(($"HS {firstHs.RwyName}", $"TAXI {taxiways}{spotSuffix} HS {firstHs.RwyName}", route.TruncateAt(firstHs.Hs.NodeId)));
 
         // Variations 1..N-1: cross some, hold short of next
         for (int i = 0; i < crossingHoldShorts.Count - 1; i++)
         {
-            var crossParts = crossingHoldShorts.Take(i + 1).Select(c => $"CROSS {c.RwyName}");
-            var holdEntry = crossingHoldShorts[i + 1];
-            var label = $"CROSS {string.Join(" ", crossingHoldShorts.Take(i + 1).Select(c => c.RwyName))} HS {holdEntry.RwyName}";
-            var cmd = $"TAXI {taxiways}{spotSuffix} HS {holdEntry.RwyName}, {string.Join(", ", crossParts)}";
+            IEnumerable<string> crossParts = crossingHoldShorts.Take(i + 1).Select(c => $"CROSS {c.RwyName}");
+            (string RwyName, HoldShortPoint Hs) holdEntry = crossingHoldShorts[i + 1];
+            string label = $"CROSS {string.Join(" ", crossingHoldShorts.Take(i + 1).Select(c => c.RwyName))} HS {holdEntry.RwyName}";
+            string cmd = $"TAXI {taxiways}{spotSuffix} HS {holdEntry.RwyName}, {string.Join(", ", crossParts)}";
             results.Add((label, cmd, route.TruncateAt(holdEntry.Hs.NodeId)));
         }
 
         // Variation N: cross all
-        var allCrossParts = crossingHoldShorts.Select(c => $"CROSS {c.RwyName}");
+        IEnumerable<string> allCrossParts = crossingHoldShorts.Select(c => $"CROSS {c.RwyName}");
         results.Add(
             (
                 $"CROSS {string.Join(" ", crossingHoldShorts.Select(c => c.RwyName))}",
@@ -1124,8 +1132,8 @@ public partial class GroundViewModel : ObservableObject
         TaxiSpotDestination? spot
     )
     {
-        var taxiways = BuildTaxiCommand(route);
-        var spotSuffix = spot is not null ? $" {spot.Token}" : "";
+        string taxiways = BuildTaxiCommand(route);
+        string spotSuffix = spot is not null ? $" {spot.Token}" : "";
 
         if (string.IsNullOrEmpty(taxiways))
         {
@@ -1133,14 +1141,14 @@ public partial class GroundViewModel : ObservableObject
         }
 
         // Find the destination hold-short node (last segment's ToNodeId is the dest)
-        var destHsNodeId = route.Segments.Count > 0 ? route.Segments[^1].ToNodeId : -1;
+        int destHsNodeId = route.Segments.Count > 0 ? route.Segments[^1].ToNodeId : -1;
 
         var crossingHoldShorts = new List<(string RwyName, HoldShortPoint Hs)>();
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             if (hs.Reason == HoldShortReason.RunwayCrossing && hs.TargetName is not null)
             {
-                var rwyName = RunwayIdentifier.Parse(hs.TargetName).End1;
+                string rwyName = RunwayIdentifier.Parse(hs.TargetName).End1;
                 if (!string.Equals(rwyName, destRunway, StringComparison.OrdinalIgnoreCase))
                 {
                     crossingHoldShorts.Add((rwyName, hs));
@@ -1161,7 +1169,7 @@ public partial class GroundViewModel : ObservableObject
         // --- RWY variants: progressive crossings with runway assignment ---
 
         // Hold short of first crossing
-        var firstHs = crossingHoldShorts[0];
+        (string RwyName, HoldShortPoint Hs) firstHs = crossingHoldShorts[0];
         results.Add(
             (
                 $"For Departure {destRunway}, HS {firstHs.RwyName}",
@@ -1173,16 +1181,16 @@ public partial class GroundViewModel : ObservableObject
         // Cross some, hold short of next
         for (int i = 0; i < crossingHoldShorts.Count - 1; i++)
         {
-            var crossParts = crossingHoldShorts.Take(i + 1).Select(c => $"CROSS {c.RwyName}");
-            var holdEntry = crossingHoldShorts[i + 1];
-            var label =
+            IEnumerable<string> crossParts = crossingHoldShorts.Take(i + 1).Select(c => $"CROSS {c.RwyName}");
+            (string RwyName, HoldShortPoint Hs) holdEntry = crossingHoldShorts[i + 1];
+            string label =
                 $"For Departure {destRunway}, CROSS {string.Join(" ", crossingHoldShorts.Take(i + 1).Select(c => c.RwyName))}, HS {holdEntry.RwyName}";
-            var cmd = $"TAXI {taxiways}{spotSuffix} HS {holdEntry.RwyName} RWY {destRunway}, {string.Join(", ", crossParts)}";
+            string cmd = $"TAXI {taxiways}{spotSuffix} HS {holdEntry.RwyName} RWY {destRunway}, {string.Join(", ", crossParts)}";
             results.Add((label, cmd, route.TruncateAt(holdEntry.Hs.NodeId)));
         }
 
         // Cross all, arrive at destination with RWY assignment
-        var allCross = crossingHoldShorts.Select(c => $"CROSS {c.RwyName}");
+        IEnumerable<string> allCross = crossingHoldShorts.Select(c => $"CROSS {c.RwyName}");
         results.Add(
             (
                 $"For Departure {destRunway}, CROSS {string.Join(" ", crossingHoldShorts.Select(c => c.RwyName))}",
@@ -1201,10 +1209,10 @@ public partial class GroundViewModel : ObservableObject
         // Cross some, hold short of next
         for (int i = 0; i < crossingHoldShorts.Count - 1; i++)
         {
-            var crossParts = crossingHoldShorts.Take(i + 1).Select(c => $"CROSS {c.RwyName}");
-            var holdEntry = crossingHoldShorts[i + 1];
-            var label = $"CROSS {string.Join(" ", crossingHoldShorts.Take(i + 1).Select(c => c.RwyName))}, HS {holdEntry.RwyName}";
-            var cmd = $"TAXI {taxiways}{spotSuffix} HS {holdEntry.RwyName}, {string.Join(", ", crossParts)}";
+            IEnumerable<string> crossParts = crossingHoldShorts.Take(i + 1).Select(c => $"CROSS {c.RwyName}");
+            (string RwyName, HoldShortPoint Hs) holdEntry = crossingHoldShorts[i + 1];
+            string label = $"CROSS {string.Join(" ", crossingHoldShorts.Take(i + 1).Select(c => c.RwyName))}, HS {holdEntry.RwyName}";
+            string cmd = $"TAXI {taxiways}{spotSuffix} HS {holdEntry.RwyName}, {string.Join(", ", crossParts)}";
             results.Add((label, cmd, route.TruncateAt(holdEntry.Hs.NodeId)));
         }
 
@@ -1222,7 +1230,7 @@ public partial class GroundViewModel : ObservableObject
 
     public string GetTaxiwayDisplayName(TaxiRoute route)
     {
-        var names = TaxiRouteFormatter.CleanTaxiwaySequence(route);
+        List<string> names = TaxiRouteFormatter.CleanTaxiwaySequence(route);
         return names.Count > 0 ? $"via {string.Join(" ", names)}" : "direct";
     }
 
@@ -1240,26 +1248,26 @@ public partial class GroundViewModel : ObservableObject
             return [];
         }
 
-        var nodeId = GetAircraftNearestNodeId(ac);
-        if (nodeId is null || !_domainLayout.Nodes.TryGetValue(nodeId.Value, out var node))
+        int? nodeId = GetAircraftNearestNodeId(ac);
+        if (nodeId is null || !_domainLayout.Nodes.TryGetValue(nodeId.Value, out GroundNode? node))
         {
             return [];
         }
 
         var directions = new List<(string Label, string Cardinal)>();
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             int otherId = edge.OtherNodeId(nodeId.Value);
 
-            if (!_domainLayout.Nodes.TryGetValue(otherId, out var otherNode))
+            if (!_domainLayout.Nodes.TryGetValue(otherId, out GroundNode? otherNode))
             {
                 continue;
             }
 
-            var trueBearing = GeoMath.BearingTo(node.Position, otherNode.Position);
-            var magnetic = MagneticDeclination.TrueToMagnetic(trueBearing, node.Position);
+            double trueBearing = GeoMath.BearingTo(node.Position, otherNode.Position);
+            double magnetic = MagneticDeclination.TrueToMagnetic(trueBearing, node.Position);
 
-            var label = edge.TaxiwayName;
+            string label = edge.TaxiwayName;
             if (!string.Equals(label, "RAMP", StringComparison.OrdinalIgnoreCase))
             {
                 directions.Add(($"face {label}", SnapToCardinal(magnetic)));
@@ -1274,7 +1282,7 @@ public partial class GroundViewModel : ObservableObject
     /// <summary>Snaps a magnetic bearing in degrees to the nearest 8-point compass cardinal.</summary>
     private static string SnapToCardinal(double magneticDeg)
     {
-        var normalized = ((magneticDeg % 360.0) + 360.0) % 360.0;
+        double normalized = ((magneticDeg % 360.0) + 360.0) % 360.0;
         int bucket = (int)Math.Round(normalized / 45.0) % 8;
         return Cardinals[bucket];
     }
@@ -1287,13 +1295,13 @@ public partial class GroundViewModel : ObservableObject
         }
 
         // Resolve the actual remaining path from the aircraft's position
-        var route = ResolveRemainingRoute(ac);
+        TaxiRoute? route = ResolveRemainingRoute(ac);
         if (route is null || route.Segments.Count == 0)
         {
             return [];
         }
 
-        var routeTaxiways = ParseRouteTaxiways(ac.TaxiRoute);
+        List<string> routeTaxiways = ParseRouteTaxiways(ac.TaxiRoute);
         var routeSet = new HashSet<string>(routeTaxiways, StringComparer.OrdinalIgnoreCase);
 
         // Per target: the distinct route taxiways it is crossed ON, in route order. A target the
@@ -1306,7 +1314,7 @@ public partial class GroundViewModel : ObservableObject
 
         static void Record(Dictionary<string, List<string?>> map, string target, string? location)
         {
-            if (!map.TryGetValue(target, out var locations))
+            if (!map.TryGetValue(target, out List<string?>? locations))
             {
                 locations = [];
                 map[target] = locations;
@@ -1320,7 +1328,7 @@ public partial class GroundViewModel : ObservableObject
 
         void ScanNode(int nodeId, string? location)
         {
-            if (!_domainLayout.Nodes.TryGetValue(nodeId, out var node))
+            if (!_domainLayout.Nodes.TryGetValue(nodeId, out GroundNode? node))
             {
                 return;
             }
@@ -1334,9 +1342,9 @@ public partial class GroundViewModel : ObservableObject
                 }
             }
 
-            foreach (var adj in node.Edges)
+            foreach (IGroundEdge adj in node.Edges)
             {
-                var name = adj.TaxiwayName;
+                string name = adj.TaxiwayName;
                 if (routeSet.Contains(name) || adj.IsRunwayCenterline || adj.IsRamp)
                 {
                     continue;
@@ -1349,7 +1357,7 @@ public partial class GroundViewModel : ObservableObject
         }
 
         ScanNode(route.Segments[0].FromNodeId, ArrivingTaxiway(route.Segments[0]));
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             ScanNode(seg.ToNodeId, ArrivingTaxiway(seg));
         }
@@ -1370,12 +1378,12 @@ public partial class GroundViewModel : ObservableObject
         Func<string, string> displayName
     )
     {
-        foreach (var (target, locations) in crossings.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
+        foreach ((string? target, List<string?>? locations) in crossings.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
         {
             var located = locations.OfType<string>().ToList();
             if (located.Count > 1)
             {
-                foreach (var location in located)
+                foreach (string? location in located)
                 {
                     results.Add(($"{displayName(target)} at {location}", $"{target}@{location}"));
                 }
@@ -1394,7 +1402,7 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     private static string? ArrivingTaxiway(TaxiRouteSegment seg)
     {
-        foreach (var name in seg.TaxiwayName.Split(" - ", StringSplitOptions.RemoveEmptyEntries))
+        foreach (string name in seg.TaxiwayName.Split(" - ", StringSplitOptions.RemoveEmptyEntries))
         {
             if (!name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) && !string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
             {
@@ -1420,7 +1428,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        var fromNodeId = GetAircraftNearestNodeId(ac);
+        int? fromNodeId = GetAircraftNearestNodeId(ac);
         if (fromNodeId is null)
         {
             return null;
@@ -1429,7 +1437,7 @@ public partial class GroundViewModel : ObservableObject
         int? bestNodeId = null;
         double bestCostNm = double.MaxValue;
 
-        foreach (var node in _domainLayout.Nodes.Values)
+        foreach (GroundNode node in _domainLayout.Nodes.Values)
         {
             if (node.Type != GroundNodeType.RunwayHoldShort)
             {
@@ -1441,14 +1449,14 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            var route = TaxiPathfinder.FindRoute(_domainLayout, fromNodeId.Value, node.Id, CategoryFor(ac));
+            TaxiRoute? route = TaxiPathfinder.FindRoute(_domainLayout, fromNodeId.Value, node.Id, CategoryFor(ac));
             if (route is null)
             {
                 continue;
             }
 
             double costNm = 0;
-            foreach (var seg in route.Segments)
+            foreach (TaxiRouteSegment seg in route.Segments)
             {
                 costNm += seg.Edge.DistanceNm;
             }
@@ -1470,23 +1478,23 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        var route = ResolveRemainingRoute(ac);
+        TaxiRoute? route = ResolveRemainingRoute(ac);
         if (route is null)
         {
             return null;
         }
 
-        if (!HoldShortTarget.TryParse(target, out var holdShort, out _))
+        if (!HoldShortTarget.TryParse(target, out HoldShortTarget holdShort, out _))
         {
             return null;
         }
 
         for (int i = 0; i < route.Segments.Count; i++)
         {
-            var seg = route.Segments[i];
+            TaxiRouteSegment seg = route.Segments[i];
             int nodeId = seg.ToNodeId;
 
-            if (!_domainLayout.Nodes.TryGetValue(nodeId, out var node))
+            if (!_domainLayout.Nodes.TryGetValue(nodeId, out GroundNode? node))
             {
                 continue;
             }
@@ -1503,7 +1511,7 @@ public partial class GroundViewModel : ObservableObject
 
             if (!matches)
             {
-                foreach (var edge in node.Edges)
+                foreach (IGroundEdge edge in node.Edges)
                 {
                     if (edge.MatchesTaxiway(holdShort.Target))
                     {
@@ -1529,13 +1537,13 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        var routeTaxiways = ParseRouteTaxiways(ac.TaxiRoute);
+        List<string> routeTaxiways = ParseRouteTaxiways(ac.TaxiRoute);
         if (routeTaxiways.Count == 0)
         {
             return null;
         }
 
-        var nodeId = GetAircraftNearestNodeId(ac);
+        int? nodeId = GetAircraftNearestNodeId(ac);
         if (nodeId is null)
         {
             return null;
@@ -1556,14 +1564,21 @@ public partial class GroundViewModel : ObservableObject
         // The DTO taxiway string omits the held-short runway; AssignedRunway carries it, and is set
         // by the taxi clearance only when the route ends at a runway (empty for taxi-to-parking).
         // A parking / spot destination arrives separately so the reconstruction ends at the stand.
-        var destination = FindTaxiDestinationNode(_domainLayout, ac.TaxiDestination);
+        GroundNode? destination = FindTaxiDestinationNode(_domainLayout, ac.TaxiDestination);
         var options = new ExplicitPathOptions
         {
             DestinationRunway = string.IsNullOrEmpty(ac.AssignedRunway) ? null : ac.AssignedRunway,
             DestinationHintNode = destination,
         };
-        var category = CategoryFor(ac);
-        var route = TaxiPathfinder.ResolveExplicitPathDetailed(_domainLayout, nodeId.Value, routeTaxiways, out var failure, options, category);
+        AircraftCategory category = CategoryFor(ac);
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPathDetailed(
+            _domainLayout,
+            nodeId.Value,
+            routeTaxiways,
+            out PathfindingFailure? failure,
+            options,
+            category
+        );
         if ((route is not null) && !StartsWithReversal(route, ac.Heading))
         {
             // The server replaces a route that reaches the stand only the long way round (SFO $5A: down T5, out to
@@ -1582,7 +1597,7 @@ public partial class GroundViewModel : ObservableObject
         // Reconstruct the same free-space leg the server planned so the overlay follows the crossing.
         if (failure is not null)
         {
-            var plan = RampLaneReposition.TryPlan(
+            RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
                 _domainLayout,
                 ac.Position,
                 ac.Heading,
@@ -1607,7 +1622,14 @@ public partial class GroundViewModel : ObservableObject
             return WithApproachLeg(route, ac.Position, ac.Heading);
         }
 
-        var cut = RampLaneReposition.TryPlanDestinationCut(_domainLayout, nodeId.Value, routeTaxiways, destination, options, category);
+        RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanDestinationCut(
+            _domainLayout,
+            nodeId.Value,
+            routeTaxiways,
+            destination,
+            options,
+            category
+        );
         return cut is not null ? cut.Route : WithApproachLeg(route, ac.Position, ac.Heading);
     }
 
@@ -1653,7 +1675,7 @@ public partial class GroundViewModel : ObservableObject
         }
 
         var result = new List<string>();
-        foreach (var part in taxiRoute.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        foreach (string part in taxiRoute.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
             // Stop at "HS" marker — everything after is hold-short metadata
             if (string.Equals(part, "HS", StringComparison.OrdinalIgnoreCase))
@@ -1713,7 +1735,7 @@ public partial class GroundViewModel : ObservableObject
             return false;
         }
 
-        var ac = _findAircraft?.Invoke(callsign);
+        AircraftModel? ac = _findAircraft?.Invoke(callsign);
         return ac is not null && ac.HasActiveTaxiRoute;
     }
 
@@ -1774,7 +1796,7 @@ public partial class GroundViewModel : ObservableObject
         var effective = new List<string>();
         var seen = new HashSet<string>();
 
-        foreach (var callsign in forcedShown)
+        foreach (string callsign in forcedShown)
         {
             if (seen.Add(callsign))
             {
@@ -1784,7 +1806,7 @@ public partial class GroundViewModel : ObservableObject
 
         if (showAll)
         {
-            foreach (var (callsign, hasActiveTaxiRoute) in allAircraft)
+            foreach ((string? callsign, bool hasActiveTaxiRoute) in allAircraft)
             {
                 if (hasActiveTaxiRoute && !forcedHidden.Contains(callsign) && seen.Add(callsign))
                 {
@@ -1815,8 +1837,8 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        var all = _aircraftProvider?.Invoke() ?? [];
-        var effective = ComputeVisibleTaxiRouteCallsigns(
+        IReadOnlyList<AircraftModel> all = _aircraftProvider?.Invoke() ?? [];
+        List<string> effective = ComputeVisibleTaxiRouteCallsigns(
             _shownTaxiRouteCallsigns,
             _taxiRouteHiddenCallsigns,
             ShowAllTaxiRoutes,
@@ -1826,21 +1848,21 @@ public partial class GroundViewModel : ObservableObject
         AllocateRouteColors(effective);
 
         var entries = new List<ShownTaxiRouteEntry>();
-        foreach (var callsign in effective)
+        foreach (string callsign in effective)
         {
-            var ac = _findAircraft?.Invoke(callsign);
+            AircraftModel? ac = _findAircraft?.Invoke(callsign);
             if (ac is null)
             {
                 continue;
             }
 
-            var route = ResolveRemainingRoute(ac);
+            TaxiRoute? route = ResolveRemainingRoute(ac);
             if (route is null || route.Segments.Count == 0)
             {
                 continue;
             }
 
-            var colorIdx = _taxiColorIndices.GetValueOrDefault(callsign, 0);
+            int colorIdx = _taxiColorIndices.GetValueOrDefault(callsign, 0);
             entries.Add(new ShownTaxiRouteEntry(callsign, route, TaxiRouteColors[colorIdx % TaxiRouteColors.Length]));
         }
 
@@ -1857,13 +1879,13 @@ public partial class GroundViewModel : ObservableObject
     {
         var effectiveSet = new HashSet<string>(effective);
         var stale = _taxiColorIndices.Keys.Where(cs => !effectiveSet.Contains(cs)).ToList();
-        foreach (var cs in stale)
+        foreach (string? cs in stale)
         {
             _taxiColorIndices.Remove(cs);
         }
 
         var used = new HashSet<int>(_taxiColorIndices.Values);
-        foreach (var callsign in effective)
+        foreach (string callsign in effective)
         {
             if (_taxiColorIndices.ContainsKey(callsign))
             {
@@ -1901,7 +1923,7 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        var ac = _findAircraft?.Invoke(_hoveredCallsign);
+        AircraftModel? ac = _findAircraft?.Invoke(_hoveredCallsign);
         HoverTaxiRoute = ac is null ? null : ResolveRemainingRoute(ac);
     }
 
@@ -1935,7 +1957,7 @@ public partial class GroundViewModel : ObservableObject
 
     public void StartDrawRoute(AircraftModel aircraft)
     {
-        var startNode = GetAircraftNearestNodeId(aircraft);
+        int? startNode = GetAircraftNearestNodeId(aircraft);
         if (startNode is null)
         {
             return;
@@ -1957,7 +1979,7 @@ public partial class GroundViewModel : ObservableObject
             return false;
         }
 
-        var subRoute = FindRouteToNode(_drawWaypointIds[^1], nodeId, _drawAircraft is { } da ? CategoryFor(da) : AircraftCategory.Jet);
+        TaxiRoute? subRoute = FindRouteToNode(_drawWaypointIds[^1], nodeId, _drawAircraft is { } da ? CategoryFor(da) : AircraftCategory.Jet);
         if (subRoute is null)
         {
             return false;
@@ -1998,14 +2020,14 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        var merged = MergeSubRoutes();
+        TaxiRoute merged = MergeSubRoutes();
 
         // Commit every node along the previewed route, not just the clicked waypoints. Each
         // consecutive pair is one edge apart, so the server pins every leg to that single edge
         // and reproduces exactly what was drawn — no parallel-taxiway substitution. When the
         // route was drawn into a stand, carry the @parking / $spot token so the aircraft parks.
-        var spot = ResolveDrawTerminusSpot();
-        var nodeRefPath = BuildDenseNodeRefPath(merged);
+        TaxiSpotDestination? spot = ResolveDrawTerminusSpot();
+        string nodeRefPath = BuildDenseNodeRefPath(merged);
         ClearDrawState();
 
         if (string.IsNullOrEmpty(nodeRefPath))
@@ -2019,7 +2041,7 @@ public partial class GroundViewModel : ObservableObject
     private static string BuildDenseNodeRefPath(TaxiRoute merged)
     {
         var ids = new List<int>();
-        foreach (var seg in merged.Segments)
+        foreach (TaxiRouteSegment seg in merged.Segments)
         {
             if (ids.Count == 0 || ids[^1] != seg.ToNodeId)
             {
@@ -2037,7 +2059,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        if (!_domainLayout.Nodes.TryGetValue(_drawWaypointIds[^1], out var node) || node.Name is null)
+        if (!_domainLayout.Nodes.TryGetValue(_drawWaypointIds[^1], out GroundNode? node) || node.Name is null)
         {
             return null;
         }
@@ -2093,10 +2115,10 @@ public partial class GroundViewModel : ObservableObject
         var holdShorts = new List<HoldShortPoint>();
         var seenHoldShortNodes = new HashSet<int>();
 
-        foreach (var sub in _drawSubRoutes)
+        foreach (TaxiRoute sub in _drawSubRoutes)
         {
             segments.AddRange(sub.Segments);
-            foreach (var hs in sub.HoldShortPoints)
+            foreach (HoldShortPoint hs in sub.HoldShortPoints)
             {
                 if (seenHoldShortNodes.Add(hs.NodeId))
                 {
@@ -2117,7 +2139,7 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     public void StartPushRoute(AircraftModel aircraft)
     {
-        var startNode = GetAircraftNearestNodeId(aircraft);
+        int? startNode = GetAircraftNearestNodeId(aircraft);
         if (startNode is null)
         {
             return;
@@ -2179,7 +2201,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        var targets = CurrentPushTargets();
+        List<GroundNode> targets = CurrentPushTargets();
         if (targets.Count == 0)
         {
             CancelDrawRoute();
@@ -2196,7 +2218,7 @@ public partial class GroundViewModel : ObservableObject
 
         // The command carries exactly the clicked targets: the sim plans the moves from them, and the
         // sigil is the only thing telling a spot apart from a gate of the same name.
-        var command = $"PUSHM {string.Join(" ", targets.Select(PushTargetToken))}";
+        string command = $"PUSHM {string.Join(" ", targets.Select(PushTargetToken))}";
         ClearDrawState();
         return command;
     }
@@ -2208,7 +2230,7 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     private void RefreshPushRoutePreview()
     {
-        var targets = CurrentPushTargets();
+        List<GroundNode> targets = CurrentPushTargets();
 
         // A move needs two points, so one target standing is a half-built route, not an error. Picking
         // "Push route…" seeds exactly one, and surfacing the planner's "needs at least two points" there
@@ -2221,7 +2243,7 @@ public partial class GroundViewModel : ObservableObject
         }
 
         var goals = new List<TugGoal>(targets.Count);
-        foreach (var node in targets)
+        foreach (GroundNode node in targets)
         {
             string token = PushTargetToken(node);
             if (GroundCommandHandler.ResolveTugGoal(_domainLayout, token) is not { } goal)
@@ -2244,7 +2266,7 @@ public partial class GroundViewModel : ObservableObject
             PreviousKind = null,
         };
 
-        var plan = TugMovePlanner.Plan(_domainLayout, request, out string refusal);
+        TugPlan? plan = TugMovePlanner.Plan(_domainLayout, request, out string refusal);
         PushRoutePreview = plan;
         PushRouteRefusal = plan is null ? refusal : null;
     }
@@ -2260,7 +2282,7 @@ public partial class GroundViewModel : ObservableObject
 
         for (int i = 1; i < _drawWaypointIds.Count; i++)
         {
-            if (_domainLayout.Nodes.TryGetValue(_drawWaypointIds[i], out var node))
+            if (_domainLayout.Nodes.TryGetValue(_drawWaypointIds[i], out GroundNode? node))
             {
                 targets.Add(node);
             }
@@ -2282,9 +2304,9 @@ public partial class GroundViewModel : ObservableObject
     {
         var layout = new AirportGroundLayout { AirportId = dto.AirportId };
 
-        foreach (var nodeDto in dto.Nodes)
+        foreach (GroundNodeDto nodeDto in dto.Nodes)
         {
-            var type = Enum.TryParse<GroundNodeType>(nodeDto.Type, out var t) ? t : GroundNodeType.TaxiwayIntersection;
+            GroundNodeType type = Enum.TryParse<GroundNodeType>(nodeDto.Type, out GroundNodeType t) ? t : GroundNodeType.TaxiwayIntersection;
 
             var node = new GroundNode
             {
@@ -2298,12 +2320,12 @@ public partial class GroundViewModel : ObservableObject
             layout.Nodes[node.Id] = node;
         }
 
-        foreach (var edgeDto in dto.Edges)
+        foreach (GroundEdgeDto edgeDto in dto.Edges)
         {
             var intermediates = new List<(double Lat, double Lon)>();
             if (edgeDto.IntermediatePoints is not null)
             {
-                foreach (var pt in edgeDto.IntermediatePoints)
+                foreach (double[] pt in edgeDto.IntermediatePoints)
                 {
                     if (pt.Length >= 2)
                     {
@@ -2312,7 +2334,10 @@ public partial class GroundViewModel : ObservableObject
                 }
             }
 
-            if (!layout.Nodes.TryGetValue(edgeDto.FromNodeId, out var fromNode) || !layout.Nodes.TryGetValue(edgeDto.ToNodeId, out var toNode))
+            if (
+                !layout.Nodes.TryGetValue(edgeDto.FromNodeId, out GroundNode? fromNode)
+                || !layout.Nodes.TryGetValue(edgeDto.ToNodeId, out GroundNode? toNode)
+            )
             {
                 continue;
             }
@@ -2329,9 +2354,12 @@ public partial class GroundViewModel : ObservableObject
 
         if (dto.Arcs is not null)
         {
-            foreach (var arcDto in dto.Arcs)
+            foreach (GroundArcDto arcDto in dto.Arcs)
             {
-                if (!layout.Nodes.TryGetValue(arcDto.FromNodeId, out var arcFrom) || !layout.Nodes.TryGetValue(arcDto.ToNodeId, out var arcTo))
+                if (
+                    !layout.Nodes.TryGetValue(arcDto.FromNodeId, out GroundNode? arcFrom)
+                    || !layout.Nodes.TryGetValue(arcDto.ToNodeId, out GroundNode? arcTo)
+                )
                 {
                     continue;
                 }

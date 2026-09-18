@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests.Commands;
 
@@ -23,8 +24,8 @@ public sealed class GiveWayRedesignTests
     {
         // The HoldPosition directive carries no callsign and equals itself
         // by value. Used by all HOLDPOSITION sites.
-        var a = HoldDirective.HoldPosition;
-        var b = HoldDirective.HoldPosition;
+        HoldDirective a = HoldDirective.HoldPosition;
+        HoldDirective b = HoldDirective.HoldPosition;
 
         Assert.Equal(HoldKind.HoldPosition, a.Kind);
         Assert.Null(a.YieldTarget);
@@ -66,7 +67,7 @@ public sealed class GiveWayRedesignTests
         // Locks in: HOLDPOSITION after GIVEWAY replaces the directive cleanly.
         // The aircraft becomes unconditionally held; FlightPhysics.UpdateGiveWayResume
         // will not auto-release because Hold.Kind is no longer GiveWay.
-        var ac = MakeGroundAircraftWithRoute();
+        AircraftState ac = MakeGroundAircraftWithRoute();
 
         GroundCommandHandler.TryGiveWay(ac, "SWA123");
         Assert.Equal(HoldKind.GiveWay, ac.Ground.Hold!.Kind);
@@ -83,7 +84,7 @@ public sealed class GiveWayRedesignTests
     {
         // Locks in: GIVEWAY after HOLDPOSITION arms the conditional auto-release.
         // Reverse direction of the above.
-        var ac = MakeGroundAircraftWithRoute();
+        AircraftState ac = MakeGroundAircraftWithRoute();
 
         GroundCommandHandler.TryHoldPosition(ac);
         Assert.Equal(HoldKind.HoldPosition, ac.Ground.Hold!.Kind);
@@ -102,7 +103,7 @@ public sealed class GiveWayRedesignTests
     public void Snapshot_RoundTrip_HoldPositionPreservesKind()
     {
         var ground = new AircraftGroundOps { Hold = HoldDirective.HoldPosition };
-        var dto = ground.ToSnapshot();
+        AircraftGroundOpsDto dto = ground.ToSnapshot();
         Assert.True(dto.IsHeld);
         Assert.Null(dto.GiveWayTarget);
 
@@ -114,7 +115,7 @@ public sealed class GiveWayRedesignTests
     public void Snapshot_RoundTrip_GiveWayPreservesTarget()
     {
         var ground = new AircraftGroundOps { Hold = HoldDirective.GiveWay("SWA123") };
-        var dto = ground.ToSnapshot();
+        AircraftGroundOpsDto dto = ground.ToSnapshot();
         Assert.True(dto.IsHeld);
         Assert.Equal("SWA123", dto.GiveWayTarget);
 
@@ -126,7 +127,7 @@ public sealed class GiveWayRedesignTests
     public void Snapshot_RoundTrip_NoHoldStaysNull()
     {
         var ground = new AircraftGroundOps { Hold = null };
-        var dto = ground.ToSnapshot();
+        AircraftGroundOpsDto dto = ground.ToSnapshot();
         Assert.False(dto.IsHeld);
         Assert.Null(dto.GiveWayTarget);
 

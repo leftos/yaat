@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
@@ -24,7 +25,7 @@ public sealed class LiveTrafficDvrFlyout
     {
         _vm = vm;
         _flyout = new Flyout { Placement = PlacementMode.Top };
-        var window = vm.LiveTrafficWindow;
+        LiveTrafficWindowDto? window = vm.LiveTrafficWindow;
         bool available = window is { Available: true, StartUtc: not null, EndUtc: not null };
         const double startSeconds = 0;
         double endSeconds = available ? (window!.EndUtc!.Value - window.StartUtc!.Value).TotalSeconds : 1;
@@ -108,7 +109,7 @@ public sealed class LiveTrafficDvrFlyout
 
     private DateTimeOffset? Picked()
     {
-        var window = _vm.LiveTrafficWindow;
+        LiveTrafficWindowDto? window = _vm.LiveTrafficWindow;
         if (window is not { Available: true, StartUtc: { } start })
         {
             return null;
@@ -141,13 +142,13 @@ public sealed class LiveTrafficDvrFlyout
             return;
         }
 
-        var window = _vm.LiveTrafficWindow;
+        LiveTrafficWindowDto? window = _vm.LiveTrafficWindow;
         if (window is not { Available: true, StartUtc: { } start, EndUtc: { } end })
         {
             return;
         }
 
-        var parsed = LiveSessionWindow.ParseStartAt(_timeBox.Text, end, out var error);
+        DateTimeOffset? parsed = LiveSessionWindow.ParseStartAt(_timeBox.Text, end, out string? error);
         if (error is null && parsed is { } utc && utc >= start)
         {
             _syncing = true;
@@ -160,7 +161,7 @@ public sealed class LiveTrafficDvrFlyout
 
     private void UpdatePick()
     {
-        var picked = Picked();
+        DateTimeOffset? picked = Picked();
         _pickText.Text = picked is { } utc ? $"= {utc:HH:mm:ss}Z" : "";
         _goTo.IsEnabled = picked is not null;
     }

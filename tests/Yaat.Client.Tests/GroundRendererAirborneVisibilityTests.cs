@@ -47,14 +47,14 @@ public class GroundRendererAirborneVisibilityTests
     [Fact]
     public void IsAirborneVisible_JustBelowCap_Visible()
     {
-        var ac = AtCenter(altitude: 5900);
+        AircraftModel ac = AtCenter(altitude: 5900);
         Assert.True(GroundRenderer.IsAirborneVisible(ac, CenterLat, CenterLon, FieldElevation, maxAglFt: 6000));
     }
 
     [Fact]
     public void IsAirborneVisible_AboveCap_Hidden()
     {
-        var ac = AtCenter(altitude: 6100);
+        AircraftModel ac = AtCenter(altitude: 6100);
         Assert.False(GroundRenderer.IsAirborneVisible(ac, CenterLat, CenterLon, FieldElevation, maxAglFt: 6000));
     }
 
@@ -62,7 +62,7 @@ public class GroundRendererAirborneVisibilityTests
     public void IsAirborneVisible_AboveLowCeiling_Hidden()
     {
         // 900 ft AGL under an 800 ft ceiling — gone into the clouds, off the surface display.
-        var ac = AtCenter(altitude: 900);
+        AircraftModel ac = AtCenter(altitude: 900);
         Assert.False(GroundRenderer.IsAirborneVisible(ac, CenterLat, CenterLon, FieldElevation, maxAglFt: 800));
     }
 

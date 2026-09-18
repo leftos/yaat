@@ -23,7 +23,7 @@ public sealed partial class MacroDefinition
     {
         get
         {
-            var tokens = Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            string[] tokens = Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             return tokens.Length > 1 && tokens.Skip(1).Any(t => t.StartsWith('&'));
         }
     }
@@ -55,7 +55,7 @@ public sealed partial class MacroDefinition
             return false;
         }
 
-        var tokens = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return false;
@@ -71,14 +71,14 @@ public sealed partial class MacroDefinition
         if (tokens.Length > 1)
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            for (var i = 1; i < tokens.Length; i++)
+            for (int i = 1; i < tokens.Length; i++)
             {
                 if (!ParamTokenRegex.IsMatch(tokens[i]))
                 {
                     return false;
                 }
 
-                var paramName = tokens[i][1..]; // strip &
+                string paramName = tokens[i][1..]; // strip &
                 if (!seen.Add(paramName))
                 {
                     return false; // duplicate
@@ -109,10 +109,10 @@ public sealed partial class MacroDefinition
             return null;
         }
 
-        var paramNames = ParseExplicitParameters();
-        foreach (var param in paramNames)
+        List<string> paramNames = ParseExplicitParameters();
+        foreach (string param in paramNames)
         {
-            var pattern = $"&{param}";
+            string pattern = $"&{param}";
             if (!Expansion.Contains(pattern, StringComparison.OrdinalIgnoreCase))
             {
                 return $"Parameter &{param} declared in name but not found in expansion";
@@ -124,9 +124,9 @@ public sealed partial class MacroDefinition
 
     private List<string> ParseExplicitParameters()
     {
-        var tokens = Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var names = new List<string>();
-        for (var i = 1; i < tokens.Length; i++)
+        for (int i = 1; i < tokens.Length; i++)
         {
             if (tokens[i].StartsWith('&') && tokens[i].Length > 1)
             {
@@ -143,7 +143,7 @@ public sealed partial class MacroDefinition
         var names = new List<string>();
         foreach (Match m in ParamRegex.Matches(Expansion))
         {
-            var token = m.Groups[1].Value;
+            string token = m.Groups[1].Value;
             if (seen.Add(token))
             {
                 names.Add(token);

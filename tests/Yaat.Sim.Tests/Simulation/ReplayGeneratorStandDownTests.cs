@@ -44,16 +44,16 @@ public class ReplayGeneratorStandDownTests(ITestOutputHelper output)
     [Fact]
     public void Replay_WithoutRecordedSpawns_DoesNotRunGenerators()
     {
-        var live = BuildLoadedEngine();
+        SimulationEngine? live = BuildLoadedEngine();
         if (live is null)
         {
             return;
         }
 
-        var actions = RunLive(live);
+        List<RecordedAction> actions = RunLive(live);
         var stripped = actions.Where(static a => a is not RecordedAircraftSpawn).ToList();
 
-        var replay = BuildLoadedEngine()!;
+        SimulationEngine replay = BuildLoadedEngine()!;
         replay.ArmReplay(stripped);
         for (int t = 0; t < Seconds; t++)
         {
@@ -68,16 +68,16 @@ public class ReplayGeneratorStandDownTests(ITestOutputHelper output)
     [Fact]
     public void Replay_WithRecordedSpawns_ReproducesThemAndRecordsNothing()
     {
-        var live = BuildLoadedEngine();
+        SimulationEngine? live = BuildLoadedEngine();
         if (live is null)
         {
             return;
         }
 
-        var actions = RunLive(live);
+        List<RecordedAction> actions = RunLive(live);
         var recordedSpawns = actions.OfType<RecordedAircraftSpawn>().Select(static s => s.Aircraft.Callsign).OrderBy(static c => c).ToList();
 
-        var replay = BuildLoadedEngine()!;
+        SimulationEngine replay = BuildLoadedEngine()!;
         replay.ArmReplay(actions);
         for (int t = 0; t < Seconds; t++)
         {
@@ -117,8 +117,8 @@ public class ReplayGeneratorStandDownTests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(ScenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
-        foreach (var w in warnings)
+        List<string> warnings = engine.LoadScenario(ScenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        foreach (string w in warnings)
         {
             output.WriteLine($"[load-warn] {w}");
         }

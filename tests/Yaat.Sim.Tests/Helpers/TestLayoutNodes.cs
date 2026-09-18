@@ -20,9 +20,9 @@ internal static class TestLayoutNodes
     {
         List<GroundNode> matches = [];
 
-        foreach (var node in layout.GetRunwayHoldShortNodes(runwayId))
+        foreach (GroundNode node in layout.GetRunwayHoldShortNodes(runwayId))
         {
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
                 {
@@ -41,7 +41,7 @@ internal static class TestLayoutNodes
     /// </summary>
     internal static GroundNode? RunwayHoldShortOnTaxiway(AirportGroundLayout layout, string runwayId, string taxiway)
     {
-        var matches = RunwayHoldShortsOnTaxiway(layout, runwayId, taxiway);
+        List<GroundNode> matches = RunwayHoldShortsOnTaxiway(layout, runwayId, taxiway);
         return matches.Count > 0 ? matches[0] : null;
     }
 }

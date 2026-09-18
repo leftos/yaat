@@ -51,7 +51,7 @@ public static class AdwResolver
 
     private static IReadOnlyList<AdwMark> BuildForLayout(AirportGroundLayout layout)
     {
-        var db = NavigationDatabase.InstanceOrNull;
+        NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
         IReadOnlyList<AdwWindow> windows = db?.AirportSidecars.GetAdwWindows(layout.AirportId) ?? [];
         return Resolve(layout, windows);
     }
@@ -65,9 +65,9 @@ public static class AdwResolver
         }
 
         var marks = new List<AdwMark>(windows.Count * 2);
-        foreach (var window in windows)
+        foreach (AdwWindow window in windows)
         {
-            var runway = layout.FindRunway(window.ArrivalRunway);
+            GroundRunway? runway = layout.FindRunway(window.ArrivalRunway);
             if (runway is null)
             {
                 Log.LogWarning("{Airport}: ADW arrival runway {Runway} is not in the layout, skipping", layout.AirportId, window.ArrivalRunway);
@@ -117,10 +117,10 @@ public static class AdwResolver
         // Ranges are signed against the outbound (final approach course) direction: positive is out on
         // final, negative walks back over the threshold and down the runway.
         double outboundCourse = (landing.LandingCourseDeg + 180.0) % 360.0;
-        var (centerLat, centerLon) = GeoMath.ProjectPointRaw(landing.Threshold.Lat, landing.Threshold.Lon, outboundCourse, rangeNm);
+        (double centerLat, double centerLon) = GeoMath.ProjectPointRaw(landing.Threshold.Lat, landing.Threshold.Lon, outboundCourse, rangeNm);
 
-        var (aLat, aLon) = GeoMath.ProjectPointRaw(centerLat, centerLon, outboundCourse + 90.0, halfLengthNm);
-        var (bLat, bLon) = GeoMath.ProjectPointRaw(centerLat, centerLon, outboundCourse - 90.0, halfLengthNm);
+        (double aLat, double aLon) = GeoMath.ProjectPointRaw(centerLat, centerLon, outboundCourse + 90.0, halfLengthNm);
+        (double bLat, double bLon) = GeoMath.ProjectPointRaw(centerLat, centerLon, outboundCourse - 90.0, halfLengthNm);
 
         return new AdwMark(window.ArrivalRunway, window.DepartureRunway, kind, new LatLon(aLat, aLon), new LatLon(bLat, bLon));
     }

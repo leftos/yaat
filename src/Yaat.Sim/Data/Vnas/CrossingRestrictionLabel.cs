@@ -29,7 +29,7 @@ public static class CrossingRestrictionLabel
     /// </summary>
     public static IReadOnlyList<string> BuildLines(CifpAltitudeRestriction? altitude, CifpSpeedRestriction? speed)
     {
-        var altLines = BuildAltitudeLines(altitude);
+        List<string> altLines = BuildAltitudeLines(altitude);
         string? speedToken = FormatSpeed(speed);
 
         if (altLines.Count <= 1)
@@ -82,7 +82,7 @@ public static class CrossingRestrictionLabel
             return null;
         }
 
-        var kts = s.SpeedKts.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        string kts = s.SpeedKts.ToString(System.Globalization.CultureInfo.InvariantCulture);
         // AtOrBelow (the '-' qualifier) and Mandatory are both flown as do-not-exceed ceilings, so a
         // bare number reads correctly. An at-or-above speed floor (the rare '+' qualifier) is annotated.
         return s.Type == CifpSpeedRestrictionType.AtOrAbove ? $"≥{kts}" : kts;

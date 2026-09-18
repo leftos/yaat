@@ -31,7 +31,7 @@ Console.WriteLine($"Mode:         {(dryRun ? "DRY RUN" : "LIVE")}");
 Console.WriteLine();
 
 // Step 1: Hash all .zip files
-var zipFiles = Directory.GetFiles(testDataDir, "*.zip");
+string[] zipFiles = Directory.GetFiles(testDataDir, "*.zip");
 if (zipFiles.Length == 0)
 {
     Console.WriteLine("No .zip files found.");
@@ -44,7 +44,7 @@ var hashGroups = new Dictionary<string, List<string>>();
 foreach (string zipPath in zipFiles)
 {
     string hash = ComputeSha256(zipPath);
-    if (!hashGroups.TryGetValue(hash, out var group))
+    if (!hashGroups.TryGetValue(hash, out List<string>? group))
     {
         group = [];
         hashGroups[hash] = group;
@@ -73,7 +73,7 @@ int totalRemoved = 0;
 var renamesPrefixed = new Dictionary<string, string>();
 var renamesBare = new Dictionary<string, string>();
 
-foreach (var (hash, files) in duplicateGroups)
+foreach ((string? hash, List<string>? files) in duplicateGroups)
 {
     string shortHash = hash[..12];
     string newFileName = $"{shortHash}.zip";
@@ -141,9 +141,9 @@ foreach (string file in scannableFiles)
     string updated = content;
 
     bool isMarkdown = file.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
-    var renames = isMarkdown ? renamesBare : renamesPrefixed;
+    Dictionary<string, string> renames = isMarkdown ? renamesBare : renamesPrefixed;
 
-    foreach (var (oldRef, newRef) in renames)
+    foreach ((string? oldRef, string? newRef) in renames)
     {
         updated = updated.Replace(oldRef, newRef);
     }
@@ -174,7 +174,7 @@ return 0;
 
 static string ComputeSha256(string filePath)
 {
-    using var stream = File.OpenRead(filePath);
+    using FileStream stream = File.OpenRead(filePath);
     byte[] hashBytes = SHA256.HashData(stream);
     return Convert.ToHexStringLower(hashBytes);
 }

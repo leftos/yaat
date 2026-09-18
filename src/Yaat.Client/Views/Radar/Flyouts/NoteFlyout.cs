@@ -15,7 +15,7 @@ internal static class NoteFlyout
     /// <summary>Builds the note popup. <paramref name="sendCommand"/> receives the full canonical command.</summary>
     public static Popup Build(Control anchor, string callsign, string currentNote, Func<string, Task> sendCommand)
     {
-        var subtitle = string.IsNullOrEmpty(currentNote) ? null : $"Current: \"{currentNote}\"";
+        string? subtitle = string.IsNullOrEmpty(currentNote) ? null : $"Current: \"{currentNote}\"";
 
         return TextEntryPopup.Build(
             anchor,
@@ -27,8 +27,8 @@ internal static class NoteFlyout
             extraActions: [],
             onSubmit: async value =>
             {
-                var trimmed = value.Trim();
-                var command = trimmed.Length == 0 ? "NOTE" : $"NOTE {trimmed}";
+                string trimmed = value.Trim();
+                string command = trimmed.Length == 0 ? "NOTE" : $"NOTE {trimmed}";
                 await sendCommand(command);
             }
         );
@@ -40,7 +40,7 @@ internal static class NoteFlyout
     /// </summary>
     public static void Open(Control anchor, string callsign, string currentNote, Func<string, Task> sendCommand)
     {
-        var popup = Build(anchor, callsign, currentNote, sendCommand);
+        Popup popup = Build(anchor, callsign, currentNote, sendCommand);
 
         var overlay = OverlayLayer.GetOverlayLayer(anchor);
         if (overlay is null)

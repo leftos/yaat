@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -22,7 +23,7 @@ public class ExitOverlapTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -41,8 +42,8 @@ public class ExitOverlapTests(ITestOutputHelper output)
     [Fact]
     public void SKW5899_AndWJA1508_DoNotOverlapOnD()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -54,8 +55,8 @@ public class ExitOverlapTests(ITestOutputHelper output)
         {
             engine.ReplayOneSecond();
 
-            var wja = engine.FindAircraft("WJA1508");
-            var skw = engine.FindAircraft("SKW5899");
+            AircraftState? wja = engine.FindAircraft("WJA1508");
+            AircraftState? skw = engine.FindAircraft("SKW5899");
             if (wja is null || skw is null || !skw.IsOnGround)
             {
                 continue;
@@ -74,8 +75,8 @@ public class ExitOverlapTests(ITestOutputHelper output)
     [Fact]
     public void ExitingAircraft_NeverOverlap()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -89,8 +90,8 @@ public class ExitOverlapTests(ITestOutputHelper output)
         {
             engine.ReplayOneSecond();
 
-            var skw3398 = engine.FindAircraft("SKW3398");
-            var skw5899 = engine.FindAircraft("SKW5899");
+            AircraftState? skw3398 = engine.FindAircraft("SKW3398");
+            AircraftState? skw5899 = engine.FindAircraft("SKW5899");
             if (skw3398 is null || skw5899 is null)
             {
                 continue;

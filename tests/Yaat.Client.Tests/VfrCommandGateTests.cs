@@ -24,7 +24,7 @@ public class VfrCommandGateTests
     [InlineData(VfrCommandsForIfr.All, true)]
     public void EnterFinal_OnIfr_FollowsTheMode(VfrCommandsForIfr mode, bool allowed)
     {
-        var result = VfrCommandGate.Evaluate(Ifr(), "EF 28L", mode);
+        VfrGateResult result = VfrCommandGate.Evaluate(Ifr(), "EF 28L", mode);
 
         Assert.Equal(allowed, result.Allowed);
         Assert.Equal(allowed, result.BypassedForIfr);
@@ -37,7 +37,7 @@ public class VfrCommandGateTests
     [InlineData(VfrCommandsForIfr.All, true)]
     public void EnterLeftDownwind_OnIfr_NeedsTheFullMode(VfrCommandsForIfr mode, bool allowed)
     {
-        var result = VfrCommandGate.Evaluate(Ifr(), "ELD 28L", mode);
+        VfrGateResult result = VfrCommandGate.Evaluate(Ifr(), "ELD 28L", mode);
 
         Assert.Equal(allowed, result.Allowed);
     }
@@ -52,9 +52,9 @@ public class VfrCommandGateTests
     [InlineData("CTO MRC")]
     public void VfrAircraft_IsNeverGated(string canonical)
     {
-        foreach (var mode in Enum.GetValues<VfrCommandsForIfr>())
+        foreach (VfrCommandsForIfr mode in Enum.GetValues<VfrCommandsForIfr>())
         {
-            var result = VfrCommandGate.Evaluate(Vfr(), canonical, mode);
+            VfrGateResult result = VfrCommandGate.Evaluate(Vfr(), canonical, mode);
 
             Assert.True(result.Allowed, $"'{canonical}' must pass for a VFR aircraft under {mode}");
             Assert.False(result.BypassedForIfr, "A VFR aircraft is not a bypass — no advisory should fire.");
@@ -69,7 +69,7 @@ public class VfrCommandGateTests
     [InlineData("CIFR")]
     public void NonVfrOnlyCommands_PassEvenInStrictMode(string canonical)
     {
-        var result = VfrCommandGate.Evaluate(Ifr(), canonical, VfrCommandsForIfr.None);
+        VfrGateResult result = VfrCommandGate.Evaluate(Ifr(), canonical, VfrCommandsForIfr.None);
 
         Assert.True(result.Allowed);
         Assert.False(result.BypassedForIfr);
@@ -116,7 +116,7 @@ public class VfrCommandGateTests
     [InlineData("ELD 28L; EF 28L")]
     public void Compound_RejectsWhenAnyMemberIsBlocked(string canonical)
     {
-        var result = VfrCommandGate.Evaluate(Ifr(), canonical, VfrCommandsForIfr.EnterFinalOnly);
+        VfrGateResult result = VfrCommandGate.Evaluate(Ifr(), canonical, VfrCommandsForIfr.EnterFinalOnly);
 
         Assert.False(result.Allowed);
         Assert.NotNull(result.RejectionMessage);
@@ -125,7 +125,7 @@ public class VfrCommandGateTests
     [Fact]
     public void Compound_AllowedWhenEveryMemberPasses()
     {
-        var result = VfrCommandGate.Evaluate(Ifr(), "H 270; EF 28L", VfrCommandsForIfr.EnterFinalOnly);
+        VfrGateResult result = VfrCommandGate.Evaluate(Ifr(), "H 270; EF 28L", VfrCommandsForIfr.EnterFinalOnly);
 
         Assert.True(result.Allowed);
         Assert.True(result.BypassedForIfr);
@@ -134,7 +134,7 @@ public class VfrCommandGateTests
     [Fact]
     public void RejectionMessage_NamesTheVerbTheCallsignAndTheSetting()
     {
-        var message = VfrCommandGate.Evaluate(Ifr(), "ELD 28L", VfrCommandsForIfr.None).RejectionMessage;
+        string? message = VfrCommandGate.Evaluate(Ifr(), "ELD 28L", VfrCommandsForIfr.None).RejectionMessage;
 
         Assert.NotNull(message);
         Assert.Contains("ELD", message);
@@ -146,7 +146,7 @@ public class VfrCommandGateTests
     [Fact]
     public void BypassAdvisory_NamesTheAircraftAndSaysRulesAreUnchanged()
     {
-        var advisory = VfrCommandGate.BuildBypassAdvisory("UAL123");
+        string advisory = VfrCommandGate.BuildBypassAdvisory("UAL123");
 
         Assert.Contains("UAL123", advisory);
         Assert.Contains("IFR", advisory);

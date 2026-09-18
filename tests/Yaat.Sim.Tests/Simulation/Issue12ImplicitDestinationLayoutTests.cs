@@ -77,19 +77,19 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
     [Fact]
     public void ResolveGroundLayout_NoFlightPlan_AssignedRunway_UsesRunwayAirport()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
 
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("OAK", "28R");
         Assert.NotNull(rwy);
 
-        var ac = MakeInboundVfr(rwy, airportId: "");
+        AircraftState ac = MakeInboundVfr(rwy, airportId: "");
 
-        var layout = engine.ResolveGroundLayout(ac);
+        AirportGroundLayout? layout = engine.ResolveGroundLayout(ac);
 
         Assert.NotNull(layout);
         Assert.Equal("OAK", layout.AirportId);
@@ -103,16 +103,16 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
     [Fact]
     public void ResolveGroundLayout_NoFlightPlan_AirportContext_UsesSpawnAirport()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
 
-        var ac = MakeInboundVfr(assignedRunway: null, airportId: "OAK");
+        AircraftState ac = MakeInboundVfr(assignedRunway: null, airportId: "OAK");
 
-        var layout = engine.ResolveGroundLayout(ac);
+        AirportGroundLayout? layout = engine.ResolveGroundLayout(ac);
 
         Assert.NotNull(layout);
         Assert.Equal("OAK", layout.AirportId);
@@ -126,14 +126,14 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
     [Fact]
     public void ResolveGroundLayout_NoContextAtAll_ReturnsNull()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
 
-        var ac = MakeInboundVfr(assignedRunway: null, airportId: "");
+        AircraftState ac = MakeInboundVfr(assignedRunway: null, airportId: "");
 
         Assert.Null(engine.ResolveGroundLayout(ac));
     }
@@ -146,17 +146,17 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
     [Fact]
     public void ResolveGroundLayout_FiledDeparture_Unchanged()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
 
-        var ac = MakeInboundVfr(assignedRunway: null, airportId: "");
+        AircraftState ac = MakeInboundVfr(assignedRunway: null, airportId: "");
         ac.FlightPlan.Departure = "OAK";
 
-        var layout = engine.ResolveGroundLayout(ac);
+        AirportGroundLayout? layout = engine.ResolveGroundLayout(ac);
 
         Assert.NotNull(layout);
         Assert.Equal("OAK", layout.AirportId);
@@ -178,14 +178,14 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
     [Fact]
     public void InboundVfr_NoDestination_ExitsRunwayAfterLanding()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
 
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("OAK", "28R");
         Assert.NotNull(rwy);
 
         engine.Scenario = new SimScenarioState
@@ -200,7 +200,7 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
         // Place the aircraft on a stabilized short final ~0.6 nm out, on the 28R
         // centerline, ~220 ft AGL, at C172 approach speed.
         var approachHeading = new TrueHeading((rwy.TrueHeading.Degrees + 180.0) % 360.0);
-        var fafPoint = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, approachHeading, 0.6);
+        (double Lat, double Lon) fafPoint = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, approachHeading, 0.6);
 
         var ac = new AircraftState
         {
@@ -303,16 +303,16 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
     [Fact]
     public void ResolveGroundLayout_OnGround_FiledDestinationElsewhere_UsesPhysicalAirport()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
 
-        var ac = MakeParkedDeparture(airportId: "OAK", filedDestination: "KSMF");
+        AircraftState ac = MakeParkedDeparture(airportId: "OAK", filedDestination: "KSMF");
 
-        var layout = engine.ResolveGroundLayout(ac);
+        AirportGroundLayout? layout = engine.ResolveGroundLayout(ac);
 
         Assert.NotNull(layout);
         Assert.Equal("OAK", layout.AirportId);
@@ -334,15 +334,15 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
             return;
         }
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
 
         var groundData = new TestAirportGroundData();
         var engine = new SimulationEngine(groundData);
 
-        var oakLayout = groundData.GetLayout("OAK");
+        AirportGroundLayout? oakLayout = groundData.GetLayout("OAK");
         Assert.NotNull(oakLayout);
 
-        var ac = MakeParkedDeparture(airportId: "OAK", filedDestination: "");
+        AircraftState? ac = MakeParkedDeparture(airportId: "OAK", filedDestination: "");
         ac.Ground.Layout = oakLayout;
         engine.World.AddAircraft(ac);
 

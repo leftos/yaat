@@ -27,10 +27,10 @@ public class AircraftListTypeColumnTests
         };
 
         var view = new DataGridView();
-        var grid = view.GetDataGrid();
+        DataGrid? grid = view.GetDataGrid();
         Assert.NotNull(grid);
 
-        var typeCol = grid!.Columns.OfType<DataGridTextColumn>().Single(c => (c.Header as string) == "Type");
+        DataGridTextColumn typeCol = grid!.Columns.OfType<DataGridTextColumn>().Single(c => (c.Header as string) == "Type");
         Assert.NotNull(typeCol.Binding);
 
         var probe = new TextBlock { DataContext = ac };
@@ -52,10 +52,10 @@ public class AircraftListTypeColumnTests
         };
 
         var view = new DataGridView();
-        var grid = view.GetDataGrid();
+        DataGrid? grid = view.GetDataGrid();
         Assert.NotNull(grid);
 
-        var typeCol = grid!.Columns.OfType<DataGridTextColumn>().Single(c => (c.Header as string) == "Type");
+        DataGridTextColumn typeCol = grid!.Columns.OfType<DataGridTextColumn>().Single(c => (c.Header as string) == "Type");
         Assert.NotNull(typeCol.Binding);
 
         // Resolve the binding against the model directly via a lightweight TextBlock

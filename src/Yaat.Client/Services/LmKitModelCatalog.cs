@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using LMKit.Hardware.Gpu;
 using LMKit.Model;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -104,7 +105,7 @@ public sealed partial class LmKitModelEntry : ObservableObject
         // Resolve the network-capable metadata exactly once, here. Catalog construction runs off the
         // UI thread (see LmKitModelCatalog callers), so a remote-URI card's size resolve completes on
         // a thread pool thread where there is no SynchronizationContext to deadlock against.
-        var fileSize = card.FileSize;
+        long fileSize = card.FileSize;
         ApproxSizeMb = (int)(fileSize / (1024 * 1024));
         GpuRecommended = fileSize > 2L * 1024 * 1024 * 1024;
         _isLocallyAvailable = card.IsLocallyAvailable;
@@ -130,7 +131,7 @@ public sealed partial class LmKitModelEntry : ObservableObject
             return true;
         }
 
-        var path = Card.LocalPath;
+        string path = Card.LocalPath;
         try
         {
             if (File.Exists(path))
@@ -262,7 +263,7 @@ public static class LmKitModelCatalog
     /// </summary>
     public static ObservableCollection<LmKitModelEntry> BuildWhisperCatalog()
     {
-        var catalog = BuildCatalog(
+        ObservableCollection<LmKitModelEntry> catalog = BuildCatalog(
             // whisper-large-turbo3 is deliberately delisted: it was the pre-ATC-fine-tune
             // default, and leaving it in the picker invites users back onto a model the corpus
             // A/B showed losing on every axis (WER, latency, download size). A saved preference
@@ -314,7 +315,7 @@ public static class LmKitModelCatalog
         return BuildCatalog(
             predicate: card =>
             {
-                var cap = card.Capabilities;
+                ModelCapabilities cap = card.Capabilities;
                 if (!cap.HasFlag(ModelCapabilities.TextGeneration) || !cap.HasFlag(ModelCapabilities.Chat))
                 {
                     return false;
@@ -330,7 +331,7 @@ public static class LmKitModelCatalog
                 // Size bounds: 500 MB floor (below this the model is too small for reliable
                 // grammar-constrained instruction following), 16 GB ceiling (too large for
                 // typical dev hardware).
-                var sizeMb = card.FileSize / (1024 * 1024);
+                long sizeMb = card.FileSize / (1024 * 1024);
                 return sizeMb is >= 500 and <= 16_384;
             },
             recommendedId: RecommendedLlmId,
@@ -349,18 +350,18 @@ public static class LmKitModelCatalog
         var result = new ObservableCollection<LmKitModelEntry>();
         try
         {
-            var cards = ModelCard.GetPredefinedModelCards();
-            foreach (var card in sorter(cards.Where(predicate)))
+            List<ModelCard> cards = ModelCard.GetPredefinedModelCards();
+            foreach (ModelCard card in sorter(cards.Where(predicate)))
             {
-                var isRecommended = string.Equals(card.ModelID, recommendedId, StringComparison.OrdinalIgnoreCase);
-                var tier = isRecommended ? LmKitModelTier.Recommended : LmKitModelTier.Standard;
-                var shortName = card.ShortModelName ?? card.ModelName ?? card.ModelID;
-                var paramLabel = FormatParameterCount(card.ParameterCount);
+                bool isRecommended = string.Equals(card.ModelID, recommendedId, StringComparison.OrdinalIgnoreCase);
+                LmKitModelTier tier = isRecommended ? LmKitModelTier.Recommended : LmKitModelTier.Standard;
+                string shortName = card.ShortModelName ?? card.ModelName ?? card.ModelID;
+                string? paramLabel = FormatParameterCount(card.ParameterCount);
                 // Parameter count disambiguates same-family variants (four "Google Gemma 4" entries
                 // at different sizes all share ShortModelName). The middle-dot separator keeps the
                 // format readable in the dropdown without looking like a code identifier.
-                var baseName = paramLabel is null ? shortName : $"{shortName} · {paramLabel}";
-                var displayName = isRecommended ? $"{baseName} ★ Recommended" : baseName;
+                string baseName = paramLabel is null ? shortName : $"{shortName} · {paramLabel}";
+                string displayName = isRecommended ? $"{baseName} ★ Recommended" : baseName;
                 result.Add(new LmKitModelEntry(card, displayName, tier, descriptionFor(card), modelIdOverride: null));
             }
         }
@@ -397,13 +398,13 @@ public static class LmKitModelCatalog
 
     private static string DescribeWhisper(ModelCard card)
     {
-        var sizeMb = card.FileSize / (1024 * 1024);
+        long sizeMb = card.FileSize / (1024 * 1024);
         return $"{card.Publisher} · {card.License} · {card.ParameterCount / 1_000_000:N0} M parameters · {sizeMb:N0} MB";
     }
 
     private static string DescribeLlm(ModelCard card)
     {
-        var sizeMb = card.FileSize / (1024 * 1024);
+        long sizeMb = card.FileSize / (1024 * 1024);
         var caps = new List<string>();
         if (card.Capabilities.HasFlag(ModelCapabilities.Reasoning))
         {
@@ -417,7 +418,7 @@ public static class LmKitModelCatalog
         {
             caps.Add("Math");
         }
-        var capStr = caps.Count > 0 ? $" · {string.Join(", ", caps)}" : string.Empty;
+        string capStr = caps.Count > 0 ? $" · {string.Join(", ", caps)}" : string.Empty;
         return $"{card.Publisher} · {card.License} · {card.ParameterCount / 1_000_000_000.0:F1} B parameters · {sizeMb:N0} MB{capStr}";
     }
 
@@ -470,7 +471,7 @@ public sealed record LmKitGpuSnapshot(IReadOnlyList<LmKitGpuDevice> Devices, boo
             }
             if (Devices.Count == 1)
             {
-                var d = Devices[0];
+                LmKitGpuDevice d = Devices[0];
                 return $"GPU detected: {d.Description} ({d.FreeMemoryMb} MB free / {d.TotalMemoryMb} MB total)";
             }
             return $"{Devices.Count} GPUs detected. Largest free VRAM: {LargestFreeVramMb} MB.";
@@ -497,9 +498,9 @@ public static class LmKitGpuDetector
     {
         try
         {
-            var devices = LMKit.Hardware.Gpu.GpuDeviceInfo.Devices;
+            IReadOnlyList<GpuDeviceInfo> devices = LMKit.Hardware.Gpu.GpuDeviceInfo.Devices;
             var projected = new List<LmKitGpuDevice>(capacity: devices.Count);
-            foreach (var d in devices)
+            foreach (GpuDeviceInfo? d in devices)
             {
                 projected.Add(
                     new LmKitGpuDevice(

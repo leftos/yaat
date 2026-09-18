@@ -68,9 +68,9 @@ public class StateAwarePruningNecessityTests
         int grandInconclusive = 0;
         int grandPairs = 0;
 
-        foreach (var airport in Airports)
+        foreach (string airport in Airports)
         {
-            var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
+            AirportGroundLayout? layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
             if (layout is null)
             {
                 report.AppendLine($"## {airport}: layout unavailable — SKIP");
@@ -78,27 +78,27 @@ public class StateAwarePruningNecessityTests
                 continue;
             }
 
-            var grid = BuildGrid(layout, airport);
+            List<(string Label, int From, int To)> grid = BuildGrid(layout, airport);
             var counts = new Dictionary<Verdict, int>();
             var diffs = new List<string>();
             long prodMs = 0;
             long orcMs = 0;
 
-            foreach (var (label, from, to) in grid)
+            foreach ((string? label, int from, int to) in grid)
             {
-                var ctx = BuildContext(layout, from, to);
+                SearchContext ctx = BuildContext(layout, from, to);
 
                 var sw1 = Stopwatch.StartNew();
-                var (prodRoute, _) = AutoRouter.Run(ctx);
+                (TaxiRoute? prodRoute, PathfindingFailure? _) = AutoRouter.Run(ctx);
                 sw1.Stop();
                 prodMs += sw1.ElapsedMilliseconds;
 
                 var sw2 = Stopwatch.StartNew();
-                var orc = OracleAutoRouter.Run(ctx, BearingBucketDeg, MaxExpansions);
+                OracleAutoRouter.OracleResult orc = OracleAutoRouter.Run(ctx, BearingBucketDeg, MaxExpansions);
                 sw2.Stop();
                 orcMs += sw2.ElapsedMilliseconds;
 
-                var verdict = Classify(prodRoute, orc, out string detail);
+                Verdict verdict = Classify(prodRoute, orc, out string detail);
                 counts[verdict] = counts.GetValueOrDefault(verdict) + 1;
 
                 if (verdict is Verdict.Hard or Verdict.Soft or Verdict.Anomaly or Verdict.Inconclusive)
@@ -127,7 +127,7 @@ public class StateAwarePruningNecessityTests
             if (diffs.Count > 0)
             {
                 report.AppendLine("  diffs:");
-                foreach (var d in diffs)
+                foreach (string d in diffs)
                 {
                     report.AppendLine(d);
                 }
@@ -241,17 +241,17 @@ public class StateAwarePruningNecessityTests
         var parking = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.Parking).OrderBy(n => n.Id).ToList();
 
         var runwayEnds = new List<(string Desig, int NodeId)>();
-        foreach (var rwy in layout.Runways)
+        foreach (GroundRunway rwy in layout.Runways)
         {
-            foreach (var desig in rwy.EndDesignators)
+            foreach (string desig in rwy.EndDesignators)
             {
-                var holdShorts = layout.GetRunwayHoldShortNodes(desig);
+                List<GroundNode> holdShorts = layout.GetRunwayHoldShortNodes(desig);
                 if (holdShorts.Count == 0)
                 {
                     continue;
                 }
 
-                var lineup = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, holdShorts[0], desig, holdShorts);
+                GroundNode lineup = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, holdShorts[0], desig, holdShorts);
                 runwayEnds.Add((desig, lineup.Id));
             }
         }
@@ -259,18 +259,18 @@ public class StateAwarePruningNecessityTests
         var pairs = new List<(string, int, int)>();
 
         // Departures: every parking → every runway-end lineup hold-short.
-        foreach (var p in parking)
+        foreach (GroundNode? p in parking)
         {
-            foreach (var (desig, nodeId) in runwayEnds)
+            foreach ((string? desig, int nodeId) in runwayEnds)
             {
                 pairs.Add(($"{airport} {Name(p)}->{desig}", p.Id, nodeId));
             }
         }
 
         // Arrivals/exits: every runway-end → every parking.
-        foreach (var (desig, nodeId) in runwayEnds)
+        foreach ((string? desig, int nodeId) in runwayEnds)
         {
-            foreach (var p in parking)
+            foreach (GroundNode? p in parking)
             {
                 pairs.Add(($"{airport} {desig}->{Name(p)}", nodeId, p.Id));
             }
@@ -278,9 +278,9 @@ public class StateAwarePruningNecessityTests
 
         // Parking ↔ parking (sampled): exercises cross-field junction traversal.
         var sample = parking.Take(ParkingPairSampleSize).ToList();
-        foreach (var a in sample)
+        foreach (GroundNode? a in sample)
         {
-            foreach (var b in sample)
+            foreach (GroundNode? b in sample)
             {
                 if (a.Id != b.Id)
                 {

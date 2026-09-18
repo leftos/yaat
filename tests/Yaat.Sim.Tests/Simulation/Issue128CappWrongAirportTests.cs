@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -25,14 +26,14 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -53,8 +54,8 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
     [Fact]
     public void BareCapp_NonPrimaryAirport_DoesNotUsePrimaryApproach()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -64,7 +65,7 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
         // EJA864 has spawnDelay=0, replay a few ticks to ensure it's spawned and on route
         engine.Replay(recording, 5);
 
-        var aircraft = engine.FindAircraft("EJA864");
+        AircraftState? aircraft = engine.FindAircraft("EJA864");
         Assert.NotNull(aircraft);
 
         output.WriteLine(
@@ -75,7 +76,7 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
         Assert.NotEqual("I30L", aircraft.Approach.Expected);
 
         // Bare CAPP should succeed by auto-discovering a connected approach at NUQ
-        var result = engine.SendCommand("EJA864", "CAPP");
+        CommandResult result = engine.SendCommand("EJA864", "CAPP");
 
         output.WriteLine($"After: Success={result.Success} Message={result.Message} ActiveApproach={aircraft.Phases?.ActiveApproach?.ApproachId}");
 
@@ -97,8 +98,8 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
     [Fact]
     public void BareCapp_PrimaryAirport_OnNavRoute_PrefersConnectedApproach()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -107,7 +108,7 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
 
         engine.Replay(recording, 5);
 
-        var aircraft = engine.FindAircraft("LXJ453");
+        AircraftState? aircraft = engine.FindAircraft("LXJ453");
         Assert.NotNull(aircraft);
 
         // Override ExpectedApproach to something that exists at SJC but doesn't connect to the route
@@ -117,7 +118,7 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
 
         Assert.True(aircraft.Targets.NavigationRoute.Count > 0, "Aircraft should be on a navigation route");
 
-        var result = engine.SendCommand("LXJ453", "CAPP");
+        CommandResult result = engine.SendCommand("LXJ453", "CAPP");
 
         output.WriteLine($"After: Success={result.Success} Message={result.Message} ActiveApproach={aircraft.Phases?.ActiveApproach?.ApproachId}");
 
@@ -139,8 +140,8 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
     [Fact]
     public void BareCapp_PrimaryAirport_BeingVectored_UsesPrimaryApproach()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -149,7 +150,7 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
 
         engine.Replay(recording, 5);
 
-        var aircraft = engine.FindAircraft("LXJ453");
+        AircraftState? aircraft = engine.FindAircraft("LXJ453");
         Assert.NotNull(aircraft);
 
         // Force vectoring state: clear nav route
@@ -159,7 +160,7 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
         output.WriteLine($"ExpectedApproach={aircraft.Approach.Expected}");
         Assert.Equal("I30L", aircraft.Approach.Expected);
 
-        var result = engine.SendCommand("LXJ453", "CAPP");
+        CommandResult result = engine.SendCommand("LXJ453", "CAPP");
 
         output.WriteLine($"After: Success={result.Success} Message={result.Message}");
 

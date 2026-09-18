@@ -80,8 +80,8 @@ public class Mr270DctWrongDirectionTests(ITestOutputHelper output)
     [Fact]
     public void N172SP_TurnsLeftToOak30numAfterMr270Rollout()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -102,7 +102,7 @@ public class Mr270DctWrongDirectionTests(ITestOutputHelper output)
         // under either ground-timing model, then tick forward until InitialClimbPhase exits.
         engine.Replay(recording, ClimbWindowStart);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.True(ac.Phases?.CurrentPhase is InitialClimbPhase, $"{Callsign} should still be in InitialClimbPhase at t={ClimbWindowStart}");
 
@@ -205,7 +205,7 @@ public class Mr270DctRolloutAcceptanceTests(ITestOutputHelper output)
             return;
         }
 
-        var recording = RecordingLoader.Load(Mr270DctWrongDirectionTests.RecordingPath);
+        SessionRecording? recording = RecordingLoader.Load(Mr270DctWrongDirectionTests.RecordingPath);
         if (recording is null)
         {
             return;

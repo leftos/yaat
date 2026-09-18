@@ -82,7 +82,7 @@ public sealed class DepartureProcedurePhase : Phase
         }
 
         _legElapsedSeconds += ctx.DeltaSeconds;
-        var leg = Legs[_legIndex];
+        ProcedureLeg leg = Legs[_legIndex];
         ApplyLegAltitudeCap(ctx, leg);
         bool sequence = leg.Type switch
         {
@@ -127,7 +127,7 @@ public sealed class DepartureProcedurePhase : Phase
     /// <summary>Sets the initial target heading + preferred turn direction when a leg becomes active.</summary>
     private void ApplyActiveLegHeading(PhaseContext ctx)
     {
-        var leg = Legs[_legIndex];
+        ProcedureLeg leg = Legs[_legIndex];
         if (
             leg.CourseMagnetic is { } course
             && leg.Type is not (ProcedureLegType.TrackToFix or ProcedureLegType.DirectToFix or ProcedureLegType.InitialFix or ProcedureLegType.Arc)
@@ -148,7 +148,7 @@ public sealed class DepartureProcedurePhase : Phase
         {
             return true;
         }
-        var target = new MagneticHeading(course).ToTrue(ctx.Aircraft.Declination);
+        TrueHeading target = new MagneticHeading(course).ToTrue(ctx.Aircraft.Declination);
         return ctx.Aircraft.TrueHeading.AbsAngleTo(target) < HeadingEstablishedDeg;
     }
 
@@ -167,13 +167,13 @@ public sealed class DepartureProcedurePhase : Phase
         {
             return false;
         }
-        var next = Legs[_legIndex + 1];
+        ProcedureLeg next = Legs[_legIndex + 1];
         if (next.FixPosition is not { } anchor || next.CourseMagnetic is not { } nextCourse)
         {
             return false;
         }
 
-        var courseTrue = new MagneticHeading(nextCourse).ToTrue(ctx.Aircraft.Declination);
+        TrueHeading courseTrue = new MagneticHeading(nextCourse).ToTrue(ctx.Aircraft.Declination);
         double signed = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, anchor, courseTrue);
         double turnRate = ctx.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category);
         double leadNm = ctx.Aircraft.GroundSpeed / (turnRate * 62.832);
@@ -205,7 +205,7 @@ public sealed class DepartureProcedurePhase : Phase
             return FlyToFix(ctx, leg);
         }
 
-        var courseTrue = new MagneticHeading(course).ToTrue(ctx.Aircraft.Declination);
+        TrueHeading courseTrue = new MagneticHeading(course).ToTrue(ctx.Aircraft.Declination);
         SteerCourseLine(ctx, fix, courseTrue);
         return GeoMath.DistanceNm(ctx.Aircraft.Position, fix) < FixArrivalNm;
     }
@@ -237,7 +237,7 @@ public sealed class DepartureProcedurePhase : Phase
             return true;
         }
 
-        var radialTrue = new MagneticHeading(radialMagnetic).ToTrue(ctx.Aircraft.Declination);
+        TrueHeading radialTrue = new MagneticHeading(radialMagnetic).ToTrue(ctx.Aircraft.Declination);
         var bearingFromNavaid = new TrueHeading(GeoMath.BearingTo(reference, ctx.Aircraft.Position));
         double signed = radialTrue.SignedAngleTo(bearingFromNavaid);
         // Only the near-side (0°) crossing terminates: gating on |angle| < 90° rejects the reciprocal
@@ -300,7 +300,7 @@ public sealed class DepartureProcedurePhase : Phase
         {
             return;
         }
-        var courseTrue = new MagneticHeading(course).ToTrue(ctx.Aircraft.Declination);
+        TrueHeading courseTrue = new MagneticHeading(course).ToTrue(ctx.Aircraft.Declination);
 
         if (asTrack && _legEntryPosition is { } anchor)
         {
@@ -367,7 +367,7 @@ public sealed class DepartureProcedurePhase : Phase
             return CruiseAltitude;
         }
         double highestRestriction = 0;
-        foreach (var leg in Legs)
+        foreach (ProcedureLeg leg in Legs)
         {
             if (leg.AltitudeRestriction is { } r && r.Altitude1Ft > highestRestriction)
             {

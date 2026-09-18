@@ -3,6 +3,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Tests;
 
@@ -20,14 +21,14 @@ public class GroundViewModelDrawRouteTests
     [Fact]
     public void FinishDrawRoute_EmitsEveryNode_NotJustClickedWaypoints()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(LinearLayout());
-        var ac = MakeAircraft(Lat0, Lon0);
+        AircraftModel ac = MakeAircraft(Lat0, Lon0);
 
         vm.StartDrawRoute(ac);
         // Click only the far node 3; node 2 is an UN-clicked intermediate on the path.
         Assert.True(vm.AddDrawWaypoint(3));
-        var result = vm.FinishDrawRoute();
+        (TaxiRoute Route, string NodeRefPath, TaxiSpotDestination? Spot)? result = vm.FinishDrawRoute();
 
         Assert.NotNull(result);
         // Dense: the command carries the intermediate node 2, not just the clicked node 3.
@@ -38,14 +39,14 @@ public class GroundViewModelDrawRouteTests
     [Fact]
     public void FinishDrawRoute_ParkingTerminus_AppendsAtToken()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(LinearLayout());
-        var ac = MakeAircraft(Lat0, Lon0);
+        AircraftModel ac = MakeAircraft(Lat0, Lon0);
 
         vm.StartDrawRoute(ac);
         Assert.True(vm.AddDrawWaypoint(3));
         Assert.True(vm.AddDrawWaypoint(4)); // node 4 = Parking "8B"
-        var result = vm.FinishDrawRoute();
+        (TaxiRoute Route, string NodeRefPath, TaxiSpotDestination? Spot)? result = vm.FinishDrawRoute();
 
         Assert.NotNull(result);
         Assert.Equal("#2 #3 #4", result!.Value.NodeRefPath);
@@ -56,18 +57,18 @@ public class GroundViewModelDrawRouteTests
     [Fact]
     public void BuildDrawRouteCopyCommand_MidTaxiwayEndpoint_UsesReadableNamePlusTerminalPin()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(LinearLayout());
-        var ac = MakeAircraft(Lat0, Lon0);
+        AircraftModel ac = MakeAircraft(Lat0, Lon0);
 
         vm.StartDrawRoute(ac);
         Assert.True(vm.AddDrawWaypoint(3)); // mid-taxiway intersection, no stand
-        var result = vm.FinishDrawRoute();
+        (TaxiRoute Route, string NodeRefPath, TaxiSpotDestination? Spot)? result = vm.FinishDrawRoute();
         Assert.NotNull(result);
 
-        var (route, _, spot) = result!.Value;
+        (TaxiRoute? route, string _, TaxiSpotDestination? spot) = result!.Value;
         Assert.Null(spot);
-        var command = vm.BuildDrawRouteCopyCommand(route, spot);
+        string command = vm.BuildDrawRouteCopyCommand(route, spot);
 
         // Readable taxiway name (not the dense "#2 #3"), pinned at the drawn endpoint node so the
         // aircraft stops where it was drawn instead of running to the end of taxiway V.
@@ -77,18 +78,18 @@ public class GroundViewModelDrawRouteTests
     [Fact]
     public void BuildDrawRouteCopyCommand_ParkingEndpoint_UsesTokenNotNodeRef()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(LinearLayout());
-        var ac = MakeAircraft(Lat0, Lon0);
+        AircraftModel ac = MakeAircraft(Lat0, Lon0);
 
         vm.StartDrawRoute(ac);
         Assert.True(vm.AddDrawWaypoint(3));
         Assert.True(vm.AddDrawWaypoint(4)); // node 4 = Parking "8B"
-        var result = vm.FinishDrawRoute();
+        (TaxiRoute Route, string NodeRefPath, TaxiSpotDestination? Spot)? result = vm.FinishDrawRoute();
         Assert.NotNull(result);
 
-        var (route, _, spot) = result!.Value;
-        var command = vm.BuildDrawRouteCopyCommand(route, spot);
+        (TaxiRoute? route, string _, TaxiSpotDestination? spot) = result!.Value;
+        string command = vm.BuildDrawRouteCopyCommand(route, spot);
 
         // The @parking token pins the stop, so no terminal node-ref is appended.
         Assert.Equal("TAXI V @8B", command);
@@ -98,13 +99,13 @@ public class GroundViewModelDrawRouteTests
     [Fact]
     public void FinishDrawRoute_SpotTerminus_AppendsDollarToken()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(SpotLayout());
-        var ac = MakeAircraft(Lat0, Lon0);
+        AircraftModel ac = MakeAircraft(Lat0, Lon0);
 
         vm.StartDrawRoute(ac);
         Assert.True(vm.AddDrawWaypoint(3)); // node 3 = Spot "7"
-        var result = vm.FinishDrawRoute();
+        (TaxiRoute Route, string NodeRefPath, TaxiSpotDestination? Spot)? result = vm.FinishDrawRoute();
 
         Assert.NotNull(result);
         Assert.NotNull(result!.Value.Spot);

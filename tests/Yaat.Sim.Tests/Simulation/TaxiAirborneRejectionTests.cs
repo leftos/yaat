@@ -1,4 +1,6 @@
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -20,7 +22,7 @@ public class TaxiAirborneRejectionTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -35,8 +37,8 @@ public class TaxiAirborneRejectionTests(ITestOutputHelper output)
     [Fact]
     public void TaxiCommand_RejectedWhenAircraftIsAirborne()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -46,7 +48,7 @@ public class TaxiAirborneRejectionTests(ITestOutputHelper output)
         // N805FM got ERB 28R at t=919 and CLAND at t=920, still on approach.
         engine.Replay(recording, 952);
 
-        var aircraft = engine.FindAircraft("N805FM");
+        AircraftState? aircraft = engine.FindAircraft("N805FM");
         Assert.NotNull(aircraft);
 
         output.WriteLine(
@@ -58,7 +60,7 @@ public class TaxiAirborneRejectionTests(ITestOutputHelper output)
         Assert.False(aircraft.IsOnGround, $"N805FM should be airborne at t=952 but IsOnGround=true (alt={aircraft.Altitude:F0})");
 
         // TAXI command must fail for airborne aircraft
-        var result = engine.SendCommand("N805FM", "TAXI E RWY 28R");
+        CommandResult result = engine.SendCommand("N805FM", "TAXI E RWY 28R");
         Assert.False(result.Success, $"TAXI should be rejected for airborne aircraft, but succeeded: {result.Message}");
     }
 }

@@ -27,7 +27,7 @@ public sealed class MilitaryRouteExpansionTests
     [Fact]
     public void Expand_PublishedFilingExample_YieldsEveryRoutePoint()
     {
-        var expanded = RouteExpander.Expand("SAT263043 IR149 LRD040028", NavDb, includeAllTransitionsOnMismatch: false);
+        List<string> expanded = RouteExpander.Expand("SAT263043 IR149 LRD040028", NavDb, includeAllTransitionsOnMismatch: false);
 
         Assert.Equal(Ir149AllPoints, expanded.Where(f => f.StartsWith("IR149", StringComparison.Ordinal)));
     }
@@ -35,7 +35,7 @@ public sealed class MilitaryRouteExpansionTests
     [Fact]
     public void Expand_EntryAnchorOnly_RunsToThePublishedExit()
     {
-        var expanded = RouteExpander.Expand("SAT263043 IR149", NavDb, includeAllTransitionsOnMismatch: false);
+        List<string> expanded = RouteExpander.Expand("SAT263043 IR149", NavDb, includeAllTransitionsOnMismatch: false);
 
         Assert.Equal(Ir149AllPoints, expanded.Where(f => f.StartsWith("IR149", StringComparison.Ordinal)));
     }
@@ -43,7 +43,7 @@ public sealed class MilitaryRouteExpansionTests
     [Fact]
     public void Expand_ExitAnchorOnly_StartsAtThePublishedEntry()
     {
-        var expanded = RouteExpander.Expand("IR149 LRD040028", NavDb, includeAllTransitionsOnMismatch: false);
+        List<string> expanded = RouteExpander.Expand("IR149 LRD040028", NavDb, includeAllTransitionsOnMismatch: false);
 
         Assert.Equal(Ir149AllPoints, expanded.Where(f => f.StartsWith("IR149", StringComparison.Ordinal)));
     }
@@ -51,7 +51,7 @@ public sealed class MilitaryRouteExpansionTests
     [Fact]
     public void Expand_BareDesignator_YieldsTheWholeRoute()
     {
-        var expanded = RouteExpander.Expand("IR149", NavDb, includeAllTransitionsOnMismatch: false);
+        List<string> expanded = RouteExpander.Expand("IR149", NavDb, includeAllTransitionsOnMismatch: false);
 
         Assert.Equal(Ir149AllPoints, expanded);
     }
@@ -60,7 +60,7 @@ public sealed class MilitaryRouteExpansionTests
     public void Expand_MidRouteAnchors_YieldOnlyThatSpan()
     {
         // RSG141016 is point D's published FRD; COT269054 is point G's.
-        var expanded = RouteExpander.Expand("RSG141016 IR149 COT269054", NavDb, includeAllTransitionsOnMismatch: false);
+        List<string> expanded = RouteExpander.Expand("RSG141016 IR149 COT269054", NavDb, includeAllTransitionsOnMismatch: false);
 
         Assert.Equal(["IR149D", "IR149E", "IR149F", "IR149G"], expanded.Where(f => f.StartsWith("IR149", StringComparison.Ordinal)));
     }
@@ -71,7 +71,7 @@ public sealed class MilitaryRouteExpansionTests
         // AP/1B chapter 1 §V.B.1: routes are one-way and course reversals are not authorized. An
         // exit that snaps behind the entry is far more likely a bad snap than a reversed filing,
         // so expansion runs forward to the end of the route rather than walking backwards.
-        var expanded = RouteExpander.Expand("COT269054 IR149 RSG141016", NavDb, includeAllTransitionsOnMismatch: false);
+        List<string> expanded = RouteExpander.Expand("COT269054 IR149 RSG141016", NavDb, includeAllTransitionsOnMismatch: false);
         var points = expanded.Where(f => f.StartsWith("IR149", StringComparison.Ordinal)).ToList();
 
         Assert.Equal(["IR149G", "IR149H", "IR149I"], points);
@@ -82,7 +82,7 @@ public sealed class MilitaryRouteExpansionTests
     {
         // SFO is roughly 1,300 NM from IR-149, which runs along the Texas border. An anchor that
         // far away means the filer joined by direct-to, not at a published point.
-        var expanded = RouteExpander.Expand("SFO IR149", NavDb, includeAllTransitionsOnMismatch: false);
+        List<string> expanded = RouteExpander.Expand("SFO IR149", NavDb, includeAllTransitionsOnMismatch: false);
 
         Assert.Equal(Ir149AllPoints, expanded.Where(f => f.StartsWith("IR149", StringComparison.Ordinal)));
     }
@@ -90,7 +90,7 @@ public sealed class MilitaryRouteExpansionTests
     [Fact]
     public void Expand_UnknownDesignator_FallsThroughAsAPlainFix()
     {
-        var expanded = RouteExpander.Expand("IR999999", NavDb, includeAllTransitionsOnMismatch: false);
+        List<string> expanded = RouteExpander.Expand("IR999999", NavDb, includeAllTransitionsOnMismatch: false);
 
         Assert.Equal(["IR999999"], expanded);
     }
@@ -100,7 +100,7 @@ public sealed class MilitaryRouteExpansionTests
     {
         // The regression this feature exists for: before, every one of these names failed
         // GetFixPosition and the whole training-route portion was dropped from the flown route.
-        var expanded = NavDb.ExpandRouteForNavigation("SAT263043 IR149 LRD040028", departureAirport: null);
+        IReadOnlyList<string> expanded = NavDb.ExpandRouteForNavigation("SAT263043 IR149 LRD040028", departureAirport: null);
 
         Assert.NotEmpty(expanded);
         Assert.All(expanded, name => Assert.NotNull(NavDb.ResolveFixOrFrd(name)));
@@ -136,8 +136,8 @@ public sealed class MilitaryRouteExpansionTests
     [Fact]
     public void ResolveFixOrFrd_HandlesBothPlainFixesAndFullFrds()
     {
-        var fromFrd = NavDb.ResolveFixOrFrd("SAT263043");
-        var pointA = NavDb.GetFixPosition("IR149A");
+        (double Lat, double Lon)? fromFrd = NavDb.ResolveFixOrFrd("SAT263043");
+        (double Lat, double Lon)? pointA = NavDb.GetFixPosition("IR149A");
 
         Assert.NotNull(fromFrd);
         Assert.NotNull(pointA);
@@ -159,7 +159,7 @@ public sealed class MilitaryRouteExpansionTests
     [Fact]
     public void ProgrammedFixes_IncludeTheRoutePointsForScopeHighlighting()
     {
-        var fixes = ProgrammedFixResolver.Resolve(
+        HashSet<string> fixes = ProgrammedFixResolver.Resolve(
             "SAT263043 IR149 LRD040028",
             expectedApproach: null,
             destination: null,

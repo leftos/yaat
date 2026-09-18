@@ -99,14 +99,14 @@ public sealed record LiveTrafficFilter
             return true;
         }
 
-        var rules = LiveTrafficRulesFilter.Both;
+        LiveTrafficRulesFilter rules = LiveTrafficRulesFilter.Both;
         var codes = new List<string>();
-        var match = LiveTrafficAirportMatch.Either;
+        LiveTrafficAirportMatch match = LiveTrafficAirportMatch.Either;
         bool includeUnplanned = false;
         string? center = null;
         double? radiusNm = null;
 
-        foreach (var part in text.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (string part in text.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             int eq = part.IndexOf('=');
             if (eq <= 0)
@@ -115,8 +115,8 @@ public sealed record LiveTrafficFilter
                 return false;
             }
 
-            var key = part[..eq].Trim().ToUpperInvariant();
-            var value = part[(eq + 1)..].Trim().ToUpperInvariant();
+            string key = part[..eq].Trim().ToUpperInvariant();
+            string value = part[(eq + 1)..].Trim().ToUpperInvariant();
             switch (key)
             {
                 case "RULES":
@@ -129,7 +129,7 @@ public sealed record LiveTrafficFilter
                     rules = value == "VFR" ? LiveTrafficRulesFilter.VfrOnly : LiveTrafficRulesFilter.IfrOnly;
                     break;
                 case "APT":
-                    foreach (var code in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    foreach (string code in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                     {
                         if (!IsAirportCode(code))
                         {
@@ -171,7 +171,7 @@ public sealed record LiveTrafficFilter
                     center = value;
                     break;
                 case "RADIUS":
-                    if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var nm) || nm <= 0 || nm > MaxRadiusNm)
+                    if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double nm) || nm <= 0 || nm > MaxRadiusNm)
                     {
                         error = $"RADIUS must be between 0 and {MaxRadiusNm} nm, not '{value}'";
                         return false;
@@ -219,13 +219,13 @@ public sealed record LiveTrafficFilter
 
         if (HasAirportFilter)
         {
-            var side = AirportMatch switch
+            string side = AirportMatch switch
             {
                 LiveTrafficAirportMatch.Departure => "dep",
                 LiveTrafficAirportMatch.Destination => "dest",
                 _ => "dep/dest",
             };
-            var noPlan = IncludeUnplanned ? " (+ no-plan)" : "";
+            string noPlan = IncludeUnplanned ? " (+ no-plan)" : "";
             parts.Add($"plans {side} {string.Join(" or ", AirportCodes)}{noPlan}");
         }
 

@@ -20,7 +20,7 @@ public static class PilotSayBuilder
     public static string BuildAltitude(AircraftState aircraft)
     {
         int alt = RoundToNearest(aircraft.Altitude, 100);
-        var target = aircraft.Targets.AssignedAltitude;
+        double? target = aircraft.Targets.AssignedAltitude;
         if (target is null)
         {
             return PlainAltitude(alt);
@@ -63,7 +63,7 @@ public static class PilotSayBuilder
 
     public static string BuildSpeed(AircraftState aircraft)
     {
-        var ias = (int)Math.Round(aircraft.IndicatedAirspeed);
+        int ias = (int)Math.Round(aircraft.IndicatedAirspeed);
         if (aircraft.Altitude >= 24000)
         {
             return $"{ias.ToString(System.Globalization.CultureInfo.InvariantCulture)} knots, {BuildMach(aircraft)}";
@@ -74,7 +74,7 @@ public static class PilotSayBuilder
 
     public static string BuildMach(AircraftState aircraft)
     {
-        var mach = WindInterpolator.IasToMach(aircraft.IndicatedAirspeed, aircraft.Altitude);
+        double mach = WindInterpolator.IasToMach(aircraft.IndicatedAirspeed, aircraft.Altitude);
         return $"Mach {PlainMach(mach)}";
     }
 
@@ -93,7 +93,7 @@ public static class PilotSayBuilder
     /// </summary>
     public static string BuildExitFixEstimate(AircraftState aircraft, DateTime simTimeUtc)
     {
-        var state = aircraft.MilitaryRoute;
+        AircraftMilitaryRoute state = aircraft.MilitaryRoute;
         if (state.Designator is null || state.ExitPointId is null)
         {
             return "Negative, not on a military training route";
@@ -102,12 +102,12 @@ public static class PilotSayBuilder
         // A clock time, not a duration: §9-2-6.g applies the nonreceipt-of-position-report procedures
         // of §6-1-2 against the pilot's exit estimate, and that timer keys off a UTC time.
         // §2-4-17.c.1 gives the format — the four separate digits of hour and minutes in UTC.
-        var minutes = EstimateMinutesToExit(aircraft);
-        var estimate = minutes is null
+        int? minutes = EstimateMinutesToExit(aircraft);
+        string estimate = minutes is null
             ? "unable to estimate"
             : $"at {simTimeUtc.AddMinutes(minutes.Value).ToString("HHmm", CultureInfo.InvariantCulture)}";
         // The filed cruise altitude is what the pilot wants back after leaving the route.
-        var afterExit = aircraft.FlightPlan.Altitude.CruiseFeet is { } cruise ? $", requesting {cruise:N0} after exit" : "";
+        string afterExit = aircraft.FlightPlan.Altitude.CruiseFeet is { } cruise ? $", requesting {cruise:N0} after exit" : "";
         return $"Estimating {state.Designator} exit point {state.ExitPointId} {estimate}{afterExit}";
     }
 
@@ -117,7 +117,7 @@ public static class PilotSayBuilder
     /// </summary>
     private static int? EstimateMinutesToExit(AircraftState aircraft)
     {
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         if (route.Count == 0 || aircraft.GroundSpeed < 1)
         {
             return null;
@@ -151,19 +151,23 @@ public static class PilotSayBuilder
     {
         try
         {
-            var navDb = NavigationDatabase.Instance;
-            var candidates = BuildPositionCandidates(aircraft, navDb);
+            NavigationDatabase navDb = NavigationDatabase.Instance;
+            List<(string Name, double Lat, double Lon)> candidates = BuildPositionCandidates(aircraft, navDb);
 
             string? primary = candidates.Count > 0 ? FrdResolver.ToFrd(aircraft.Position.Lat, aircraft.Position.Lon, candidates) : null;
 
             if (primary is null)
             {
-                var fallback = navDb.FindNearestSizeableAirport(aircraft.Position, SizeableAirportMinRunwayFt, SizeableAirportMaxRangeNm);
+                (string Id, double Lat, double Lon)? fallback = navDb.FindNearestSizeableAirport(
+                    aircraft.Position,
+                    SizeableAirportMinRunwayFt,
+                    SizeableAirportMaxRangeNm
+                );
                 if (fallback is null)
                 {
                     return "Unable to determine position";
                 }
-                var fallbackFrd = FrdResolver.ToFrd(
+                string? fallbackFrd = FrdResolver.ToFrd(
                     aircraft.Position.Lat,
                     aircraft.Position.Lon,
                     [(fallback.Value.Id, fallback.Value.Lat, fallback.Value.Lon)],
@@ -182,13 +186,17 @@ public static class PilotSayBuilder
                 return primaryText;
             }
 
-            var nearbyAirport = navDb.FindNearestSizeableAirport(aircraft.Position, SizeableAirportMinRunwayFt, SizeableAirportMaxRangeNm);
+            (string Id, double Lat, double Lon)? nearbyAirport = navDb.FindNearestSizeableAirport(
+                aircraft.Position,
+                SizeableAirportMinRunwayFt,
+                SizeableAirportMaxRangeNm
+            );
             if (nearbyAirport is null || string.Equals(nearbyAirport.Value.Id, primaryName, StringComparison.OrdinalIgnoreCase))
             {
                 return primaryText;
             }
 
-            var airportFrd = FrdResolver.ToFrd(
+            string? airportFrd = FrdResolver.ToFrd(
                 aircraft.Position.Lat,
                 aircraft.Position.Lon,
                 [(nearbyAirport.Value.Id, nearbyAirport.Value.Lat, nearbyAirport.Value.Lon)],
@@ -213,21 +221,21 @@ public static class PilotSayBuilder
             {
                 return;
             }
-            var pos = navDb.GetFixPosition(name);
+            (double Lat, double Lon)? pos = navDb.GetFixPosition(name);
             if (pos is not null)
             {
                 candidates.Add((name, pos.Value.Lat, pos.Value.Lon));
             }
         }
 
-        var fp = aircraft.FlightPlan;
+        AircraftFlightPlan fp = aircraft.FlightPlan;
         Add(fp.Departure);
         Add(fp.Destination);
-        foreach (var fix in navDb.ExpandRoute(fp.Route))
+        foreach (string fix in navDb.ExpandRoute(fp.Route))
         {
             Add(fix);
         }
-        foreach (var nav in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget nav in aircraft.Targets.NavigationRoute)
         {
             if (seen.Add(nav.Name))
             {
@@ -240,13 +248,13 @@ public static class PilotSayBuilder
 
     private static string FormatFrd(string frd, NavigationDatabase navDb)
     {
-        var parsed = FrdResolver.ParseFrd(frd);
+        (string Fix, int? Radial, int? Distance)? parsed = FrdResolver.ParseFrd(frd);
         if (parsed is null)
         {
             return frd;
         }
 
-        var (fixName, radial, distance) = parsed.Value;
+        (string? fixName, int? radial, int? distance) = parsed.Value;
         string label = AnchorLabel(fixName, navDb);
         if (radial is null || distance is null || distance == 0)
         {
@@ -268,19 +276,19 @@ public static class PilotSayBuilder
     /// </summary>
     private static string AnchorLabel(string code, NavigationDatabase navDb)
     {
-        var navaidName = navDb.GetNavaidName(code);
+        string? navaidName = navDb.GetNavaidName(code);
         if (!string.IsNullOrWhiteSpace(navaidName))
         {
             return $"{code} - {TitleCase(navaidName)} {navDb.GetNavaidType(code) ?? "VOR"}";
         }
 
-        var rawAirportName = navDb.GetAirportName(code);
+        string? rawAirportName = navDb.GetAirportName(code);
         if (!string.IsNullOrWhiteSpace(rawAirportName))
         {
             return $"{code} - {FriendlyAirportName(rawAirportName)}";
         }
 
-        var displayName = navDb.GetFixDisplayName(code);
+        string? displayName = navDb.GetFixDisplayName(code);
         if (!string.IsNullOrWhiteSpace(displayName))
         {
             return $"{code} - {displayName}";
@@ -306,7 +314,7 @@ public static class PilotSayBuilder
     /// </summary>
     internal static string FriendlyAirportName(string rawName)
     {
-        var tokens = rawName.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries).ToList();
+        List<string> tokens = rawName.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries).ToList();
         while (tokens.Count > 1 && IsGenericAirportSuffix(tokens[^1]))
         {
             tokens.RemoveAt(tokens.Count - 1);
@@ -322,7 +330,7 @@ public static class PilotSayBuilder
         // Trim it and everything after.
         for (int i = 1; i < tokens.Count - 1; i++)
         {
-            var pair = $"{tokens[i]} {tokens[i + 1]}";
+            string pair = $"{tokens[i]} {tokens[i + 1]}";
             if (CompoundCityNames.Contains(pair, StringComparer.OrdinalIgnoreCase))
             {
                 tokens.RemoveRange(i, tokens.Count - i);
@@ -330,7 +338,7 @@ public static class PilotSayBuilder
             }
         }
 
-        var titled = string.Join(
+        string titled = string.Join(
             ' ',
             tokens.Select(t => System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(t.ToLowerInvariant()))
         );
@@ -437,9 +445,9 @@ public static class PilotSayBuilder
             return approachId;
         }
 
-        var typePart = approachId[..runwayStart];
-        var runwayPart = approachId[runwayStart..];
-        var typeName = ApproachTypeName(typePart[0]);
+        string typePart = approachId[..runwayStart];
+        string runwayPart = approachId[runwayStart..];
+        string typeName = ApproachTypeName(typePart[0]);
         return typePart.Length >= 2 ? $"{typeName} {typePart[1]} {runwayPart}" : $"{typeName} {runwayPart}";
     }
 

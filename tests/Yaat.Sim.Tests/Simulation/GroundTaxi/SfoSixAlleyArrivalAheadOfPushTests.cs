@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
@@ -72,24 +73,24 @@ public class SfoSixAlleyArrivalAheadOfPushTests
     [Fact]
     public void ArrivalCrossesAlleyAheadOfPush_PushCompletes()
     {
-        var setup = Setup(AlleyPusherGate, AlleySpot, AlleyGate);
+        Alley? setup = Setup(AlleyPusherGate, AlleySpot, AlleyGate);
         if (setup is null)
         {
             return;
         }
 
-        var alley = setup.Value;
-        var engine = alley.Ground.Engine;
+        Alley alley = setup.Value;
+        SimulationEngine engine = alley.Ground.Engine;
         var guard = new DeadlockGuard(alley.Pusher, alley.Arrival);
 
         string pushCommand = $"PUSH ${AlleySpot}";
-        var push = engine.SendCommand(Pusher, pushCommand);
+        CommandResult push = engine.SendCommand(Pusher, pushCommand);
         Assert.True(push.Success, $"'{pushCommand}' from {AlleyPusherGate} failed: {push.Message}");
         string clearance = $"TAXI T A T6A @{AlleyGate}";
-        var taxi = engine.SendCommand(Arrival, clearance);
+        CommandResult taxi = engine.SendCommand(Arrival, clearance);
         Assert.True(taxi.Success, $"'{clearance}' from the 28L bar on T failed: {taxi.Message}");
 
-        var run = RunChoreography(alley, guard);
+        ChoreographyRun run = RunChoreography(alley, guard);
         _output.WriteLine(
             $"push finished t={run.PusherDoneSecond}s, arrival parked t={run.ArrivalParkedSecond}s, "
                 + $"yielded={run.Yielded}, min separation {run.MinSeparationFt:F0}ft"
@@ -138,20 +139,20 @@ public class SfoSixAlleyArrivalAheadOfPushTests
     /// <returns>The built alley, or null to skip.</returns>
     private Alley? Setup(string pusherGate, string spotName, string gateName)
     {
-        var built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
         if (built is null)
         {
             return null;
         }
 
-        var ground = built.Value;
-        var spot = ground.Layout.FindSpotNodeByName(spotName);
-        var parking = ground.Layout.FindParkingByName(gateName);
+        SfoGround ground = built.Value;
+        GroundNode? spot = ground.Layout.FindSpotNodeByName(spotName);
+        GroundNode? parking = ground.Layout.FindParkingByName(gateName);
         Assert.True(spot is not null, $"the SFO layout has no spot named '{spotName}'");
         Assert.True(parking is not null, $"the SFO layout has no parking named '{gateName}'");
 
-        var pusher = SfoGroundHarness.SpawnParked(ground, Pusher, PusherType, pusherGate);
-        var arrival = SfoGroundHarness.SpawnAtHoldShort(ground, Arrival, ArrivalType, ("28L", "T", "B"));
+        AircraftState pusher = SfoGroundHarness.SpawnParked(ground, Pusher, PusherType, pusherGate);
+        AircraftState arrival = SfoGroundHarness.SpawnAtHoldShort(ground, Arrival, ArrivalType, ("28L", "T", "B"));
         return new Alley(ground, pusher, arrival, spot!, parking!);
     }
 

@@ -117,7 +117,7 @@ public abstract class Phase
         }
 
         _requirements = new List<ClearanceRequirement>(dtoRequirements.Count);
-        foreach (var dto in dtoRequirements)
+        foreach (ClearanceRequirementDto dto in dtoRequirements)
         {
             _requirements.Add(ClearanceRequirement.FromSnapshot(dto));
         }
@@ -134,7 +134,7 @@ public abstract class Phase
         }
 
         var result = new List<ClearanceRequirementDto>(_requirements.Count);
-        foreach (var req in _requirements)
+        foreach (ClearanceRequirement req in _requirements)
         {
             result.Add(req.ToSnapshot());
         }
@@ -147,7 +147,7 @@ public abstract class Phase
     /// </summary>
     public bool SatisfyClearance(ClearanceType type)
     {
-        foreach (var req in Requirements)
+        foreach (ClearanceRequirement req in Requirements)
         {
             if (req.Type == type && !req.IsSatisfied)
             {

@@ -255,7 +255,7 @@ public static class VisualDetection
         }
 
         // BKN/OVC layer between aircraft and ground obscures the field.
-        var binding = FindBindingCeilingAbove(aircraft.Altitude, airportElevation, layers);
+        MetarParser.CloudLayer? binding = FindBindingCeilingAbove(aircraft.Altitude, airportElevation, layers);
         if (binding is { } above)
         {
             return VisualAcquisitionResult.FailLayer(VisualAcquisitionFailure.AboveCeiling, 0.0, 0.0, above);
@@ -330,7 +330,7 @@ public static class VisualDetection
 
         // Any BKN/OVC layer whose base lies strictly between the two altitudes
         // obstructs the line of sight. FEW/SCT have too many gaps to reliably block.
-        var obstructing = FindObstructingLayerBetween(ownship.Altitude, target.Altitude, airportElevation, layers);
+        MetarParser.CloudLayer? obstructing = FindObstructingLayerBetween(ownship.Altitude, target.Altitude, airportElevation, layers);
         if (obstructing is { } mixed)
         {
             return VisualAcquisitionResult.FailLayer(VisualAcquisitionFailure.MixedCeiling, distance, maxRange, mixed);
@@ -393,7 +393,7 @@ public static class VisualDetection
         double? visibilitySm
     )
     {
-        var obstructing = FindObstructingLayerBetween(ownship.Altitude, target.Altitude, airportElevation, layers);
+        MetarParser.CloudLayer? obstructing = FindObstructingLayerBetween(ownship.Altitude, target.Altitude, airportElevation, layers);
         if (obstructing is { } mixed)
         {
             return VisualAcquisitionResult.FailLayer(VisualAcquisitionFailure.MixedCeiling, 0.0, 0.0, mixed);
@@ -499,7 +499,7 @@ public static class VisualDetection
         // Aircraft must be below every BKN/OVC layer — if it's at or above any of
         // them, the deck obstructs the view of the field. Surface the lowest such
         // layer as the binding one so the failure message can name it.
-        var binding = FindBindingCeilingAbove(aircraft.Altitude, airportElevation, layers);
+        MetarParser.CloudLayer? binding = FindBindingCeilingAbove(aircraft.Altitude, airportElevation, layers);
         if (binding is { } above)
         {
             return VisualAcquisitionResult.FailLayer(VisualAcquisitionFailure.AboveCeiling, distance, maxRange, above);
@@ -565,7 +565,7 @@ public static class VisualDetection
         double low = Math.Min(altitudeMslA, altitudeMslB);
         double high = Math.Max(altitudeMslA, altitudeMslB);
         MetarParser.CloudLayer? binding = null;
-        foreach (var layer in layers)
+        foreach (MetarParser.CloudLayer layer in layers)
         {
             if (layer.Cover is not (MetarParser.CloudCover.Broken or MetarParser.CloudCover.Overcast))
             {
@@ -602,7 +602,7 @@ public static class VisualDetection
             return null;
         }
         MetarParser.CloudLayer? binding = null;
-        foreach (var layer in layers)
+        foreach (MetarParser.CloudLayer layer in layers)
         {
             if (layer.Cover is not (MetarParser.CloudCover.Broken or MetarParser.CloudCover.Overcast))
             {

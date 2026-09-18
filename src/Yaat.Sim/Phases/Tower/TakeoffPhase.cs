@@ -94,7 +94,7 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock
     {
         // Cross-runway closed traffic takes off on the DEPARTURE runway, not the
         // pattern runway carried in AssignedRunway/ctx.Runway.
-        var rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;
+        RunwayInfo? rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;
         _fieldElevation = ctx.FieldElevation;
         _runwayHeading = rwy?.TrueHeading ?? ctx.Aircraft.TrueHeading;
         _thresholdLat = rwy?.ThresholdLatitude ?? ctx.Aircraft.Position.Lat;

@@ -42,7 +42,7 @@ public static class TestArtccConfig
 
             try
             {
-                var json = File.ReadAllText(ZoaSnapshotPath);
+                string json = File.ReadAllText(ZoaSnapshotPath);
                 _zoa = JsonSerializer.Deserialize<ArtccConfigRoot>(json, RecordingJsonOptions.Default);
             }
             catch (JsonException)

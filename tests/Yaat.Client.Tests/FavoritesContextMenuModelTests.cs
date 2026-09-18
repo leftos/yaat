@@ -21,9 +21,9 @@ public class FavoritesContextMenuModelTests
             GroundCommandText = "",
         };
 
-        var result = FavoritesContextMenuModel.Build([fav], Airborne());
+        IReadOnlyList<FavoritesMenuEntry> result = FavoritesContextMenuModel.Build([fav], Airborne());
 
-        var entry = Assert.Single(result);
+        FavoritesMenuEntry entry = Assert.Single(result);
         Assert.False(entry.IsSpacer);
         Assert.Equal("Climb", entry.Label);
         Assert.Equal("CM 230", entry.CommandText);
@@ -39,9 +39,9 @@ public class FavoritesContextMenuModelTests
             GroundCommandText = "TAXI A",
         };
 
-        var result = FavoritesContextMenuModel.Build([fav], OnGround());
+        IReadOnlyList<FavoritesMenuEntry> result = FavoritesContextMenuModel.Build([fav], OnGround());
 
-        var entry = Assert.Single(result);
+        FavoritesMenuEntry entry = Assert.Single(result);
         Assert.Equal("TAXI A", entry.CommandText);
     }
 
@@ -55,9 +55,9 @@ public class FavoritesContextMenuModelTests
             GroundCommandText = "",
         };
 
-        var result = FavoritesContextMenuModel.Build([fav], OnGround());
+        IReadOnlyList<FavoritesMenuEntry> result = FavoritesContextMenuModel.Build([fav], OnGround());
 
-        var entry = Assert.Single(result);
+        FavoritesMenuEntry entry = Assert.Single(result);
         Assert.Equal("SQVFR", entry.CommandText);
     }
 
@@ -71,7 +71,7 @@ public class FavoritesContextMenuModelTests
             GroundCommandText = "PUSH",
         };
 
-        var result = FavoritesContextMenuModel.Build([fav], Airborne());
+        IReadOnlyList<FavoritesMenuEntry> result = FavoritesContextMenuModel.Build([fav], Airborne());
 
         Assert.Empty(result);
     }
@@ -81,7 +81,7 @@ public class FavoritesContextMenuModelTests
     {
         FavoriteCommand[] favs = [new() { Label = "A", CommandText = "AA" }, new() { IsSpacer = true }, new() { Label = "B", CommandText = "BB" }];
 
-        var result = FavoritesContextMenuModel.Build(favs, Airborne());
+        IReadOnlyList<FavoritesMenuEntry> result = FavoritesContextMenuModel.Build(favs, Airborne());
 
         Assert.Collection(result, e => Assert.Equal("A", e.Label), e => Assert.True(e.IsSpacer), e => Assert.Equal("B", e.Label));
     }
@@ -97,9 +97,9 @@ public class FavoritesContextMenuModelTests
             new() { IsSpacer = true },
         ];
 
-        var result = FavoritesContextMenuModel.Build(favs, Airborne());
+        IReadOnlyList<FavoritesMenuEntry> result = FavoritesContextMenuModel.Build(favs, Airborne());
 
-        var entry = Assert.Single(result);
+        FavoritesMenuEntry entry = Assert.Single(result);
         Assert.Equal("A", entry.Label);
     }
 
@@ -115,7 +115,7 @@ public class FavoritesContextMenuModelTests
             new() { Label = "B", CommandText = "BB" },
         ];
 
-        var result = FavoritesContextMenuModel.Build(favs, Airborne());
+        IReadOnlyList<FavoritesMenuEntry> result = FavoritesContextMenuModel.Build(favs, Airborne());
 
         Assert.Collection(result, e => Assert.Equal("A", e.Label), e => Assert.True(e.IsSpacer), e => Assert.Equal("B", e.Label));
     }
@@ -125,9 +125,9 @@ public class FavoritesContextMenuModelTests
     {
         var fav = new FavoriteCommand { Label = "", CommandText = "CM 230" };
 
-        var result = FavoritesContextMenuModel.Build([fav], Airborne());
+        IReadOnlyList<FavoritesMenuEntry> result = FavoritesContextMenuModel.Build([fav], Airborne());
 
-        var entry = Assert.Single(result);
+        FavoritesMenuEntry entry = Assert.Single(result);
         Assert.Equal("CM 230", entry.Label);
     }
 
@@ -145,9 +145,9 @@ public class FavoritesContextMenuModelTests
             },
         ];
 
-        var result = FavoritesContextMenuModel.Build(favs, aircraft: null);
+        IReadOnlyList<FavoritesMenuEntry> result = FavoritesContextMenuModel.Build(favs, aircraft: null);
 
-        var entry = Assert.Single(result);
+        FavoritesMenuEntry entry = Assert.Single(result);
         Assert.Equal("Air", entry.Label);
     }
 
@@ -166,9 +166,9 @@ public class FavoritesContextMenuModelTests
             },
         ];
 
-        var result = FavoritesContextMenuModel.Build(favs, Airborne());
+        IReadOnlyList<FavoritesMenuEntry> result = FavoritesContextMenuModel.Build(favs, Airborne());
 
-        var entry = Assert.Single(result);
+        FavoritesMenuEntry entry = Assert.Single(result);
         Assert.Equal("A", entry.Label);
     }
 }

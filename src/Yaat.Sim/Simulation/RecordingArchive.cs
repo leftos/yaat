@@ -58,7 +58,7 @@ public sealed class RecordingArchive : IDisposable
             return null;
         }
 
-        var entry = _zip.GetEntry("weather.json");
+        ZipArchiveEntry? entry = _zip.GetEntry("weather.json");
         if (entry is null)
         {
             return null;
@@ -79,7 +79,7 @@ public sealed class RecordingArchive : IDisposable
             return null;
         }
 
-        var entry = _zip.GetEntry("artcc-config.json.br");
+        ZipArchiveEntry? entry = _zip.GetEntry("artcc-config.json.br");
         if (entry is null)
         {
             return null;
@@ -95,7 +95,7 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public Yaat.Sim.Data.Vnas.ArtccConfigRoot? DeserializeArtccConfig()
     {
-        var json = ReadArtccConfigJson();
+        string? json = ReadArtccConfigJson();
         if (json is null)
         {
             return null;
@@ -133,14 +133,14 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public IReadOnlyList<TimelineBookmark> ReadBookmarks()
     {
-        var entry = _zip.GetEntry("bookmarks.json");
+        ZipArchiveEntry? entry = _zip.GetEntry("bookmarks.json");
         if (entry is null)
         {
             return [];
         }
 
-        var json = ReadUtf8Entry(entry);
-        var parsed = JsonSerializer.Deserialize<RecordingBookmarks>(json, RecordingJsonOptions.Default);
+        string json = ReadUtf8Entry(entry);
+        RecordingBookmarks? parsed = JsonSerializer.Deserialize<RecordingBookmarks>(json, RecordingJsonOptions.Default);
         return parsed?.Bookmarks ?? [];
     }
 
@@ -159,22 +159,22 @@ public sealed class RecordingArchive : IDisposable
         using var output = new MemoryStream();
         using (var destZip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
         {
-            foreach (var sourceEntry in sourceZip.Entries)
+            foreach (ZipArchiveEntry sourceEntry in sourceZip.Entries)
             {
                 if (string.Equals(sourceEntry.FullName, "bookmarks.json", StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                var destEntry = destZip.CreateEntry(sourceEntry.FullName, CompressionLevel.NoCompression);
-                using var sourceStream = sourceEntry.Open();
-                using var destStream = destEntry.Open();
+                ZipArchiveEntry destEntry = destZip.CreateEntry(sourceEntry.FullName, CompressionLevel.NoCompression);
+                using Stream sourceStream = sourceEntry.Open();
+                using Stream destStream = destEntry.Open();
                 sourceStream.CopyTo(destStream);
             }
 
-            var bookmarksJson = JsonSerializer.SerializeToUtf8Bytes(new RecordingBookmarks(1, bookmarks), RecordingJsonOptions.Default);
-            var bookmarksEntry = destZip.CreateEntry("bookmarks.json", CompressionLevel.NoCompression);
-            using var bookmarksStream = bookmarksEntry.Open();
+            byte[] bookmarksJson = JsonSerializer.SerializeToUtf8Bytes(new RecordingBookmarks(1, bookmarks), RecordingJsonOptions.Default);
+            ZipArchiveEntry bookmarksEntry = destZip.CreateEntry("bookmarks.json", CompressionLevel.NoCompression);
+            using Stream bookmarksStream = bookmarksEntry.Open();
             bookmarksStream.Write(bookmarksJson);
         }
 
@@ -183,13 +183,13 @@ public sealed class RecordingArchive : IDisposable
 
     public List<RecordedAction> ReadActionsForReplay()
     {
-        var actions = ReadActions();
+        List<RecordedAction> actions = ReadActions();
         if (actions.Any(static a => a is RecordedAircraftSpawn))
         {
             return actions;
         }
 
-        var scenarioJson = ReadScenarioJson();
+        string scenarioJson = ReadScenarioJson();
         return AddSyntheticAircraftSpawnsFromSnapshots(actions, ReadScenarioAircraftCallsigns(scenarioJson));
     }
 
@@ -208,8 +208,8 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public TimedSnapshot ReadTimedSnapshot(int index)
     {
-        var indexEntry = Manifest.Snapshots[index];
-        var state = ReadSnapshot(index);
+        SnapshotIndexEntry indexEntry = Manifest.Snapshots[index];
+        StateSnapshotDto state = ReadSnapshot(index);
         return new TimedSnapshot
         {
             ElapsedSeconds = indexEntry.ElapsedSeconds,
@@ -225,7 +225,7 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public AirportGroundLayout ReadLayout(string airportId)
     {
-        var layout =
+        AirportGroundLayout layout =
             DeserializeBrotliEntry<AirportGroundLayout>($"layouts/{airportId}.json.br")
             ?? throw new InvalidOperationException($"Failed to deserialize layout for {airportId}.");
         layout.RebuildAdjacencyLists();
@@ -243,7 +243,7 @@ public sealed class RecordingArchive : IDisposable
             return layouts;
         }
 
-        foreach (var airportId in Manifest.LayoutAirportIds)
+        foreach (string airportId in Manifest.LayoutAirportIds)
         {
             layouts[airportId] = ReadLayout(airportId);
         }
@@ -258,7 +258,7 @@ public sealed class RecordingArchive : IDisposable
             return null;
         }
 
-        var declaredId = ids.FirstOrDefault(id => id.Equals(airportId, StringComparison.OrdinalIgnoreCase));
+        string? declaredId = ids.FirstOrDefault(id => id.Equals(airportId, StringComparison.OrdinalIgnoreCase));
         return declaredId is null ? null : ReadBrotliEntry($"airport-geojson/{declaredId}.geojson.br");
     }
 
@@ -270,7 +270,7 @@ public sealed class RecordingArchive : IDisposable
             return geoJsons;
         }
 
-        foreach (var airportId in Manifest.AirportGeoJsonIds)
+        foreach (string airportId in Manifest.AirportGeoJsonIds)
         {
             geoJsons[airportId] = ReadBrotliEntry($"airport-geojson/{airportId}.geojson.br");
         }
@@ -293,7 +293,7 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public int? FindNearestSnapshotIndex(double targetSeconds)
     {
-        var snapshots = Manifest.Snapshots;
+        List<SnapshotIndexEntry> snapshots = Manifest.Snapshots;
         if (snapshots.Count == 0)
         {
             return null;
@@ -326,7 +326,7 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public TimedSnapshot? ReadSnapshotAt(double targetSeconds)
     {
-        var index = FindNearestSnapshotIndex(targetSeconds);
+        int? index = FindNearestSnapshotIndex(targetSeconds);
         return index.HasValue ? ReadTimedSnapshot(index.Value) : null;
     }
 
@@ -338,8 +338,8 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public SessionRecording ToBaseSessionRecording()
     {
-        var actions = ReadActionsForReplay();
-        var scenarioJson = ReadScenarioJson();
+        List<RecordedAction> actions = ReadActionsForReplay();
+        string scenarioJson = ReadScenarioJson();
         return new SessionRecording
         {
             Version = Manifest.Version,
@@ -387,7 +387,7 @@ public sealed class RecordingArchive : IDisposable
             return null;
         }
 
-        var scenario = FirstSnapshot.State.Scenario;
+        ScenarioSnapshotDto scenario = FirstSnapshot.State.Scenario;
         return new ReplayStudentPosition(
             scenario.StudentPosition is not null ? TrackOwner.FromSnapshot(scenario.StudentPosition) : null,
             scenario.StudentTcp is not null ? Tcp.FromSnapshot(scenario.StudentTcp) : null,
@@ -424,9 +424,9 @@ public sealed class RecordingArchive : IDisposable
     /// </summary>
     public SessionRecording ToSessionRecording()
     {
-        var layouts = ReadAllLayouts();
-        var actions = ReadActions();
-        var scenarioJson = ReadScenarioJson();
+        Dictionary<string, AirportGroundLayout> layouts = ReadAllLayouts();
+        List<RecordedAction> actions = ReadActions();
+        string scenarioJson = ReadScenarioJson();
 
         List<TimedSnapshot>? snapshots = null;
         if (Manifest.Snapshots.Count > 0)
@@ -434,7 +434,7 @@ public sealed class RecordingArchive : IDisposable
             snapshots = new List<TimedSnapshot>(Manifest.Snapshots.Count);
             for (int i = 0; i < Manifest.Snapshots.Count; i++)
             {
-                var timed = ReadTimedSnapshot(i);
+                TimedSnapshot timed = ReadTimedSnapshot(i);
                 ReattachDelayedSpawnLayouts(timed.State, layouts);
                 snapshots.Add(timed);
             }
@@ -477,10 +477,10 @@ public sealed class RecordingArchive : IDisposable
             return;
         }
 
-        foreach (var delayed in queue)
+        foreach (DelayedSpawnDto delayed in queue)
         {
-            var aircraft = JsonSerializer.Deserialize<LoadedAircraft>(delayed.AircraftJson, RecordingJsonOptions.Default);
-            if (aircraft?.State.Ground.LayoutAirportId is { } airportId && layouts.TryGetValue(airportId, out var layout))
+            LoadedAircraft? aircraft = JsonSerializer.Deserialize<LoadedAircraft>(delayed.AircraftJson, RecordingJsonOptions.Default);
+            if (aircraft?.State.Ground.LayoutAirportId is { } airportId && layouts.TryGetValue(airportId, out AirportGroundLayout? layout))
             {
                 aircraft.State.Ground.Layout = layout;
             }
@@ -507,7 +507,7 @@ public sealed class RecordingArchive : IDisposable
         for (int i = 1; i < Manifest.Snapshots.Count; i++)
         {
             double elapsedSeconds = Manifest.Snapshots[i].ElapsedSeconds;
-            foreach (var aircraft in ReadUnseenSnapshotAircraft(i, seen))
+            foreach (AircraftSnapshotDto aircraft in ReadUnseenSnapshotAircraft(i, seen))
             {
                 if (!scenarioAircraftCallsigns.Contains(aircraft.Callsign))
                 {
@@ -531,16 +531,16 @@ public sealed class RecordingArchive : IDisposable
         try
         {
             using var doc = JsonDocument.Parse(scenarioJson);
-            if (!doc.RootElement.TryGetProperty("aircraft", out var aircraftElement) || aircraftElement.ValueKind is not JsonValueKind.Array)
+            if (!doc.RootElement.TryGetProperty("aircraft", out JsonElement aircraftElement) || aircraftElement.ValueKind is not JsonValueKind.Array)
             {
                 return callsigns;
             }
 
-            foreach (var aircraft in aircraftElement.EnumerateArray())
+            foreach (JsonElement aircraft in aircraftElement.EnumerateArray())
             {
-                if (aircraft.TryGetProperty("aircraftId", out var idElement) && idElement.ValueKind is JsonValueKind.String)
+                if (aircraft.TryGetProperty("aircraftId", out JsonElement idElement) && idElement.ValueKind is JsonValueKind.String)
                 {
-                    var callsign = idElement.GetString();
+                    string? callsign = idElement.GetString();
                     if (!string.IsNullOrWhiteSpace(callsign))
                     {
                         callsigns.Add(callsign);
@@ -564,10 +564,10 @@ public sealed class RecordingArchive : IDisposable
 
     private RecordingManifest ReadManifest()
     {
-        var entry =
+        ZipArchiveEntry entry =
             _zip.GetEntry("manifest.json")
             ?? throw new InvalidOperationException("Recording archive does not contain manifest.json — not a valid recording archive.");
-        var json = ReadUtf8Entry(entry);
+        string json = ReadUtf8Entry(entry);
         return JsonSerializer.Deserialize<RecordingManifest>(json, RecordingJsonOptions.Default)
             ?? throw new InvalidOperationException("Failed to deserialize manifest.json from recording archive.");
     }
@@ -580,24 +580,24 @@ public sealed class RecordingArchive : IDisposable
     private List<AircraftSnapshotDto> ReadUnseenSnapshotAircraft(int index, HashSet<string> seen)
     {
         string entryName = $"snapshots/{index:D3}.json.br";
-        var entry = _zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Recording archive missing entry: {entryName}");
-        using var entryStream = entry.Open();
+        ZipArchiveEntry entry = _zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Recording archive missing entry: {entryName}");
+        using Stream entryStream = entry.Open();
         using var brotli = new BrotliStream(entryStream, CompressionMode.Decompress);
         using var document = JsonDocument.Parse(brotli);
 
         var unseen = new List<AircraftSnapshotDto>();
         if (
-            !TryGetPropertyIgnoreCase(document.RootElement, nameof(StateSnapshotDto.Aircraft), out var aircraftArray)
+            !TryGetPropertyIgnoreCase(document.RootElement, nameof(StateSnapshotDto.Aircraft), out JsonElement aircraftArray)
             || aircraftArray.ValueKind is not JsonValueKind.Array
         )
         {
             return unseen;
         }
 
-        foreach (var element in aircraftArray.EnumerateArray())
+        foreach (JsonElement element in aircraftArray.EnumerateArray())
         {
             if (
-                !TryGetPropertyIgnoreCase(element, nameof(AircraftSnapshotDto.Callsign), out var callsignElement)
+                !TryGetPropertyIgnoreCase(element, nameof(AircraftSnapshotDto.Callsign), out JsonElement callsignElement)
                 || callsignElement.GetString() is not { } callsign
             )
             {
@@ -606,7 +606,7 @@ public sealed class RecordingArchive : IDisposable
 
             if (seen.Add(callsign))
             {
-                var aircraft =
+                AircraftSnapshotDto aircraft =
                     element.Deserialize<AircraftSnapshotDto>(RecordingJsonOptions.Default)
                     ?? throw new InvalidOperationException($"Failed to deserialize aircraft {callsign} from snapshot {index}.");
                 unseen.Add(aircraft);
@@ -620,7 +620,7 @@ public sealed class RecordingArchive : IDisposable
     {
         if (element.ValueKind is JsonValueKind.Object)
         {
-            foreach (var property in element.EnumerateObject())
+            foreach (JsonProperty property in element.EnumerateObject())
             {
                 if (property.NameEquals(name) || string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
                 {
@@ -636,16 +636,16 @@ public sealed class RecordingArchive : IDisposable
 
     private T? DeserializeBrotliEntry<T>(string entryName)
     {
-        var entry = _zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Recording archive missing entry: {entryName}");
-        using var entryStream = entry.Open();
+        ZipArchiveEntry entry = _zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Recording archive missing entry: {entryName}");
+        using Stream entryStream = entry.Open();
         using var brotli = new BrotliStream(entryStream, CompressionMode.Decompress);
         return JsonSerializer.Deserialize<T>(brotli, RecordingJsonOptions.Default);
     }
 
     private string ReadBrotliEntry(string entryName)
     {
-        var entry = _zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Recording archive missing entry: {entryName}");
-        using var entryStream = entry.Open();
+        ZipArchiveEntry entry = _zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Recording archive missing entry: {entryName}");
+        using Stream entryStream = entry.Open();
         using var brotli = new BrotliStream(entryStream, CompressionMode.Decompress);
         using var reader = new StreamReader(brotli);
         return reader.ReadToEnd();
@@ -653,7 +653,7 @@ public sealed class RecordingArchive : IDisposable
 
     private static string ReadUtf8Entry(ZipArchiveEntry entry)
     {
-        using var entryStream = entry.Open();
+        using Stream entryStream = entry.Open();
         using var reader = new StreamReader(entryStream);
         return reader.ReadToEnd();
     }

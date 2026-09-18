@@ -68,7 +68,7 @@ public sealed class LinedUpAndWaitingPhase : Phase
         ctx.Aircraft.IsOnGround = true;
         ctx.Targets.TargetSpeed = 0;
         // Cross-runway closed traffic holds aligned with the DEPARTURE runway.
-        var rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;
+        RunwayInfo? rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;
         if (rwy is not null)
         {
             ctx.Targets.TargetTrueHeading = rwy.TrueHeading;
@@ -96,8 +96,8 @@ public sealed class LinedUpAndWaitingPhase : Phase
             && ctx.PilotContacts.ResolveFor(ctx.Aircraft, "TWR", rwy.AirportId, ctx.ToEligibilityContext(), false) is { } answering
         )
         {
-            var facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
-            var line = PilotResponder.BuildLinedUpReady(ctx.Aircraft, rwy.Designator, facilityCallName);
+            string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
+            PilotSpeechText line = PilotResponder.BuildLinedUpReady(ctx.Aircraft, rwy.Designator, facilityCallName);
             PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
             PilotRequestTracker.RecordRequest(
                 ctx.Aircraft,

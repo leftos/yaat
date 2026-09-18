@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
+using Yaat.Client.Views.Ground;
 using Yaat.GuideCapture.Capture;
 
 namespace Yaat.GuideCapture.Scenes;
@@ -19,7 +20,7 @@ internal sealed class GroundViewPopoutScene : ScenarioSceneBase
         Dispatcher.UIThread.RunJobs();
 
         var main = (MainWindow)window;
-        var ground = main.GroundViewWindow ?? throw new InvalidOperationException("GroundViewWindow was not created by MainWindow.");
+        GroundViewWindow ground = main.GroundViewWindow ?? throw new InvalidOperationException("GroundViewWindow was not created by MainWindow.");
         ground.Width = 1400;
         ground.Height = 900;
         Dispatcher.UIThread.RunJobs();

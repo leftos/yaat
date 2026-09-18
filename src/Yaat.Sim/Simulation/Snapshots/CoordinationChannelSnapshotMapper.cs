@@ -56,7 +56,7 @@ public static class CoordinationChannelSnapshotMapper
             return;
         }
 
-        foreach (var (id, dto) in dtos)
+        foreach ((string? id, CoordinationChannelDto? dto) in dtos)
         {
             target[id] = FromSnapshot(dto);
         }
@@ -76,7 +76,7 @@ public static class CoordinationChannelSnapshotMapper
 
         if (dto.Items is not null)
         {
-            foreach (var itemDto in dto.Items)
+            foreach (CoordinationItemDto itemDto in dto.Items)
             {
                 channel.Items.Add(
                     new CoordinationItem

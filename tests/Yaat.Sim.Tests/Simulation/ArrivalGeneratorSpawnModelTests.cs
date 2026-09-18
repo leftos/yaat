@@ -62,12 +62,12 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(
+        List<string> warnings = engine.LoadScenario(
             ScenarioJson(intervalTime, randomizeInterval),
             rngSeed: 42,
             sessionStartUtc: MagneticDeclination.EvaluationDateUtc
         );
-        foreach (var w in warnings)
+        foreach (string w in warnings)
         {
             output.WriteLine($"[load-warn] {w}");
         }
@@ -76,7 +76,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
 
     private void Dump(SimulationEngine engine)
     {
-        foreach (var s in engine.GeneratorSpawnLog.OrderBy(s => s.ElapsedSeconds))
+        foreach (GeneratorSpawnRecord s in engine.GeneratorSpawnLog.OrderBy(s => s.ElapsedSeconds))
         {
             output.WriteLine(
                 $"t={s.ElapsedSeconds} d={s.SpawnDistanceNm:F1} rearmost={s.RearmostAtSpawnNm?.ToString("F1") ?? "none"} gap={s.RequiredGapNm:F1}"
@@ -87,7 +87,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
     [Fact]
     public void LongInterval_KeepsArrivalsNearInitialDistance_PacedByTime()
     {
-        var engine = BuildLoadedEngine(intervalTime: 180, randomizeInterval: false);
+        SimulationEngine? engine = BuildLoadedEngine(intervalTime: 180, randomizeInterval: false);
         if (engine is null)
         {
             return;
@@ -108,7 +108,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
 
         // A long interval drains the corridor between spawns, so every arrival keeps entering near
         // InitialDistance -- NOT at the back of the corridor (MaxDistance). This is the time-first signature.
-        foreach (var s in spawns)
+        foreach (GeneratorSpawnRecord s in spawns)
         {
             Assert.InRange(s.SpawnDistanceNm, InitialDistance - 0.5, InitialDistance + IntervalDistance);
             Assert.True(s.SpawnDistanceNm <= MaxDistance + 1e-6, "no spawn may exceed MaxDistance");
@@ -123,7 +123,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
 
         // IntervalTime (180s @ 100%) sets the cadence between consecutive arrivals; with the corridor
         // never backed up, randomize off gives an exact, defer-free cadence.
-        var expected = ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(180, 100);
+        double expected = ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(180, 100);
         for (int i = 1; i < spawns.Count; i++)
         {
             Assert.Equal(expected, spawns[i].ElapsedSeconds - spawns[i - 1].ElapsedSeconds, precision: 6);
@@ -133,7 +133,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
     [Fact]
     public void ShortInterval_PacksStreamTowardMaxDistance_ThenWaits()
     {
-        var engine = BuildLoadedEngine(intervalTime: 15, randomizeInterval: false);
+        SimulationEngine? engine = BuildLoadedEngine(intervalTime: 15, randomizeInterval: false);
         if (engine is null)
         {
             return;
@@ -149,7 +149,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
         Assert.NotEmpty(spawns);
 
         // The cap is hard: no arrival is ever placed beyond MaxDistance.
-        foreach (var s in spawns)
+        foreach (GeneratorSpawnRecord s in spawns)
         {
             Assert.True(s.SpawnDistanceNm <= MaxDistance + 1e-6, $"spawn at {s.SpawnDistanceNm:F2} exceeds MaxDistance {MaxDistance}");
         }
@@ -170,7 +170,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
     [Fact]
     public void RandomizeInterval_JittersCadence_AroundTheBaseInterval()
     {
-        var engine = BuildLoadedEngine(intervalTime: 180, randomizeInterval: true);
+        SimulationEngine? engine = BuildLoadedEngine(intervalTime: 180, randomizeInterval: true);
         if (engine is null)
         {
             return;
@@ -190,7 +190,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
         var diffs = new List<double>();
         for (int i = 1; i < spawns.Count; i++)
         {
-            var diff = spawns[i].ElapsedSeconds - spawns[i - 1].ElapsedSeconds;
+            double diff = spawns[i].ElapsedSeconds - spawns[i - 1].ElapsedSeconds;
             diffs.Add(diff);
             Assert.InRange(diff, (180 * 0.75) - 1.5, (180 * 1.25) + 1.5);
         }
@@ -250,13 +250,13 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(OakScenarioJson(), rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
-        foreach (var w in warnings)
+        List<string> warnings = engine.LoadScenario(OakScenarioJson(), rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        foreach (string w in warnings)
         {
             output.WriteLine($"[load-warn] {w}");
         }
 
-        var runway = engine.Scenario!.Generators.Single(g => g.Config.Id == Oak30GeneratorId).Runway;
+        RunwayInfo runway = engine.Scenario!.Generators.Single(g => g.Config.Id == Oak30GeneratorId).Runway;
         return (engine, runway);
     }
 
@@ -298,16 +298,16 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
     [Fact]
     public void OutboundAircraftOnCentreline_IsNotCountedAsRearmostInbound()
     {
-        var setup = BuildOakEngine();
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = BuildOakEngine();
         if (setup is null)
         {
             return;
         }
-        var (engine, runway) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo? runway) = setup.Value;
 
         engine.World.AddAircraft(OutboundClimber(runway, distanceNm: 23, phases: null));
 
-        var spawn = FirstOak30Spawn(engine);
+        GeneratorSpawnRecord spawn = FirstOak30Spawn(engine);
         Assert.Equal(OakInitialDistance, spawn.SpawnDistanceNm, precision: 1);
         Assert.Null(spawn.RearmostAtSpawnNm);
     }
@@ -315,18 +315,18 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
     [Fact]
     public void DepartureRunwayAssignment_IsNotLandingIntent()
     {
-        var setup = BuildOakEngine();
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = BuildOakEngine();
         if (setup is null)
         {
             return;
         }
-        var (engine, runway) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo? runway) = setup.Value;
 
         // A departure carries AssignedRunway = its departure runway; with no phase, approach or landing clearance
         // that is not an intent to land, so the outbound aircraft still stays out of the stream.
         engine.World.AddAircraft(OutboundClimber(runway, distanceNm: 23, phases: new PhaseList { AssignedRunway = runway }));
 
-        var spawn = FirstOak30Spawn(engine);
+        GeneratorSpawnRecord spawn = FirstOak30Spawn(engine);
         Assert.Equal(OakInitialDistance, spawn.SpawnDistanceNm, precision: 1);
         Assert.Null(spawn.RearmostAtSpawnNm);
     }
@@ -334,16 +334,16 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
     [Fact]
     public void ArrivalOnFinal_IsRearmostInbound_SpawnSitsBehindIt()
     {
-        var setup = BuildOakEngine();
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = BuildOakEngine();
         if (setup is null)
         {
             return;
         }
-        var (engine, runway) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo? runway) = setup.Value;
 
         engine.World.AddAircraft(GeneratorArrivalOnFinal(runway, "SWA999", distanceNm: 23));
 
-        var spawn = FirstOak30Spawn(engine);
+        GeneratorSpawnRecord spawn = FirstOak30Spawn(engine);
         Assert.NotNull(spawn.RearmostAtSpawnNm);
         Assert.InRange(spawn.RearmostAtSpawnNm.Value, 22.5, 23.5);
         Assert.Equal(spawn.RearmostAtSpawnNm.Value + spawn.RequiredGapNm, spawn.SpawnDistanceNm, precision: 6);
@@ -353,12 +353,12 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
     [Fact]
     public void LandingIntentAcrossTheBand_IsRearmostInbound_SpawnSitsBehindIt()
     {
-        var setup = BuildOakEngine();
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = BuildOakEngine();
         if (setup is null)
         {
             return;
         }
-        var (engine, runway) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo? runway) = setup.Value;
 
         // A base leg inside the 2 nm band: 1 nm right of the extended centreline 15 nm out, tracking 90 degrees off
         // the landing course back toward it, already cleared to land on 30.
@@ -382,7 +382,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
             }
         );
 
-        var spawn = FirstOak30Spawn(engine);
+        GeneratorSpawnRecord spawn = FirstOak30Spawn(engine);
         Assert.NotNull(spawn.RearmostAtSpawnNm);
         Assert.InRange(spawn.RearmostAtSpawnNm.Value, 14.5, 15.5);
         Assert.Equal(spawn.RearmostAtSpawnNm.Value + spawn.RequiredGapNm, spawn.SpawnDistanceNm, precision: 6);
@@ -396,15 +396,15 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
     [Fact]
     public void OutboundTrafficAtTheSpawnPoint_HoldsTheSpawn_UntilItHasMovedClear()
     {
-        var setup = BuildOakEngine();
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = BuildOakEngine();
         if (setup is null)
         {
             return;
         }
-        var (engine, runway) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo? runway) = setup.Value;
 
-        var (_, spawnAltitudeFt) = AircraftInitializer.FinalApproachPoint(runway, AircraftCategory.Jet, OakInitialDistance);
-        var outbound = OutboundClimber(runway, distanceNm: OakInitialDistance, phases: null);
+        (LatLon _, double spawnAltitudeFt) = AircraftInitializer.FinalApproachPoint(runway, AircraftCategory.Jet, OakInitialDistance);
+        AircraftState outbound = OutboundClimber(runway, distanceNm: OakInitialDistance, phases: null);
         outbound.Altitude = spawnAltitudeFt;
         outbound.VerticalSpeed = 0;
         engine.World.AddAircraft(outbound);
@@ -418,10 +418,10 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
         }
         Dump(engine);
 
-        var spawn = Assert.Single(engine.GeneratorSpawnLog);
+        GeneratorSpawnRecord spawn = Assert.Single(engine.GeneratorSpawnLog);
         Assert.Equal(OakInitialDistance, spawn.SpawnDistanceNm, precision: 1);
-        var arrival = engine.FindAircraft(spawn.Callsign)!;
-        var passing = engine.FindAircraft(outbound.Callsign)!;
+        AircraftState arrival = engine.FindAircraft(spawn.Callsign)!;
+        AircraftState passing = engine.FindAircraft(outbound.Callsign)!;
         double lateralNm = GeoMath.DistanceNm(arrival.Position, passing.Position);
         double verticalFt = Math.Abs(arrival.Altitude - passing.Altitude);
         output.WriteLine($"spawned at t={spawn.ElapsedSeconds}s: {lateralNm:F2} nm / {verticalFt:F0} ft from {passing.Callsign}");
@@ -435,22 +435,22 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
     [Fact]
     public void OutboundTrafficWellBelowTheSpawnAltitude_DoesNotHoldTheSpawn()
     {
-        var setup = BuildOakEngine();
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = BuildOakEngine();
         if (setup is null)
         {
             return;
         }
-        var (engine, runway) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo? runway) = setup.Value;
 
-        var (_, spawnAltitudeFt) = AircraftInitializer.FinalApproachPoint(runway, AircraftCategory.Jet, OakInitialDistance);
-        var outbound = OutboundClimber(runway, distanceNm: OakInitialDistance, phases: null);
+        (LatLon _, double spawnAltitudeFt) = AircraftInitializer.FinalApproachPoint(runway, AircraftCategory.Jet, OakInitialDistance);
+        AircraftState outbound = OutboundClimber(runway, distanceNm: OakInitialDistance, phases: null);
         outbound.Altitude = spawnAltitudeFt - 1800;
         outbound.VerticalSpeed = 0;
         engine.World.AddAircraft(outbound);
 
         engine.TickOneSecond();
 
-        var spawn = Assert.Single(engine.GeneratorSpawnLog);
+        GeneratorSpawnRecord spawn = Assert.Single(engine.GeneratorSpawnLog);
         Assert.Equal(OakInitialDistance, spawn.SpawnDistanceNm, precision: 1);
     }
 
@@ -461,18 +461,18 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
     [Fact]
     public void ArrivalAtTheRearmost_DoesNotHoldTheSpawnBehindIt()
     {
-        var setup = BuildOakEngine();
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = BuildOakEngine();
         if (setup is null)
         {
             return;
         }
-        var (engine, runway) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo? runway) = setup.Value;
 
         engine.World.AddAircraft(GeneratorArrivalOnFinal(runway, "SWA997", distanceNm: 12));
 
         engine.TickOneSecond();
 
-        var spawn = Assert.Single(engine.GeneratorSpawnLog);
+        GeneratorSpawnRecord spawn = Assert.Single(engine.GeneratorSpawnLog);
         Assert.NotNull(spawn.RearmostAtSpawnNm);
         Assert.InRange(spawn.RearmostAtSpawnNm.Value, 11.5, 12.5);
         Assert.Equal(spawn.RearmostAtSpawnNm.Value + spawn.RequiredGapNm, spawn.SpawnDistanceNm, precision: 6);
@@ -486,14 +486,14 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
     [Fact]
     public void InboundArrivalOutsideTheCorridor_NearTheSpawnPoint_HoldsTheSpawn()
     {
-        var setup = BuildOakEngine();
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = BuildOakEngine();
         if (setup is null)
         {
             return;
         }
-        var (engine, runway) = setup.Value;
+        (SimulationEngine? engine, RunwayInfo? runway) = setup.Value;
 
-        var (spawnPoint, spawnAltitudeFt) = AircraftInitializer.FinalApproachPoint(runway, AircraftCategory.Jet, OakInitialDistance);
+        (LatLon spawnPoint, double spawnAltitudeFt) = AircraftInitializer.FinalApproachPoint(runway, AircraftCategory.Jet, OakInitialDistance);
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
         var outbound = new TrueHeading((runway.TrueHeading.Degrees + 180.0) % 360.0);
         var rightOfCourse = new TrueHeading((runway.TrueHeading.Degrees + 90.0) % 360.0);
@@ -523,7 +523,7 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
     /// <summary>A B738 generator arrival in <c>FinalApproachPhase</c> on the runway's final, placed the way the generator places one.</summary>
     private static AircraftState GeneratorArrivalOnFinal(RunwayInfo runway, string callsign, double distanceNm)
     {
-        var init = AircraftInitializer.InitializeOnFinal(
+        PhaseInitResult init = AircraftInitializer.InitializeOnFinal(
             runway,
             AircraftCategory.Jet,
             callsign,

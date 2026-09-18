@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -66,8 +67,8 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
 
     private TaxiRoute? ResolveDrawnRoute()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             return null;
@@ -75,10 +76,10 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 return null;
@@ -87,10 +88,10 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             engine.ReplayRange((int)snapshot.ElapsedSeconds, AssertAtSeconds, recording.Actions);
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
-            var route = ac.Ground?.AssignedTaxiRoute;
+            TaxiRoute? route = ac.Ground?.AssignedTaxiRoute;
             Assert.NotNull(route);
             output.WriteLine($"resolved {route.Segments.Count} segments, summary: {route.ToSummary()}");
             return route;
@@ -103,7 +104,7 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
     [Fact]
     public void DrawnRoute_DoesNotLoopTheBlock()
     {
-        var route = ResolveDrawnRoute();
+        TaxiRoute? route = ResolveDrawnRoute();
         if (route is null)
         {
             return;
@@ -116,7 +117,7 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
         );
 
         var seen = new HashSet<(int From, int To)>();
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             Assert.True(
                 seen.Add((seg.FromNodeId, seg.ToNodeId)),
@@ -129,7 +130,7 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
     [Fact]
     public void DrawnRoute_StaysOnTheDrawnTaxiways()
     {
-        var route = ResolveDrawnRoute();
+        TaxiRoute? route = ResolveDrawnRoute();
         if (route is null)
         {
             return;
@@ -137,9 +138,9 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
 
         // The drawn path runs C -> F -> RAMP. J, K and the 28R/10L surface are the detour the
         // block loop took to reverse direction; none of them is on the drawn geometry.
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
-            var names = SegmentTaxiwayNames(seg);
+            string[] names = SegmentTaxiwayNames(seg);
             Assert.False(
                 names.Contains("J", StringComparer.OrdinalIgnoreCase) || names.Contains("K", StringComparer.OrdinalIgnoreCase),
                 $"route uses taxiway {seg.TaxiwayName} ({seg.FromNodeId}->{seg.ToNodeId}); the drawn route only uses C, F and RAMP"
@@ -154,7 +155,7 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
     [Fact]
     public void DrawnRoute_EndsAtTheDrawnStand()
     {
-        var route = ResolveDrawnRoute();
+        TaxiRoute? route = ResolveDrawnRoute();
         if (route is null)
         {
             return;
@@ -167,7 +168,7 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
     [Fact]
     public void DrawnRoute_ReadbackNamesOnlyTheDrawnTaxiways()
     {
-        var route = ResolveDrawnRoute();
+        TaxiRoute? route = ResolveDrawnRoute();
         if (route is null)
         {
             return;

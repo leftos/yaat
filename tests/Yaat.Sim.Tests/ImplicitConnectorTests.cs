@@ -19,7 +19,7 @@ public class ImplicitConnectorTests
     [Fact]
     public void BuildAuthorizedTaxiwaySet_AuthorizesConnector_WhenBetweenPairAdjacent()
     {
-        var set = SearchContext.BuildAuthorizedTaxiwaySet(["L", "F"], LfConnector());
+        IReadOnlySet<string>? set = SearchContext.BuildAuthorizedTaxiwaySet(["L", "F"], LfConnector());
 
         Assert.NotNull(set);
         Assert.Contains("LF", set!);
@@ -30,7 +30,7 @@ public class ImplicitConnectorTests
     [Fact]
     public void BuildAuthorizedTaxiwaySet_Unordered_AuthorizesConnector()
     {
-        var set = SearchContext.BuildAuthorizedTaxiwaySet(["F", "L"], LfConnector());
+        IReadOnlySet<string>? set = SearchContext.BuildAuthorizedTaxiwaySet(["F", "L"], LfConnector());
 
         Assert.NotNull(set);
         Assert.Contains("LF", set!);
@@ -40,7 +40,7 @@ public class ImplicitConnectorTests
     public void BuildAuthorizedTaxiwaySet_DoesNotAuthorize_WhenPairNotAdjacent()
     {
         // L and F are both present but separated by A — the connector must NOT be authorized.
-        var set = SearchContext.BuildAuthorizedTaxiwaySet(["L", "A", "F"], LfConnector());
+        IReadOnlySet<string>? set = SearchContext.BuildAuthorizedTaxiwaySet(["L", "A", "F"], LfConnector());
 
         Assert.NotNull(set);
         Assert.DoesNotContain("LF", set!);
@@ -49,7 +49,7 @@ public class ImplicitConnectorTests
     [Fact]
     public void BuildAuthorizedTaxiwaySet_NoConnectors_OnlyLetterOnlyNames()
     {
-        var set = SearchContext.BuildAuthorizedTaxiwaySet(["L", "F"], []);
+        IReadOnlySet<string>? set = SearchContext.BuildAuthorizedTaxiwaySet(["L", "F"], []);
 
         Assert.NotNull(set);
         Assert.Contains("L", set!);
@@ -85,10 +85,10 @@ public class ImplicitConnectorTests
                 """
             );
 
-            var result = AirportSidecarLoader.LoadAll(tempDir);
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
 
-            var airport = Assert.Single(result.Airports);
-            var conn = Assert.Single(airport.ImplicitConnectors);
+            AirportSidecar airport = Assert.Single(result.Airports);
+            ImplicitConnectorEntry conn = Assert.Single(airport.ImplicitConnectors);
             // Names are upper-cased at load.
             Assert.Equal("LF", conn.Connector);
             Assert.Equal(["L", "F"], conn.Between);
@@ -121,11 +121,11 @@ public class ImplicitConnectorTests
         }
 
         // The SFO LF connector must ship in production data — fail loud if it's missing or wrong.
-        var connectors = NavigationDatabase.Instance.AirportSidecars.GetImplicitConnectors("SFO");
+        IReadOnlyList<ImplicitConnectorEntry> connectors = NavigationDatabase.Instance.AirportSidecars.GetImplicitConnectors("SFO");
         Assert.Contains(connectors, c => c.Connector == "LF" && c.Between.Count == 2 && c.Between.Contains("L") && c.Between.Contains("F"));
 
-        var layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), null);
-        var startNode = layout.Nodes.Values.FirstOrDefault(n => n.Edges.Any(e => e.MatchesTaxiway("L")));
+        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), null);
+        GroundNode? startNode = layout.Nodes.Values.FirstOrDefault(n => n.Edges.Any(e => e.MatchesTaxiway("L")));
         Assert.NotNull(startNode);
 
         var ctx = SearchContext.Compile(

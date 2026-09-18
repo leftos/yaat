@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -40,7 +41,7 @@ public class AutoTrackChangeRecordTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
         engine.Scenario!.AtcPositions.Add(Resolve(_zoa, SfoDepPositionId, ["KOAK"]));
         return engine;
     }
@@ -62,7 +63,7 @@ public class AutoTrackChangeRecordTests
     /// <summary>The fixture's C172 lifted off OAK: airborne, above the floor, untracked, filed out of KOAK.</summary>
     private static AircraftState AirborneDeparture(SimulationEngine engine)
     {
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         aircraft.IsOnGround = false;
         aircraft.Altitude = 3000;
         return aircraft;
@@ -83,10 +84,10 @@ public class AutoTrackChangeRecordTests
     {
         RecordedAction record = new RecordedAutoTrackChange(12, OakTwrPositionId, ["KOAK", "-KSFO", "none"]);
 
-        var json = JsonSerializer.Serialize(record, RecordingJsonOptions.Default);
-        var restored = JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default);
+        string json = JsonSerializer.Serialize(record, RecordingJsonOptions.Default);
+        RecordedAction? restored = JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default);
 
-        var change = Assert.IsType<RecordedAutoTrackChange>(restored);
+        RecordedAutoTrackChange change = Assert.IsType<RecordedAutoTrackChange>(restored);
         Assert.Equal(12, change.ElapsedSeconds);
         Assert.Equal(OakTwrPositionId, change.PositionId);
         Assert.Equal(["KOAK", "-KSFO", "none"], change.Entries);
@@ -101,20 +102,20 @@ public class AutoTrackChangeRecordTests
             return;
         }
 
-        var aircraft = AirborneDeparture(engine);
-        var lines = CaptureTerminal(engine);
+        AircraftState aircraft = AirborneDeparture(engine);
+        List<string> lines = CaptureTerminal(engine);
 
-        var result = engine.Actions.IssueDerived(new RecordedAutoTrackChange(engine.Scenario!.ElapsedSeconds, OakTwrPositionId, ["KOAK"]));
+        CommandResult result = engine.Actions.IssueDerived(new RecordedAutoTrackChange(engine.Scenario!.ElapsedSeconds, OakTwrPositionId, ["KOAK"]));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(["KOAK"], AirportsFor(engine, OakTwrPositionId));
         Assert.Empty(AirportsFor(engine, SfoDepPositionId));
 
-        var oakTwr = _zoa.ResolvePosition(OakTwrPositionId)!;
+        TrackOwner oakTwr = _zoa.ResolvePosition(OakTwrPositionId)!;
         Assert.NotNull(aircraft.Track.Owner);
         Assert.True(aircraft.Track.Owner!.MatchesPosition(oakTwr));
 
-        var recorded = Assert.IsType<RecordedAutoTrackChange>(engine.Scenario.ActionLog[^1]);
+        RecordedAutoTrackChange recorded = Assert.IsType<RecordedAutoTrackChange>(engine.Scenario.ActionLog[^1]);
         Assert.Equal(OakTwrPositionId, recorded.PositionId);
         Assert.Contains(
             lines,
@@ -133,7 +134,7 @@ public class AutoTrackChangeRecordTests
             return;
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.AtcPositions.Add(Resolve(_zoa, OakAppPositionId, ["KSFO"]));
 
         engine.Actions.IssueDerived(new RecordedAutoTrackChange(scenario.ElapsedSeconds, OakTwrPositionId, ["-KOAK"]));
@@ -161,11 +162,11 @@ public class AutoTrackChangeRecordTests
             return;
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = null;
         int before = scenario.ActionLog.Count;
 
-        var result = engine.Actions.IssueDerived(new RecordedAutoTrackChange(scenario.ElapsedSeconds, OakTwrPositionId, ["KOAK"]));
+        CommandResult result = engine.Actions.IssueDerived(new RecordedAutoTrackChange(scenario.ElapsedSeconds, OakTwrPositionId, ["KOAK"]));
 
         Assert.False(result.Success);
         Assert.Equal(before, scenario.ActionLog.Count);
@@ -181,10 +182,10 @@ public class AutoTrackChangeRecordTests
             return;
         }
 
-        var aircraft = AirborneDeparture(engine);
+        AircraftState aircraft = AirborneDeparture(engine);
         var record = new RecordedAutoTrackChange(engine.Scenario!.ElapsedSeconds, OakTwrPositionId, ["KOAK"]);
 
-        var result = engine.Actions.ApplyRecorded(record);
+        CommandResult result = engine.Actions.ApplyRecorded(record);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(["KOAK"], AirportsFor(engine, OakTwrPositionId));

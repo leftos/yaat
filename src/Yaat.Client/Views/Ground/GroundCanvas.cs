@@ -248,9 +248,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        foreach (var ac in Aircraft)
+        foreach (AircraftModel ac in Aircraft)
         {
-            if (LastBubbleRects.TryGetValue(ac.Callsign, out var rect) && rect.Contains((float)screenPos.X, (float)screenPos.Y))
+            if (LastBubbleRects.TryGetValue(ac.Callsign, out SKRect rect) && rect.Contains((float)screenPos.X, (float)screenPos.Y))
             {
                 return ac;
             }
@@ -265,7 +265,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         {
             return;
         }
-        foreach (var ac in Aircraft)
+        foreach (AircraftModel ac in Aircraft)
         {
             if (ac.Callsign == callsign && ac.SpeechBubble is not null)
             {
@@ -760,14 +760,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     protected override object? CreateRenderSnapshot()
     {
-        var state = State;
-        var aircraft = SortByZOrder(VisibleAircraft(), state.DataBlockZOrder);
-        var deconflictOffsets = RunDeconfliction(aircraft);
+        GroundDataBlockViewState state = State;
+        IReadOnlyList<AircraftModel> aircraft = SortByZOrder(VisibleAircraft(), state.DataBlockZOrder);
+        IReadOnlyDictionary<string, SKPoint> deconflictOffsets = RunDeconfliction(aircraft);
 
         var hiddenDbs = new HashSet<string>();
         if (state.StartWithAllHidden)
         {
-            foreach (var ac in aircraft)
+            foreach (AircraftModel ac in aircraft)
             {
                 if (!state.ShownDataBlockCallsigns.Contains(ac.Callsign))
                 {
@@ -777,7 +777,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
         else
         {
-            foreach (var cs in state.HiddenDataBlockCallsigns)
+            foreach (string cs in state.HiddenDataBlockCallsigns)
             {
                 hiddenDbs.Add(cs);
             }
@@ -785,12 +785,13 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         List<ResolvedRbl>? measurements = null;
         ResolvedRbl? pendingMeasurement = null;
-        var placedMeasurements = RangeBearingLines;
+        IReadOnlyList<RangeBearingLine>? placedMeasurements = RangeBearingLines;
         // A half-placed anchor picked in the other view previews there, not here.
-        var measureAnchor = _measureDragAnchor ?? (MeasureAnchor is { View: RblView.Ground } pending ? pending.Endpoint : (RblEndpoint?)null);
+        RblEndpoint? measureAnchor =
+            _measureDragAnchor ?? (MeasureAnchor is { View: RblView.Ground } pending ? pending.Endpoint : (RblEndpoint?)null);
         if (placedMeasurements is { Count: > 0 } || measureAnchor is not null)
         {
-            var lookup = BuildMeasureLookup();
+            RblTrackLookup lookup = BuildMeasureLookup();
             if (placedMeasurements is { Count: > 0 })
             {
                 measurements = RangeBearingLineResolver.Resolve(
@@ -803,7 +804,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
             if (measureAnchor is not null)
             {
-                var cursor = Viewport.ScreenToLatLon((float)_measurePointerPos.X, (float)_measurePointerPos.Y);
+                (double Lat, double Lon) cursor = Viewport.ScreenToLatLon((float)_measurePointerPos.X, (float)_measurePointerPos.Y);
                 pendingMeasurement = RangeBearingLineResolver.ResolvePending(
                     measureAnchor,
                     new LatLon(cursor.Lat, cursor.Lon),
@@ -911,8 +912,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         sorted.Sort(
             (a, b) =>
             {
-                zOrder.TryGetValue(a.Callsign, out var za);
-                zOrder.TryGetValue(b.Callsign, out var zb);
+                zOrder.TryGetValue(a.Callsign, out int za);
+                zOrder.TryGetValue(b.Callsign, out int zb);
                 return za.CompareTo(zb);
             }
         );
@@ -952,7 +953,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         var result = new List<AircraftModel>(aircraft.Count);
-        foreach (var ac in aircraft)
+        foreach (AircraftModel ac in aircraft)
         {
             if (ac.IsDelayed)
             {
@@ -978,9 +979,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         if (_isDraggingDataBlock)
         {
-            var pos = e.GetPosition(this);
-            var dx = (float)(pos.X - _dragStartMousePos.X);
-            var dy = (float)(pos.Y - _dragStartMousePos.Y);
+            Point pos = e.GetPosition(this);
+            float dx = (float)(pos.X - _dragStartMousePos.X);
+            float dy = (float)(pos.Y - _dragStartMousePos.Y);
 
             if (!_dragThresholdMet && dx * dx + dy * dy > 16)
             {
@@ -998,7 +999,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         base.OnPointerMoved(e);
-        var hoverPos = e.GetPosition(this);
+        Point hoverPos = e.GetPosition(this);
         _measurePointerPos = hoverPos;
         UpdateHoveredNode(hoverPos);
         UpdateHoveredAircraft(hoverPos);
@@ -1019,7 +1020,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// </summary>
     private RblTrackLookup BuildMeasureLookup()
     {
-        var aircraft = Aircraft;
+        IReadOnlyList<AircraftModel>? aircraft = Aircraft;
         return callsign =>
         {
             if (aircraft is null)
@@ -1027,7 +1028,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 return null;
             }
 
-            foreach (var ac in aircraft)
+            foreach (AircraftModel ac in aircraft)
             {
                 if (string.Equals(ac.Callsign, callsign, StringComparison.Ordinal))
                 {
@@ -1049,13 +1050,13 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// </remarks>
     public RblEndpoint MeasureEndpointAt(Point pos)
     {
-        var aircraft = FindAircraftAtPoint(pos) ?? FindDataBlockAtPoint(pos);
+        AircraftModel? aircraft = FindAircraftAtPoint(pos) ?? FindDataBlockAtPoint(pos);
         if (aircraft is not null)
         {
             return RblEndpoint.OnAircraft(aircraft.Callsign);
         }
 
-        var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
+        (double lat, double lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
         return RblEndpoint.AtPoint(new LatLon(lat, lon), "");
     }
 
@@ -1070,7 +1071,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        var resolved = RangeBearingLineResolver.Resolve(lines, BuildMeasureLookup(), GroundViewModel.MeasureUnits, GroundViewModel.MeasureView);
+        List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(
+            lines,
+            BuildMeasureLookup(),
+            GroundViewModel.MeasureUnits,
+            GroundViewModel.MeasureView
+        );
         return RangeBearingHitTest.NearestSlot(resolved, Viewport, (float)pos.X, (float)pos.Y, MeasurePickRadiusPx);
     }
 
@@ -1086,7 +1092,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// </summary>
     private void UpdateHoveredAircraft(Point screenPos)
     {
-        var ac = IsDrawingRoute ? null : (FindDataBlockAtPoint(screenPos) ?? FindAircraftAtPoint(screenPos));
+        AircraftModel? ac = IsDrawingRoute ? null : (FindDataBlockAtPoint(screenPos) ?? FindAircraftAtPoint(screenPos));
         SetHoveredAircraftCallsign(ac?.Callsign);
     }
 
@@ -1104,8 +1110,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
-        var pos = e.GetPosition(this);
-        var props = e.GetCurrentPoint(this).Properties;
+        Point pos = e.GetPosition(this);
+        PointerPointProperties props = e.GetCurrentPoint(this).Properties;
 
         // Distance measuring. Alt+left-drag measures without arming the tool first; once armed (toolbar
         // button, hotkey, context menu, or .rbl) plain left-clicks pick the endpoints. Both are exclusive
@@ -1143,7 +1149,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         if (props.IsMiddleButtonPressed)
         {
-            var hitAc = FindDataBlockAtPoint(pos) ?? FindAircraftAtPoint(pos);
+            AircraftModel? hitAc = FindDataBlockAtPoint(pos) ?? FindAircraftAtPoint(pos);
             if (hitAc is not null)
             {
                 State.ToggleHighlight(hitAc.Callsign);
@@ -1160,7 +1166,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return;
         }
 
-        var dataBlockAc = FindDataBlockAtPoint(pos);
+        AircraftModel? dataBlockAc = FindDataBlockAtPoint(pos);
         if (dataBlockAc is not null)
         {
             SurfaceDataBlock(dataBlockAc.Callsign);
@@ -1190,7 +1196,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         {
             if (props.IsLeftButtonPressed)
             {
-                var node = FindNodeAtPoint(pos);
+                GroundNodeDto? node = FindNodeAtPoint(pos);
                 if (node is not null)
                 {
                     DrawNodeClicked?.Invoke(node.Id);
@@ -1205,7 +1211,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         if (props.IsLeftButtonPressed)
         {
-            var ac = FindAircraftAtPoint(pos);
+            AircraftModel? ac = FindAircraftAtPoint(pos);
             if (ac is not null)
             {
                 SurfaceDataBlock(ac.Callsign);
@@ -1223,7 +1229,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
             if (SelectedAircraft is not null)
             {
-                var threshold = FindRunwayThresholdAtPoint(pos);
+                (string RunwayEnd, LatLon Position)? threshold = FindRunwayThresholdAtPoint(pos);
                 if (threshold is { } hit)
                 {
                     RunwayThresholdClicked?.Invoke(hit.RunwayEnd, pos);
@@ -1234,7 +1240,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
             // Speech-bubble click-to-dismiss: record the press but let pan still initiate.
             // Release-side checks pointer movement and only dismisses on a genuine click.
-            var bubbleAc = FindBubbleAircraftAtPoint(pos);
+            AircraftModel? bubbleAc = FindBubbleAircraftAtPoint(pos);
             if (bubbleAc is not null)
             {
                 _bubblePressCallsign = bubbleAc.Callsign;
@@ -1259,11 +1265,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         if (_measureDragAnchor is { } measureAnchor && e.InitialPressMouseButton == MouseButton.Left)
         {
-            var measureReleasePos = e.GetPosition(this);
+            Point measureReleasePos = e.GetPosition(this);
             _measureDragAnchor = null;
 
-            var mdx = measureReleasePos.X - _measureDragStart.X;
-            var mdy = measureReleasePos.Y - _measureDragStart.Y;
+            double mdx = measureReleasePos.X - _measureDragStart.X;
+            double mdy = measureReleasePos.Y - _measureDragStart.Y;
             if ((mdx * mdx) + (mdy * mdy) > MeasureDragThresholdSq)
             {
                 MeasureDragCompleted?.Invoke(measureAnchor, MeasureEndpointAt(measureReleasePos));
@@ -1289,9 +1295,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         if (_bubblePressCallsign is not null && e.InitialPressMouseButton == MouseButton.Left)
         {
-            var releasePos = e.GetPosition(this);
-            var dx = releasePos.X - _bubblePressPos.X;
-            var dy = releasePos.Y - _bubblePressPos.Y;
+            Point releasePos = e.GetPosition(this);
+            double dx = releasePos.X - _bubblePressPos.X;
+            double dy = releasePos.Y - _bubblePressPos.Y;
             if (dx * dx + dy * dy <= BubbleClickMaxMovementSq)
             {
                 DismissSpeechBubble(_bubblePressCallsign);
@@ -1321,7 +1327,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         {
             // Right-click finishes the drawn route at the clicked node; anywhere else it does nothing,
             // so the gesture stays free for panning while the route is being laid out.
-            var drawNode = FindNodeAtPoint(screenPos);
+            GroundNodeDto? drawNode = FindNodeAtPoint(screenPos);
             if (drawNode is not null)
             {
                 DrawNodeFinished?.Invoke(drawNode.Id, screenPos);
@@ -1331,7 +1337,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return false;
         }
 
-        var dataBlockAc = FindDataBlockAtPoint(screenPos);
+        AircraftModel? dataBlockAc = FindDataBlockAtPoint(screenPos);
         if (dataBlockAc is not null)
         {
             SurfaceDataBlock(dataBlockAc.Callsign);
@@ -1339,14 +1345,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return true;
         }
 
-        var ac = FindAircraftAtPoint(screenPos);
+        AircraftModel? ac = FindAircraftAtPoint(screenPos);
         if (ac is not null)
         {
             AircraftRightClicked?.Invoke(ac.Callsign, screenPos);
             return true;
         }
 
-        var node = FindNodeAtPoint(screenPos);
+        GroundNodeDto? node = FindNodeAtPoint(screenPos);
         if (node is not null)
         {
             NodeRightClicked?.Invoke(node.Id, screenPos);
@@ -1358,7 +1364,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         // the items it offers are taxi/takeoff clearances for the selected aircraft.
         if (SelectedAircraft is not null)
         {
-            var threshold = FindRunwayThresholdAtPoint(screenPos);
+            (string RunwayEnd, LatLon Position)? threshold = FindRunwayThresholdAtPoint(screenPos);
             if (threshold is { } hit)
             {
                 RunwayThresholdRightClicked?.Invoke(hit.RunwayEnd, screenPos);
@@ -1372,7 +1378,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         // stretch of runway/taxiway that has no graph node under the cursor; with nothing selected it
         // still carries the measuring-tool items. Safe to run unconditionally now that a right *drag*
         // pans instead of opening a menu.
-        var nearest = FindNearestNode(screenPos);
+        GroundNodeDto? nearest = FindNearestNode(screenPos);
         if (nearest is not null)
         {
             NodeRightClicked?.Invoke(nearest.Id, screenPos);
@@ -1385,7 +1391,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     public GroundNodeDto? FindNodeAtPoint(Point screenPos)
     {
         const float hitRadius = 20f;
-        var nearest = FindNearestNode(screenPos, out float dist);
+        GroundNodeDto? nearest = FindNearestNode(screenPos, out float dist);
         return dist <= hitRadius ? nearest : null;
     }
 
@@ -1401,12 +1407,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         GroundNodeDto? closest = null;
-        foreach (var node in Layout.Nodes)
+        foreach (GroundNodeDto node in Layout.Nodes)
         {
-            var (sx, sy) = Viewport.LatLonToScreen(node.Latitude, node.Longitude);
-            var dx = (float)screenPos.X - sx;
-            var dy = (float)screenPos.Y - sy;
-            var dist = MathF.Sqrt(dx * dx + dy * dy);
+            (float sx, float sy) = Viewport.LatLonToScreen(node.Latitude, node.Longitude);
+            float dx = (float)screenPos.X - sx;
+            float dy = (float)screenPos.Y - sy;
+            float dist = MathF.Sqrt(dx * dx + dy * dy);
 
             if (dist < distance)
             {
@@ -1436,7 +1442,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         (string RunwayEnd, LatLon Position)? best = null;
         float bestDist = hitRadius;
 
-        foreach (var rwy in runways)
+        foreach (GroundRunwayDto rwy in runways)
         {
             if (rwy.Coordinates.Count < 2)
             {
@@ -1450,12 +1456,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 (ids.End2, rwy.Coordinates[^1][0], rwy.Coordinates[^1][1]),
             ];
 
-            foreach (var (end, lat, lon) in thresholds)
+            foreach ((string? end, double lat, double lon) in thresholds)
             {
-                var (sx, sy) = Viewport.LatLonToScreen(lat, lon);
-                var dx = (float)screenPos.X - sx;
-                var dy = (float)screenPos.Y - sy;
-                var dist = MathF.Sqrt(dx * dx + dy * dy);
+                (float sx, float sy) = Viewport.LatLonToScreen(lat, lon);
+                float dx = (float)screenPos.X - sx;
+                float dy = (float)screenPos.Y - sy;
+                float dist = MathF.Sqrt(dx * dx + dy * dy);
 
                 if (dist < bestDist)
                 {
@@ -1476,14 +1482,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         // Use z-order-sorted list so the topmost (last-drawn) datablock wins
-        var sorted = SortByZOrder(VisibleAircraft(), State.DataBlockZOrder);
+        IReadOnlyList<AircraftModel> sorted = SortByZOrder(VisibleAircraft(), State.DataBlockZOrder);
         AircraftModel? best = null;
 
-        foreach (var ac in sorted)
+        foreach (AircraftModel ac in sorted)
         {
-            var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
 
-            var offset = ResolvedDataBlockOffset(ac.Callsign);
+            SKPoint offset = ResolvedDataBlockOffset(ac.Callsign);
 
             // Match the draw path's airborne flag (GroundRenderer.DrawOneDataBlock) so an airborne
             // aircraft's altitude line is included in the hit rect — otherwise its block is one line
@@ -1505,7 +1511,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public SKPoint ResolvedDataBlockOffset(string callsign)
     {
-        if (State.ManualOffsets.TryGetValue(callsign, out var manual))
+        if (State.ManualOffsets.TryGetValue(callsign, out SKPoint manual))
         {
             return manual;
         }
@@ -1514,7 +1520,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     /// <summary>The deconfliction-resolved offset for a callsign, or null when deconfliction is off or absent.</summary>
     private SKPoint? DeconflictOffsetFor(string callsign) =>
-        DeconflictMode != DatablockDeconflictMode.Off && _resolvedDeconflictOffsets.TryGetValue(callsign, out var off) ? off : null;
+        DeconflictMode != DatablockDeconflictMode.Off && _resolvedDeconflictOffsets.TryGetValue(callsign, out SKPoint off) ? off : null;
 
     /// <summary>
     /// Runs the deconfliction pass for the current frame and returns an immutable copy for the snapshot.
@@ -1529,7 +1535,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return EmptyOffsets;
         }
 
-        var items = BuildDeconflictItems(sorted);
+        List<DatablockDeconfliction.Item> items = BuildDeconflictItems(sorted);
         var bounds = new SKRect(0, 0, Viewport.PixelWidth, Viewport.PixelHeight);
         DatablockDeconfliction.Resolve(
             DeconflictMode,
@@ -1540,7 +1546,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         );
 
         _resolvedDeconflictOffsets.Clear();
-        foreach (var kvp in _deconflictScratch)
+        foreach (KeyValuePair<string, SKPoint> kvp in _deconflictScratch)
         {
             _resolvedDeconflictOffsets[kvp.Key] = kvp.Value;
         }
@@ -1551,11 +1557,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     private List<DatablockDeconfliction.Item> BuildDeconflictItems(IReadOnlyList<AircraftModel> sorted)
     {
         var items = new List<DatablockDeconfliction.Item>(sorted.Count);
-        foreach (var ac in sorted)
+        foreach (AircraftModel ac in sorted)
         {
-            var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-            bool hasManual = State.ManualOffsets.TryGetValue(ac.Callsign, out var manualOffset);
-            var rectAtOrigin = DataBlockLayout.Compute(ac, 0, 0, SKPoint.Empty, HitTestStyle, isAirborne: !ac.IsOnGround).Rect;
+            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+            bool hasManual = State.ManualOffsets.TryGetValue(ac.Callsign, out SKPoint manualOffset);
+            SKRect rectAtOrigin = DataBlockLayout.Compute(ac, 0, 0, SKPoint.Empty, HitTestStyle, isAirborne: !ac.IsOnGround).Rect;
             items.Add(
                 new DatablockDeconfliction.Item
                 {
@@ -1599,12 +1605,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         AircraftModel? closest = null;
         float closestDist = hitRadius;
 
-        foreach (var ac in VisibleAircraft())
+        foreach (AircraftModel ac in VisibleAircraft())
         {
-            var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-            var dx = (float)screenPos.X - sx;
-            var dy = (float)screenPos.Y - sy;
-            var dist = MathF.Sqrt(dx * dx + dy * dy);
+            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+            float dx = (float)screenPos.X - sx;
+            float dy = (float)screenPos.Y - sy;
+            float dist = MathF.Sqrt(dx * dx + dy * dy);
 
             if (dist < closestDist)
             {
@@ -1618,8 +1624,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     private void UpdateHoveredNode(Point screenPos)
     {
-        var node = FindNodeAtPoint(screenPos);
-        var newId = node?.Id;
+        GroundNodeDto? node = FindNodeAtPoint(screenPos);
+        int? newId = node?.Id;
         if (newId != _hoveredNodeId)
         {
             _hoveredNodeId = newId;
@@ -1634,7 +1640,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         // Runway thresholds and runway hold-shorts are clickable destinations
         // when an aircraft is selected — surface a Hand cursor so the user
         // sees they're click targets without needing to read the menu first.
-        var runwayEnd = SelectedAircraft is not null ? FindRunwayThresholdAtPoint(screenPos)?.RunwayEnd : null;
+        string? runwayEnd = SelectedAircraft is not null ? FindRunwayThresholdAtPoint(screenPos)?.RunwayEnd : null;
         if (runwayEnd != _hoveredRunwayEnd)
         {
             _hoveredRunwayEnd = runwayEnd;
@@ -1658,7 +1664,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 || (hoveredNode is not null && hoveredNode.Type is "RunwayHoldShort" or "Parking" or "Helipad" or "Spot")
             );
 
-        var desired = isClickableTaxiTarget ? new Cursor(StandardCursorType.Hand) : Cursor.Default;
+        Cursor desired = isClickableTaxiTarget ? new Cursor(StandardCursorType.Hand) : Cursor.Default;
         if (Cursor != desired)
         {
             Cursor = desired;
@@ -1732,7 +1738,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         double minLon = double.MaxValue,
             maxLon = double.MinValue;
 
-        foreach (var node in Layout.Nodes)
+        foreach (GroundNodeDto node in Layout.Nodes)
         {
             minLat = Math.Min(minLat, node.Latitude);
             maxLat = Math.Max(maxLat, node.Latitude);
@@ -1740,7 +1746,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             maxLon = Math.Max(maxLon, node.Longitude);
         }
 
-        var savedRotation = Viewport.RotationDeg;
+        double savedRotation = Viewport.RotationDeg;
         Viewport.FitBounds(minLat, maxLat, minLon, maxLon);
         Viewport.RotationDeg = savedRotation;
         _initialFitDone = true;
@@ -1770,7 +1776,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         if (IsPanZoomEnabled && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
-            var delta = (e.Delta.Y > 0 ? 1.0 : -1.0) * ScrollSensitivity;
+            double delta = (e.Delta.Y > 0 ? 1.0 : -1.0) * ScrollSensitivity;
             Viewport.RotationDeg = (Viewport.RotationDeg + delta) % 360.0;
             OnViewportChanged();
             InvalidateVisual();

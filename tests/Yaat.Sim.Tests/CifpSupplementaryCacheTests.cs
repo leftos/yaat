@@ -17,21 +17,21 @@ public class CifpSupplementaryCacheTests
     [Fact]
     public void ResolveSupplementaryChain_ReturnsPriorCyclesNewestFirst_WithinCap()
     {
-        var dir = Directory.CreateTempSubdirectory("yaat-cifp-cache-test-").FullName;
+        string dir = Directory.CreateTempSubdirectory("yaat-cifp-cache-test-").FullName;
         try
         {
-            foreach (var name in new[] { "FAACIFP18-2602", "FAACIFP18-2603", "FAACIFP18-2604", "FAACIFP18-2605", "FAACIFP18-bundled.dat" })
+            foreach (string? name in new[] { "FAACIFP18-2602", "FAACIFP18-2603", "FAACIFP18-2604", "FAACIFP18-2605", "FAACIFP18-bundled.dat" })
             {
                 File.WriteAllText(Path.Combine(dir, name), "x");
             }
 
             // Current cycle 2606, generous cap: all four cached prior cycles, newest→oldest.
             // The bundled (non-cycle) file is never selected by the cache walk.
-            var chain = CifpPathResolver.ResolveSupplementaryChainFromCache("2606", 13, dir);
+            IReadOnlyList<string> chain = CifpPathResolver.ResolveSupplementaryChainFromCache("2606", 13, dir);
             Assert.Equal(new[] { "FAACIFP18-2605", "FAACIFP18-2604", "FAACIFP18-2603", "FAACIFP18-2602" }, Names(chain));
 
             // Recency cap of 1: only the immediately-prior cycle (2605); 2604 (age 2) is excluded.
-            var capped = CifpPathResolver.ResolveSupplementaryChainFromCache("2606", 1, dir);
+            IReadOnlyList<string> capped = CifpPathResolver.ResolveSupplementaryChainFromCache("2606", 1, dir);
             Assert.Equal(new[] { "FAACIFP18-2605" }, Names(capped));
 
             // No cached cycle strictly older than the oldest present -> empty (a fresh install).

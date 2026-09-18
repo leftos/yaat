@@ -35,7 +35,7 @@ public sealed class ClientVersionGate
 
     public async Task<ClientVersionVerdict> EvaluateAsync(string serverUrl, string clientVersion, CancellationToken ct)
     {
-        var requirements = await FetchAsync(serverUrl, ct);
+        ClientRequirementsDto? requirements = await FetchAsync(serverUrl, ct);
         if (requirements is null)
         {
             return ClientVersionVerdict.Ok;
@@ -72,7 +72,7 @@ public sealed class ClientVersionGate
     {
         try
         {
-            var url = $"{serverUrl.TrimEnd('/')}/api/client-requirements";
+            string url = $"{serverUrl.TrimEnd('/')}/api/client-requirements";
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(5));
             return await _http.GetFromJsonAsync(url, YaatHubJsonContext.Default.ClientRequirementsDto, cts.Token);

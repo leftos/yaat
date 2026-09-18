@@ -66,7 +66,7 @@ public sealed class RunwayHoldingPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
 
-        foreach (var req in Requirements)
+        foreach (ClearanceRequirement req in Requirements)
         {
             if (req.IsSatisfied)
             {

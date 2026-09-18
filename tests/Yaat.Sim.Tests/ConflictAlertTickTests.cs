@@ -42,7 +42,7 @@ public class ConflictAlertTickTests
                 OriginalScenarioJson = "{}",
             },
         };
-        foreach (var ac in aircraft)
+        foreach (AircraftState ac in aircraft)
         {
             engine.World.AddAircraft(ac);
         }
@@ -52,18 +52,21 @@ public class ConflictAlertTickTests
     [Fact]
     public void TickConflictAlerts_PairInsideThreshold_ReturnsNewThenStaysQuiet()
     {
-        var engine = EngineWith(ModeCAircraft("N123AB", new LatLon(37.80, -122.00)), ModeCAircraft("N456CD", new LatLon(37.81, -122.00)));
+        SimulationEngine engine = EngineWith(
+            ModeCAircraft("N123AB", new LatLon(37.80, -122.00)),
+            ModeCAircraft("N456CD", new LatLon(37.81, -122.00))
+        );
 
-        var first = engine.TickConflictAlerts();
+        ConflictAlertChanges first = engine.TickConflictAlerts();
 
-        var pair = Assert.Single(first.New);
+        ActiveConflict pair = Assert.Single(first.New);
         Assert.Equal("N123AB", pair.CallsignA);
         Assert.Equal("N456CD", pair.CallsignB);
         Assert.Empty(first.Cleared);
         Assert.True(engine.ConflictAlerts.Conflicts.ContainsKey(pair.Id));
 
         // Detector re-runs, pair unchanged — no new opens, nothing cleared.
-        var second = engine.TickConflictAlerts();
+        ConflictAlertChanges second = engine.TickConflictAlerts();
         Assert.Empty(second.New);
         Assert.Empty(second.Cleared);
     }
@@ -77,13 +80,13 @@ public class ConflictAlertTickTests
     [Fact]
     public void TickOneSecond_ReEvaluatesConflicts_SoARestoredPairDoesNotStayPinned()
     {
-        var a = ModeCAircraft("N123AB", new LatLon(37.80, -122.00));
-        var b = ModeCAircraft("N456CD", new LatLon(37.81, -122.00));
-        var engine = EngineWith(a, b);
+        AircraftState a = ModeCAircraft("N123AB", new LatLon(37.80, -122.00));
+        AircraftState b = ModeCAircraft("N456CD", new LatLon(37.81, -122.00));
+        SimulationEngine engine = EngineWith(a, b);
 
         // Open a conflict — this is the state a snapshot restore hands back.
-        var opened = engine.TickConflictAlerts();
-        var pair = Assert.Single(opened.New);
+        ConflictAlertChanges opened = engine.TickConflictAlerts();
+        ActiveConflict pair = Assert.Single(opened.New);
         Assert.True(engine.ConflictAlerts.Conflicts.ContainsKey(pair.Id));
 
         // Separate them well beyond the threshold, then advance the sim the way replay does.
@@ -99,17 +102,17 @@ public class ConflictAlertTickTests
     [Fact]
     public void TickConflictAlerts_PairSeparates_ReturnsCleared()
     {
-        var a = ModeCAircraft("N123AB", new LatLon(37.80, -122.00));
-        var b = ModeCAircraft("N456CD", new LatLon(37.81, -122.00));
-        var engine = EngineWith(a, b);
+        AircraftState a = ModeCAircraft("N123AB", new LatLon(37.80, -122.00));
+        AircraftState b = ModeCAircraft("N456CD", new LatLon(37.81, -122.00));
+        SimulationEngine engine = EngineWith(a, b);
 
-        var opened = engine.TickConflictAlerts();
-        var id = Assert.Single(opened.New).Id;
+        ConflictAlertChanges opened = engine.TickConflictAlerts();
+        string id = Assert.Single(opened.New).Id;
 
         // Move well past the 3.3 nm hysteresis-clear threshold.
         b.Position = new LatLon(38.20, -122.00);
 
-        var closed = engine.TickConflictAlerts();
+        ConflictAlertChanges closed = engine.TickConflictAlerts();
         Assert.Contains(id, closed.Cleared);
         Assert.False(engine.ConflictAlerts.Conflicts.ContainsKey(id));
     }

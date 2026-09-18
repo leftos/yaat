@@ -38,32 +38,32 @@ public class OakCrossThenContinueTests(ITestOutputHelper output)
     [Fact]
     public void CrossAt28R_ContinuesToThe28LHoldShort()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout(AirportId);
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(AirportId);
         if (layout is null)
         {
             return;
         }
 
-        var bar28R = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "B");
-        var bar28L = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B");
+        List<GroundNode> bar28R = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "B");
+        List<GroundNode> bar28L = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B");
         Assert.Equal(2, bar28R.Count);
         Assert.Equal(2, bar28L.Count);
 
         // Approach 28R from the side away from 28L, so the crossing runs 28R first and 28L second.
-        var nearBar28R = bar28R.OrderByDescending(node => GeoMath.DistanceNm(node.Position, bar28L[0].Position)).First();
-        var start = nearBar28R
+        GroundNode nearBar28R = bar28R.OrderByDescending(node => GeoMath.DistanceNm(node.Position, bar28L[0].Position)).First();
+        GroundNode start = nearBar28R
             .Edges.Where(edge => string.Equals(edge.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase))
             .Select(edge => edge.OtherNode(nearBar28R))
             .OrderByDescending(node => GeoMath.DistanceNm(node.Position, bar28L[0].Position))
             .First();
 
-        var aircraft = Spawn(start, new TrueHeading(GeoMath.BearingTo(start.Position, nearBar28R.Position)), layout);
+        AircraftState aircraft = Spawn(start, new TrueHeading(GeoMath.BearingTo(start.Position, nearBar28R.Position)), layout);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
         {
@@ -75,25 +75,25 @@ public class OakCrossThenContinueTests(ITestOutputHelper output)
             AutoCrossRunway = false,
         };
 
-        var taxi = engine.SendCommand(Callsign, "TAXI B W 30");
+        CommandResult taxi = engine.SendCommand(Callsign, "TAXI B W 30");
         Assert.True(taxi.Success, taxi.Message);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine($"route={route.ToSummary()} ({route.Segments.Count} segments)");
-        foreach (var point in route.HoldShortPoints)
+        foreach (HoldShortPoint point in route.HoldShortPoints)
         {
             output.WriteLine($"  hold-short #{point.NodeId} {point.TargetName} {point.Reason}");
         }
 
-        var holdAt28R = TickUntilHoldingShort(engine, "28R", 300);
+        HoldingShortPhase? holdAt28R = TickUntilHoldingShort(engine, "28R", 300);
         Assert.NotNull(holdAt28R);
         Assert.Contains(bar28R, node => node.Id == holdAt28R.HoldShort.NodeId);
 
-        var cross = engine.SendCommand(Callsign, "CROSS");
+        CommandResult cross = engine.SendCommand(Callsign, "CROSS");
         Assert.True(cross.Success, cross.Message);
 
-        var holdAt28L = TickUntilHoldingShort(engine, "28L", 300);
+        HoldingShortPhase? holdAt28L = TickUntilHoldingShort(engine, "28L", 300);
         Assert.NotNull(holdAt28L);
         Assert.Contains(bar28L, node => node.Id == holdAt28L.HoldShort.NodeId);
     }
@@ -103,7 +103,7 @@ public class OakCrossThenContinueTests(ITestOutputHelper output)
         for (int t = 1; t <= maxSeconds; t++)
         {
             engine.TickOneSecond();
-            var aircraft = engine.FindAircraft(Callsign);
+            AircraftState? aircraft = engine.FindAircraft(Callsign);
             if (aircraft is null)
             {
                 return null;
@@ -128,7 +128,7 @@ public class OakCrossThenContinueTests(ITestOutputHelper output)
             }
         }
 
-        var last = engine.FindAircraft(Callsign);
+        AircraftState? last = engine.FindAircraft(Callsign);
         output.WriteLine(
             $"gave up after {maxSeconds}s: phase={last?.Phases?.CurrentPhase?.GetType().Name} gs={last?.GroundSpeed:F1}"
                 + $" seg={last?.Ground.AssignedTaxiRoute?.CurrentSegmentIndex}/{last?.Ground.AssignedTaxiRoute?.Segments.Count}"

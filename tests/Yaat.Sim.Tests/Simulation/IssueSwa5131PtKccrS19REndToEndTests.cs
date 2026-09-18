@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -46,16 +47,16 @@ public class IssueSwa5131PtKccrS19REndToEndTests(ITestOutputHelper output)
     [Fact]
     public void Swa5131_PtAtCcr_FlysOutboundClimbsAndInterceptsInbound()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
             return;
         }
 
-        var navDb = TestVnasData.NavigationDb!;
-        var ccrPos = navDb.GetFixPosition("CCR");
+        NavigationDatabase navDb = TestVnasData.NavigationDb!;
+        (double Lat, double Lon)? ccrPos = navDb.GetFixPosition("CCR");
         Assert.NotNull(ccrPos);
         double ccrLat = ccrPos.Value.Lat;
         double ccrLon = ccrPos.Value.Lon;
@@ -67,7 +68,7 @@ public class IssueSwa5131PtKccrS19REndToEndTests(ITestOutputHelper output)
         // do not carry that toggle, so we override it explicitly here.
         engine.ReplayWithScenarioOverride(recording, 1602, scenario => scenario.ValidateDctFixes = false);
 
-        var aircraft = engine.FindAircraft("SWA5131");
+        AircraftState? aircraft = engine.FindAircraft("SWA5131");
         Assert.NotNull(aircraft);
 
         // Confirm CAPP wired the PT phase rather than the implied-PTAC InterceptCoursePhase.

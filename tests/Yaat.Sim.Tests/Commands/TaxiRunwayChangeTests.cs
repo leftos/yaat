@@ -43,7 +43,7 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
     /// <summary>A jet at KOAK's NEW7 parking with SKYL1 filed.</summary>
     private static AircraftState MakeOakDeparture(AirportGroundLayout layout)
     {
-        var parking = layout.Nodes.Values.First(n =>
+        GroundNode parking = layout.Nodes.Values.First(n =>
             (n.Type == GroundNodeType.Parking) && string.Equals(n.Name, "NEW7", StringComparison.OrdinalIgnoreCase)
         );
 
@@ -75,7 +75,7 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
     /// <summary>Assigns <paramref name="runway"/> as the departure runway, with nothing briefed against it yet.</summary>
     private static void AssignDepartureRunway(AircraftState ac, string runway)
     {
-        var resolved = CommandDispatcher.ResolveRunway(ac, runway);
+        RunwayInfo? resolved = CommandDispatcher.ResolveRunway(ac, runway);
         Assert.NotNull(resolved);
         ac.Phases!.AssignedRunway = resolved;
         ac.Procedure.DepartureRunway = resolved.Designator;
@@ -99,10 +99,10 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
             return;
         }
 
-        var ac = MakeOakDeparture(layout);
+        AircraftState ac = MakeOakDeparture(layout);
         BriefDepartureRunway(ac, "28L");
 
-        var result = TaxiTo(ac, layout, "28R");
+        CommandResult result = TaxiTo(ac, layout, "28R");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("28R", ac.Phases!.AssignedRunway?.Designator);
@@ -125,10 +125,10 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
             return;
         }
 
-        var ac = MakeOakDeparture(layout);
+        AircraftState ac = MakeOakDeparture(layout);
         BriefDepartureRunway(ac, "28L");
 
-        var result = TaxiTo(ac, layout, "10R");
+        CommandResult result = TaxiTo(ac, layout, "10R");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("10R", ac.Procedure.DepartureRunway);
@@ -149,11 +149,11 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
             return;
         }
 
-        var ac = MakeOakDeparture(layout);
+        AircraftState ac = MakeOakDeparture(layout);
         AssignDepartureRunway(ac, "28L");
         Assert.True(TaxiTo(ac, layout, "28L").Success);
 
-        var cto = CommandDispatcher.Dispatch(
+        CommandResult cto = CommandDispatcher.Dispatch(
             CommandParser.Parse("CTO").Value!,
             ac,
             TestDispatch.Context(new SerializableRandom(42), groundLayout: layout)
@@ -164,7 +164,7 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
         Assert.Null(ac.Procedure.SidInitialAltitudeFt);
         Assert.Empty(ac.PendingWarnings);
 
-        var result = TaxiTo(ac, layout, "28R");
+        CommandResult result = TaxiTo(ac, layout, "28R");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("28R", ac.Procedure.DepartureRunway);
@@ -181,11 +181,11 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
             return;
         }
 
-        var ac = MakeOakDeparture(layout);
+        AircraftState ac = MakeOakDeparture(layout);
         ac.Procedure.SidInitialAltitudeFt = 5000;
         Assert.Null(ac.Procedure.DepartureRunway);
 
-        var result = TaxiTo(ac, layout, "28R");
+        CommandResult result = TaxiTo(ac, layout, "28R");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("28R", ac.Procedure.DepartureRunway);
@@ -200,10 +200,10 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
             return;
         }
 
-        var ac = MakeOakDeparture(layout);
+        AircraftState ac = MakeOakDeparture(layout);
         BriefDepartureRunway(ac, "28R");
 
-        var result = TaxiTo(ac, layout, "28R");
+        CommandResult result = TaxiTo(ac, layout, "28R");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("28R", ac.Procedure.DepartureRunway);
@@ -218,14 +218,14 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
             return;
         }
 
-        var ac = MakeOakDeparture(layout);
+        AircraftState ac = MakeOakDeparture(layout);
         ac.FlightPlan.FlightRules = "VFR";
         ac.FlightPlan.Route = "";
         ac.Procedure.DepartureRunway = "28L";
         Assert.Null(ac.Procedure.SidInitialAltitudeFt);
         Assert.Null(ac.Phases!.DepartureClearance);
 
-        var result = TaxiTo(ac, layout, "28R");
+        CommandResult result = TaxiTo(ac, layout, "28R");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("28R", ac.Procedure.DepartureRunway);
@@ -240,12 +240,12 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
             return;
         }
 
-        var ac = MakeOakDeparture(layout);
+        AircraftState ac = MakeOakDeparture(layout);
         ac.FlightPlan.Destination = "KOAK";
         ac.Procedure.ActiveStarId = "SERFR4";
         Assert.Null(ac.Phases!.DepartureClearance);
 
-        var result = TaxiTo(ac, layout, "28R");
+        CommandResult result = TaxiTo(ac, layout, "28R");
 
         Assert.True(result.Success, result.Message);
         Assert.Null(ac.Procedure.DepartureRunway);

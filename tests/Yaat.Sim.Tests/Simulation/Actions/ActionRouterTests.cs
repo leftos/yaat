@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
@@ -68,7 +69,7 @@ public class ActionRouterTests
 
     private static AircraftState AddLinedUpForDeparture(SimulationEngine engine, string callsign)
     {
-        var ac = LinedUpAircraft.AtOak28R(callsign);
+        AircraftState ac = LinedUpAircraft.AtOak28R(callsign);
         engine.World.AddAircraft(ac);
         return ac;
     }
@@ -78,12 +79,12 @@ public class ActionRouterTests
     [Fact]
     public void Global_EmptyCallsign_Applies()
     {
-        var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
-        var first = AddAirborne(engine, "UAL1", 1234);
-        var second = AddAirborne(engine, "UAL2", 4321);
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        AircraftState first = AddAirborne(engine, "UAL1", 1234);
+        AircraftState second = AddAirborne(engine, "UAL2", 4321);
         Assert.NotEqual(1234u, first.Transponder.Code);
 
-        var outcome = engine.Actions.Apply(Recorded("", "SQALL"));
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("", "SQALL"));
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal(1234u, first.Transponder.Code);
@@ -94,27 +95,27 @@ public class ActionRouterTests
     [Fact]
     public void AircraftScope_Unknown_RefusesIdenticallyOnIssueAndApply()
     {
-        var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
 
-        var issued = engine.Actions.Issue(new ActionInput("ZZZ", "FH 270", "conn-1", "XX", Baked: null));
-        var applied = engine.Actions.Apply(Recorded("ZZZ", "FH 270"));
+        ActionOutcome issued = engine.Actions.Issue(new ActionInput("ZZZ", "FH 270", "conn-1", "XX", Baked: null));
+        ActionOutcome applied = engine.Actions.Apply(Recorded("ZZZ", "FH 270"));
 
         Assert.False(issued.Result.Success);
         Assert.Equal("Aircraft 'ZZZ' not found", issued.Result.Message);
         Assert.Equal(issued.Result.Message, applied.Result.Message);
         Assert.Equal(issued.Trace, applied.Trace);
         // The refusal is still a routed command: recorded as rejected on the fresh path, never on the recorded one.
-        var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
+        RecordedCommand recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
         Assert.False(recorded.Accepted);
     }
 
     [Fact]
     public void Issue_SamplesTheReactionDelay_AndBakesIt()
     {
-        var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 5);
-        var ac = AddAirborne(engine, "UAL123", 1234);
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 5);
+        AircraftState ac = AddAirborne(engine, "UAL123", 1234);
 
-        var outcome = engine.Actions.Issue(new ActionInput("UAL123", "FH 270", "conn-1", "XX", Baked: null));
+        ActionOutcome outcome = engine.Actions.Issue(new ActionInput("UAL123", "FH 270", "conn-1", "XX", Baked: null));
 
         Assert.True(outcome.Result.Success);
         Assert.Equal(5.0, Assert.Single(ac.DeferredDispatches).RemainingSeconds);
@@ -127,11 +128,11 @@ public class ActionRouterTests
     [Fact]
     public void Replay_QueuesTheReadback_AndArmsTheGate_WhenAnswering()
     {
-        var engine = BuildEngine(soloTrainingMode: true, reactionDelaySeconds: 0);
-        var ac = AddAirborne(engine, "UAL123", 1234);
+        SimulationEngine engine = BuildEngine(soloTrainingMode: true, reactionDelaySeconds: 0);
+        AircraftState ac = AddAirborne(engine, "UAL123", 1234);
         Assert.True(engine.Scenario!.PilotContacts.AnyAnswering);
 
-        var outcome = engine.Actions.Apply(Recorded("UAL123", "FH 270"));
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("UAL123", "FH 270"));
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Contains(ac.PendingPilotTransmissions, t => t.Kind == PilotTransmissionKind.Readback);
@@ -142,8 +143,8 @@ public class ActionRouterTests
     [Fact]
     public void Replay_DoesNotQueueAReadback_WhenNobodyAnswers()
     {
-        var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
-        var ac = AddAirborne(engine, "UAL123", 1234);
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        AircraftState ac = AddAirborne(engine, "UAL123", 1234);
 
         engine.Actions.Apply(Recorded("UAL123", "FH 270"));
 
@@ -155,14 +156,14 @@ public class ActionRouterTests
     public void Apply_LogsAReplayFidelityWarning_OnlyWhenTheRecordedVerdictDiffers()
     {
         using var tap = new CapturingSimLogProvider(LogLevel.Warning, 100);
-        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
         SimLog.InitializeForTest(factory);
 
-        var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
         AddAirborne(engine, "UAL123", 1234);
 
         engine.Actions.Apply(Recorded("UAL123", "FH 270") with { Accepted = false });
-        var disagreement = Assert.Single(tap.Drain(), r => r.Category == "ActionRouter");
+        CapturedLogRecord disagreement = Assert.Single(tap.Drain(), r => r.Category == "ActionRouter");
         Assert.Contains("replay-fidelity", disagreement.Message);
 
         engine.Actions.Apply(Recorded("UAL123", "FH 180") with { Accepted = true });
@@ -173,7 +174,7 @@ public class ActionRouterTests
     [Fact]
     public void Issue_RecordsEveryCommand_AcceptedOrNot()
     {
-        var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
         AddAirborne(engine, "UAL123", 1234);
 
         engine.Actions.Issue(new ActionInput("UAL123", "FH 270", "conn-1", "XX", Baked: null));
@@ -187,12 +188,12 @@ public class ActionRouterTests
     [Fact]
     public void LegacyTransportRecord_IsInert()
     {
-        var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
-        var ac = AddAirborne(engine, "UAL123", 1234);
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        AircraftState ac = AddAirborne(engine, "UAL123", 1234);
 
         engine.Scenario!.IsPaused = false;
 
-        var outcome = engine.Actions.Apply(Recorded("", "PAUSE"));
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("", "PAUSE"));
 
         Assert.False(outcome.Result.Success);
         Assert.Equal(new ActionTrace(RecordedCommandKind.Transport, ActionScope.Global), outcome.Trace);
@@ -233,16 +234,16 @@ public class ActionRouterTests
             ("UAL123", "CTO, R270", true),
         ];
 
-        foreach (var (callsign, command, records) in cases)
+        foreach ((string? callsign, string? command, bool records) in cases)
         {
-            var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+            SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
             AddAirborne(engine, "UAL123", 1234);
-            var log = engine.Scenario!.ActionLog;
-            var before = log.Count;
+            List<RecordedAction> log = engine.Scenario!.ActionLog;
+            int before = log.Count;
 
             engine.Actions.Issue(new ActionInput(callsign, command, "conn-1", "XX", Baked: null));
 
-            var grew = log.Count > before;
+            bool grew = log.Count > before;
             Assert.Equal(records, grew);
             Assert.Equal(grew, ActionRouter.WouldRecord(command));
         }
@@ -256,15 +257,15 @@ public class ActionRouterTests
             return;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "T");
         scenario.StudentTcp = new Tcp(3, "T", "tcp-oak-twr", null);
 
-        var outcome = engine.Actions.Issue(new ActionInput(AiTestFixture.Callsign, "TRACK; SP1 ABC", "conn-1", "XX", Baked: null));
+        ActionOutcome outcome = engine.Actions.Issue(new ActionInput(AiTestFixture.Callsign, "TRACK; SP1 ABC", "conn-1", "XX", Baked: null));
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.Equal(scenario.StudentPosition, aircraft.Track.Owner);
         Assert.Equal("ABC", aircraft.Stars.Scratchpad1);
         // One record per unit, so replay stays per-unit; the compound itself records nothing.
@@ -275,14 +276,14 @@ public class ActionRouterTests
     [Fact]
     public void ChainWithANonCompoundableVerb_IsRefused_AndRecordedAsRejected()
     {
-        var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
         AddAirborne(engine, "UAL123", 1234);
 
-        var outcome = engine.Actions.Issue(new ActionInput("UAL123", "FH 270; PAUSE", "conn-1", "XX", Baked: null));
+        ActionOutcome outcome = engine.Actions.Issue(new ActionInput("UAL123", "FH 270; PAUSE", "conn-1", "XX", Baked: null));
 
         Assert.False(outcome.Result.Success);
         Assert.Contains("cannot be part of a chained command", outcome.Result.Message);
-        var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
+        RecordedCommand recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
         Assert.False(recorded.Accepted);
     }
 
@@ -295,17 +296,17 @@ public class ActionRouterTests
     [Fact]
     public void ChainLedByAHandoff_IsRefused_AndInitiatesNoHandoff()
     {
-        var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
-        var ac = AddAirborne(engine, "UAL123", 1234);
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        AircraftState ac = AddAirborne(engine, "UAL123", 1234);
         ac.Track.Owner = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "T");
 
-        var outcome = engine.Actions.Issue(new ActionInput("UAL123", "HO 3G; PAUSE", "conn-1", "XX", Baked: null));
+        ActionOutcome outcome = engine.Actions.Issue(new ActionInput("UAL123", "HO 3G; PAUSE", "conn-1", "XX", Baked: null));
 
         Assert.False(outcome.Result.Success);
         Assert.Contains("cannot be part of a chained command", outcome.Result.Message);
         Assert.Null(ac.Track.HandoffPeer);
         Assert.Null(ac.Track.HandoffInitiatedAt);
-        var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
+        RecordedCommand recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
         Assert.False(recorded.Accepted);
     }
 
@@ -317,17 +318,17 @@ public class ActionRouterTests
     [Fact]
     public void ChainPairingATakeoffClearanceWithATurn_IsRefused_AndRecordedAsRejected()
     {
-        var engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
-        var ac = AddLinedUpForDeparture(engine, "UAL123");
-        var phaseBefore = ac.Phases!.CurrentPhase;
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        AircraftState ac = AddLinedUpForDeparture(engine, "UAL123");
+        Phase? phaseBefore = ac.Phases!.CurrentPhase;
 
-        var outcome = engine.Actions.Issue(new ActionInput("UAL123", "CTO, R270", "conn-1", "XX", Baked: null));
+        ActionOutcome outcome = engine.Actions.Issue(new ActionInput("UAL123", "CTO, R270", "conn-1", "XX", Baked: null));
 
         Assert.False(outcome.Result.Success);
         Assert.Contains("cannot be paired with a takeoff clearance", outcome.Result.Message);
         Assert.Same(phaseBefore, ac.Phases!.CurrentPhase);
         Assert.DoesNotContain(ac.Phases.Phases, p => p is MakeTurnPhase);
-        var recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
+        RecordedCommand recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
         Assert.False(recorded.Accepted);
     }
 }

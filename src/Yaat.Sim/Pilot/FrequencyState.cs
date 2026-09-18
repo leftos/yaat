@@ -75,13 +75,13 @@ public sealed class FrequencyState
             return null;
         }
 
-        var index = SelectReadyIndex(elapsedSeconds);
+        int index = SelectReadyIndex(elapsedSeconds);
         if (index < 0)
         {
             return null;
         }
 
-        var transmission = DequeueAt(index);
+        PilotTransmission transmission = DequeueAt(index);
         if (
             transmission.Kind == PilotTransmissionKind.Readback
             && string.Equals(_awaitingReadbackFrom, transmission.Callsign, StringComparison.OrdinalIgnoreCase)
@@ -137,7 +137,7 @@ public sealed class FrequencyState
         if (_awaitingReadbackFrom is { Length: > 0 } callsign)
         {
             int index = 0;
-            foreach (var transmission in _pending)
+            foreach (PilotTransmission transmission in _pending)
             {
                 if (
                     transmission.Kind == PilotTransmissionKind.Readback
@@ -180,7 +180,7 @@ public sealed class FrequencyState
             // requests). Readbacks and SayReadback are responses to controller-issued
             // commands and aren't gated here.
             int index = 0;
-            foreach (var transmission in _pending)
+            foreach (PilotTransmission transmission in _pending)
             {
                 bool isOtherPilotProactiveOrReport =
                     transmission.Kind is PilotTransmissionKind.Proactive or PilotTransmissionKind.Report
@@ -226,7 +226,7 @@ public sealed class FrequencyState
         int originalCount = _pending.Count;
         for (int i = 0; i < originalCount; i++)
         {
-            var item = _pending.Dequeue();
+            PilotTransmission item = _pending.Dequeue();
             if (i == targetIndex)
             {
                 result = item;
@@ -242,7 +242,7 @@ public sealed class FrequencyState
 
     private static double EstimateAirtimeSeconds(string text)
     {
-        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length;
+        int words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length;
         return Math.Max(MinimumAirtimeSeconds, words * SecondsPerWord);
     }
 }

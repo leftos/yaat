@@ -143,8 +143,8 @@ public static class RunwaySafetyAdvisor
             return;
         }
 
-        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
-        var warning = forTakeoff
+        string display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        string warning = forTakeoff
             ? $"traffic stopped on runway {display} ({string.Join(", ", stopped)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6); hold this aircraft short until the runway is clear"
             : $"traffic stopped on runway {display} ({string.Join(", ", stopped)}) — the runway is occupied; withhold the landing/option clearance until that traffic is clear (7110.65 3-10-3.a)";
         aircraft.PendingWarnings.Add(warning);
@@ -178,8 +178,8 @@ public static class RunwaySafetyAdvisor
             return;
         }
 
-        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
-        var warning =
+        string display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        string warning =
             $"{string.Join(", ", cleared)} holds a landing clearance for runway {display} — do not authorize line up and wait while that clearance stands; cancel it or hold short until the arrival is clear (7110.65 3-9-4.c)";
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -233,8 +233,8 @@ public static class RunwaySafetyAdvisor
 
         if (occupants.Count > 0)
         {
-            var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
-            var warning =
+            string display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+            string warning =
                 $"traffic holding in position on runway {display} ({string.Join(", ", occupants)}) — this departure cannot begin takeoff roll until that traffic has departed and crossed the runway end or turned to avert a conflict (7110.65 3-9-6.a); with it stopped in position and holding no takeoff clearance there is no reasonable assurance separation will exist when the roll starts (3-9-5) — hold this aircraft short until the runway is clear";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -280,10 +280,10 @@ public static class RunwaySafetyAdvisor
             .Where(a => (!a.Aircraft.IsOnGround) && (a.Kind == RunwayUseKind.Landing) && RunwayOccupancy.IsOverOrOnPavement(a.Aircraft, runway))
             .Select(a => a.Aircraft.Callsign)
             .ToList();
-        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        string display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
         if (onSurface.Count > 0)
         {
-            var warning =
+            string warning =
                 $"traffic on runway {display} ({string.Join(", ", onSurface)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6); hold this aircraft short until the runway is clear";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -291,7 +291,7 @@ public static class RunwaySafetyAdvisor
 
         if (landing.Count > 0)
         {
-            var warning =
+            string warning =
                 $"arrival landing on runway {display} ({string.Join(", ", landing)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6.b)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -311,10 +311,10 @@ public static class RunwaySafetyAdvisor
             .ToList();
         var onSurface = shadows.Where(s => s.Kind == RunwayUseKind.OnSurface).Select(s => s.Callsign).ToList();
         var landing = shadows.Where(s => s.Kind == RunwayUseKind.Landing).Select(s => s.Callsign).ToList();
-        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        string display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
         if (onSurface.Count > 0)
         {
-            var warning =
+            string warning =
                 $"live traffic on runway {display} ({string.Join(", ", onSurface)}) — this departure cannot begin takeoff roll until that traffic has departed and crossed the runway end or turned to avert a conflict (7110.65 3-9-6.a)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -322,7 +322,7 @@ public static class RunwaySafetyAdvisor
 
         if (landing.Count > 0)
         {
-            var warning =
+            string warning =
                 $"live arrival landing on runway {display} ({string.Join(", ", landing)}) — this departure cannot begin takeoff roll until that traffic is clear of the runway (7110.65 3-9-6.b)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -358,8 +358,8 @@ public static class RunwaySafetyAdvisor
             return;
         }
 
-        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
-        var warning =
+        string display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        string warning =
             $"{string.Join(", ", holding)} already holding in position on runway {display} — do not authorize simultaneous line up and wait on the same runway between sunrise and sunset unless the local assist/local monitor position is staffed (7110.65 3-9-4.h)";
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -380,7 +380,7 @@ public static class RunwaySafetyAdvisor
 
         // Geometry sees only the final itself; the rule's "requesting a full-stop / option" downwind traffic has no
         // observable intent for a shadow. Between parallel finals an arrival is reported for the closest runway only.
-        var airportRunways = RunwayOccupancy.AirportRunways(runway.AirportId);
+        IReadOnlyList<RunwayInfo> airportRunways = RunwayOccupancy.AirportRunways(runway.AirportId);
         var traffic = ctx.ListAircraft!()
             .Where(other =>
                 (!ReferenceEquals(other, aircraft))
@@ -395,10 +395,10 @@ public static class RunwaySafetyAdvisor
             return;
         }
 
-        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
-        var closest = traffic[0];
-        var others = traffic.Count > 1 ? $"; also {string.Join(", ", traffic.Skip(1).Select(t => $"{t.Callsign} {t.DistNm:F1} nm"))}" : "";
-        var warning =
+        string display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        (string Callsign, double DistNm) closest = traffic[0];
+        string others = traffic.Count > 1 ? $"; also {string.Join(", ", traffic.Skip(1).Select(t => $"{t.Callsign} {t.DistNm:F1} nm"))}" : "";
+        string warning =
             $"live traffic on final runway {display} — issue traffic before line up and wait: \"traffic, {closest.Callsign}, {closest.DistNm:F1} mile final\" (7110.65 3-9-4.d){others}";
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -429,10 +429,10 @@ public static class RunwaySafetyAdvisor
         var occupying = shadows.Where(s => (s.Kind == RunwayUseKind.OnSurface) && (!s.Landed)).Select(s => s.Callsign).ToList();
         var landing = shadows.Where(s => s.Kind == RunwayUseKind.Landing).Select(s => s.Callsign).ToList();
         var rolling = shadows.Where(s => s.Kind == RunwayUseKind.Departing).Select(s => s.Callsign).ToList();
-        var display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        string display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
         if (occupying.Count > 0)
         {
-            var warning =
+            string warning =
                 $"live traffic on runway {display} ({string.Join(", ", occupying)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a, 3-10-5.e)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -440,7 +440,7 @@ public static class RunwaySafetyAdvisor
 
         if (landed.Count > 0)
         {
-            var warning =
+            string warning =
                 $"live arrival rolling out on runway {display} ({string.Join(", ", landed)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a.1)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -448,7 +448,7 @@ public static class RunwaySafetyAdvisor
 
         if (landing.Count > 0)
         {
-            var warning =
+            string warning =
                 $"live arrival landing on runway {display} ({string.Join(", ", landing)}) — the runway is not clear; withhold the landing/option clearance until it is (7110.65 3-10-3.a.1)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -459,7 +459,7 @@ public static class RunwaySafetyAdvisor
         // airborne past the landmark.
         if (rolling.Count > 0)
         {
-            var warning =
+            string warning =
                 $"live departure rolling on runway {display} ({string.Join(", ", rolling)}) — the arrival may not cross the threshold until it has crossed the runway end or is airborne past the same-runway landmark (7110.65 3-10-3.a.2)";
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -482,7 +482,7 @@ public static class RunwaySafetyAdvisor
             return;
         }
 
-        var warning =
+        string warning =
             $"traffic holding in position on runway {runwayDisplay} ({string.Join(", ", occupants)}) — withhold the landing/option clearance until that traffic exits the runway or starts takeoff roll; issue \"runway {runwayDisplay}, continue, traffic holding in position\" instead (7110.65 3-10-5.e, 3-9-4.c)";
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
@@ -496,7 +496,7 @@ public static class RunwaySafetyAdvisor
     /// </summary>
     private static bool AwaitsTakeoffClearanceOnRunway(AircraftState occupant)
     {
-        var phases = occupant.Phases;
+        PhaseList? phases = occupant.Phases;
         return phases?.CurrentPhase switch
         {
             LinedUpAndWaitingPhase luaw => !luaw.HasTakeoffClearance,

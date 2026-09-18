@@ -13,7 +13,7 @@ public class PhraseologyMapperTraceTests
     [Fact]
     public void Successful_Match_Populates_Output_And_Matched_Rule()
     {
-        var (result, trace) = PhraseologyMapper.MapWithTrace("fly heading two seven zero", MapContext.Empty);
+        (MapResult? result, RuleMapperTrace? trace) = PhraseologyMapper.MapWithTrace("fly heading two seven zero", MapContext.Empty);
         Assert.NotNull(result);
         Assert.Equal("FH 270", result!.CanonicalCommand);
 
@@ -30,11 +30,11 @@ public class PhraseologyMapperTraceTests
         // FAA 7110.65 3-9-9 phraseology: "RUNWAY 28R, cleared for takeoff" — runway leads the
         // clearance. Previously the rule mapper only matched the trailing form
         // ("cleared for takeoff runway 28R") and silently dropped the prefixed runway.
-        var ctx = MapContext.Empty with
+        MapContext ctx = MapContext.Empty with
         {
             AvailableRunways = new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R"] },
         };
-        var (result, trace) = PhraseologyMapper.MapWithTrace("runway 28R cleared for takeoff", ctx);
+        (MapResult? result, RuleMapperTrace? trace) = PhraseologyMapper.MapWithTrace("runway 28R cleared for takeoff", ctx);
         Assert.NotNull(result);
         Assert.Equal("CTO", result!.CanonicalCommand);
         // The trace must show the runway-prefixed rule fired so the debug view confirms the
@@ -54,8 +54,8 @@ public class PhraseologyMapperTraceTests
     [InlineData("runway 28R enter right base", "ERB 28R")]
     public void RunwayPrefixed_TowerAndPatternClearances_Match(string transcript, string expectedCanonical)
     {
-        var ctx = MapContext.Empty with { AvailableRunways = new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R", "33"] } };
-        var (result, _) = PhraseologyMapper.MapWithTrace(transcript, ctx);
+        MapContext ctx = MapContext.Empty with { AvailableRunways = new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R", "33"] } };
+        (MapResult? result, RuleMapperTrace _) = PhraseologyMapper.MapWithTrace(transcript, ctx);
         Assert.NotNull(result);
         Assert.Equal(expectedCanonical, result!.CanonicalCommand);
     }
@@ -64,7 +64,7 @@ public class PhraseologyMapperTraceTests
     public void Condition_Prefix_Is_Captured_In_Trace()
     {
         var ctx = new MapContext(ActiveCallsigns: [], ProgrammedFixes: ["CEPIN"]);
-        var (result, trace) = PhraseologyMapper.MapWithTrace("at cepin climb and maintain five thousand", ctx);
+        (MapResult? result, RuleMapperTrace? trace) = PhraseologyMapper.MapWithTrace("at cepin climb and maintain five thousand", ctx);
         Assert.NotNull(result);
         Assert.Equal("AT CEPIN CM 5000", result!.CanonicalCommand);
         Assert.Equal("AT CEPIN", trace.ConditionPrefix);
@@ -82,11 +82,11 @@ public class PhraseologyMapperTraceTests
         // (APPROACH) RUNWAY (number)". Maps to EF with the runway captured so the post-clearance
         // pattern entry knows which final to fly. Pilot AI verbalizes EnterFinal with null RunwayId
         // as the bare "enter final" form; that's preserved because the bare rule stays first.
-        var ctx = MapContext.Empty with
+        MapContext ctx = MapContext.Empty with
         {
             AvailableRunways = new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R"] },
         };
-        var (result, _) = PhraseologyMapper.MapWithTrace(transcript, ctx);
+        (MapResult? result, RuleMapperTrace _) = PhraseologyMapper.MapWithTrace(transcript, ctx);
         Assert.NotNull(result);
         Assert.Equal(expectedCanonical, result!.CanonicalCommand);
     }
@@ -97,11 +97,11 @@ public class PhraseologyMapperTraceTests
         // The S2-OAK-1 test-drive transcript: tower compounds the pattern instruction with the
         // landing clearance in one transmission. Both clauses must be captured — previously the
         // greedy matcher dropped "make straight in runway 28R" entirely and only matched CLAND.
-        var ctx = MapContext.Empty with
+        MapContext ctx = MapContext.Empty with
         {
             AvailableRunways = new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R"] },
         };
-        var (result, _) = PhraseologyMapper.MapWithTrace("make straight in runway 28R runway 28R cleared to land", ctx);
+        (MapResult? result, RuleMapperTrace _) = PhraseologyMapper.MapWithTrace("make straight in runway 28R runway 28R cleared to land", ctx);
         Assert.NotNull(result);
         Assert.Equal("EF 28R, CLAND", result!.CanonicalCommand);
     }
@@ -109,7 +109,7 @@ public class PhraseologyMapperTraceTests
     [Fact]
     public void Empty_Transcript_Returns_Trace_With_FailureReason()
     {
-        var (result, trace) = PhraseologyMapper.MapWithTrace("   ", MapContext.Empty);
+        (MapResult? result, RuleMapperTrace? trace) = PhraseologyMapper.MapWithTrace("   ", MapContext.Empty);
         Assert.Null(result);
         Assert.NotNull(trace.FailureReason);
     }
@@ -117,7 +117,7 @@ public class PhraseologyMapperTraceTests
     [Fact]
     public void Unmatched_Transcript_Returns_Trace_With_NoRuleMatched_Reason()
     {
-        var (result, trace) = PhraseologyMapper.MapWithTrace("the weather is nice today", MapContext.Empty);
+        (MapResult? result, RuleMapperTrace? trace) = PhraseologyMapper.MapWithTrace("the weather is nice today", MapContext.Empty);
         Assert.Null(result);
         Assert.NotNull(trace.FailureReason);
         Assert.Empty(trace.MatchedRulePatterns);
@@ -128,11 +128,11 @@ public class PhraseologyMapperTraceTests
     {
         // The simple Map() overload is just a thin discarding wrapper; success/failure semantics
         // must stay byte-identical to the trace-collecting variant.
-        var fixtures = new[] { "fly heading two seven zero", "climb and maintain five thousand", "the weather is nice today", "" };
-        foreach (var t in fixtures)
+        string[] fixtures = new[] { "fly heading two seven zero", "climb and maintain five thousand", "the weather is nice today", "" };
+        foreach (string? t in fixtures)
         {
-            var direct = PhraseologyMapper.Map(t, MapContext.Empty);
-            var (withTrace, _) = PhraseologyMapper.MapWithTrace(t, MapContext.Empty);
+            MapResult? direct = PhraseologyMapper.Map(t, MapContext.Empty);
+            (MapResult? withTrace, RuleMapperTrace _) = PhraseologyMapper.MapWithTrace(t, MapContext.Empty);
             Assert.Equal(direct?.CanonicalCommand, withTrace?.CanonicalCommand);
             Assert.Equal(direct?.Callsign, withTrace?.Callsign);
             Assert.Equal(direct?.MatchedRuleCount, withTrace?.MatchedRuleCount);

@@ -18,7 +18,7 @@ public sealed class AvaloniaFilePickerService : IFilePickerService
 
     public async Task<string?> OpenFileAsync(OpenFileOptions options)
     {
-        var files = await _topLevel.StorageProvider.OpenFilePickerAsync(
+        IReadOnlyList<IStorageFile> files = await _topLevel.StorageProvider.OpenFilePickerAsync(
             new FilePickerOpenOptions
             {
                 Title = options.Title,
@@ -32,7 +32,7 @@ public sealed class AvaloniaFilePickerService : IFilePickerService
 
     public async Task<IReadOnlyList<string>> OpenFilesAsync(OpenFileOptions options)
     {
-        var files = await _topLevel.StorageProvider.OpenFilePickerAsync(
+        IReadOnlyList<IStorageFile> files = await _topLevel.StorageProvider.OpenFilePickerAsync(
             new FilePickerOpenOptions
             {
                 Title = options.Title,
@@ -42,9 +42,9 @@ public sealed class AvaloniaFilePickerService : IFilePickerService
         );
 
         var paths = new List<string>(files.Count);
-        foreach (var file in files)
+        foreach (IStorageFile file in files)
         {
-            var path = file.TryGetLocalPath();
+            string? path = file.TryGetLocalPath();
             if (path is not null)
             {
                 paths.Add(path);
@@ -56,7 +56,7 @@ public sealed class AvaloniaFilePickerService : IFilePickerService
 
     public async Task<string?> SaveFileAsync(SaveFileOptions options)
     {
-        var file = await _topLevel.StorageProvider.SaveFilePickerAsync(
+        IStorageFile? file = await _topLevel.StorageProvider.SaveFilePickerAsync(
             new FilePickerSaveOptions
             {
                 Title = options.Title,
@@ -71,7 +71,7 @@ public sealed class AvaloniaFilePickerService : IFilePickerService
 
     public async Task<string?> OpenFolderAsync(OpenFolderOptions options)
     {
-        var folders = await _topLevel.StorageProvider.OpenFolderPickerAsync(
+        IReadOnlyList<IStorageFolder> folders = await _topLevel.StorageProvider.OpenFolderPickerAsync(
             new FolderPickerOpenOptions { Title = options.Title, AllowMultiple = false }
         );
 
@@ -81,7 +81,7 @@ public sealed class AvaloniaFilePickerService : IFilePickerService
     private static List<FilePickerFileType> ToAvalonia(IReadOnlyList<FilePickerFilter> filters)
     {
         var result = new List<FilePickerFileType>(filters.Count);
-        foreach (var filter in filters)
+        foreach (FilePickerFilter filter in filters)
         {
             result.Add(new FilePickerFileType(filter.Name) { Patterns = filter.Patterns.ToArray() });
         }

@@ -103,7 +103,7 @@ public class Issue236SfoAF1BConnectorTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {
             output.WriteLine("SKIP: SFO layout not available");
@@ -132,7 +132,7 @@ public class Issue236SfoAF1BConnectorTests(ITestOutputHelper output)
         for (int t = 1; t <= 4 * 60; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             if (ac is null)
             {
                 break;
@@ -193,14 +193,14 @@ public class Issue236SfoAF1BConnectorTests(ITestOutputHelper output)
     {
         // The A/F1 junction: the A node that also carries an F1 edge and the most edges (the real
         // multi-way intersection, not a tangent-cut). Fall back to any A∩F1 node.
-        var junction = layout
+        GroundNode junction = layout
             .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("A")) && n.Edges.Any(e => e.MatchesTaxiway("F1")))
             .OrderByDescending(n => n.Edges.Count)
             .ThenBy(n => n.Id)
             .First();
 
         // The A node ~250-550 ft NORTH (higher latitude) of that junction, nearest to 400 ft.
-        var spawnNode = layout
+        GroundNode spawnNode = layout
             .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("A")) && (n.Position.Lat > junction.Position.Lat))
             .Select(n => (Node: n, Ft: GeoMath.DistanceNm(n.Position, junction.Position) * GeoMath.FeetPerNm))
             .Where(x => (x.Ft >= 250.0) && (x.Ft <= 550.0))

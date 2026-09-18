@@ -38,12 +38,12 @@ public sealed class LayoutValidator
     /// </summary>
     private void CheckArcEndpointPositions()
     {
-        foreach (var arc in _layout.Arcs)
+        foreach (GroundArc arc in _layout.Arcs)
         {
             for (int k = 0; k < arc.Nodes.Length; k++)
             {
-                var arcNode = arc.Nodes[k];
-                if (!_layout.Nodes.TryGetValue(arcNode.Id, out var layoutNode))
+                GroundNode arcNode = arc.Nodes[k];
+                if (!_layout.Nodes.TryGetValue(arcNode.Id, out GroundNode? layoutNode))
                 {
                     Warn(
                         "arc-missing-node",
@@ -72,12 +72,12 @@ public sealed class LayoutValidator
         }
 
         // Same check for straight edges
-        foreach (var edge in _layout.Edges)
+        foreach (GroundEdge edge in _layout.Edges)
         {
             for (int k = 0; k < edge.Nodes.Length; k++)
             {
-                var edgeNode = edge.Nodes[k];
-                if (!_layout.Nodes.TryGetValue(edgeNode.Id, out var layoutNode))
+                GroundNode edgeNode = edge.Nodes[k];
+                if (!_layout.Nodes.TryGetValue(edgeNode.Id, out GroundNode? layoutNode))
                 {
                     Warn(
                         "edge-missing-node",
@@ -113,9 +113,9 @@ public sealed class LayoutValidator
     /// </summary>
     private void CheckArcTangentAlignment()
     {
-        foreach (var arc in _layout.Arcs)
+        foreach (GroundArc arc in _layout.Arcs)
         {
-            var bezier = arc.ToBezier();
+            CubicBezier bezier = arc.ToBezier();
 
             for (int k = 0; k < 2; k++)
             {
@@ -130,10 +130,10 @@ public sealed class LayoutValidator
                     continue; // No construction data (e.g., manual arc)
                 }
 
-                var node = arc.Nodes[k];
+                GroundNode node = arc.Nodes[k];
                 double t = k == 0 ? 0.0 : 1.0;
 
-                var (dLat, dLon) = bezier.Derivative(t);
+                (double dLat, double dLon) = bezier.Derivative(t);
                 double cosLat = Math.Cos(node.Position.Lat * (Math.PI / 180.0));
                 double tangentBearing = Math.Atan2(dLon * cosLat, dLat) * (180.0 / Math.PI);
                 tangentBearing = ((tangentBearing % 360) + 360) % 360;
@@ -166,7 +166,7 @@ public sealed class LayoutValidator
     /// </summary>
     private void CheckDegenerateArcRadius()
     {
-        foreach (var arc in _layout.Arcs)
+        foreach (GroundArc arc in _layout.Arcs)
         {
             if (arc.TurnAngleDeg <= 30.0)
             {
@@ -189,7 +189,7 @@ public sealed class LayoutValidator
     /// <summary>Warn if any edge or arc has both endpoints as the same node.</summary>
     private void CheckSelfLoopEdges()
     {
-        foreach (var edge in _layout.Edges)
+        foreach (GroundEdge edge in _layout.Edges)
         {
             if (edge.Nodes[0].Id == edge.Nodes[1].Id)
             {
@@ -197,7 +197,7 @@ public sealed class LayoutValidator
             }
         }
 
-        foreach (var arc in _layout.Arcs)
+        foreach (GroundArc arc in _layout.Arcs)
         {
             if (arc.Nodes[0].Id == arc.Nodes[1].Id)
             {
@@ -209,7 +209,7 @@ public sealed class LayoutValidator
     /// <summary>Warn about nodes with zero edges (disconnected from graph).</summary>
     private void CheckOrphanNodes()
     {
-        foreach (var node in _layout.Nodes.Values)
+        foreach (GroundNode node in _layout.Nodes.Values)
         {
             if (node.Edges.Count == 0)
             {
@@ -226,7 +226,7 @@ public sealed class LayoutValidator
     {
         // Build adjacency via non-runway-centerline edges only
         var adj = new Dictionary<int, HashSet<int>>();
-        foreach (var edge in _layout.Edges)
+        foreach (GroundEdge edge in _layout.Edges)
         {
             if (edge.IsRunwayCenterline)
             {
@@ -249,7 +249,7 @@ public sealed class LayoutValidator
             adj[b].Add(a);
         }
 
-        foreach (var arc in _layout.Arcs)
+        foreach (GroundArc arc in _layout.Arcs)
         {
             int a = arc.Nodes[0].Id;
             int b = arc.Nodes[1].Id;
@@ -292,7 +292,7 @@ public sealed class LayoutValidator
             while (queue.Count > 0)
             {
                 int current = queue.Dequeue();
-                if (!adj.TryGetValue(current, out var neighbors))
+                if (!adj.TryGetValue(current, out HashSet<int>? neighbors))
                 {
                     continue;
                 }
@@ -320,17 +320,17 @@ public sealed class LayoutValidator
 
         for (int i = 1; i < components.Count; i++)
         {
-            var comp = components[i];
+            HashSet<int> comp = components[i];
             // Collect taxiway names in this component
             var taxiways = new HashSet<string>();
             foreach (int nodeId in comp)
             {
-                if (!_layout.Nodes.TryGetValue(nodeId, out var node))
+                if (!_layout.Nodes.TryGetValue(nodeId, out GroundNode? node))
                 {
                     continue;
                 }
 
-                foreach (var edge in node.Edges)
+                foreach (IGroundEdge edge in node.Edges)
                 {
                     if (!edge.IsRunwayCenterline)
                     {

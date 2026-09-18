@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -67,7 +68,7 @@ public class BugN500mMltUpwindTurnsLeftImmediateTests(ITestOutputHelper output)
     [Fact]
     public void Mlt_OnUpwindCenterline_ContinuesUpwind_NoMidfieldCrossing()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -75,8 +76,8 @@ public class BugN500mMltUpwindTurnsLeftImmediateTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -87,7 +88,7 @@ public class BugN500mMltUpwindTurnsLeftImmediateTests(ITestOutputHelper output)
             // the time MLT fires (mirrors Issue7MltCrossRunwayWrongSideTests).
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(SnapshotTime);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(SnapshotTime);
             if (snapshot is null)
             {
                 output.WriteLine($"No snapshot near t={SnapshotTime} — skipping");
@@ -98,11 +99,11 @@ public class BugN500mMltUpwindTurnsLeftImmediateTests(ITestOutputHelper output)
 
             // Sanity: N500M is climbing out on Upwind for 28L, on the extended
             // centerline (heading roughly aligned with the runway).
-            var pre = engine.FindAircraft(Callsign);
+            AircraftState? pre = engine.FindAircraft(Callsign);
             Assert.NotNull(pre);
             Assert.IsType<UpwindPhase>(pre.Phases?.CurrentPhase);
             Assert.Equal("28L", pre.Phases!.AssignedRunway?.Designator);
-            var runwayHeading = pre.Phases.AssignedRunway!.TrueHeading;
+            TrueHeading runwayHeading = pre.Phases.AssignedRunway!.TrueHeading;
             Assert.True(
                 pre.TrueHeading.AbsAngleTo(runwayHeading) < 20,
                 $"Pre-MLT N500M should be aligned with the runway on upwind, "
@@ -114,12 +115,12 @@ public class BugN500mMltUpwindTurnsLeftImmediateTests(ITestOutputHelper output)
             for (int dt = 1; dt <= SecondsToReplay; dt++)
             {
                 engine.ReplayOneSecond();
-                var ac = engine.FindAircraft(Callsign);
+                AircraftState? ac = engine.FindAircraft(Callsign);
                 Assert.NotNull(ac);
                 Assert.DoesNotContain(ac.Phases?.Phases ?? [], p => p is MidfieldCrossingPhase);
             }
 
-            var post = engine.FindAircraft(Callsign);
+            AircraftState? post = engine.FindAircraft(Callsign);
             Assert.NotNull(post);
             int now = snapshotTime + SecondsToReplay;
 

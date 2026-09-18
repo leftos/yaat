@@ -35,15 +35,15 @@ public class GroundRendererRouteDrawTests
     [Fact]
     public void FreeSpaceLeg_ResolvesEndpointsFromTheSegmentsOwnNodes()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return; // test data absent — skip
         }
 
         var position = new LatLon(37.710217680439534, -122.21728593336832);
-        var startNode = layout.FindNearestNode(position)!;
-        var vp = MakeViewport(position);
+        GroundNode startNode = layout.FindNearestNode(position)!;
+        MapViewport vp = MakeViewport(position);
 
         // The layout's node table is what the renderer projects; a virtual node is not in it.
         var nodeScreenPos = new Dictionary<int, (float X, float Y)>
@@ -51,10 +51,10 @@ public class GroundRendererRouteDrawTests
             [startNode.Id] = vp.LatLonToScreen(startNode.Position.Lat, startNode.Position.Lon),
         };
 
-        var seg = VirtualNode.CreateSegment(VirtualNode.Create(position.Lat, position.Lon), startNode, "RAMP");
+        TaxiRouteSegment seg = VirtualNode.CreateSegment(VirtualNode.Create(position.Lat, position.Lon), startNode, "RAMP");
 
-        var from = GroundRenderer.RouteSegmentEndpoint(vp, nodeScreenPos, seg.FromNodeId, seg.Edge.FromNode);
-        var to = GroundRenderer.RouteSegmentEndpoint(vp, nodeScreenPos, seg.ToNodeId, seg.Edge.ToNode);
+        (float X, float Y) from = GroundRenderer.RouteSegmentEndpoint(vp, nodeScreenPos, seg.FromNodeId, seg.Edge.FromNode);
+        (float X, float Y) to = GroundRenderer.RouteSegmentEndpoint(vp, nodeScreenPos, seg.ToNodeId, seg.Edge.ToNode);
 
         Assert.Equal(vp.LatLonToScreen(position.Lat, position.Lon), from);
         Assert.Equal(nodeScreenPos[startNode.Id], to);
@@ -63,16 +63,16 @@ public class GroundRendererRouteDrawTests
     [Fact]
     public void GraphSegment_ResolvesEndpointsFromTheLayoutTable()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return; // test data absent — skip
         }
 
         var position = new LatLon(37.710217680439534, -122.21728593336832);
-        var startNode = layout.FindNearestNode(position)!;
-        var neighbor = startNode.Edges[0].OtherNode(startNode)!;
-        var vp = MakeViewport(position);
+        GroundNode startNode = layout.FindNearestNode(position)!;
+        GroundNode neighbor = startNode.Edges[0].OtherNode(startNode)!;
+        MapViewport vp = MakeViewport(position);
 
         var nodeScreenPos = new Dictionary<int, (float X, float Y)>
         {
@@ -82,8 +82,8 @@ public class GroundRendererRouteDrawTests
 
         var seg = new TaxiRouteSegment { TaxiwayName = startNode.Edges[0].TaxiwayName, Edge = startNode.Edges[0].Directed(startNode, neighbor) };
 
-        var from = GroundRenderer.RouteSegmentEndpoint(vp, nodeScreenPos, seg.FromNodeId, seg.Edge.FromNode);
-        var to = GroundRenderer.RouteSegmentEndpoint(vp, nodeScreenPos, seg.ToNodeId, seg.Edge.ToNode);
+        (float X, float Y) from = GroundRenderer.RouteSegmentEndpoint(vp, nodeScreenPos, seg.FromNodeId, seg.Edge.FromNode);
+        (float X, float Y) to = GroundRenderer.RouteSegmentEndpoint(vp, nodeScreenPos, seg.ToNodeId, seg.Edge.ToNode);
 
         Assert.Equal(nodeScreenPos[startNode.Id], from);
         Assert.Equal(nodeScreenPos[neighbor.Id], to);

@@ -93,37 +93,37 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
     [Fact]
     public void MltWhileCrossingToReTaxiedRunway_KeepsTaxiRoute_AndDepartsAfterCto()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
-        var aircraft = SpawnOnTaxiwayB(engine, layout);
+        AircraftState? aircraft = SpawnOnTaxiwayB(engine, layout);
 
         // Preset leg: taxi to the assigned runway 28R, the bar at B where DN's aircraft started.
-        var taxi28R = engine.SendCommand(Callsign, "TAXI B 28R");
+        CommandResult taxi28R = engine.SendCommand(Callsign, "TAXI B 28R");
         Assert.True(taxi28R.Success, taxi28R.Message);
-        var bar28R = Bar28RPosition(aircraft, layout);
+        LatLon bar28R = Bar28RPosition(aircraft, layout);
 
         // The controller's re-taxi to the parallel: crosses 28R/10L, destination hold-short 28L.
         // Issued while the aircraft is still rolling down B toward the 28R bar — see the class remarks
         // for why the crossing this pair tests only exists when the re-taxi lands inside that window.
         double? shortOfBarFt = TickUntilTaxiingShortOfBar(engine, bar28R, 60);
         Assert.NotNull(shortOfBarFt);
-        var taxi28L = engine.SendCommand(Callsign, "TAXI B 28L");
+        CommandResult taxi28L = engine.SendCommand(Callsign, "TAXI B 28L");
         Assert.True(taxi28L.Success, taxi28L.Message);
         AssertCrossingOf28RIsUncleared(aircraft);
 
         // Reach the crossing state (clearing the 28R crossing bar if the route paused there).
-        var crossing = TickUntilCrossingRunway(engine, 120);
+        CrossingRunwayPhase? crossing = TickUntilCrossingRunway(engine, 120);
         Assert.NotNull(crossing);
 
         // Standalone MLT mid-crossing: must only pre-arm the pattern direction for the eventual
         // departure — never splice airborne pattern phases into a ground aircraft's chain.
-        var mlt = engine.SendCommand(Callsign, "MLT");
+        CommandResult mlt = engine.SendCommand(Callsign, "MLT");
         Assert.True(mlt.Success, mlt.Message);
         aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
@@ -132,11 +132,11 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
         // The aircraft must finish the crossing and taxi to the 28L bar ON THE GROUND ROUTE.
         // With the bug, the spliced circuit makes Upwind the next phase after the crossing and the
         // aircraft accelerates down the pavement without ever rotating.
-        var at28LBar = TickUntilHoldingShort(engine, "28L", HoldShortReason.DestinationRunway, 300);
+        HoldingShortPhase? at28LBar = TickUntilHoldingShort(engine, "28L", HoldShortReason.DestinationRunway, 300);
         Assert.NotNull(at28LBar);
 
         // Normal departure from the re-taxied runway.
-        var cto = engine.SendCommand(Callsign, "CTO MLT");
+        CommandResult cto = engine.SendCommand(Callsign, "CTO MLT");
         Assert.True(cto.Success, cto.Message);
 
         for (int t = 1; t <= 180; t++)
@@ -167,35 +167,35 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
     [Fact]
     public void CtoWhileCrossingToReTaxiedRunway_StoresRollingClearance_AndDeparts()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
-        var departure = SpawnOnTaxiwayB(engine, layout);
+        AircraftState departure = SpawnOnTaxiwayB(engine, layout);
 
-        var taxi28R = engine.SendCommand(Callsign, "TAXI B 28R");
+        CommandResult taxi28R = engine.SendCommand(Callsign, "TAXI B 28R");
         Assert.True(taxi28R.Success, taxi28R.Message);
-        var bar28R = Bar28RPosition(departure, layout);
+        LatLon bar28R = Bar28RPosition(departure, layout);
 
         // Mid-taxi re-taxi, short of the 28R bar — the only window that leaves the 28R crossing
         // uncleared and so raises a real CrossingRunwayPhase to issue the CTO into. See the class remarks.
         Assert.NotNull(TickUntilTaxiingShortOfBar(engine, bar28R, 60));
-        var taxi28L = engine.SendCommand(Callsign, "TAXI B 28L");
+        CommandResult taxi28L = engine.SendCommand(Callsign, "TAXI B 28L");
         Assert.True(taxi28L.Success, taxi28L.Message);
         AssertCrossingOf28RIsUncleared(departure);
         Assert.NotNull(TickUntilCrossingRunway(engine, 120));
 
-        var cto = engine.SendCommand(Callsign, "CTO MLT");
+        CommandResult cto = engine.SendCommand(Callsign, "CTO MLT");
         Assert.True(cto.Success, cto.Message);
 
         for (int t = 1; t <= 300; t++)
         {
             engine.TickOneSecond();
-            var aircraft = engine.FindAircraft(Callsign);
+            AircraftState? aircraft = engine.FindAircraft(Callsign);
             Assert.NotNull(aircraft);
             FailIfPatternLegOnGround(aircraft, t);
             if (!aircraft.IsOnGround)
@@ -219,11 +219,11 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
     /// </summary>
     private static LatLon Bar28RPosition(AircraftState aircraft, Data.Airport.AirportGroundLayout layout)
     {
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
-        var bar = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
+        HoldShortPoint? bar = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
         Assert.NotNull(bar);
-        var node = layout.Nodes.GetValueOrDefault(bar.NodeId);
+        GroundNode? node = layout.Nodes.GetValueOrDefault(bar.NodeId);
         Assert.NotNull(node);
         return node.Position;
     }
@@ -240,7 +240,7 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
         for (int t = 1; t <= maxSeconds; t++)
         {
             engine.TickOneSecond();
-            var aircraft = engine.FindAircraft(Callsign);
+            AircraftState? aircraft = engine.FindAircraft(Callsign);
             Assert.NotNull(aircraft);
             FailIfPatternLegOnGround(aircraft, t);
             if (aircraft.Phases?.CurrentPhase is not TaxiingPhase)
@@ -258,7 +258,7 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
             return distFt;
         }
 
-        var last = engine.FindAircraft(Callsign);
+        AircraftState? last = engine.FindAircraft(Callsign);
         output.WriteLine($"never started taxiing within {maxSeconds}s: phase={last?.Phases?.CurrentPhase?.Name} gs={last?.GroundSpeed:F1}");
         return null;
     }
@@ -271,9 +271,9 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
     /// </summary>
     private static void AssertCrossingOf28RIsUncleared(AircraftState aircraft)
     {
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
-        var firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
+        HoldShortPoint? firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
         Assert.NotNull(firstCrossing);
         Assert.True(
             firstCrossing.TargetName is { } target && RunwayIdentifier.Parse(target).Contains("28R"),
@@ -291,7 +291,7 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
         for (int t = 1; t <= maxSeconds; t++)
         {
             engine.TickOneSecond();
-            var aircraft = engine.FindAircraft(Callsign);
+            AircraftState? aircraft = engine.FindAircraft(Callsign);
             Assert.NotNull(aircraft);
             FailIfPatternLegOnGround(aircraft, t);
 
@@ -307,7 +307,7 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
             }
         }
 
-        var last = engine.FindAircraft(Callsign);
+        AircraftState? last = engine.FindAircraft(Callsign);
         output.WriteLine($"gave up after {maxSeconds}s: phase={last?.Phases?.CurrentPhase?.Name} gs={last?.GroundSpeed:F1}");
         return null;
     }
@@ -317,7 +317,7 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
         for (int t = 1; t <= maxSeconds; t++)
         {
             engine.TickOneSecond();
-            var aircraft = engine.FindAircraft(Callsign);
+            AircraftState? aircraft = engine.FindAircraft(Callsign);
             Assert.NotNull(aircraft);
             FailIfPatternLegOnGround(aircraft, t);
 
@@ -327,13 +327,13 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
                     output.WriteLine($"t=+{t}: crossing runway");
                     return crossing;
                 case HoldingShortPhase { HoldShort.Reason: HoldShortReason.RunwayCrossing }:
-                    var cross = engine.SendCommand(Callsign, "CROSS");
+                    CommandResult cross = engine.SendCommand(Callsign, "CROSS");
                     Assert.True(cross.Success, cross.Message);
                     break;
             }
         }
 
-        var last = engine.FindAircraft(Callsign);
+        AircraftState? last = engine.FindAircraft(Callsign);
         output.WriteLine($"gave up after {maxSeconds}s: phase={last?.Phases?.CurrentPhase?.Name} gs={last?.GroundSpeed:F1}");
         return null;
     }

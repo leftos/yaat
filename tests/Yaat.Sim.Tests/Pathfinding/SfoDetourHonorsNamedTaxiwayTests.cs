@@ -35,23 +35,23 @@ public class SfoDetourHonorsNamedTaxiwayTests
     [Fact]
     public void SfoG3_AQBF28L_HS1L_StillResolves_ThroughA()
     {
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         if ((layout is null) || (TestVnasData.NavigationDb is null))
         {
             _output.WriteLine("SFO layout or navdata not found — skipping");
             return;
         }
 
-        var stand = layout.FindParkingByName("G3");
+        GroundNode? stand = layout.FindParkingByName("G3");
         Assert.True(stand is not null, "the SFO layout has no parking named 'G3'");
 
         var standHeading = new TrueHeading(StandHeadingDeg);
 
         // The same start-node resolution GroundCommandHandler.TryTaxi performs for a TAXI command.
-        var startNode = layout.FindNearestNodeForTaxi(stand!.Position, standHeading) ?? layout.FindNearestNode(stand.Position);
+        GroundNode? startNode = layout.FindNearestNodeForTaxi(stand!.Position, standHeading) ?? layout.FindNearestNode(stand.Position);
         Assert.NotNull(startNode);
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode!.Id,
             ["A", "Q", "B", "F"],

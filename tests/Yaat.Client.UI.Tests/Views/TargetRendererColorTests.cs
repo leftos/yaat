@@ -19,8 +19,13 @@ public class TargetRendererColorTests
     [Fact]
     public void StaleShadow_KeepsItsColorsAtHalfAlpha()
     {
-        var live = TargetRenderer.ResolveTargetColors(Inputs(false, false, false, Tint, null));
-        var stale = TargetRenderer.ResolveTargetColors(Inputs(false, false, false, Tint, null) with { IsStale = true });
+        (SKColor Symbol, SKColor DataBlock) live = TargetRenderer.ResolveTargetColors(Inputs(false, false, false, Tint, null));
+        (SKColor Symbol, SKColor DataBlock) stale = TargetRenderer.ResolveTargetColors(
+            Inputs(false, false, false, Tint, null) with
+            {
+                IsStale = true,
+            }
+        );
 
         Assert.Equal(live.Symbol.WithAlpha(TargetRenderer.StaleAlpha), stale.Symbol);
         Assert.Equal(live.DataBlock.WithAlpha(TargetRenderer.StaleAlpha), stale.DataBlock);
@@ -29,8 +34,8 @@ public class TargetRendererColorTests
     [Fact]
     public void Selection_DoesNotChange_GroundDatablockColor()
     {
-        var unselected = TargetRenderer.ResolveTargetColors(Inputs(false, false, true, null, null));
-        var selected = TargetRenderer.ResolveTargetColors(Inputs(true, false, true, null, null));
+        (SKColor Symbol, SKColor DataBlock) unselected = TargetRenderer.ResolveTargetColors(Inputs(false, false, true, null, null));
+        (SKColor Symbol, SKColor DataBlock) selected = TargetRenderer.ResolveTargetColors(Inputs(true, false, true, null, null));
 
         Assert.Equal(unselected.DataBlock, selected.DataBlock); // text keeps its unselected color
         Assert.NotEqual(Selected, selected.DataBlock); // not flattened to the selection color
@@ -39,7 +44,7 @@ public class TargetRendererColorTests
     [Fact]
     public void Selection_DoesNotChange_TintedDatablockColor()
     {
-        var selected = TargetRenderer.ResolveTargetColors(Inputs(true, false, false, Tint, null));
+        (SKColor Symbol, SKColor DataBlock) selected = TargetRenderer.ResolveTargetColors(Inputs(true, false, false, Tint, null));
 
         Assert.Equal(Tint, selected.DataBlock);
     }
@@ -47,8 +52,8 @@ public class TargetRendererColorTests
     [Fact]
     public void Selection_Brightens_PositionSymbol()
     {
-        var unselected = TargetRenderer.ResolveTargetColors(Inputs(false, false, false, null, null));
-        var selected = TargetRenderer.ResolveTargetColors(Inputs(true, false, false, null, null));
+        (SKColor Symbol, SKColor DataBlock) unselected = TargetRenderer.ResolveTargetColors(Inputs(false, false, false, null, null));
+        (SKColor Symbol, SKColor DataBlock) selected = TargetRenderer.ResolveTargetColors(Inputs(true, false, false, null, null));
 
         Assert.Equal(Selected, selected.Symbol); // symbol still brightens to the selection color
         Assert.NotEqual(Selected, unselected.Symbol);
@@ -57,8 +62,8 @@ public class TargetRendererColorTests
     [Fact]
     public void Highlight_OverridesDatablockColor_RegardlessOfSelection()
     {
-        var highlighted = TargetRenderer.ResolveTargetColors(Inputs(false, true, false, null, null));
-        var highlightedSelected = TargetRenderer.ResolveTargetColors(Inputs(true, true, false, null, null));
+        (SKColor Symbol, SKColor DataBlock) highlighted = TargetRenderer.ResolveTargetColors(Inputs(false, true, false, null, null));
+        (SKColor Symbol, SKColor DataBlock) highlightedSelected = TargetRenderer.ResolveTargetColors(Inputs(true, true, false, null, null));
 
         Assert.Equal(SKColors.Cyan, highlighted.DataBlock);
         Assert.Equal(SKColors.Cyan, highlightedSelected.DataBlock);

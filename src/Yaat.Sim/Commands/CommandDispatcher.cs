@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
@@ -60,7 +61,7 @@ public static class CommandDispatcher
         // server's non-compoundable pre-check, so a recorded chain could carry one in a later block.
         // Ahead of the shadow gate: a flight-plan edit is never dispatched to an aircraft, so it must not
         // be the thing that takes control of a live-traffic shadow either.
-        var flightPlanCmd = compound.Blocks.SelectMany(b => b.Commands).FirstOrDefault(CompoundPolicy.IsFlightPlanCommand);
+        ParsedCommand? flightPlanCmd = compound.Blocks.SelectMany(b => b.Commands).FirstOrDefault(CompoundPolicy.IsFlightPlanCommand);
         if (flightPlanCmd is not null)
         {
             return RejectFlightPlanCommand(flightPlanCmd);
@@ -70,13 +71,13 @@ public static class CommandDispatcher
         // (CompoundPolicy.IsNonCompoundable). Repeated here, with the router's own wording, so a direct dispatch —
         // a deferred payload, a reconstruction, a test — cannot instead have the shadow gate take the aircraft and
         // then drop the rest of the chain on the missing arm.
-        var chainedVerb = FindChainedNonCompoundable(compound);
+        ParsedCommand? chainedVerb = FindChainedNonCompoundable(compound);
         if (chainedVerb is not null)
         {
             return RejectChainedCommand(chainedVerb);
         }
 
-        var refusal = TryAssumeShadow(aircraft, compound, ctx, out var autoAssumed);
+        CommandResult? refusal = TryAssumeShadow(aircraft, compound, ctx, out AssumeUndo? autoAssumed);
         if (refusal is not null)
         {
             return refusal;
@@ -93,8 +94,8 @@ public static class CommandDispatcher
         // hold-for-release) is NOT the student establishing contact, so it must not set this — a
         // runway-spawn CTO-preset departure handed to the student via auto-track still makes its
         // post-takeoff check-in.
-        var wasOnGround = aircraft.IsOnGround;
-        var result = DispatchCompoundCore(compound, aircraft, ctx);
+        bool wasOnGround = aircraft.IsOnGround;
+        CommandResult result = DispatchCompoundCore(compound, aircraft, ctx);
 
         // The gate took a real aircraft only so this command could apply to it. It did not, so hand it back: the
         // aircraft is live traffic again and the refusal is the plain refusal, with nothing claiming a hand-off.
@@ -146,7 +147,7 @@ public static class CommandDispatcher
             return RejectShadow(aircraft);
         }
 
-        var assumeResult = LiveTraffic.LiveTrafficAssumer.Assume(aircraft, ctx, out var undo);
+        CommandResult assumeResult = LiveTraffic.LiveTrafficAssumer.Assume(aircraft, ctx, out AssumeUndo? undo);
         if (!assumeResult.Success)
         {
             return assumeResult;
@@ -219,7 +220,7 @@ public static class CommandDispatcher
         // Leading WAIT → deferred dispatch: extract the timer and store the remaining
         // blocks as a deferred payload. The payload dispatches fresh when the timer expires,
         // without touching phases or the command queue.
-        var deferredResult = TryDeferLeadingWait(compound, aircraft, ctx);
+        CommandResult? deferredResult = TryDeferLeadingWait(compound, aircraft, ctx);
         if (deferredResult is not null)
         {
             return deferredResult;
@@ -227,7 +228,7 @@ public static class CommandDispatcher
 
         // GiveWay condition → deferred dispatch: the aircraft stays in its current phase
         // and the payload dispatches when the target aircraft passes.
-        var gwResult = TryDeferGiveWay(compound, aircraft, ctx);
+        CommandResult? gwResult = TryDeferGiveWay(compound, aircraft, ctx);
         if (gwResult is not null)
         {
             return gwResult;
@@ -258,14 +259,18 @@ public static class CommandDispatcher
         // before a later block fails — that partial progress is inherent to `;`.
         if (compound.Blocks.Count > 1 && IsFullyTransparentBlock(compound.Blocks[0]))
         {
-            var headResult = ApplyTransparentCompound(new CompoundCommand([compound.Blocks[0]]) { SourceText = compound.SourceText }, aircraft, ctx);
+            CommandResult headResult = ApplyTransparentCompound(
+                new CompoundCommand([compound.Blocks[0]]) { SourceText = compound.SourceText },
+                aircraft,
+                ctx
+            );
             if (!headResult.Success)
             {
                 return headResult;
             }
 
             var remainder = new CompoundCommand(compound.Blocks.Skip(1).ToList()) { SourceText = compound.SourceText };
-            var tailResult = DispatchCompoundCore(remainder, aircraft, ctx);
+            CommandResult tailResult = DispatchCompoundCore(remainder, aircraft, ctx);
             string headMsg = headResult.Message ?? "";
             if (string.IsNullOrEmpty(headMsg))
             {
@@ -317,7 +322,7 @@ public static class CommandDispatcher
         // glideslope descent in place — it does not tear the join down and rebuild it (which
         // would emit a spurious "… cancelled by CAPP" warning). The aircraft is already tracking
         // the localizer; CAPP just clears it to descend.
-        var lateralUpgrade = TryUpgradeLateralJoinInPlace(compound, aircraft);
+        CommandResult? lateralUpgrade = TryUpgradeLateralJoinInPlace(compound, aircraft);
         if (lateralUpgrade is not null)
         {
             return lateralUpgrade;
@@ -326,7 +331,7 @@ public static class CommandDispatcher
         // Capture the active phase before dispatch so post-clear logic (e.g.
         // auto-attaching the AfterRunwayCrossing trigger when CROSS clears a
         // runway hold-short) can inspect it after the phase has been cleared.
-        var currentPhaseBeforeDispatch = aircraft.Phases?.CurrentPhase;
+        Phase? currentPhaseBeforeDispatch = aircraft.Phases?.CurrentPhase;
 
         // Same reason, for the taxiing aircraft that CROSS pre-clears ahead of: the route already
         // carries the clearance by the time the trigger is attached, so we need the before-picture to
@@ -337,7 +342,7 @@ public static class CommandDispatcher
         bool shouldClearPhases = false;
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
-            var result = DispatchWithPhase(compound, aircraft, currentPhase, ctx);
+            CommandResult? result = DispatchWithPhase(compound, aircraft, currentPhase, ctx);
             if (ReferenceEquals(result, PhaseShouldBeCleared))
             {
                 // Phases need clearing, but defer until after validation succeeds.
@@ -355,8 +360,14 @@ public static class CommandDispatcher
                 // phase is active).
                 if (result.Success && compound.Blocks.Count > 1)
                 {
-                    var phaseIncomingDims = CommandDescriber.GetCompoundDimensions(compound);
-                    var phasePreserved = ClearConflictingBlocks(aircraft, phaseIncomingDims, ctx, ctx.PreserveConditionals, out var phaseDropped);
+                    CommandDimension phaseIncomingDims = CommandDescriber.GetCompoundDimensions(compound);
+                    List<CommandBlock> phasePreserved = ClearConflictingBlocks(
+                        aircraft,
+                        phaseIncomingDims,
+                        ctx,
+                        ctx.PreserveConditionals,
+                        out List<string>? phaseDropped
+                    );
                     EmitQueueClearWarning(aircraft, phaseDropped, compound);
                     if (!ctx.PreserveConditionals)
                     {
@@ -367,12 +378,12 @@ public static class CommandDispatcher
                     var remainingBlocks = new List<ParsedBlock>();
                     for (int i = 1; i < compound.Blocks.Count; i++)
                     {
-                        var pb = compound.Blocks[i];
+                        ParsedBlock pb = compound.Blocks[i];
                         if (IsImmediatePhaseModifierBlock(pb))
                         {
-                            var modCmd = pb.Commands[0];
-                            var modPhase = aircraft.Phases?.CurrentPhase ?? currentPhase;
-                            var modResult = TryApplyTowerCommand(modCmd, aircraft, modPhase, ctx);
+                            ParsedCommand modCmd = pb.Commands[0];
+                            Phase modPhase = aircraft.Phases?.CurrentPhase ?? currentPhase;
+                            CommandResult? modResult = TryApplyTowerCommand(modCmd, aircraft, modPhase, ctx);
                             if (modResult is null || !modResult.Success)
                             {
                                 // Couldn't apply right now — fall back to enqueueing.
@@ -389,7 +400,7 @@ public static class CommandDispatcher
                     }
 
                     int firstRemainingIdx = aircraft.Queue.Blocks.Count;
-                    var remainingMessages =
+                    List<string> remainingMessages =
                         remainingBlocks.Count > 0
                             ? EnqueueBlocks(new CompoundCommand(remainingBlocks) { SourceText = compound.SourceText }, 0, aircraft, ctx)
                             : new List<string>();
@@ -412,7 +423,7 @@ public static class CommandDispatcher
                     combinedMessages.AddRange(remainingMessages);
                     if (combinedMessages.Count > 1)
                     {
-                        var combined = string.Join(" ; then ", combinedMessages.Where(m => !string.IsNullOrEmpty(m)));
+                        string combined = string.Join(" ; then ", combinedMessages.Where(m => !string.IsNullOrEmpty(m)));
                         return result with { Message = combined };
                     }
                 }
@@ -425,7 +436,7 @@ public static class CommandDispatcher
         // Dry-run: validate all commands on a snapshot clone before touching the
         // real aircraft. This allows compound commands like "ERD 28R, CLAND" where
         // a later command depends on state created by an earlier one.
-        var dryRunError = DryRunValidate(compound, aircraft, ctx);
+        CommandResult? dryRunError = DryRunValidate(compound, aircraft, ctx);
         if (dryRunError is not null)
         {
             return dryRunError;
@@ -434,7 +445,7 @@ public static class CommandDispatcher
         // Dry-run only validates the first block, but a clearance trailing a pattern entry in the same
         // transmission is pre-issued against that entry — so its runway must agree. Check it here, before
         // anything is applied, rather than letting the leading blocks land and the trailing one fail.
-        var trailingClearanceError = ValidateTrailingClearanceRunway(compound, aircraft);
+        CommandResult? trailingClearanceError = ValidateTrailingClearanceRunway(compound, aircraft);
         if (trailingClearanceError is not null)
         {
             return trailingClearanceError;
@@ -443,7 +454,7 @@ public static class CommandDispatcher
         // Now that validation passed, clear phases if the command requires it
         if (shouldClearPhases)
         {
-            var phaseCtx = BuildMinimalContext(aircraft);
+            PhaseContext phaseCtx = BuildMinimalContext(aircraft);
             bool clearedGoAround = aircraft.Phases?.CurrentPhase is GoAroundPhase;
             string? clearedSummary = aircraft.Phases is { } pl ? PhaseClearSummary.Build(pl) : null;
             aircraft.Phases?.Clear(phaseCtx);
@@ -456,7 +467,7 @@ public static class CommandDispatcher
 
             if (clearedSummary is not null)
             {
-                var src = compound.SourceText ?? CommandDescriber.DescribeNatural(compound.Blocks[0].Commands[0]);
+                string src = compound.SourceText ?? CommandDescriber.DescribeNatural(compound.Blocks[0].Commands[0]);
                 aircraft.PendingWarnings.Add($"{aircraft.Callsign} {clearedSummary} cancelled by {src}");
             }
         }
@@ -474,8 +485,8 @@ public static class CommandDispatcher
         }
         else
         {
-            var incomingDims = CommandDescriber.GetCompoundDimensions(compound);
-            preserved = ClearConflictingBlocks(aircraft, incomingDims, ctx, ctx.PreserveConditionals, out var dropped);
+            CommandDimension incomingDims = CommandDescriber.GetCompoundDimensions(compound);
+            preserved = ClearConflictingBlocks(aircraft, incomingDims, ctx, ctx.PreserveConditionals, out List<string>? dropped);
             EmitQueueClearWarning(aircraft, dropped, compound);
             if (!ctx.PreserveConditionals)
             {
@@ -484,7 +495,7 @@ public static class CommandDispatcher
         }
 
         int firstNewBlockIdx = aircraft.Queue.Blocks.Count;
-        var messages = EnqueueBlocks(compound, 0, aircraft, ctx);
+        List<string> messages = EnqueueBlocks(compound, 0, aircraft, ctx);
         AttachAfterRunwayCrossingTrigger(compound, aircraft, firstNewBlockIdx, currentPhaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx);
 
         // Preserved blocks go back where they were — ahead of the compound that spared them — rather than
@@ -499,10 +510,10 @@ public static class CommandDispatcher
         // by index rather than using CurrentBlock.
         if (firstNewBlockIdx < aircraft.Queue.Blocks.Count)
         {
-            var firstNewBlock = aircraft.Queue.Blocks[firstNewBlockIdx];
+            CommandBlock firstNewBlock = aircraft.Queue.Blocks[firstNewBlockIdx];
             if (firstNewBlock.Trigger is null)
             {
-                var applyResult = ApplyBlock(firstNewBlock, aircraft);
+                CommandResult applyResult = ApplyBlock(firstNewBlock, aircraft);
                 if (!applyResult.Success)
                 {
                     // First block failed — clear the queue and propagate the failure
@@ -525,13 +536,13 @@ public static class CommandDispatcher
                 {
                     for (int bi = firstNewBlockIdx + 1; bi < aircraft.Queue.Blocks.Count; bi++)
                     {
-                        var block = aircraft.Queue.Blocks[bi];
+                        CommandBlock block = aircraft.Queue.Blocks[bi];
                         if (block.IsApplied || block.Trigger is not null || block.ParsedCommands is not { Count: 1 })
                         {
                             break;
                         }
 
-                        var parsedCmd = block.ParsedCommands[0];
+                        ParsedCommand parsedCmd = block.ParsedCommands[0];
                         if (
                             parsedCmd is not (MakeShortApproachCommand or MakeNormalApproachCommand or ExtendPatternCommand)
                             && !IsPendingLandingClearanceCommand(parsedCmd)
@@ -540,7 +551,7 @@ public static class CommandDispatcher
                             break;
                         }
 
-                        var modResult = TryApplyTowerCommand(parsedCmd, aircraft, postApplyPhase, ctx);
+                        CommandResult? modResult = TryApplyTowerCommand(parsedCmd, aircraft, postApplyPhase, ctx);
                         if (modResult is null || !modResult.Success)
                         {
                             break;
@@ -562,7 +573,7 @@ public static class CommandDispatcher
                 {
                     for (int bi = firstNewBlockIdx + 1; bi < aircraft.Queue.Blocks.Count; bi++)
                     {
-                        var block = aircraft.Queue.Blocks[bi];
+                        CommandBlock block = aircraft.Queue.Blocks[bi];
                         if (
                             block.IsApplied
                             || block.Trigger is not null
@@ -573,7 +584,7 @@ public static class CommandDispatcher
                             continue;
                         }
 
-                        var armResult = ApplyCommand(block.ParsedCommands[0], aircraft, ctx);
+                        CommandResult armResult = ApplyCommand(block.ParsedCommands[0], aircraft, ctx);
                         if (!armResult.Success)
                         {
                             break;
@@ -592,7 +603,7 @@ public static class CommandDispatcher
 
         WarnIndefiniteHoldChain(compound, aircraft);
 
-        var fullMessage = string.Join(" ; then ", messages);
+        string fullMessage = string.Join(" ; then ", messages);
         return new CommandResult(true, fullMessage);
     }
 
@@ -608,7 +619,7 @@ public static class CommandDispatcher
     {
         for (int i = 0; i < compound.Blocks.Count; i++)
         {
-            var installer = compound.Blocks[i].Commands.Find(CommandDescriber.InstallsIndefiniteHoldPhase);
+            ParsedCommand? installer = compound.Blocks[i].Commands.Find(CommandDescriber.InstallsIndefiniteHoldPhase);
             if (installer is null)
             {
                 continue;
@@ -625,8 +636,8 @@ public static class CommandDispatcher
 
             if (trailing.Count > 0)
             {
-                var verb = CommandDescriber.DescribeCommand(installer);
-                var noun = installer is FollowCommand ? "follow" : "hold";
+                string verb = CommandDescriber.DescribeCommand(installer);
+                string noun = installer is FollowCommand ? "follow" : "hold";
                 aircraft.PendingWarnings.Add(
                     $"{aircraft.Callsign}: commands after {verb} will not execute until the {noun} is cancelled or further clearance is issued: "
                         + string.Join("; ", trailing)
@@ -663,7 +674,7 @@ public static class CommandDispatcher
             return null;
         }
 
-        var block = compound.Blocks[0];
+        ParsedBlock block = compound.Blocks[0];
         if (block.Condition is not null || block.Commands.Count != 1 || block.Commands[0] is not ClearedApproachCommand capp)
         {
             return null;
@@ -676,7 +687,7 @@ public static class CommandDispatcher
             return null;
         }
 
-        var clearance = aircraft.Phases?.ActiveApproach;
+        ApproachClearance? clearance = aircraft.Phases?.ActiveApproach;
         if (clearance is null || !clearance.LateralInterceptOnly)
         {
             return null;
@@ -725,14 +736,14 @@ public static class CommandDispatcher
 
     private static bool IsAllTransparent(CompoundCommand compound)
     {
-        foreach (var block in compound.Blocks)
+        foreach (ParsedBlock block in compound.Blocks)
         {
             if (block.Condition is not null)
             {
                 return false;
             }
 
-            foreach (var cmd in block.Commands)
+            foreach (ParsedCommand cmd in block.Commands)
             {
                 if (cmd is UnsupportedCommand)
                 {
@@ -753,23 +764,29 @@ public static class CommandDispatcher
     {
         // Transparent commands intentionally bypass DCT-fix validation — preserve that
         // by overriding the flag on a per-call basis.
-        var transparentCtx = ctx with
+        DispatchContext transparentCtx = ctx with
         {
             ValidateDctFixes = false,
         };
         var messages = new List<string>();
-        foreach (var block in compound.Blocks)
+        foreach (ParsedBlock block in compound.Blocks)
         {
-            foreach (var cmd in block.Commands)
+            foreach (ParsedCommand cmd in block.Commands)
             {
                 if (NeedsVerticalSupersede(cmd))
                 {
-                    var preserved = ClearConflictingBlocks(aircraft, CommandDimension.Vertical, ctx, preserveTriggeredBlocks: false, out var dropped);
+                    List<CommandBlock> preserved = ClearConflictingBlocks(
+                        aircraft,
+                        CommandDimension.Vertical,
+                        ctx,
+                        preserveTriggeredBlocks: false,
+                        out List<string>? dropped
+                    );
                     EmitQueueClearWarning(aircraft, dropped, compound);
                     aircraft.Queue.Blocks.AddRange(preserved);
                 }
 
-                var result = ApplyCommand(cmd, aircraft, transparentCtx);
+                CommandResult result = ApplyCommand(cmd, aircraft, transparentCtx);
                 if (!result.Success)
                 {
                     return WithRejectedCommand(result, cmd);
@@ -795,7 +812,7 @@ public static class CommandDispatcher
 
     private static CommandResult ApplyCommand(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
-        var result = ApplyCommandCore(command, aircraft, ctx);
+        CommandResult result = ApplyCommandCore(command, aircraft, ctx);
         EmitProcedureAdvisory(result, aircraft, ctx);
         return result;
     }
@@ -838,8 +855,8 @@ public static class CommandDispatcher
 
     private static CommandResult ApplyCommandCore(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
-        var rng = ctx.Rng;
-        var validateDctFixes = ctx.ValidateDctFixes;
+        Random rng = ctx.Rng;
+        bool validateDctFixes = ctx.ValidateDctFixes;
 
         switch (command)
         {
@@ -1021,12 +1038,16 @@ public static class CommandDispatcher
 
             case ExpectApproachCommand eapp:
             {
-                var eappResolved = ApproachCommandHandler.ResolveApproach(eapp.ApproachId, eapp.AirportCode, aircraft);
+                ApproachCommandHandler.ResolvedApproach eappResolved = ApproachCommandHandler.ResolveApproach(
+                    eapp.ApproachId,
+                    eapp.AirportCode,
+                    aircraft
+                );
                 if (!eappResolved.Success)
                 {
                     return new CommandResult(false, eappResolved.Error);
                 }
-                var (eappProc, eappRunway, _) = eappResolved;
+                (CifpApproachProcedure? eappProc, RunwayInfo? eappRunway, string _) = eappResolved;
                 aircraft.Approach.Expected = eappProc.ApproachId;
                 // Telling a pilot to expect "ILS 30" implies the arrival runway is 30. Set
                 // DestinationRunway so the active STAR can load its runway transition (and
@@ -1295,7 +1316,7 @@ public static class CommandDispatcher
                     CommandDescriber.DescribeNatural(command),
                     aircraft.Callsign
                 );
-                var fallbackMessage =
+                string fallbackMessage =
                     CommandDescriber.IsGroundCommand(command) && !aircraft.IsOnGround
                         ? GroundCommandRequiresGroundMessage(command)
                         : $"Unable to {CommandDescriber.DescribeNatural(command)}";
@@ -1315,7 +1336,7 @@ public static class CommandDispatcher
     /// </summary>
     private static int RemoveQueuedDeleteBlocks(AircraftState aircraft)
     {
-        var queue = aircraft.Queue;
+        CommandQueue queue = aircraft.Queue;
         int removed = 0;
         int removedBeforeCursor = 0;
 
@@ -1388,7 +1409,7 @@ public static class CommandDispatcher
         // every deferred dispatch before applying the first block, so a rejection that reaches ApplyBlock destroys
         // unrelated pending work on its way out. Catching it here keeps the contract that a rejected command leaves
         // state unchanged.
-        var dryCtx = ctx with
+        DispatchContext dryCtx = ctx with
         {
             Rng = new Random(0),
             AutoCrossRunway = false,
@@ -1405,13 +1426,19 @@ public static class CommandDispatcher
         // partition — it removes every pending block and returns the survivors — so the clone has to model
         // the caller's re-append too, or a handler that reads the queue to accept sees a queue the real
         // aircraft will never have.
-        var clonePreserved = ClearConflictingBlocks(clone, CommandDescriber.GetCompoundDimensions(compound), ctx, ctx.PreserveConditionals, out _);
+        List<CommandBlock> clonePreserved = ClearConflictingBlocks(
+            clone,
+            CommandDescriber.GetCompoundDimensions(compound),
+            ctx,
+            ctx.PreserveConditionals,
+            out _
+        );
         clone.Queue.Blocks.AddRange(clonePreserved);
 
-        var firstBlock = compound.Blocks[0];
-        foreach (var cmd in firstBlock.Commands)
+        ParsedBlock firstBlock = compound.Blocks[0];
+        foreach (ParsedCommand cmd in firstBlock.Commands)
         {
-            var result = DryRunApplyCommand(cmd, clone, dryCtx);
+            CommandResult result = DryRunApplyCommand(cmd, clone, dryCtx);
             if (!result.Success)
             {
                 return WithRejectedCommand(result, cmd);
@@ -1437,10 +1464,10 @@ public static class CommandDispatcher
     {
         // Try the tower-command path first if phases are active — it handles
         // CTO, CLAND, LUAW, go-around, pattern turns, etc.
-        var currentPhase = clone.Phases?.CurrentPhase;
+        Phase? currentPhase = clone.Phases?.CurrentPhase;
         if (currentPhase is not null)
         {
-            var towerResult = TryApplyTowerCommand(cmd, clone, currentPhase, ctx);
+            CommandResult? towerResult = TryApplyTowerCommand(cmd, clone, currentPhase, ctx);
             if (towerResult is not null)
             {
                 return towerResult;
@@ -1448,7 +1475,7 @@ public static class CommandDispatcher
         }
 
         // Then try ApplyCommand — handles flight, nav, pattern entry, etc.
-        var result = ApplyCommand(cmd, clone, ctx);
+        CommandResult result = ApplyCommand(cmd, clone, ctx);
         if (!result.NoDispatcherArm)
         {
             return result;
@@ -1529,7 +1556,7 @@ public static class CommandDispatcher
     private static CommandResult? ValidateTrailingClearanceRunway(CompoundCommand compound, AircraftState aircraft)
     {
         string? entryRunwayId = null;
-        foreach (var block in compound.Blocks)
+        foreach (ParsedBlock block in compound.Blocks)
         {
             if (block.Commands.Count == 1 && PatternCommandHandler.IsPatternEntryCommand(block.Commands[0]))
             {
@@ -1597,7 +1624,7 @@ public static class CommandDispatcher
         var trigger = new BlockTrigger { Type = BlockTriggerType.AfterRunwayCrossing };
         for (int i = firstNewBlockIdx + 1; i < aircraft.Queue.Blocks.Count; i++)
         {
-            var block = aircraft.Queue.Blocks[i];
+            CommandBlock block = aircraft.Queue.Blocks[i];
             if (block.Trigger is not null)
             {
                 // User provided an explicit trigger (LV / AT / ATFN / …) — respect it.
@@ -1644,7 +1671,7 @@ public static class CommandDispatcher
         var trigger = new BlockTrigger { Type = BlockTriggerType.AfterRunwayCrossing };
         for (int i = firstRemainingIdx; i < aircraft.Queue.Blocks.Count; i++)
         {
-            var block = aircraft.Queue.Blocks[i];
+            CommandBlock block = aircraft.Queue.Blocks[i];
             if (block.Trigger is not null)
             {
                 continue;
@@ -1727,7 +1754,7 @@ public static class CommandDispatcher
     /// </summary>
     private static CommandResult? TryDeferLeadingWait(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
-        var firstBlock = compound.Blocks[0];
+        ParsedBlock firstBlock = compound.Blocks[0];
         if (firstBlock.Condition is not null)
         {
             return null;
@@ -1736,7 +1763,7 @@ public static class CommandDispatcher
         // Find a WAIT command in the first block (could be sole command or parallel with others)
         WaitCommand? waitCmd = null;
         WaitDistanceCommand? waitDistCmd = null;
-        foreach (var cmd in firstBlock.Commands)
+        foreach (ParsedCommand cmd in firstBlock.Commands)
         {
             if (cmd is WaitCommand w)
             {
@@ -1758,7 +1785,7 @@ public static class CommandDispatcher
 
         // Build payload: sibling commands from the same block (minus WAIT) + subsequent blocks.
         // "WAIT 10, FH 270" → payload is [FH 270]; "WAIT 10; FH 270" → payload is [FH 270].
-        var payloadBlocks = StripDeferralGateBlocks(compound);
+        List<ParsedBlock>? payloadBlocks = StripDeferralGateBlocks(compound);
 
         // Bare WAIT with no payload — standalone wait, let queue handle it
         if (payloadBlocks is null)
@@ -1769,9 +1796,9 @@ public static class CommandDispatcher
         var payload = new CompoundCommand(payloadBlocks);
 
         // Validate the payload commands now so the user gets immediate feedback
-        foreach (var block in payloadBlocks)
+        foreach (ParsedBlock block in payloadBlocks)
         {
-            foreach (var cmd in block.Commands)
+            foreach (ParsedCommand cmd in block.Commands)
             {
                 if (CommandDescriber.IsGroundCommand(cmd) && !aircraft.IsOnGround)
                 {
@@ -1781,7 +1808,10 @@ public static class CommandDispatcher
         }
 
         // Build a description of the deferred payload
-        var payloadDesc = string.Join(" ; then ", payloadBlocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeNatural))));
+        string payloadDesc = string.Join(
+            " ; then ",
+            payloadBlocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeNatural)))
+        );
 
         DeferredDispatch deferred;
         string timerDesc;
@@ -1836,7 +1866,7 @@ public static class CommandDispatcher
             return null;
         }
 
-        var firstBlock = compound.Blocks[0];
+        ParsedBlock firstBlock = compound.Blocks[0];
         var payloadBlocks = new List<ParsedBlock>();
 
         if (firstBlock.Condition is GiveWayCondition)
@@ -1881,7 +1911,7 @@ public static class CommandDispatcher
         }
 
         // Strip the condition from the first block; keep the commands and subsequent blocks
-        var payloadBlocks = StripDeferralGateBlocks(compound);
+        List<ParsedBlock>? payloadBlocks = StripDeferralGateBlocks(compound);
         if (payloadBlocks is null)
         {
             return null;
@@ -1889,7 +1919,10 @@ public static class CommandDispatcher
 
         var payload = new CompoundCommand(payloadBlocks) { SourceText = compound.SourceText };
 
-        var payloadDesc = string.Join(" ; then ", payloadBlocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeNatural))));
+        string payloadDesc = string.Join(
+            " ; then ",
+            payloadBlocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeNatural)))
+        );
 
         // The deferred-dispatch carries its own GiveWayTarget gate; no need to mirror
         // it onto aircraft.Ground.Hold during the wait — the aircraft remains under its
@@ -1926,9 +1959,9 @@ public static class CommandDispatcher
         // "SQ, SQNORM, PUSH" at parking loses the IsAllTransparent fast path (PUSH is interactive),
         // and AtParkingPhase.CanAcceptCommand rejects Squawk — even though each command succeeds
         // when issued on its own.
-        var gateBlock = compound.Blocks[0];
+        ParsedBlock gateBlock = compound.Blocks[0];
         int driverIdx = FindPhaseGateDriverIndex(gateBlock);
-        var firstCmd = gateBlock.Commands[driverIdx];
+        ParsedCommand firstCmd = gateBlock.Commands[driverIdx];
 
         // Bail out immediately for unsupported commands — they must never interact
         // with phases (the old default fallback in ToCanonicalType mapped them to
@@ -1938,7 +1971,7 @@ public static class CommandDispatcher
             return new CommandResult(false, $"Command not yet supported: {unsupported.RawText}");
         }
 
-        var cmdType = CommandDescriber.ToCanonicalType(firstCmd);
+        CanonicalCommandType cmdType = CommandDescriber.ToCanonicalType(firstCmd);
 
         // Phase-transparent commands: pure status-flag setters (RFIS/RTIS and their forced
         // variants) with no navigation/altitude/speed effect. They must never clear a phase.
@@ -1958,7 +1991,7 @@ public static class CommandDispatcher
         }
 
         // Try tower/ground-specific handling first (phase-interactive commands)
-        var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, ctx);
+        CommandResult? towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, ctx);
         if (towerResult is not null)
         {
             if (!towerResult.Success)
@@ -1982,8 +2015,8 @@ public static class CommandDispatcher
                     continue;
                 }
 
-                var sibling = gateBlock.Commands[i];
-                var subResult = ApplyParallelSibling(sibling, aircraft, currentPhase, ctx);
+                ParsedCommand sibling = gateBlock.Commands[i];
+                CommandResult? subResult = ApplyParallelSibling(sibling, aircraft, currentPhase, ctx);
                 if (subResult is null)
                 {
                     continue;
@@ -1993,7 +2026,7 @@ public static class CommandDispatcher
                     // Subsequent failure on a partially-applied compound: surface it so the RPO
                     // knows the second clause didn't take effect (e.g. EF succeeds but CLAND
                     // fails because the new phase rejects it).
-                    var combinedFail =
+                    string combinedFail =
                         messages.Count > 0
                             ? $"{string.Join(", ", messages)}; but {subResult.Message}"
                             : subResult.Message ?? "Subsequent command failed";
@@ -2009,11 +2042,11 @@ public static class CommandDispatcher
         }
 
         // Check standard command acceptance against the current phase
-        var acceptance = currentPhase.CanAcceptCommand(cmdType);
+        CommandAcceptance acceptance = currentPhase.CanAcceptCommand(cmdType);
 
         if (acceptance.IsRejected)
         {
-            var reason = acceptance.Reason ?? $"Cannot accept {CommandDescriber.DescribeNatural(firstCmd)} during {currentPhase.Name}";
+            string reason = acceptance.Reason ?? $"Cannot accept {CommandDescriber.DescribeNatural(firstCmd)} during {currentPhase.Name}";
             return WithRejectedCommand(new CommandResult(false, reason), firstCmd);
         }
 
@@ -2100,13 +2133,13 @@ public static class CommandDispatcher
             return;
         }
 
-        var cmdType = CommandDescriber.ToCanonicalType(cmd);
+        CanonicalCommandType cmdType = CommandDescriber.ToCanonicalType(cmd);
         if (IsPhaseTransparentCommand(cmdType) || IsSimControlBypass(cmdType))
         {
             return;
         }
 
-        var acceptance = currentPhase.CanAcceptCommand(cmdType);
+        CommandAcceptance acceptance = currentPhase.CanAcceptCommand(cmdType);
         if (acceptance.IsRejected || acceptance.ClearsThePhase)
         {
             return;
@@ -2142,15 +2175,15 @@ public static class CommandDispatcher
 
     private static CommandResult? TryApplyTowerCommand(ParsedCommand command, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
     {
-        var result = TryApplyTowerCommandCore(command, aircraft, currentPhase, ctx);
+        CommandResult? result = TryApplyTowerCommandCore(command, aircraft, currentPhase, ctx);
         EmitProcedureAdvisory(result, aircraft, ctx);
         return result;
     }
 
     private static CommandResult? TryApplyTowerCommandCore(ParsedCommand command, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
     {
-        var groundLayout = ctx.GroundLayout;
-        var autoCrossRunway = ctx.AutoCrossRunway;
+        AirportGroundLayout? groundLayout = ctx.GroundLayout;
+        bool autoCrossRunway = ctx.AutoCrossRunway;
 
         // Hold-for-release runway-entry gate: a held departure may not enter the runway (LUAW) or
         // take off (CTO/CTOPP) until released. It stays holding short. Cleared by REL/CTOA.
@@ -2174,7 +2207,7 @@ public static class CommandDispatcher
         {
             case ClearedForTakeoffCommand cto:
             {
-                var ctoResult = currentPhase is LinedUpAndWaitingPhase luaw
+                CommandResult ctoResult = currentPhase is LinedUpAndWaitingPhase luaw
                     ? DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, ctx)
                     : DepartureClearanceHandler.TryDepartureClearance(
                         aircraft,
@@ -2201,7 +2234,7 @@ public static class CommandDispatcher
 
             case LineUpAndWaitCommand luawCmd:
             {
-                var luawResult = DepartureClearanceHandler.TryDepartureClearance(
+                CommandResult luawResult = DepartureClearanceHandler.TryDepartureClearance(
                     aircraft,
                     currentPhase,
                     ClearanceType.LineUpAndWait,
@@ -2403,7 +2436,7 @@ public static class CommandDispatcher
                 when currentPhase
                     is HoldingShortPhase { HoldShort.Reason: HoldShortReason.ExplicitHoldShort or HoldShortReason.RunwayCrossing } holdShort:
             {
-                var applied = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(
+                CommandResult applied = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(
                     aircraft,
                     groundLayout,
                     hsResume.CrossRunways,
@@ -2439,7 +2472,7 @@ public static class CommandDispatcher
                 return GroundCommandHandler.TryHoldPosition(aircraft);
             case ResumeCommand groundResume when currentPhase is not HoldingShortPhase:
             {
-                var applied = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(
+                CommandResult applied = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(
                     aircraft,
                     groundLayout,
                     groundResume.CrossRunways,
@@ -2449,7 +2482,7 @@ public static class CommandDispatcher
                 {
                     return applied;
                 }
-                var resumeResult = GroundCommandHandler.TryResumeTaxi(aircraft);
+                CommandResult resumeResult = GroundCommandHandler.TryResumeTaxi(aircraft);
                 if (!resumeResult.Success)
                 {
                     return resumeResult;
@@ -2527,7 +2560,7 @@ public static class CommandDispatcher
     {
         for (int i = 0; i < phases.Phases.Count; i++)
         {
-            var phase = phases.Phases[i];
+            Phase phase = phases.Phases[i];
             if (phase.Status != PhaseStatus.Pending)
             {
                 continue;
@@ -2545,8 +2578,8 @@ public static class CommandDispatcher
 
     internal static PhaseContext BuildMinimalContext(AircraftState aircraft, AirportGroundLayout? groundLayout = null)
     {
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-        var runway = aircraft.Phases?.AssignedRunway;
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
         return new PhaseContext
         {
             Aircraft = aircraft,
@@ -2628,7 +2661,7 @@ public static class CommandDispatcher
     /// </summary>
     internal static double ResolveFieldElevation(AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         if (aircraft.AirportId is { Length: > 0 } operatingAirport && navDb.GetAirportElevation(operatingAirport) is { } opElev)
         {
             return opElev;
@@ -2650,14 +2683,14 @@ public static class CommandDispatcher
 
     internal static RunwayInfo? ResolveRunway(AircraftState aircraft, string runwayId)
     {
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
 
         // An aircraft physically on the ground departs/taxis on the airport its wheels are on —
         // never on a filed destination. Prefer the physical/operational airport (mirrors
         // SimulationEngine.ResolveGroundLayout) before the flight-plan fields, so a VFR plan filed
         // with only a destination (e.g. KAPC while parked at OAK) does not send the runway lookup to
         // the wrong airport and reject CTO/RWY/TAXI-to-runway. Empty strings are treated as null.
-        var airportId =
+        string? airportId =
             aircraft.Phases?.AssignedRunway?.AirportId is { Length: > 0 } assignedApt ? assignedApt
             : aircraft.AirportId is { Length: > 0 } operatingApt ? operatingApt
             : aircraft.Ground.Layout?.AirportId is { Length: > 0 } layoutApt ? layoutApt
@@ -2673,7 +2706,7 @@ public static class CommandDispatcher
         // Hold-short runway IDs can be combined (e.g., "28R/10L").
         // Try each end until one resolves.
         var parsed = RunwayIdentifier.Parse(runwayId);
-        var result = navDb.GetRunway(airportId, parsed.End1) ?? navDb.GetRunway(airportId, parsed.End2);
+        RunwayInfo? result = navDb.GetRunway(airportId, parsed.End1) ?? navDb.GetRunway(airportId, parsed.End2);
         if (result is null)
         {
             Log.LogWarning(
@@ -2691,17 +2724,17 @@ public static class CommandDispatcher
 
     internal static string RunwayLabel(AircraftState aircraft)
     {
-        var runway = aircraft.Phases?.AssignedRunway;
+        RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
         return runway is not null ? $", Runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)}" : "";
     }
 
     internal static GroundNode? FindTaxiwayIntersection(AirportGroundLayout layout, string taxiway1, string taxiway2)
     {
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             bool hasTwy1 = false;
             bool hasTwy2 = false;
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway(taxiway1))
                 {
@@ -2749,7 +2782,7 @@ public static class CommandDispatcher
     private static CommandResult ApplyBlock(CommandBlock block, AircraftState aircraft)
     {
         block.IsApplied = true;
-        var result = block.ApplyAction?.Invoke(aircraft);
+        CommandResult? result = block.ApplyAction?.Invoke(aircraft);
 
         if (result is not null && !result.Success)
         {
@@ -2761,7 +2794,7 @@ public static class CommandDispatcher
             block.NaturalDescription = result.Message;
         }
 
-        foreach (var cmd in block.Commands)
+        foreach (TrackedCommand cmd in block.Commands)
         {
             if (cmd.Type == TrackedCommandType.Immediate)
             {
@@ -2798,7 +2831,7 @@ public static class CommandDispatcher
         out List<string> droppedDescriptions
     )
     {
-        var queue = aircraft.Queue;
+        CommandQueue queue = aircraft.Queue;
         droppedDescriptions = [];
 
         // Fast path: All/None → clear everything (original behavior). Skipped when
@@ -2826,10 +2859,10 @@ public static class CommandDispatcher
         // GetDimension(TrackedCommandType) can never yield Ground — no tracked type is a surface command — so an
         // incoming Ground marks nothing here by design; the surface half of a supersede is decided per command in
         // SplitBlockNonConflicting, against the queued dimension.
-        var current = queue.CurrentBlock;
+        CommandBlock? current = queue.CurrentBlock;
         if (current is { IsApplied: true })
         {
-            foreach (var cmd in current.Commands)
+            foreach (TrackedCommand cmd in current.Commands)
             {
                 if (!cmd.IsComplete && (CommandDescriber.GetDimension(cmd.Type) & incomingDimensions) != 0)
                 {
@@ -2844,7 +2877,7 @@ public static class CommandDispatcher
 
         for (int i = pendingStart; i < queue.Blocks.Count; i++)
         {
-            var block = queue.Blocks[i];
+            CommandBlock block = queue.Blocks[i];
 
             // A firing deferral preserves pending conditionals verbatim — only fresh
             // immediate commands supersede triggered blocks.
@@ -2854,7 +2887,7 @@ public static class CommandDispatcher
                 continue;
             }
 
-            var split = SplitBlockNonConflicting(block, incomingDimensions, ctx);
+            CommandBlock? split = SplitBlockNonConflicting(block, incomingDimensions, ctx);
             if (split is null)
             {
                 // Already-applied blocks have delivered their effect; superseding them is not a
@@ -2900,15 +2933,15 @@ public static class CommandDispatcher
             return;
         }
 
-        var incoming = ComputeIncomingBlockDescriptions(compound);
+        HashSet<string> incoming = ComputeIncomingBlockDescriptions(compound);
         var trulyLost = dropped.Where(d => !incoming.Contains(d)).ToList();
         if (trulyLost.Count == 0)
         {
             return;
         }
 
-        var src = compound.SourceText ?? CommandDescriber.DescribeNatural(compound.Blocks[0].Commands[0]);
-        var lost = string.Join(", ", trulyLost);
+        string src = compound.SourceText ?? CommandDescriber.DescribeNatural(compound.Blocks[0].Commands[0]);
+        string lost = string.Join(", ", trulyLost);
         aircraft.PendingWarnings.Add($"{aircraft.Callsign} queue cleared by {src} (lost: {lost})");
     }
 
@@ -2920,9 +2953,9 @@ public static class CommandDispatcher
     private static HashSet<string> ComputeIncomingBlockDescriptions(CompoundCommand compound)
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var pb in compound.Blocks)
+        foreach (ParsedBlock pb in compound.Blocks)
         {
-            var blockDesc = string.Join(", ", pb.Commands.Select(CommandDescriber.DescribeCommand));
+            string blockDesc = string.Join(", ", pb.Commands.Select(CommandDescriber.DescribeCommand));
             blockDesc = pb.Condition switch
             {
                 LevelCondition lv => $"at {lv.Altitude}ft: {blockDesc}",
@@ -2962,12 +2995,12 @@ public static class CommandDispatcher
                 return new BlockLabels($"at {lv.Altitude}ft: ", $"At {lv.Altitude:N0} ft: ");
             case AtFixCondition at:
             {
-                var atLabel = FormatAtLabel(at);
+                string atLabel = FormatAtLabel(at);
                 return new BlockLabels($"at {atLabel}: ", $"At {atLabel}: ");
             }
             case AtGroundEntityCondition ge:
             {
-                var geLabel = FormatGroundLabel(ge);
+                string geLabel = FormatGroundLabel(ge);
                 return new BlockLabels($"at {geLabel}: ", $"At {geLabel}: ");
             }
             case GiveWayCondition gw:
@@ -3011,23 +3044,23 @@ public static class CommandDispatcher
     )
     {
         bool hasTrackCommand = parsedCommands.Exists(TrackEngine.IsTrackCommand);
-        var applyCommands = hasTrackCommand ? parsedCommands.Where(c => !TrackEngine.IsTrackCommand(c)).ToList() : parsedCommands;
+        List<ParsedCommand> applyCommands = hasTrackCommand ? parsedCommands.Where(c => !TrackEngine.IsTrackCommand(c)).ToList() : parsedCommands;
 
         var tracked = new List<TrackedCommand>(parsedCommands.Count);
-        foreach (var cmd in parsedCommands)
+        foreach (ParsedCommand cmd in parsedCommands)
         {
             tracked.Add(new TrackedCommand { Type = CommandDescriber.ClassifyCommand(cmd) });
         }
 
-        var dimensions = AggregateDimensions(parsedCommands);
+        CommandDimension dimensions = AggregateDimensions(parsedCommands);
 
         // Sum all leading waits — `AT A WAIT 5 WAIT 10 <cmd>` merges two WaitCommands into one block.
         double waitSeconds = parsedCommands.OfType<WaitCommand>().Sum(w => w.Seconds);
         double waitDistanceNm = parsedCommands.OfType<WaitDistanceCommand>().Sum(w => w.DistanceNm);
         bool hasWait = parsedCommands.Exists(c => c is WaitCommand or WaitDistanceCommand);
 
-        var description = labels.DescriptionPrefix + string.Join(", ", parsedCommands.Select(CommandDescriber.DescribeCommand));
-        var naturalDescription = labels.NaturalPrefix + string.Join(", ", parsedCommands.Select(CommandDescriber.DescribeNatural));
+        string description = labels.DescriptionPrefix + string.Join(", ", parsedCommands.Select(CommandDescriber.DescribeCommand));
+        string naturalDescription = labels.NaturalPrefix + string.Join(", ", parsedCommands.Select(CommandDescriber.DescribeNatural));
 
         return new CommandBlock
         {
@@ -3069,7 +3102,7 @@ public static class CommandDispatcher
             return false;
         }
 
-        var reparsed = CommandParser.ParseCompound(block.SourceCommandText, aircraft.FlightPlan.Route);
+        ParseResult<CompoundCommand> reparsed = CommandParser.ParseCompound(block.SourceCommandText, aircraft.FlightPlan.Route);
         if (!reparsed.IsSuccess || reparsed.Value is not { } compound)
         {
             return false;
@@ -3077,9 +3110,9 @@ public static class CommandDispatcher
 
         List<ParsedCommand>? matched = null;
         int matchedLength = -1;
-        foreach (var candidate in compound.Blocks)
+        foreach (ParsedBlock candidate in compound.Blocks)
         {
-            var candidateDescription = string.Join(", ", candidate.Commands.Select(CommandDescriber.DescribeCommand));
+            string candidateDescription = string.Join(", ", candidate.Commands.Select(CommandDescriber.DescribeCommand));
             if (candidateDescription.Length > matchedLength && block.Description.EndsWith(candidateDescription, StringComparison.Ordinal))
             {
                 matched = [.. candidate.Commands];
@@ -3113,8 +3146,8 @@ public static class CommandDispatcher
     /// </summary>
     private static CommandDimension AggregateDimensions(List<ParsedCommand> parsedCommands)
     {
-        var dimensions = CommandDimension.None;
-        foreach (var cmd in parsedCommands)
+        CommandDimension dimensions = CommandDimension.None;
+        foreach (ParsedCommand cmd in parsedCommands)
         {
             dimensions |= CommandDescriber.GetCommandDimension(cmd);
         }
@@ -3165,7 +3198,7 @@ public static class CommandDispatcher
         var keptParsed = keepIndices.Select(i => block.ParsedCommands[i]).ToList();
         var labels = new BlockLabels(block.DescriptionPrefix, block.NaturalDescriptionPrefix);
 
-        var rebuilt = CreateBlock(keptParsed, block.Trigger, labels, block.SourceCommandText, ctx);
+        CommandBlock rebuilt = CreateBlock(keptParsed, block.Trigger, labels, block.SourceCommandText, ctx);
 
         // Runtime state the surviving commands cannot describe: a partially-elapsed wait, the guard that stops an
         // already-dispatched track command from firing twice, and how far the block's trigger has progressed. All of
@@ -3194,17 +3227,17 @@ public static class CommandDispatcher
 
         for (int i = startIndex; i < compound.Blocks.Count; i++)
         {
-            var parsedBlock = compound.Blocks[i];
+            ParsedBlock parsedBlock = compound.Blocks[i];
 
-            var trigger = ConvertCondition(parsedBlock.Condition, aircraft, ctx);
+            BlockTrigger? trigger = ConvertCondition(parsedBlock.Condition, aircraft, ctx);
             if (trigger is null && parsedBlock.Condition is AtGroundEntityCondition unresolved)
             {
                 aircraft.PendingWarnings.Add($"AT ground entity not found: {FormatGroundLabel(unresolved)}");
                 continue;
             }
 
-            var labels = BuildConditionLabels(parsedBlock.Condition);
-            var commandBlock = CreateBlock([.. parsedBlock.Commands], trigger, labels, compound.SourceText, ctx);
+            BlockLabels labels = BuildConditionLabels(parsedBlock.Condition);
+            CommandBlock commandBlock = CreateBlock([.. parsedBlock.Commands], trigger, labels, compound.SourceText, ctx);
 
             aircraft.Queue.Blocks.Add(commandBlock);
             messages.Add(commandBlock.NaturalDescription);
@@ -3237,13 +3270,13 @@ public static class CommandDispatcher
             bool hadViaMode = ac.Procedure.SidViaMode || ac.Procedure.StarViaMode;
             var messages = new List<string>();
 
-            foreach (var cmd in captured)
+            foreach (ParsedCommand? cmd in captured)
             {
                 CommandResult? result = null;
 
                 if (ac.Phases?.CurrentPhase is { } currentPhase)
                 {
-                    var towerResult = TryApplyTowerCommand(cmd, ac, currentPhase, ctx);
+                    CommandResult? towerResult = TryApplyTowerCommand(cmd, ac, currentPhase, ctx);
                     if (towerResult is not null)
                     {
                         if (ReferenceEquals(towerResult, PhaseShouldBeCleared))
@@ -3251,7 +3284,7 @@ public static class CommandDispatcher
                             // Mirror the phase-clear sequence DispatchCompoundCore performs
                             // once validation succeeds. We are already past validation here
                             // (the block was enqueued via the same dispatcher).
-                            var phaseCtx = BuildMinimalContext(ac);
+                            PhaseContext phaseCtx = BuildMinimalContext(ac);
                             string? clearedSummary = ac.Phases is { } pl ? PhaseClearSummary.Build(pl) : null;
                             ac.Phases?.Clear(phaseCtx);
                             ac.Phases = null;
@@ -3297,7 +3330,7 @@ public static class CommandDispatcher
             }
 
             CheckVectoringWarning(ac, captured, hadProcedure, hadViaMode);
-            var msg = messages.Count > 0 ? string.Join(", ", messages) : null;
+            string? msg = messages.Count > 0 ? string.Join(", ", messages) : null;
             return new CommandResult(true, msg);
         };
     }
@@ -3407,7 +3440,7 @@ public static class CommandDispatcher
 
     private static BlockTrigger? ConvertGroundEntityCondition(AtGroundEntityCondition ge, AircraftState aircraft, DispatchContext ctx)
     {
-        var layout = aircraft.Ground.Layout ?? ctx.GroundLayout;
+        AirportGroundLayout? layout = aircraft.Ground.Layout ?? ctx.GroundLayout;
         if (layout is null)
         {
             return null;
@@ -3417,7 +3450,7 @@ public static class CommandDispatcher
         {
             case GroundEntityKind.Spot:
             {
-                var node = layout.FindSpotNodeByName(ge.Token) ?? layout.FindSpotByName(ge.Token);
+                GroundNode? node = layout.FindSpotNodeByName(ge.Token) ?? layout.FindSpotByName(ge.Token);
                 if (node is null)
                 {
                     return null;
@@ -3434,7 +3467,7 @@ public static class CommandDispatcher
             }
             case GroundEntityKind.Parking:
             {
-                var node = layout.FindParkingByName(ge.Token);
+                GroundNode? node = layout.FindParkingByName(ge.Token);
                 if (node is null)
                 {
                     return null;
@@ -3455,7 +3488,7 @@ public static class CommandDispatcher
                 {
                     return null;
                 }
-                var node = layout.FindIntersectionNode(ge.Token, ge.SecondTaxiway, aircraft.Position);
+                GroundNode? node = layout.FindIntersectionNode(ge.Token, ge.SecondTaxiway, aircraft.Position);
                 if (node is null)
                 {
                     return null;
@@ -3492,7 +3525,7 @@ public static class CommandDispatcher
 
     private static BlockTrigger ConvertFrdCondition(AtFixCondition at, int radial, int dist)
     {
-        var (targetLat, targetLon) = GeoMath.ProjectPointRaw(at.Lat, at.Lon, radial, dist);
+        (double targetLat, double targetLon) = GeoMath.ProjectPointRaw(at.Lat, at.Lon, radial, dist);
         return new BlockTrigger
         {
             Type = BlockTriggerType.ReachFrdPoint,
@@ -3573,13 +3606,13 @@ public static class CommandDispatcher
         // Bare FOLLOW (no explicit callsign) defaults to the most recently reported
         // traffic. Explicit callsign always wins. If neither is available, reject.
         // Message mirrors the "Unable, no traffic specified" wording used by RTIS.
-        var target = follow.TargetCallsign ?? aircraft.Approach.LastReportedTrafficCallsign;
+        string? target = follow.TargetCallsign ?? aircraft.Approach.LastReportedTrafficCallsign;
         if (string.IsNullOrEmpty(target))
         {
             return new CommandResult(false, "Unable, say traffic callsign");
         }
 
-        var leadAircraft = ctx.FindAircraft?.Invoke(target);
+        AircraftState? leadAircraft = ctx.FindAircraft?.Invoke(target);
 
         // Visual separation — and therefore FOLLOW — is not authorized behind a super
         // (7110.65 §7-2-1; AIM §5-5-11.2.5). Reject when the lead resolves to a super.
@@ -3604,7 +3637,7 @@ public static class CommandDispatcher
         // follower's own pattern is meaningless — fall through to the VfrFollowPhase install
         // below, whose auto-join (TryJoinLeadPattern / TryJoinLeadFinal) re-sequences the
         // follower onto the lead's runway with proper in-trail spacing and intercept gates.
-        var current = aircraft.Phases?.CurrentPhase;
+        Phase? current = aircraft.Phases?.CurrentPhase;
         bool followerOnPatternLeg =
             current
             is PatternEntryPhase
@@ -3666,7 +3699,7 @@ public static class CommandDispatcher
         // lead's runway), kept per maintainer decision.
         if (leadAircraft is { IsOnGround: false } establishedLead && IsEstablishedTowardRunway(establishedLead))
         {
-            var leadRunway = establishedLead.Phases!.AssignedRunway!;
+            RunwayInfo leadRunway = establishedLead.Phases!.AssignedRunway!;
 
             // Exception: the lead is on final and the follower is already positioned to join
             // that final directly — inbound at a workable angle, near the approach course,
@@ -3676,8 +3709,8 @@ public static class CommandDispatcher
             bool leadOnFinal = establishedLead.Phases.CurrentPhase is FinalApproachPhase or LandingPhase;
             if (!(leadOnFinal && CanJoinLeadFinalDirectly(aircraft, leadRunway)))
             {
-                var joinDirection = ChooseFollowJoinDirection(aircraft, establishedLead, leadRunway);
-                var entryResult = PatternCommandHandler.TryEnterPattern(
+                PatternDirection joinDirection = ChooseFollowJoinDirection(aircraft, establishedLead, leadRunway);
+                CommandResult entryResult = PatternCommandHandler.TryEnterPattern(
                     aircraft,
                     joinDirection,
                     PatternEntryLeg.Downwind,
@@ -3715,12 +3748,12 @@ public static class CommandDispatcher
         // so we don't inherit stale phase indices from the old list.
         if (aircraft.Phases is { } existing)
         {
-            var clearCtx = BuildMinimalContext(aircraft, groundLayout: null);
+            PhaseContext clearCtx = BuildMinimalContext(aircraft, groundLayout: null);
             existing.Clear(clearCtx);
         }
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Phases.Add(new VfrFollowPhase(target));
-        var startCtx = BuildMinimalContext(aircraft, groundLayout: null);
+        PhaseContext startCtx = BuildMinimalContext(aircraft, groundLayout: null);
         aircraft.Phases.Start(startCtx);
         aircraft.Approach.FollowingCallsign = target;
         return Ok($"Follow {target}");

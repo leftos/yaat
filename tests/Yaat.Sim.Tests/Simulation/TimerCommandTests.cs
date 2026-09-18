@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -36,7 +37,7 @@ public class TimerCommandTests
     [Fact]
     public void GlobalTimer_FiresGreenSayWithDefaultText_WhenNoMessage()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         engine.Scenario!.ActiveTimers.Add(
             new ActiveTimer
             {
@@ -57,7 +58,7 @@ public class TimerCommandTests
         // At/after the fire time: a green "Say" entry labeled TIMER, defaulting to "timer expired".
         engine.Scenario.ElapsedSeconds = 10;
         engine.TickPrePhysics();
-        var entry = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Say");
+        TerminalEntry entry = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Say");
         Assert.Equal("TIMER", entry.Callsign);
         Assert.Equal("timer expired", entry.Message);
         Assert.Empty(engine.Scenario.ActiveTimers);
@@ -66,7 +67,7 @@ public class TimerCommandTests
     [Fact]
     public void GlobalTimer_FiresWithFreeTextMessage()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         engine.Scenario!.ActiveTimers.Add(
             new ActiveTimer
             {
@@ -81,7 +82,7 @@ public class TimerCommandTests
         engine.Scenario.ElapsedSeconds = 30;
         engine.TickPrePhysics();
 
-        var entry = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Say");
+        TerminalEntry entry = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Say");
         Assert.Equal("TIMER", entry.Callsign);
         Assert.Equal("CHECK STRIPS", entry.Message);
     }
@@ -89,7 +90,7 @@ public class TimerCommandTests
     [Fact]
     public void PerAircraftTimer_FiresAttributedToAircraft()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         engine.World.AddAircraft(new AircraftState { Callsign = "N172SP", AircraftType = "C172" });
         engine.Scenario!.ActiveTimers.Add(
             new ActiveTimer
@@ -105,7 +106,7 @@ public class TimerCommandTests
         engine.Scenario.ElapsedSeconds = 20;
         engine.TickPrePhysics();
 
-        var entry = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Say");
+        TerminalEntry entry = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Say");
         Assert.Equal("N172SP", entry.Callsign);
         Assert.Equal("READY TO COPY", entry.Message);
         Assert.Empty(engine.Scenario.ActiveTimers);
@@ -114,7 +115,7 @@ public class TimerCommandTests
     [Fact]
     public void PerAircraftTimer_DroppedSilently_WhenAircraftGone()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         // No aircraft added to the world — the per-aircraft timer must not fire and must be pruned.
         engine.Scenario!.ActiveTimers.Add(
             new ActiveTimer
@@ -137,7 +138,7 @@ public class TimerCommandTests
     [Fact]
     public void Timer_DoesNotFire_WhileElapsedFrozen_SimulatingPause()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         engine.Scenario!.ActiveTimers.Add(
             new ActiveTimer
             {
@@ -183,11 +184,11 @@ public class TimerCommandTests
             }
         );
 
-        var dto = scenario.ToSnapshot();
+        ScenarioSnapshotDto dto = scenario.ToSnapshot();
 
         Assert.Equal(7, dto.NextTimerId);
         Assert.NotNull(dto.ActiveTimers);
-        var t = Assert.Single(dto.ActiveTimers!);
+        ActiveTimerDto t = Assert.Single(dto.ActiveTimers!);
         Assert.Equal(3, t.Id);
         Assert.Equal("N172SP", t.Callsign);
         Assert.Equal("CALL GROUND", t.Message);
@@ -204,7 +205,7 @@ public class TimerParseTests
 {
     private static TimerCommand ParseTimer(string input)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.True(result.IsSuccess, $"Parse failed: {result.Reason}");
         return Assert.IsType<TimerCommand>(result.Value);
     }
@@ -216,7 +217,7 @@ public class TimerParseTests
     [InlineData("TMR 0:45", 45)]
     public void ParsesDuration(string input, int expectedSeconds)
     {
-        var cmd = ParseTimer(input);
+        TimerCommand cmd = ParseTimer(input);
         Assert.False(cmd.IsCancel);
         Assert.Equal(expectedSeconds, cmd.Seconds);
         Assert.Null(cmd.Message);
@@ -225,7 +226,7 @@ public class TimerParseTests
     [Fact]
     public void ParsesDurationAndMessage()
     {
-        var cmd = ParseTimer("TIMER 5:00 release strips");
+        TimerCommand cmd = ParseTimer("TIMER 5:00 release strips");
         Assert.Equal(300, cmd.Seconds);
         Assert.Equal("release strips", cmd.Message);
     }
@@ -233,10 +234,10 @@ public class TimerParseTests
     [Fact]
     public void Message_IsGreedy_PreservingCommas()
     {
-        var result = CommandParser.ParseCompound("TIMER 60 check strips, then call ground");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("TIMER 60 check strips, then call ground");
         Assert.True(result.IsSuccess, $"Parse failed: {result.Reason}");
-        var block = Assert.Single(result.Value!.Blocks);
-        var cmd = Assert.IsType<TimerCommand>(Assert.Single(block.Commands));
+        ParsedBlock block = Assert.Single(result.Value!.Blocks);
+        TimerCommand cmd = Assert.IsType<TimerCommand>(Assert.Single(block.Commands));
         Assert.Equal(60, cmd.Seconds);
         Assert.Equal("check strips, then call ground", cmd.Message);
     }
@@ -244,7 +245,7 @@ public class TimerParseTests
     [Fact]
     public void ParsesCancelById()
     {
-        var cmd = ParseTimer("TIMER CANCEL 3");
+        TimerCommand cmd = ParseTimer("TIMER CANCEL 3");
         Assert.True(cmd.IsCancel);
         Assert.Equal(3, cmd.CancelId);
         Assert.False(cmd.CancelAll);
@@ -253,7 +254,7 @@ public class TimerParseTests
     [Fact]
     public void ParsesCancelAll()
     {
-        var cmd = ParseTimer("TIMER CANCEL ALL");
+        TimerCommand cmd = ParseTimer("TIMER CANCEL ALL");
         Assert.True(cmd.IsCancel);
         Assert.True(cmd.CancelAll);
         Assert.Null(cmd.CancelId);
@@ -267,7 +268,7 @@ public class TimerParseTests
     [InlineData("TIMER CANCEL xyz")]
     public void RejectsInvalid(string input)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.False(result.IsSuccess);
     }
 
@@ -277,7 +278,7 @@ public class TimerParseTests
     [Fact]
     public void SchemeParser_DetectsTimerType_ForGlobalRouting()
     {
-        var parsed = CommandSchemeParser.Parse("TIMER 90", CommandScheme.Default());
+        ParsedInput? parsed = CommandSchemeParser.Parse("TIMER 90", CommandScheme.Default());
         Assert.NotNull(parsed);
         Assert.Equal(CanonicalCommandType.Timer, parsed!.Type);
     }
@@ -285,7 +286,7 @@ public class TimerParseTests
     [Fact]
     public void SchemeParser_BuildsCanonical_PreservingCommasInMessage()
     {
-        var result = CommandSchemeParser.ParseCompound("TIMER 5:00 check strips, then call ground", CommandScheme.Default());
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("TIMER 5:00 check strips, then call ground", CommandScheme.Default());
         Assert.NotNull(result);
         Assert.Equal("TIMER 5:00 CHECK STRIPS, THEN CALL GROUND", result!.CanonicalString);
     }

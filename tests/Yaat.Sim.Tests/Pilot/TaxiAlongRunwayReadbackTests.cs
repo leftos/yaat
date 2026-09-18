@@ -41,7 +41,7 @@ public class TaxiAlongRunwayReadbackTests(ITestOutputHelper output)
     {
         // A node on taxiway B just south of the 28R hold-short — a plausible spot to be cleared
         // "taxi onto and along 28R, then G, D".
-        var start = layout
+        GroundNode start = layout
             .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("B")))
             .OrderBy(n => GeoMath.DistanceNm(37.723668, -122.205446, n.Position.Lat, n.Position.Lon))
             .First();
@@ -85,18 +85,18 @@ public class TaxiAlongRunwayReadbackTests(ITestOutputHelper output)
     [Fact]
     public void Rsp_TaxiAlongRunway_EchoesRunwayDesignator_NotInternalName()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
         engine.World.AddAircraft(SpawnOnTaxiwayB(layout));
         AddScenario(engine, "taxi-along-28R");
 
-        var result = engine.SendCommand("N436MS", "TAXI 28R G D");
+        CommandResult result = engine.SendCommand("N436MS", "TAXI 28R G D");
         output.WriteLine($"RSP: {result.Message}");
 
         Assert.True(result.Success, result.Message);
@@ -108,19 +108,19 @@ public class TaxiAlongRunwayReadbackTests(ITestOutputHelper output)
     [Fact]
     public void FullReportedCommand_TaxiAlongRunwayToParking_Resolves()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
         engine.World.AddAircraft(SpawnOnTaxiwayB(layout));
         AddScenario(engine, "taxi-along-28R-parking");
 
         // The exact reported command.
-        var result = engine.SendCommand("N436MS", "TAXI 28R G D @NEW1");
+        CommandResult result = engine.SendCommand("N436MS", "TAXI 28R G D @NEW1");
         output.WriteLine($"RSP: {result.Message}");
 
         Assert.True(result.Success, result.Message);
@@ -133,8 +133,8 @@ public class TaxiAlongRunwayReadbackTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         var taxi = new TaxiCommand(["28R", "G", "D"], []);
 
-        var spoken = PhraseologyVerbalizer.Verbalize(taxi);
-        var terminal = PhraseologyVerbalizer.VerbalizeTerminal(taxi);
+        string? spoken = PhraseologyVerbalizer.Verbalize(taxi);
+        string? terminal = PhraseologyVerbalizer.VerbalizeTerminal(taxi);
         output.WriteLine($"spoken:   {spoken}");
         output.WriteLine($"terminal: {terminal}");
 
@@ -155,7 +155,7 @@ public class TaxiAlongRunwayReadbackTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         var taxi = new TaxiCommand(["B", "28R", "G"], []);
 
-        var spoken = PhraseologyVerbalizer.Verbalize(taxi);
+        string? spoken = PhraseologyVerbalizer.Verbalize(taxi);
         output.WriteLine($"spoken: {spoken}");
 
         // "via" introduces the taxiway route; "on" introduces the runway segment.

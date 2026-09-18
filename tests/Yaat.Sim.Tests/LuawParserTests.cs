@@ -12,8 +12,8 @@ public class LuawParserTests
     [Fact]
     public void BareLuaw_IsNotWithoutDelay()
     {
-        var cmd = CommandParser.Parse("LUAW");
-        var luaw = Assert.IsType<LineUpAndWaitCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("LUAW");
+        LineUpAndWaitCommand luaw = Assert.IsType<LineUpAndWaitCommand>(cmd.Value);
         Assert.False(luaw.WithoutDelay);
         Assert.Equal("LUAW", CommandDescriber.DescribeCommand(luaw));
         Assert.Equal("Line up and wait", CommandDescriber.DescribeNatural(luaw));
@@ -25,8 +25,8 @@ public class LuawParserTests
     [InlineData("LUAW IMM")]
     public void Luaw_WithoutDelayAliases_SetWithoutDelay(string input)
     {
-        var cmd = CommandParser.Parse(input);
-        var luaw = Assert.IsType<LineUpAndWaitCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+        LineUpAndWaitCommand luaw = Assert.IsType<LineUpAndWaitCommand>(cmd.Value);
         Assert.True(luaw.WithoutDelay);
         Assert.Equal("LUAW WD", CommandDescriber.DescribeCommand(luaw));
         Assert.Equal("Line up and wait, without delay", CommandDescriber.DescribeNatural(luaw));
@@ -38,22 +38,22 @@ public class LuawParserTests
     [InlineData("PH IMM")]
     public void Luaw_WithoutDelay_WorksOnAllAliases(string input)
     {
-        var luaw = Assert.IsType<LineUpAndWaitCommand>(CommandParser.Parse(input).Value);
+        LineUpAndWaitCommand luaw = Assert.IsType<LineUpAndWaitCommand>(CommandParser.Parse(input).Value);
         Assert.True(luaw.WithoutDelay);
     }
 
     [Fact]
     public void Luaw_WithoutDelay_CanonicalRoundTrips()
     {
-        var canonical = CommandDescriber.DescribeCommand(Assert.IsType<LineUpAndWaitCommand>(CommandParser.Parse("LUAW WD").Value));
-        var reparsed = Assert.IsType<LineUpAndWaitCommand>(CommandParser.Parse(canonical).Value);
+        string canonical = CommandDescriber.DescribeCommand(Assert.IsType<LineUpAndWaitCommand>(CommandParser.Parse("LUAW WD").Value));
+        LineUpAndWaitCommand reparsed = Assert.IsType<LineUpAndWaitCommand>(CommandParser.Parse(canonical).Value);
         Assert.True(reparsed.WithoutDelay);
     }
 
     [Fact]
     public void Luaw_TrailingJunk_Fails()
     {
-        var cmd = CommandParser.Parse("LUAW JUNK");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("LUAW JUNK");
         Assert.False(cmd.IsSuccess);
     }
 }

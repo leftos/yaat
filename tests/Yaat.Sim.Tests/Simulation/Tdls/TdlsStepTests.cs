@@ -95,8 +95,8 @@ public class TdlsStepTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(DepartureAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(DepartureAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = Student;
         scenario.StudentTcp = TrackResolver.FindTcpByCode(scenario, "2B")!;
         engine.InitializeFromArtcc();
@@ -112,7 +112,7 @@ public class TdlsStepTests
     /// <summary>A recording of everything <paramref name="engine"/> has run so far, carrying the ARTCC the replay re-initialises from.</summary>
     private SessionRecording Recording(SimulationEngine engine)
     {
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         return new SessionRecording
         {
             ScenarioJson = DepartureAtOak,
@@ -129,7 +129,7 @@ public class TdlsStepTests
     private static TdlsItemRecord Queued(SimulationEngine engine)
     {
         engine.AfterAircraftSpawned(Departure(engine));
-        var item = Assert.Single(engine.Tdls.Items.Values);
+        TdlsItemRecord item = Assert.Single(engine.Tdls.Items.Values);
         engine.Tdls.Changes.Clear();
         return item;
     }
@@ -146,7 +146,7 @@ public class TdlsStepTests
 
         engine.AfterAircraftSpawned(Departure(engine));
 
-        var item = Assert.Single(engine.Tdls.Items.Values);
+        TdlsItemRecord item = Assert.Single(engine.Tdls.Items.Values);
         Assert.Equal(Callsign, item.AircraftId);
         Assert.Equal(Facility, item.FacilityId);
         Assert.Equal(TdlsItemStatus.Pending, item.Status);
@@ -154,10 +154,10 @@ public class TdlsStepTests
         Assert.Equal(engine.Scenario.SimTimeUtc + TdlsMutations.DefaultTtl, item.ExpiresUtc);
 
         // The consumer learns of the hook's item at the next drain — here the router's, after an idempotent re-queue.
-        var outcome = Issue(engine, host, Callsign, "TDLSQ");
+        ActionOutcome outcome = Issue(engine, host, Callsign, "TDLSQ");
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        var changes = Assert.Single(host.TdlsChanges);
+        TdlsChangeSet changes = Assert.Single(host.TdlsChanges);
         Assert.Equal(item.Id, Assert.Single(changes.ChangedItemIds));
         Assert.Empty(changes.Removed);
         Assert.False(changes.FullState);
@@ -172,18 +172,18 @@ public class TdlsStepTests
         }
 
         var host = new AttendanceActionHost();
-        var queued = Queued(engine);
+        TdlsItemRecord queued = Queued(engine);
         engine.DrainTerminalEntries();
 
-        var outcome = Issue(engine, host, Callsign, SendCanonical);
+        ActionOutcome outcome = Issue(engine, host, Callsign, SendCanonical);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        var item = Assert.Single(engine.Tdls.Items.Values);
+        TdlsItemRecord item = Assert.Single(engine.Tdls.Items.Values);
         Assert.Equal(TdlsItemStatus.Sent, item.Status);
         Assert.Equal(engine.Scenario!.SimTimeUtc, item.SentUtc);
         Assert.Equal(engine.Scenario.SimTimeUtc + TdlsCommandHandler.DefaultWilcoDelay, engine.Tdls.ScheduledWilcoAt[item.Id]);
 
-        var payload = item.SentPayload!;
+        TdlsClearance payload = item.SentPayload!;
         Assert.Equal("10 MIN", payload.Expect);
         Assert.Equal("OAKLAND4", payload.Sid);
         Assert.Equal("ALTAM", payload.Transition);
@@ -194,11 +194,11 @@ public class TdlsStepTests
         Assert.Equal("120.9", payload.DepFreq);
         Assert.Null(payload.LocalInfo);
 
-        var line = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Tdls");
+        TerminalEntry line = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Tdls");
         Assert.Equal(Callsign, line.Callsign);
         Assert.Contains("ACARS: PDC", line.Message, StringComparison.Ordinal);
 
-        var changes = Assert.Single(host.TdlsChanges);
+        TdlsChangeSet changes = Assert.Single(host.TdlsChanges);
         Assert.Equal(queued.Id, Assert.Single(changes.ChangedItemIds));
     }
 
@@ -214,7 +214,7 @@ public class TdlsStepTests
         Queued(engine);
         Assert.True(Issue(engine, host, Callsign, SendCanonical).Result.Success);
 
-        var second = Issue(engine, host, Callsign, SendCanonical);
+        ActionOutcome second = Issue(engine, host, Callsign, SendCanonical);
 
         Assert.False(second.Result.Success);
         Assert.Contains("already in status Sent", second.Result.Message);
@@ -228,8 +228,8 @@ public class TdlsStepTests
     /// </summary>
     private static void RequireMaintainAtOak(SimulationEngine engine)
     {
-        var json = JsonSerializer.Serialize(engine.Tdls.Configs[Facility], RecordingJsonOptions.Default);
-        var isolated = JsonSerializer.Deserialize<TdlsConfig>(json, RecordingJsonOptions.Default)!;
+        string json = JsonSerializer.Serialize(engine.Tdls.Configs[Facility], RecordingJsonOptions.Default);
+        TdlsConfig isolated = JsonSerializer.Deserialize<TdlsConfig>(json, RecordingJsonOptions.Default)!;
         isolated.MandatoryInitialAlt = true;
         engine.Tdls.Configs[Facility] = isolated;
     }
@@ -251,10 +251,10 @@ public class TdlsStepTests
         RequireMaintainAtOak(engine);
         Queued(engine);
 
-        var outcome = Issue(engine, host, Callsign, SendClimbViaWithoutMaintain);
+        ActionOutcome outcome = Issue(engine, host, Callsign, SendClimbViaWithoutMaintain);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        var item = Assert.Single(engine.Tdls.Items.Values);
+        TdlsItemRecord item = Assert.Single(engine.Tdls.Items.Values);
         Assert.Equal(TdlsItemStatus.Sent, item.Status);
         Assert.Equal("CLIMB VIA SID", item.SentPayload!.Climbvia);
         Assert.Null(item.SentPayload.InitialAlt);
@@ -271,9 +271,9 @@ public class TdlsStepTests
 
         var host = new AttendanceActionHost();
         RequireMaintainAtOak(engine);
-        var queued = Queued(engine);
+        TdlsItemRecord queued = Queued(engine);
 
-        var outcome = Issue(engine, host, Callsign, SendWithoutAnyAltitudeInstruction);
+        ActionOutcome outcome = Issue(engine, host, Callsign, SendWithoutAnyAltitudeInstruction);
 
         Assert.False(outcome.Result.Success);
         Assert.Contains("MANDATORY FIELD NOT SET: Maintain", outcome.Result.Message, StringComparison.Ordinal);
@@ -297,13 +297,13 @@ public class TdlsStepTests
         Queued(engine);
         engine.DrainTerminalEntries();
 
-        var outcome = Issue(engine, host, Callsign, SendWithPlaceholderMaintain);
+        ActionOutcome outcome = Issue(engine, host, Callsign, SendWithPlaceholderMaintain);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        var item = Assert.Single(engine.Tdls.Items.Values);
+        TdlsItemRecord item = Assert.Single(engine.Tdls.Items.Values);
         Assert.Null(item.SentPayload!.InitialAlt);
 
-        var line = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Tdls");
+        TerminalEntry line = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Tdls");
         Assert.DoesNotContain("MAINT", line.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("- - - -", line.Message, StringComparison.Ordinal);
     }
@@ -317,7 +317,7 @@ public class TdlsStepTests
         }
 
         var host = new AttendanceActionHost();
-        var queued = Queued(engine);
+        TdlsItemRecord queued = Queued(engine);
         Assert.True(Issue(engine, host, Callsign, SendCanonical).Result.Success);
 
         // Driven through the spine host, so the acknowledgement the tick produces has to reach the consumer through
@@ -331,11 +331,11 @@ public class TdlsStepTests
 
         engine.RunSecond(spine);
 
-        var item = engine.Tdls.Items[queued.Id];
+        TdlsItemRecord item = engine.Tdls.Items[queued.Id];
         Assert.Equal(TdlsItemStatus.Wilco, item.Status);
         Assert.Equal(engine.Scenario!.SimTimeUtc, item.WilcoUtc);
         Assert.False(engine.Tdls.ScheduledWilcoAt.ContainsKey(queued.Id));
-        var changes = Assert.Single(spine.TdlsChanges);
+        TdlsChangeSet changes = Assert.Single(spine.TdlsChanges);
         Assert.Equal(queued.Id, Assert.Single(changes.ChangedItemIds));
     }
 
@@ -348,13 +348,13 @@ public class TdlsStepTests
         }
 
         var host = new AttendanceActionHost();
-        var queued = Queued(engine);
+        TdlsItemRecord queued = Queued(engine);
         Assert.True(Issue(engine, host, Callsign, SendCanonical).Result.Success);
 
-        var wilco = Issue(engine, host, Callsign, "TDLSW");
+        ActionOutcome wilco = Issue(engine, host, Callsign, "TDLSW");
 
         Assert.True(wilco.Result.Success, wilco.Result.Message);
-        var acknowledged = engine.Tdls.Items[queued.Id];
+        TdlsItemRecord acknowledged = engine.Tdls.Items[queued.Id];
         Assert.Equal(TdlsItemStatus.Wilco, acknowledged.Status);
         Assert.Equal(engine.Scenario!.SimTimeUtc, acknowledged.WilcoUtc);
         Assert.Empty(engine.Tdls.ScheduledWilcoAt);
@@ -364,7 +364,7 @@ public class TdlsStepTests
         engine.TickOneSecond();
         engine.TickOneSecond();
 
-        var afterTimer = engine.Tdls.Items[queued.Id];
+        TdlsItemRecord afterTimer = engine.Tdls.Items[queued.Id];
         Assert.Equal(TdlsItemStatus.Wilco, afterTimer.Status);
         Assert.Equal(acknowledged.WilcoUtc, afterTimer.WilcoUtc);
     }
@@ -378,13 +378,13 @@ public class TdlsStepTests
         }
 
         var host = new AttendanceActionHost();
-        var queued = Queued(engine);
+        TdlsItemRecord queued = Queued(engine);
 
-        var dump = Issue(engine, host, Callsign, "TDLSDUMP");
+        ActionOutcome dump = Issue(engine, host, Callsign, "TDLSDUMP");
 
         Assert.True(dump.Result.Success, dump.Result.Message);
         Assert.Empty(engine.Tdls.Items);
-        var removal = Assert.Single(Assert.Single(host.TdlsChanges).Removed);
+        TdlsRemoval removal = Assert.Single(Assert.Single(host.TdlsChanges).Removed);
         Assert.Equal(queued.Id, removal.ItemId);
         Assert.Equal(Facility, removal.FacilityId);
         Assert.Equal(Callsign, removal.Callsign);
@@ -403,8 +403,8 @@ public class TdlsStepTests
             return;
         }
 
-        var queued = Queued(engine);
-        var scenario = engine.Scenario!;
+        TdlsItemRecord queued = Queued(engine);
+        SimScenarioState scenario = engine.Scenario!;
         var spine = new SpineCapturingHost(engine);
 
         // One second short of the two-hour TTL: the tick that crosses it is what expires the item.
@@ -416,13 +416,13 @@ public class TdlsStepTests
         Assert.DoesNotContain(new DumpedKey(Facility, Callsign), engine.Tdls.Dumped);
 
         // The spine's drain step is what carries a tick's removal to the host.
-        var removal = Assert.Single(Assert.Single(spine.TdlsChanges).Removed);
+        TdlsRemoval removal = Assert.Single(Assert.Single(spine.TdlsChanges).Removed);
         Assert.Equal(queued.Id, removal.ItemId);
         Assert.False(removal.Dumped);
 
         // TTL expiry is not a dump, so the aircraft can be queued again.
         engine.AfterAircraftSpawned(Departure(engine));
-        var requeued = Assert.Single(engine.Tdls.Items.Values);
+        TdlsItemRecord requeued = Assert.Single(engine.Tdls.Items.Values);
         Assert.Equal(TdlsItemStatus.Pending, requeued.Status);
     }
 
@@ -434,7 +434,7 @@ public class TdlsStepTests
             return;
         }
 
-        var queued = Queued(engine);
+        TdlsItemRecord queued = Queued(engine);
         Departure(engine).Track.Owner = Student;
         var spine = new SpineCapturingHost(engine);
 
@@ -444,7 +444,7 @@ public class TdlsStepTests
         // An automatic lifecycle removal, not a controller dump — no lockout.
         Assert.DoesNotContain(new DumpedKey(Facility, Callsign), engine.Tdls.Dumped);
 
-        var removal = Assert.Single(Assert.Single(spine.TdlsChanges).Removed);
+        TdlsRemoval removal = Assert.Single(Assert.Single(spine.TdlsChanges).Removed);
         Assert.Equal(queued.Id, removal.ItemId);
         Assert.Equal(Facility, removal.FacilityId);
         Assert.False(removal.Dumped);
@@ -459,17 +459,17 @@ public class TdlsStepTests
         }
 
         var host = new AttendanceActionHost();
-        var east = engine.Tdls.Configs[Facility].OpConfigs.First(c => string.Equals(c.Name, "OAKE", StringComparison.Ordinal));
+        TdlsOpConfig east = engine.Tdls.Configs[Facility].OpConfigs.First(c => string.Equals(c.Name, "OAKE", StringComparison.Ordinal));
 
-        var outcome = Issue(engine, host, "", "TDLSOPS OAK OAKE");
+        ActionOutcome outcome = Issue(engine, host, "", "TDLSOPS OAK OAKE");
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal(east.Id, engine.Tdls.ActiveOpConfigIds[Facility]);
         Assert.Equal(east.Id, engine.Tdls.ResolveActiveOpConfigId(Facility));
-        var changes = Assert.Single(host.TdlsChanges);
+        TdlsChangeSet changes = Assert.Single(host.TdlsChanges);
         Assert.True(changes.FullState);
 
-        var unknown = Issue(engine, host, "", "TDLSOPS OAK NOSUCHCONFIG");
+        ActionOutcome unknown = Issue(engine, host, "", "TDLSOPS OAK NOSUCHCONFIG");
 
         Assert.False(unknown.Result.Success);
         Assert.Contains("(have: OAKW, OAKE, SFOE)", unknown.Result.Message);
@@ -495,15 +495,15 @@ public class TdlsStepTests
         engine.TickOneSecond();
         Assert.True(Issue(engine, host, Callsign, SendCanonical).Result.Success);
 
-        var live = Assert.Single(engine.Tdls.Items.Values);
+        TdlsItemRecord live = Assert.Single(engine.Tdls.Items.Values);
         Assert.Equal(TdlsItemStatus.Sent, live.Status);
 
-        var recording = Recording(engine);
+        SessionRecording recording = Recording(engine);
 
         var replayed = new SimulationEngine(new TestAirportGroundData());
         replayed.Replay(recording, engine.Scenario!.ElapsedSeconds);
 
-        var item = Assert.Single(replayed.Tdls.Items.Values);
+        TdlsItemRecord item = Assert.Single(replayed.Tdls.Items.Values);
         Assert.Equal(live.Id, item.Id);
         Assert.Equal(TdlsItemStatus.Sent, item.Status);
         Assert.Equal(live.SentUtc, item.SentUtc);
@@ -523,18 +523,18 @@ public class TdlsStepTests
             return;
         }
 
-        var live = Queued(engine);
+        TdlsItemRecord live = Queued(engine);
         engine.TickOneSecond();
         engine.TickOneSecond();
 
-        var recording = Recording(engine);
+        SessionRecording recording = Recording(engine);
         // The premise: nothing in the log queues this PDC. Only the spawn hook can.
         Assert.Empty(recording.Actions);
 
         var replayed = new SimulationEngine(new TestAirportGroundData());
         replayed.Replay(recording, engine.Scenario!.ElapsedSeconds);
 
-        var item = Assert.Single(replayed.Tdls.Items.Values);
+        TdlsItemRecord item = Assert.Single(replayed.Tdls.Items.Values);
         Assert.Equal(live.Id, item.Id);
         Assert.Equal(TdlsItemStatus.Pending, item.Status);
         Assert.Equal(recording.SessionStartUtc!.Value, item.CreatedUtc);
@@ -555,12 +555,12 @@ public class TdlsStepTests
             return;
         }
 
-        var queued = Queued(engine);
+        TdlsItemRecord queued = Queued(engine);
 
         engine.AmendFlightPlan(Callsign, new FlightPlanAmendment(Route: "SUNOL ALTAM"));
 
         Assert.Equal("SUNOL ALTAM", Departure(engine).FlightPlan.Route);
-        var changes = engine.Tdls.Changes.Drain();
+        TdlsChangeSet changes = engine.Tdls.Changes.Drain();
         Assert.Equal(queued.Id, Assert.Single(changes.ChangedItemIds));
     }
 
@@ -578,13 +578,13 @@ public class TdlsStepTests
         }
 
         var host = new AttendanceActionHost();
-        var queued = Queued(engine);
+        TdlsItemRecord queued = Queued(engine);
 
-        var outcome = Issue(engine, host, Callsign, "APT KSJC");
+        ActionOutcome outcome = Issue(engine, host, Callsign, "APT KSJC");
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("KSJC", Departure(engine).FlightPlan.Destination);
-        var changes = Assert.Single(host.TdlsChanges);
+        TdlsChangeSet changes = Assert.Single(host.TdlsChanges);
         Assert.Contains(queued.Id, changes.ChangedItemIds);
     }
 
@@ -601,13 +601,13 @@ public class TdlsStepTests
         }
 
         var host = new AttendanceActionHost();
-        var queued = Queued(engine);
+        TdlsItemRecord queued = Queued(engine);
 
-        var outcome = Issue(engine, host, Callsign, "CRUISE 150");
+        ActionOutcome outcome = Issue(engine, host, Callsign, "CRUISE 150");
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal(15000, Departure(engine).FlightPlan.Altitude.CruiseFeet);
-        var changes = Assert.Single(host.TdlsChanges);
+        TdlsChangeSet changes = Assert.Single(host.TdlsChanges);
         Assert.Contains(queued.Id, changes.ChangedItemIds);
     }
 }

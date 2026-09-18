@@ -56,7 +56,7 @@ public partial class WeatherTimelineEditorViewModel : ObservableObject
 
     private string BuildV1Json()
     {
-        var period = Periods[0];
+        WeatherPeriodViewModel period = Periods[0];
         var profile = new WeatherProfile
         {
             Id = Guid.NewGuid().ToString(),
@@ -82,14 +82,14 @@ public partial class WeatherTimelineEditorViewModel : ObservableObject
 
     public static WeatherTimelineEditorViewModel FromJson(string json)
     {
-        var parseResult = WeatherTimelineParser.Parse(json);
+        WeatherParseResult parseResult = WeatherTimelineParser.Parse(json);
 
         if (parseResult.IsTimeline)
         {
-            var timeline = parseResult.Timeline!;
+            WeatherTimeline timeline = parseResult.Timeline!;
             var vm = new WeatherTimelineEditorViewModel { Name = timeline.Name, ArtccId = timeline.ArtccId };
 
-            foreach (var period in timeline.Periods)
+            foreach (WeatherPeriod period in timeline.Periods)
             {
                 vm.Periods.Add(WeatherPeriodViewModel.FromPeriod(period));
             }
@@ -104,7 +104,7 @@ public partial class WeatherTimelineEditorViewModel : ObservableObject
 
         if (parseResult.IsProfile)
         {
-            var profile = parseResult.Profile!;
+            WeatherProfile profile = parseResult.Profile!;
             var vm = new WeatherTimelineEditorViewModel { Name = profile.Name, ArtccId = profile.ArtccId };
 
             vm.Periods.Add(WeatherPeriodViewModel.FromProfile(profile));

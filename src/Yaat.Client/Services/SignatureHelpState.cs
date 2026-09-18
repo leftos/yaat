@@ -36,7 +36,7 @@ public partial class SignatureHelpState : ObservableObject
         _currentSet = signatureSet;
         OverloadCount = signatureSet.Signatures.Count;
 
-        var bestIndex = FindBestOverload(signatureSet, paramIndex, typedArgs);
+        int bestIndex = FindBestOverload(signatureSet, paramIndex, typedArgs);
         SelectedOverloadIndex = bestIndex;
         ActiveParameterIndex = paramIndex;
         CurrentSignature = signatureSet.Signatures[bestIndex];
@@ -123,17 +123,17 @@ public partial class SignatureHelpState : ObservableObject
         for (int i = 0; i < signature.Parameters.Count; i++)
         {
             parts.Add(new SignaturePart(" ", false, false));
-            var param = signature.Parameters[i];
+            CommandParameter param = signature.Parameters[i];
             // A trailing repeatable parameter (e.g. CROSS's runway list) renders with an ellipsis.
-            var name = param.Repeatable ? $"{param.Name}…" : param.Name;
+            string name = param.Repeatable ? $"{param.Name}…" : param.Name;
             // Literals render as plain text, variables in [brackets], optional variables in [name?]
-            var text =
+            string text =
                 param.IsLiteral ? name
                 : param.IsOptional ? $"[{name}?]"
                 : $"[{name}]";
             // A trailing repeatable parameter stays highlighted once the cursor reaches or passes it.
             bool isTrailingRepeatable = param.Repeatable && i == signature.Parameters.Count - 1;
-            var isActive = i == activeParamIndex || (isTrailingRepeatable && activeParamIndex >= i);
+            bool isActive = i == activeParamIndex || (isTrailingRepeatable && activeParamIndex >= i);
             parts.Add(new SignaturePart(text, !param.IsLiteral, isActive));
         }
 
@@ -147,7 +147,7 @@ public partial class SignatureHelpState : ObservableObject
             return signature.UsageHint ?? "";
         }
 
-        var idx = paramIndex;
+        int idx = paramIndex;
         if (idx >= signature.Parameters.Count)
         {
             // Past the declared params, but a trailing repeatable one keeps describing itself.
@@ -159,7 +159,7 @@ public partial class SignatureHelpState : ObservableObject
             idx = last;
         }
 
-        var param = signature.Parameters[idx];
+        CommandParameter param = signature.Parameters[idx];
         if (param.IsLiteral)
         {
             return signature.UsageHint ?? "";
@@ -181,7 +181,7 @@ public partial class SignatureHelpState : ObservableObject
 
         for (int i = 0; i < set.Signatures.Count; i++)
         {
-            var sig = set.Signatures[i];
+            CommandSignature sig = set.Signatures[i];
 
             // Eliminate overloads where a literal-position parameter contradicts what the user
             // typed. For args the user has finished (j < paramIndex) require an exact match;
@@ -190,7 +190,7 @@ public partial class SignatureHelpState : ObservableObject
             bool eliminated = false;
             for (int j = 0; j < Math.Min(typedArgs.Length, sig.Parameters.Count); j++)
             {
-                var litParam = sig.Parameters[j];
+                CommandParameter litParam = sig.Parameters[j];
                 if (!litParam.IsLiteral)
                 {
                     continue;
@@ -248,7 +248,7 @@ public partial class SignatureHelpState : ObservableObject
             // Check if typed args match known literal parameters
             for (int j = 0; j < Math.Min(typedArgs.Length, sig.Parameters.Count); j++)
             {
-                var param = sig.Parameters[j];
+                CommandParameter param = sig.Parameters[j];
                 if (param.IsLiteral && string.Equals(typedArgs[j], param.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     score += 20;

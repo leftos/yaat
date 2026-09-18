@@ -10,43 +10,43 @@ public partial class AboutWindow : Window
     {
         InitializeComponent();
 
-        var versionText = this.FindControl<TextBlock>("VersionText");
+        TextBlock? versionText = this.FindControl<TextBlock>("VersionText");
         if (versionText is not null)
         {
             versionText.Text = BuildInfo.Version;
         }
 
-        var buildKindText = this.FindControl<TextBlock>("BuildKindText");
+        TextBlock? buildKindText = this.FindControl<TextBlock>("BuildKindText");
         if (buildKindText is not null)
         {
             buildKindText.Text = BuildInfo.IsInstalledRelease ? "release (installed via Velopack)" : "dev build (not installed via Velopack)";
         }
 
-        var runtimeText = this.FindControl<TextBlock>("RuntimeText");
+        TextBlock? runtimeText = this.FindControl<TextBlock>("RuntimeText");
         if (runtimeText is not null)
         {
             runtimeText.Text = $".NET {Environment.Version} on {System.Runtime.InteropServices.RuntimeInformation.OSDescription}";
         }
 
-        var logPathText = this.FindControl<TextBlock>("LogPathText");
+        TextBlock? logPathText = this.FindControl<TextBlock>("LogPathText");
         if (logPathText is not null)
         {
             logPathText.Text = string.IsNullOrEmpty(AppLog.LogPath) ? "(not initialized)" : AppLog.LogPath;
         }
 
-        var openRepoBtn = this.FindControl<Button>("OpenRepoButton");
+        Button? openRepoBtn = this.FindControl<Button>("OpenRepoButton");
         if (openRepoBtn is not null)
         {
             openRepoBtn.Click += (_, _) => UrlLauncher.OpenInBrowser(DocLinks.Repo);
         }
 
-        var supportBtn = this.FindControl<Button>("SupportButton");
+        Button? supportBtn = this.FindControl<Button>("SupportButton");
         if (supportBtn is not null)
         {
             supportBtn.Click += (_, _) => UrlLauncher.OpenInBrowser(DocLinks.Donate);
         }
 
-        var closeBtn = this.FindControl<Button>("CloseButton");
+        Button? closeBtn = this.FindControl<Button>("CloseButton");
         if (closeBtn is not null)
         {
             closeBtn.Click += (_, _) => Close();

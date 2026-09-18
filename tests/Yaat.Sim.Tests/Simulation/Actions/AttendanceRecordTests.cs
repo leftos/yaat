@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.ControllerAi;
 using Yaat.Sim.Tests.Helpers;
@@ -33,8 +34,8 @@ public class AttendanceRecordTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = Student;
         scenario.StudentTcp = TrackResolver.FindTcpByCode(scenario, "2B")!;
         return engine;
@@ -101,10 +102,10 @@ public class AttendanceRecordTests
         }
 
         AttendanceTestSupport.Attend(engine, "4U");
-        var expected = engine.Attendance.PositionIds;
+        IReadOnlyList<string> expected = engine.Attendance.PositionIds;
         Assert.NotEmpty(expected);
 
-        var snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
 
         if (Engine() is not { } restored)
         {
@@ -122,10 +123,10 @@ public class AttendanceRecordTests
     {
         RecordedAction record = new RecordedAttendanceChange(42, ["01GEAMB98RKCPP9HCNPW5AVDA5", "01GEAS78D6ZW10PQJ90P44Q364"]);
 
-        var json = JsonSerializer.Serialize(record, RecordingJsonOptions.Default);
-        var restored = JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default);
+        string json = JsonSerializer.Serialize(record, RecordingJsonOptions.Default);
+        RecordedAction? restored = JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default);
 
-        var attendance = Assert.IsType<RecordedAttendanceChange>(restored);
+        RecordedAttendanceChange attendance = Assert.IsType<RecordedAttendanceChange>(restored);
         Assert.Equal(42, attendance.ElapsedSeconds);
         Assert.Equal(["01GEAMB98RKCPP9HCNPW5AVDA5", "01GEAS78D6ZW10PQJ90P44Q364"], attendance.AttendedPositionIds);
     }
@@ -140,7 +141,7 @@ public class AttendanceRecordTests
 
         AttendanceTestSupport.Attend(engine, "4U");
 
-        var recorded = Assert.Single(engine.Scenario!.ActionLog.OfType<RecordedAttendanceChange>());
+        RecordedAttendanceChange recorded = Assert.Single(engine.Scenario!.ActionLog.OfType<RecordedAttendanceChange>());
         Assert.Equal(engine.Attendance.PositionIds, recorded.AttendedPositionIds);
     }
 }

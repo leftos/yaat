@@ -57,7 +57,7 @@ public sealed class UpdateService
     public UpdateService(string? channel)
     {
         var source = new GithubSource("https://github.com/leftos/yaat", accessToken: null, prerelease: true);
-        var options = channel is null ? null : new UpdateOptions { ExplicitChannel = channel };
+        UpdateOptions? options = channel is null ? null : new UpdateOptions { ExplicitChannel = channel };
         _updateManager = new UpdateManager(source, options);
     }
 
@@ -75,7 +75,7 @@ public sealed class UpdateService
 
         try
         {
-            var update = await _updateManager.CheckForUpdatesAsync();
+            UpdateInfo? update = await _updateManager.CheckForUpdatesAsync();
             if (update is null)
             {
                 Log.LogDebug("No updates available");

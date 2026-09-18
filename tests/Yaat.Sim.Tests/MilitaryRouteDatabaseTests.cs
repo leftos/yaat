@@ -29,7 +29,7 @@ public sealed class MilitaryRouteDatabaseTests
     [Fact]
     public void Get_AcceptsHyphenatedAndFlightPlanForms()
     {
-        var route = Db.Get("IR149");
+        MilitaryRoute? route = Db.Get("IR149");
 
         Assert.NotNull(route);
         Assert.Same(route, Db.Get("IR-149"));
@@ -51,7 +51,7 @@ public sealed class MilitaryRouteDatabaseTests
     {
         // AP/1B 2-3: eight points A-H anchored on the VXV VORTAC, entering at 6000 MSL and
         // exiting at 9000 MSL. Independently confirmed against the FAA AIS MTRSegment layer.
-        var route = Db.Get("IR002");
+        MilitaryRoute? route = Db.Get("IR002");
 
         Assert.NotNull(route);
         Assert.Equal(MilitaryRouteType.Ir, route!.Type);
@@ -67,7 +67,7 @@ public sealed class MilitaryRouteDatabaseTests
     {
         // IR-002's row for point B reads "05 AGL B 60 MSL to B", and the FAA layer's A-to-B
         // segment is 500 HEI / 6000 ALT. The block therefore governs the leg flown *into* B.
-        var block = Db.Get("IR002")!.Points[1].Altitude;
+        MilitaryRouteAltitude block = Db.Get("IR002")!.Points[1].Altitude;
 
         Assert.Equal(MilitaryRouteAltitudeKind.Block, block.Kind);
         Assert.Equal(500, block.FloorFt);
@@ -81,7 +81,7 @@ public sealed class MilitaryRouteDatabaseTests
     [Fact]
     public void EveryRoute_HasAtLeastTwoPointsWithUsableCoordinates()
     {
-        foreach (var route in Db.Routes)
+        foreach (MilitaryRoute route in Db.Routes)
         {
             Assert.True(route.Points.Count >= 2, $"{route.Designator} has {route.Points.Count} point(s)");
             Assert.All(
@@ -102,14 +102,14 @@ public sealed class MilitaryRouteDatabaseTests
         // reads a name whose last three or six characters are all digits as {FIX}{radial}{dist}.
         // AP/1B labels always start with a letter, so a minted name can never take that shape --
         // this pins the property rather than trusting it.
-        foreach (var route in Db.Routes)
+        foreach (MilitaryRoute route in Db.Routes)
         {
-            foreach (var point in route.Points)
+            foreach (MilitaryRoutePoint point in route.Points)
             {
                 Assert.StartsWith(route.Designator, point.Name, StringComparison.Ordinal);
                 Assert.False(FrdResolver.IsFrdIdentifier(point.Name), $"{point.Name} looks like an FRD identifier");
 
-                var parsed = FrdResolver.ParseFrd(point.Name);
+                (string Fix, int? Radial, int? Distance)? parsed = FrdResolver.ParseFrd(point.Name);
                 Assert.NotNull(parsed);
                 Assert.Null(parsed!.Value.Radial);
                 Assert.Null(parsed.Value.Distance);
@@ -126,11 +126,15 @@ public sealed class MilitaryRouteDatabaseTests
         // 65 repeats across the publication carries identical coordinates, which is what keeps
         // the synthetic-name-to-position mapping unambiguous when the points are registered as
         // fixes. A repeat that disagreed on position would mean two rows had been conflated.
-        foreach (var route in Db.Routes)
+        foreach (MilitaryRoute route in Db.Routes)
         {
-            foreach (var group in route.Points.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
+            foreach (
+                IGrouping<string, MilitaryRoutePoint>? group in route
+                    .Points.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                    .Where(g => g.Count() > 1)
+            )
             {
-                var first = group.First().Position;
+                LatLon first = group.First().Position;
                 Assert.All(
                     group,
                     p =>
@@ -171,7 +175,7 @@ public sealed class MilitaryRouteDatabaseTests
     [Fact]
     public void IndexOf_FindsPointsCaseInsensitivelyAndReportsMisses()
     {
-        var route = Db.Get("IR002")!;
+        MilitaryRoute route = Db.Get("IR002")!;
 
         Assert.Equal(0, route.IndexOf("A"));
         Assert.Equal(7, route.IndexOf("h"));
@@ -182,7 +186,7 @@ public sealed class MilitaryRouteDatabaseTests
     public void WidthAt_ReturnsThePublishedProtectedWidth()
     {
         // IR-002: "ROUTE WIDTH - 5 NM either side of centerline for the entire route."
-        var span = Db.Get("IR002")!.WidthAt("D");
+        MilitaryRouteWidthSpan? span = Db.Get("IR002")!.WidthAt("D");
 
         Assert.NotNull(span);
         Assert.Equal(5, span!.LeftNm);
@@ -192,7 +196,7 @@ public sealed class MilitaryRouteDatabaseTests
     [Fact]
     public void EntryAndExitPoints_DefaultToTheRouteEnds()
     {
-        var route = Db.Get("IR002")!;
+        MilitaryRoute route = Db.Get("IR002")!;
 
         Assert.Equal("A", route.EntryPoints[0]);
         Assert.Equal("H", route.ExitPoints[0]);
@@ -201,7 +205,7 @@ public sealed class MilitaryRouteDatabaseTests
     [Fact]
     public void ScopedOverride_RestoresThePreviousInstance()
     {
-        var original = MilitaryRouteDatabase.Default;
+        MilitaryRouteDatabase original = MilitaryRouteDatabase.Default;
         var replacement = new MilitaryRouteDatabase([]);
 
         using (MilitaryRouteDatabase.ScopedOverride(replacement))

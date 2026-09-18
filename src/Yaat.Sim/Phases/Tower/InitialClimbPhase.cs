@@ -82,7 +82,7 @@ public sealed class InitialClimbPhase : Phase
     public static InitialClimbPhase FromSnapshot(InitialClimbPhaseDto dto)
     {
         DepartureInstruction? departure = dto.Departure is not null ? DepartureInstruction.FromSnapshot(dto.Departure) : null;
-        List<NavigationTarget>? departureRoute = dto.DepartureRoute?.Select(NavigationTarget.FromSnapshot).ToList();
+        var departureRoute = dto.DepartureRoute?.Select(NavigationTarget.FromSnapshot).ToList();
         var phase = new InitialClimbPhase
         {
             Departure = departure,
@@ -451,7 +451,7 @@ public sealed class InitialClimbPhase : Phase
         if (DepartureRoute is { Count: > 0 })
         {
             ctx.Targets.NavigationRoute.Clear();
-            foreach (var target in DepartureRoute)
+            foreach (NavigationTarget target in DepartureRoute)
             {
                 ctx.Targets.NavigationRoute.Add(target);
             }
@@ -462,7 +462,7 @@ public sealed class InitialClimbPhase : Phase
             // first tick, losing the controller's turn instruction.
             if (Departure is DirectFixDeparture { Direction: not null } dfd)
             {
-                var first = DepartureRoute[0];
+                NavigationTarget first = DepartureRoute[0];
                 double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, first.Position);
                 ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
                 ctx.Targets.PreferredTurnDirection = dfd.Direction;

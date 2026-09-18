@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -51,18 +52,18 @@ public class Issue172Sia31BtoB1Tests(ITestOutputHelper output)
     [Fact]
     public void TaxiBB1_FromB5SpotHold_Succeeds()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 1230);
-        var aircraft = engine.FindAircraft("SIA31");
+        AircraftState? aircraft = engine.FindAircraft("SIA31");
         Assert.NotNull(aircraft);
 
-        var result = engine.SendCommand("SIA31", "TAXI B B1 Z S S3 10R");
+        CommandResult result = engine.SendCommand("SIA31", "TAXI B B1 Z S S3 10R");
         output.WriteLine($"TAXI B B1 Z S S3 10R: success={result.Success} msg={result.Message}");
 
         Assert.True(result.Success, $"TAXI B B1 Z S S3 10R should resolve but failed: {result.Message}");
@@ -70,14 +71,14 @@ public class Issue172Sia31BtoB1Tests(ITestOutputHelper output)
 
         // The aircraft must actually taxi the route — not stall or spin. Tick forward and confirm it
         // makes meaningful progress.
-        var start = aircraft.Position;
+        LatLon start = aircraft.Position;
         for (int t = 0; t < 120; t++)
         {
             engine.TickOneSecond();
             Assert.NotNull(engine.FindAircraft("SIA31"));
         }
 
-        var end = engine.FindAircraft("SIA31")!.Position;
+        LatLon end = engine.FindAircraft("SIA31")!.Position;
         double traveledFt = GeoMath.DistanceNm(start, end) * 6076.0;
         output.WriteLine($"traveled={traveledFt:F0}ft");
         Assert.True(traveledFt > 200.0, $"SIA31 should make progress along the route, only moved {traveledFt:F0}ft (possible spin/stall)");

@@ -47,7 +47,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void ExtractMapDistance_KgsoI32Y_ResolvesCnfMapFixFromCifp()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
@@ -55,12 +55,12 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         // The I32-Y MAP is CFMLD, a CNF present in the CIFP but missing from vNAS NavData.
         // Its position must come from the leg's CIFP-carried coordinates, not GetFixPosition.
-        var procedure = navDb.GetApproach("KGSO", "I32-Y");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KGSO", "I32-Y");
         Assert.NotNull(procedure);
-        var runway = navDb.GetRunway("KGSO", "32");
+        RunwayInfo? runway = navDb.GetRunway("KGSO", "32");
         Assert.NotNull(runway);
 
-        var mapDistance = ApproachCommandHandler.ExtractMapDistance(procedure!, runway!);
+        double? mapDistance = ApproachCommandHandler.ExtractMapDistance(procedure!, runway!);
 
         Assert.NotNull(mapDistance);
         Assert.InRange(mapDistance!.Value, 0.0, 1.5);
@@ -71,7 +71,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void SelectBestTransition_NoTransitions_ReturnsNull()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
@@ -79,11 +79,11 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         // SFO LOC/DME 28R (L28R) — verify it has no transitions (localizer-only approaches
         // at SFO typically don't). If it does, find another approach without transitions.
-        var procedure = navDb.GetApproach("KSFO", "L28R");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KSFO", "L28R");
         if (procedure is null || procedure.Transitions.Count > 0)
         {
             // Fall back to any SFO approach with no transitions
-            var approaches = navDb.GetApproaches("KSFO");
+            IReadOnlyList<CifpApproachProcedure> approaches = navDb.GetApproaches("KSFO");
             procedure = approaches.FirstOrDefault(a => a.Transitions.Count == 0);
         }
 
@@ -95,8 +95,8 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         output.WriteLine($"Using {procedure.ApproachId} (0 transitions)");
 
-        var aircraft = MakeAircraft();
-        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
+        AircraftState aircraft = MakeAircraft();
+        CifpTransition? result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
         Assert.Null(result);
     }
@@ -104,7 +104,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void SelectBestTransition_NavRouteContainsApproachFix_ReturnsNull()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
@@ -113,20 +113,20 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         // SFO I19L has UPEND transition (UPEND → BERKS) and common legs starting at BERKS.
         // An aircraft with BERKS in its NavigationRoute (from ALWYS3 STAR) should NOT match
         // the UPEND transition — it's already heading to the approach.
-        var procedure = navDb.GetApproach("KSFO", "I19L");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
         Assert.True(procedure.Transitions.Count > 0, "I19L should have transitions");
 
         output.WriteLine($"I19L transitions: {string.Join(", ", procedure.Transitions.Keys)}");
 
         // Find BERKS in the approach (should be in common legs)
-        var berksPos = navDb.GetFixPosition("BERKS");
+        (double Lat, double Lon)? berksPos = navDb.GetFixPosition("BERKS");
         Assert.NotNull(berksPos);
 
-        var aircraft = MakeAircraft(route: "COORZ6 VOAXA Q136 RUMPS OAL INYOE ALWYS3", heading: 261, lat: 37.64, lon: -120.94);
+        AircraftState aircraft = MakeAircraft(route: "COORZ6 VOAXA Q136 RUMPS OAL INYOE ALWYS3", heading: 261, lat: 37.64, lon: -120.94);
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "BERKS", Position = new LatLon(berksPos.Value.Lat, berksPos.Value.Lon) });
 
-        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
+        CifpTransition? result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
         output.WriteLine($"Selected: {result?.Name ?? "(none)"}");
         Assert.Null(result);
@@ -135,7 +135,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void SelectBestTransition_NavRouteContainsTransitionOnlyFix_ReturnsTransition()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
@@ -144,7 +144,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         // OAK H12-Z has a HIRMO transition. HIRMO is a transition-only fix (not in CommonLegs).
         // An aircraft with HIRMO in its NavigationRoute (from EMZOH4 STAR) should match
         // the HIRMO transition so the full fix sequence is built.
-        var procedure = navDb.GetApproach("KOAK", "H12-Z");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KOAK", "H12-Z");
         if (procedure is null)
         {
             output.WriteLine("H12-Z not found at KOAK, skipping");
@@ -165,16 +165,22 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         Assert.True(procedure.Transitions.ContainsKey(transitionName), $"H12-Z should have {transitionName} transition");
         Assert.DoesNotContain(transitionName, commonFixNames);
 
-        var hirmoPos = navDb.GetFixPosition(transitionName);
+        (double Lat, double Lon)? hirmoPos = navDb.GetFixPosition(transitionName);
         Assert.NotNull(hirmoPos);
 
         // Aircraft on EMZOH4 STAR with HIRMO in nav route
-        var aircraft = MakeAircraft(route: "KBUR.OROSZ2.COREZ..RGOOD.EMZOH4.KOAK", destination: "KOAK", heading: 320, lat: 37.5, lon: -121.8);
+        AircraftState aircraft = MakeAircraft(
+            route: "KBUR.OROSZ2.COREZ..RGOOD.EMZOH4.KOAK",
+            destination: "KOAK",
+            heading: 320,
+            lat: 37.5,
+            lon: -121.8
+        );
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget { Name = transitionName, Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) }
         );
 
-        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
+        CifpTransition? result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
         output.WriteLine($"Selected: {result?.Name ?? "(none)"}");
         Assert.NotNull(result);
@@ -184,13 +190,13 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void Capp_WithNavRouteTransitionFix_DefersApproachAndAppendsFixesToRoute()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var procedure = navDb.GetApproach("KOAK", "H12-Z");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KOAK", "H12-Z");
         if (procedure is null)
         {
             output.WriteLine("H12-Z not found at KOAK, skipping");
@@ -198,13 +204,13 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         }
 
         // Resolve positions for STAR fixes preceding HIRMO
-        var emzohPos = navDb.GetFixPosition("EMZOH");
-        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        (double Lat, double Lon)? emzohPos = navDb.GetFixPosition("EMZOH");
+        (double Lat, double Lon)? hirmoPos = navDb.GetFixPosition("HIRMO");
         Assert.NotNull(emzohPos);
         Assert.NotNull(hirmoPos);
 
         // Aircraft on EMZOH4 STAR with remaining STAR fixes + HIRMO in nav route
-        var aircraft = MakeAircraft(
+        AircraftState aircraft = MakeAircraft(
             route: "KBUR.OROSZ2.COREZ..RGOOD.EMZOH4.KOAK",
             destination: "KOAK",
             destinationRunway: "12",
@@ -217,7 +223,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         aircraft.Approach.Expected = "H12-Z";
 
         var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
-        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
 
         output.WriteLine($"CAPP result: {result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
@@ -251,7 +257,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     {
         // STAR to HIRMO (28B path), deferred CAPP H12-Z, then EAPP I30 + deferred CAPP H30-Z at ALLXX.
         // The second clearance must replace the H12-Z approach tail after ALLXX, not stack on it.
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
@@ -263,16 +269,16 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        var hirmoPos = navDb.GetFixPosition("HIRMO");
-        var allxxPos = navDb.GetFixPosition("ALLXX");
+        (double Lat, double Lon)? hirmoPos = navDb.GetFixPosition("HIRMO");
+        (double Lat, double Lon)? allxxPos = navDb.GetFixPosition("ALLXX");
         Assert.NotNull(hirmoPos);
         Assert.NotNull(allxxPos);
 
-        var aircraft = MakeAircraft(destination: "KOAK", destinationRunway: "12", heading: 320, lat: 37.5, lon: -121.8);
+        AircraftState aircraft = MakeAircraft(destination: "KOAK", destinationRunway: "12", heading: 320, lat: 37.5, lon: -121.8);
         aircraft.Procedure.ActiveStarId = "WNDSR2";
-        foreach (var name in new[] { "WEBRR", "BOYYS", "HOPTA", "HIRMO" })
+        foreach (string? name in new[] { "WEBRR", "BOYYS", "HOPTA", "HIRMO" })
         {
-            var pos = navDb.GetFixPosition(name)!.Value;
+            (double Lat, double Lon) pos = navDb.GetFixPosition(name)!.Value;
             aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = name, Position = new LatLon(pos.Lat, pos.Lon) });
         }
 
@@ -299,10 +305,10 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         Assert.True(ApproachCommandHandler.TryClearedApproach(cappH30, aircraft).Success, "H30-Z deferred");
         Assert.Equal("H30-Z", aircraft.Approach.PendingClearance!.Clearance.ApproachId);
 
-        var reference = MakeAircraft(destination: "KOAK", destinationRunway: "30", heading: 280, lat: 37.75, lon: -122.35);
-        foreach (var name in new[] { "WEBRR", "BOYYS", "HOPTA", "ALLXX" })
+        AircraftState reference = MakeAircraft(destination: "KOAK", destinationRunway: "30", heading: 280, lat: 37.75, lon: -122.35);
+        foreach (string? name in new[] { "WEBRR", "BOYYS", "HOPTA", "ALLXX" })
         {
-            var pos = navDb.GetFixPosition(name)!.Value;
+            (double Lat, double Lon) pos = navDb.GetFixPosition(name)!.Value;
             reference.Targets.NavigationRoute.Add(new NavigationTarget { Name = name, Position = new LatLon(pos.Lat, pos.Lon) });
         }
 
@@ -318,20 +324,20 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void Capp_SecondDeferred_RemovesInjectedStaleTailAfterConnectingFix()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        (double Lat, double Lon)? hirmoPos = navDb.GetFixPosition("HIRMO");
         if (hirmoPos is null || navDb.GetApproach("KOAK", "H12-Z") is null)
         {
             output.WriteLine("KOAK H12-Z / HIRMO not available, skipping");
             return;
         }
 
-        var aircraft = MakeAircraft(destination: "KOAK", destinationRunway: "12", heading: 320, lat: 37.5, lon: -121.8);
+        AircraftState aircraft = MakeAircraft(destination: "KOAK", destinationRunway: "12", heading: 320, lat: 37.5, lon: -121.8);
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
 
         var first = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
@@ -354,19 +360,19 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void Capp_ImmediateAfterDeferred_ClearsPendingClearance()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        (double Lat, double Lon)? hirmoPos = navDb.GetFixPosition("HIRMO");
         if (hirmoPos is null || navDb.GetApproach("KOAK", "H12-Z") is null)
         {
             return;
         }
 
-        var aircraft = MakeAircraft(destination: "KOAK", destinationRunway: "12", heading: 320, lat: 37.5, lon: -121.8);
+        AircraftState aircraft = MakeAircraft(destination: "KOAK", destinationRunway: "12", heading: 320, lat: 37.5, lon: -121.8);
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
 
         var deferred = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
@@ -384,24 +390,24 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void Capp_OnAssignedHeading_ActivatesImmediately()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var procedure = navDb.GetApproach("KOAK", "H12-Z");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KOAK", "H12-Z");
         if (procedure is null)
         {
             output.WriteLine("H12-Z not found at KOAK, skipping");
             return;
         }
 
-        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        (double Lat, double Lon)? hirmoPos = navDb.GetFixPosition("HIRMO");
         Assert.NotNull(hirmoPos);
 
         // Aircraft on assigned heading with HIRMO in nav route
-        var aircraft = MakeAircraft(
+        AircraftState aircraft = MakeAircraft(
             route: "KBUR.OROSZ2.COREZ..RGOOD.EMZOH4.KOAK",
             destination: "KOAK",
             destinationRunway: "12",
@@ -413,7 +419,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
 
         var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
-        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
 
         Assert.True(result.Success, result.Message);
         // On assigned heading → immediate activation via intercept
@@ -424,23 +430,23 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void Capp_WithAtConnectingFix_DefersLikeBareCapp()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var procedure = navDb.GetApproach("KOAK", "H12-Z");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KOAK", "H12-Z");
         if (procedure is null)
         {
             output.WriteLine("H12-Z not found at KOAK, skipping");
             return;
         }
 
-        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        (double Lat, double Lon)? hirmoPos = navDb.GetFixPosition("HIRMO");
         Assert.NotNull(hirmoPos);
 
-        var aircraft = MakeAircraft(
+        AircraftState aircraft = MakeAircraft(
             route: "KBUR.OROSZ2.COREZ..RGOOD.EMZOH4.KOAK",
             destination: "KOAK",
             destinationRunway: "12",
@@ -453,7 +459,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         // AT HIRMO CAPP H12-Z — AT fix matches the connecting fix in the nav route,
         // so it defers just like a bare CAPP (the AT is redundant).
         var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, "HIRMO", hirmoPos.Value.Lat, hirmoPos.Value.Lon, null, null, null, null, null);
-        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
 
         Assert.True(result.Success, result.Message);
         // AT fix matches connecting fix → deferred, same as bare CAPP
@@ -465,23 +471,23 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void Capp_WithDctFix_ActivatesImmediately()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var procedure = navDb.GetApproach("KOAK", "H12-Z");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KOAK", "H12-Z");
         if (procedure is null)
         {
             output.WriteLine("H12-Z not found at KOAK, skipping");
             return;
         }
 
-        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        (double Lat, double Lon)? hirmoPos = navDb.GetFixPosition("HIRMO");
         Assert.NotNull(hirmoPos);
 
-        var aircraft = MakeAircraft(
+        AircraftState aircraft = MakeAircraft(
             route: "KBUR.OROSZ2.COREZ..RGOOD.EMZOH4.KOAK",
             destination: "KOAK",
             destinationRunway: "12",
@@ -493,7 +499,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         // DCT HIRMO CAPP → immediate (DCT implies leaving the STAR route)
         var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, "HIRMO", hirmoPos.Value.Lat, hirmoPos.Value.Lon, null, null);
-        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases);
@@ -503,20 +509,20 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void PendingApproach_ActivatesWhenRouteEmpties()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var procedure = navDb.GetApproach("KOAK", "H12-Z");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KOAK", "H12-Z");
         if (procedure is null)
         {
             output.WriteLine("H12-Z not found at KOAK, skipping");
             return;
         }
 
-        var runway = navDb.GetRunway("KOAK", "12");
+        RunwayInfo? runway = navDb.GetRunway("KOAK", "12");
         Assert.NotNull(runway);
 
         var clearance = new ApproachClearance
@@ -528,7 +534,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             Procedure = procedure,
         };
 
-        var aircraft = MakeAircraft(destination: "KOAK", heading: 120, lat: 37.73, lon: -122.22);
+        AircraftState aircraft = MakeAircraft(destination: "KOAK", heading: 120, lat: 37.73, lon: -122.22);
         aircraft.Approach.PendingClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = runway };
 
         // Simulate route emptying by calling Update with an empty route
@@ -550,7 +556,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void SelectBestTransition_RouteContainsTransitionIaf_ReturnsTransition()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
@@ -558,18 +564,18 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         // SFO I19L has the UPEND transition. An aircraft with UPEND in its route
         // (not in NavigationRoute — already consumed) should match that transition.
-        var procedure = navDb.GetApproach("KSFO", "I19L");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
         Assert.True(procedure.Transitions.ContainsKey("UPEND"), "I19L should have UPEND transition");
 
-        var upendTransition = procedure.Transitions["UPEND"];
+        CifpTransition upendTransition = procedure.Transitions["UPEND"];
         var legNames = upendTransition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier).ToList();
         output.WriteLine($"UPEND transition legs: {string.Join(" → ", legNames)}");
 
         // Aircraft route includes UPEND — should match UPEND transition
-        var aircraft = MakeAircraft(route: "SJC V334 UPEND");
+        AircraftState aircraft = MakeAircraft(route: "SJC V334 UPEND");
 
-        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
+        CifpTransition? result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
         Assert.NotNull(result);
         Assert.Equal("UPEND", result.Name);
@@ -578,7 +584,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void SelectBestTransition_EmptyRouteNoNavRoute_FallsBackToNearestAhead()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
@@ -586,13 +592,13 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         // SFO I19L with UPEND transition. Aircraft with no route and no NavRoute,
         // heading roughly toward UPEND — fallback should pick nearest transition IAF ahead.
-        var procedure = navDb.GetApproach("KSFO", "I19L");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
         // Position northeast of SFO, heading southwest — UPEND should be roughly ahead
-        var aircraft = MakeAircraft(route: "", heading: 250, lat: 38.0, lon: -122.0);
+        AircraftState aircraft = MakeAircraft(route: "", heading: 250, lat: 38.0, lon: -122.0);
 
-        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
+        CifpTransition? result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
         // Should find some transition via fallback (UPEND is the only one and should be ahead)
         output.WriteLine($"Selected: {result?.Name ?? "(none)"}");
@@ -602,19 +608,19 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void SelectBestTransition_NoNavDb_NoRouteMatch_ReturnsNull()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var procedure = navDb.GetApproach("KSFO", "I19L");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
-        var aircraft = MakeAircraft(route: "");
+        AircraftState aircraft = MakeAircraft(route: "");
 
         // No navDb passed → fallback can't run, no route match → null
-        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
+        CifpTransition? result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
         Assert.Null(result);
     }
@@ -624,16 +630,16 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void GetApproachFixNames_IncludesTransitionAndCommonFixes()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var procedure = navDb.GetApproach("KSFO", "I19L");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
-        var names = ApproachCommandHandler.GetApproachFixNames(procedure);
+        IReadOnlyList<string> names = ApproachCommandHandler.GetApproachFixNames(procedure);
 
         output.WriteLine($"Fix names ({names.Count}): {string.Join(", ", names)}");
 
@@ -645,13 +651,13 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             .CommonLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier) && l.FixRole != CifpFixRole.MAP)
             .Select(l => l.FixIdentifier)
             .ToList();
-        foreach (var fix in commonFixNames)
+        foreach (string? fix in commonFixNames)
         {
             Assert.Contains(fix, names);
         }
 
         // MAP (RW19L) should be excluded
-        var map = procedure.CommonLegs.FirstOrDefault(l => l.FixRole == CifpFixRole.MAP);
+        CifpLeg? map = procedure.CommonLegs.FirstOrDefault(l => l.FixRole == CifpFixRole.MAP);
         if (map is not null && !string.IsNullOrEmpty(map.FixIdentifier))
         {
             Assert.DoesNotContain(map.FixIdentifier, names);
@@ -661,14 +667,14 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void GetApproachFixNames_WithoutTransitions_ReturnsCommonOnly()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var approaches = navDb.GetApproaches("KSFO");
-        var procedure = approaches.FirstOrDefault(a => a.Transitions.Count == 0);
+        IReadOnlyList<CifpApproachProcedure> approaches = navDb.GetApproaches("KSFO");
+        CifpApproachProcedure? procedure = approaches.FirstOrDefault(a => a.Transitions.Count == 0);
         if (procedure is null)
         {
             output.WriteLine("No SFO approach without transitions, skipping");
@@ -677,7 +683,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         output.WriteLine($"Using {procedure.ApproachId}");
 
-        var names = ApproachCommandHandler.GetApproachFixNames(procedure);
+        IReadOnlyList<string> names = ApproachCommandHandler.GetApproachFixNames(procedure);
 
         output.WriteLine($"Fix names ({names.Count}): {string.Join(", ", names)}");
         Assert.True(names.Count > 0, "Should have at least one common leg fix");
@@ -686,16 +692,16 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void GetApproachFixNames_NoDuplicates()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var procedure = navDb.GetApproach("KSFO", "I19L");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
-        var names = ApproachCommandHandler.GetApproachFixNames(procedure);
+        IReadOnlyList<string> names = ApproachCommandHandler.GetApproachFixNames(procedure);
 
         // Every fix name should appear exactly once (boundary fix dedup)
         var duplicates = names.GroupBy(n => n, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
@@ -708,26 +714,26 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void Capp_WithTransitionIafInRoute_BuildsFullFixSequence()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var procedure = navDb.GetApproach("KSFO", "I19L");
+        CifpApproachProcedure? procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
         // Aircraft with UPEND in route → should select UPEND transition
-        var aircraft = MakeAircraft(route: "SJC V334 UPEND", destinationRunway: "19L", heading: 320, lat: 37.5, lon: -122.1);
+        AircraftState aircraft = MakeAircraft(route: "SJC V334 UPEND", destinationRunway: "19L", heading: 320, lat: 37.5, lon: -122.1);
         var cmd = new ClearedApproachCommand("I19L", "KSFO", false, null, null, null, null, null, null, null, null);
 
-        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
 
         output.WriteLine($"CAPP result: {result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases);
 
-        var navPhase = aircraft.Phases.Phases.OfType<ApproachNavigationPhase>().FirstOrDefault();
+        ApproachNavigationPhase? navPhase = aircraft.Phases.Phases.OfType<ApproachNavigationPhase>().FirstOrDefault();
         Assert.NotNull(navPhase);
 
         var fixNames = navPhase.Fixes.Select(f => f.Name).ToList();
@@ -737,9 +743,9 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         Assert.Contains("UPEND", fixNames);
 
         // Boundary fix should not be duplicated
-        var upendTransition = procedure.Transitions["UPEND"];
-        var lastTransitionFix = upendTransition.Legs.LastOrDefault(l => !string.IsNullOrEmpty(l.FixIdentifier))?.FixIdentifier;
-        var firstCommonFix = procedure.CommonLegs.FirstOrDefault(l => !string.IsNullOrEmpty(l.FixIdentifier))?.FixIdentifier;
+        CifpTransition upendTransition = procedure.Transitions["UPEND"];
+        string? lastTransitionFix = upendTransition.Legs.LastOrDefault(l => !string.IsNullOrEmpty(l.FixIdentifier))?.FixIdentifier;
+        string? firstCommonFix = procedure.CommonLegs.FirstOrDefault(l => !string.IsNullOrEmpty(l.FixIdentifier))?.FixIdentifier;
         if (
             lastTransitionFix is not null
             && firstCommonFix is not null
@@ -757,14 +763,14 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void ProgrammedFixResolver_WithStarAndRunway_IncludesRunwayTransitionFixes()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
         // ALWYS3 at KSFO should have runway transitions (e.g. RW19L/RW19B with fixes like BERKS)
-        var star = navDb.GetStar("KSFO", "ALWYS3");
+        CifpStarProcedure? star = navDb.GetStar("KSFO", "ALWYS3");
         if (star is null)
         {
             output.WriteLine("ALWYS3 not found at KSFO, skipping");
@@ -774,22 +780,24 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         output.WriteLine($"ALWYS3 runway transitions: {string.Join(", ", star.RunwayTransitions.Keys)}");
 
         // Find a runway transition that has fixes
-        var rwyTransition = star.RunwayTransitions.FirstOrDefault(t => t.Value.Legs.Any(l => !string.IsNullOrEmpty(l.FixIdentifier)));
+        KeyValuePair<string, CifpTransition> rwyTransition = star.RunwayTransitions.FirstOrDefault(t =>
+            t.Value.Legs.Any(l => !string.IsNullOrEmpty(l.FixIdentifier))
+        );
         if (rwyTransition.Value is null)
         {
             output.WriteLine("No runway transition with fixes, skipping");
             return;
         }
 
-        var rwyId = rwyTransition.Key.Replace("RW", "");
+        string rwyId = rwyTransition.Key.Replace("RW", "");
         output.WriteLine($"Testing runway transition {rwyTransition.Key} (runway {rwyId})");
 
         var expectedFixes = rwyTransition.Value.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier).ToList();
         output.WriteLine($"Expected fixes: {string.Join(", ", expectedFixes)}");
 
-        var result = ProgrammedFixResolver.Resolve("ALWYS3", null, "KSFO", null, null, "ALWYS3", rwyId);
+        HashSet<string> result = ProgrammedFixResolver.Resolve("ALWYS3", null, "KSFO", null, null, "ALWYS3", rwyId);
 
-        foreach (var fix in expectedFixes)
+        foreach (string? fix in expectedFixes)
         {
             Assert.Contains(fix, result);
         }
@@ -798,13 +806,13 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void ProgrammedFixResolver_WithStarNoRunway_DoesNotExpandRunwayTransition()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var star = navDb.GetStar("KSFO", "ALWYS3");
+        CifpStarProcedure? star = navDb.GetStar("KSFO", "ALWYS3");
         if (star is null)
         {
             output.WriteLine("ALWYS3 not found at KSFO, skipping");
@@ -819,15 +827,15 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // NavData body fixes are always included via route expansion, so exclude them too
-        var navDataBody = navDb.GetStarBody("ALWYS3");
-        var navDataBodySet = navDataBody is not null
+        IReadOnlyList<string>? navDataBody = navDb.GetStarBody("ALWYS3");
+        HashSet<string> navDataBodySet = navDataBody is not null
             ? new HashSet<string>(navDataBody, StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         string? rwyOnlyFix = null;
-        foreach (var transition in star.RunwayTransitions.Values)
+        foreach (CifpTransition transition in star.RunwayTransitions.Values)
         {
-            foreach (var leg in transition.Legs)
+            foreach (CifpLeg leg in transition.Legs)
             {
                 if (
                     !string.IsNullOrEmpty(leg.FixIdentifier)
@@ -855,7 +863,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         output.WriteLine($"Runway-transition-only fix: {rwyOnlyFix}");
 
         // Without a runway, runway transitions should NOT be expanded
-        var result = ProgrammedFixResolver.Resolve("ALWYS3", null, "KSFO", null, null, "ALWYS3", null);
+        HashSet<string> result = ProgrammedFixResolver.Resolve("ALWYS3", null, "KSFO", null, null, "ALWYS3", null);
 
         Assert.DoesNotContain(rwyOnlyFix, result);
     }
@@ -863,13 +871,13 @@ public class ApproachTransitionTests(ITestOutputHelper output)
     [Fact]
     public void ProgrammedFixResolver_DeriveRunwayFromExpectedApproach()
     {
-        var navDb = GetNavDb();
+        NavigationDatabase? navDb = GetNavDb();
         if (navDb is null)
         {
             return;
         }
 
-        var star = navDb.GetStar("KSFO", "ALWYS3");
+        CifpStarProcedure? star = navDb.GetStar("KSFO", "ALWYS3");
         if (star is null)
         {
             output.WriteLine("ALWYS3 not found at KSFO, skipping");
@@ -877,9 +885,9 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         }
 
         // Find a runway transition and a corresponding approach
-        foreach (var (rwyKey, transition) in star.RunwayTransitions)
+        foreach ((string? rwyKey, CifpTransition? transition) in star.RunwayTransitions)
         {
-            var rwyId = rwyKey.Replace("RW", "");
+            string rwyId = rwyKey.Replace("RW", "");
             var rwyFixes = transition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier).ToList();
 
             if (rwyFixes.Count == 0)
@@ -888,8 +896,8 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             }
 
             // Find an approach for this runway
-            var approaches = navDb.GetApproaches("KSFO");
-            var approach = approaches.FirstOrDefault(a => a.Runway == rwyId);
+            IReadOnlyList<CifpApproachProcedure> approaches = navDb.GetApproaches("KSFO");
+            CifpApproachProcedure? approach = approaches.FirstOrDefault(a => a.Runway == rwyId);
             if (approach is null)
             {
                 continue;
@@ -899,10 +907,10 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             output.WriteLine($"Runway transition fixes: {string.Join(", ", rwyFixes)}");
 
             // No explicit destinationRunway, but expectedApproach should derive it
-            var result = ProgrammedFixResolver.Resolve(null, approach.ApproachId, "KSFO", null, null, "ALWYS3", null);
+            HashSet<string> result = ProgrammedFixResolver.Resolve(null, approach.ApproachId, "KSFO", null, null, "ALWYS3", null);
 
             // Should include runway transition fixes (derived from expected approach → runway)
-            foreach (var fix in rwyFixes)
+            foreach (string? fix in rwyFixes)
             {
                 Assert.Contains(fix, result);
             }

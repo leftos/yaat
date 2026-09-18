@@ -11,7 +11,7 @@ public class RangeBearingLineFormatterTests
     [Fact]
     public void RadarLabel_IsBearingSlashDistanceSlashSlot()
     {
-        var label = RangeBearingLineFormatter.Format(4.2, 87.0, null, 1, RblUnits.NauticalMiles);
+        string label = RangeBearingLineFormatter.Format(4.2, 87.0, null, 1, RblUnits.NauticalMiles);
 
         Assert.Equal("087/4.20-1", label);
     }
@@ -44,7 +44,7 @@ public class RangeBearingLineFormatterTests
     [Fact]
     public void MinutesToGoIsAppendedBeforeSlot()
     {
-        var label = RangeBearingLineFormatter.Format(4.2, 87.0, 2, 1, RblUnits.NauticalMiles);
+        string label = RangeBearingLineFormatter.Format(4.2, 87.0, 2, 1, RblUnits.NauticalMiles);
 
         Assert.Equal("087/4.20/2-1", label);
     }
@@ -52,7 +52,7 @@ public class RangeBearingLineFormatterTests
     [Fact]
     public void DistanceOver999ClampsToHashes()
     {
-        var label = RangeBearingLineFormatter.Format(1200.0, 90.0, null, 3, RblUnits.NauticalMiles);
+        string label = RangeBearingLineFormatter.Format(1200.0, 90.0, null, 3, RblUnits.NauticalMiles);
 
         Assert.Equal("090/###.##-3", label);
     }
@@ -60,7 +60,7 @@ public class RangeBearingLineFormatterTests
     [Fact]
     public void MinutesOver99ClampToHashes()
     {
-        var label = RangeBearingLineFormatter.Format(10.0, 90.0, 140, 2, RblUnits.NauticalMiles);
+        string label = RangeBearingLineFormatter.Format(10.0, 90.0, 140, 2, RblUnits.NauticalMiles);
 
         Assert.Equal("090/10.00/##-2", label);
     }
@@ -68,7 +68,7 @@ public class RangeBearingLineFormatterTests
     [Fact]
     public void PendingLineHasNoSlotSuffix()
     {
-        var label = RangeBearingLineFormatter.Format(4.2, 87.0, null, null, RblUnits.NauticalMiles);
+        string label = RangeBearingLineFormatter.Format(4.2, 87.0, null, null, RblUnits.NauticalMiles);
 
         Assert.Equal("087/4.20", label);
     }
@@ -77,7 +77,7 @@ public class RangeBearingLineFormatterTests
     public void GroundUnitsUseFeetUnderOneMile()
     {
         // 0.2 NM = 1215 ft. Taxiway-scale distances are unreadable in hundredths of a mile.
-        var label = RangeBearingLineFormatter.Format(0.2, 87.0, null, 1, RblUnits.FeetThenNauticalMiles);
+        string label = RangeBearingLineFormatter.Format(0.2, 87.0, null, 1, RblUnits.FeetThenNauticalMiles);
 
         Assert.Equal("087/1,215 ft-1", label);
     }
@@ -85,7 +85,7 @@ public class RangeBearingLineFormatterTests
     [Fact]
     public void GroundUnitsSwitchToMilesAtOneMile()
     {
-        var label = RangeBearingLineFormatter.Format(1.35, 87.0, null, 1, RblUnits.FeetThenNauticalMiles);
+        string label = RangeBearingLineFormatter.Format(1.35, 87.0, null, 1, RblUnits.FeetThenNauticalMiles);
 
         Assert.Equal("087/1.35 NM-1", label);
     }
@@ -157,7 +157,7 @@ public class RangeBearingLineStoreTests
     public void SixteenthLineIsRefused()
     {
         var store = new RangeBearingLineStore();
-        for (var i = 0; i < RangeBearingLineStore.MaxLines; i++)
+        for (int i = 0; i < RangeBearingLineStore.MaxLines; i++)
         {
             Assert.NotNull(store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar));
         }
@@ -231,7 +231,7 @@ public class RangeBearingLineStoreTests
         store.PruneMissing(cs => cs != "OAL123" && cs != "UAL9");
 
         // Only the fixed point-to-point line survives; both latched lines referenced a gone aircraft.
-        var remaining = store.Lines;
+        IReadOnlyList<RangeBearingLine> remaining = store.Lines;
         Assert.Single(remaining);
         Assert.Equal(3, remaining[0].Slot);
     }
@@ -262,7 +262,7 @@ public class RangeBearingLineStoreTests
     public void ChangedFiresOnPlacementAndRemoval()
     {
         var store = new RangeBearingLineStore();
-        var count = 0;
+        int count = 0;
         store.Changed += () => count++;
 
         store.Add(Point(Somewhere), Point(Elsewhere), RblView.Radar);
@@ -285,16 +285,16 @@ public class RangeBearingLineResolverTests
         var store = new RangeBearingLineStore();
         store.Add(RblEndpoint.OnAircraft("OAL123"), RblEndpoint.AtPoint(SixNorth, "PT"), RblView.Radar);
 
-        var position = Oakland;
+        LatLon position = Oakland;
         RblTrack? Lookup(string cs) => cs == "OAL123" ? new RblTrack(position, null) : null;
 
-        var first = RangeBearingLineResolver.Resolve(store.Lines, Lookup, RblUnits.NauticalMiles, RblView.Radar);
+        List<ResolvedRbl> first = RangeBearingLineResolver.Resolve(store.Lines, Lookup, RblUnits.NauticalMiles, RblView.Radar);
         Assert.Single(first);
         Assert.Equal(Oakland.Lat, first[0].A.Lat, 6);
 
         // Move the aircraft; the resolved line moves with it.
         position = new LatLon(37.7513, -122.2208);
-        var second = RangeBearingLineResolver.Resolve(store.Lines, Lookup, RblUnits.NauticalMiles, RblView.Radar);
+        List<ResolvedRbl> second = RangeBearingLineResolver.Resolve(store.Lines, Lookup, RblUnits.NauticalMiles, RblView.Radar);
         Assert.Equal(37.7513, second[0].A.Lat, 6);
         Assert.NotEqual(first[0].Label, second[0].Label);
     }
@@ -305,7 +305,7 @@ public class RangeBearingLineResolverTests
         var store = new RangeBearingLineStore();
         store.Add(RblEndpoint.OnAircraft("GONE"), RblEndpoint.AtPoint(SixNorth, "PT"), RblView.Radar);
 
-        var resolved = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar);
+        List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar);
 
         Assert.Empty(resolved);
     }
@@ -316,7 +316,7 @@ public class RangeBearingLineResolverTests
         var store = new RangeBearingLineStore();
         store.Add(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(SixNorth, "B"), RblView.Radar);
 
-        var resolved = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar);
+        List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar);
 
         Assert.Single(resolved);
         Assert.EndsWith("/6.00-1", resolved[0].Label, StringComparison.Ordinal);
@@ -329,7 +329,12 @@ public class RangeBearingLineResolverTests
         store.Add(RblEndpoint.OnAircraft("OAL123"), RblEndpoint.AtPoint(SixNorth, "PT"), RblView.Radar);
 
         // 6 NM at 120 kt = 3 minutes.
-        var resolved = RangeBearingLineResolver.Resolve(store.Lines, _ => new RblTrack(Oakland, 120.0), RblUnits.NauticalMiles, RblView.Radar);
+        List<ResolvedRbl> resolved = RangeBearingLineResolver.Resolve(
+            store.Lines,
+            _ => new RblTrack(Oakland, 120.0),
+            RblUnits.NauticalMiles,
+            RblView.Radar
+        );
 
         Assert.EndsWith("/6.00/3-1", resolved[0].Label, StringComparison.Ordinal);
     }
@@ -337,7 +342,12 @@ public class RangeBearingLineResolverTests
     [Fact]
     public void PendingLineDrawsFromAnchorToCursorWithNoSlot()
     {
-        var pending = RangeBearingLineResolver.ResolvePending(RblEndpoint.AtPoint(Oakland, "A"), SixNorth, _ => null, RblUnits.NauticalMiles);
+        ResolvedRbl? pending = RangeBearingLineResolver.ResolvePending(
+            RblEndpoint.AtPoint(Oakland, "A"),
+            SixNorth,
+            _ => null,
+            RblUnits.NauticalMiles
+        );
 
         Assert.NotNull(pending);
         Assert.EndsWith("/6.00", pending.Label, StringComparison.Ordinal);
@@ -357,8 +367,8 @@ public class RangeBearingLineResolverTests
         store.Add(RblEndpoint.AtPoint(Oakland, "A"), RblEndpoint.AtPoint(SixNorth, "B"), RblView.Radar);
         store.Add(RblEndpoint.AtPoint(Oakland, "C"), RblEndpoint.AtPoint(SixNorth, "D"), RblView.Ground);
 
-        var radar = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar);
-        var ground = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.FeetThenNauticalMiles, RblView.Ground);
+        List<ResolvedRbl> radar = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.NauticalMiles, RblView.Radar);
+        List<ResolvedRbl> ground = RangeBearingLineResolver.Resolve(store.Lines, _ => null, RblUnits.FeetThenNauticalMiles, RblView.Ground);
 
         // Slots stay globally unique even though each view only sees its own line.
         Assert.Equal(1, Assert.Single(radar).Slot);
@@ -388,7 +398,7 @@ public class RblLabelPlacementTests
     [Fact]
     public void OnScreenEndpointKeepsTheCrcOffset()
     {
-        var label = RblLabelPlacement.Compute(100f, 100f, 400f, 300f, LabelW, LabelH, ViewW, ViewH);
+        (float X, float Y)? label = RblLabelPlacement.Compute(100f, 100f, 400f, 300f, LabelW, LabelH, ViewW, ViewH);
 
         Assert.NotNull(label);
         Assert.Equal(409f, label.Value.X, 3);
@@ -400,7 +410,7 @@ public class RblLabelPlacementTests
     {
         // Line from screen centre heading due right, far end well past the right edge: the label lands
         // at the right edge, pulled in so the text fits.
-        var label = RblLabelPlacement.Compute(400f, 300f, 2000f, 300f, LabelW, LabelH, ViewW, ViewH);
+        (float X, float Y)? label = RblLabelPlacement.Compute(400f, 300f, 2000f, 300f, LabelW, LabelH, ViewW, ViewH);
 
         Assert.NotNull(label);
         Assert.Equal(ViewW - LabelW - 2f, label.Value.X, 3);
@@ -411,7 +421,7 @@ public class RblLabelPlacementTests
     public void BothEndpointsOffScreenStillLabelsTheCrossingLine()
     {
         // Horizontal line crossing the whole viewport: the label sits at the exit edge nearest B.
-        var label = RblLabelPlacement.Compute(-500f, 300f, 1500f, 300f, LabelW, LabelH, ViewW, ViewH);
+        (float X, float Y)? label = RblLabelPlacement.Compute(-500f, 300f, 1500f, 300f, LabelW, LabelH, ViewW, ViewH);
 
         Assert.NotNull(label);
         Assert.Equal(ViewW - LabelW - 2f, label.Value.X, 3);
@@ -427,7 +437,7 @@ public class RblLabelPlacementTests
     public void LabelNearTheEdgeIsClampedFullyInsideTheViewport()
     {
         // B sits just inside the bottom-right corner; the naive offset would push the text off both edges.
-        var label = RblLabelPlacement.Compute(400f, 300f, 795f, 595f, LabelW, LabelH, ViewW, ViewH);
+        (float X, float Y)? label = RblLabelPlacement.Compute(400f, 300f, 795f, 595f, LabelW, LabelH, ViewW, ViewH);
 
         Assert.NotNull(label);
         Assert.True(label.Value.X + LabelW <= ViewW);
@@ -437,7 +447,7 @@ public class RblLabelPlacementTests
     [Fact]
     public void LabelNearTheTopStaysBelowTheEdge()
     {
-        var label = RblLabelPlacement.Compute(400f, 300f, 400f, 1f, LabelW, LabelH, ViewW, ViewH);
+        (float X, float Y)? label = RblLabelPlacement.Compute(400f, 300f, 400f, 1f, LabelW, LabelH, ViewW, ViewH);
 
         Assert.NotNull(label);
         Assert.True(label.Value.Y >= LabelH);
@@ -447,7 +457,7 @@ public class RblLabelPlacementTests
     public void UnsizedViewportFallsBackToTheRawOffset()
     {
         // Before the first layout pass the viewport reports zero size; keep CRC's plain offset there.
-        var label = RblLabelPlacement.Compute(0f, 0f, 50f, 50f, LabelW, LabelH, 0f, 0f);
+        (float X, float Y)? label = RblLabelPlacement.Compute(0f, 0f, 50f, 50f, LabelW, LabelH, 0f, 0f);
 
         Assert.NotNull(label);
         Assert.Equal(59f, label.Value.X, 3);

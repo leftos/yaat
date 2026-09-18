@@ -4,6 +4,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -75,7 +76,7 @@ public class N342TFollowStraightInDownwindTests(ITestOutputHelper output)
     [Fact]
     public void N342T_SequencesBehind_StraightInJet()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -83,15 +84,15 @@ public class N342TFollowStraightInDownwindTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
             engine.Replay(recording, 0);
-            var snapshot = archive.ReadSnapshotAt(982);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(982);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=982 — skipping");
@@ -102,7 +103,7 @@ public class N342TFollowStraightInDownwindTests(ITestOutputHelper output)
 
             // Sanity: at the restored snapshot N342T is on Downwind and the FOLLOW
             // has not fired yet (it is at t=984).
-            var pre = engine.FindAircraft(Follower);
+            AircraftState? pre = engine.FindAircraft(Follower);
             Assert.NotNull(pre);
             Assert.IsType<DownwindPhase>(pre.Phases?.CurrentPhase);
 
@@ -126,8 +127,8 @@ public class N342TFollowStraightInDownwindTests(ITestOutputHelper output)
             for (int t = ReplayStopSeconds + 1; t <= ReplayStopSeconds + 300; t++)
             {
                 engine.TickOneSecond();
-                var f = engine.FindAircraft(Follower);
-                var l = engine.FindAircraft(Leader);
+                AircraftState? f = engine.FindAircraft(Follower);
+                AircraftState? l = engine.FindAircraft(Leader);
                 if (f is null || l is null)
                 {
                     break;

@@ -126,8 +126,8 @@ public class ApproachClearanceTests
         };
 
         // Aircraft directly south of threshold on centerline, heading north
-        var aircraft = MakeAircraft(heading: 360, lat: 37.65, lon: -122.22);
-        var ctx = MakeContext(aircraft);
+        AircraftState aircraft = MakeAircraft(heading: 360, lat: 37.65, lon: -122.22);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         bool done = phase.OnTick(ctx);
@@ -148,8 +148,8 @@ public class ApproachClearanceTests
         };
 
         // Aircraft is 0.1° east of the course line (~5nm cross-track)
-        var aircraft = MakeAircraft(heading: 360, lat: 37.65, lon: -122.12);
-        var ctx = MakeContext(aircraft);
+        AircraftState aircraft = MakeAircraft(heading: 360, lat: 37.65, lon: -122.12);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         bool done = phase.OnTick(ctx);
@@ -169,8 +169,8 @@ public class ApproachClearanceTests
         };
 
         // Aircraft is on the course line but heading 45° off
-        var aircraft = MakeAircraft(heading: 315, lat: 37.65, lon: -122.22);
-        var ctx = MakeContext(aircraft);
+        AircraftState aircraft = MakeAircraft(heading: 315, lat: 37.65, lon: -122.22);
+        PhaseContext ctx = MakeContext(aircraft);
 
         phase.OnStart(ctx);
         bool done = phase.OnTick(ctx);
@@ -214,12 +214,12 @@ public class ApproachClearanceTests
     [Fact]
     public void Jfac_CreatesPhaseSequence()
     {
-        var aircraft = MakeAircraft(heading: 300, destination: "OAK");
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(heading: 300, destination: "OAK");
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -232,9 +232,9 @@ public class ApproachClearanceTests
     [Fact]
     public void Jfac_SetsActiveApproach()
     {
-        var aircraft = MakeAircraft(heading: 300, destination: "OAK");
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(heading: 300, destination: "OAK");
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -249,9 +249,9 @@ public class ApproachClearanceTests
     [Fact]
     public void Jfac_SetsAssignedRunway()
     {
-        var aircraft = MakeAircraft(heading: 300, destination: "OAK");
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(heading: 300, destination: "OAK");
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -263,9 +263,9 @@ public class ApproachClearanceTests
     [Fact]
     public void Jfac_StartsInterceptPhase()
     {
-        var aircraft = MakeAircraft(heading: 300, destination: "OAK");
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(heading: 300, destination: "OAK");
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
@@ -278,12 +278,12 @@ public class ApproachClearanceTests
     [Fact]
     public void Jfac_UnknownApproach_Fails()
     {
-        var aircraft = MakeAircraft(destination: "OAK");
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(destination: "OAK");
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("VOR99");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
@@ -292,12 +292,12 @@ public class ApproachClearanceTests
     [Fact]
     public void Jfac_NoDestination_Fails()
     {
-        var aircraft = MakeAircraft(destination: "");
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(destination: "");
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("Cannot determine airport", result.Message);
@@ -306,19 +306,19 @@ public class ApproachClearanceTests
     [Fact]
     public void Jfac_ClearsNavigationRouteAndPendingApproach()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null || navDb.GetApproach("KOAK", "H12-Z") is null)
         {
             return;
         }
 
         NavigationDatabase.SetInstance(navDb);
-        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        (double Lat, double Lon)? hirmoPos = navDb.GetFixPosition("HIRMO");
         Assert.NotNull(hirmoPos);
 
-        var aircraft = MakeAircraft(destination: "KOAK");
+        AircraftState aircraft = MakeAircraft(destination: "KOAK");
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmoPos.Value.Lat, hirmoPos.Value.Lon) });
-        var rwy12 = MakeRunway("12", "OAK", 120);
+        RunwayInfo rwy12 = MakeRunway("12", "OAK", 120);
         aircraft.Approach.PendingClearance = new PendingApproachInfo
         {
             Clearance = new ApproachClearance
@@ -332,7 +332,7 @@ public class ApproachClearanceTests
         };
 
         var cmd = new JoinFinalApproachCourseCommand("H12-Z");
-        var result = NavigationCommandHandler.DispatchJfac(cmd, aircraft);
+        CommandResult result = NavigationCommandHandler.DispatchJfac(cmd, aircraft);
 
         Assert.True(result.Success);
         Assert.Empty(aircraft.Targets.NavigationRoute);
@@ -342,9 +342,9 @@ public class ApproachClearanceTests
     [Fact]
     public void Jfac_ClearsExistingPhases()
     {
-        var aircraft = MakeAircraft(heading: 300, destination: "OAK");
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(heading: 300, destination: "OAK");
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Set up existing phases
         aircraft.Phases = new PhaseList();
@@ -362,7 +362,7 @@ public class ApproachClearanceTests
         );
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.IsType<InterceptCoursePhase>(aircraft.Phases!.CurrentPhase);
@@ -371,13 +371,13 @@ public class ApproachClearanceTests
     [Fact]
     public void Jfac_ResolvesShorthand()
     {
-        var aircraft = MakeAircraft(heading: 300, destination: "OAK");
+        AircraftState aircraft = MakeAircraft(heading: 300, destination: "OAK");
         // ApproachId is "I28R" but user types "ILS28R"
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Contains("I28R", result.Message);
@@ -386,12 +386,12 @@ public class ApproachClearanceTests
     [Fact]
     public void Jfac_IcaoDestination_Normalized()
     {
-        var aircraft = MakeAircraft(heading: 300, destination: "KOAK");
-        var navDb = MakeNavDb();
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        AircraftState aircraft = MakeAircraft(heading: 300, destination: "KOAK");
+        NavigationDatabase navDb = MakeNavDb();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
     }
@@ -400,7 +400,7 @@ public class ApproachClearanceTests
 
     private static PhaseContext MakeContext(AircraftState aircraft)
     {
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         return new PhaseContext
         {
             Aircraft = aircraft,

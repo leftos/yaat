@@ -70,11 +70,11 @@ public partial class CopyViewSettingsDialog : Window
 
         HeaderText.Text = $"Copy into: {context.CurrentScenarioName}";
 
-        var scenarios = context.Preferences.GetSavedViewScenarioIds();
+        List<(string ScenarioId, string DisplayName)> scenarios = context.Preferences.GetSavedViewScenarioIds();
         scenarios.RemoveAll(s => s.ScenarioId == context.CurrentScenarioId);
         var scenarioEntries = scenarios.Select(s => new ComboEntry(s.ScenarioId, s.DisplayName)).ToList();
         ScenarioCombo.ItemsSource = scenarioEntries;
-        var hasScenarios = scenarioEntries.Count > 0;
+        bool hasScenarios = scenarioEntries.Count > 0;
         ScenarioRadio.IsEnabled = hasScenarios;
         ScenarioCombo.IsEnabled = hasScenarios;
         if (hasScenarios)
@@ -84,7 +84,7 @@ public partial class CopyViewSettingsDialog : Window
 
         var profileNames = context.Preferences.WindowProfiles.Select(p => p.Name).ToList();
         ProfileCombo.ItemsSource = profileNames;
-        var hasProfiles = profileNames.Count > 0;
+        bool hasProfiles = profileNames.Count > 0;
         ProfileRadio.IsEnabled = hasProfiles;
         ProfileCombo.IsEnabled = hasProfiles;
         if (hasProfiles)
@@ -176,12 +176,12 @@ public partial class CopyViewSettingsDialog : Window
 
     private void BuildScenarioRows(string sourceScenarioId)
     {
-        var context = _context!;
-        var prefs = context.Preferences;
-        var srcGround = prefs.GetGroundSettings(sourceScenarioId);
-        var srcRadar = prefs.GetRadarSettings(sourceScenarioId);
-        var sourceAirport = prefs.GetScenarioAirport(sourceScenarioId);
-        var mismatch = ComputeAirportMismatch(sourceAirport, srcGround, srcRadar);
+        CopyViewSettingsContext context = _context!;
+        UserPreferences prefs = context.Preferences;
+        SavedGroundSettings? srcGround = prefs.GetGroundSettings(sourceScenarioId);
+        SavedRadarSettings? srcRadar = prefs.GetRadarSettings(sourceScenarioId);
+        string? sourceAirport = prefs.GetScenarioAirport(sourceScenarioId);
+        bool mismatch = ComputeAirportMismatch(sourceAirport, srcGround, srcRadar);
 
         AddGroupHeader("Ground view");
         if (srcGround is null)
@@ -190,11 +190,11 @@ public partial class CopyViewSettingsDialog : Window
         }
         else
         {
-            foreach (var group in ViewSettingsCopyCatalog.GroundGroups)
+            foreach (GroundCopyGroup group in ViewSettingsCopyCatalog.GroundGroups)
             {
-                var isPosition = group.Key == ViewSettingsCopyCatalog.GroundPositionKey;
-                var current = group.Describe(context.CurrentGround);
-                var source = group.Describe(srcGround);
+                bool isPosition = group.Key == ViewSettingsCopyCatalog.GroundPositionKey;
+                string current = group.Describe(context.CurrentGround);
+                string source = group.Describe(srcGround);
                 if (isPosition)
                 {
                     current = WithAirport(context.CurrentAirport, current);
@@ -222,11 +222,11 @@ public partial class CopyViewSettingsDialog : Window
         }
         else
         {
-            foreach (var group in ViewSettingsCopyCatalog.RadarGroups)
+            foreach (RadarCopyGroup group in ViewSettingsCopyCatalog.RadarGroups)
             {
-                var isCenter = group.Key == ViewSettingsCopyCatalog.RadarCenterKey;
-                var current = group.Describe(context.CurrentRadar);
-                var source = group.Describe(srcRadar);
+                bool isCenter = group.Key == ViewSettingsCopyCatalog.RadarCenterKey;
+                string current = group.Describe(context.CurrentRadar);
+                string source = group.Describe(srcRadar);
                 if (isCenter)
                 {
                     current = WithAirport(context.CurrentAirport, current);
@@ -250,7 +250,7 @@ public partial class CopyViewSettingsDialog : Window
 
         if (mismatch)
         {
-            var current = context.CurrentAirport;
+            string? current = context.CurrentAirport;
             SetWarning(
                 (!string.IsNullOrEmpty(current) && !string.IsNullOrEmpty(sourceAirport))
                     ? $"⚠ Source is a different airport ({current} → {sourceAirport}). Copying map position / center will move your view to {sourceAirport}."
@@ -261,15 +261,15 @@ public partial class CopyViewSettingsDialog : Window
 
     private void BuildProfileRows(string profileName)
     {
-        var context = _context!;
-        var profile = context.Preferences.WindowProfiles.FirstOrDefault(p => p.Name == profileName);
+        CopyViewSettingsContext context = _context!;
+        SavedWindowProfile? profile = context.Preferences.WindowProfiles.FirstOrDefault(p => p.Name == profileName);
         if (profile is null)
         {
             AddInfo("    (profile not found)");
             return;
         }
 
-        var current = context.CurrentLayout;
+        SavedWindowProfile current = context.CurrentLayout;
 
         AddGroupHeader("Window geometry");
         var keys = profile.WindowGeometries.Keys.OrderBy(FriendlyWindowName, StringComparer.OrdinalIgnoreCase).ToList();
@@ -278,10 +278,10 @@ public partial class CopyViewSettingsDialog : Window
             AddInfo("    (profile captured no window geometry)");
         }
 
-        foreach (var key in keys)
+        foreach (string? key in keys)
         {
-            var sourceGeo = profile.WindowGeometries[key];
-            current.WindowGeometries.TryGetValue(key, out var currentGeo);
+            SavedWindowGeometry sourceGeo = profile.WindowGeometries[key];
+            current.WindowGeometries.TryGetValue(key, out SavedWindowGeometry? currentGeo);
             AddRow(
                 new RowSpec
                 {
@@ -349,8 +349,8 @@ public partial class CopyViewSettingsDialog : Window
 
     private bool ComputeAirportMismatch(string? sourceAirport, SavedGroundSettings? srcGround, SavedRadarSettings? srcRadar)
     {
-        var context = _context!;
-        var currentAirport = context.CurrentAirport;
+        CopyViewSettingsContext context = _context!;
+        string? currentAirport = context.CurrentAirport;
         if (!string.IsNullOrEmpty(currentAirport) && !string.IsNullOrEmpty(sourceAirport))
         {
             return !string.Equals(currentAirport, sourceAirport, StringComparison.OrdinalIgnoreCase);
@@ -373,7 +373,7 @@ public partial class CopyViewSettingsDialog : Window
 
     private string BuildMapsTooltip(SavedRadarSettings current, SavedRadarSettings source)
     {
-        var context = _context!;
+        CopyViewSettingsContext context = _context!;
         string Names(SavedRadarSettings s) =>
             s.EnabledStarsIds.Count == 0 ? "(none)" : string.Join(", ", s.EnabledStarsIds.Select(context.ResolveMapName));
         return $"Current: {Names(current)}\nSource: {Names(source)}";
@@ -460,7 +460,7 @@ public partial class CopyViewSettingsDialog : Window
 
     private void SetAllChecks(bool value)
     {
-        foreach (var (_, check) in _rows)
+        foreach ((string _, CheckBox? check) in _rows)
         {
             if (check.IsEnabled)
             {
@@ -486,9 +486,10 @@ public partial class CopyViewSettingsDialog : Window
     private static double NmBetween(double lat1, double lon1, double lat2, double lon2)
     {
         const double earthRadiusNm = 3440.065;
-        var dLat = ToRad(lat2 - lat1);
-        var dLon = ToRad(lon2 - lon1);
-        var a = (Math.Sin(dLat / 2) * Math.Sin(dLat / 2)) + (Math.Cos(ToRad(lat1)) * Math.Cos(ToRad(lat2)) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2));
+        double dLat = ToRad(lat2 - lat1);
+        double dLon = ToRad(lon2 - lon1);
+        double a =
+            (Math.Sin(dLat / 2) * Math.Sin(dLat / 2)) + (Math.Cos(ToRad(lat1)) * Math.Cos(ToRad(lat2)) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2));
         return earthRadiusNm * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
     }
 
@@ -506,12 +507,12 @@ public partial class CopyViewSettingsDialog : Window
             return $"vTDLS ({key["VTdlsView:".Length..]})";
         }
 
-        if (TryInstanceOrdinal(key, ViewInstanceOrdinals.RadarPrefix, out var radarOrdinal))
+        if (TryInstanceOrdinal(key, ViewInstanceOrdinals.RadarPrefix, out int radarOrdinal))
         {
             return $"Radar View window #{radarOrdinal}";
         }
 
-        if (TryInstanceOrdinal(key, ViewInstanceOrdinals.GroundPrefix, out var groundOrdinal))
+        if (TryInstanceOrdinal(key, ViewInstanceOrdinals.GroundPrefix, out int groundOrdinal))
         {
             return $"Ground View window #{groundOrdinal}";
         }
@@ -555,7 +556,7 @@ public partial class CopyViewSettingsDialog : Window
             return "—";
         }
 
-        var size = geo.IsMaximized ? "maximized" : $"{(int)geo.Width}×{(int)geo.Height}";
+        string size = geo.IsMaximized ? "maximized" : $"{(int)geo.Width}×{(int)geo.Height}";
         return geo.IsMinimized ? $"{size} (minimized)" : size;
     }
 
@@ -594,8 +595,8 @@ public partial class CopyViewSettingsDialog : Window
             return "default";
         }
 
-        var columns = layout.ColumnOrder?.Count ?? 0;
-        var hidden = layout.HiddenColumns?.Count ?? 0;
+        int columns = layout.ColumnOrder?.Count ?? 0;
+        int hidden = layout.HiddenColumns?.Count ?? 0;
         return columns == 0 && hidden == 0 ? "custom" : $"{columns} cols, {hidden} hidden";
     }
 
@@ -615,15 +616,15 @@ public partial class CopyViewSettingsDialog : Window
 
     private static bool SequenceEqual(List<string>? a, List<string>? b)
     {
-        var listA = a ?? [];
-        var listB = b ?? [];
+        List<string> listA = a ?? [];
+        List<string> listB = b ?? [];
         return listA.SequenceEqual(listB);
     }
 
     private static bool WidthsEqual(Dictionary<string, double>? a, Dictionary<string, double>? b)
     {
-        var countA = a?.Count ?? 0;
-        var countB = b?.Count ?? 0;
+        int countA = a?.Count ?? 0;
+        int countB = b?.Count ?? 0;
         if (countA != countB)
         {
             return false;
@@ -634,9 +635,9 @@ public partial class CopyViewSettingsDialog : Window
             return true;
         }
 
-        foreach (var (key, value) in a)
+        foreach ((string? key, double value) in a)
         {
-            if (!b.TryGetValue(key, out var other) || Math.Abs(other - value) > 0.5)
+            if (!b.TryGetValue(key, out double other) || Math.Abs(other - value) > 0.5)
             {
                 return false;
             }

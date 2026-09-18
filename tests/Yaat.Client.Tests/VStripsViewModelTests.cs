@@ -1,3 +1,4 @@
+using System.Reflection;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -78,13 +79,13 @@ public class VStripsViewModelTests
         // Use reflection to bypass the dispatcher hop in tests so the VM is in
         // a usable state without a real UI thread. This mirrors the pattern
         // used in other client VM unit tests for observable-collection setup.
-        var baysField = typeof(VStripsViewModel).GetField(
+        FieldInfo baysField = typeof(VStripsViewModel).GetField(
             "_baysById",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
         )!;
         var baysDict = (Dictionary<string, StripBayViewModel>)baysField.GetValue(vm)!;
 
-        foreach (var bayDto in config.Bays)
+        foreach (StripBayConfigDto bayDto in config.Bays)
         {
             var bayVm = new StripBayViewModel(bayDto);
             vm.Bays.Add(bayVm);
@@ -97,7 +98,7 @@ public class VStripsViewModelTests
 
         // Mirror ApplyBayConfig's facility-airport capture so the METAR filter
         // (RebuildMetars) has the same scope it would in production.
-        var airportsField = typeof(VStripsViewModel).GetField(
+        FieldInfo airportsField = typeof(VStripsViewModel).GetField(
             "_facilityAirports",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
         )!;
@@ -109,7 +110,7 @@ public class VStripsViewModelTests
     [Fact]
     public void ReconcileItems_CreatesNewViewModelsForUnknownIds()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         vm.ReconcileItems([FullStrip("S1", "UAL100"), FullStrip("S2", "UAL200")]);
 
         Assert.Equal(2, vm.ItemsByIdForTests.Count);
@@ -120,15 +121,15 @@ public class VStripsViewModelTests
     [Fact]
     public void ReconcileItems_UpdatesExistingInstanceInPlace()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
-        var original = vm.ItemsByIdForTests["S1"];
+        StripItemViewModel original = vm.ItemsByIdForTests["S1"];
 
         // Server writes annotation box 10 at FieldValues[box+9] = [10] per
         // StripMutations.SetAnnotationBox — FieldValues[9] is route/remarks,
         // NOT box 10. The VM's Annotation10 reads Field(10).
-        var fieldsUpdated = new string[19];
-        for (var i = 0; i < 19; i++)
+        string[] fieldsUpdated = new string[19];
+        for (int i = 0; i < 19; i++)
         {
             fieldsUpdated[i] = "";
         }
@@ -147,7 +148,7 @@ public class VStripsViewModelTests
     [Fact]
     public void ReconcileFullState_PlacesItemsInCorrectRacks()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
 
         vm.ReconcileItems([FullStrip("S1", "UAL100"), FullStrip("S2", "UAL200")]);
@@ -171,7 +172,7 @@ public class VStripsViewModelTests
             )
         );
 
-        var groundBay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel groundBay = vm.Bays.Single(b => b.BayId == "bay-gnd");
         Assert.Equal(2, groundBay.Racks[0].Strips.Count);
         Assert.Equal("S1", groundBay.Racks[0].Strips[0].Id);
         Assert.Equal("S2", groundBay.Racks[0].Strips[1].Id);
@@ -181,7 +182,7 @@ public class VStripsViewModelTests
     [Fact]
     public void ReconcileFullState_DropsStaleItems()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
 
         vm.ReconcileItems([FullStrip("S1", "UAL100"), FullStrip("S2", "UAL200")]);
@@ -206,7 +207,7 @@ public class VStripsViewModelTests
     [Fact]
     public void ReconcileFullState_HasNewItemFlaggedForTargetBay()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
 
@@ -243,7 +244,7 @@ public class VStripsViewModelTests
     [Fact]
     public void ReconcileFullState_PrinterItems_PopulatePrinterQueue()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
 
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
@@ -260,7 +261,7 @@ public class VStripsViewModelTests
         // leaving the departure/arrival carousels — and the header badge
         // counts derived from them — showing stale strips until the next
         // broadcast reconciled them.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         vm.SetConnected(true);
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100"), ArrivalStrip("S2", "UAL200")]);
@@ -284,13 +285,13 @@ public class VStripsViewModelTests
     [Fact]
     public async Task MoveStripAsync_FullStrip_EmitsStripCanonical()
     {
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
 
         await vm.MoveStripAsync(vm.ItemsByIdForTests["S1"], vm.Bays.Single(b => b.BayId == "bay-loc"), rack: 1, index: 2);
 
-        var entry = Assert.Single(captured);
+        (string Callsign, string Command) entry = Assert.Single(captured);
         // UI dispatches by strip id, not callsign — keeps scanned copies
         // (which share a callsign with the original) addressable.
         Assert.Equal("", entry.Callsign);
@@ -305,7 +306,7 @@ public class VStripsViewModelTests
         // move only the departure strips, addressing each by id (not the bare
         // callsign form, which would mis-target an arrival's ARRIVAL_ id and
         // spawn a phantom server-side).
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.SelectedBay = vm.Bays.Single(b => b.BayId == "bay-gnd");
         vm.ReconcileItems([FullStrip("STRIP_UAL100", "UAL100"), ArrivalStrip("ARRIVAL_DAL200", "DAL200")]);
@@ -313,7 +314,7 @@ public class VStripsViewModelTests
 
         await vm.MoveAllPrinterStripsToBayAsync(PrinterQueueKind.Departure);
 
-        var entry = Assert.Single(captured);
+        (string Callsign, string Command) entry = Assert.Single(captured);
         Assert.Equal("", entry.Callsign);
         Assert.Equal("STRIP STRIP_UAL100 FAC1/GROUND/1", entry.Command);
     }
@@ -324,7 +325,7 @@ public class VStripsViewModelTests
         // Issue #278 — the Arrival Printer section's "Move All to Bay" moves only
         // arrival strips, addressed by their ARRIVAL_ id so the server recognizes
         // and relocates them (no departure strips swept, no phantom).
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.SelectedBay = vm.Bays.Single(b => b.BayId == "bay-gnd");
         vm.ReconcileItems([FullStrip("STRIP_UAL100", "UAL100"), ArrivalStrip("ARRIVAL_DAL200", "DAL200")]);
@@ -332,7 +333,7 @@ public class VStripsViewModelTests
 
         await vm.MoveAllPrinterStripsToBayAsync(PrinterQueueKind.Arrival);
 
-        var entry = Assert.Single(captured);
+        (string Callsign, string Command) entry = Assert.Single(captured);
         Assert.Equal("", entry.Callsign);
         Assert.Equal("STRIP ARRIVAL_DAL200 FAC1/GROUND/1", entry.Command);
     }
@@ -345,7 +346,7 @@ public class VStripsViewModelTests
         // guard, the terminal buffer + command log would echo a redundant
         // STRIP that the server silently rewinds. Covers the "drop on own
         // position" branch of IsNoOpMove.
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
         vm.ReconcileFullState(
@@ -374,7 +375,7 @@ public class VStripsViewModelTests
         // count (append-above-self) which slipped past the first no-op check
         // because strips[count] doesn't exist. With hiding + visual-idx math,
         // target == fromIdx (== count - 1) and the existing no-op guard fires.
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100"), FullStrip("S2", "UAL200"), FullStrip("S3", "UAL300")]);
         vm.ReconcileFullState(
@@ -405,7 +406,7 @@ public class VStripsViewModelTests
         // original [A, B, C, D]). An earlier iteration of the no-op guard
         // included this as a no-op and suppressed a real move; this test
         // locks in the correct "emit" behavior.
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100"), FullStrip("S2", "UAL200"), FullStrip("S3", "UAL300"), FullStrip("S4", "UAL400")]);
         vm.ReconcileFullState(
@@ -424,7 +425,7 @@ public class VStripsViewModelTests
         // S2 is at model idx 1; target idx 2 reorders to [S1, S3, S2, S4] server-side.
         await vm.MoveStripAsync(vm.ItemsByIdForTests["S2"], vm.Bays.Single(b => b.BayId == "bay-gnd"), rack: 0, index: 2);
 
-        var entry = Assert.Single(captured);
+        (string Callsign, string Command) entry = Assert.Single(captured);
         Assert.Equal("STRIP S2 FAC1/GROUND/1/3", entry.Command);
     }
 
@@ -435,7 +436,7 @@ public class VStripsViewModelTests
         // matches the source idx — the destination bay/rack is different, so
         // the strip moves. Pairs with the own-idx test above to confirm the
         // no-op guard keys on bay + rack, not just index.
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
         vm.ReconcileFullState(
@@ -462,7 +463,7 @@ public class VStripsViewModelTests
         // null index = "append to the tail of the rack" on the wire. Server
         // decides placement, so the client can't short-circuit even if the
         // strip is already in the target rack. Dispatch always fires.
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
         vm.ReconcileFullState(
@@ -480,7 +481,7 @@ public class VStripsViewModelTests
 
         await vm.MoveStripAsync(vm.ItemsByIdForTests["S1"], vm.Bays.Single(b => b.BayId == "bay-gnd"), rack: 0, index: null);
 
-        var entry = Assert.Single(captured);
+        (string Callsign, string Command) entry = Assert.Single(captured);
         // Wire drops the trailing /index token; UI prefixes the strip id.
         Assert.Equal("STRIP S1 FAC1/GROUND/1", entry.Command);
     }
@@ -488,13 +489,13 @@ public class VStripsViewModelTests
     [Fact]
     public async Task MoveStripAsync_HalfStrip_EmitsHsmWithStripId()
     {
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([HalfStrip("H1", "NORDO")]);
 
         await vm.MoveStripAsync(vm.ItemsByIdForTests["H1"], vm.Bays.Single(b => b.BayId == "bay-loc"), 0, 0);
 
-        var entry = Assert.Single(captured);
+        (string Callsign, string Command) entry = Assert.Single(captured);
         Assert.Equal("", entry.Callsign);
         // HSM addresses the half-strip by id (not first-line text) so two
         // half-strips with duplicate first-line cells stay distinguishable.
@@ -505,13 +506,13 @@ public class VStripsViewModelTests
     [Fact]
     public async Task DeleteStripAsync_FullStrip_EmitsStripdById()
     {
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
 
         await vm.DeleteStripAsync(vm.ItemsByIdForTests["S1"]);
 
-        var entry = Assert.Single(captured);
+        (string Callsign, string Command) entry = Assert.Single(captured);
         // STRIPD addresses by strip id so a scanned copy
         // <c>STRIP_{callsign}_{shortGuid}</c> can be removed without
         // hitting the original.
@@ -522,7 +523,7 @@ public class VStripsViewModelTests
     [Fact]
     public async Task ToggleOffsetAsync_FullStrip_EmitsStripoById()
     {
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
 
@@ -534,7 +535,7 @@ public class VStripsViewModelTests
     [Fact]
     public async Task AnnotateAsync_EmitsAnByStripId()
     {
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
 
@@ -546,7 +547,7 @@ public class VStripsViewModelTests
     [Fact]
     public async Task AnnotateAsync_Box8a_EmitsVerbatim()
     {
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.ReconcileItems([FullStrip("S1", "UAL100")]);
 
@@ -558,7 +559,7 @@ public class VStripsViewModelTests
     [Fact]
     public async Task CreateSeparatorAsync_WhenLocked_DoesNothing()
     {
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
         vm.SeparatorsLocked = true;
 
@@ -570,7 +571,7 @@ public class VStripsViewModelTests
     [Fact]
     public async Task CreateBlankAsync_NullBay_EmitsBareBlank()
     {
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, SimpleConfig());
 
         await vm.CreateBlankAsync(null, null, null);
@@ -599,14 +600,14 @@ public class VStripsViewModelTests
     [Fact]
     public async Task SelectBayAsync_ExternalBay_LeavesSelectionUnchanged()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, ConfigWithExternal());
         // Pick the own ground bay first so there is a prior selection to preserve.
         await vm.SelectBayAsync(vm.Bays[0]);
-        var priorSelection = vm.SelectedBay;
+        StripBayViewModel? priorSelection = vm.SelectedBay;
         Assert.NotNull(priorSelection);
 
-        var externalBay = vm.Bays.First(b => b.IsExternal);
+        StripBayViewModel externalBay = vm.Bays.First(b => b.IsExternal);
         await vm.SelectBayAsync(externalBay);
 
         Assert.Same(priorSelection, vm.SelectedBay);
@@ -616,11 +617,11 @@ public class VStripsViewModelTests
     [Fact]
     public async Task MoveStripAsync_ToExternalBay_EmitsPushCanonical()
     {
-        var (vm, captured) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
         SeedBays(vm, ConfigWithExternal());
         vm.ReconcileItems([FullStrip("STRIP_UAL100", "UAL100")]);
-        var strip = vm.ItemsByIdForTests["STRIP_UAL100"];
-        var externalBay = vm.Bays.First(b => b.IsExternal);
+        StripItemViewModel strip = vm.ItemsByIdForTests["STRIP_UAL100"];
+        StripBayViewModel externalBay = vm.Bays.First(b => b.IsExternal);
 
         await vm.MoveStripAsync(strip, externalBay, rack: 0, index: 0);
 
@@ -629,7 +630,7 @@ public class VStripsViewModelTests
         // already accepts external bays. The UI prefixes the strip id so
         // the dispatch targets this exact strip even if its callsign
         // collides with a scanned copy.
-        var (callsign, canonical) = captured[0];
+        (string? callsign, string? canonical) = captured[0];
         Assert.Equal("", callsign);
         Assert.StartsWith("STRIP STRIP_UAL100 NCT", canonical);
     }
@@ -637,7 +638,7 @@ public class VStripsViewModelTests
     [Fact]
     public async Task NextBayAsync_SkipsExternalBays()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, ConfigWithExternal());
         await vm.SelectBayAsync(vm.Bays[0]); // GROUND (own)
 
@@ -652,7 +653,7 @@ public class VStripsViewModelTests
     [Fact]
     public void ApplyBayConfig_ExternalOnlyBays_LeavesNoSelection()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         // Simulate the edge case where ApplyBayConfig's post-dispatcher work
         // runs via the test seeding path: only external bays present.
         SeedBays(
@@ -690,7 +691,7 @@ public class VStripsViewModelTests
     [Fact]
     public void ReconcileItems_DropsItemsFromOtherFacility_WhenScopedToOwnFacility()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig()); // FacilityId = "FAC1"
 
         vm.ReconcileItems([
@@ -708,7 +709,7 @@ public class VStripsViewModelTests
         // Edge case: when an item's FacilityId is stale but its BayId is one
         // we know about (e.g. external bay pushed from elsewhere), we keep
         // the item so drag-drop UX stays correct.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig()); // bays bay-gnd, bay-loc
 
         vm.ReconcileItems([FullStripFor("STRIP_X", "X1", facilityId: "UNKNOWN", bayId: "bay-loc")]);
@@ -721,7 +722,7 @@ public class VStripsViewModelTests
     {
         // Legacy (FacilityId unset) path: VM accepts every broadcast item.
         // This matches the pre-Item-3 behavior used by existing tests.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
 
         vm.ReconcileItems([
             FullStripFor("STRIP_A", "A1", facilityId: "FOO", bayId: "any"),
@@ -751,7 +752,7 @@ public class VStripsViewModelTests
     [Fact]
     public void ApplyMetars_FiltersToFacilityAirports_AndMatchesFaaToIcao()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, ConfigWithAirports("NCT", "SFO", "OAK")); // FAA ids → KSFO/KOAK
 
         vm.ApplyMetars([MetarSfo, MetarOak, MetarSjc]);
@@ -764,7 +765,7 @@ public class VStripsViewModelTests
     [Fact]
     public void ApplyMetars_OrdersByFacilityAirportList_PrimaryFirst()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         // OAK listed first → it leads the bar even though SFO arrives first.
         SeedBays(vm, ConfigWithAirports("NCT", "OAK", "SFO"));
 
@@ -777,7 +778,7 @@ public class VStripsViewModelTests
     [Fact]
     public void ApplyMetars_EmptyFacilityAirports_ShowsAllAsFallback()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, ConfigWithAirports("NoStars")); // no airports resolved
 
         vm.ApplyMetars([MetarSfo, MetarSjc]);
@@ -788,7 +789,7 @@ public class VStripsViewModelTests
     [Fact]
     public void ApplyMetars_RefiltersWhenFacilitySwitches()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, ConfigWithAirports("NCT", "SFO", "OAK"));
         vm.ApplyMetars([MetarSfo, MetarOak, MetarSjc]);
         Assert.Equal(["KSFO", "KOAK"], vm.Metars.Select(m => m.StationId));
@@ -806,7 +807,7 @@ public class VStripsViewModelTests
     {
         // No weather loaded → the bar shows the calm/standard default the sim applies for the
         // facility's airports (matching the desktop METAR panel), rather than hiding.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         vm.SetConnected(true);
         SeedBays(vm, ConfigWithAirports("NCT", "SFO"));
         vm.ApplyMetars([MetarSfo]);
@@ -823,7 +824,7 @@ public class VStripsViewModelTests
     public void ApplyMetars_NoWeather_Disconnected_EmptiesBar()
     {
         // Disconnected clients show no live data — the default must not be fabricated.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         vm.SetConnected(true);
         SeedBays(vm, ConfigWithAirports("NCT", "SFO"));
         vm.ApplyMetars([]);
@@ -840,7 +841,7 @@ public class VStripsViewModelTests
     public void ApplyMetars_NoWeather_EmptyFacilityAirports_StaysEmpty()
     {
         // A facility with no resolvable airports has nothing to synthesize a default for.
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         vm.SetConnected(true);
         SeedBays(vm, ConfigWithAirports("NoStars"));
 
@@ -855,9 +856,9 @@ public class VStripsViewModelTests
     [Fact]
     public async Task CreateHalfStrip_MarksNewStripForFocus()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
 
         await vm.CreateHalfStripAsync(bay, 0, []);
         // Simulate the server's incremental broadcast for the new strip.
@@ -884,7 +885,7 @@ public class VStripsViewModelTests
             getUserInitials: null
         );
         SeedBays(vm, SimpleConfig());
-        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
 
         await vm.CreateHalfStripAsync(bay, 0, []);
 
@@ -894,7 +895,7 @@ public class VStripsViewModelTests
     [Fact]
     public void NewHalfStrip_WithoutLocalCreate_IsNotMarkedForFocus()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
 
         // A half-strip arrives without this client issuing HSC (e.g. a remote
@@ -907,9 +908,9 @@ public class VStripsViewModelTests
     [Fact]
     public async Task CreateHalfStrip_DoesNotMarkSubsequentFullStrip()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
 
         await vm.CreateHalfStripAsync(bay, 0, []);
         // The pending focus is consumed only by a new half-strip; a full strip
@@ -924,9 +925,9 @@ public class VStripsViewModelTests
     [Fact]
     public async Task CreateSeparator_MarksNewStripForFocus()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
 
         await vm.CreateSeparatorAsync(SeparatorStyle.Handwritten, bay, 0, index: null, label: null);
         vm.ReconcileItems([Separator("SEP_new", StripItemType.HandwrittenSeparator)]);
@@ -937,7 +938,7 @@ public class VStripsViewModelTests
     [Fact]
     public void NewSeparator_WithoutLocalCreate_IsNotMarkedForFocus()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
 
         vm.ReconcileItems([Separator("SEP_remote", StripItemType.WhiteSeparator)]);
@@ -948,10 +949,10 @@ public class VStripsViewModelTests
     [Fact]
     public async Task CreateSeparator_WhenLocked_DoesNotArmFocus()
     {
-        var (vm, captured) = MakeVm();
-        var locked = SimpleConfig() with { SeparatorsLocked = true };
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
+        FlightStripsConfigDto locked = SimpleConfig() with { SeparatorsLocked = true };
         SeedBays(vm, locked);
-        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
 
         // Locked separators short-circuit before dispatch, so no command is sent
         // and no focus flag is armed for the (illegitimate) next separator.
@@ -967,9 +968,9 @@ public class VStripsViewModelTests
     [Fact]
     public async Task CreateBlank_MarksNewStripForFocus()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
 
         await vm.CreateBlankAsync(bay, 0, index: null);
         vm.ReconcileItems([BlankStrip("BLANK_new")]);
@@ -980,7 +981,7 @@ public class VStripsViewModelTests
     [Fact]
     public void NewBlank_WithoutLocalCreate_IsNotMarkedForFocus()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
 
         vm.ReconcileItems([BlankStrip("BLANK_remote")]);
@@ -991,9 +992,9 @@ public class VStripsViewModelTests
     [Fact]
     public async Task CreateSeparator_DoesNotMarkSubsequentHalfStrip()
     {
-        var (vm, _) = MakeVm();
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
 
         // A separator's pending focus must not be claimed by a half-strip of a
         // different category arriving first.

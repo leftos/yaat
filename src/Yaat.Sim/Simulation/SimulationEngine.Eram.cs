@@ -40,7 +40,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     internal bool DrainEramCrrGroupsChanged()
     {
-        var changed = EramCrrGroupsChanged;
+        bool changed = EramCrrGroupsChanged;
         EramCrrGroupsChanged = false;
         return changed;
     }
@@ -52,7 +52,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void ApplyCrrGroup(RecordedEramCrrGroup group)
     {
-        var label = group.Label.ToUpperInvariant();
+        string label = group.Label.ToUpperInvariant();
         if (group.Lat is not { } lat || group.Lon is not { } lon)
         {
             CrrGroups.Remove(label);
@@ -60,7 +60,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var color = Enum.TryParse<EramCrrColor>(group.Color, ignoreCase: true, out var parsed) ? parsed : EramCrrColor.White;
+        EramCrrColor color = Enum.TryParse<EramCrrColor>(group.Color, ignoreCase: true, out EramCrrColor parsed) ? parsed : EramCrrColor.White;
         CrrGroups[label] = new EramCrrGroup(label, color, lat, lon);
         MarkEramCrrGroupsChanged();
     }

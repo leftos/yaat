@@ -39,7 +39,7 @@ public sealed class MvaDatabase
     public MvaSector? FindSector(LatLon position)
     {
         MvaSector? best = null;
-        foreach (var sector in Sectors)
+        foreach (MvaSector sector in Sectors)
         {
             if (sector.Contains(position) && (best is null || sector.FloorFtMsl > best.FloorFtMsl))
             {
@@ -60,7 +60,7 @@ public sealed class MvaDatabase
     /// </summary>
     public (MvaRelation Relation, MvaSector? Sector) Classify(LatLon position, double altitudeFtMsl, int atBandFt)
     {
-        var sector = FindSector(position);
+        MvaSector? sector = FindSector(position);
         if (sector is null)
         {
             return (MvaRelation.NoData, null);
@@ -81,9 +81,9 @@ public sealed class MvaDatabase
 
     public static MvaDatabase LoadDefault()
     {
-        var baseDir = AppContext.BaseDirectory;
-        var dataDir = Path.Combine(baseDir, DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        var files = FindGeoJsonFiles(dataDir);
+        string baseDir = AppContext.BaseDirectory;
+        string dataDir = Path.Combine(baseDir, DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        string[] files = FindGeoJsonFiles(dataDir);
 
         if (files.Length == 0)
         {
@@ -92,7 +92,7 @@ public sealed class MvaDatabase
 
         if (files.Length == 0)
         {
-            var sourcePaths = FindFixturesFromWorkingTree();
+            List<string> sourcePaths = FindFixturesFromWorkingTree();
             if (sourcePaths.Count > 0)
             {
                 files = [.. sourcePaths];
@@ -112,7 +112,7 @@ public sealed class MvaDatabase
         var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, "src", "Yaat.Sim", DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string candidate = Path.Combine(dir.FullName, "src", "Yaat.Sim", DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
             if (Directory.Exists(candidate))
             {
                 return FindGeoJsonFiles(candidate).ToList();
@@ -137,7 +137,7 @@ public sealed class MvaDatabase
     public static MvaDatabase FromGeoJsonFiles(IEnumerable<string> paths)
     {
         var sectors = new List<MvaSector>();
-        foreach (var path in paths.Order(StringComparer.OrdinalIgnoreCase))
+        foreach (string? path in paths.Order(StringComparer.OrdinalIgnoreCase))
         {
             sectors.AddRange(FromGeoJson(ReadGeoJsonText(path)).Sectors);
         }
@@ -152,7 +152,7 @@ public sealed class MvaDatabase
             return File.ReadAllText(path);
         }
 
-        using var file = File.OpenRead(path);
+        using FileStream file = File.OpenRead(path);
         using var brotli = new BrotliStream(file, CompressionMode.Decompress);
         using var reader = new StreamReader(brotli);
         return reader.ReadToEnd();
@@ -161,16 +161,16 @@ public sealed class MvaDatabase
     public static MvaDatabase FromGeoJson(string geoJson)
     {
         using var doc = JsonDocument.Parse(geoJson);
-        var root = doc.RootElement;
-        if (!root.TryGetProperty("features", out var features) || features.ValueKind != JsonValueKind.Array)
+        JsonElement root = doc.RootElement;
+        if (!root.TryGetProperty("features", out JsonElement features) || features.ValueKind != JsonValueKind.Array)
         {
             return new MvaDatabase([]);
         }
 
         var sectors = new List<MvaSector>();
-        foreach (var feature in features.EnumerateArray())
+        foreach (JsonElement feature in features.EnumerateArray())
         {
-            var sector = ParseFeature(feature);
+            MvaSector? sector = ParseFeature(feature);
             if (sector is not null)
             {
                 sectors.Add(sector);
@@ -182,13 +182,13 @@ public sealed class MvaDatabase
 
     private static MvaSector? ParseFeature(JsonElement feature)
     {
-        if (!feature.TryGetProperty("properties", out var props) || !feature.TryGetProperty("geometry", out var geometry))
+        if (!feature.TryGetProperty("properties", out JsonElement props) || !feature.TryGetProperty("geometry", out JsonElement geometry))
         {
             return null;
         }
 
         if (
-            !props.TryGetProperty("mvaFloorFt", out var floorElement)
+            !props.TryGetProperty("mvaFloorFt", out JsonElement floorElement)
             || floorElement.ValueKind != JsonValueKind.Number
             || !floorElement.TryGetInt32(out int floorFt)
         )
@@ -196,7 +196,7 @@ public sealed class MvaDatabase
             return null;
         }
 
-        var rings = ParseRings(geometry);
+        List<IReadOnlyList<LatLon>> rings = ParseRings(geometry);
         if (rings.Count == 0)
         {
             return null;
@@ -215,9 +215,9 @@ public sealed class MvaDatabase
     {
         var rings = new List<IReadOnlyList<LatLon>>();
         if (
-            !geometry.TryGetProperty("type", out var typeElement)
+            !geometry.TryGetProperty("type", out JsonElement typeElement)
             || typeElement.GetString() != "Polygon"
-            || !geometry.TryGetProperty("coordinates", out var coords)
+            || !geometry.TryGetProperty("coordinates", out JsonElement coords)
         )
         {
             return rings;
@@ -225,12 +225,12 @@ public sealed class MvaDatabase
 
         // GeoJSON Polygon: ring 0 is the exterior boundary, rings 1+ are interior holes. Order is
         // preserved so MvaSector can apply exterior-minus-holes containment.
-        foreach (var ringElement in coords.EnumerateArray())
+        foreach (JsonElement ringElement in coords.EnumerateArray())
         {
             var ring = new List<LatLon>();
-            foreach (var coordinate in ringElement.EnumerateArray())
+            foreach (JsonElement coordinate in ringElement.EnumerateArray())
             {
-                var pair = coordinate.EnumerateArray().ToArray();
+                JsonElement[] pair = coordinate.EnumerateArray().ToArray();
                 if (pair.Length < 2)
                 {
                     continue;
@@ -249,5 +249,5 @@ public sealed class MvaDatabase
     }
 
     private static string? GetString(JsonElement props, string name) =>
-        props.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        props.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 }

@@ -44,14 +44,16 @@ public class RoomMembershipWireShapeTests
     // register as drift.
     private static string DescribePrimaryConstructor(Type type)
     {
-        var ctor = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance).OrderByDescending(c => c.GetParameters().Length).First();
+        ConstructorInfo ctor = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance)
+            .OrderByDescending(c => c.GetParameters().Length)
+            .First();
 
         return string.Join(", ", ctor.GetParameters().Select(p => $"{p.Name}:{Describe(p.ParameterType)}"));
     }
 
     private static string Describe(Type type)
     {
-        var underlying = Nullable.GetUnderlyingType(type);
+        Type? underlying = Nullable.GetUnderlyingType(type);
         if (underlying is not null)
         {
             return Describe(underlying);
@@ -62,7 +64,7 @@ public class RoomMembershipWireShapeTests
             return type.Name;
         }
 
-        var name = type.Name[..type.Name.IndexOf('`', StringComparison.Ordinal)];
+        string name = type.Name[..type.Name.IndexOf('`', StringComparison.Ordinal)];
         return $"{name}<{string.Join(",", type.GetGenericArguments().Select(Describe))}>";
     }
 }

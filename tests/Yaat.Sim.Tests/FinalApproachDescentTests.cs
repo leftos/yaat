@@ -27,7 +27,7 @@ public class FinalApproachDescentTests
         int maxTicks = 600
     )
     {
-        var rwy = TestRunwayFactory.Make(
+        RunwayInfo rwy = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "OAK",
             thresholdLat: 37.72,
@@ -37,8 +37,8 @@ public class FinalApproachDescentTests
         );
 
         // Place aircraft on the extended centerline at given distance
-        var reciprocal = rwy.TrueHeading.ToReciprocal();
-        var startPos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, distNm);
+        TrueHeading reciprocal = rwy.TrueHeading.ToReciprocal();
+        (double Lat, double Lon) startPos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, distNm);
 
         var ac = new AircraftState
         {
@@ -132,7 +132,7 @@ public class FinalApproachDescentTests
         double gsAt6_8 = GlideSlopeGeometry.AltitudeAtDistance(6.8, 9, AircraftCategory.Jet);
         double startAlt = gsAt6_8 + 1300; // ~3474ft
 
-        var r = RunDescentScenario("High aircraft 1300ft above GS at 6.8nm", distNm: 6.8, startAltitude: startAlt, startSpeed: 140);
+        DescentResult r = RunDescentScenario("High aircraft 1300ft above GS at 6.8nm", distNm: 6.8, startAltitude: startAlt, startSpeed: 140);
 
         // At 2nm from threshold, GS altitude is ~645ft. Aircraft should be within 100ft.
         // We check the final result: aircraft should have converged and crossed the threshold
@@ -151,7 +151,7 @@ public class FinalApproachDescentTests
         double gsAt5 = GlideSlopeGeometry.AltitudeAtDistance(5.0, 9, AircraftCategory.Jet);
         double standardFpm = GlideSlopeGeometry.RequiredDescentRate(140, GlideSlopeGeometry.StandardAngleDeg);
 
-        var rwy = TestRunwayFactory.Make(
+        RunwayInfo rwy = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "OAK",
             thresholdLat: 37.72,
@@ -160,8 +160,8 @@ public class FinalApproachDescentTests
             elevationFt: 9
         );
 
-        var reciprocal = rwy.TrueHeading.ToReciprocal();
-        var startPos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 5.0);
+        TrueHeading reciprocal = rwy.TrueHeading.ToReciprocal();
+        (double Lat, double Lon) startPos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 5.0);
 
         var ac = new AircraftState
         {
@@ -208,7 +208,7 @@ public class FinalApproachDescentTests
         double gsAt5 = GlideSlopeGeometry.AltitudeAtDistance(5.0, 9, AircraftCategory.Jet);
         double standardFpm = GlideSlopeGeometry.RequiredDescentRate(140, GlideSlopeGeometry.StandardAngleDeg);
 
-        var rwy = TestRunwayFactory.Make(
+        RunwayInfo rwy = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "OAK",
             thresholdLat: 37.72,
@@ -217,8 +217,8 @@ public class FinalApproachDescentTests
             elevationFt: 9
         );
 
-        var reciprocal = rwy.TrueHeading.ToReciprocal();
-        var startPos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 5.0);
+        TrueHeading reciprocal = rwy.TrueHeading.ToReciprocal();
+        (double Lat, double Lon) startPos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 5.0);
 
         var ac = new AircraftState
         {
@@ -272,7 +272,7 @@ public class FinalApproachDescentTests
         double gsAt5 = GlideSlopeGeometry.AltitudeAtDistance(5.0, thresholdElev, AircraftCategory.Jet);
         double startAlt = gsAt5 - 600;
 
-        var rwy = TestRunwayFactory.Make(
+        RunwayInfo rwy = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "OAK",
             thresholdLat: 37.72,
@@ -281,8 +281,8 @@ public class FinalApproachDescentTests
             elevationFt: thresholdElev
         );
 
-        var reciprocal = rwy.TrueHeading.ToReciprocal();
-        var startPos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 5.0);
+        TrueHeading reciprocal = rwy.TrueHeading.ToReciprocal();
+        (double Lat, double Lon) startPos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 5.0);
 
         var ac = new AircraftState
         {
@@ -350,7 +350,7 @@ public class FinalApproachDescentTests
         double thresholdElev = 9;
         double startAlt = thresholdElev + 800;
 
-        var r = RunDescentScenario(
+        DescentResult r = RunDescentScenario(
             "Too high at MAP",
             distNm: 0.5,
             startAltitude: startAlt,
@@ -372,7 +372,7 @@ public class FinalApproachDescentTests
         double thresholdElev = 9;
         double gsAtHalfNm = GlideSlopeGeometry.AltitudeAtDistance(0.5, thresholdElev, AircraftCategory.Jet);
 
-        var r = RunDescentScenario(
+        DescentResult r = RunDescentScenario(
             "On GS at MAP — no go-around",
             distNm: 0.5,
             startAltitude: gsAtHalfNm,

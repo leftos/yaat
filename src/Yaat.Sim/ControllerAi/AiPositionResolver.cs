@@ -20,7 +20,7 @@ public static class AiPositionResolver
         IReadOnlyDictionary<string, ControlRole> roleOverrides
     )
     {
-        var cab =
+        FacilityConfig cab =
             FindCabFacility(config.Facility, primaryAirportId)
             ?? throw new InvalidOperationException($"ARTCC {config.Id} has no tower-cab facility for airport '{primaryAirportId}'");
         var path = new List<FacilityConfig>();
@@ -32,9 +32,9 @@ public static class AiPositionResolver
         var catalog = new List<AiPositionConfig>();
         for (int depth = 0; depth < path.Count; depth++)
         {
-            var facility = path[depth];
-            var ancestry = path.GetRange(0, depth + 1);
-            foreach (var position in facility.Positions)
+            FacilityConfig facility = path[depth];
+            List<FacilityConfig> ancestry = path.GetRange(0, depth + 1);
+            foreach (PositionConfig position in facility.Positions)
             {
                 if (InferRole(position, roleOverrides) is not { } role)
                 {
@@ -53,9 +53,9 @@ public static class AiPositionResolver
     {
         var catalog = Catalog(config, primaryAirportId, aiConfig.RoleOverrides).ToDictionary(p => p.PositionId, StringComparer.Ordinal);
         var resolved = new List<AiPositionConfig>();
-        foreach (var positionId in aiConfig.EnabledPositionIds)
+        foreach (string positionId in aiConfig.EnabledPositionIds)
         {
-            if (!catalog.TryGetValue(positionId, out var position))
+            if (!catalog.TryGetValue(positionId, out AiPositionConfig? position))
             {
                 throw new InvalidOperationException($"AI position id '{positionId}' is not in the {primaryAirportId} catalog of ARTCC {config.Id}");
             }
@@ -73,7 +73,7 @@ public static class AiPositionResolver
     /// </summary>
     public static ControlRole? InferRole(PositionConfig position, IReadOnlyDictionary<string, ControlRole> roleOverrides)
     {
-        if (roleOverrides.TryGetValue(position.Id, out var overridden))
+        if (roleOverrides.TryGetValue(position.Id, out ControlRole overridden))
         {
             return overridden;
         }
@@ -83,7 +83,7 @@ public static class AiPositionResolver
             return ControlRole.Center;
         }
 
-        var suffix = position.Callsign.LastIndexOf('_') is var underscore and >= 0 ? position.Callsign[(underscore + 1)..] : "";
+        string suffix = position.Callsign.LastIndexOf('_') is var underscore and >= 0 ? position.Callsign[(underscore + 1)..] : "";
         if (suffix.Equals("DEL", StringComparison.OrdinalIgnoreCase))
         {
             return null;
@@ -107,7 +107,7 @@ public static class AiPositionResolver
         ControlRole role
     )
     {
-        var identity =
+        TrackOwner identity =
             config.ResolvePosition(position.Id)
             ?? throw new InvalidOperationException($"Position {position.Callsign} ({position.Id}) did not resolve to a track owner");
         IReadOnlyList<string> airportIds = role switch
@@ -132,7 +132,7 @@ public static class AiPositionResolver
     /// <summary>The STARS area's underlying airports, looked up in the nearest facility (self first, then up) that defines the area.</summary>
     private static IReadOnlyList<string> AreaAirports(IReadOnlyList<FacilityConfig> ancestry, PositionConfig position)
     {
-        var areaId = position.StarsConfiguration?.AreaId;
+        string? areaId = position.StarsConfiguration?.AreaId;
         if (string.IsNullOrEmpty(areaId))
         {
             return [];
@@ -140,7 +140,7 @@ public static class AiPositionResolver
 
         for (int i = ancestry.Count - 1; i >= 0; i--)
         {
-            var area = ancestry[i].StarsConfiguration?.Areas.FirstOrDefault(a => a.Id == areaId);
+            StarsAreaConfig? area = ancestry[i].StarsConfiguration?.Areas.FirstOrDefault(a => a.Id == areaId);
             if (area is not null)
             {
                 return area.UnderlyingAirports.ToList();
@@ -169,7 +169,7 @@ public static class AiPositionResolver
             cabs.Add(facility);
         }
 
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
             CollectTowerCabs(child, cabs);
         }
@@ -177,7 +177,7 @@ public static class AiPositionResolver
 
     private static bool CallsignPrefixMatches(string callsign, string airportId)
     {
-        var underscore = callsign.IndexOf('_');
+        int underscore = callsign.IndexOf('_');
         return (underscore > 0) && NavigationDatabase.AirportIdsMatch(callsign[..underscore], airportId);
     }
 

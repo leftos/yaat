@@ -10,17 +10,17 @@ public sealed class ArtccTdlsConfigParseTests
 
     private static ArtccConfigRoot LoadZoaSnapshot()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "TestData", "artcc-zoa-snapshot.json");
-        var json = File.ReadAllText(path);
+        string path = Path.Combine(AppContext.BaseDirectory, "TestData", "artcc-zoa-snapshot.json");
+        string json = File.ReadAllText(path);
         return JsonSerializer.Deserialize<ArtccConfigRoot>(json, JsonOptions)!;
     }
 
     private static IEnumerable<FacilityConfig> Walk(FacilityConfig facility)
     {
         yield return facility;
-        foreach (var child in facility.ChildFacilities)
+        foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            foreach (var descendant in Walk(child))
+            foreach (FacilityConfig descendant in Walk(child))
             {
                 yield return descendant;
             }
@@ -30,7 +30,7 @@ public sealed class ArtccTdlsConfigParseTests
     [Fact]
     public void Deserialize_ZoaSnapshot_FindsFiveTdlsConfiguredFacilities()
     {
-        var root = LoadZoaSnapshot();
+        ArtccConfigRoot root = LoadZoaSnapshot();
 
         var tdlsFacilities = Walk(root.Facility)
             .Where(f => f.TdlsConfiguration is not null)
@@ -44,16 +44,16 @@ public sealed class ArtccTdlsConfigParseTests
     [Fact]
     public void ZoaRootFacility_HasNoTdlsConfiguration()
     {
-        var root = LoadZoaSnapshot();
+        ArtccConfigRoot root = LoadZoaSnapshot();
         Assert.Null(root.Facility.TdlsConfiguration);
     }
 
     [Fact]
     public void SfoTdlsConfig_MandatoryFieldsMatchUpstream()
     {
-        var root = LoadZoaSnapshot();
-        var sfo = Walk(root.Facility).First(f => f.Id == "SFO");
-        var tdls = sfo.TdlsConfiguration!;
+        ArtccConfigRoot root = LoadZoaSnapshot();
+        FacilityConfig sfo = Walk(root.Facility).First(f => f.Id == "SFO");
+        TdlsConfig tdls = sfo.TdlsConfiguration!;
 
         Assert.False(tdls.MandatorySid);
         Assert.True(tdls.MandatoryExpect);
@@ -68,9 +68,9 @@ public sealed class ArtccTdlsConfigParseTests
     [Fact]
     public void SfoTdlsConfig_HasPopulatedClearanceValueLists()
     {
-        var root = LoadZoaSnapshot();
-        var sfo = Walk(root.Facility).First(f => f.Id == "SFO");
-        var tdls = sfo.TdlsConfiguration!;
+        ArtccConfigRoot root = LoadZoaSnapshot();
+        FacilityConfig sfo = Walk(root.Facility).First(f => f.Id == "SFO");
+        TdlsConfig tdls = sfo.TdlsConfiguration!;
 
         // SFO moved its SIDs into ops configs, so the facility-level list is empty on the wire
         // and only the resolver returns anything. The value lists stay facility-level.
@@ -84,7 +84,7 @@ public sealed class ArtccTdlsConfigParseTests
         Assert.NotEmpty(tdls.ContactInfos);
         Assert.NotEmpty(tdls.LocalInfos);
 
-        foreach (var value in tdls.Expects)
+        foreach (TdlsClearanceValueConfig value in tdls.Expects)
         {
             Assert.False(string.IsNullOrEmpty(value.Id));
             Assert.False(string.IsNullOrEmpty(value.Value));
@@ -96,16 +96,16 @@ public sealed class ArtccTdlsConfigParseTests
     {
         // SMF still lists its SIDs at facility level (no ops configs), so the resolvers fall
         // through to the facility list and the facility-level defaults stay in force.
-        var root = LoadZoaSnapshot();
-        var smf = Walk(root.Facility).First(f => f.Id == "SMF");
-        var tdls = smf.TdlsConfiguration!;
+        ArtccConfigRoot root = LoadZoaSnapshot();
+        FacilityConfig smf = Walk(root.Facility).First(f => f.Id == "SMF");
+        TdlsConfig tdls = smf.TdlsConfiguration!;
 
         Assert.False(tdls.DclOpConfigsEnabled);
         Assert.Empty(tdls.OpConfigs);
         Assert.Same(tdls.Sids, tdls.ResolveSids(opConfigId: null));
         Assert.Null(tdls.ResolveOpConfig(opConfigId: null));
 
-        var defaultSidId = tdls.ResolveDefaultSidId(opConfigId: null);
+        string? defaultSidId = tdls.ResolveDefaultSidId(opConfigId: null);
         Assert.Equal(tdls.DefaultSidId, defaultSidId);
         Assert.NotNull(defaultSidId);
         Assert.Contains(tdls.ResolveSids(opConfigId: null), sid => sid.Id == defaultSidId);
@@ -116,9 +116,9 @@ public sealed class ArtccTdlsConfigParseTests
     {
         // Whether a config names a default SID/transition is per-facility, so a consumer must
         // tolerate null on either: SFO sets both on all seven, OAK sets neither on any three.
-        var root = LoadZoaSnapshot();
-        var sfo = Walk(root.Facility).First(f => f.Id == "SFO").TdlsConfiguration!;
-        var oak = Walk(root.Facility).First(f => f.Id == "OAK").TdlsConfiguration!;
+        ArtccConfigRoot root = LoadZoaSnapshot();
+        TdlsConfig sfo = Walk(root.Facility).First(f => f.Id == "SFO").TdlsConfiguration!;
+        TdlsConfig oak = Walk(root.Facility).First(f => f.Id == "OAK").TdlsConfiguration!;
 
         Assert.All(sfo.OpConfigs, c => Assert.NotNull(c.DefaultSidId));
         Assert.All(sfo.OpConfigs, c => Assert.NotNull(c.DefaultTransitionId));
@@ -126,7 +126,7 @@ public sealed class ArtccTdlsConfigParseTests
         Assert.All(oak.OpConfigs, c => Assert.Null(c.DefaultTransitionId));
 
         // The resolver reads through to the active config, never the empty facility-level field.
-        var first = sfo.OpConfigs[0];
+        TdlsOpConfig first = sfo.OpConfigs[0];
         Assert.Equal(first.DefaultSidId, sfo.ResolveDefaultSidId(first.Id));
         Assert.Equal(first.DefaultTransitionId, sfo.ResolveDefaultTransitionId(first.Id));
         Assert.Null(oak.ResolveDefaultSidId(oak.OpConfigs[0].Id));
@@ -135,8 +135,8 @@ public sealed class ArtccTdlsConfigParseTests
     [Fact]
     public void TdlsSidTransition_PreservesPopulatedAndNullDefaults()
     {
-        var root = LoadZoaSnapshot();
-        var sfo = Walk(root.Facility).First(f => f.Id == "SFO");
+        ArtccConfigRoot root = LoadZoaSnapshot();
+        FacilityConfig sfo = Walk(root.Facility).First(f => f.Id == "SFO");
 
         var allTransitions = sfo.TdlsConfiguration!.ResolveSids(opConfigId: null).SelectMany(s => s.Transitions).ToList();
 
@@ -155,7 +155,7 @@ public sealed class ArtccTdlsConfigParseTests
                 || t.DefaultLocalInfo is null
         );
 
-        foreach (var t in allTransitions)
+        foreach (TdlsSidTransitionConfig? t in allTransitions)
         {
             Assert.False(string.IsNullOrEmpty(t.Id));
             Assert.False(string.IsNullOrEmpty(t.Name));
@@ -165,15 +165,15 @@ public sealed class ArtccTdlsConfigParseTests
     [Fact]
     public void OakTdlsConfig_ExposesItsThreeOpConfigs()
     {
-        var root = LoadZoaSnapshot();
-        var oak = Walk(root.Facility).First(f => f.Id == "OAK");
-        var tdls = oak.TdlsConfiguration!;
+        ArtccConfigRoot root = LoadZoaSnapshot();
+        FacilityConfig oak = Walk(root.Facility).First(f => f.Id == "OAK");
+        TdlsConfig tdls = oak.TdlsConfiguration!;
 
         Assert.True(tdls.DclOpConfigsEnabled);
         Assert.Equal(["OAKW", "OAKE", "SFOE"], tdls.OpConfigs.Select(c => c.Name));
         Assert.Empty(tdls.Sids);
 
-        foreach (var config in tdls.OpConfigs)
+        foreach (TdlsOpConfig config in tdls.OpConfigs)
         {
             Assert.False(string.IsNullOrEmpty(config.Id));
             Assert.NotEmpty(config.Sids);
@@ -183,11 +183,11 @@ public sealed class ArtccTdlsConfigParseTests
     [Fact]
     public void ResolveSids_PicksTheNamedOpConfig_AndFallsBackToTheFirst()
     {
-        var root = LoadZoaSnapshot();
-        var oak = Walk(root.Facility).First(f => f.Id == "OAK");
-        var tdls = oak.TdlsConfiguration!;
+        ArtccConfigRoot root = LoadZoaSnapshot();
+        FacilityConfig oak = Walk(root.Facility).First(f => f.Id == "OAK");
+        TdlsConfig tdls = oak.TdlsConfiguration!;
 
-        var oakE = tdls.OpConfigs.First(c => c.Name == "OAKE");
+        TdlsOpConfig oakE = tdls.OpConfigs.First(c => c.Name == "OAKE");
         Assert.Same(oakE.Sids, tdls.ResolveSids(oakE.Id));
 
         // Unknown and unset both fall back to the first config rather than yielding nothing —
@@ -201,20 +201,20 @@ public sealed class ArtccTdlsConfigParseTests
     {
         // The id a clearance carries is only meaningful against the config that was active when
         // it was picked: OAK issues a distinct id per config for the same SID name.
-        var root = LoadZoaSnapshot();
-        var oak = Walk(root.Facility).First(f => f.Id == "OAK");
-        var tdls = oak.TdlsConfiguration!;
+        ArtccConfigRoot root = LoadZoaSnapshot();
+        FacilityConfig oak = Walk(root.Facility).First(f => f.Id == "OAK");
+        TdlsConfig tdls = oak.TdlsConfiguration!;
 
-        var west = tdls.OpConfigs.First(c => c.Name == "OAKW");
-        var east = tdls.OpConfigs.First(c => c.Name == "OAKE");
+        TdlsOpConfig west = tdls.OpConfigs.First(c => c.Name == "OAKW");
+        TdlsOpConfig east = tdls.OpConfigs.First(c => c.Name == "OAKE");
 
         var shared = west.Sids.Select(s => s.Name).Intersect(east.Sids.Select(s => s.Name)).ToList();
         Assert.NotEmpty(shared);
 
-        foreach (var name in shared)
+        foreach (string? name in shared)
         {
-            var westId = west.Sids.First(s => s.Name == name).Id;
-            var eastId = east.Sids.First(s => s.Name == name).Id;
+            string westId = west.Sids.First(s => s.Name == name).Id;
+            string eastId = east.Sids.First(s => s.Name == name).Id;
             Assert.NotEqual(westId, eastId);
         }
     }
@@ -224,18 +224,18 @@ public sealed class ArtccTdlsConfigParseTests
     {
         // The payload of the feature: the same SID + transition issues different local info per
         // runway configuration.
-        var root = LoadZoaSnapshot();
-        var sfo = Walk(root.Facility).First(f => f.Id == "SFO");
-        var tdls = sfo.TdlsConfiguration!;
+        ArtccConfigRoot root = LoadZoaSnapshot();
+        FacilityConfig sfo = Walk(root.Facility).First(f => f.Id == "SFO");
+        TdlsConfig tdls = sfo.TdlsConfiguration!;
 
         Assert.True(tdls.DclOpConfigsEnabled);
         Assert.Equal(7, tdls.OpConfigs.Count);
 
         var localInfos = new List<string?>();
-        foreach (var name in new[] { "2801", "2828RT", "0101" })
+        foreach (string? name in new[] { "2801", "2828RT", "0101" })
         {
-            var config = tdls.OpConfigs.First(c => c.Name == name);
-            var transition = config.Sids.First(s => s.Name == "TRUKN2").Transitions.First(t => t.Name == "GRTFL");
+            TdlsOpConfig config = tdls.OpConfigs.First(c => c.Name == name);
+            TdlsSidTransitionConfig transition = config.Sids.First(s => s.Name == "TRUKN2").Transitions.First(t => t.Name == "GRTFL");
             localInfos.Add(transition.DefaultLocalInfo);
         }
 

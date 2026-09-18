@@ -87,13 +87,13 @@ internal static class EvalRunner
             return 1;
         }
 
-        var corpusDir = args[0];
+        string corpusDir = args[0];
         string? outDirOverride = null;
         string? whisperOverride = null;
         string? parakeetDir = null;
-        var promptMode = "default";
-        var trials = 1;
-        for (var i = 1; i < args.Length; i++)
+        string promptMode = "default";
+        int trials = 1;
+        for (int i = 1; i < args.Length; i++)
         {
             if (args[i] == "--out-dir" && i + 1 < args.Length)
             {
@@ -148,7 +148,7 @@ internal static class EvalRunner
         // LMKIT_TEST_MODEL overrides the LLM the same way it does for --llm-probe and the
         // LocalLlmPipelineIntegrationTests fixture, so eval runs are reproducible across machines
         // instead of depending on whatever the developer's saved preferences point at.
-        var llmOverride = Environment.GetEnvironmentVariable("LMKIT_TEST_MODEL");
+        string? llmOverride = Environment.GetEnvironmentVariable("LMKIT_TEST_MODEL");
         ILlmRuntimeConfig llmConfig = string.IsNullOrWhiteSpace(llmOverride)
             ? new PreferencesLlmRuntimeConfig(prefs)
             : new OverrideLlmRuntimeConfig(llmOverride);
@@ -156,13 +156,13 @@ internal static class EvalRunner
         // STT stage: Whisper (prefs default, or --whisper override) or a sherpa-onnx Parakeet
         // export (--parakeet). Both are exposed to the trial loop through one delegate so the
         // scoring path is identical regardless of engine.
-        var whisperSource = whisperOverride ?? prefs.WhisperModelSize;
-        using var whisperStt = parakeetDir is null ? new WhisperSttEngine(new OverrideWhisperRuntimeConfig(whisperSource)) : null;
-        using var sherpaStt = parakeetDir is null ? null : new SherpaSttEngine(parakeetDir);
-        var sttLabel = parakeetDir is null ? whisperSource : $"parakeet (sherpa-onnx, {parakeetDir})";
+        string whisperSource = whisperOverride ?? prefs.WhisperModelSize;
+        using WhisperSttEngine? whisperStt = parakeetDir is null ? new WhisperSttEngine(new OverrideWhisperRuntimeConfig(whisperSource)) : null;
+        using SherpaSttEngine? sherpaStt = parakeetDir is null ? null : new SherpaSttEngine(parakeetDir);
+        string sttLabel = parakeetDir is null ? whisperSource : $"parakeet (sherpa-onnx, {parakeetDir})";
         // --prompt none blanks the Whisper biasing prompt for the whole run — the A/B knob for
         // asking whether the static vocabulary hint still earns its keep on a given model.
-        var biasingPrompt = promptMode == "none" ? string.Empty : WhisperBiasingPrompt.Default;
+        string biasingPrompt = promptMode == "none" ? string.Empty : WhisperBiasingPrompt.Default;
         sttLabel += promptMode == "none" ? " (no biasing prompt)" : "";
         Func<float[], string, CancellationToken, Task<string?>> transcribe = parakeetDir is null
             ? (samples, prompt, ct) => whisperStt!.TranscribeAsync(samples, prompt, ct)
@@ -176,14 +176,14 @@ internal static class EvalRunner
         var ruleMapper = new PhraseologyCommandMapper();
         var llmMapper = new LocalLlmCommandMapper(llm);
         var callsignResolver = new LocalLlmCallsignResolver(llm);
-        var sttConfigured = parakeetDir is null ? whisperStt!.IsConfigured : sherpaStt!.IsConfigured;
+        bool sttConfigured = parakeetDir is null ? whisperStt!.IsConfigured : sherpaStt!.IsConfigured;
         if (!sttConfigured || !llm.IsConfigured)
         {
             Console.Error.WriteLine("FATAL: STT or LLM model not configured/found — check model source arguments and Settings → Speech.");
             return 2;
         }
 
-        var outDir = outDirOverride ?? Path.Combine(".tmp", $"speech-eval-{DateTime.Now:yyyyMMdd-HHmmss}");
+        string outDir = outDirOverride ?? Path.Combine(".tmp", $"speech-eval-{DateTime.Now:yyyyMMdd-HHmmss}");
         Directory.CreateDirectory(outDir);
 
         var report = new StringBuilder();
@@ -201,14 +201,14 @@ internal static class EvalRunner
         // Real-mic and synthetic (Piper-generated) cases are tallied separately: synthetic audio
         // measures the phonetic surface on clean TTS voices, and folding it into one number
         // would let a large synthetic batch drown out the authoritative real-mic signal.
-        var skipped = 0;
+        int skipped = 0;
         var realTally = new Tally();
         var synthTally = new Tally();
 
-        foreach (var caseDir in Directory.EnumerateDirectories(corpusDir).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+        foreach (string? caseDir in Directory.EnumerateDirectories(corpusDir).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
         {
-            var caseName = Path.GetFileName(caseDir);
-            var wavPath = Path.Combine(caseDir, "audio.wav");
+            string caseName = Path.GetFileName(caseDir);
+            string wavPath = Path.Combine(caseDir, "audio.wav");
             if (!File.Exists(wavPath))
             {
                 Console.WriteLine($"SKIP  {caseName}: no audio.wav");
@@ -216,27 +216,27 @@ internal static class EvalRunner
                 continue;
             }
 
-            var expectation = LoadOrStubExpectation(caseDir, caseName);
+            EvalExpectation? expectation = LoadOrStubExpectation(caseDir, caseName);
             if (expectation is null)
             {
                 skipped++;
                 continue;
             }
 
-            var samples = WavHeader.ReadPcm16(wavPath);
+            float[] samples = WavHeader.ReadPcm16(wavPath);
             var ctx = new SpeechContext(expectation.ActiveCallsigns ?? [], expectation.ProgrammedFixes ?? [], biasingPrompt);
 
-            var matches = 0;
+            int matches = 0;
             string lastTranscript = string.Empty,
                 lastCanonical = "<null>",
                 lastCallsign = "<none>";
             double? wer = null;
             long sttMsTotal = 0;
             var sw = Stopwatch.StartNew();
-            for (var trial = 0; trial < trials; trial++)
+            for (int trial = 0; trial < trials; trial++)
             {
                 var sttSw = Stopwatch.StartNew();
-                var transcript = await transcribe(samples, ctx.WhisperInitialPrompt, CancellationToken.None).ConfigureAwait(false);
+                string? transcript = await transcribe(samples, ctx.WhisperInitialPrompt, CancellationToken.None).ConfigureAwait(false);
                 sttSw.Stop();
                 sttMsTotal += sttSw.ElapsedMilliseconds;
                 lastTranscript = transcript ?? string.Empty;
@@ -246,7 +246,7 @@ internal static class EvalRunner
                     continue;
                 }
 
-                var mapped = await SpeechRecognitionService
+                TranscriptMapResult mapped = await SpeechRecognitionService
                     .MapTranscriptAsync(transcript, ctx, ruleMapper, llmMapper, callsignResolver, CancellationToken.None)
                     .ConfigureAwait(false);
                 lastCanonical = mapped.Canonical ?? "<null>";
@@ -262,7 +262,7 @@ internal static class EvalRunner
                     // Score STT in isolation. Both sides run through NormalizeDigits so "two seven
                     // zero" vs "270" scores as a match — the pipeline is insensitive to that split,
                     // and WER should measure real recognition damage, not orthography.
-                    var trialWer = WordErrorRate(
+                    double trialWer = WordErrorRate(
                         AtcNumberParser.NormalizeDigits(expectation.Transcript),
                         AtcNumberParser.NormalizeDigits(transcript)
                     );
@@ -271,11 +271,11 @@ internal static class EvalRunner
             }
             sw.Stop();
 
-            var verdict =
+            string verdict =
                 matches == trials ? "PASS"
                 : matches == 0 ? "FAIL"
                 : $"FLAKY {matches}/{trials}";
-            var tally = expectation.Synthetic ? synthTally : realTally;
+            Tally tally = expectation.Synthetic ? synthTally : realTally;
             if (matches == trials)
             {
                 tally.Pass++;
@@ -293,8 +293,8 @@ internal static class EvalRunner
                 tally.Wers.Add(wer.Value);
             }
 
-            var werText = wer is null ? "—" : wer.Value.ToString("P0", CultureInfo.InvariantCulture);
-            var sttMsAvg = sttMsTotal / trials;
+            string werText = wer is null ? "—" : wer.Value.ToString("P0", CultureInfo.InvariantCulture);
+            long sttMsAvg = sttMsTotal / trials;
             Console.WriteLine(
                 $"{verdict, -10} {caseName}: got \"{lastCanonical}\" (callsign {lastCallsign}, WER {werText}, STT avg {sttMsAvg} ms/trial)"
             );
@@ -328,9 +328,9 @@ internal static class EvalRunner
         {
             parts.Add($"{skipped} skipped");
         }
-        var summary = parts.Count > 0 ? string.Join(" — ", parts) : "no cases ran";
+        string summary = parts.Count > 0 ? string.Join(" — ", parts) : "no cases ran";
         report.AppendLine($"**Summary:** {summary}");
-        var reportPath = Path.Combine(outDir, "report.md");
+        string reportPath = Path.Combine(outDir, "report.md");
         await File.WriteAllTextAsync(reportPath, report.ToString()).ConfigureAwait(false);
 
         Console.WriteLine();
@@ -351,7 +351,7 @@ internal static class EvalRunner
 
         public string Describe()
         {
-            var meanWer = Wers.Count > 0 ? Wers.Average().ToString("P1", CultureInfo.InvariantCulture) : "n/a";
+            string meanWer = Wers.Count > 0 ? Wers.Average().ToString("P1", CultureInfo.InvariantCulture) : "n/a";
             return $"{Pass} PASS, {Flaky} FLAKY, {Fail} FAIL, mean WER {meanWer}";
         }
     }
@@ -366,32 +366,32 @@ internal static class EvalRunner
     /// </summary>
     private static EvalExpectation? LoadOrStubExpectation(string caseDir, string caseName)
     {
-        var expectedPath = Path.Combine(caseDir, "expected.json");
+        string expectedPath = Path.Combine(caseDir, "expected.json");
         if (File.Exists(expectedPath))
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(expectedPath));
-            var root = doc.RootElement;
-            if (root.TryGetProperty("unreviewed", out var unreviewed) && unreviewed.GetBoolean())
+            JsonElement root = doc.RootElement;
+            if (root.TryGetProperty("unreviewed", out JsonElement unreviewed) && unreviewed.GetBoolean())
             {
                 Console.WriteLine($"SKIP  {caseName}: expected.json is an unreviewed stub — verify the labels and remove the \"unreviewed\" flag");
                 return null;
             }
-            if (!root.TryGetProperty("canonical", out var canonical) || string.IsNullOrWhiteSpace(canonical.GetString()))
+            if (!root.TryGetProperty("canonical", out JsonElement canonical) || string.IsNullOrWhiteSpace(canonical.GetString()))
             {
                 Console.WriteLine($"SKIP  {caseName}: expected.json has no \"canonical\" field");
                 return null;
             }
             return new EvalExpectation(
                 canonical.GetString()!,
-                root.TryGetProperty("transcript", out var t) ? t.GetString() : null,
-                root.TryGetProperty("callsign", out var cs) ? cs.GetString() : null,
+                root.TryGetProperty("transcript", out JsonElement t) ? t.GetString() : null,
+                root.TryGetProperty("callsign", out JsonElement cs) ? cs.GetString() : null,
                 ReadStringList(root, "activeCallsigns"),
                 ReadStringList(root, "programmedFixes"),
-                Synthetic: root.TryGetProperty("synthetic", out var syn) && syn.ValueKind == JsonValueKind.True
+                Synthetic: root.TryGetProperty("synthetic", out JsonElement syn) && syn.ValueKind == JsonValueKind.True
             );
         }
 
-        var sessionPath = Path.Combine(caseDir, "session.json");
+        string sessionPath = Path.Combine(caseDir, "session.json");
         if (!File.Exists(sessionPath))
         {
             Console.WriteLine($"SKIP  {caseName}: no expected.json (and no session.json to stub from)");
@@ -399,17 +399,17 @@ internal static class EvalRunner
         }
 
         using var session = JsonDocument.Parse(File.ReadAllText(sessionPath));
-        var s = session.RootElement;
+        JsonElement s = session.RootElement;
         var stub = new Dictionary<string, object?>
         {
             ["unreviewed"] = true,
-            ["canonical"] = s.TryGetProperty("CanonicalCommand", out var c) ? c.GetString() : "",
-            ["transcript"] = s.TryGetProperty("Transcript", out var tr) ? tr.GetString() : "",
+            ["canonical"] = s.TryGetProperty("CanonicalCommand", out JsonElement c) ? c.GetString() : "",
+            ["transcript"] = s.TryGetProperty("Transcript", out JsonElement tr) ? tr.GetString() : "",
             ["callsign"] = null,
             ["activeCallsigns"] =
-                s.TryGetProperty("Trace", out var trace)
+                s.TryGetProperty("Trace", out JsonElement trace)
                 && trace.ValueKind == JsonValueKind.Object
-                && trace.TryGetProperty("ActiveCallsigns", out var acs)
+                && trace.TryGetProperty("ActiveCallsigns", out JsonElement acs)
                     ? acs.Deserialize<List<string>>()
                     : new List<string>(),
             ["programmedFixes"] = new List<string>(),
@@ -423,7 +423,7 @@ internal static class EvalRunner
 
     private static List<string>? ReadStringList(JsonElement root, string property)
     {
-        return root.TryGetProperty(property, out var el) && el.ValueKind == JsonValueKind.Array ? el.Deserialize<List<string>>() : null;
+        return root.TryGetProperty(property, out JsonElement el) && el.ValueKind == JsonValueKind.Array ? el.Deserialize<List<string>>() : null;
     }
 
     /// <summary>Case-insensitive canonical comparison with comma/space separators normalized.</summary>
@@ -450,26 +450,26 @@ internal static class EvalRunner
     /// </summary>
     internal static double WordErrorRate(string reference, string hypothesis)
     {
-        var refWords = reference.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var hypWords = hypothesis.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] refWords = reference.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] hypWords = hypothesis.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (refWords.Length == 0)
         {
             return hypWords.Length == 0 ? 0 : 1;
         }
 
         // Two-row Levenshtein over words.
-        var prev = new int[hypWords.Length + 1];
-        var curr = new int[hypWords.Length + 1];
-        for (var j = 0; j <= hypWords.Length; j++)
+        int[] prev = new int[hypWords.Length + 1];
+        int[] curr = new int[hypWords.Length + 1];
+        for (int j = 0; j <= hypWords.Length; j++)
         {
             prev[j] = j;
         }
-        for (var i = 1; i <= refWords.Length; i++)
+        for (int i = 1; i <= refWords.Length; i++)
         {
             curr[0] = i;
-            for (var j = 1; j <= hypWords.Length; j++)
+            for (int j = 1; j <= hypWords.Length; j++)
             {
-                var substitution = prev[j - 1] + (string.Equals(refWords[i - 1], hypWords[j - 1], StringComparison.OrdinalIgnoreCase) ? 0 : 1);
+                int substitution = prev[j - 1] + (string.Equals(refWords[i - 1], hypWords[j - 1], StringComparison.OrdinalIgnoreCase) ? 0 : 1);
                 curr[j] = Math.Min(Math.Min(prev[j] + 1, curr[j - 1] + 1), substitution);
             }
             (prev, curr) = (curr, prev);

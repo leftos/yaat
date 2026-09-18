@@ -55,15 +55,15 @@ public class FlightPlanVoiceTests
     public void ApplyVoiceMarker_ReplacesExistingMarker_KeepsRest()
     {
         // Switching /v/ → /r/ removes the old marker and keeps the surrounding remark text.
-        var result = FlightPlanVoice.ApplyVoiceMarker("/v/ HEAVY", FlightPlanVoice.ReceiveOnly);
+        string result = FlightPlanVoice.ApplyVoiceMarker("/v/ HEAVY", FlightPlanVoice.ReceiveOnly);
         Assert.Equal("/r/ HEAVY", result);
     }
 
     [Fact]
     public void ApplyVoiceMarker_IsIdempotent()
     {
-        var once = FlightPlanVoice.ApplyVoiceMarker("HEAVY", FlightPlanVoice.TextOnly);
-        var twice = FlightPlanVoice.ApplyVoiceMarker(once, FlightPlanVoice.TextOnly);
+        string once = FlightPlanVoice.ApplyVoiceMarker("HEAVY", FlightPlanVoice.TextOnly);
+        string twice = FlightPlanVoice.ApplyVoiceMarker(once, FlightPlanVoice.TextOnly);
         Assert.Equal(once, twice);
         Assert.Equal(FlightPlanVoice.TextOnly, FlightPlanVoice.ParseVoiceType(twice));
     }
@@ -71,9 +71,9 @@ public class FlightPlanVoiceTests
     [Fact]
     public void RoundTrip_ApplyThenParse_PreservesEachType()
     {
-        foreach (var vt in new[] { FlightPlanVoice.Full, FlightPlanVoice.ReceiveOnly, FlightPlanVoice.TextOnly })
+        foreach (int vt in new[] { FlightPlanVoice.Full, FlightPlanVoice.ReceiveOnly, FlightPlanVoice.TextOnly })
         {
-            var remarks = FlightPlanVoice.ApplyVoiceMarker("REMARK TEXT", vt);
+            string remarks = FlightPlanVoice.ApplyVoiceMarker("REMARK TEXT", vt);
             Assert.Equal(vt, FlightPlanVoice.ParseVoiceType(remarks));
         }
     }
@@ -92,7 +92,7 @@ public class FlightPlanVoiceTests
             FlightPlan = new ScenarioFlightPlan { Departure = "KOAK", Remarks = remarks },
         };
 
-        var ac = ScenarioLoader.CreateBaseState(scenarioAircraft, primaryAirportId: null, primaryApproach: null);
+        AircraftState ac = ScenarioLoader.CreateBaseState(scenarioAircraft, primaryAirportId: null, primaryApproach: null);
 
         Assert.Equal(expected, ac.Voice.Type);
     }

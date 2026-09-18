@@ -25,7 +25,7 @@ public class PhaseTransparentCommandTests
 
     private static AircraftState MakeAircraftInUpwind()
     {
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         var ac = new AircraftState
         {
             Callsign = "N569SX",
@@ -39,7 +39,17 @@ public class PhaseTransparentCommandTests
             Transponder = new AircraftTransponder { AssignedCode = 7110, Code = 7110 },
         };
 
-        var waypoints = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        PatternWaypoints waypoints = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Piston,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
         var phases = new PhaseList { AssignedRunway = rwy };
         phases.Add(new UpwindPhase { Waypoints = waypoints });
         phases.Add(new CrosswindPhase { Waypoints = waypoints });
@@ -59,11 +69,11 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void SquawkDuringPhase_PreservesPhases()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
         Assert.NotNull(ac.Phases);
         Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
 
-        var result = DispatchSingle(ac, new SquawkCommand(1234u));
+        CommandResult result = DispatchSingle(ac, new SquawkCommand(1234u));
 
         Assert.True(result.Success);
         Assert.Equal(1234u, ac.Transponder.Code);
@@ -74,7 +84,7 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void SquawkPreservesCommandQueue()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
 
         // Pre-populate queue with a block
         var speedCmd = new SpeedCommand(120);
@@ -88,7 +98,7 @@ public class PhaseTransparentCommandTests
         ac.Queue.Blocks.Add(block);
         Assert.Single(ac.Queue.Blocks);
 
-        var result = DispatchSingle(ac, new SquawkCommand(4567u));
+        CommandResult result = DispatchSingle(ac, new SquawkCommand(4567u));
 
         Assert.True(result.Success);
         Assert.Equal(4567u, ac.Transponder.Code);
@@ -98,9 +108,9 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void IdentDuringPhase_PreservesPhases()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
 
-        var result = DispatchSingle(ac, new IdentCommand());
+        CommandResult result = DispatchSingle(ac, new IdentCommand());
 
         Assert.True(result.Success);
         Assert.True(ac.Transponder.IsIdenting);
@@ -111,9 +121,9 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void SquawkVfrDuringPhase_PreservesPhases()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
 
-        var result = DispatchSingle(ac, new SquawkVfrCommand());
+        CommandResult result = DispatchSingle(ac, new SquawkVfrCommand());
 
         Assert.True(result.Success);
         Assert.Equal(1200u, ac.Transponder.Code);
@@ -124,9 +134,9 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void RandomSquawkDuringPhase_PreservesPhases()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
 
-        var result = DispatchSingle(ac, new RandomSquawkCommand());
+        CommandResult result = DispatchSingle(ac, new RandomSquawkCommand());
 
         Assert.True(result.Success);
         Assert.NotNull(ac.Phases);
@@ -136,14 +146,14 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void MixedCompound_SquawkThenHeading_ClearsPhases()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
 
         // SQ 1234; FH 360 — heading should clear phases as normal
         var compound = new CompoundCommand([
             new ParsedBlock(null, [new SquawkCommand(1234u)]),
             new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(360))]),
         ]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success);
         Assert.Equal(1234u, ac.Transponder.Code);
@@ -153,11 +163,11 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void AllTransparentCompound_PreservesPhases()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
 
         // SQ 1234, ID — both transparent, phases should survive
         var compound = new CompoundCommand([new ParsedBlock(null, [new SquawkCommand(1234u), new IdentCommand()])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success);
         Assert.Equal(1234u, ac.Transponder.Code);
@@ -176,12 +186,12 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void TwoSayCompound_DoesNotEmitCommaResponse()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
 
         var compound = new CompoundCommand([new ParsedBlock(null, [new SayPositionCommand(), new SayAltitudeCommand()])]);
         var captured = new List<TerminalEntry>();
-        var ctx = TestDispatch.Context(new Random(42), validateDctFixes: false, terminalEmitter: captured.Add);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, ctx);
+        DispatchContext ctx = TestDispatch.Context(new Random(42), validateDctFixes: false, terminalEmitter: captured.Add);
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, ctx);
 
         Assert.True(result.Success);
         Assert.True(string.IsNullOrEmpty(result.Message), $"Expected empty result message, got '{result.Message}'");
@@ -193,10 +203,10 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void TransparentWithoutPhases_WorksNormally()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
         ac.Phases = null; // no phases
 
-        var result = DispatchSingle(ac, new SquawkCommand(5678));
+        CommandResult result = DispatchSingle(ac, new SquawkCommand(5678));
 
         Assert.True(result.Success);
         Assert.Equal(5678u, ac.Transponder.Code);
@@ -214,10 +224,10 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void RfisForcedDuringPattern_PreservesPhases()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
         Assert.IsType<UpwindPhase>(ac.Phases!.CurrentPhase);
 
-        var result = DispatchSingle(ac, new ReportFieldInSightForcedCommand());
+        CommandResult result = DispatchSingle(ac, new ReportFieldInSightForcedCommand());
 
         Assert.True(result.Success);
         Assert.True(ac.Approach.HasReportedFieldInSight);
@@ -228,9 +238,9 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void RtisForcedDuringPattern_PreservesPhases()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
 
-        var result = DispatchSingle(ac, new ReportTrafficInSightForcedCommand("N99XY"));
+        CommandResult result = DispatchSingle(ac, new ReportTrafficInSightForcedCommand("N99XY"));
 
         Assert.True(result.Success);
         Assert.True(ac.Approach.HasReportedTrafficInSight);
@@ -242,9 +252,9 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void CwtDuringPattern_PreservesPhases()
     {
-        var ac = MakeAircraftInUpwind();
+        AircraftState ac = MakeAircraftInUpwind();
 
-        var result = DispatchSingle(ac, new WakeAdvisoryCommand());
+        CommandResult result = DispatchSingle(ac, new WakeAdvisoryCommand());
 
         Assert.True(result.Success);
         Assert.NotNull(ac.Phases);
@@ -254,10 +264,10 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void RfisForcedDuringFinalApproach_PreservesPhase()
     {
-        var ac = MakeAircraftOnFinalApproach();
+        AircraftState ac = MakeAircraftOnFinalApproach();
         Assert.IsType<FinalApproachPhase>(ac.Phases!.CurrentPhase);
 
-        var result = DispatchSingle(ac, new ReportFieldInSightForcedCommand());
+        CommandResult result = DispatchSingle(ac, new ReportFieldInSightForcedCommand());
 
         Assert.True(result.Success);
         Assert.True(ac.Approach.HasReportedFieldInSight);
@@ -268,10 +278,10 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void RfisForcedDuringInterceptCourse_PreservesPhase()
     {
-        var ac = MakeAircraftOnInterceptCourse();
+        AircraftState ac = MakeAircraftOnInterceptCourse();
         Assert.IsType<InterceptCoursePhase>(ac.Phases!.CurrentPhase);
 
-        var result = DispatchSingle(ac, new ReportFieldInSightForcedCommand());
+        CommandResult result = DispatchSingle(ac, new ReportFieldInSightForcedCommand());
 
         Assert.True(result.Success);
         Assert.True(ac.Approach.HasReportedFieldInSight);
@@ -315,17 +325,17 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void ParallelBlock_TransparentFirstThenPushback_AtParking_AppliesAll()
     {
-        var ac = MakeAircraftAtParking();
+        AircraftState ac = MakeAircraftAtParking();
         Assert.IsType<AtParkingPhase>(ac.Phases!.CurrentPhase);
 
         // Parse the real reported input: `,` must yield ONE block of three parallel commands.
-        var parsed = CommandParser.ParseCompound("SQ, SQNORM, PUSH");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("SQ, SQNORM, PUSH");
         Assert.True(parsed.IsSuccess);
-        var compound = parsed.Value!;
+        CompoundCommand compound = parsed.Value!;
         Assert.Single(compound.Blocks);
         Assert.Equal(3, compound.Blocks[0].Commands.Count);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success, result.Message);
         // Bare SQ is SquawkResetCommand → squawk the assigned code.
@@ -343,12 +353,12 @@ public class PhaseTransparentCommandTests
     [Fact]
     public void ParallelBlock_PushbackFirstThenTransparent_AtParking_AppliesAll()
     {
-        var ac = MakeAircraftAtParking();
+        AircraftState ac = MakeAircraftAtParking();
 
         var compound = new CompoundCommand([
             new ParsedBlock(null, [new PushbackCommand(null, null, null, null, null), new SquawkCommand(233u), new SquawkNormalCommand()]),
         ]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(233u, ac.Transponder.Code);
@@ -358,7 +368,7 @@ public class PhaseTransparentCommandTests
 
     private static AircraftState MakeAircraftOnFinalApproach()
     {
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         var ac = new AircraftState
         {
             Callsign = "JSX170",
@@ -383,7 +393,7 @@ public class PhaseTransparentCommandTests
 
     private static AircraftState MakeAircraftOnInterceptCourse()
     {
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         var ac = new AircraftState
         {
             Callsign = "N123",

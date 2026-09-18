@@ -216,7 +216,7 @@ public sealed record CliOptions
         var pathDistanceNodes = new List<int>();
         bool jsonOutput = false;
         bool dumpAll = false;
-        var filletMode = FilletMode.Standard;
+        FilletMode filletMode = FilletMode.Standard;
         bool debugFillets = false;
         bool debugExits = false;
         var exitQueries = new List<(string Runway, string Taxiway, string? Side)>();
@@ -464,7 +464,7 @@ public sealed record CliOptions
                     break;
                 case "--tick-range" when i + 1 < args.Length:
                 {
-                    var parts = args[++i].Split('-');
+                    string[] parts = args[++i].Split('-');
                     if (parts.Length != 2 || !int.TryParse(parts[0], out int lo) || !int.TryParse(parts[1], out int hi))
                     {
                         error = $"--tick-range expects 'START-END', got {args[i]}";

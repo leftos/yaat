@@ -23,7 +23,7 @@ public class RecordingSchemaUpgraderTests
     // == "B738" while leaving Altitude untouched.
     private static StateSnapshotDto SnapshotAtV3()
     {
-        var aircraft = new AircraftState
+        AircraftSnapshotDto aircraft = new AircraftState
         {
             Callsign = "AAL1",
             AircraftType = "B738",
@@ -78,7 +78,7 @@ public class RecordingSchemaUpgraderTests
     private static void AssertMigratedAircraft(StateSnapshotDto snapshot)
     {
         Assert.Equal(CurrentVersion, snapshot.SchemaVersion);
-        var aircraft = Assert.Single(snapshot.Aircraft);
+        AircraftSnapshotDto aircraft = Assert.Single(snapshot.Aircraft);
         Assert.Equal("B738", aircraft.FlightPlan.AircraftType); // 3→4 seed applied
         Assert.Equal(DistinctiveAltitude, aircraft.Altitude); // preserved — NOT re-simulated
     }
@@ -86,23 +86,26 @@ public class RecordingSchemaUpgraderTests
     [Fact]
     public void Upgrade_NonZipSessionRecording_MigratesSnapshotsInPlace()
     {
-        var json = JsonSerializer.SerializeToUtf8Bytes(RecordingWith(SnapshotAtV3()), RecordingJsonOptions.Default);
-        var input = RecordingCompression.Compress(json);
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(RecordingWith(SnapshotAtV3()), RecordingJsonOptions.Default);
+        byte[] input = RecordingCompression.Compress(json);
 
-        var result = RecordingSchemaUpgrader.Upgrade(input);
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(input);
 
         Assert.True(result.Changed);
         Assert.False(result.NeedsResimulation);
-        var upgraded = JsonSerializer.Deserialize<SessionRecording>(RecordingCompression.Decompress(result.Output), RecordingJsonOptions.Default);
+        SessionRecording? upgraded = JsonSerializer.Deserialize<SessionRecording>(
+            RecordingCompression.Decompress(result.Output),
+            RecordingJsonOptions.Default
+        );
         AssertMigratedAircraft(upgraded!.Snapshots![0].State);
     }
 
     [Fact]
     public void Upgrade_V4Archive_MigratesSnapshotsAndPreservesOtherEntries()
     {
-        var input = BuildArchiveWithLayout(SnapshotAtV3());
+        byte[] input = BuildArchiveWithLayout(SnapshotAtV3());
 
-        var result = RecordingSchemaUpgrader.Upgrade(input);
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(input);
 
         Assert.True(result.Changed);
         Assert.False(result.NeedsResimulation);
@@ -115,14 +118,14 @@ public class RecordingSchemaUpgraderTests
     [Fact]
     public void Upgrade_NestedBugReportBundle_MigratesInnerArchiveAndPreservesLogs()
     {
-        var innerArchive = BuildArchiveWithLayout(SnapshotAtV3());
-        var bundle = BuildBundle(innerArchive, ("logs/yaat-server.log", "room-scoped log text"));
+        byte[] innerArchive = BuildArchiveWithLayout(SnapshotAtV3());
+        byte[] bundle = BuildBundle(innerArchive, ("logs/yaat-server.log", "room-scoped log text"));
 
-        var result = RecordingSchemaUpgrader.Upgrade(bundle);
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(bundle);
 
         Assert.True(result.Changed);
         Assert.False(result.NeedsResimulation);
-        var newInner = ReadEntry(result.Output, "recording.yaat-recording.zip");
+        byte[] newInner = ReadEntry(result.Output, "recording.yaat-recording.zip");
         using var archive = RecordingArchive.Open(new MemoryStream(newInner));
         AssertMigratedAircraft(archive.ReadSnapshot(0));
         // The bug-bundle log entry is preserved untouched.
@@ -140,9 +143,9 @@ public class RecordingSchemaUpgraderTests
             Scenario = MinimalScenario(5),
         };
         Assert.Equal(CurrentVersion, current.SchemaVersion); // default is current
-        var input = RecordingArchiveWriter.WriteToBytes(RecordingWith(current));
+        byte[] input = RecordingArchiveWriter.WriteToBytes(RecordingWith(current));
 
-        var result = RecordingSchemaUpgrader.Upgrade(input);
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(input);
 
         Assert.False(result.Changed);
         Assert.False(result.NeedsResimulation);
@@ -167,9 +170,9 @@ public class RecordingSchemaUpgraderTests
             new RecordedCommand(2, "", @"HSA HSTRIP_y already\x", "TS", "c1"),
             new RecordedCommand(3, "N1", "HSE HSTRIP_x a; AN 3 RV", "TS", "c1"),
         ];
-        var input = BuildArchive(current, actions);
+        byte[] input = BuildArchive(current, actions);
 
-        var result = RecordingSchemaUpgrader.Upgrade(input);
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(input);
 
         Assert.True(result.Changed);
         Assert.False(result.NeedsResimulation);
@@ -179,7 +182,7 @@ public class RecordingSchemaUpgraderTests
         // Callsign / timing survive the rewrite untouched.
         Assert.Equal("N1", Assert.IsType<RecordedCommand>(archive.ReadActions()[2]).Callsign);
 
-        var again = RecordingSchemaUpgrader.Upgrade(result.Output);
+        RecordingUpgradeResult again = RecordingSchemaUpgrader.Upgrade(result.Output);
         Assert.False(again.Changed);
     }
 
@@ -195,9 +198,9 @@ public class RecordingSchemaUpgraderTests
             TotalElapsedSeconds = 0,
             Snapshots = null,
         };
-        var input = RecordingCompression.Compress(JsonSerializer.SerializeToUtf8Bytes(v1, RecordingJsonOptions.Default));
+        byte[] input = RecordingCompression.Compress(JsonSerializer.SerializeToUtf8Bytes(v1, RecordingJsonOptions.Default));
 
-        var result = RecordingSchemaUpgrader.Upgrade(input);
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(input);
 
         Assert.True(result.NeedsResimulation);
         Assert.False(result.Changed);
@@ -236,16 +239,16 @@ public class RecordingSchemaUpgraderTests
         using var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
         {
-            var inner = zip.CreateEntry("recording.yaat-recording.zip", CompressionLevel.Optimal);
-            using (var s = inner.Open())
+            ZipArchiveEntry inner = zip.CreateEntry("recording.yaat-recording.zip", CompressionLevel.Optimal);
+            using (Stream s = inner.Open())
             {
                 s.Write(innerArchive);
             }
 
-            foreach (var (name, text) in extraEntries)
+            foreach ((string? name, string? text) in extraEntries)
             {
-                var entry = zip.CreateEntry(name, CompressionLevel.Optimal);
-                using var s = entry.Open();
+                ZipArchiveEntry entry = zip.CreateEntry(name, CompressionLevel.Optimal);
+                using Stream s = entry.Open();
                 s.Write(System.Text.Encoding.UTF8.GetBytes(text));
             }
         }
@@ -257,8 +260,8 @@ public class RecordingSchemaUpgraderTests
     {
         using var ms = new MemoryStream(zipBytes);
         using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
-        var entry = zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Entry not found: {entryName}");
-        using var es = entry.Open();
+        ZipArchiveEntry entry = zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Entry not found: {entryName}");
+        using Stream es = entry.Open();
         using var outMs = new MemoryStream();
         es.CopyTo(outMs);
         return outMs.ToArray();

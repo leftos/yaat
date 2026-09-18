@@ -68,7 +68,7 @@ public static class MagneticDeclination
             return Evaluate(lat, lon, modelDateUtc);
         }
 
-        var cell = ((int)Math.Floor(lat / GridCellDeg), (int)Math.Floor(lon / GridCellDeg), modelDateUtc.Ticks);
+        (int, int, long Ticks) cell = ((int)Math.Floor(lat / GridCellDeg), (int)Math.Floor(lon / GridCellDeg), modelDateUtc.Ticks);
         if (GridCache.TryGetValue(cell, out double cached))
         {
             return cached;

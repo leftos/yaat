@@ -13,8 +13,8 @@ public class CfrWindowTests
     public void Resolve_NoTime_IsImmediateWindowFromNow()
     {
         // Bare CFR = immediate release: assigned time is 2 min out, so the −2/+1 window opens now.
-        var now = Utc(2026, 7, 2, 18, 0);
-        var w = CfrWindowResolver.Resolve(null, now);
+        DateTime now = Utc(2026, 7, 2, 18, 0);
+        ReleaseWindow w = CfrWindowResolver.Resolve(null, now);
         Assert.Equal(now, w.StartUtc);
         Assert.Equal(now.AddSeconds(180), w.EndUtc);
     }
@@ -23,8 +23,8 @@ public class CfrWindowTests
     public void Resolve_ExplicitTime_BracketsCenterMinus2Plus1()
     {
         // FAA 7110.65 §4-3-4.e.5: airborne within 2 min prior to 1 min after the assigned time.
-        var now = Utc(2026, 7, 2, 18, 0);
-        var w = CfrWindowResolver.Resolve(1830, now);
+        DateTime now = Utc(2026, 7, 2, 18, 0);
+        ReleaseWindow w = CfrWindowResolver.Resolve(1830, now);
         Assert.Equal(Utc(2026, 7, 2, 18, 28), w.StartUtc);
         Assert.Equal(Utc(2026, 7, 2, 18, 31), w.EndUtc);
     }
@@ -33,8 +33,8 @@ public class CfrWindowTests
     public void Resolve_CrossesMidnightForward_RollsToNextDay()
     {
         // 23:58Z, release 0001 -> center 00:01 next day (3 min ahead), not ~24 h ago.
-        var now = Utc(2026, 7, 2, 23, 58);
-        var w = CfrWindowResolver.Resolve(1, now);
+        DateTime now = Utc(2026, 7, 2, 23, 58);
+        ReleaseWindow w = CfrWindowResolver.Resolve(1, now);
         Assert.Equal(Utc(2026, 7, 2, 23, 59), w.StartUtc);
         Assert.Equal(Utc(2026, 7, 3, 0, 2), w.EndUtc);
     }
@@ -43,8 +43,8 @@ public class CfrWindowTests
     public void Resolve_CrossesMidnightBackward_RollsToPriorDay()
     {
         // 00:02Z, release 2359 -> center 23:59 prior day (3 min ago), not ~24 h ahead.
-        var now = Utc(2026, 7, 2, 0, 2);
-        var w = CfrWindowResolver.Resolve(2359, now);
+        DateTime now = Utc(2026, 7, 2, 0, 2);
+        ReleaseWindow w = CfrWindowResolver.Resolve(2359, now);
         Assert.Equal(Utc(2026, 7, 1, 23, 57), w.StartUtc);
         Assert.Equal(Utc(2026, 7, 2, 0, 0), w.EndUtc);
     }

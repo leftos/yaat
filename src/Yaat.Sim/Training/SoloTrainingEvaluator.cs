@@ -108,9 +108,9 @@ public sealed class SoloTrainingEvaluator
         }
 
         sw.Stop();
-        var timings = DiagnosticPhaseTimings!;
+        Dictionary<string, (int Count, double Ms)> timings = DiagnosticPhaseTimings!;
         double ms = sw.Elapsed.TotalMilliseconds;
-        timings[bucket] = timings.TryGetValue(bucket, out var entry) ? (entry.Count + 1, entry.Ms + ms) : (1, ms);
+        timings[bucket] = timings.TryGetValue(bucket, out (int Count, double Ms) entry) ? (entry.Count + 1, entry.Ms + ms) : (1, ms);
         sw.Restart();
     }
 
@@ -128,7 +128,7 @@ public sealed class SoloTrainingEvaluator
         IReadOnlyList<AircraftState> knownAircraft
     )
     {
-        foreach (var parsedCommand in EnumerateImmediatelyAppliedCommands(command))
+        foreach (ParsedCommand parsedCommand in EnumerateImmediatelyAppliedCommands(command))
         {
             if (parsedCommand is ContactCommand or FrequencyChangeApprovedCommand)
             {
@@ -164,8 +164,8 @@ public sealed class SoloTrainingEvaluator
             }
             else if (parsedCommand is ReportTrafficLandmarkCommand landmark)
             {
-                var position = NavigationDatabase.Instance.GetFixPosition(landmark.Details.FixName);
-                var match = position is null
+                (double Lat, double Lon)? position = NavigationDatabase.Instance.GetFixPosition(landmark.Details.FixName);
+                TrafficAdvisoryTargetMatch? match = position is null
                     ? null
                     : TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(
                         aircraft,
@@ -178,7 +178,7 @@ public sealed class SoloTrainingEvaluator
             }
             else if (parsedCommand is SafetyAlertCommand safetyAlert)
             {
-                var target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(aircraft, safetyAlert.Details, knownAircraft, out _);
+                AircraftState? target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(aircraft, safetyAlert.Details, knownAircraft, out _);
                 if (target is not null)
                 {
                     _safetyAlertProofs.Add(new SafetyAlertProof(aircraft.Callsign, target.Callsign, scenarioElapsedSeconds));
@@ -259,14 +259,14 @@ public sealed class SoloTrainingEvaluator
         var observedThisTick = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var eligible = aircraft.Where(IsEligibleAirborneTarget).ToList();
 
-        var sw = DiagnosticPhaseTimings is null ? null : Stopwatch.StartNew();
+        Stopwatch? sw = DiagnosticPhaseTimings is null ? null : Stopwatch.StartNew();
 
         for (int i = 0; i < eligible.Count; i++)
         {
             for (int j = i + 1; j < eligible.Count; j++)
             {
-                var a = eligible[i];
-                var b = eligible[j];
+                AircraftState a = eligible[i];
+                AircraftState b = eligible[j];
                 if (IsCoveredByVisualFollow(a, b))
                 {
                     continue;
@@ -277,22 +277,24 @@ public sealed class SoloTrainingEvaluator
                     continue;
                 }
 
-                var separationSample = SamplePair(a, b, airspace, scenarioElapsedSeconds);
+                SeparationTrainingSample? separationSample = SamplePair(a, b, airspace, scenarioElapsedSeconds);
                 if (separationSample is not null)
                 {
-                    var sample = separationSample.Event;
-                    var requirement = separationSample.Requirement;
+                    TrainingEventSample sample = separationSample.Event;
+                    SeparationRequirement requirement = separationSample.Requirement;
                     observedThisTick.Add(sample.Id);
-                    var notice = Upsert(sample, scenarioElapsedSeconds);
+                    SoloTrainingEvent? notice = Upsert(sample, scenarioElapsedSeconds);
                     if (notice is not null)
                     {
                         notices.Add(notice);
                     }
 
-                    foreach (var advisorySample in SampleAdvisoryPair(a, b, requirement, sample, scenarioElapsedSeconds, serviceContext))
+                    foreach (
+                        TrainingEventSample advisorySample in SampleAdvisoryPair(a, b, requirement, sample, scenarioElapsedSeconds, serviceContext)
+                    )
                     {
                         observedThisTick.Add(advisorySample.Id);
-                        var advisoryNotice = Upsert(advisorySample, scenarioElapsedSeconds);
+                        SoloTrainingEvent? advisoryNotice = Upsert(advisorySample, scenarioElapsedSeconds);
                         if (advisoryNotice is not null)
                         {
                             notices.Add(advisoryNotice);
@@ -301,10 +303,10 @@ public sealed class SoloTrainingEvaluator
                 }
                 else
                 {
-                    foreach (var advisorySample in SampleNoMinimaAdvisoryPair(a, b, airspace, scenarioElapsedSeconds, serviceContext))
+                    foreach (TrainingEventSample advisorySample in SampleNoMinimaAdvisoryPair(a, b, airspace, scenarioElapsedSeconds, serviceContext))
                     {
                         observedThisTick.Add(advisorySample.Id);
-                        var advisoryNotice = Upsert(advisorySample, scenarioElapsedSeconds);
+                        SoloTrainingEvent? advisoryNotice = Upsert(advisorySample, scenarioElapsedSeconds);
                         if (advisoryNotice is not null)
                         {
                             notices.Add(advisoryNotice);
@@ -316,16 +318,16 @@ public sealed class SoloTrainingEvaluator
 
         RecordPhase("Solo.Pairwise", sw);
 
-        foreach (var aircraftState in eligible)
+        foreach (AircraftState? aircraftState in eligible)
         {
-            var visualSample = SampleVisualApproach(aircraftState, scenarioElapsedSeconds, serviceContext);
+            TrainingEventSample? visualSample = SampleVisualApproach(aircraftState, scenarioElapsedSeconds, serviceContext);
             if (visualSample is null)
             {
                 continue;
             }
 
             observedThisTick.Add(visualSample.Id);
-            var visualNotice = Upsert(visualSample, scenarioElapsedSeconds);
+            SoloTrainingEvent? visualNotice = Upsert(visualSample, scenarioElapsedSeconds);
             if (visualNotice is not null)
             {
                 notices.Add(visualNotice);
@@ -334,20 +336,20 @@ public sealed class SoloTrainingEvaluator
 
         RecordPhase("Solo.Visual", sw);
 
-        foreach (var overuseSample in SampleSafetyAlertOveruse(scenarioElapsedSeconds))
+        foreach (TrainingEventSample overuseSample in SampleSafetyAlertOveruse(scenarioElapsedSeconds))
         {
             observedThisTick.Add(overuseSample.Id);
-            var notice = Upsert(overuseSample, scenarioElapsedSeconds);
+            SoloTrainingEvent? notice = Upsert(overuseSample, scenarioElapsedSeconds);
             if (notice is not null)
             {
                 notices.Add(notice);
             }
         }
 
-        foreach (var impreciseSample in SampleImpreciseAdvisories(scenarioElapsedSeconds))
+        foreach (TrainingEventSample impreciseSample in SampleImpreciseAdvisories(scenarioElapsedSeconds))
         {
             observedThisTick.Add(impreciseSample.Id);
-            var notice = Upsert(impreciseSample, scenarioElapsedSeconds);
+            SoloTrainingEvent? notice = Upsert(impreciseSample, scenarioElapsedSeconds);
             if (notice is not null)
             {
                 notices.Add(notice);
@@ -356,19 +358,19 @@ public sealed class SoloTrainingEvaluator
 
         RecordPhase("Solo.SafetyOveruse", sw);
 
-        foreach (var overrunSample in SampleRejectedTakeoffEvents(aircraft, scenarioElapsedSeconds))
+        foreach (TrainingEventSample overrunSample in SampleRejectedTakeoffEvents(aircraft, scenarioElapsedSeconds))
         {
             observedThisTick.Add(overrunSample.Id);
-            var notice = Upsert(overrunSample, scenarioElapsedSeconds);
+            SoloTrainingEvent? notice = Upsert(overrunSample, scenarioElapsedSeconds);
             if (notice is not null)
             {
                 notices.Add(notice);
             }
         }
 
-        var runwayEvaluation = _sameRunwayTracker.Evaluate(aircraft, scenarioElapsedSeconds, serviceContext);
+        RunwayEvaluationResult runwayEvaluation = _sameRunwayTracker.Evaluate(aircraft, scenarioElapsedSeconds, serviceContext);
         foreach (
-            var wakeAdvisorySample in SampleWakeAdvisoryProofs(
+            TrainingEventSample wakeAdvisorySample in SampleWakeAdvisoryProofs(
                 runwayEvaluation.RunwayEvents,
                 runwayEvaluation.WakeContexts,
                 aircraft,
@@ -378,17 +380,17 @@ public sealed class SoloTrainingEvaluator
         )
         {
             observedThisTick.Add(wakeAdvisorySample.Id);
-            var notice = Upsert(wakeAdvisorySample, scenarioElapsedSeconds);
+            SoloTrainingEvent? notice = Upsert(wakeAdvisorySample, scenarioElapsedSeconds);
             if (notice is not null)
             {
                 notices.Add(notice);
             }
         }
 
-        foreach (var sample in runwayEvaluation.RunwayEvents.Select(e => e.Sample))
+        foreach (TrainingEventSample? sample in runwayEvaluation.RunwayEvents.Select(e => e.Sample))
         {
             observedThisTick.Add(sample.Id);
-            var notice = Upsert(sample, scenarioElapsedSeconds);
+            SoloTrainingEvent? notice = Upsert(sample, scenarioElapsedSeconds);
             if (notice is not null)
             {
                 notices.Add(notice);
@@ -397,7 +399,7 @@ public sealed class SoloTrainingEvaluator
 
         RecordPhase("Solo.RunwayTracker", sw);
 
-        foreach (var tracked in _events.Values)
+        foreach (TrackedEvent tracked in _events.Values)
         {
             if (tracked.IsActive && !observedThisTick.Contains(tracked.Id))
             {
@@ -419,11 +421,11 @@ public sealed class SoloTrainingEvaluator
         var timeline = _events.Values.Select(t => t.ToEvent()).OrderByDescending(e => e.StartedAtSeconds).ToList();
         var active = timeline.Where(e => e.IsActive).OrderByDescending(e => e.Severity).ThenByDescending(e => e.ExposureSeconds).ToList();
 
-        var separationLoss = ComputeEventLoss(timeline, SoloTrainingEventCategory.Separation);
-        var runwayWakeLoss = ComputeEventLoss(timeline, SoloTrainingEventCategory.RunwayWake);
-        var advisoryLoss = ComputeEventLoss(timeline, SoloTrainingEventCategory.AdvisoryVisual);
-        var approachLoss = ComputeApproachLoss(approachReport);
-        var recoveryLoss = ComputeRecoveryLoss(timeline);
+        int separationLoss = ComputeEventLoss(timeline, SoloTrainingEventCategory.Separation);
+        int runwayWakeLoss = ComputeEventLoss(timeline, SoloTrainingEventCategory.RunwayWake);
+        int advisoryLoss = ComputeEventLoss(timeline, SoloTrainingEventCategory.AdvisoryVisual);
+        int approachLoss = ComputeApproachLoss(approachReport);
+        int recoveryLoss = ComputeRecoveryLoss(timeline);
 
         var buckets = new List<SoloTrainingScoreBucket>
         {
@@ -437,7 +439,7 @@ public sealed class SoloTrainingEvaluator
         int pointsLost = buckets.Sum(b => b.PointsLost);
         int score = Math.Clamp(100 - pointsLost, 0, 100);
 
-        var debriefs = BuildAircraftDebriefs(timeline, debriefContext);
+        IReadOnlyList<AircraftDebriefData> debriefs = BuildAircraftDebriefs(timeline, debriefContext);
 
         return new SoloTrainingReportData(
             soloTrainingMode,
@@ -472,15 +474,15 @@ public sealed class SoloTrainingEvaluator
         // aircraft involved in the finding, so the same finding shows up in both aircraft's
         // debrief blocks (which is what we want — separation losses are shared blame).
         var findingsByCallsign = new Dictionary<string, List<SoloTrainingEvent>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var ev in timeline)
+        foreach (SoloTrainingEvent ev in timeline)
         {
-            foreach (var cs in ev.Callsigns)
+            foreach (string cs in ev.Callsigns)
             {
                 if (string.IsNullOrWhiteSpace(cs))
                 {
                     continue;
                 }
-                if (!findingsByCallsign.TryGetValue(cs, out var list))
+                if (!findingsByCallsign.TryGetValue(cs, out List<SoloTrainingEvent>? list))
                 {
                     list = [];
                     findingsByCallsign[cs] = list;
@@ -492,7 +494,7 @@ public sealed class SoloTrainingEvaluator
         var results = new List<AircraftDebriefData>(debriefContext.ActiveAircraft.Count + debriefContext.CompletedAircraft.Count);
 
         // Active aircraft come from the live world.
-        foreach (var ac in debriefContext.ActiveAircraft)
+        foreach (AircraftState ac in debriefContext.ActiveAircraft)
         {
             results.Add(BuildDebriefForActive(ac, debriefContext.PrimaryAirportId, findingsByCallsign));
         }
@@ -505,18 +507,21 @@ public sealed class SoloTrainingEvaluator
         // wants to see the most recent run on the Aircraft tab.
         var liveCallsigns = new HashSet<string>(debriefContext.ActiveAircraft.Select(a => a.Callsign), StringComparer.OrdinalIgnoreCase);
         var latestByCallsign = new Dictionary<string, CompletedAircraftRecord>(StringComparer.OrdinalIgnoreCase);
-        foreach (var record in debriefContext.CompletedAircraft)
+        foreach (CompletedAircraftRecord record in debriefContext.CompletedAircraft)
         {
             if (liveCallsigns.Contains(record.Callsign))
             {
                 continue;
             }
-            if (!latestByCallsign.TryGetValue(record.Callsign, out var existing) || record.CompletedAtSeconds > existing.CompletedAtSeconds)
+            if (
+                !latestByCallsign.TryGetValue(record.Callsign, out CompletedAircraftRecord? existing)
+                || record.CompletedAtSeconds > existing.CompletedAtSeconds
+            )
             {
                 latestByCallsign[record.Callsign] = record;
             }
         }
-        foreach (var record in latestByCallsign.Values)
+        foreach (CompletedAircraftRecord record in latestByCallsign.Values)
         {
             results.Add(BuildDebriefForCompleted(record, debriefContext.PrimaryAirportId, findingsByCallsign));
         }
@@ -544,7 +549,7 @@ public sealed class SoloTrainingEvaluator
             ulong h = FnvOffset;
 
             h = Combine(h, (ulong)debriefContext.ActiveAircraft.Count);
-            foreach (var ac in debriefContext.ActiveAircraft)
+            foreach (AircraftState ac in debriefContext.ActiveAircraft)
             {
                 h = CombineString(h, ac.Callsign);
                 h = CombineString(h, ac.Cid);
@@ -558,7 +563,7 @@ public sealed class SoloTrainingEvaluator
             }
 
             h = Combine(h, (ulong)debriefContext.CompletedAircraft.Count);
-            foreach (var rec in debriefContext.CompletedAircraft)
+            foreach (CompletedAircraftRecord rec in debriefContext.CompletedAircraft)
             {
                 h = CombineString(h, rec.Callsign);
                 h = Combine(h, BitConverter.DoubleToUInt64Bits(rec.CompletedAtSeconds));
@@ -568,7 +573,7 @@ public sealed class SoloTrainingEvaluator
             h = CombineString(h, debriefContext.PrimaryAirportId);
 
             h = Combine(h, (ulong)timeline.Count);
-            foreach (var ev in timeline)
+            foreach (SoloTrainingEvent ev in timeline)
             {
                 h = CombineString(h, ev.Id);
                 h = Combine(h, (ulong)ev.Severity);
@@ -585,7 +590,7 @@ public sealed class SoloTrainingEvaluator
                     return Combine(acc, 0);
                 }
                 ulong h2 = acc;
-                foreach (var ch in s)
+                foreach (char ch in s)
                 {
                     h2 = (h2 ^ ch) * FnvPrime;
                 }
@@ -602,8 +607,8 @@ public sealed class SoloTrainingEvaluator
     {
         string? departure = string.IsNullOrEmpty(ac.FlightPlan.Departure) ? null : ac.FlightPlan.Departure;
         string? destination = string.IsNullOrEmpty(ac.FlightPlan.Destination) ? null : ac.FlightPlan.Destination;
-        var operation = ClassifyOperation(departure, destination, primaryAirportId);
-        var findings = findingsByCallsign.GetValueOrDefault(ac.Callsign) ?? [];
+        OperationKind operation = ClassifyOperation(departure, destination, primaryAirportId);
+        List<SoloTrainingEvent> findings = findingsByCallsign.GetValueOrDefault(ac.Callsign) ?? [];
         return BuildDebriefRow(
             ac.Callsign,
             ac.AircraftType,
@@ -624,8 +629,8 @@ public sealed class SoloTrainingEvaluator
         Dictionary<string, List<SoloTrainingEvent>> findingsByCallsign
     )
     {
-        var operation = ClassifyOperation(record.FiledDeparture, record.FiledDestination, primaryAirportId);
-        var findings = findingsByCallsign.GetValueOrDefault(record.Callsign) ?? [];
+        OperationKind operation = ClassifyOperation(record.FiledDeparture, record.FiledDestination, primaryAirportId);
+        List<SoloTrainingEvent> findings = findingsByCallsign.GetValueOrDefault(record.Callsign) ?? [];
         return BuildDebriefRow(
             record.Callsign,
             record.AircraftType,
@@ -663,7 +668,7 @@ public sealed class SoloTrainingEvaluator
         SoloTrainingEvent? topFinding = null;
         var findingIds = new List<string>(findings.Count);
 
-        foreach (var f in findings)
+        foreach (SoloTrainingEvent f in findings)
         {
             findingIds.Add(f.Id);
             switch (f.Category)
@@ -703,7 +708,7 @@ public sealed class SoloTrainingEvaluator
             }
         }
 
-        var note = AircraftDebriefCoachingTemplates.Build(operation, completionReason, completionDetail, topFinding, findings.Count);
+        string note = AircraftDebriefCoachingTemplates.Build(operation, completionReason, completionDetail, topFinding, findings.Count);
 
         return new AircraftDebriefData(
             callsign,
@@ -773,8 +778,8 @@ public sealed class SoloTrainingEvaluator
         {
             return false;
         }
-        var c = candidate.Trim();
-        var p = primary.Trim();
+        string c = candidate.Trim();
+        string p = primary.Trim();
         if (string.Equals(c, p, StringComparison.OrdinalIgnoreCase))
         {
             return true;
@@ -823,7 +828,7 @@ public sealed class SoloTrainingEvaluator
             );
         }
 
-        var applicableClasses = FindApplicableAirspaceClasses(a, b, airspace, lookaheadSeconds);
+        HashSet<AirspaceClass> applicableClasses = FindApplicableAirspaceClasses(a, b, airspace, lookaheadSeconds);
         if (applicableClasses.Contains(AirspaceClass.Bravo))
         {
             // §7-9-4.2/.3: a VFR aircraft is separated from the *other* aircraft, so the 1.5 NM floor
@@ -881,18 +886,18 @@ public sealed class SoloTrainingEvaluator
 
     private static bool IsInClassCOuterArea(AircraftState aircraft, AirspaceDatabase airspace, double lookaheadSeconds)
     {
-        var position = ProjectPosition(aircraft, lookaheadSeconds);
+        LatLon position = ProjectPosition(aircraft, lookaheadSeconds);
         double altitude = ProjectAltitude(aircraft, lookaheadSeconds);
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
 
         foreach (
-            var group in airspace
+            IGrouping<string, AirspaceVolume> group in airspace
                 .Volumes.Where(v => v.Class == AirspaceClass.Charlie)
                 .GroupBy(v => !string.IsNullOrWhiteSpace(v.IcaoId) ? v.IcaoId : v.Ident)
         )
         {
-            var airportId = group.Key;
-            var airport = navDb.GetFixPosition(airportId) ?? navDb.GetFixPosition("K" + airportId);
+            string airportId = group.Key;
+            (double Lat, double Lon)? airport = navDb.GetFixPosition(airportId) ?? navDb.GetFixPosition("K" + airportId);
             if (airport is null)
             {
                 continue;
@@ -920,12 +925,12 @@ public sealed class SoloTrainingEvaluator
     )
     {
         var classes = new HashSet<AirspaceClass>();
-        foreach (var volume in FindContainingProjectedAirspace(a, airspace, lookaheadSeconds))
+        foreach (AirspaceVolume volume in FindContainingProjectedAirspace(a, airspace, lookaheadSeconds))
         {
             classes.Add(volume.Class);
         }
 
-        foreach (var volume in FindContainingProjectedAirspace(b, airspace, lookaheadSeconds))
+        foreach (AirspaceVolume volume in FindContainingProjectedAirspace(b, airspace, lookaheadSeconds))
         {
             classes.Add(volume.Class);
         }
@@ -939,14 +944,14 @@ public sealed class SoloTrainingEvaluator
         double lookaheadSeconds
     )
     {
-        var position = ProjectPosition(aircraft, lookaheadSeconds);
+        LatLon position = ProjectPosition(aircraft, lookaheadSeconds);
         double altitude = ProjectAltitude(aircraft, lookaheadSeconds);
         return airspace.FindContaining(position, altitude);
     }
 
     private static bool IsLargeOrTurbojet(AircraftState aircraft)
     {
-        var record = FaaAircraftDatabase.Get(aircraft.AircraftType);
+        FaaAircraftRecord? record = FaaAircraftDatabase.Get(aircraft.AircraftType);
         if (record is not null)
         {
             if (record.MtowLb > 19000.0)
@@ -957,7 +962,7 @@ public sealed class SoloTrainingEvaluator
             return record.PhysicalClassEngine?.Contains("Jet", StringComparison.OrdinalIgnoreCase) == true;
         }
 
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         return category == AircraftCategory.Jet;
     }
 
@@ -995,20 +1000,20 @@ public sealed class SoloTrainingEvaluator
             return command.Blocks.SelectMany(block => block.Commands);
         }
 
-        var firstBlock = command.Blocks.FirstOrDefault();
+        ParsedBlock? firstBlock = command.Blocks.FirstOrDefault();
         return firstBlock?.Condition is null ? firstBlock?.Commands ?? [] : [];
     }
 
     private static bool IsUnconditionedTransparentCompound(CompoundCommand command)
     {
-        foreach (var block in command.Blocks)
+        foreach (ParsedBlock block in command.Blocks)
         {
             if (block.Condition is not null)
             {
                 return false;
             }
 
-            foreach (var commandInBlock in block.Commands)
+            foreach (ParsedCommand commandInBlock in block.Commands)
             {
                 if (commandInBlock is UnsupportedCommand)
                 {
@@ -1045,12 +1050,12 @@ public sealed class SoloTrainingEvaluator
 
     private static SeparationTrainingSample? SamplePair(AircraftState a, AircraftState b, AirspaceDatabase airspace, double scenarioElapsedSeconds)
     {
-        var current = ComputeSeparation(a, b, lookaheadSeconds: 0.0);
-        var projected30 = ComputeSeparation(a, b, WarningLookaheadSeconds);
-        var projected60 = ComputeSeparation(a, b, CoachLookaheadSeconds);
-        var currentRequirement = ResolveRequirement(a, b, airspace, lookaheadSeconds: 0.0);
-        var projected30Requirement = ResolveRequirement(a, b, airspace, WarningLookaheadSeconds);
-        var projected60Requirement = ResolveRequirement(a, b, airspace, CoachLookaheadSeconds);
+        (double HorizontalNm, double VerticalFt) current = ComputeSeparation(a, b, lookaheadSeconds: 0.0);
+        (double HorizontalNm, double VerticalFt) projected30 = ComputeSeparation(a, b, WarningLookaheadSeconds);
+        (double HorizontalNm, double VerticalFt) projected60 = ComputeSeparation(a, b, CoachLookaheadSeconds);
+        SeparationRequirement? currentRequirement = ResolveRequirement(a, b, airspace, lookaheadSeconds: 0.0);
+        SeparationRequirement? projected30Requirement = ResolveRequirement(a, b, airspace, WarningLookaheadSeconds);
+        SeparationRequirement? projected60Requirement = ResolveRequirement(a, b, airspace, CoachLookaheadSeconds);
 
         bool currentViolation = (currentRequirement is not null) && Violates(current.HorizontalNm, current.VerticalFt, currentRequirement);
         bool warningViolation =
@@ -1064,7 +1069,7 @@ public sealed class SoloTrainingEvaluator
             : warningViolation || warningMargin ? SoloTrainingEventSeverity.Warning
             : coachViolation ? SoloTrainingEventSeverity.Coach
             : null;
-        var trigger =
+        SampledSeparation? trigger =
             currentViolation || warningMargin ? new SampledSeparation(0.0, current.HorizontalNm, current.VerticalFt, currentRequirement)
             : warningViolation
                 ? new SampledSeparation(WarningLookaheadSeconds, projected30.HorizontalNm, projected30.VerticalFt, projected30Requirement)
@@ -1076,7 +1081,7 @@ public sealed class SoloTrainingEvaluator
             return null;
         }
 
-        var requirement = trigger.Requirement;
+        SeparationRequirement requirement = trigger.Requirement;
         string id = MakePairEventId(requirement.Name, a.Callsign, b.Callsign);
         string title = severity == SoloTrainingEventSeverity.Safety ? $"{requirement.Name} loss" : $"{requirement.Name} risk";
         string spacingLabel = trigger.LookaheadSeconds <= 0.0 ? "Current spacing" : $"{trigger.LookaheadSeconds:F0}-second projected spacing";
@@ -1152,7 +1157,7 @@ public sealed class SoloTrainingEvaluator
         SoloTrainingServiceContext serviceContext
     )
     {
-        var current = ComputeSeparation(a, b, lookaheadSeconds: 0.0);
+        (double HorizontalNm, double VerticalFt) current = ComputeSeparation(a, b, lookaheadSeconds: 0.0);
         if ((current.HorizontalNm > TerminalRadarHorizontalNm) || (current.VerticalFt > IfrVerticalFt))
         {
             return [];
@@ -1246,7 +1251,7 @@ public sealed class SoloTrainingEvaluator
 
     private bool HasSafetyAlertProof(string recipientCallsign, string targetCallsign)
     {
-        foreach (var proof in _safetyAlertProofs)
+        foreach (SafetyAlertProof proof in _safetyAlertProofs)
         {
             if (
                 proof.RecipientCallsign.Equals(recipientCallsign, StringComparison.OrdinalIgnoreCase)
@@ -1271,15 +1276,15 @@ public sealed class SoloTrainingEvaluator
     {
         var candidates = new List<WakeAdvisoryCandidate>();
         var contextIdsWithRunwaySamples = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var runwaySample in runwaySamples)
+        foreach (RunwayEventSample runwaySample in runwaySamples)
         {
-            var sample = runwaySample.Sample;
+            TrainingEventSample sample = runwaySample.Sample;
             if (runwaySample.WakeContext is not null)
             {
                 contextIdsWithRunwaySamples.Add(runwaySample.WakeContext.SourceEventId);
             }
 
-            var wakeContext = ApplyServiceContext(runwaySample.WakeContext, serviceContext);
+            WakeDirectiveContext? wakeContext = ApplyServiceContext(runwaySample.WakeContext, serviceContext);
             if (wakeContext is not null && serviceContext.WakeDirectives.FindMatches(wakeContext).Any(HasSuppressWakeAdvisoryEffect))
             {
                 continue;
@@ -1290,8 +1295,8 @@ public sealed class SoloTrainingEvaluator
                 continue;
             }
 
-            var recipient = aircraft.FirstOrDefault(a => a.Callsign.Equals(sample.Callsigns[1], StringComparison.OrdinalIgnoreCase));
-            var target = aircraft.FirstOrDefault(a => a.Callsign.Equals(sample.Callsigns[0], StringComparison.OrdinalIgnoreCase));
+            AircraftState? recipient = aircraft.FirstOrDefault(a => a.Callsign.Equals(sample.Callsigns[1], StringComparison.OrdinalIgnoreCase));
+            AircraftState? target = aircraft.FirstOrDefault(a => a.Callsign.Equals(sample.Callsigns[0], StringComparison.OrdinalIgnoreCase));
             if (recipient is null || target is null || !IsStudentServiceRecipient(recipient, serviceContext))
             {
                 continue;
@@ -1310,22 +1315,24 @@ public sealed class SoloTrainingEvaluator
             );
         }
 
-        foreach (var context in wakeContexts)
+        foreach (WakeDirectiveContext context in wakeContexts)
         {
             if (contextIdsWithRunwaySamples.Contains(context.SourceEventId))
             {
                 continue;
             }
 
-            var resolvedContext = ApplyServiceContext(context, serviceContext);
-            var matches = serviceContext.WakeDirectives.FindMatches(resolvedContext!);
+            WakeDirectiveContext? resolvedContext = ApplyServiceContext(context, serviceContext);
+            IReadOnlyList<WakeDirectiveRule> matches = serviceContext.WakeDirectives.FindMatches(resolvedContext!);
             if (!matches.Any(HasRequireWakeAdvisoryEffect) || matches.Any(HasSuppressWakeAdvisoryEffect))
             {
                 continue;
             }
 
-            var recipient = aircraft.FirstOrDefault(a => a.Callsign.Equals(context.SucceedingCallsign, StringComparison.OrdinalIgnoreCase));
-            var target = aircraft.FirstOrDefault(a => a.Callsign.Equals(context.PrecedingCallsign, StringComparison.OrdinalIgnoreCase));
+            AircraftState? recipient = aircraft.FirstOrDefault(a =>
+                a.Callsign.Equals(context.SucceedingCallsign, StringComparison.OrdinalIgnoreCase)
+            );
+            AircraftState? target = aircraft.FirstOrDefault(a => a.Callsign.Equals(context.PrecedingCallsign, StringComparison.OrdinalIgnoreCase));
             if (recipient is null || target is null || !IsStudentServiceRecipient(recipient, serviceContext))
             {
                 continue;
@@ -1344,7 +1351,7 @@ public sealed class SoloTrainingEvaluator
             .GroupBy(candidate => NormalizeCallsign(candidate.Recipient.Callsign), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
         var results = new List<TrainingEventSample>();
-        foreach (var candidate in candidates)
+        foreach (WakeAdvisoryCandidate candidate in candidates)
         {
             string recipientKey = NormalizeCallsign(candidate.Recipient.Callsign);
             if (countByRecipient[recipientKey] == 1 && HasWakeAdvisoryProof(candidate))
@@ -1380,7 +1387,7 @@ public sealed class SoloTrainingEvaluator
 
     private bool HasWakeAdvisoryProof(WakeAdvisoryCandidate candidate)
     {
-        foreach (var proof in _wakeAdvisoryProofs)
+        foreach (WakeAdvisoryProof proof in _wakeAdvisoryProofs)
         {
             if (
                 proof.RecipientCallsign.Equals(candidate.Recipient.Callsign, StringComparison.OrdinalIgnoreCase)
@@ -1494,7 +1501,7 @@ public sealed class SoloTrainingEvaluator
 
     private IEnumerable<TrainingEventSample> SampleSafetyAlertOveruse(double scenarioElapsedSeconds)
     {
-        foreach (var proof in _safetyAlertProofs)
+        foreach (SafetyAlertProof proof in _safetyAlertProofs)
         {
             if (proof.UsedForSafetyState || proof.OveruseRecorded)
             {
@@ -1525,7 +1532,7 @@ public sealed class SoloTrainingEvaluator
 
     private IEnumerable<TrainingEventSample> SampleImpreciseAdvisories(double scenarioElapsedSeconds)
     {
-        foreach (var advisory in _impreciseAdvisories)
+        foreach (ImpreciseAdvisoryProof advisory in _impreciseAdvisories)
         {
             if (advisory.NoteRecorded)
             {
@@ -1557,8 +1564,8 @@ public sealed class SoloTrainingEvaluator
 
     private static (double HorizontalNm, double VerticalFt) ComputeSeparation(AircraftState a, AircraftState b, double lookaheadSeconds)
     {
-        var aPosition = ProjectPosition(a, lookaheadSeconds);
-        var bPosition = ProjectPosition(b, lookaheadSeconds);
+        LatLon aPosition = ProjectPosition(a, lookaheadSeconds);
+        LatLon bPosition = ProjectPosition(b, lookaheadSeconds);
         double aAltitude = ProjectAltitude(a, lookaheadSeconds);
         double bAltitude = ProjectAltitude(b, lookaheadSeconds);
         return (GeoMath.DistanceNm(aPosition, bPosition), Math.Abs(aAltitude - bAltitude));
@@ -1594,7 +1601,7 @@ public sealed class SoloTrainingEvaluator
     /// </summary>
     private static IEnumerable<TrainingEventSample> SampleRejectedTakeoffEvents(List<AircraftState> aircraft, double scenarioElapsedSeconds)
     {
-        foreach (var ac in aircraft)
+        foreach (AircraftState ac in aircraft)
         {
             if (ac.Phases?.CurrentPhase is not RejectedTakeoffPhase reject)
             {
@@ -1672,14 +1679,14 @@ public sealed class SoloTrainingEvaluator
 
     private SoloTrainingEvent? Upsert(TrainingEventSample sample, double scenarioElapsedSeconds)
     {
-        if (!_events.TryGetValue(sample.Id, out var tracked))
+        if (!_events.TryGetValue(sample.Id, out TrackedEvent? tracked))
         {
             tracked = TrackedEvent.FromSample(sample);
             _events.Add(sample.Id, tracked);
             return tracked.ToEvent();
         }
 
-        var oldSeverity = tracked.Severity;
+        SoloTrainingEventSeverity oldSeverity = tracked.Severity;
         tracked.Update(sample, scenarioElapsedSeconds);
 
         return sample.Severity > oldSeverity ? tracked.ToEvent() : null;
@@ -1714,7 +1721,7 @@ public sealed class SoloTrainingEvaluator
     private static int ComputeEventLoss(List<SoloTrainingEvent> events, SoloTrainingEventCategory category)
     {
         int loss = 0;
-        foreach (var e in events.Where(e => e.Category == category))
+        foreach (SoloTrainingEvent? e in events.Where(e => e.Category == category))
         {
             int baseLoss = e.Severity switch
             {
@@ -1737,7 +1744,7 @@ public sealed class SoloTrainingEvaluator
     private static int ComputeApproachLoss(ApproachReportData approachReport)
     {
         int loss = 0;
-        foreach (var approach in approachReport.Approaches)
+        foreach (ScoredApproach approach in approachReport.Approaches)
         {
             loss += approach.Grade switch
             {
@@ -1767,12 +1774,12 @@ public sealed class SoloTrainingEvaluator
     private static List<string> BuildCoachingNotes(List<SoloTrainingEvent> events, ApproachReportData approachReport)
     {
         var notes = new List<string>();
-        foreach (var e in events.OrderByDescending(e => e.Severity).ThenByDescending(e => e.ExposureSeconds).Take(4))
+        foreach (SoloTrainingEvent? e in events.OrderByDescending(e => e.Severity).ThenByDescending(e => e.ExposureSeconds).Take(4))
         {
             notes.Add(e.Description);
         }
 
-        var weakApproach = approachReport.Approaches.FirstOrDefault(a => a.Grade is "D" or "F");
+        ScoredApproach? weakApproach = approachReport.Approaches.FirstOrDefault(a => a.Grade is "D" or "F");
         if (weakApproach is not null)
         {
             notes.Add($"{weakApproach.Score.Callsign}: review {weakApproach.Score.ApproachId} setup; the approach graded {weakApproach.Grade}.");
@@ -1958,9 +1965,9 @@ public sealed class SoloTrainingEvaluator
         {
             var samples = new List<RunwayEventSample>();
             var wakeContexts = new Dictionary<string, WakeDirectiveContext>(StringComparer.OrdinalIgnoreCase);
-            var currentStates = BuildCurrentStates(aircraft);
+            Dictionary<string, AircraftRunwayState> currentStates = BuildCurrentStates(aircraft);
 
-            foreach (var violation in _activeViolations.Values.ToList())
+            foreach (ActiveSameRunwayViolation? violation in _activeViolations.Values.ToList())
             {
                 if (violation.WakeContext is not null)
                 {
@@ -1980,16 +1987,23 @@ public sealed class SoloTrainingEvaluator
                 }
             }
 
-            foreach (var state in currentStates.Values.OrderBy(s => s.Callsign, StringComparer.OrdinalIgnoreCase))
+            foreach (AircraftRunwayState? state in currentStates.Values.OrderBy(s => s.Callsign, StringComparer.OrdinalIgnoreCase))
             {
-                bool firstObservation = !_previousStates.TryGetValue(state.Callsign, out var previous);
-                var operation = DetectOperation(state, previous, firstObservation, scenarioElapsedSeconds);
+                bool firstObservation = !_previousStates.TryGetValue(state.Callsign, out AircraftRunwayState? previous);
+                RunwayOperation? operation = DetectOperation(state, previous, firstObservation, scenarioElapsedSeconds);
                 if (operation is null)
                 {
                     continue;
                 }
 
-                foreach (var violation in CreateRunwaySeparationViolations(operation, currentStates, scenarioElapsedSeconds, firstObservation))
+                foreach (
+                    ActiveSameRunwayViolation violation in CreateRunwaySeparationViolations(
+                        operation,
+                        currentStates,
+                        scenarioElapsedSeconds,
+                        firstObservation
+                    )
+                )
                 {
                     _activeViolations[violation.Id] = violation;
                     if (TrySampleViolation(violation, currentStates, scenarioElapsedSeconds) is { } sample)
@@ -1998,7 +2012,7 @@ public sealed class SoloTrainingEvaluator
                     }
                 }
 
-                foreach (var violation in CreateWakeViolations(operation, currentStates, scenarioElapsedSeconds))
+                foreach (ActiveSameRunwayViolation violation in CreateWakeViolations(operation, currentStates, scenarioElapsedSeconds))
                 {
                     _activeViolations[violation.Id] = violation;
                     if (violation.WakeContext is not null)
@@ -2020,12 +2034,12 @@ public sealed class SoloTrainingEvaluator
             }
 
             _previousStates.Clear();
-            foreach (var state in currentStates.Values)
+            foreach (AircraftRunwayState state in currentStates.Values)
             {
                 _previousStates[state.Callsign] = state;
             }
 
-            foreach (var context in SamplePotentialWakeContexts(currentStates, scenarioElapsedSeconds))
+            foreach (WakeDirectiveContext context in SamplePotentialWakeContexts(currentStates, scenarioElapsedSeconds))
             {
                 wakeContexts[context.SourceEventId] = context;
             }
@@ -2036,8 +2050,8 @@ public sealed class SoloTrainingEvaluator
         public List<WakeDirectiveContext> SampleActiveWakeContexts(List<AircraftState> aircraft, double scenarioElapsedSeconds)
         {
             var contexts = new Dictionary<string, WakeDirectiveContext>(StringComparer.OrdinalIgnoreCase);
-            var currentStates = BuildCurrentStates(aircraft);
-            foreach (var violation in _activeViolations.Values)
+            Dictionary<string, AircraftRunwayState> currentStates = BuildCurrentStates(aircraft);
+            foreach (ActiveSameRunwayViolation violation in _activeViolations.Values)
             {
                 if (violation.WakeContext is not null && TrySampleViolation(violation, currentStates, scenarioElapsedSeconds) is not null)
                 {
@@ -2045,7 +2059,7 @@ public sealed class SoloTrainingEvaluator
                 }
             }
 
-            foreach (var context in SamplePotentialWakeContexts(currentStates, scenarioElapsedSeconds))
+            foreach (WakeDirectiveContext context in SamplePotentialWakeContexts(currentStates, scenarioElapsedSeconds))
             {
                 contexts[context.SourceEventId] = context;
             }
@@ -2068,7 +2082,7 @@ public sealed class SoloTrainingEvaluator
         private static Dictionary<string, AircraftRunwayState> BuildCurrentStates(List<AircraftState> aircraft)
         {
             var states = new Dictionary<string, AircraftRunwayState>(StringComparer.OrdinalIgnoreCase);
-            foreach (var ac in aircraft)
+            foreach (AircraftState ac in aircraft)
             {
                 if (TryBuildState(ac) is { } state)
                 {
@@ -2081,7 +2095,7 @@ public sealed class SoloTrainingEvaluator
 
         private static AircraftRunwayState? TryBuildState(AircraftState aircraft)
         {
-            var runway = aircraft.Phases?.AssignedRunway;
+            RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
             RunwayUseKind? runwayUse = RunwayOccupancy.ClassifyByPhase(aircraft, runway: null);
             if (aircraft.IsShadow)
             {
@@ -2102,9 +2116,9 @@ public sealed class SoloTrainingEvaluator
             double alongPavementFt =
                 GeoMath.AlongTrackDistanceNm(aircraft.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading)
                 * GeoMath.FeetPerNm;
-            var authoredRunway = aircraft.Ground.Layout?.FindRunway(runway.Designator);
+            GroundRunway? authoredRunway = aircraft.Ground.Layout?.FindRunway(runway.Designator);
             double displacementFt = LandingThreshold.DisplacementFt(runway, authoredRunway);
-            var phase = aircraft.Phases?.CurrentPhase;
+            Phase? phase = aircraft.Phases?.CurrentPhase;
             string runwayKey = BuildRunwayKey(runway);
             return new AircraftRunwayState(
                 aircraft.Callsign,
@@ -2132,10 +2146,10 @@ public sealed class SoloTrainingEvaluator
         /// </summary>
         private static (RunwayInfo? Runway, RunwayUseKind? Use) ResolveShadowRunwayUse(AircraftState aircraft)
         {
-            var layout = aircraft.Ground.Layout;
-            var destinationRunways = RunwayOccupancy.AirportRunways(aircraft.FlightPlan.Destination);
-            var departureRunways = RunwayOccupancy.AirportRunways(aircraft.FlightPlan.Departure);
-            var use =
+            AirportGroundLayout? layout = aircraft.Ground.Layout;
+            IReadOnlyList<RunwayInfo> destinationRunways = RunwayOccupancy.AirportRunways(aircraft.FlightPlan.Destination);
+            IReadOnlyList<RunwayInfo> departureRunways = RunwayOccupancy.AirportRunways(aircraft.FlightPlan.Departure);
+            RunwayUse? use =
                 RunwayOccupancy.ClassifyBest(aircraft, destinationRunways, layout)
                 ?? RunwayOccupancy.ClassifyBest(aircraft, departureRunways, layout);
             if (use is not null)
@@ -2153,7 +2167,7 @@ public sealed class SoloTrainingEvaluator
                 return (departed, RunwayUseKind.Departing);
             }
 
-            var final = RunwayOccupancy.ClosestFinal(aircraft, destinationRunways, layout, RunwaySafetyAdvisor.OnFinalAdvisoryNm);
+            RunwayInfo? final = RunwayOccupancy.ClosestFinal(aircraft, destinationRunways, layout, RunwaySafetyAdvisor.OnFinalAdvisoryNm);
             return final is null ? (null, null) : (final, RunwayUseKind.OnFinal);
         }
 
@@ -2222,7 +2236,7 @@ public sealed class SoloTrainingEvaluator
                 return violations;
             }
 
-            if (_lastOperationByRunway.TryGetValue(operation.RunwayKey, out var sameRunwayPreceding))
+            if (_lastOperationByRunway.TryGetValue(operation.RunwayKey, out RunwayOperation? sameRunwayPreceding))
             {
                 var relation = RunwayRelation.SameActive();
                 if (TryCreateViolation(sameRunwayPreceding, operation, states, scenarioElapsedSeconds, relation) is { } violation)
@@ -2231,7 +2245,7 @@ public sealed class SoloTrainingEvaluator
                 }
             }
 
-            foreach (var preceding in _recentOperations.AsEnumerable().Reverse())
+            foreach (RunwayOperation? preceding in _recentOperations.AsEnumerable().Reverse())
             {
                 if (string.Equals(preceding.Callsign, operation.Callsign, StringComparison.OrdinalIgnoreCase))
                 {
@@ -2270,7 +2284,10 @@ public sealed class SoloTrainingEvaluator
             RunwayRelation relation
         )
         {
-            if (!states.TryGetValue(preceding.Callsign, out var precedingState) || !states.TryGetValue(succeeding.Callsign, out var succeedingState))
+            if (
+                !states.TryGetValue(preceding.Callsign, out AircraftRunwayState? precedingState)
+                || !states.TryGetValue(succeeding.Callsign, out AircraftRunwayState? succeedingState)
+            )
             {
                 return null;
             }
@@ -2353,24 +2370,24 @@ public sealed class SoloTrainingEvaluator
         )
         {
             var violations = new List<ActiveSameRunwayViolation>();
-            if (!states.TryGetValue(succeeding.Callsign, out var succeedingState))
+            if (!states.TryGetValue(succeeding.Callsign, out AircraftRunwayState? succeedingState))
             {
                 return violations;
             }
 
-            foreach (var preceding in _recentOperations.Where(o => o.Kind is OperationKind.Departure or OperationKind.Landing))
+            foreach (RunwayOperation? preceding in _recentOperations.Where(o => o.Kind is OperationKind.Departure or OperationKind.Landing))
             {
                 if (string.Equals(preceding.Callsign, succeeding.Callsign, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                if (!states.TryGetValue(preceding.Callsign, out var precedingState))
+                if (!states.TryGetValue(preceding.Callsign, out AircraftRunwayState? precedingState))
                 {
                     continue;
                 }
 
-                var relation = TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) ?? RunwayRelation.SameActive();
+                RunwayRelation relation = TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) ?? RunwayRelation.SameActive();
                 if (TryResolveDepartureWakeRequirement(preceding, succeeding, precedingState, succeedingState, relation) is not { } requirement)
                 {
                     continue;
@@ -2415,12 +2432,12 @@ public sealed class SoloTrainingEvaluator
         )
         {
             var violations = new List<ActiveSameRunwayViolation>();
-            if (!states.TryGetValue(preceding.Callsign, out var precedingState))
+            if (!states.TryGetValue(preceding.Callsign, out AircraftRunwayState? precedingState))
             {
                 return violations;
             }
 
-            foreach (var succeedingState in states.Values)
+            foreach (AircraftRunwayState succeedingState in states.Values)
             {
                 if (string.Equals(preceding.Callsign, succeedingState.Callsign, StringComparison.OrdinalIgnoreCase))
                 {
@@ -2482,7 +2499,7 @@ public sealed class SoloTrainingEvaluator
                 return violations;
             }
 
-            foreach (var preceding in _recentOperations.Where(o => o.Kind == OperationKind.Departure))
+            foreach (RunwayOperation? preceding in _recentOperations.Where(o => o.Kind == OperationKind.Departure))
             {
                 if (!states.ContainsKey(preceding.Callsign))
                 {
@@ -2529,25 +2546,25 @@ public sealed class SoloTrainingEvaluator
         private List<WakeDirectiveContext> SamplePotentialWakeContexts(Dictionary<string, AircraftRunwayState> states, double scenarioElapsedSeconds)
         {
             var contexts = new Dictionary<string, WakeDirectiveContext>(StringComparer.OrdinalIgnoreCase);
-            foreach (var succeeding in _recentOperations.Where(o => o.Kind == OperationKind.Departure))
+            foreach (RunwayOperation? succeeding in _recentOperations.Where(o => o.Kind == OperationKind.Departure))
             {
-                if (!states.TryGetValue(succeeding.Callsign, out var succeedingState))
+                if (!states.TryGetValue(succeeding.Callsign, out AircraftRunwayState? succeedingState))
                 {
                     continue;
                 }
 
-                foreach (var preceding in _recentOperations.Where(o => o.Kind is OperationKind.Departure or OperationKind.Landing))
+                foreach (RunwayOperation? preceding in _recentOperations.Where(o => o.Kind is OperationKind.Departure or OperationKind.Landing))
                 {
                     if (
                         string.Equals(preceding.Callsign, succeeding.Callsign, StringComparison.OrdinalIgnoreCase)
                         || (preceding.TriggeredAtSeconds > succeeding.TriggeredAtSeconds)
-                        || !states.TryGetValue(preceding.Callsign, out var precedingState)
+                        || !states.TryGetValue(preceding.Callsign, out AircraftRunwayState? precedingState)
                     )
                     {
                         continue;
                     }
 
-                    var relation = TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) ?? RunwayRelation.SameActive();
+                    RunwayRelation relation = TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) ?? RunwayRelation.SameActive();
                     if (TryResolveDepartureWakeRequirement(preceding, succeeding, precedingState, succeedingState, relation) is not { } requirement)
                     {
                         continue;
@@ -2558,14 +2575,14 @@ public sealed class SoloTrainingEvaluator
                 }
             }
 
-            foreach (var preceding in _recentOperations.Where(o => o.Kind == OperationKind.Landing))
+            foreach (RunwayOperation? preceding in _recentOperations.Where(o => o.Kind == OperationKind.Landing))
             {
-                if (!states.TryGetValue(preceding.Callsign, out var precedingState))
+                if (!states.TryGetValue(preceding.Callsign, out AircraftRunwayState? precedingState))
                 {
                     continue;
                 }
 
-                foreach (var succeedingState in states.Values)
+                foreach (AircraftRunwayState succeedingState in states.Values)
                 {
                     if (
                         string.Equals(preceding.Callsign, succeedingState.Callsign, StringComparison.OrdinalIgnoreCase)
@@ -2593,14 +2610,14 @@ public sealed class SoloTrainingEvaluator
                 }
             }
 
-            foreach (var succeeding in _recentOperations.Where(o => o.Kind == OperationKind.Landing))
+            foreach (RunwayOperation? succeeding in _recentOperations.Where(o => o.Kind == OperationKind.Landing))
             {
                 if (!states.ContainsKey(succeeding.Callsign))
                 {
                     continue;
                 }
 
-                foreach (var preceding in _recentOperations.Where(o => o.Kind == OperationKind.Departure))
+                foreach (RunwayOperation? preceding in _recentOperations.Where(o => o.Kind == OperationKind.Departure))
                 {
                     if (
                         string.Equals(preceding.Callsign, succeeding.Callsign, StringComparison.OrdinalIgnoreCase)
@@ -2930,12 +2947,12 @@ public sealed class SoloTrainingEvaluator
             double scenarioElapsedSeconds
         )
         {
-            if (!states.TryGetValue(violation.Preceding.Callsign, out var precedingState))
+            if (!states.TryGetValue(violation.Preceding.Callsign, out AircraftRunwayState? precedingState))
             {
                 return null;
             }
 
-            if (!states.TryGetValue(violation.Succeeding.Callsign, out var succeedingState))
+            if (!states.TryGetValue(violation.Succeeding.Callsign, out AircraftRunwayState? succeedingState))
             {
                 return null;
             }
@@ -3094,7 +3111,7 @@ public sealed class SoloTrainingEvaluator
             RunwayRelation relation
         )
         {
-            var rule = (succeeding.Kind, preceding.Kind) switch
+            SameRunwayRule rule = (succeeding.Kind, preceding.Kind) switch
             {
                 (OperationKind.Departure, OperationKind.Departure) => SameRunwayRule.DepartureBehindDeparture,
                 (OperationKind.Departure, OperationKind.Landing) => SameRunwayRule.DepartureBehindLanding,
@@ -3152,7 +3169,7 @@ public sealed class SoloTrainingEvaluator
         )
         {
             string id = MakeRunwayEventId(preceding, succeeding, ruleReference, relation, scenarioElapsedSeconds);
-            var context = BuildWakeDirectiveContext(id, preceding, succeeding, ruleReference, relation);
+            WakeDirectiveContext context = BuildWakeDirectiveContext(id, preceding, succeeding, ruleReference, relation);
             return new ActiveSameRunwayViolation(
                 id,
                 rule,

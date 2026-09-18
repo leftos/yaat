@@ -36,7 +36,7 @@ public class Issue317IfrEnterFinalTests(ITestOutputHelper output)
     {
         SimLogBuilder.CreateForTest(output).EnableCategory("PatternCommandHandler", LogLevel.Debug).InitializeSimLog();
 
-        var (lat, lon) = GeoMath.ProjectPoint(
+        (double lat, double lon) = GeoMath.ProjectPoint(
             runway.ThresholdLatitude,
             runway.ThresholdLongitude,
             runway.TrueHeading.ToReciprocal(),
@@ -85,18 +85,22 @@ public class Issue317IfrEnterFinalTests(ITestOutputHelper output)
     [Fact]
     public void IfrArrival_EnterFinalOnParallelRunway_AcceptedAndStaysIfr()
     {
-        var rwy28R = Runway("28R");
-        var rwy28L = Runway("28L");
+        RunwayInfo? rwy28R = Runway("28R");
+        RunwayInfo? rwy28L = Runway("28L");
         if (rwy28R is null || rwy28L is null)
         {
             return;
         }
 
-        var aircraft = BuildIfrArrival(rwy28R);
+        AircraftState? aircraft = BuildIfrArrival(rwy28R);
         Assert.NotNull(aircraft);
         Assert.False(aircraft.FlightPlan.IsVfr, "Fixture invariant: the arrival is IFR.");
 
-        var result = CommandDispatcher.Dispatch(new EnterFinalCommand("28L"), aircraft, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new EnterFinalCommand("28L"),
+            aircraft,
+            TestDispatch.Context(new Random(0), validateDctFixes: false)
+        );
 
         output.WriteLine($"EF 28L -> Success={result.Success} Message='{result.Message}'");
 
@@ -118,20 +122,24 @@ public class Issue317IfrEnterFinalTests(ITestOutputHelper output)
     [Fact]
     public void IfrArrival_EnterFinal_GrantsAVisualClearanceForTheNewRunway()
     {
-        var rwy28R = Runway("28R");
+        RunwayInfo? rwy28R = Runway("28R");
         if (rwy28R is null)
         {
             return;
         }
 
-        var aircraft = BuildIfrArrival(rwy28R);
+        AircraftState? aircraft = BuildIfrArrival(rwy28R);
         Assert.NotNull(aircraft);
         Assert.False(aircraft.Approach.HasReportedFieldInSight, "Fixture invariant: the pilot has not reported the field.");
 
-        var result = CommandDispatcher.Dispatch(new EnterFinalCommand("28L"), aircraft, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new EnterFinalCommand("28L"),
+            aircraft,
+            TestDispatch.Context(new Random(0), validateDctFixes: false)
+        );
         Assert.True(result.Success, $"EF must be accepted for an IFR arrival: '{result.Message}'");
 
-        var clearance = aircraft.Phases?.ActiveApproach;
+        ApproachClearance? clearance = aircraft.Phases?.ActiveApproach;
         Assert.NotNull(clearance);
         Assert.Equal("VIS28L", clearance.ApproachId);
         Assert.Equal("28L", clearance.RunwayId);
@@ -143,18 +151,22 @@ public class Issue317IfrEnterFinalTests(ITestOutputHelper output)
     [Fact]
     public void VfrArrival_EnterFinal_GetsNoApproachClearance()
     {
-        var rwy28R = Runway("28R");
+        RunwayInfo? rwy28R = Runway("28R");
         if (rwy28R is null)
         {
             return;
         }
 
-        var aircraft = BuildIfrArrival(rwy28R);
+        AircraftState? aircraft = BuildIfrArrival(rwy28R);
         Assert.NotNull(aircraft);
         aircraft.FlightPlan.FlightRules = "VFR";
         aircraft.AircraftType = "C172";
 
-        var result = CommandDispatcher.Dispatch(new EnterFinalCommand("28L"), aircraft, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new EnterFinalCommand("28L"),
+            aircraft,
+            TestDispatch.Context(new Random(0), validateDctFixes: false)
+        );
         Assert.True(result.Success, $"EF must be accepted for a VFR arrival: '{result.Message}'");
 
         Assert.Null(aircraft.Phases?.ActiveApproach);
@@ -168,16 +180,20 @@ public class Issue317IfrEnterFinalTests(ITestOutputHelper output)
     [Fact]
     public void IfrArrival_EnterFinal_NeverAsksForCifr()
     {
-        var rwy28R = Runway("28R");
+        RunwayInfo? rwy28R = Runway("28R");
         if (rwy28R is null)
         {
             return;
         }
 
-        var aircraft = BuildIfrArrival(rwy28R);
+        AircraftState? aircraft = BuildIfrArrival(rwy28R);
         Assert.NotNull(aircraft);
 
-        var result = CommandDispatcher.Dispatch(new EnterFinalCommand("28L"), aircraft, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new EnterFinalCommand("28L"),
+            aircraft,
+            TestDispatch.Context(new Random(0), validateDctFixes: false)
+        );
 
         if (!result.Success)
         {
@@ -193,20 +209,20 @@ public class Issue317IfrEnterFinalTests(ITestOutputHelper output)
     [Fact]
     public void IfrArrival_CircuitLegEntry_NotGatedByDispatcherButBlockedByDefaultPolicy()
     {
-        var rwy28R = Runway("28R");
+        RunwayInfo? rwy28R = Runway("28R");
         if (rwy28R is null)
         {
             return;
         }
 
-        var aircraft = BuildIfrArrival(rwy28R);
+        AircraftState? aircraft = BuildIfrArrival(rwy28R);
         Assert.NotNull(aircraft);
 
         var eld = new EnterLeftDownwindCommand("28L");
         Assert.False(VfrCommandPolicy.AllowsForIfr(eld, VfrCommandsForIfr.EnterFinalOnly));
         Assert.True(VfrCommandPolicy.AllowsForIfr(eld, VfrCommandsForIfr.All));
 
-        var result = CommandDispatcher.Dispatch(eld, aircraft, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.Dispatch(eld, aircraft, TestDispatch.Context(new Random(0), validateDctFixes: false));
 
         output.WriteLine($"ELD 28L -> Success={result.Success} Message='{result.Message}'");
 
@@ -223,17 +239,21 @@ public class Issue317IfrEnterFinalTests(ITestOutputHelper output)
     [Fact]
     public void IfrArrival_AfterEnterFinal_ContinuesTowardTheNewRunway()
     {
-        var rwy28R = Runway("28R");
-        var rwy28L = Runway("28L");
+        RunwayInfo? rwy28R = Runway("28R");
+        RunwayInfo? rwy28L = Runway("28L");
         if (rwy28R is null || rwy28L is null)
         {
             return;
         }
 
-        var aircraft = BuildIfrArrival(rwy28R);
+        AircraftState? aircraft = BuildIfrArrival(rwy28R);
         Assert.NotNull(aircraft);
 
-        var result = CommandDispatcher.Dispatch(new EnterFinalCommand("28L"), aircraft, TestDispatch.Context(new Random(0), validateDctFixes: false));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new EnterFinalCommand("28L"),
+            aircraft,
+            TestDispatch.Context(new Random(0), validateDctFixes: false)
+        );
         Assert.True(result.Success, $"EF must be accepted for an IFR arrival: '{result.Message}'");
 
         double startDistanceNm = GeoMath.DistanceNm(aircraft.Position, new LatLon(rwy28L.ThresholdLatitude, rwy28L.ThresholdLongitude));

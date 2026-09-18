@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -187,7 +188,7 @@ public sealed class RunwayExitPhase : Phase
         // that last moment: if another aircraft is now claiming the committed
         // hold-short, drop the commit and fall through to a fresh analog search
         // that excludes occupied nodes.
-        var committed = ctx.Aircraft.Phases?.ResolvedExit;
+        ResolvedExitInfo? committed = ctx.Aircraft.Phases?.ResolvedExit;
         if (committed is not null)
         {
             ctx.Aircraft.Phases!.ResolvedExit = null;
@@ -280,7 +281,7 @@ public sealed class RunwayExitPhase : Phase
         }
 
         // Re-check preference if changed mid-phase
-        var currentPref = ctx.Aircraft.Phases?.RequestedExit;
+        ExitPreference? currentPref = ctx.Aircraft.Phases?.RequestedExit;
         if (currentPref != _lastResolvedPreference && _holdShortNode is null)
         {
             _lastResolvedPreference = currentPref;
@@ -420,7 +421,7 @@ public sealed class RunwayExitPhase : Phase
         // returns the next-best unoccupied exit at each centerline node, rather
         // than returning an occupied exit that we'd have to skip post-hoc (which
         // would miss other exits from the same centerline node).
-        var occupied = ctx.OccupiedHoldShortNodes;
+        HashSet<int>? occupied = ctx.OccupiedHoldShortNodes;
 
         // Soft tiebreaker: when the preference has a taxiway but no side, try
         // with the inferred side first. If nothing found, fall through to the
@@ -435,7 +436,7 @@ public sealed class RunwayExitPhase : Phase
         }
 
         // Try with current preference, then relax until we find something.
-        var preference = _lastResolvedPreference;
+        ExitPreference? preference = _lastResolvedPreference;
         for (int attempt = 0; attempt < 3; attempt++)
         {
             ExitSide? sidePref = preference?.Side ?? _inferredSide;
@@ -475,7 +476,7 @@ public sealed class RunwayExitPhase : Phase
 
         bool isExplicit = (preference?.Taxiway is not null) || (preference?.Side is not null);
 
-        var found = ctx.GroundLayout.FindOnSidePreferredExit(
+        AirportGroundLayout.CenterlineExitResult? found = ctx.GroundLayout.FindOnSidePreferredExit(
             ctx.Aircraft.Position.Lat,
             ctx.Aircraft.Position.Lon,
             _runwayHeading,
@@ -602,7 +603,7 @@ public sealed class RunwayExitPhase : Phase
             return true;
         }
 
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         return (GeoMath.AlongTrackDistanceNm(_exitPath[0].Position, aircraft.Position, _runwayHeading) * GeoMath.FeetPerNm)
             <= TurnLeadDistanceFt(aircraft, category);
     }
@@ -631,12 +632,12 @@ public sealed class RunwayExitPhase : Phase
             return null;
         }
 
-        var searchPref =
+        ExitPreference searchPref =
             (preference.Side is null) && (_inferredSide is not null)
                 ? new ExitPreference { Taxiway = preference.Taxiway, Side = _inferredSide.Value }
                 : preference;
 
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         double leadFt = TurnLeadDistanceFt(aircraft, category);
 
         // A re-target is always an explicit instruction, so the pilot will brake firmly for it — or at the
@@ -709,7 +710,7 @@ public sealed class RunwayExitPhase : Phase
     /// </summary>
     private bool TryRetargetCommittedExit(PhaseContext ctx)
     {
-        var newPreference = ctx.Aircraft.Phases?.RequestedExit;
+        ExitPreference? newPreference = ctx.Aircraft.Phases?.RequestedExit;
         if (ReferenceEquals(newPreference, _committedPreference) || (newPreference is null))
         {
             return false;
@@ -718,7 +719,7 @@ public sealed class RunwayExitPhase : Phase
         // Considered — whatever the outcome, don't re-evaluate this same instruction every tick.
         _committedPreference = newPreference;
 
-        var verdict = EvaluateRetarget(ctx.Aircraft, newPreference);
+        ExitRetargetVerdict verdict = EvaluateRetarget(ctx.Aircraft, newPreference);
         if (!verdict.Allowed)
         {
             // The command handler already refused this, so reaching here means the aircraft crossed into the
@@ -736,7 +737,7 @@ public sealed class RunwayExitPhase : Phase
             return false;
         }
 
-        var found = RunRetargetSearch(layout, ctx.Aircraft, newPreference, RetargetOccupancyExcludingSelf(ctx));
+        AirportGroundLayout.CenterlineExitResult? found = RunRetargetSearch(layout, ctx.Aircraft, newPreference, RetargetOccupancyExcludingSelf(ctx));
         if ((found is null) || (found.Value.HoldShort.Id == _holdShortNode?.Id))
         {
             return false;
@@ -805,7 +806,7 @@ public sealed class RunwayExitPhase : Phase
         }
 
         var segments = new List<TaxiRouteSegment>();
-        var branchNode = _exitPath[0];
+        GroundNode branchNode = _exitPath[0];
 
         // Virtual approach segment: [aircraft position → branch node].
         // Always added — gives the navigator inbound bearing context for turn
@@ -816,11 +817,11 @@ public sealed class RunwayExitPhase : Phase
         // GroundNavigator reads its arrival bearing as the corner's incoming tangent, which is what turned a
         // restored aircraft around and taxied it back onto the runway. Anchor it on the centerline behind the
         // branch instead, reproducing the geometry the live route had.
-        var approachFrom =
+        LatLon approachFrom =
             resumeSegmentIndex > 0
                 ? GeoMath.ProjectPoint(branchNode.Position, _runwayHeading.ToReciprocal(), RestoredApproachSegmentNm)
                 : ctx.Aircraft.Position;
-        var virtualFromNode = VirtualNode.Create(approachFrom.Lat, approachFrom.Lon);
+        GroundNode virtualFromNode = VirtualNode.Create(approachFrom.Lat, approachFrom.Lon);
         double distToBranch = GeoMath.DistanceNm(approachFrom, branchNode.Position);
         var approachEdge = new GroundEdge
         {
@@ -832,9 +833,9 @@ public sealed class RunwayExitPhase : Phase
 
         for (int i = 0; i < _exitPath.Count - 1; i++)
         {
-            var fromNode = _exitPath[i];
-            var toNode = _exitPath[i + 1];
-            var edge = FindEdgeBetween(fromNode, toNode.Id);
+            GroundNode fromNode = _exitPath[i];
+            GroundNode toNode = _exitPath[i + 1];
+            IGroundEdge? edge = FindEdgeBetween(fromNode, toNode.Id);
             if (edge is null)
             {
                 Log.LogWarning("[Exit] {Callsign}: no edge between nodes {From} and {To}", ctx.Aircraft.Callsign, fromNode.Id, toNode.Id);
@@ -846,7 +847,7 @@ public sealed class RunwayExitPhase : Phase
 
         // Append a virtual segment past the hold-short node so the aircraft's tail
         // clears the hold-short line. The virtual node is offset along the graph edge.
-        var holdShortNode = _exitPath[^1];
+        GroundNode holdShortNode = _exitPath[^1];
         double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
         double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
 
@@ -937,7 +938,7 @@ public sealed class RunwayExitPhase : Phase
         }
 
         bool isLastSegment = _exitRoute.CurrentSegmentIndex + 1 >= _exitRoute.Segments.Count;
-        var result = _navigator.Tick(ctx, isLastSegment, _ => true);
+        NavigatorResult result = _navigator.Tick(ctx, isLastSegment, _ => true);
 
         if (result == NavigatorResult.ArrivedAtNode)
         {
@@ -1030,8 +1031,14 @@ public sealed class RunwayExitPhase : Phase
             return false;
         }
 
-        var comeFromNode = _exitPath[^2];
-        var crossing = ctx.GroundLayout.FindParallelRunwayCrossing(_holdShortNode, comeFromNode, _exitTaxiway, _runwayId);
+        GroundNode comeFromNode = _exitPath[^2];
+        (
+            GroundNode NearHoldShort,
+            GroundNode FarHoldShort,
+            string ParallelRunwayId,
+            List<GroundNode> PullUpPath,
+            List<GroundNode> CrossingPath
+        )? crossing = ctx.GroundLayout.FindParallelRunwayCrossing(_holdShortNode, comeFromNode, _exitTaxiway, _runwayId);
         if (crossing is not { } xing)
         {
             return false;
@@ -1041,7 +1048,7 @@ public sealed class RunwayExitPhase : Phase
         var fullPath = new List<GroundNode>(xing.PullUpPath);
         fullPath.AddRange(xing.CrossingPath.Skip(1));
 
-        var segments = BuildRouteSegments(fullPath);
+        List<TaxiRouteSegment>? segments = BuildRouteSegments(fullPath);
         if (segments is null)
         {
             Log.LogWarning("[Exit] {Callsign}: could not build parallel-crossing route, holding after exit instead", ctx.Aircraft.Callsign);
@@ -1060,7 +1067,7 @@ public sealed class RunwayExitPhase : Phase
         ctx.Aircraft.Ground.CurrentTaxiway = _exitTaxiway;
 
         // Pilot reports clear of the landing runway as it pulls up toward the parallel.
-        var clearText = Pilot.PilotResponder.BuildClearOfRunwayText(ctx.Aircraft, _runwayId, _exitTaxiway);
+        PilotSpeechText clearText = Pilot.PilotResponder.BuildClearOfRunwayText(ctx.Aircraft, _runwayId, _exitTaxiway);
         Pilot.PilotResponder.RouteSoloOrRpoTransmission(
             ctx.Aircraft,
             ctx.SoloTrainingMode,
@@ -1093,7 +1100,7 @@ public sealed class RunwayExitPhase : Phase
         var segments = new List<TaxiRouteSegment>(path.Count - 1);
         for (int i = 0; i < path.Count - 1; i++)
         {
-            var edge = FindEdgeBetween(path[i], path[i + 1].Id);
+            IGroundEdge? edge = FindEdgeBetween(path[i], path[i + 1].Id);
             if (edge is null)
             {
                 return null;
@@ -1107,7 +1114,7 @@ public sealed class RunwayExitPhase : Phase
 
     private static IGroundEdge? FindEdgeBetween(GroundNode fromNode, int toNodeId)
     {
-        foreach (var edge in fromNode.Edges)
+        foreach (IGroundEdge edge in fromNode.Edges)
         {
             if (edge.OtherNodeId(fromNode.Id) == toNodeId)
             {
@@ -1188,7 +1195,7 @@ public sealed class RunwayExitPhase : Phase
                 var path = new List<GroundNode>();
                 foreach (int id in dto.ExitWaypointNodeIds)
                 {
-                    if (groundLayout.Nodes.TryGetValue(id, out var n))
+                    if (groundLayout.Nodes.TryGetValue(id, out GroundNode? n))
                     {
                         path.Add(n);
                     }

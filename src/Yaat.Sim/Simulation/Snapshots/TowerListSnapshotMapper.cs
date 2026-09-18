@@ -18,9 +18,9 @@ public static class TowerListSnapshotMapper
     {
         var lists = new List<TowerListEntriesDto>();
 
-        foreach (var key in tracker.GetLists())
+        foreach (TowerListKey key in tracker.GetLists())
         {
-            var entries = tracker.GetEntries(key);
+            List<(string Callsign, double EnteredAtSeconds)> entries = tracker.GetEntries(key);
             if (entries.Count == 0)
             {
                 continue;
@@ -58,7 +58,7 @@ public static class TowerListSnapshotMapper
 
         var dropped = new List<string>();
 
-        foreach (var list in dto.Lists)
+        foreach (TowerListEntriesDto list in dto.Lists)
         {
             if (list.FacilityId is not { } facilityId)
             {

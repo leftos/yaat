@@ -30,18 +30,18 @@ public class RunwayDepartureQueueE2ETests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             output.WriteLine("SKIP: OAK layout unavailable");
             return;
         }
 
-        var engine = BuildEngine(layout);
+        SimulationEngine engine = BuildEngine(layout);
         Assert.NotNull(engine);
 
-        var ac1 = SpawnAtParking(engine, layout, "SIG1", "NQUEUE1");
-        var ac2 = SpawnAtParking(engine, layout, "GA3", "NQUEUE2");
+        AircraftState? ac1 = SpawnAtParking(engine, layout, "SIG1", "NQUEUE1");
+        AircraftState? ac2 = SpawnAtParking(engine, layout, "GA3", "NQUEUE2");
         if (ac1 is null || ac2 is null)
         {
             output.WriteLine("SKIP: OAK GA parking (SIG1/GA3) not found in layout");
@@ -87,7 +87,7 @@ public class RunwayDepartureQueueE2ETests(ITestOutputHelper output)
                 Assert.True((p1 == 1 && p2 == 2) || (p1 == 2 && p2 == 1), $"expected the pair numbered 1 and 2, got #{p1}/#{p2}");
 
                 // The holding-short aircraft is #1 (front of line); the trailer behind it is #2.
-                var holdingShort = HoldingShortAt(ac1, ac2, node1.Value);
+                AircraftState? holdingShort = HoldingShortAt(ac1, ac2, node1.Value);
                 Assert.NotNull(holdingShort);
                 Assert.Equal(1, holdingShort.Ground.RunwayQueuePosition);
 
@@ -121,7 +121,7 @@ public class RunwayDepartureQueueE2ETests(ITestOutputHelper output)
 
     private static AircraftState? SpawnAtParking(SimulationEngine engine, AirportGroundLayout layout, string parkingName, string callsign)
     {
-        var parking = layout.FindParkingByName(parkingName);
+        GroundNode? parking = layout.FindParkingByName(parkingName);
         if (parking is null)
         {
             return null;

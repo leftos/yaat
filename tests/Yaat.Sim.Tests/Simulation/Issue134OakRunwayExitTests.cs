@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -22,7 +23,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -42,24 +43,24 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
     [Fact]
     public void FindNearestExit_28L_ReturnsRealIntersection()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var rwy28L = layout.FindGroundRunway("28L");
+        GroundRunway? rwy28L = layout.FindGroundRunway("28L");
         Assert.NotNull(rwy28L);
 
         // Position along 28L near where a jet would stop after rollout
         // (roughly between taxiways J and P). Use a coordinate about 2/3 along
         // the runway to simulate where a landing aircraft would decelerate to.
-        var coords = rwy28L.Coordinates;
+        List<(double Lat, double Lon)> coords = rwy28L.Coordinates;
         int idx = (int)(coords.Count * 0.65);
         double lat = coords[idx].Lat;
         double lon = coords[idx].Lon;
 
-        var exitNode = layout.FindNearestExit(lat, lon, new TrueHeading(280.0), "28L");
+        GroundNode? exitNode = layout.FindNearestExit(lat, lon, new TrueHeading(280.0), "28L");
         Assert.NotNull(exitNode);
 
         // The exit node must be a real taxiway intersection, not an intermediate
@@ -92,25 +93,25 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
     [Fact]
     public void FindExitAheadOnRunway_28L_ReturnsRealIntersection()
     {
-        var layout = LoadOakLayout();
+        AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
         {
             return;
         }
 
-        var rwy28L = layout.FindGroundRunway("28L");
+        GroundRunway? rwy28L = layout.FindGroundRunway("28L");
         Assert.NotNull(rwy28L);
 
         // Position early on 28L so exits ahead include J and P
-        var coords = rwy28L.Coordinates;
+        List<(double Lat, double Lon)> coords = rwy28L.Coordinates;
         int idx = coords.Count / 3;
         double lat = coords[idx].Lat;
         double lon = coords[idx].Lon;
 
-        var result = layout.FindExitAheadOnRunway(lat, lon, new TrueHeading(280.0), null, "28L");
+        (GroundNode Node, string Taxiway)? result = layout.FindExitAheadOnRunway(lat, lon, new TrueHeading(280.0), null, "28L");
         Assert.NotNull(result);
 
-        var exitNode = result.Value.Node;
+        GroundNode exitNode = result.Value.Node;
         var distinctTaxiways = exitNode
             .Edges.Where(e => !e.IsRunwayCenterline)
             .Select(e => e.TaxiwayName)
@@ -143,11 +144,11 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
     {
         var swTotal = Stopwatch.StartNew();
         var sw = Stopwatch.StartNew();
-        var recording = LoadRecording();
+        SessionRecording? recording = LoadRecording();
         output.WriteLine($"[TIMING] LoadRecording: {sw.Elapsed.TotalMilliseconds:F0}ms");
 
         sw.Restart();
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         output.WriteLine($"[TIMING] BuildEngine: {sw.Elapsed.TotalMilliseconds:F0}ms");
         if (recording is null || engine is null)
         {
@@ -160,7 +161,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
         output.WriteLine($"[TIMING] Replay(900s): {sw.Elapsed.TotalMilliseconds:F0}ms");
         output.WriteLine(engine.DumpTickTimings());
 
-        var ac = engine.FindAircraft("N70CS");
+        AircraftState? ac = engine.FindAircraft("N70CS");
         Assert.NotNull(ac);
 
         output.WriteLine($"t=900: alt={ac.Altitude:F0} gs={ac.GroundSpeed:F0} phase={ac.Phases?.CurrentPhase?.GetType().Name}");
@@ -193,11 +194,11 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
                 exitedRunway = true;
                 output.WriteLine($"t+{t}: runway exit complete at ({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F0}");
 
-                var layout = LoadOakLayout();
+                AirportGroundLayout? layout = LoadOakLayout();
                 Assert.NotNull(layout);
 
                 // Aircraft should be snapped to a graph node
-                var nearestNode = layout.FindNearestNode(ac.Position.Lat, ac.Position.Lon);
+                GroundNode? nearestNode = layout.FindNearestNode(ac.Position.Lat, ac.Position.Lon);
                 Assert.NotNull(nearestNode);
                 double distToNode = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, nearestNode.Position.Lat, nearestNode.Position.Lon);
                 output.WriteLine($"Nearest node: {nearestNode.Id} type={nearestNode.Type} dist={distToNode:F4}nm");

@@ -14,7 +14,7 @@ public class UserPreferencesSoloGoAroundTests
         var prefs = new UserPreferences();
         prefs.SetSoloGoAroundProbabilityGlobal(17);
 
-        var value = prefs.GetSoloGoAroundProbability("TEST-unknown-id");
+        int value = prefs.GetSoloGoAroundProbability("TEST-unknown-id");
 
         Assert.Equal(17, value);
     }

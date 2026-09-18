@@ -98,7 +98,7 @@ public static class WindowGroupRaiser
         Tracked.Remove(window);
         Tracked.Add(window);
 
-        var raise = !_groupActive && !IsSuspended && !IsRaising;
+        bool raise = !_groupActive && !IsSuspended && !IsRaising;
         _groupActive = true;
         if (raise && (Preferences.GetValueOrDefault(window)?.RaiseWindowsTogether ?? false))
         {
@@ -132,12 +132,12 @@ public static class WindowGroupRaiser
 
     private static void RaiseAll(Window activatedWindow)
     {
-        var order = ComputeRaiseOrder(Tracked, activatedWindow);
+        List<Window> order = ComputeRaiseOrder(Tracked, activatedWindow);
 
         IsRaising = true;
         try
         {
-            foreach (var window in order)
+            foreach (Window window in order)
             {
                 // Raises without activating: HWND_TOPMOST then HWND_NOTOPMOST,
                 // both with SWP_NOACTIVATE, leaving the window at the top of the
@@ -163,9 +163,9 @@ public static class WindowGroupRaiser
     internal static List<Window> ComputeRaiseOrder(IReadOnlyList<Window> mruWindows, Window activatedWindow)
     {
         var candidates = new List<Window>();
-        foreach (var window in mruWindows)
+        foreach (Window window in mruWindows)
         {
-            var include =
+            bool include =
                 (window == activatedWindow)
                 || ((window.IsVisible) && (window.WindowState != WindowState.Minimized) && (!window.Topmost) && (window.Owner is null));
             if (include)
@@ -174,7 +174,7 @@ public static class WindowGroupRaiser
             }
         }
 
-        var ordered = candidates.ToArray();
+        Window[] ordered = candidates.ToArray();
         try
         {
             // Ascending Z-order, topmost last. Platforms answer via
@@ -189,7 +189,7 @@ public static class WindowGroupRaiser
         }
 
         var result = new List<Window>(ordered.Length);
-        foreach (var window in ordered)
+        foreach (Window window in ordered)
         {
             if (window != activatedWindow)
             {
@@ -211,7 +211,7 @@ public static class WindowGroupRaiser
     /// <summary>Clears all static state. Test-only — headless tests share the process-wide statics.</summary>
     internal static void ResetForTest()
     {
-        foreach (var window in Tracked.ToArray())
+        foreach (Window window in Tracked.ToArray())
         {
             window.Activated -= OnWindowActivated;
             window.Deactivated -= OnWindowDeactivated;

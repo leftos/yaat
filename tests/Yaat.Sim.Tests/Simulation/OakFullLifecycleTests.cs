@@ -35,19 +35,19 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
     [Fact]
     public void LandExitTaxiCrossDepart()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var runway28R = navDb.GetRunway("OAK", "28R");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? runway28R = navDb.GetRunway("OAK", "28R");
         Assert.NotNull(runway28R);
 
         // --- Setup: spawn on 3nm final for 28R ---
         double reciprocal = (runway28R.TrueHeading.Degrees + 180) % 360;
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(runway28R.ThresholdLatitude, runway28R.ThresholdLongitude, reciprocal, 3.0);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(runway28R.ThresholdLatitude, runway28R.ThresholdLongitude, reciprocal, 3.0);
 
         var aircraft = new AircraftState
         {
@@ -73,11 +73,11 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         aircraft.Phases.Add(new RunwayExitPhase());
         aircraft.Phases.Add(new HoldingAfterExitPhase());
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
         aircraft.Ground.Layout = layout;
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(ctx);
 
         engine.World.AddAircraft(aircraft);
@@ -95,7 +95,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         output.WriteLine($"Spawned N172SP on 3nm final for 28R at ({acLat:F6},{acLon:F6}), alt={aircraft.Altitude:F0}ft");
 
         // --- Phase 1: Land ---
-        var clearResult = engine.SendCommand("N172SP", "CLAND");
+        CommandResult clearResult = engine.SendCommand("N172SP", "CLAND");
         Assert.True(clearResult.Success, $"CLAND failed: {clearResult.Message}");
 
         TickUntil(engine, aircraft, 300, "landed", ac => ac.IsOnGround && ac.GroundSpeed < 40);
@@ -103,19 +103,19 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         output.WriteLine($"Landed: gs={aircraft.GroundSpeed:F1}kts, pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6})");
 
         // --- Phase 2: Exit right H ---
-        var exitResult = engine.SendCommand("N172SP", "ER H");
+        CommandResult exitResult = engine.SendCommand("N172SP", "ER H");
         Assert.True(exitResult.Success, $"ER H failed: {exitResult.Message}");
 
         TickUntil(engine, aircraft, 120, "exit complete", ac => ac.Phases?.CurrentPhase?.Name is "Holding After Exit");
         Assert.Equal("H", aircraft.Ground.CurrentTaxiway);
 
         // Verify tail past hold-short node 509
-        Assert.True(layout.Nodes.TryGetValue(509, out var hsNode509));
+        Assert.True(layout.Nodes.TryGetValue(509, out GroundNode? hsNode509));
         AssertTailPastLine(aircraft, hsNode509, "exit H hold-short 509");
         output.WriteLine($"Exited on H: pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}), hdg={aircraft.TrueHeading.Degrees:F0}");
 
         // --- Phase 3: Taxi C B, hold short 28R ---
-        var taxiResult = engine.SendCommand("N172SP", "RWY 28L TAXI C B HS 28R");
+        CommandResult taxiResult = engine.SendCommand("N172SP", "RWY 28L TAXI C B HS 28R");
         Assert.True(taxiResult.Success, $"TAXI failed: {taxiResult.Message}");
 
         TickUntil(
@@ -125,15 +125,15 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
             "hold short 28R",
             ac => ac.GroundSpeed < 0.5 && ac.Phases?.CurrentPhase?.Name?.StartsWith("Holding Short") == true
         );
-        var holdShort28R = FindActiveHoldShort(aircraft, "28R");
+        HoldShortPoint? holdShort28R = FindActiveHoldShort(aircraft, "28R");
         Assert.NotNull(holdShort28R);
 
-        Assert.True(layout.Nodes.TryGetValue(holdShort28R.NodeId, out var hsNode28R));
+        Assert.True(layout.Nodes.TryGetValue(holdShort28R.NodeId, out GroundNode? hsNode28R));
         AssertStoppedAtHoldShort(aircraft, holdShort28R, hsNode28R, "hold short 28R on B");
         output.WriteLine($"Holding short 28R: node={holdShort28R.NodeId}, pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6})");
 
         // --- Phase 4: Cross 28R ---
-        var crossResult = engine.SendCommand("N172SP", "CROSS 28R");
+        CommandResult crossResult = engine.SendCommand("N172SP", "CROSS 28R");
         Assert.True(crossResult.Success, $"CROSS 28R failed: {crossResult.Message}");
 
         // Tick until past crossing — phase leaves CrossingRunway
@@ -147,15 +147,15 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
             "hold short 28L",
             ac => ac.GroundSpeed < 0.5 && ac.Phases?.CurrentPhase?.Name?.StartsWith("Holding Short") == true
         );
-        var holdShort28L = FindActiveHoldShort(aircraft, "28L");
+        HoldShortPoint? holdShort28L = FindActiveHoldShort(aircraft, "28L");
         Assert.NotNull(holdShort28L);
 
-        Assert.True(layout.Nodes.TryGetValue(holdShort28L.NodeId, out var hsNode28L));
+        Assert.True(layout.Nodes.TryGetValue(holdShort28L.NodeId, out GroundNode? hsNode28L));
         AssertStoppedAtHoldShort(aircraft, holdShort28L, hsNode28L, "hold short 28L");
         output.WriteLine($"Holding short 28L: node={holdShort28L.NodeId}, pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6})");
 
         // --- Phase 6: Cleared for takeoff ---
-        var ctoResult = engine.SendCommand("N172SP", "CTO 060");
+        CommandResult ctoResult = engine.SendCommand("N172SP", "CTO 060");
         Assert.True(ctoResult.Success, $"CTO 060 failed: {ctoResult.Message}");
 
         TickUntil(engine, aircraft, 300, "airborne", ac => !ac.IsOnGround && ac.Altitude > runway28R.ElevationFt + 500);
@@ -188,13 +188,13 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
 
     private static HoldShortPoint? FindActiveHoldShort(AircraftState aircraft, string runwayDesignator)
     {
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
             return null;
         }
 
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             if (!hs.IsCleared && hs.TargetName is not null && hs.TargetName.Contains(runwayDesignator))
             {
@@ -244,7 +244,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
 
         // Project the aircraft's tail position (center - halfLength backward)
         double tailBearing = (aircraft.TrueHeading.Degrees + 180) % 360;
-        var (tailLat, tailLon) = GeoMath.ProjectPointRaw(aircraft.Position.Lat, aircraft.Position.Lon, tailBearing, halfLengthNm);
+        (double tailLat, double tailLon) = GeoMath.ProjectPointRaw(aircraft.Position.Lat, aircraft.Position.Lon, tailBearing, halfLengthNm);
 
         // The tail should be past (farther from runway than) the hold-short node.
         // Use along-track distance: tail should be on the same side as the aircraft center,

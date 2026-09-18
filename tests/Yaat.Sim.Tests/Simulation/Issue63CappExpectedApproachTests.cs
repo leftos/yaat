@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -22,14 +24,14 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -49,8 +51,8 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
     [Fact]
     public void BareCapp_WithExpectedApproach_ResolvesToI28R()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -59,7 +61,7 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
 
         engine.Replay(recording, 5);
 
-        var aircraft = engine.FindAircraft("USC28");
+        AircraftState? aircraft = engine.FindAircraft("USC28");
         Assert.NotNull(aircraft);
 
         output.WriteLine(
@@ -69,7 +71,7 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
         Assert.Equal("I28R", aircraft.Approach.Expected);
         Assert.Null(aircraft.Procedure.DestinationRunway);
 
-        var result = engine.SendCommand("USC28", "CAPP");
+        CommandResult result = engine.SendCommand("USC28", "CAPP");
 
         output.WriteLine(
             $"After:  Success={result.Success} ActiveApproach={aircraft.Phases?.ActiveApproach?.ApproachId} DestinationRunway={aircraft.Procedure.DestinationRunway}"
@@ -91,8 +93,8 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
     [Fact]
     public void ExplicitCapp_SetsDestinationRunway()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -101,11 +103,11 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
 
         engine.Replay(recording, 5);
 
-        var aircraft = engine.FindAircraft("USC28");
+        AircraftState? aircraft = engine.FindAircraft("USC28");
         Assert.NotNull(aircraft);
         Assert.Null(aircraft.Procedure.DestinationRunway);
 
-        var result = engine.SendCommand("USC28", "CAPP I28R");
+        CommandResult result = engine.SendCommand("USC28", "CAPP I28R");
 
         output.WriteLine($"CAPP I28R: Success={result.Success} DestinationRunway={aircraft.Procedure.DestinationRunway}");
 
@@ -122,8 +124,8 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
     [Fact]
     public void Eapp_SetsExpectedApproach_AndDestinationRunway()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -132,14 +134,14 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
 
         engine.Replay(recording, 5);
 
-        var aircraft = engine.FindAircraft("USC28");
+        AircraftState? aircraft = engine.FindAircraft("USC28");
         Assert.NotNull(aircraft);
 
         // Clear the scenario-set ExpectedApproach so EAPP's own write is the only source.
         aircraft.Approach.Expected = null;
         aircraft.Procedure.DestinationRunway = null;
 
-        var result = engine.SendCommand("USC28", "EAPP I30");
+        CommandResult result = engine.SendCommand("USC28", "EAPP I30");
 
         output.WriteLine(
             $"EAPP I30: Success={result.Success} ExpectedApproach={aircraft.Approach.Expected} DestinationRunway={aircraft.Procedure.DestinationRunway}"

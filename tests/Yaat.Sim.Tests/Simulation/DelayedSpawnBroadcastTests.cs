@@ -51,13 +51,13 @@ public class DelayedSpawnBroadcastTests
     [Fact]
     public void EmitsNoDelayedSpawnsLeft_WhenLastDelayedSpawnFires()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         SetupScenarioWithDelayedSpawns(engine, 5, 10);
 
         // Advance past first spawn only
         engine.Scenario!.ElapsedSeconds = 5;
         engine.TickPrePhysics();
-        var entries = engine.DrainTerminalEntries();
+        List<TerminalEntry> entries = engine.DrainTerminalEntries();
         Assert.DoesNotContain(entries, e => e.Message.Contains("No delayed spawns left"));
 
         // Advance past second (last) spawn
@@ -70,12 +70,12 @@ public class DelayedSpawnBroadcastTests
     [Fact]
     public void DoesNotEmit_WhenNoDelayedSpawnsExist()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         SetupScenarioWithDelayedSpawns(engine); // no delayed spawns
 
         engine.Scenario!.ElapsedSeconds = 100;
         engine.TickPrePhysics();
-        var entries = engine.DrainTerminalEntries();
+        List<TerminalEntry> entries = engine.DrainTerminalEntries();
         Assert.DoesNotContain(entries, e => e.Message.Contains("No delayed spawns left"));
     }
 }

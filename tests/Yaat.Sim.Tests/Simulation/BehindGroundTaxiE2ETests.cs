@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -28,7 +29,7 @@ public class BehindGroundTaxiE2ETests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -43,8 +44,8 @@ public class BehindGroundTaxiE2ETests(ITestOutputHelper output)
     [Fact]
     public void N569SX_HoldsAfterUnresolvedBehindTarget()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -55,10 +56,10 @@ public class BehindGroundTaxiE2ETests(ITestOutputHelper output)
         // N569SX into TaxiingPhase by t=540.
         engine.Replay(recording, 545);
 
-        var ac = engine.FindAircraft("N569SX");
+        AircraftState? ac = engine.FindAircraft("N569SX");
         Assert.NotNull(ac);
 
-        var phaseName = ac.Phases?.CurrentPhase?.GetType().Name;
+        string? phaseName = ac.Phases?.CurrentPhase?.GetType().Name;
         output.WriteLine($"t=545: N569SX phase={phaseName} ias={ac.IndicatedAirspeed:F1}");
 
         Assert.NotEqual(nameof(TaxiingPhase), phaseName);

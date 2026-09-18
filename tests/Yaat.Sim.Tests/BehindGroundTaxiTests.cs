@@ -49,14 +49,18 @@ public class BehindGroundTaxiTests
     [Fact]
     public void BehindTaxi_TargetMissing_RejectsAtDispatch()
     {
-        var ac = MakeGroundAircraft("N569SX", 37.7272, -122.2097, 335.0);
+        AircraftState ac = MakeGroundAircraft("N569SX", 37.7272, -122.2097, 335.0);
         StartPhase(ac, new HoldingAfterPushbackPhase());
 
         Func<string, AircraftState?> findAircraft = _ => null;
 
         var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("GHOST"), [new TaxiCommand(["A", "B"], [])])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42), findAircraft: findAircraft));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            compound,
+            ac,
+            TestDispatch.Context(new SerializableRandom(42), findAircraft: findAircraft)
+        );
 
         Assert.False(result.Success, "Expected BEHIND with unknown target to be rejected");
         Assert.Contains("GHOST", result.Message ?? string.Empty);
@@ -67,15 +71,19 @@ public class BehindGroundTaxiTests
     [Fact]
     public void BehindTaxi_TargetExists_CreatesDeferredDispatch()
     {
-        var ac = MakeGroundAircraft("N569SX", 37.7272, -122.2097, 335.0);
-        var target = MakeGroundAircraft("N152SP", 37.7281, -122.2117, 112.0);
+        AircraftState ac = MakeGroundAircraft("N569SX", 37.7272, -122.2097, 335.0);
+        AircraftState target = MakeGroundAircraft("N152SP", 37.7281, -122.2117, 112.0);
         StartPhase(ac, new HoldingAfterPushbackPhase());
 
         Func<string, AircraftState?> findAircraft = cs => cs == "N152SP" ? target : null;
 
         var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("N152SP"), [new TaxiCommand(["C", "D"], [])])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42), findAircraft: findAircraft));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            compound,
+            ac,
+            TestDispatch.Context(new SerializableRandom(42), findAircraft: findAircraft)
+        );
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Single(ac.DeferredDispatches);
@@ -90,9 +98,9 @@ public class BehindGroundTaxiTests
     public void IsGiveWayMet_OppositeDirection_TargetAheadAt03Nm_ReturnsFalse()
     {
         // Held aircraft B heading east (90°), parked at (0, 0)
-        var b = MakeGroundAircraft("B", 0.0, 0.0, 90.0);
+        AircraftState b = MakeGroundAircraft("B", 0.0, 0.0, 90.0);
         // Target A 0.3nm east of B, heading west (270°) — head-on, approaching
-        var a = MakeGroundAircraft("A", 0.0, 0.005, 270.0);
+        AircraftState a = MakeGroundAircraft("A", 0.0, 0.005, 270.0);
         Assert.True(GeoMath.DistanceNm(b.Position, a.Position) > 0.2, "test geometry assumes >0.2 nm gap");
 
         var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = "A" };
@@ -105,10 +113,10 @@ public class BehindGroundTaxiTests
     public void IsGiveWayMet_OppositeDirection_TargetBehindAndMovingAway_ReturnsTrue()
     {
         // Held aircraft B heading east (90°), parked at (0, 0)
-        var b = MakeGroundAircraft("B", 0.0, 0.0, 90.0);
+        AircraftState b = MakeGroundAircraft("B", 0.0, 0.0, 90.0);
         // Target A 0.3nm WEST of B (behind), heading WEST — has already passed B
         // and is moving further away. Opposite-direction case, conflict resolved.
-        var a = MakeGroundAircraft("A", 0.0, -0.005, 270.0);
+        AircraftState a = MakeGroundAircraft("A", 0.0, -0.005, 270.0);
         Assert.True(GeoMath.DistanceNm(b.Position, a.Position) > 0.2, "test geometry assumes >0.2 nm gap");
 
         var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = "A" };
@@ -122,8 +130,8 @@ public class BehindGroundTaxiTests
     {
         // Reproduces the bundle scenario at smaller scale: target ahead AND inside
         // the legacy 0.1 nm shortcut. Heading geometry must hold even there.
-        var b = MakeGroundAircraft("B", 0.0, 0.0, 90.0);
-        var a = MakeGroundAircraft("A", 0.0, 0.0008, 270.0); // ~0.05 nm east
+        AircraftState b = MakeGroundAircraft("B", 0.0, 0.0, 90.0);
+        AircraftState a = MakeGroundAircraft("A", 0.0, 0.0008, 270.0); // ~0.05 nm east
         Assert.True(GeoMath.DistanceNm(b.Position, a.Position) < 0.1, "test geometry assumes <0.1 nm gap");
 
         var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = "A" };

@@ -24,9 +24,9 @@ public sealed class Issue308AirspaceLevelOffTests
     [Fact]
     public void ReportedDeparture_IsUnderTheSfoBravoShelf()
     {
-        var ac = ClimbingDeparture();
+        AircraftState ac = ClimbingDeparture();
 
-        var crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 60);
+        AirspaceBoundaryCrossing? crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 60);
 
         Assert.NotNull(crossing);
         Assert.Equal(AirspaceClass.Bravo, crossing.Volume.Class);
@@ -37,11 +37,11 @@ public sealed class Issue308AirspaceLevelOffTests
     [Fact]
     public void VerticalPierce_SelectsLevelOffAndCapsBelowTheFloor()
     {
-        var ac = ClimbingDeparture();
+        AircraftState ac = ClimbingDeparture();
 
         PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
 
-        var phase = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(ac.Phases!.Phases));
+        AirspaceBoundaryHoldPhase phase = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(ac.Phases!.Phases));
         Assert.Equal(AirspaceHoldMode.LevelOff, phase.Mode);
         Assert.Equal(2000, phase.LevelOffCeilingFtMsl);
     }
@@ -49,8 +49,8 @@ public sealed class Issue308AirspaceLevelOffTests
     [Fact]
     public void LevelOff_CapsTheClimbWithoutTurningOrSlowing()
     {
-        var ac = ClimbingDeparture();
-        var originalHeading = ac.Targets.TargetTrueHeading;
+        AircraftState ac = ClimbingDeparture();
+        TrueHeading? originalHeading = ac.Targets.TargetTrueHeading;
 
         PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
         var phase = (AirspaceBoundaryHoldPhase)ac.Phases!.Phases[0];
@@ -68,10 +68,10 @@ public sealed class Issue308AirspaceLevelOffTests
     [Fact]
     public void LevelOff_HoldsWhileStillUnderTheShelf()
     {
-        var ac = ClimbingDeparture();
+        AircraftState ac = ClimbingDeparture();
         PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
         var phase = (AirspaceBoundaryHoldPhase)ac.Phases!.Phases[0];
-        var ctx = Context(ac);
+        PhaseContext ctx = Context(ac);
         phase.OnStart(ctx);
 
         // Level at the cap: the self-imposed ceiling must not read as "no longer projected to enter"
@@ -86,10 +86,10 @@ public sealed class Issue308AirspaceLevelOffTests
     [Fact]
     public void LevelOff_EndsOnBravoClearanceAndRestoresTheCruiseClimb()
     {
-        var ac = ClimbingDeparture();
+        AircraftState ac = ClimbingDeparture();
         PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
         var phase = (AirspaceBoundaryHoldPhase)ac.Phases!.Phases[0];
-        var ctx = Context(ac);
+        PhaseContext ctx = Context(ac);
         phase.OnStart(ctx);
 
         // Physics wipes TargetAltitude when it captures the capped goal (FlightPhysics.UpdateAltitude).
@@ -107,10 +107,10 @@ public sealed class Issue308AirspaceLevelOffTests
     [Fact]
     public void LevelOff_EndsWhenTheControllerAssignsAnAltitude()
     {
-        var ac = ClimbingDeparture();
+        AircraftState ac = ClimbingDeparture();
         PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
         var phase = (AirspaceBoundaryHoldPhase)ac.Phases!.Phases[0];
-        var ctx = Context(ac);
+        PhaseContext ctx = Context(ac);
         phase.OnStart(ctx);
 
         // "CM 35" nulls AltitudeCeiling — the controller has taken responsibility for the shelf.
@@ -125,12 +125,12 @@ public sealed class Issue308AirspaceLevelOffTests
     public void LateralCrossing_StillOrbits()
     {
         // Well west of the OAK Class C at shelf altitude, tracking east toward its ring.
-        var ac = Airborne(new LatLon(37.7213, -122.4200), trueHeading: 90, altitude: 2000, ias: 600);
+        AircraftState ac = Airborne(new LatLon(37.7213, -122.4200), trueHeading: 90, altitude: 2000, ias: 600);
         ac.HasMadeInitialContact = true;
 
         PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
 
-        var phase = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(ac.Phases!.Phases));
+        AirspaceBoundaryHoldPhase phase = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(ac.Phases!.Phases));
         Assert.Equal(AirspaceHoldMode.Orbit, phase.Mode);
         Assert.True(phase.ManagesSpeed);
     }
@@ -140,7 +140,7 @@ public sealed class Issue308AirspaceLevelOffTests
     {
         // Tracking east at the OAK Class C: the boundary lies ahead and slightly right of the nose,
         // so the avoidance turn must go left. The hardcoded right turn used to swing the nose across it.
-        var ac = Airborne(new LatLon(37.7500, -122.4200), trueHeading: 90, altitude: 2000, ias: 600);
+        AircraftState ac = Airborne(new LatLon(37.7500, -122.4200), trueHeading: 90, altitude: 2000, ias: 600);
         ac.HasMadeInitialContact = true;
 
         PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
@@ -148,18 +148,18 @@ public sealed class Issue308AirspaceLevelOffTests
         var phase = (AirspaceBoundaryHoldPhase)ac.Phases!.Phases[0];
         double bearingToBoundary = GeoMath.BearingTo(ac.Position, PhaseIntersection(ac));
         double relative = GeoMath.SignedBearingDifference(ac.TrueTrack.Degrees, bearingToBoundary);
-        var expected = relative >= 0 ? TurnDirection.Left : TurnDirection.Right;
+        TurnDirection expected = relative >= 0 ? TurnDirection.Left : TurnDirection.Right;
         Assert.Equal(expected, phase.OrbitDirection);
     }
 
     [Fact]
     public void Orbit_EndsWhenTheControllerVectors()
     {
-        var ac = Airborne(new LatLon(37.7213, -122.4200), trueHeading: 90, altitude: 2000, ias: 600);
+        AircraftState ac = Airborne(new LatLon(37.7213, -122.4200), trueHeading: 90, altitude: 2000, ias: 600);
         ac.HasMadeInitialContact = true;
         PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
         var phase = (AirspaceBoundaryHoldPhase)ac.Phases!.Phases[0];
-        var ctx = Context(ac);
+        PhaseContext ctx = Context(ac);
         phase.OnStart(ctx);
 
         Assert.False(phase.OnTick(ctx));
@@ -197,13 +197,13 @@ public sealed class Issue308AirspaceLevelOffTests
     [Fact]
     public void AssignedAltitudeThroughTheShelf_DrawsAnUnableWithACounterOffer()
     {
-        var ac = ClimbingDeparture();
+        AircraftState ac = ClimbingDeparture();
         // "CM 35" under a 2,100 ft shelf: a clearance the pilot cannot legally fly (AIM 5-5-6.a.3).
         ac.Targets.AssignedAltitude = 3500;
 
         PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
 
-        var transmission = Assert.Single(ac.PendingPilotTransmissions);
+        PilotTransmission transmission = Assert.Single(ac.PendingPilotTransmissions);
         Assert.Contains("unable 3500", transmission.Text);
         Assert.Contains("bravo", transmission.Text);
         Assert.Contains("we can do 2000", transmission.Text);
@@ -217,7 +217,7 @@ public sealed class Issue308AirspaceLevelOffTests
     {
         // No ATC assignment — the VFR aircraft is climbing to its own filed cruise, so there is no
         // clearance to refuse and nothing to say (issue #154).
-        var ac = ClimbingDeparture();
+        AircraftState ac = ClimbingDeparture();
 
         PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
 
@@ -229,7 +229,7 @@ public sealed class Issue308AirspaceLevelOffTests
     public void SpeedUnderTheBravoShelf_IsCappedAt200()
     {
         Assert.True(AirspaceDatabase.Default.IsUnderClassBShelf(UnderSfoShelf, altitudeFtMsl: 1500));
-        var ac = Airborne(UnderSfoShelf, trueHeading: 292.3, altitude: 1500, ias: 250);
+        AircraftState ac = Airborne(UnderSfoShelf, trueHeading: 292.3, altitude: 1500, ias: 250);
         ac.AircraftType = "C25C";
         ac.Targets.TargetSpeed = 250;
 
@@ -271,7 +271,7 @@ public sealed class Issue308AirspaceLevelOffTests
 
     private static AircraftState ClimbingDeparture()
     {
-        var ac = Airborne(UnderSfoShelf, trueHeading: 292.3, altitude: 1485, ias: 80);
+        AircraftState ac = Airborne(UnderSfoShelf, trueHeading: 292.3, altitude: 1485, ias: 80);
         ac.VerticalSpeed = 926;
         ac.Targets.TargetAltitude = 3500;
         ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "MOD", Position = new LatLon(37.6258, -120.9544) });

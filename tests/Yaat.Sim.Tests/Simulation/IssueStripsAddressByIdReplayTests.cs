@@ -52,7 +52,7 @@ public class IssueStripsAddressByIdReplayTests(ITestOutputHelper output)
     [Fact]
     public void LegacyBundle_AllStripCommandsStillParse()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         if (recording is null)
         {
             output.WriteLine($"Recording not available at {RecordingPath}, skipping.");
@@ -65,9 +65,9 @@ public class IssueStripsAddressByIdReplayTests(ITestOutputHelper output)
         output.WriteLine($"Bundle contains {stripCommands.Count} strip-related recorded commands.");
 
         var failures = new List<string>();
-        foreach (var cmd in stripCommands)
+        foreach (RecordedCommand? cmd in stripCommands)
         {
-            var parsed = CommandParser.Parse(cmd.Command);
+            ParseResult<ParsedCommand> parsed = CommandParser.Parse(cmd.Command);
             if (parsed.Value is null)
             {
                 failures.Add($"t={cmd.ElapsedSeconds:F0} '{cmd.Command}' (callsign='{cmd.Callsign}'): {parsed.Reason}");
@@ -77,7 +77,7 @@ public class IssueStripsAddressByIdReplayTests(ITestOutputHelper output)
         if (failures.Count > 0)
         {
             output.WriteLine("Parse failures:");
-            foreach (var f in failures.Take(10))
+            foreach (string? f in failures.Take(10))
             {
                 output.WriteLine("  " + f);
             }
@@ -87,9 +87,9 @@ public class IssueStripsAddressByIdReplayTests(ITestOutputHelper output)
 
     private static bool IsStripCommand(string canonical)
     {
-        var trimmed = canonical.TrimStart();
-        var spaceIdx = trimmed.IndexOf(' ');
-        var verb = spaceIdx < 0 ? trimmed : trimmed[..spaceIdx];
+        string trimmed = canonical.TrimStart();
+        int spaceIdx = trimmed.IndexOf(' ');
+        string verb = spaceIdx < 0 ? trimmed : trimmed[..spaceIdx];
         return StripVerbs.Contains(verb.ToUpperInvariant());
     }
 }

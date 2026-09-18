@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -56,7 +58,7 @@ public class Issue208EarlyCrosswindTests(ITestOutputHelper output)
     [Fact]
     public void TC_DuringInitialClimb_TurnsCrosswindEarly_NotRejected()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -64,15 +66,15 @@ public class Issue208EarlyCrosswindTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
             engine.Replay(recording, 0); // load scenario + weather + ARTCC config
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 return;
@@ -81,7 +83,7 @@ public class Issue208EarlyCrosswindTests(ITestOutputHelper output)
 
             // Precondition: N157LE airborne in the initial climb with a pending Upwind leg —
             // exactly the state where TC was rejected before the fix.
-            var ac = engine.FindAircraft("N157LE");
+            AircraftState? ac = engine.FindAircraft("N157LE");
             Assert.NotNull(ac);
             Assert.IsType<TakeoffPhase>(ac!.Phases!.CurrentPhase);
             Assert.False(ac.IsOnGround);
@@ -89,7 +91,7 @@ public class Issue208EarlyCrosswindTests(ITestOutputHelper output)
             output.WriteLine($"restore@{snapshot.ElapsedSeconds:F0}s: phase={ac.Phases.CurrentPhase?.Name} alt={ac.Altitude:F0}");
 
             // The reported bug: this was rejected with "Not on the leg before crosswind".
-            var result = engine.SendCommand("N157LE", "TC");
+            CommandResult result = engine.SendCommand("N157LE", "TC");
             Assert.True(result.Success, $"TC rejected: {result.Message}");
 
             // Tick through 400 ft AGL and confirm the aircraft turns crosswind early — it reaches

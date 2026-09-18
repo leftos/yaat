@@ -63,19 +63,19 @@ public class Issue240Ga9TaxiSpinTests(ITestOutputHelper output)
     [Fact]
     public void Ga9TaxiDCB_DoesNotZigzagOffTheRamp()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout(AirportId);
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(AirportId);
         Assert.NotNull(layout);
 
-        var ga9 = layout.FindParkingByName(SpotName);
+        GroundNode? ga9 = layout.FindParkingByName(SpotName);
         Assert.NotNull(ga9);
 
-        var aircraft = SpawnAtParking(ga9, layout);
+        AircraftState aircraft = SpawnAtParking(ga9, layout);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState
         {
@@ -87,11 +87,11 @@ public class Issue240Ga9TaxiSpinTests(ITestOutputHelper output)
             AutoCrossRunway = true,
         };
 
-        var spawnPos = aircraft.Position;
-        var result = engine.SendCommand(Callsign, Command);
+        LatLon spawnPos = aircraft.Position;
+        CommandResult result = engine.SendCommand(Callsign, Command);
         Assert.True(result.Success, $"'{Command}' failed: {result.Message}");
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine($"route: {route.ToSummary()}  ({route.Segments.Count} segments)");
 
@@ -139,9 +139,9 @@ public class Issue240Ga9TaxiSpinTests(ITestOutputHelper output)
         double cumFt = 0.0;
         double turn = 0.0;
         double? prevBearing = null;
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
-            if (!layout.Nodes.TryGetValue(seg.FromNodeId, out var from) || !layout.Nodes.TryGetValue(seg.ToNodeId, out var to))
+            if (!layout.Nodes.TryGetValue(seg.FromNodeId, out GroundNode? from) || !layout.Nodes.TryGetValue(seg.ToNodeId, out GroundNode? to))
             {
                 continue;
             }

@@ -45,8 +45,8 @@ public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
     [Fact]
     public void RpoMode_PilotSpeechOn_RoutesSimInitiatedTransmissionsToPilotSpeech()
     {
-        var recording = RecordingLoader.Load(BundlePath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(BundlePath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine($"Skipped: {BundlePath} or test data not present");
@@ -64,7 +64,7 @@ public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
         // field-in-sight, going-around, short-final-no-clearance, holding-short, clear-of-runway).
         // With the setting on they route to pilot speech rather than PendingWarnings.
         output.WriteLine($"Pilot-speech entries emitted during replay: {allSpeech.Count}");
-        foreach (var (cs, s) in allSpeech)
+        foreach ((string? cs, string? s) in allSpeech)
         {
             output.WriteLine($"  {cs}: {s}");
         }
@@ -79,7 +79,7 @@ public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
         // the spoken-form callsign (NATO-spelled or telephony) for TTS. Legacy builders
         // emit "[CALLSIGN] november one two three..."; dual-output builders emit
         // "november one two three..., ..." — both contain the spoken callsign.
-        foreach (var (cs, s) in allSpeech)
+        foreach ((string? cs, string? s) in allSpeech)
         {
             Assert.True(
                 s.Contains($"[{cs}]") || s.Contains(Yaat.Sim.Speech.CallsignParser.IcaoToSpoken(cs), StringComparison.OrdinalIgnoreCase),
@@ -95,8 +95,8 @@ public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
     [Fact]
     public void RpoMode_PilotSpeechOff_PreservesWarningRouting()
     {
-        var recording = RecordingLoader.Load(BundlePath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(BundlePath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine($"Skipped: {BundlePath} or test data not present");

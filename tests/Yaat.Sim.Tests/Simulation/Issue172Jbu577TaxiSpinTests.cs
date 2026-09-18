@@ -59,8 +59,8 @@ public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
     [Fact]
     public void Jbu577_CrossesAndHoldsShortOfB_WithoutReversing()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -106,7 +106,7 @@ public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
                 Assert.Fail($"t={t}: orbit/invariant breach during JBU577 taxi — {ex.Message}");
             }
 
-            var ac = engine.FindAircraft("JBU577");
+            AircraftState? ac = engine.FindAircraft("JBU577");
             if (ac is null || t < 444)
             {
                 continue;
@@ -114,7 +114,7 @@ public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
 
             string phase = ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
             double hdg = ac.TrueHeading.Degrees;
-            var pos = ac.Position;
+            LatLon pos = ac.Position;
             lastPhase = phase;
             lastHeading = hdg;
 

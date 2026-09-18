@@ -17,7 +17,7 @@ public class PatternPhaseTests
 
     private static PatternWaypoints DefaultWaypoints(PatternDirection dir = PatternDirection.Left)
     {
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         return PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, dir, null, null, null, authoredRunway: null);
     }
 
@@ -47,7 +47,7 @@ public class PatternPhaseTests
 
     private static PhaseContext Ctx(AircraftState ac, double dt = 1.0, AircraftCategory category = AircraftCategory.Jet)
     {
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         return new PhaseContext
         {
             Aircraft = ac,
@@ -67,10 +67,10 @@ public class PatternPhaseTests
     [Fact]
     public void Upwind_OnStart_SetsRunwayHeadingAndClimb()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(altitude: 200);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(altitude: 200);
         var phase = new UpwindPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -82,13 +82,13 @@ public class PatternPhaseTests
     [Fact]
     public void Upwind_CompletesWhenPastDepartureEndAtPatternAltitude()
     {
-        var wp = DefaultWaypoints();
+        PatternWaypoints wp = DefaultWaypoints();
         // Just past the crosswind turn point (the departure end) along the upwind heading, at pattern
         // altitude — AIM 4-3-2 commences the crosswind turn beyond the DER within 300 ft of TPA.
-        var past = GeoMath.ProjectPoint(wp.CrosswindTurnLat, wp.CrosswindTurnLon, wp.UpwindHeading, 0.1);
-        var ac = MakeAircraft(lat: past.Lat, lon: past.Lon, altitude: wp.PatternAltitude);
+        (double Lat, double Lon) past = GeoMath.ProjectPoint(wp.CrosswindTurnLat, wp.CrosswindTurnLon, wp.UpwindHeading, 0.1);
+        AircraftState ac = MakeAircraft(lat: past.Lat, lon: past.Lon, altitude: wp.PatternAltitude);
         var phase = new UpwindPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -98,12 +98,12 @@ public class PatternPhaseTests
     [Fact]
     public void Upwind_BeforePassingDepartureEnd_DoesNotComplete()
     {
-        var wp = DefaultWaypoints();
+        PatternWaypoints wp = DefaultWaypoints();
         // Short of the departure end (still over the runway) at pattern altitude: must not turn yet.
-        var beforeDer = GeoMath.ProjectPoint(wp.CrosswindTurnLat, wp.CrosswindTurnLon, wp.UpwindHeading.ToReciprocal(), 0.2);
-        var ac = MakeAircraft(lat: beforeDer.Lat, lon: beforeDer.Lon, altitude: wp.PatternAltitude);
+        (double Lat, double Lon) beforeDer = GeoMath.ProjectPoint(wp.CrosswindTurnLat, wp.CrosswindTurnLon, wp.UpwindHeading.ToReciprocal(), 0.2);
+        AircraftState ac = MakeAircraft(lat: beforeDer.Lat, lon: beforeDer.Lon, altitude: wp.PatternAltitude);
         var phase = new UpwindPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -113,10 +113,10 @@ public class PatternPhaseTests
     [Fact]
     public void Upwind_Extended_NeverCompletes()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(lat: wp.CrosswindTurnLat, lon: wp.CrosswindTurnLon);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(lat: wp.CrosswindTurnLat, lon: wp.CrosswindTurnLon);
         var phase = new UpwindPhase { Waypoints = wp, IsExtended = true };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -127,11 +127,11 @@ public class PatternPhaseTests
     [Fact]
     public void Upwind_FarFromTurnPoint_DoesNotComplete()
     {
-        var wp = DefaultWaypoints();
+        PatternWaypoints wp = DefaultWaypoints();
         // Aircraft far from turn point
-        var ac = MakeAircraft(lat: 37.0, lon: -122.0);
+        AircraftState ac = MakeAircraft(lat: 37.0, lon: -122.0);
         var phase = new UpwindPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -145,10 +145,10 @@ public class PatternPhaseTests
     [Fact]
     public void Crosswind_OnStart_SetsCrosswindHeadingAndTurnDirection()
     {
-        var wp = DefaultWaypoints(PatternDirection.Left);
-        var ac = MakeAircraft();
+        PatternWaypoints wp = DefaultWaypoints(PatternDirection.Left);
+        AircraftState ac = MakeAircraft();
         var phase = new CrosswindPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -159,10 +159,10 @@ public class PatternPhaseTests
     [Fact]
     public void Crosswind_RightPattern_SetsTurnRight()
     {
-        var wp = DefaultWaypoints(PatternDirection.Right);
-        var ac = MakeAircraft();
+        PatternWaypoints wp = DefaultWaypoints(PatternDirection.Right);
+        AircraftState ac = MakeAircraft();
         var phase = new CrosswindPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -172,10 +172,10 @@ public class PatternPhaseTests
     [Fact]
     public void Crosswind_ContinuesClimbBelowPatternAlt()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(altitude: 500); // well below pattern alt
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(altitude: 500); // well below pattern alt
         var phase = new CrosswindPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -186,10 +186,10 @@ public class PatternPhaseTests
     [Fact]
     public void Crosswind_CompletesAtDownwindStart()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(lat: wp.DownwindStartLat, lon: wp.DownwindStartLon);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(lat: wp.DownwindStartLat, lon: wp.DownwindStartLon);
         var phase = new CrosswindPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -199,10 +199,10 @@ public class PatternPhaseTests
     [Fact]
     public void Crosswind_Extended_NeverCompletes()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(lat: wp.DownwindStartLat, lon: wp.DownwindStartLon);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(lat: wp.DownwindStartLat, lon: wp.DownwindStartLon);
         var phase = new CrosswindPhase { Waypoints = wp, IsExtended = true };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -216,10 +216,10 @@ public class PatternPhaseTests
     [Fact]
     public void Downwind_OnStart_SetsDownwindHeadingAndPatternAlt()
     {
-        var wp = DefaultWaypoints(PatternDirection.Left);
-        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        PatternWaypoints wp = DefaultWaypoints(PatternDirection.Left);
+        AircraftState ac = MakeAircraft(altitude: wp.PatternAltitude);
         var phase = new DownwindPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -231,11 +231,11 @@ public class PatternPhaseTests
     [Fact]
     public void Downwind_CompletesAtBaseTurnPoint()
     {
-        var wp = DefaultWaypoints();
+        PatternWaypoints wp = DefaultWaypoints();
         // Place aircraft at base turn point
-        var ac = MakeAircraft(lat: wp.BaseTurnLat, lon: wp.BaseTurnLon, altitude: wp.PatternAltitude);
+        AircraftState ac = MakeAircraft(lat: wp.BaseTurnLat, lon: wp.BaseTurnLon, altitude: wp.PatternAltitude);
         var phase = new DownwindPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -245,10 +245,10 @@ public class PatternPhaseTests
     [Fact]
     public void Downwind_Extended_NeverCompletes()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(lat: wp.BaseTurnLat, lon: wp.BaseTurnLon, altitude: wp.PatternAltitude);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(lat: wp.BaseTurnLat, lon: wp.BaseTurnLon, altitude: wp.PatternAltitude);
         var phase = new DownwindPhase { Waypoints = wp, IsExtended = true };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -286,10 +286,10 @@ public class PatternPhaseTests
     [Fact]
     public void Base_OnStart_SetsBaseHeadingAndDescent()
     {
-        var wp = DefaultWaypoints(PatternDirection.Left);
-        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        PatternWaypoints wp = DefaultWaypoints(PatternDirection.Left);
+        AircraftState ac = MakeAircraft(altitude: wp.PatternAltitude);
         var phase = new BasePhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -301,11 +301,11 @@ public class PatternPhaseTests
     [Fact]
     public void Base_CompletesNearFinalApproachCourse()
     {
-        var wp = DefaultWaypoints();
+        PatternWaypoints wp = DefaultWaypoints();
         // Place aircraft on the extended centerline (near threshold, cross-track ~0)
-        var ac = MakeAircraft(lat: wp.ThresholdLat, lon: wp.ThresholdLon, altitude: wp.PatternAltitude);
+        AircraftState ac = MakeAircraft(lat: wp.ThresholdLat, lon: wp.ThresholdLon, altitude: wp.PatternAltitude);
         var phase = new BasePhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -385,10 +385,10 @@ public class PatternPhaseTests
     {
         TestVnasData.EnsureInitialized();
 
-        var rwy = DefaultRunway();
-        var ac = MakeAircraft(ias: 200);
+        RunwayInfo rwy = DefaultRunway();
+        AircraftState ac = MakeAircraft(ias: 200);
         // Entry point 0.5 nm off the threshold — the close-in join the #292 retarget produces.
-        var entry = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 0.5);
+        (double Lat, double Lon) entry = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 0.5);
         var phase = new PatternEntryPhase
         {
             EntryLat = entry.Lat,
@@ -396,7 +396,7 @@ public class PatternPhaseTests
             PatternAltitude = 1100,
             Kind = kind,
         };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -422,9 +422,9 @@ public class PatternPhaseTests
     {
         TestVnasData.EnsureInitialized();
 
-        var rwy = DefaultRunway();
-        var ac = MakeAircraft(ias: 250);
-        var entry = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 4.7);
+        RunwayInfo rwy = DefaultRunway();
+        AircraftState ac = MakeAircraft(ias: 250);
+        (double Lat, double Lon) entry = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 4.7);
         var phase = new PatternEntryPhase
         {
             EntryLat = entry.Lat,
@@ -432,7 +432,7 @@ public class PatternPhaseTests
             PatternAltitude = 1500,
             Kind = PatternEntryKind.Final,
         };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -444,7 +444,7 @@ public class PatternPhaseTests
     {
         TestVnasData.EnsureInitialized();
 
-        var ac = MakeAircraft(ias: 250);
+        AircraftState ac = MakeAircraft(ias: 250);
         var phase = new PatternEntryPhase
         {
             EntryLat = 37.05,
@@ -452,7 +452,7 @@ public class PatternPhaseTests
             PatternAltitude = 1100,
             Kind = PatternEntryKind.FortyFive,
         };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -477,8 +477,8 @@ public class PatternPhaseTests
     {
         TestVnasData.EnsureInitialized();
 
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(altitude: wp.PatternAltitude);
         const double AssignedSpeed = 180.0;
         ac.Targets.TargetSpeed = AssignedSpeed;
         ac.Targets.HasExplicitSpeedCommand = true;
@@ -519,10 +519,10 @@ public class PatternPhaseTests
     [Fact]
     public void MidfieldCrossing_OnStart_TurbineEntry_CrossesAt1500AboveTheField()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(altitude: wp.PatternAltitude);
         var phase = new MidfieldCrossingPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -537,11 +537,11 @@ public class PatternPhaseTests
     [Fact]
     public void MidfieldCrossing_OnStart_TurbineEntry_LowAuthoredPattern_StillCrossesAt1500AboveTheField()
     {
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         // A 600 ft AGL authored pattern, resolved for a turbine (authored + 500 — see
         // PatternGeometry.ResolveAuthoredOverrides), gives a 1,100 ft AGL pattern altitude.
         double authoredPatternAltitude = rwy.AirportElevationFt + 1100;
-        var wp = PatternGeometry.Compute(
+        PatternWaypoints wp = PatternGeometry.Compute(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -552,9 +552,9 @@ public class PatternPhaseTests
             null,
             authoredRunway: null
         );
-        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        AircraftState ac = MakeAircraft(altitude: wp.PatternAltitude);
         var phase = new MidfieldCrossingPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -570,9 +570,9 @@ public class PatternPhaseTests
     [Fact]
     public void MidfieldCrossing_OnStart_TurbineEntry_AssignedPatternAltitude_CrossesAtTheAssignedAltitude()
     {
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         const double AssignedPatternAltitude = 1200;
-        var wp = PatternGeometry.Compute(
+        PatternWaypoints wp = PatternGeometry.Compute(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -583,10 +583,10 @@ public class PatternPhaseTests
             null,
             authoredRunway: null
         );
-        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        AircraftState ac = MakeAircraft(altitude: wp.PatternAltitude);
         ac.Pattern.AltitudeOverrideFt = AssignedPatternAltitude;
         var phase = new MidfieldCrossingPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -599,10 +599,10 @@ public class PatternPhaseTests
     [Fact]
     public void MidfieldCrossing_OnStart_PistonEntry_CrossesAtPatternAltitude()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(altitude: wp.PatternAltitude);
         var phase = new MidfieldCrossingPhase { Waypoints = wp };
-        var ctx = Ctx(ac, category: AircraftCategory.Piston);
+        PhaseContext ctx = Ctx(ac, category: AircraftCategory.Piston);
 
         phase.OnStart(ctx);
 
@@ -616,10 +616,10 @@ public class PatternPhaseTests
     [Fact]
     public void MidfieldCrossing_OnStart_InPatternCrossover_CrossesAtPatternAltitudeForAJet()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(altitude: wp.PatternAltitude);
         var phase = new MidfieldCrossingPhase { Waypoints = wp, CrossAtPatternAltitude = true };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -629,14 +629,14 @@ public class PatternPhaseTests
     [Fact]
     public void MidfieldCrossing_CompletesWhenNearMidfield()
     {
-        var wp = DefaultWaypoints();
+        PatternWaypoints wp = DefaultWaypoints();
         // Midfield target is average of downwind start and downwind abeam
         double midLat = (wp.DownwindStartLat + wp.DownwindAbeamLat) / 2.0;
         double midLon = (wp.DownwindStartLon + wp.DownwindAbeamLon) / 2.0;
 
-        var ac = MakeAircraft(lat: midLat, lon: midLon, altitude: wp.PatternAltitude + 500);
+        AircraftState ac = MakeAircraft(lat: midLat, lon: midLon, altitude: wp.PatternAltitude + 500);
         var phase = new MidfieldCrossingPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -647,10 +647,10 @@ public class PatternPhaseTests
     [Fact]
     public void MidfieldCrossing_FarFromMidfield_DoesNotComplete()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(lat: 37.0, lon: -122.0, altitude: wp.PatternAltitude + 500);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(lat: 37.0, lon: -122.0, altitude: wp.PatternAltitude + 500);
         var phase = new MidfieldCrossingPhase { Waypoints = wp };
-        var ctx = Ctx(ac);
+        PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
@@ -678,7 +678,7 @@ public class PatternPhaseTests
     [Fact]
     public void PatternGeometry_LeftPattern_CrosswindIs90Left()
     {
-        var wp = DefaultWaypoints(PatternDirection.Left);
+        PatternWaypoints wp = DefaultWaypoints(PatternDirection.Left);
 
         // Runway heading 280, left crosswind = 280 - 90 = 190
         double expected = (280.0 - 90.0 + 360.0) % 360.0;
@@ -688,7 +688,7 @@ public class PatternPhaseTests
     [Fact]
     public void PatternGeometry_RightPattern_CrosswindIs90Right()
     {
-        var wp = DefaultWaypoints(PatternDirection.Right);
+        PatternWaypoints wp = DefaultWaypoints(PatternDirection.Right);
 
         // Runway heading 280, right crosswind = 280 + 90 = 370 → 10
         double expected = (280.0 + 90.0) % 360.0;
@@ -698,7 +698,7 @@ public class PatternPhaseTests
     [Fact]
     public void PatternGeometry_DownwindIsReciprocal()
     {
-        var wp = DefaultWaypoints();
+        PatternWaypoints wp = DefaultWaypoints();
 
         double expected = (280.0 + 180.0) % 360.0;
         Assert.Equal(expected, wp.DownwindHeading.Degrees, precision: 1);
@@ -707,8 +707,18 @@ public class PatternPhaseTests
     [Fact]
     public void PatternGeometry_PatternAltitude_IsFieldPlusAgl()
     {
-        var rwy = DefaultRunway(100);
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
+        RunwayInfo rwy = DefaultRunway(100);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
 
         double expectedAgl = CategoryPerformance.PatternAltitudeAgl(AircraftCategory.Jet);
         Assert.Equal(100.0 + expectedAgl, wp.PatternAltitude, precision: 0);

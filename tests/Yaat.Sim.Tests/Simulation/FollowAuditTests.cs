@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -26,7 +28,7 @@ public class FollowAuditTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -58,7 +60,7 @@ public class FollowAuditTests(ITestOutputHelper output)
     [Fact]
     public void Bug1_FollowFromUpwind_PreservesPattern()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -66,8 +68,8 @@ public class FollowAuditTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -78,7 +80,7 @@ public class FollowAuditTests(ITestOutputHelper output)
             // Snapshot at t=1107 lands on snap=221 (t=1105) — 3s before FOLLOW
             // at t=1108. Replay forward to t=1115 to observe the post-FOLLOW
             // phase rebuild (recording shows it at t=1110).
-            var snapshot = archive.ReadSnapshotAt(1107);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(1107);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=1107 — skipping");
@@ -90,7 +92,7 @@ public class FollowAuditTests(ITestOutputHelper output)
 
             engine.ReplayRange(startTime, 1115, recording.Actions);
 
-            var follower = engine.FindAircraft("N172SP");
+            AircraftState? follower = engine.FindAircraft("N172SP");
             Assert.NotNull(follower);
             int phaseCount = follower.Phases?.Phases.Count ?? 0;
             output.WriteLine(
@@ -132,7 +134,7 @@ public class FollowAuditTests(ITestOutputHelper output)
     [Fact]
     public void Bug2_FollowingCleared_AfterLeadDespawn()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -140,8 +142,8 @@ public class FollowAuditTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -152,7 +154,7 @@ public class FollowAuditTests(ITestOutputHelper output)
             // Snapshot at t=1255 — 2 s before N2BP DEL action at t=1257. N172SP
             // is in DownwindPhase (per recording history). Replay through the
             // despawn and on for 30 s to give the lifecycle helper time to fire.
-            var snapshot = archive.ReadSnapshotAt(1255);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(1255);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=1255 — skipping");
@@ -164,9 +166,9 @@ public class FollowAuditTests(ITestOutputHelper output)
 
             engine.ReplayRange(startTime, 1290, recording.Actions);
 
-            var follower = engine.FindAircraft("N172SP");
+            AircraftState? follower = engine.FindAircraft("N172SP");
             Assert.NotNull(follower);
-            var lead = engine.FindAircraft("N2BP");
+            AircraftState? lead = engine.FindAircraft("N2BP");
             output.WriteLine(
                 $"t=1290: N172SP phase={follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"} "
                     + $"following={follower.Approach.FollowingCallsign ?? "(null)"} "
@@ -191,7 +193,7 @@ public class FollowAuditTests(ITestOutputHelper output)
     [Fact]
     public void Bug3_FollowingCleared_AfterLeadOnGround()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -199,8 +201,8 @@ public class FollowAuditTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -211,7 +213,7 @@ public class FollowAuditTests(ITestOutputHelper output)
             // Snapshot at t=455 — 5 s before N569SX hits LandingPhase at t=460.
             // Replay through Landing → RunwayExit → HoldingAfterExit (lead becomes
             // IsOnGround at t=480 when RunwayExit phase activates).
-            var snapshot = archive.ReadSnapshotAt(455);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(455);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=455 — skipping");
@@ -223,9 +225,9 @@ public class FollowAuditTests(ITestOutputHelper output)
 
             engine.ReplayRange(startTime, 510, recording.Actions);
 
-            var follower = engine.FindAircraft("N172SP");
+            AircraftState? follower = engine.FindAircraft("N172SP");
             Assert.NotNull(follower);
-            var lead = engine.FindAircraft("N569SX");
+            AircraftState? lead = engine.FindAircraft("N569SX");
             Assert.NotNull(lead);
             output.WriteLine(
                 $"t=510: N172SP follow={follower.Approach.FollowingCallsign ?? "(null)"} "
@@ -251,7 +253,7 @@ public class FollowAuditTests(ITestOutputHelper output)
     [Fact]
     public void Bug5_FollowingCleared_OnRunawayDistance()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -259,8 +261,8 @@ public class FollowAuditTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -269,7 +271,7 @@ public class FollowAuditTests(ITestOutputHelper output)
             engine.Replay(recording, 0);
 
             // Snapshot at t=1135 — 3 s before FOLLOW action at t=1138.
-            var snapshot = archive.ReadSnapshotAt(1135);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(1135);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=1135 — skipping");
@@ -281,7 +283,7 @@ public class FollowAuditTests(ITestOutputHelper output)
 
             engine.ReplayRange(startTime, 1200, recording.Actions);
 
-            var follower = engine.FindAircraft("N2BP");
+            AircraftState? follower = engine.FindAircraft("N2BP");
             Assert.NotNull(follower);
             output.WriteLine(
                 $"t=1200: N2BP phase={follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"} "
@@ -311,7 +313,7 @@ public class FollowAuditTests(ITestOutputHelper output)
     [Fact]
     public void Bug4_FollowSuppressed_WhenLeadPatternFlowBehind()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -319,8 +321,8 @@ public class FollowAuditTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -330,7 +332,7 @@ public class FollowAuditTests(ITestOutputHelper output)
 
             // Snapshot at t=1690 — 1 s before FOLLOW action at t=1691. N172SP is
             // on Downwind for 28R; N428KK is on PatternEntry feeder for 28R.
-            var snapshot = archive.ReadSnapshotAt(1690);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(1690);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=1690 — skipping");
@@ -345,7 +347,7 @@ public class FollowAuditTests(ITestOutputHelper output)
             // at the Downwind baseline (~77.5 KIAS for piston).
             engine.ReplayRange(startTime, 1750, recording.Actions);
 
-            var follower = engine.FindAircraft("N172SP");
+            AircraftState? follower = engine.FindAircraft("N172SP");
             Assert.NotNull(follower);
             output.WriteLine(
                 $"t=1750: N172SP phase={follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"} "

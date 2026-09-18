@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -81,7 +82,7 @@ public class Issue396RampLaneRepositionTests
         string airportId
     )
     {
-        var gate = layout.FindParkingByName(parking);
+        GroundNode? gate = layout.FindParkingByName(parking);
         Assert.True(gate is not null, $"parking {parking} not found in the {airportId} layout");
 
         var aircraft = new AircraftState
@@ -97,7 +98,7 @@ public class Issue396RampLaneRepositionTests
             FlightPlan = new AircraftFlightPlan { Departure = "K" + airportId, Destination = "KLAX" },
         };
         // A scenario spawn at a gate installs AtParkingPhase; without it a TAXI never reaches the tower path.
-        var init = AircraftInitializer.InitializeAtParking(gate, 13);
+        PhaseInitResult init = AircraftInitializer.InitializeAtParking(gate, 13);
         aircraft.Phases = init.Phases;
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
         engine.World.AddAircraft(aircraft);
@@ -112,7 +113,7 @@ public class Issue396RampLaneRepositionTests
 
     private static void AssertRepositionsOnto(TaxiRoute route, string lane, CommandResult result)
     {
-        var first = route.Segments[0];
+        TaxiRouteSegment first = route.Segments[0];
         Assert.True(first.FromNodeId < 0, $"the route must begin with a free-space leg from the aircraft, not graph node {first.FromNodeId}");
         Assert.Equal(lane, first.TaxiwayName);
         Assert.True(Traverses(route, lane), $"route must taxi along {lane}");
@@ -123,18 +124,18 @@ public class Issue396RampLaneRepositionTests
     [Fact]
     public void TaxiM4FromB20S_RepositionsOntoM4()
     {
-        var engine = BuildEngine(out var layout);
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
         if (engine is null || layout is null)
         {
             return;
         }
 
-        var aircraft = AddParkedAt(engine, layout, "AAL436", "B77W", "B20S", "SFO");
-        var result = engine.SendCommand("AAL436", "TAXI M4 M1 A H GL L LF F 28L HS 1L");
+        AircraftState aircraft = AddParkedAt(engine, layout, "AAL436", "B77W", "B20S", "SFO");
+        CommandResult result = engine.SendCommand("AAL436", "TAXI M4 M1 A H GL L LF F 28L HS 1L");
         _output.WriteLine($"result: {result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         _output.WriteLine("route: " + string.Join(" ", route.Segments.Select(s => s.TaxiwayName)));
         AssertRepositionsOnto(route, "M4", result);
@@ -155,17 +156,17 @@ public class Issue396RampLaneRepositionTests
     [Fact]
     public void TaxiM5FromB20S_RepositionsOntoM5()
     {
-        var engine = BuildEngine(out var layout);
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
         if (engine is null || layout is null)
         {
             return;
         }
 
-        var aircraft = AddParkedAt(engine, layout, "AAL436", "B77W", "B20S", "SFO");
-        var result = engine.SendCommand("AAL436", "TAXI M5 M1 A A1 1R");
+        AircraftState aircraft = AddParkedAt(engine, layout, "AAL436", "B77W", "B20S", "SFO");
+        CommandResult result = engine.SendCommand("AAL436", "TAXI M5 M1 A A1 1R");
         Assert.True(result.Success, result.Message);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         _output.WriteLine("route: " + string.Join(" ", route.Segments.Select(s => s.TaxiwayName)));
         AssertRepositionsOnto(route, "M5", result);
@@ -176,17 +177,17 @@ public class Issue396RampLaneRepositionTests
     [Fact]
     public void TaxiM4FromB20S_SoloReadbackIsTheNormalClearance()
     {
-        var engine = BuildEngine(out var layout, soloTraining: true);
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout, soloTraining: true);
         if (engine is null || layout is null)
         {
             return;
         }
 
-        var aircraft = AddParkedAt(engine, layout, "AAL436", "B77W", "B20S", "SFO");
-        var result = engine.SendCommand("AAL436", "TAXI M4 M1 A A1 1R");
+        AircraftState aircraft = AddParkedAt(engine, layout, "AAL436", "B77W", "B20S", "SFO");
+        CommandResult result = engine.SendCommand("AAL436", "TAXI M4 M1 A A1 1R");
         Assert.True(result.Success, result.Message);
 
-        var readback = aircraft.PendingPilotTransmissions.FirstOrDefault(t => t.Kind == Yaat.Sim.Pilot.PilotTransmissionKind.Readback);
+        PilotTransmission? readback = aircraft.PendingPilotTransmissions.FirstOrDefault(t => t.Kind == Yaat.Sim.Pilot.PilotTransmissionKind.Readback);
         Assert.True(readback is not null, "the solo pilot must read the taxi clearance back");
         _output.WriteLine($"readback: {readback.Text} / {readback.SpeechText}");
         Assert.DoesNotContain("unable", readback.Text, StringComparison.OrdinalIgnoreCase);
@@ -197,16 +198,16 @@ public class Issue396RampLaneRepositionTests
     [Fact]
     public void TaxiM4FromB20S_AircraftActuallyCrossesOntoM4AndReachesM1()
     {
-        var engine = BuildEngine(out var layout);
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
         if (engine is null || layout is null)
         {
             return;
         }
 
-        var aircraft = AddParkedAt(engine, layout, "AAL436", "B77W", "B20S", "SFO");
-        var result = engine.SendCommand("AAL436", "TAXI M4 M1 A A1 1R");
+        AircraftState aircraft = AddParkedAt(engine, layout, "AAL436", "B77W", "B20S", "SFO");
+        CommandResult result = engine.SendCommand("AAL436", "TAXI M4 M1 A A1 1R");
         Assert.True(result.Success, result.Message);
-        var target = aircraft.Ground.AssignedTaxiRoute!.Segments[0].Edge.ToNode;
+        GroundNode target = aircraft.Ground.AssignedTaxiRoute!.Segments[0].Edge.ToNode;
 
         TickUntilOnLane(engine, aircraft, target, "M1");
     }
@@ -214,13 +215,13 @@ public class Issue396RampLaneRepositionTests
     [Fact]
     public void TaxiM4WhileRollingOnM3_CrossesOntoM4()
     {
-        var engine = BuildEngine(out var layout);
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
         if (engine is null || layout is null)
         {
             return;
         }
 
-        var aircraft = AddParkedAt(engine, layout, "UAL512", "B739", "B20S", "SFO");
+        AircraftState aircraft = AddParkedAt(engine, layout, "UAL512", "B739", "B20S", "SFO");
         Assert.True(engine.SendCommand("UAL512", "TAXI M3 M1 A A1 1R").Success);
 
         // Roll down M3 for a while, then re-clear via M4 mid-lane.
@@ -232,11 +233,11 @@ public class Issue396RampLaneRepositionTests
         Assert.Equal("M3", aircraft.Ground.CurrentTaxiway);
         Assert.True(aircraft.GroundSpeed > 1, "aircraft should be rolling on M3 before the re-clearance");
 
-        var result = engine.SendCommand("UAL512", "TAXI M4 M1 A A1 1R");
+        CommandResult result = engine.SendCommand("UAL512", "TAXI M4 M1 A A1 1R");
         _output.WriteLine($"re-clearance: {result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         AssertRepositionsOnto(route, "M4", result);
         double crossingFt = GeoMath.DistanceNm(route.Segments[0].Edge.FromNode.Position, route.Segments[0].Edge.ToNode.Position) * GeoMath.FeetPerNm;
@@ -280,14 +281,14 @@ public class Issue396RampLaneRepositionTests
     [Fact]
     public void TaxiAcrossRunwaysFromGate_StillRejected()
     {
-        var engine = BuildEngine(out var layout);
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
         if (engine is null || layout is null)
         {
             return;
         }
 
         AddParkedAt(engine, layout, "N70234", "C182", "41-15", "SFO");
-        var result = engine.SendCommand("N70234", "TAXI A E 28R HS E");
+        CommandResult result = engine.SendCommand("N70234", "TAXI A E 28R HS E");
         _output.WriteLine($"result: {result.Success} — {result.Message}");
 
         Assert.False(
@@ -311,15 +312,15 @@ public class Issue396RampLaneRepositionTests
             return;
         }
 
-        var layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(), "TST");
-        var engine = BuildEngine(new FixedGroundData(layout), "TST", soloTraining: false);
-        var aircraft = AddParkedAt(engine, layout, "TST1", "B738", "G", "TST");
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(), "TST");
+        SimulationEngine engine = BuildEngine(new FixedGroundData(layout), "TST", soloTraining: false);
+        AircraftState aircraft = AddParkedAt(engine, layout, "TST1", "B738", "G", "TST");
 
-        var result = engine.SendCommand("TST1", "TAXI K M3");
+        CommandResult result = engine.SendCommand("TST1", "TAXI K M3");
         _output.WriteLine($"result: {result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         Assert.False(Traverses(route, "K"), "K is unreachable and not a sibling lane: dropped, not cut across to");
         Assert.Contains(route.Warnings, w => w.Contains("unable via K", StringComparison.OrdinalIgnoreCase));

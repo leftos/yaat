@@ -71,10 +71,10 @@ public class ConflictAlertDetectorTests
     public void Converging_SameAltitude_WithinThreshold_Detected()
     {
         // Two aircraft 2nm apart at same altitude, converging
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 250);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 5000, heading: 270, groundSpeed: 250);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 250);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 5000, heading: 270, groundSpeed: 250);
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Single(result);
         Assert.Equal("AAL100", result[0].CallsignA);
@@ -84,10 +84,10 @@ public class ConflictAlertDetectorTests
     [Fact]
     public void SamePosition_SameAltitude_Detected()
     {
-        var a = MakeAircraft("AAL100", altitude: 5000);
-        var b = MakeAircraft("UAL200", altitude: 5000);
+        AircraftState a = MakeAircraft("AAL100", altitude: 5000);
+        AircraftState b = MakeAircraft("UAL200", altitude: 5000);
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Single(result);
     }
@@ -96,10 +96,10 @@ public class ConflictAlertDetectorTests
     public void SamePosition_VerticalSeparated_NotDetected()
     {
         // Same position but >1000ft vertical — no conflict
-        var a = MakeAircraft("AAL100", altitude: 5000);
-        var b = MakeAircraft("UAL200", altitude: 6100);
+        AircraftState a = MakeAircraft("AAL100", altitude: 5000);
+        AircraftState b = MakeAircraft("UAL200", altitude: 6100);
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -108,10 +108,10 @@ public class ConflictAlertDetectorTests
     public void HorizontalSeparated_SameAltitude_NotDetected()
     {
         // 5nm apart at same altitude — no conflict (>3nm), both flying north so parallel (not diverging)
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 360, groundSpeed: 250);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(5.0), altitude: 5000, heading: 360, groundSpeed: 250);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 360, groundSpeed: 250);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(5.0), altitude: 5000, heading: 360, groundSpeed: 250);
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -125,10 +125,10 @@ public class ConflictAlertDetectorTests
     {
         // Two aircraft 2.5nm apart, same altitude, flying AWAY from each other
         // Divergence check suppresses the alert
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 270, groundSpeed: 250);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.5), altitude: 5000, heading: 90, groundSpeed: 250);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 270, groundSpeed: 250);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.5), altitude: 5000, heading: 90, groundSpeed: 250);
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -138,10 +138,10 @@ public class ConflictAlertDetectorTests
     {
         // 3.1nm apart (outside 3nm threshold) and converging at 300 kts each
         // 5-second prediction: each moves ~0.42nm closer → predicted ~2.26nm < 3nm
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 300);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(3.1), altitude: 5000, heading: 270, groundSpeed: 300);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 300);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(3.1), altitude: 5000, heading: 270, groundSpeed: 300);
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Single(result);
     }
@@ -150,10 +150,10 @@ public class ConflictAlertDetectorTests
     public void FarApart_SameAltitude_NotDetected()
     {
         // 4nm apart at same altitude, diverging — no conflict
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 270, groundSpeed: 250);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), altitude: 5000, heading: 90, groundSpeed: 250);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 270, groundSpeed: 250);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), altitude: 5000, heading: 90, groundSpeed: 250);
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -163,10 +163,10 @@ public class ConflictAlertDetectorTests
     {
         // 4nm apart but converging at 500 kts each (1000 kts closure rate)
         // 5-second prediction: closure ~1.39nm → predicted ~2.61nm < 3nm
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 500);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), altitude: 5000, heading: 270, groundSpeed: 500);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 500);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), altitude: 5000, heading: 270, groundSpeed: 500);
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Single(result);
     }
@@ -176,10 +176,10 @@ public class ConflictAlertDetectorTests
     {
         // 5nm apart, converging at 150 kts each (300 kts closure)
         // 5-second prediction: closure ~0.42nm → predicted ~4.58nm > 3nm
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 150);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(5.0), altitude: 5000, heading: 270, groundSpeed: 150);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 150);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(5.0), altitude: 5000, heading: 270, groundSpeed: 150);
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -190,10 +190,18 @@ public class ConflictAlertDetectorTests
         // 2nm apart horizontally (within threshold), diverging horizontally
         // But converging vertically (1100ft apart → predicted ~933ft)
         // Not fully diverging (only horizontal increases) → still alerts
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 6100, heading: 270, groundSpeed: 250, verticalSpeed: -2000);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 5000, heading: 90, groundSpeed: 250, verticalSpeed: 0);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 6100, heading: 270, groundSpeed: 250, verticalSpeed: -2000);
+        AircraftState b = MakeAircraft(
+            "UAL200",
+            BaseLat,
+            BaseLon + LonOffsetForNm(2.0),
+            altitude: 5000,
+            heading: 90,
+            groundSpeed: 250,
+            verticalSpeed: 0
+        );
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         // Predicted vertical: 6100 + (-2000*5/60) = 5933, 5000 + 0 = 5000, gap = 933 ft < 1000 ft
         // Predicted horizontal increases (diverging) but predicted vertical decreases → not fully diverging
@@ -205,10 +213,10 @@ public class ConflictAlertDetectorTests
     {
         // 1100ft apart vertically (outside threshold), same position
         // Aircraft descending toward each other → prediction catches violation
-        var a = MakeAircraft("AAL100", altitude: 6100, verticalSpeed: -2000);
-        var b = MakeAircraft("UAL200", altitude: 5000, verticalSpeed: 0);
+        AircraftState a = MakeAircraft("AAL100", altitude: 6100, verticalSpeed: -2000);
+        AircraftState b = MakeAircraft("UAL200", altitude: 5000, verticalSpeed: 0);
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         // Predicted: 6100 + (-2000*5/60) = 5933, gap = 933 ft < 1000 ft
         Assert.Single(result);
@@ -224,10 +232,10 @@ public class ConflictAlertDetectorTests
         // 800ft apart vertically (within threshold), same position, climbing apart
         // Predicted vertical: 5167 vs 4117 = 1050ft (outside threshold)
         // Separation IS increasing → suppressed per STARS spec
-        var a = MakeAircraft("AAL100", altitude: 5000, verticalSpeed: 2000);
-        var b = MakeAircraft("UAL200", altitude: 4200, verticalSpeed: -1000);
+        AircraftState a = MakeAircraft("AAL100", altitude: 5000, verticalSpeed: 2000);
+        AircraftState b = MakeAircraft("UAL200", altitude: 4200, verticalSpeed: -1000);
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -242,17 +250,17 @@ public class ConflictAlertDetectorTests
         // 3.2nm apart (between normal 3.0 and hysteresis 3.3), diverging
         // Would NOT trigger new alert, but should remain if already in conflict
         // (hysteresis ignores divergence for existing alerts — only checks current separation)
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 360, groundSpeed: 250);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(3.2), altitude: 5000, heading: 360, groundSpeed: 250);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 360, groundSpeed: 250);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(3.2), altitude: 5000, heading: 360, groundSpeed: 250);
 
         string id = ConflictAlertDetector.MakeConflictId("AAL100", "UAL200");
 
         // Without existing: no detection (3.2 > 3.0, parallel)
-        var fresh = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> fresh = ConflictAlertDetector.Detect([a, b], Ctx());
         Assert.Empty(fresh);
 
         // With existing: still in conflict (3.2 < 3.3 hysteresis)
-        var hysteresis = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
+        List<ConflictAlertDetector.ConflictPair> hysteresis = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
         Assert.Single(hysteresis);
     }
 
@@ -260,12 +268,12 @@ public class ConflictAlertDetectorTests
     public void Hysteresis_ExistingConflict_ClearsWhenBothDimensionsExceed()
     {
         // 3.5nm apart AND 1200ft vertical — both exceed hysteresis thresholds → clears
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(3.5), altitude: 6200);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(3.5), altitude: 6200);
 
         string id = ConflictAlertDetector.MakeConflictId("AAL100", "UAL200");
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
 
         Assert.Empty(result);
     }
@@ -275,12 +283,12 @@ public class ConflictAlertDetectorTests
     {
         // 3.5nm apart (exceeds horizontal hysteresis) but only 900ft vertical (within vertical hysteresis)
         // Either dimension exceeding hysteresis clears the alert
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(3.5), altitude: 5900);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(3.5), altitude: 5900);
 
         string id = ConflictAlertDetector.MakeConflictId("AAL100", "UAL200");
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
 
         Assert.Empty(result);
     }
@@ -290,12 +298,12 @@ public class ConflictAlertDetectorTests
     {
         // 2nm apart (within horizontal hysteresis) but 1200ft vertical (exceeds vertical hysteresis)
         // Either dimension exceeding hysteresis clears the alert
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 6200);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 6200);
 
         string id = ConflictAlertDetector.MakeConflictId("AAL100", "UAL200");
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
 
         Assert.Empty(result);
     }
@@ -304,13 +312,21 @@ public class ConflictAlertDetectorTests
     public void Hysteresis_ExistingConflict_Diverging_Clears()
     {
         // Existing conflict, aircraft within hysteresis thresholds but fully diverging → clears
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 270, groundSpeed: 250);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 5800, heading: 90, groundSpeed: 250, verticalSpeed: 500);
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 270, groundSpeed: 250);
+        AircraftState b = MakeAircraft(
+            "UAL200",
+            BaseLat,
+            BaseLon + LonOffsetForNm(2.0),
+            altitude: 5800,
+            heading: 90,
+            groundSpeed: 250,
+            verticalSpeed: 500
+        );
 
         string id = ConflictAlertDetector.MakeConflictId("AAL100", "UAL200");
 
         // Within hysteresis thresholds (2nm < 3.3, 800ft < 1100ft) but diverging both dimensions
-        var result = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
 
         Assert.Empty(result);
     }
@@ -322,10 +338,10 @@ public class ConflictAlertDetectorTests
     [Fact]
     public void GroundAircraft_Skipped()
     {
-        var a = MakeAircraft("AAL100", altitude: 5000);
-        var b = MakeAircraft("UAL200", altitude: 5000, isOnGround: true);
+        AircraftState a = MakeAircraft("AAL100", altitude: 5000);
+        AircraftState b = MakeAircraft("UAL200", altitude: 5000, isOnGround: true);
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -333,10 +349,10 @@ public class ConflictAlertDetectorTests
     [Fact]
     public void NoModeC_Skipped()
     {
-        var a = MakeAircraft("AAL100", altitude: 5000);
-        var b = MakeAircraft("UAL200", altitude: 5000, transponderMode: "S");
+        AircraftState a = MakeAircraft("AAL100", altitude: 5000);
+        AircraftState b = MakeAircraft("UAL200", altitude: 5000, transponderMode: "S");
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -344,11 +360,11 @@ public class ConflictAlertDetectorTests
     [Fact]
     public void IsCaInhibited_Skipped()
     {
-        var a = MakeAircraft("AAL100", altitude: 5000);
-        var b = MakeAircraft("UAL200", altitude: 5000);
+        AircraftState a = MakeAircraft("AAL100", altitude: 5000);
+        AircraftState b = MakeAircraft("UAL200", altitude: 5000);
         b.Stars.IsCaInhibited = true;
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -376,16 +392,16 @@ public class ConflictAlertDetectorTests
     {
         // Two aircraft on the extended KOAK 28R centerline at 5 NM and 3 NM, both
         // inside the 4 NM × 30 NM × glideslope-+1500-ft volume → suppressed.
-        using var _navDb = SetupKoakNavDb();
+        using IDisposable _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
-        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
-        var first = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
+        AircraftState first = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
 
-        var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.0);
-        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2000, heading: Koak28RHeading, groundSpeed: 140);
+        (double otherLat, double otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.0);
+        AircraftState other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2000, heading: Koak28RHeading, groundSpeed: 140);
 
-        var result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(KoakIcao));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(KoakIcao));
 
         Assert.Empty(result);
     }
@@ -397,17 +413,17 @@ public class ConflictAlertDetectorTests
         // 31 NM out (outside the corridor) — A's presence in the volume suppresses CA
         // for the pair regardless of B's position. STARS does not consult phase or
         // approach state; the volume protects every track inside it.
-        using var _navDb = SetupKoakNavDb();
+        using IDisposable _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
-        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
-        var insider = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
+        AircraftState insider = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
 
         // Place outsider close enough horizontally and vertically to trigger CA absent suppression.
-        var (otherLat, otherLon) = GeoMath.ProjectPoint(acLat, acLon, new TrueHeading(0), 1.0);
-        var outsider = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
+        (double otherLat, double otherLon) = GeoMath.ProjectPoint(acLat, acLon, new TrueHeading(0), 1.0);
+        AircraftState outsider = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
 
-        var result = ConflictAlertDetector.Detect([insider, outsider], CtxWithAirports(KoakIcao));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([insider, outsider], CtxWithAirports(KoakIcao));
 
         Assert.Empty(result);
     }
@@ -417,16 +433,16 @@ public class ConflictAlertDetectorTests
     {
         // Both aircraft past the 30 NM corridor length — neither is inside the volume,
         // so suppression does not apply and CA fires.
-        using var _navDb = SetupKoakNavDb();
+        using IDisposable _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
-        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 31.0);
-        var first = MakeAircraft("AAL100", acLat, acLon, altitude: 9000, heading: Koak28RHeading, groundSpeed: 200);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 31.0);
+        AircraftState first = MakeAircraft("AAL100", acLat, acLon, altitude: 9000, heading: Koak28RHeading, groundSpeed: 200);
 
-        var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 33.0);
-        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 9000, heading: Koak28RHeading, groundSpeed: 200);
+        (double otherLat, double otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 33.0);
+        AircraftState other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 9000, heading: Koak28RHeading, groundSpeed: 200);
 
-        var result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(KoakIcao));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(KoakIcao));
 
         Assert.Single(result);
     }
@@ -436,19 +452,19 @@ public class ConflictAlertDetectorTests
     {
         // Both aircraft > 2 NM cross-track from centerline (outside 4 NM corridor),
         // but close enough to each other for CA. Neither inside volume → CA fires.
-        using var _navDb = SetupKoakNavDb();
+        using IDisposable _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
         var perpCourse = new TrueHeading((Koak10LHeading + 90) % 360);
-        var (baseLat, baseLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 10.0);
+        (double baseLat, double baseLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 10.0);
 
-        var (firstLat, firstLon) = GeoMath.ProjectPoint(baseLat, baseLon, perpCourse, 2.5);
-        var first = MakeAircraft("AAL100", firstLat, firstLon, altitude: 3500, heading: Koak28RHeading, groundSpeed: 180);
+        (double firstLat, double firstLon) = GeoMath.ProjectPoint(baseLat, baseLon, perpCourse, 2.5);
+        AircraftState first = MakeAircraft("AAL100", firstLat, firstLon, altitude: 3500, heading: Koak28RHeading, groundSpeed: 180);
 
-        var (otherLat, otherLon) = GeoMath.ProjectPoint(baseLat, baseLon, perpCourse, 2.7);
-        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 3500, heading: Koak28RHeading, groundSpeed: 180);
+        (double otherLat, double otherLon) = GeoMath.ProjectPoint(baseLat, baseLon, perpCourse, 2.7);
+        AircraftState other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 3500, heading: Koak28RHeading, groundSpeed: 180);
 
-        var result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(KoakIcao));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(KoakIcao));
 
         Assert.Single(result);
     }
@@ -458,16 +474,16 @@ public class ConflictAlertDetectorTests
     {
         // At 10 NM: glideslope ≈ 6 + 10*318 = 3186 ft, ceiling = 3186 + 1500 = 4686 ft.
         // Place both above 4686 ft so neither is inside the corridor volume.
-        using var _navDb = SetupKoakNavDb();
+        using IDisposable _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
-        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 10.0);
-        var first = MakeAircraft("AAL100", acLat, acLon, altitude: 4800, heading: Koak28RHeading, groundSpeed: 180);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 10.0);
+        AircraftState first = MakeAircraft("AAL100", acLat, acLon, altitude: 4800, heading: Koak28RHeading, groundSpeed: 180);
 
-        var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 9.0);
-        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 4900, heading: Koak28RHeading, groundSpeed: 150);
+        (double otherLat, double otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 9.0);
+        AircraftState other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 4900, heading: Koak28RHeading, groundSpeed: 150);
 
-        var result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(KoakIcao));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(KoakIcao));
 
         Assert.Single(result);
     }
@@ -476,16 +492,16 @@ public class ConflictAlertDetectorTests
     public void ApproachCorridor_NonInternalAirport_NotSuppressed()
     {
         // Empty internalAirports → no corridors built → no suppression.
-        using var _navDb = SetupKoakNavDb();
+        using IDisposable _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
-        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
-        var first = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
+        AircraftState first = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
 
-        var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.0);
-        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2000, heading: Koak28RHeading, groundSpeed: 140);
+        (double otherLat, double otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.0);
+        AircraftState other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2000, heading: Koak28RHeading, groundSpeed: 140);
 
-        var result = ConflictAlertDetector.Detect([first, other], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([first, other], Ctx());
 
         Assert.Single(result);
     }
@@ -495,18 +511,18 @@ public class ConflictAlertDetectorTests
     {
         // 3-char FAA LID airport in internal airports list → corridor builds the same
         // as an ICAO. Mirrors what CommandDispatcher.ResolveAirport produces at runtime.
-        var faaLid = "OAK";
-        var navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway(faaLid));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        string faaLid = "OAK";
+        NavigationDatabase navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway(faaLid));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
-        var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
-        var first = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
+        (double acLat, double acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
+        AircraftState first = MakeAircraft("AAL100", acLat, acLon, altitude: 2500, heading: Koak28RHeading, groundSpeed: 150);
 
-        var (otherLat, otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.0);
-        var other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2000, heading: Koak28RHeading, groundSpeed: 140);
+        (double otherLat, double otherLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.0);
+        AircraftState other = MakeAircraft("UAL200", otherLat, otherLon, altitude: 2000, heading: Koak28RHeading, groundSpeed: 140);
 
-        var result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(faaLid));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([first, other], CtxWithAirports(faaLid));
 
         Assert.Empty(result);
     }
@@ -517,19 +533,19 @@ public class ConflictAlertDetectorTests
         // Regression for the SFO S1-SFO-2 bug bundle: SKW3398 leading WJA1508 on I28R,
         // ~2.3 NM apart and ~951 ft vertical separation. Both inside the 28R corridor
         // → suppressed.
-        var faaLid = "SFO";
-        var navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway(faaLid));
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        string faaLid = "SFO";
+        NavigationDatabase navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway(faaLid));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
 
-        var (leaderLat, leaderLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 0.83);
-        var leader = MakeAircraft("SKW3398", leaderLat, leaderLon, altitude: 328, heading: Koak28RHeading, groundSpeed: 126);
+        (double leaderLat, double leaderLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 0.83);
+        AircraftState leader = MakeAircraft("SKW3398", leaderLat, leaderLon, altitude: 328, heading: Koak28RHeading, groundSpeed: 126);
 
-        var (followerLat, followerLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.16);
-        var follower = MakeAircraft("WJA1508", followerLat, followerLon, altitude: 1279, heading: Koak28RHeading, groundSpeed: 144);
+        (double followerLat, double followerLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 3.16);
+        AircraftState follower = MakeAircraft("WJA1508", followerLat, followerLon, altitude: 1279, heading: Koak28RHeading, groundSpeed: 144);
 
-        var result = ConflictAlertDetector.Detect([leader, follower], CtxWithAirports(faaLid));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([leader, follower], CtxWithAirports(faaLid));
 
         Assert.Empty(result);
     }
@@ -541,12 +557,12 @@ public class ConflictAlertDetectorTests
         // to parallel runways 28L/28R, neither with an ActiveApproach (visual finals).
         // STARS does not consult phase or approach state — the corridor volumes apply
         // to every track inside them.
-        var faaLid = "OAK";
-        var rwy28R = MakeKoak28RRunway(faaLid);
+        string faaLid = "OAK";
+        RunwayInfo rwy28R = MakeKoak28RRunway(faaLid);
         // Synthesize a parallel 28L 0.087 NM (~530 ft) south of 28R using a perpendicular projection.
         var perp = new TrueHeading((Koak28RHeading + 90) % 360);
-        var (lat28L1, lon28L1) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, perp, 0.087);
-        var (lat10R, lon10R) = GeoMath.ProjectPoint(Koak10LThreshLat, Koak10LThreshLon, perp, 0.087);
+        (double lat28L1, double lon28L1) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, perp, 0.087);
+        (double lat10R, double lon10R) = GeoMath.ProjectPoint(Koak10LThreshLat, Koak10LThreshLon, perp, 0.087);
         var rwy28L = new RunwayInfo
         {
             AirportId = faaLid,
@@ -562,23 +578,23 @@ public class ConflictAlertDetectorTests
             TrueHeading2 = new TrueHeading(Koak10LHeading),
             WidthFt = 150,
         };
-        var navDb = TestNavDbFactory.WithRunways(rwy28R, rwy28L);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        NavigationDatabase navDb = TestNavDbFactory.WithRunways(rwy28R, rwy28L);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Both 1 NM final, ~0.087 NM laterally apart, both at 1000 ft, both VFR, no ActiveApproach.
         var outboundCourse = new TrueHeading(Koak10LHeading);
-        var (a28RLat, a28RLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 1.0);
-        var on28R = MakeAircraft("N775JW", a28RLat, a28RLon, altitude: 1000, heading: Koak28RHeading, groundSpeed: 90);
+        (double a28RLat, double a28RLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 1.0);
+        AircraftState on28R = MakeAircraft("N775JW", a28RLat, a28RLon, altitude: 1000, heading: Koak28RHeading, groundSpeed: 90);
         on28R.FlightPlan.FlightRules = "VFR";
 
-        var (a28LLat, a28LLon) = GeoMath.ProjectPoint(lat28L1, lon28L1, outboundCourse, 1.0);
-        var on28L = MakeAircraft("N70CS", a28LLat, a28LLon, altitude: 1000, heading: Koak28RHeading, groundSpeed: 90);
+        (double a28LLat, double a28LLon) = GeoMath.ProjectPoint(lat28L1, lon28L1, outboundCourse, 1.0);
+        AircraftState on28L = MakeAircraft("N70CS", a28LLat, a28LLon, altitude: 1000, heading: Koak28RHeading, groundSpeed: 90);
         on28L.FlightPlan.FlightRules = "VFR";
 
         Assert.Null(on28R.Phases?.ActiveApproach);
         Assert.Null(on28L.Phases?.ActiveApproach);
 
-        var result = ConflictAlertDetector.Detect([on28R, on28L], CtxWithAirports(faaLid));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([on28R, on28L], CtxWithAirports(faaLid));
 
         Assert.Empty(result);
     }
@@ -591,11 +607,11 @@ public class ConflictAlertDetectorTests
     public void ThreeAircraft_ThreeConflicts()
     {
         // A, B, C all at same position and altitude — 3 pairs
-        var a = MakeAircraft("AAL100", altitude: 5000);
-        var b = MakeAircraft("BBB200", altitude: 5000);
-        var c = MakeAircraft("CCC300", altitude: 5000);
+        AircraftState a = MakeAircraft("AAL100", altitude: 5000);
+        AircraftState b = MakeAircraft("BBB200", altitude: 5000);
+        AircraftState c = MakeAircraft("CCC300", altitude: 5000);
 
-        var result = ConflictAlertDetector.Detect([a, b, c], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b, c], Ctx());
 
         Assert.Equal(3, result.Count);
     }
@@ -603,15 +619,15 @@ public class ConflictAlertDetectorTests
     [Fact]
     public void EmptyList_NoCrash()
     {
-        var result = ConflictAlertDetector.Detect([], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([], Ctx());
         Assert.Empty(result);
     }
 
     [Fact]
     public void SingleAircraft_NoCrash()
     {
-        var a = MakeAircraft("AAL100");
-        var result = ConflictAlertDetector.Detect([a], Ctx());
+        AircraftState a = MakeAircraft("AAL100");
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a], Ctx());
         Assert.Empty(result);
     }
 
@@ -623,12 +639,12 @@ public class ConflictAlertDetectorTests
     public void VfrPair_SameAltitudeWithinThreshold_Detected()
     {
         // Two VFR aircraft 2nm apart at the same altitude → CA, same as IFR
-        var a = MakeAircraft("N12345", altitude: 5000);
+        AircraftState a = MakeAircraft("N12345", altitude: 5000);
         a.FlightPlan.FlightRules = "VFR";
-        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5000);
+        AircraftState b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5000);
         b.FlightPlan.FlightRules = "VFR";
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Single(result);
     }
@@ -637,12 +653,12 @@ public class ConflictAlertDetectorTests
     public void VfrPair_BeyondHorizontalThreshold_NotDetected()
     {
         // Two VFR aircraft 4nm apart → outside 3nm, no CA
-        var a = MakeAircraft("N12345", altitude: 5000);
+        AircraftState a = MakeAircraft("N12345", altitude: 5000);
         a.FlightPlan.FlightRules = "VFR";
-        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(4.0), altitude: 5000);
+        AircraftState b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(4.0), altitude: 5000);
         b.FlightPlan.FlightRules = "VFR";
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -651,12 +667,12 @@ public class ConflictAlertDetectorTests
     public void VfrPair_Within1000ftVertical_Detected()
     {
         // Two VFR aircraft converging 2nm apart, 600ft vertical → CA (within 1,000ft, like IFR)
-        var a = MakeAircraft("N12345", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 250);
+        AircraftState a = MakeAircraft("N12345", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 250);
         a.FlightPlan.FlightRules = "VFR";
-        var b = MakeAircraft("N67890", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 5600, heading: 270, groundSpeed: 250);
+        AircraftState b = MakeAircraft("N67890", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 5600, heading: 270, groundSpeed: 250);
         b.FlightPlan.FlightRules = "VFR";
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Single(result);
     }
@@ -665,12 +681,12 @@ public class ConflictAlertDetectorTests
     public void VfrPair_BeyondVerticalThreshold_NotDetected()
     {
         // Two VFR aircraft converging 2nm apart but 1200ft vertical → outside 1,000ft, no CA
-        var a = MakeAircraft("N12345", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 250);
+        AircraftState a = MakeAircraft("N12345", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 250);
         a.FlightPlan.FlightRules = "VFR";
-        var b = MakeAircraft("N67890", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 6200, heading: 270, groundSpeed: 250);
+        AircraftState b = MakeAircraft("N67890", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 6200, heading: 270, groundSpeed: 250);
         b.FlightPlan.FlightRules = "VFR";
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -679,11 +695,11 @@ public class ConflictAlertDetectorTests
     public void IfrVfr_Mixed_UsesStandardThresholds_Detected()
     {
         // One IFR + one VFR, 2nm apart, 800ft vertical → CA at standard thresholds
-        var a = MakeAircraft("AAL100", altitude: 5000);
-        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5800);
+        AircraftState a = MakeAircraft("AAL100", altitude: 5000);
+        AircraftState b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5800);
         b.FlightPlan.FlightRules = "VFR";
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Single(result);
     }
@@ -692,15 +708,15 @@ public class ConflictAlertDetectorTests
     public void FlightRules_DoNotChangeDetection()
     {
         // Identical geometry produces the same result whether the pair is IFR or VFR.
-        var ifrA = MakeAircraft("AAL100", altitude: 5000);
-        var ifrB = MakeAircraft("UAL200", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5500);
-        var ifrResult = ConflictAlertDetector.Detect([ifrA, ifrB], Ctx());
+        AircraftState ifrA = MakeAircraft("AAL100", altitude: 5000);
+        AircraftState ifrB = MakeAircraft("UAL200", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5500);
+        List<ConflictAlertDetector.ConflictPair> ifrResult = ConflictAlertDetector.Detect([ifrA, ifrB], Ctx());
 
-        var vfrA = MakeAircraft("N12345", altitude: 5000);
+        AircraftState vfrA = MakeAircraft("N12345", altitude: 5000);
         vfrA.FlightPlan.FlightRules = "VFR";
-        var vfrB = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5500);
+        AircraftState vfrB = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5500);
         vfrB.FlightPlan.FlightRules = "VFR";
-        var vfrResult = ConflictAlertDetector.Detect([vfrA, vfrB], Ctx());
+        List<ConflictAlertDetector.ConflictPair> vfrResult = ConflictAlertDetector.Detect([vfrA, vfrB], Ctx());
 
         Assert.Equal(ifrResult.Count, vfrResult.Count);
         Assert.Single(vfrResult);
@@ -710,19 +726,19 @@ public class ConflictAlertDetectorTests
     public void Hysteresis_ExistingConflict_StaysActiveUntilHysteresis()
     {
         // Existing conflict at 3.2nm (between 3.0 entry and 3.3 hysteresis) stays active.
-        var a = MakeAircraft("N12345", altitude: 5000);
+        AircraftState a = MakeAircraft("N12345", altitude: 5000);
         a.FlightPlan.FlightRules = "VFR";
-        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(3.2), altitude: 5000);
+        AircraftState b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(3.2), altitude: 5000);
         b.FlightPlan.FlightRules = "VFR";
 
         string id = ConflictAlertDetector.MakeConflictId("N12345", "N67890");
 
         // Without existing: no detection (3.2 > 3.0)
-        var fresh = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> fresh = ConflictAlertDetector.Detect([a, b], Ctx());
         Assert.Empty(fresh);
 
         // With existing: still in conflict (3.2 < 3.3 hysteresis)
-        var hysteresis = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
+        List<ConflictAlertDetector.ConflictPair> hysteresis = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
         Assert.Single(hysteresis);
     }
 
@@ -734,10 +750,10 @@ public class ConflictAlertDetectorTests
     public void Standby_Vs_ModeC_Skipped()
     {
         // One Mode C + one Standby → no CA
-        var a = MakeAircraft("AAL100", altitude: 5000, transponderMode: "C");
-        var b = MakeAircraft("UAL200", altitude: 5000, transponderMode: "S");
+        AircraftState a = MakeAircraft("AAL100", altitude: 5000, transponderMode: "C");
+        AircraftState b = MakeAircraft("UAL200", altitude: 5000, transponderMode: "S");
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -746,10 +762,10 @@ public class ConflictAlertDetectorTests
     public void Standby_Vs_Standby_Skipped()
     {
         // Both Standby → no CA
-        var a = MakeAircraft("AAL100", altitude: 5000, transponderMode: "S");
-        var b = MakeAircraft("UAL200", altitude: 5000, transponderMode: "S");
+        AircraftState a = MakeAircraft("AAL100", altitude: 5000, transponderMode: "S");
+        AircraftState b = MakeAircraft("UAL200", altitude: 5000, transponderMode: "S");
 
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx());
 
         Assert.Empty(result);
     }
@@ -758,11 +774,11 @@ public class ConflictAlertDetectorTests
     public void UnsupportedGhostTrack_Skipped()
     {
         // Ghost track (IsUnsupported) at same position/altitude as real aircraft → no CA
-        var real = MakeAircraft("AAL100", altitude: 5000);
-        var ghost = MakeAircraft("UAL200", altitude: 5000);
+        AircraftState real = MakeAircraft("AAL100", altitude: 5000);
+        AircraftState ghost = MakeAircraft("UAL200", altitude: 5000);
         ghost.Ghost.IsUnsupported = true;
 
-        var result = ConflictAlertDetector.Detect([real, ghost], Ctx());
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([real, ghost], Ctx());
 
         Assert.Empty(result);
     }
@@ -790,7 +806,7 @@ public class ConflictAlertDetectorTests
 
     private static IDisposable SetupKoakNavDb()
     {
-        var navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway());
+        NavigationDatabase navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway());
         return NavigationDatabase.ScopedOverride(navDb);
     }
 }

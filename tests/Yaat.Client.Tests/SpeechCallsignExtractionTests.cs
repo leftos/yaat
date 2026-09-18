@@ -15,7 +15,10 @@ public class SpeechCallsignExtractionTests
     public void Leading_Airline_Returns_IcaoCallsign_And_StrippedText()
     {
         string[] active = ["SWA123"];
-        var (commandText, callsign) = SpeechRecognitionService.ExtractAndStripCallsign("southwest one two three fly heading two seven zero", active);
+        (string? commandText, string? callsign) = SpeechRecognitionService.ExtractAndStripCallsign(
+            "southwest one two three fly heading two seven zero",
+            active
+        );
         Assert.Equal("SWA123", callsign);
         Assert.Equal("fly heading 270", commandText);
     }
@@ -24,7 +27,10 @@ public class SpeechCallsignExtractionTests
     public void Trailing_Airline_Returns_IcaoCallsign_And_StrippedText()
     {
         string[] active = ["SWA123"];
-        var (commandText, callsign) = SpeechRecognitionService.ExtractAndStripCallsign("fly heading two seven zero southwest one two three", active);
+        (string? commandText, string? callsign) = SpeechRecognitionService.ExtractAndStripCallsign(
+            "fly heading two seven zero southwest one two three",
+            active
+        );
         Assert.Equal("SWA123", callsign);
         Assert.Equal("fly heading 270", commandText);
     }
@@ -33,7 +39,7 @@ public class SpeechCallsignExtractionTests
     public void Us_Ga_Digits_Plus_NatoLetter_Returns_IcaoAndStripped()
     {
         string[] active = ["N346G"];
-        var (commandText, callsign) = SpeechRecognitionService.ExtractAndStripCallsign(
+        (string? commandText, string? callsign) = SpeechRecognitionService.ExtractAndStripCallsign(
             "november three four six golf turn left heading three one zero",
             active
         );
@@ -49,7 +55,7 @@ public class SpeechCallsignExtractionTests
         // command text and cause the canonical to dispatch against a non-existent callsign.
         // See the S2-OAK-1 bug report: "november three four six gulf runway 28R cleared for takeoff".
         string[] active = ["N346G"];
-        var (commandText, callsign) = SpeechRecognitionService.ExtractAndStripCallsign(
+        (string? commandText, string? callsign) = SpeechRecognitionService.ExtractAndStripCallsign(
             "november three four six gulf runway two eight right cleared for takeoff",
             active
         );
@@ -61,7 +67,7 @@ public class SpeechCallsignExtractionTests
     public void Unknown_Telephony_Returns_NormalizedTranscript_NullCallsign()
     {
         string[] active = ["SWA123"];
-        var (commandText, callsign) = SpeechRecognitionService.ExtractAndStripCallsign("fly heading two seven zero", active);
+        (string? commandText, string? callsign) = SpeechRecognitionService.ExtractAndStripCallsign("fly heading two seven zero", active);
         Assert.Null(callsign);
         Assert.Equal("fly heading 270", commandText);
     }
@@ -69,7 +75,7 @@ public class SpeechCallsignExtractionTests
     [Fact]
     public void Empty_Transcript_Returns_Empty_NullCallsign()
     {
-        var (commandText, callsign) = SpeechRecognitionService.ExtractAndStripCallsign("", ["SWA123"]);
+        (string? commandText, string? callsign) = SpeechRecognitionService.ExtractAndStripCallsign("", ["SWA123"]);
         Assert.Null(callsign);
         Assert.Equal("", commandText);
     }
@@ -79,7 +85,7 @@ public class SpeechCallsignExtractionTests
     {
         // "november N9225L climb and maintain 2000" — Whisper emitted the hybrid form.
         string[] active = ["N9225L"];
-        var (commandText, callsign) = SpeechRecognitionService.ExtractAndStripCallsign("november N9225L climb and maintain 2000", active);
+        (string? commandText, string? callsign) = SpeechRecognitionService.ExtractAndStripCallsign("november N9225L climb and maintain 2000", active);
         Assert.Equal("N9225L", callsign);
         // "n9225l" is in the tokenized/normalized form — the mapper will see lowercased input.
         Assert.Equal("climb and maintain 2000", commandText);

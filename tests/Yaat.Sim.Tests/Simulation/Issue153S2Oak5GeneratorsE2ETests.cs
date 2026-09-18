@@ -23,7 +23,7 @@ public class Issue153S2Oak5GeneratorsE2ETests(ITestOutputHelper output)
         {
             return;
         }
-        var scenarioJson = File.ReadAllText(ScenarioPath);
+        string scenarioJson = File.ReadAllText(ScenarioPath);
 
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
@@ -38,8 +38,8 @@ public class Issue153S2Oak5GeneratorsE2ETests(ITestOutputHelper output)
         }
 
         var engine = new SimulationEngine(groundData);
-        var warnings = engine.LoadScenario(scenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
-        foreach (var w in warnings)
+        List<string> warnings = engine.LoadScenario(scenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        foreach (string w in warnings)
         {
             output.WriteLine($"[load-warn] {w}");
         }
@@ -47,8 +47,8 @@ public class Issue153S2Oak5GeneratorsE2ETests(ITestOutputHelper output)
         Assert.NotNull(engine.Scenario);
         Assert.Equal(2, engine.Scenario.Generators.Count);
 
-        var gen30 = engine.Scenario.Generators.Single(g => g.Config.Runway == "30");
-        var gen28R = engine.Scenario.Generators.Single(g => g.Config.Runway == "28R");
+        GeneratorState gen30 = engine.Scenario.Generators.Single(g => g.Config.Runway == "30");
+        GeneratorState gen28R = engine.Scenario.Generators.Single(g => g.Config.Runway == "28R");
         Assert.Equal(180, gen30.Config.IntervalTime);
         Assert.Equal("Jet", gen30.Config.EngineType);
         Assert.Equal("Large", gen30.Config.WeightCategory);
@@ -69,7 +69,7 @@ public class Issue153S2Oak5GeneratorsE2ETests(ITestOutputHelper output)
         for (int t = 0; t < totalSeconds; t++)
         {
             engine.TickOneSecond();
-            foreach (var ac in engine.World.GetSnapshot())
+            foreach (AircraftState ac in engine.World.GetSnapshot())
             {
                 if (preCallsigns.Contains(ac.Callsign))
                 {
@@ -82,13 +82,19 @@ public class Issue153S2Oak5GeneratorsE2ETests(ITestOutputHelper output)
                 // (via their TAXI preset) but they're on ground at field elevation; scenario
                 // VFR Fix-spawns are airborne but have no AssignedRunway. Both filters in
                 // conjunction match only genuine generator output.
-                var assignedRwy = ac.Phases?.AssignedRunway?.Designator;
+                string? assignedRwy = ac.Phases?.AssignedRunway?.Designator;
                 if (assignedRwy is null || ac.IsOnGround || ac.Altitude < 1000)
                 {
                     continue;
                 }
 
-                var sample = (T: t + 1, ac.Callsign, Type: ac.AircraftType, Alt: ac.Altitude, Ias: ac.IndicatedAirspeed);
+                (int T, string Callsign, string Type, double Alt, double Ias) sample = (
+                    T: t + 1,
+                    ac.Callsign,
+                    Type: ac.AircraftType,
+                    Alt: ac.Altitude,
+                    Ias: ac.IndicatedAirspeed
+                );
                 if (assignedRwy == "30")
                 {
                     spawnedOn30.Add(sample);

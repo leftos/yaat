@@ -41,7 +41,7 @@ public static class PatternBuilder
         GroundRunway? authoredRunway
     )
     {
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             category,
             aircraftType,
@@ -112,7 +112,7 @@ public static class PatternBuilder
         GroundRunway? authoredRunway
     )
     {
-        var waypoints = PatternGeometry.Compute(
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             category,
             aircraftType,
@@ -227,7 +227,7 @@ public static class PatternBuilder
         GroundRunway? patternAuthoredRunway
     )
     {
-        var patternWaypoints = PatternGeometry.Compute(
+        PatternWaypoints patternWaypoints = PatternGeometry.Compute(
             patternRunway,
             category,
             aircraftType,
@@ -239,7 +239,7 @@ public static class PatternBuilder
             patternAuthoredRunway
         );
 
-        var phases = RunwayGeometry.AreCloseParallels(flownRunway, patternRunway)
+        List<Phase> phases = RunwayGeometry.AreCloseParallels(flownRunway, patternRunway)
             ? BuildParallelTransitionLegs(
                 flownRunway,
                 patternRunway,
@@ -288,7 +288,7 @@ public static class PatternBuilder
         PatternWaypoints patternWaypoints
     )
     {
-        var transitionWaypoints = PatternGeometry.ComputeTransition(
+        PatternWaypoints transitionWaypoints = PatternGeometry.ComputeTransition(
             flownRunway,
             patternRunway,
             category,
@@ -324,7 +324,7 @@ public static class PatternBuilder
         PatternWaypoints patternWaypoints
     )
     {
-        var flownWaypoints = PatternGeometry.Compute(
+        PatternWaypoints flownWaypoints = PatternGeometry.Compute(
             flownRunway,
             category,
             aircraftType,
@@ -398,7 +398,7 @@ public static class PatternBuilder
     public static bool UpdateWaypoints(PhaseList phaseList, PatternWaypoints waypoints)
     {
         bool found = false;
-        foreach (var phase in phaseList.Phases)
+        foreach (Phase phase in phaseList.Phases)
         {
             if (phase.Status is not PhaseStatus.Pending and not PhaseStatus.Active)
             {

@@ -33,7 +33,7 @@ public class RunwayInUseResolverTests
     [InlineData(320, 12, "33")]
     public void WindOfFiveKnotsOrMore_PicksTheEndMostNearlyAlignedWithTheMagneticWind(double direction, double speed, string expected)
     {
-        var decision = RunwayInUseResolver.Resolve("OAK", null, Wind(direction, speed), Oak, ModelDate);
+        RunwayUseDecision? decision = RunwayInUseResolver.Resolve("OAK", null, Wind(direction, speed), Oak, ModelDate);
 
         Assert.NotNull(decision);
         Assert.Equal(expected, decision.PrimaryDepartureRunway);
@@ -45,7 +45,7 @@ public class RunwayInUseResolverTests
     [Fact]
     public void CalmWithNoWeather_PicksTheLongestRunway_EndByDesignator()
     {
-        var decision = RunwayInUseResolver.Resolve("OAK", null, null, Oak, ModelDate);
+        RunwayUseDecision? decision = RunwayInUseResolver.Resolve("OAK", null, null, Oak, ModelDate);
 
         Assert.NotNull(decision);
         Assert.Equal("12", decision.PrimaryDepartureRunway);
@@ -55,7 +55,7 @@ public class RunwayInUseResolverTests
     [Fact]
     public void LightWind_PicksTheLongestRunway_EndTowardTheWind()
     {
-        var decision = RunwayInUseResolver.Resolve("OAK", null, Wind(300, 3), Oak, ModelDate);
+        RunwayUseDecision? decision = RunwayInUseResolver.Resolve("OAK", null, Wind(300, 3), Oak, ModelDate);
 
         Assert.NotNull(decision);
         Assert.Equal("30", decision.PrimaryDepartureRunway);
@@ -78,7 +78,7 @@ public class RunwayInUseResolverTests
             ],
         };
 
-        var decision = RunwayInUseResolver.Resolve("OAK", null, weather, Oak, ModelDate);
+        RunwayUseDecision? decision = RunwayInUseResolver.Resolve("OAK", null, weather, Oak, ModelDate);
 
         Assert.NotNull(decision);
         Assert.Equal("12", decision.PrimaryDepartureRunway);
@@ -87,7 +87,7 @@ public class RunwayInUseResolverTests
     [Fact]
     public void SessionOverride_WinsOverTheWind_WhenItNamesARunwayEnd()
     {
-        var decision = RunwayInUseResolver.Resolve("OAK", "30", Wind(100, 8), Oak, ModelDate);
+        RunwayUseDecision? decision = RunwayInUseResolver.Resolve("OAK", "30", Wind(100, 8), Oak, ModelDate);
 
         Assert.NotNull(decision);
         Assert.Equal("30", decision.PrimaryDepartureRunway);
@@ -97,7 +97,7 @@ public class RunwayInUseResolverTests
     [Fact]
     public void SessionOverride_NamingNoRunway_IsIgnored()
     {
-        var decision = RunwayInUseResolver.Resolve("OAK", "99", Wind(100, 8), Oak, ModelDate);
+        RunwayUseDecision? decision = RunwayInUseResolver.Resolve("OAK", "99", Wind(100, 8), Oak, ModelDate);
 
         Assert.NotNull(decision);
         Assert.Equal("10L", decision.PrimaryDepartureRunway);
@@ -113,15 +113,15 @@ public class RunwayInUseResolverTests
     [Fact]
     public void State_MemoizesPerAirport_AppliesTheOverrideOnlyToThePrimaryAirport_AndRefreshesOnAWeatherChange()
     {
-        var zoa = TestArtccConfig.LoadZoa();
+        ArtccConfigRoot? zoa = TestArtccConfig.LoadZoa();
         if (zoa is null)
         {
             return;
         }
 
-        var ground = TestAiPositions.OakGround(zoa);
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, zoa, 7, [ground]);
-        var scenario = engine.Scenario!;
+        AiPositionConfig ground = TestAiPositions.OakGround(zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, zoa, 7, [ground]);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.ControllerAi = new ControllerAiConfig
         {
             Seed = 7,
@@ -131,18 +131,18 @@ public class RunwayInUseResolverTests
             RunwayConfigurations = AiTestFixture.NoRunwayConfigurations,
         };
         engine.World.Weather = Wind(100, 8);
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
         var state = new RunwayInUseState(FacilityOpsDatabase.For);
-        var context = AiTestFixture.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink());
+        AiTickContext context = AiTestFixture.Context(engine, [aircraft], [ground], 10, [], new RecordingAiCommandSink());
 
-        var oak = state.For("OAK", context, ground.PositionId);
+        RunwayUseDecision? oak = state.For("OAK", context, ground.PositionId);
         Assert.NotNull(oak);
         Assert.Equal("30", oak.PrimaryDepartureRunway);
         Assert.Equal(RunwayUseSource.Override, oak.Source);
         Assert.Same(oak, state.For("KOAK", context, ground.PositionId));
 
         // The override is the primary airport's; another airport resolves from the wind.
-        var sfo = state.For("SFO", context, ground.PositionId);
+        RunwayUseDecision? sfo = state.For("SFO", context, ground.PositionId);
         Assert.NotNull(sfo);
         Assert.Equal(RunwayUseSource.Generic, sfo.Source);
         Assert.StartsWith("10", sfo.PrimaryDepartureRunway);
@@ -161,7 +161,11 @@ public class RunwayInUseResolverTests
             state.For("OAK", AiTestFixture.Context(engine, [aircraft], [ground], 11, [], new RecordingAiCommandSink()), ground.PositionId)
         );
         engine.World.Weather = Wind(300, 12);
-        var windy = state.For("OAK", AiTestFixture.Context(engine, [aircraft], [ground], 12, [], new RecordingAiCommandSink()), ground.PositionId);
+        RunwayUseDecision? windy = state.For(
+            "OAK",
+            AiTestFixture.Context(engine, [aircraft], [ground], 12, [], new RecordingAiCommandSink()),
+            ground.PositionId
+        );
         Assert.NotNull(windy);
         // OAK has a knowledge file: 12 kt from 300 is the SOP's west configuration, not the generic single runway.
         Assert.Equal(RunwayUseSource.Knowledge, windy.Source);

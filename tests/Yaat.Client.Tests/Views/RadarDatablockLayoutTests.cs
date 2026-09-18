@@ -40,9 +40,9 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void NoModeC_WhenTransponderModeIsCharlie()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.TransponderMode = "C";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -60,9 +60,9 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void HasModeC_WhenTransponderModeIsStandby()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.TransponderMode = "Standby";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -80,8 +80,8 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void RectGrowsByExactlyLineHeight_WhenStandby()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
 
         ac.TransponderMode = "C";
         var charlie = RadarDatablockLayout.Compute(
@@ -112,9 +112,9 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void Standby_BothLine3AndLine4_RectGrowsByTwoLines()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.AssignedTo = "AB";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         ac.TransponderMode = "C";
         var withLine3Only = RadarDatablockLayout.Compute(
@@ -155,11 +155,11 @@ public class RadarDatablockLayoutTests
         // physically known, even if the filed FP type was never set or got blanked via
         // an FP amendment. Mirrors the user-reported N775JW bug where the Aircraft List
         // showed "C182" but the radar datablock omitted the type on Line 2.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.AircraftType = "C182";
         ac.FiledAircraftType = "";
         ac.CwtCode = "L";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -177,11 +177,11 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void Line2_PrefersFiledType_WhenFiledPresent()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.AircraftType = "C182";
         ac.FiledAircraftType = "PA28";
         ac.CwtCode = "L";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -202,11 +202,11 @@ public class RadarDatablockLayoutTests
     {
         // The renderer tints this span amber when the filed type differs from the physical type, so the
         // span must land exactly on the "cwt/type" token the line carries — text unchanged either way.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.AircraftType = "A388";
         ac.FiledAircraftType = "B744";
         ac.CwtCode = "L";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -225,11 +225,11 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void TypeTokenSpan_IsAbsent_WhenNoTypeOrCwt()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.AircraftType = "";
         ac.FiledAircraftType = "";
         ac.CwtCode = "";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -248,9 +248,9 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void NoLndgClnc_HiddenWhenWarningInactive()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.NoLandingClearanceWarningActive = false;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -268,9 +268,9 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void NoLndgClnc_HiddenWhenUserPreferenceOff()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.NoLandingClearanceWarningActive = true;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -288,10 +288,10 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void NoLndgClnc_HiddenWhenAutoClearedToLand()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.NoLandingClearanceWarningActive = true;
         ac.IsAutoClearedToLand = true;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         // Flash output is gated 50/50 on the wall-clock tick — sample multiple cycles so we
         // catch the on-phase too.
@@ -316,9 +316,9 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void NoLndgClnc_FlashesOnAndOff_OverTime()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.NoLandingClearanceWarningActive = true;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         bool seenOn = false;
         bool seenOff = false;
@@ -353,8 +353,8 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void NoLndgClnc_RectReservesSpaceEvenDuringOffPhase()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
 
         ac.NoLandingClearanceWarningActive = false;
         var baseline = RadarDatablockLayout.Compute(
@@ -412,10 +412,10 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void ConflictAlert_FlashesOnAndOff_OverTime()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.ConflictPeerCallsign = "SWA1234";
-        var peer = CreateConflictPeer();
-        var style = CreateStyle();
+        AircraftModel peer = CreateConflictPeer();
+        TextStyle style = CreateStyle();
 
         bool seenOn = false;
         bool seenOff = false;
@@ -449,9 +449,9 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void ConflictAlert_ListsHorizontalNmAndVerticalFeet()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.Owner = "AB";
-        var peer = CreateConflictPeer();
+        AircraftModel peer = CreateConflictPeer();
         peer.Owner = "CD";
 
         // Horizontal to one decimal in nm; vertical to the nearest 100 ft, matching Mode C reporting
@@ -465,10 +465,10 @@ public class RadarDatablockLayoutTests
         // 5099 ft displays as "050" on line 2 and 4900 ft as "049" — one hundred apart. Differencing
         // the raw altitudes and then rounding gives 199 -> 200, contradicting the two readouts directly
         // above. Quantizing each altitude first keeps the field consistent with what's on the scope.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.Altitude = 5099;
         ac.Owner = "AB";
-        var peer = CreateConflictPeer();
+        AircraftModel peer = CreateConflictPeer();
         peer.Altitude = 4900;
         peer.Owner = "CD";
 
@@ -478,9 +478,9 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void ConflictAlert_CoAltitudePairPadsVerticalToThreeDigits()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.Owner = "AB";
-        var peer = CreateConflictPeer();
+        AircraftModel peer = CreateConflictPeer();
         peer.Altitude = ac.Altitude;
         peer.Owner = "CD";
 
@@ -494,9 +494,9 @@ public class RadarDatablockLayoutTests
     {
         // P/CG: a conflict between a tracked target and an untracked one is a Mode C Intruder alert,
         // not a conflict alert. 7110.65 §5-14-6 treats CA and MCI as distinct alert types.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.Owner = "AB";
-        var peer = CreateConflictPeer();
+        AircraftModel peer = CreateConflictPeer();
 
         Assert.StartsWith("MCI ", RadarDatablockLayout.BuildConflictLine(ac, peer), StringComparison.Ordinal);
     }
@@ -506,9 +506,9 @@ public class RadarDatablockLayoutTests
     {
         // The tracked side of the pair must read MCI too — the alert type is a property of the pair,
         // so the two datablocks can't disagree about what kind of alert is active.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.Owner = "AB";
-        var peer = CreateConflictPeer();
+        AircraftModel peer = CreateConflictPeer();
 
         Assert.StartsWith("MCI ", RadarDatablockLayout.BuildConflictLine(ac, peer), StringComparison.Ordinal);
         Assert.StartsWith("MCI ", RadarDatablockLayout.BuildConflictLine(peer, ac), StringComparison.Ordinal);
@@ -519,9 +519,9 @@ public class RadarDatablockLayoutTests
     {
         // An untracked target that still correlates to a flight plan is a known aircraft, so the pair
         // is a CA, not an MCI.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.Owner = "AB";
-        var peer = CreateConflictPeer();
+        AircraftModel peer = CreateConflictPeer();
         peer.Destination = "KSFO";
 
         Assert.StartsWith("CA ", RadarDatablockLayout.BuildConflictLine(ac, peer), StringComparison.Ordinal);
@@ -531,7 +531,7 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void ConflictAlert_FallsBackToBareCa_WhenPeerUnresolved()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
 
         // The peer can be absent when it has left the scope or its first position update hasn't
         // landed yet — the alert must still show rather than vanishing.
@@ -541,9 +541,9 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void ConflictAlert_RectReservesSpaceEvenDuringOffPhase()
     {
-        var ac = CreateModel();
-        var peer = CreateConflictPeer();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        AircraftModel peer = CreateConflictPeer();
+        TextStyle style = CreateStyle();
 
         var baseline = RadarDatablockLayout.Compute(
             ac,
@@ -586,9 +586,9 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void ConflictAlert_Suppressed_WhenToggleOff()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.ConflictPeerCallsign = "SWA1234";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -608,12 +608,12 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void CollapsedLdb_ShowsBeaconThenAltitude()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.StudentDatablockLevel = StarsDatablockLevel.Limited;
         ac.BeaconCode = 1200;
         ac.Altitude = 3500;
 
-        var lines = RadarDatablockLayout.BuildCollapsedLines(ac);
+        IReadOnlyList<string> lines = RadarDatablockLayout.BuildCollapsedLines(ac);
 
         // LDB default = beacon code + altitude; ground speed is hidden unless queried.
         Assert.Equal(["1200 035"], lines);
@@ -622,13 +622,13 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void CollapsedPdb_ShowsAltitudeHandoffGroundSpeed()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
         ac.Altitude = 3500;
         ac.GroundSpeed = 120;
         ac.HandoffPeerSectorCode = "2S";
 
-        var lines = RadarDatablockLayout.BuildCollapsedLines(ac);
+        IReadOnlyList<string> lines = RadarDatablockLayout.BuildCollapsedLines(ac);
 
         // PDB mirrors the FDB altitude line: altitude, receiving sector during handoff, ground-speed tens.
         Assert.Equal(["035 2S 12"], lines);
@@ -637,13 +637,13 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void CollapsedPdb_OmitsHandoffAndAddsScratchpadLine()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
         ac.Altitude = 3500;
         ac.GroundSpeed = 120;
         ac.Scratchpad1 = "CCR";
 
-        var lines = RadarDatablockLayout.BuildCollapsedLines(ac);
+        IReadOnlyList<string> lines = RadarDatablockLayout.BuildCollapsedLines(ac);
 
         Assert.Equal(["035 12", "CCR"], lines);
     }
@@ -662,10 +662,10 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void AutoScratchpad1_RendersLikeRealScratchpad_WhenSp1Empty()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.OwnerSectorCode = "2S";
         ac.AutoScratchpad1 = "OAK";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -683,11 +683,11 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void RealScratchpad1_WinsOverAutoScratchpad1()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.OwnerSectorCode = "2S";
         ac.Scratchpad1 = "ABC";
         ac.AutoScratchpad1 = "OAK";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -705,7 +705,7 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void NoScratchpads_OmitsTokenEntirely()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.OwnerSectorCode = "2S";
 
         var layout = RadarDatablockLayout.Compute(
@@ -725,13 +725,13 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void AutoScratchpad1_AppearsOnCollapsedPdb()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
         ac.Altitude = 3500;
         ac.GroundSpeed = 120;
         ac.AutoScratchpad1 = "SFO";
 
-        var lines = RadarDatablockLayout.BuildCollapsedLines(ac);
+        IReadOnlyList<string> lines = RadarDatablockLayout.BuildCollapsedLines(ac);
 
         Assert.Equal(["035 12", "SFO"], lines);
     }
@@ -739,7 +739,7 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void EffectiveScratchpad1_PrefersRealThenAuto()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         Assert.Null(RadarDatablockLayout.EffectiveScratchpad1(ac));
 
         ac.AutoScratchpad1 = "OAK";
@@ -754,12 +754,12 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void OutgoingPointout_RendersTcpStarAfterOwner_BeforeScratchpads()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.OwnerSectorCode = "2S";
         ac.Scratchpad1 = "ABC";
         ac.Scratchpad2 = "XY";
         ac.PointoutToTcpCode = "3E";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -777,9 +777,9 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void OutgoingPointout_AbsentByDefault()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.OwnerSectorCode = "2S";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -797,8 +797,8 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void Note_BlankWhenNoNote()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -816,8 +816,8 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void Note_RendersAsLine6_AndGrowsRectByOneLine()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
 
         var baseline = RadarDatablockLayout.Compute(
             ac,
@@ -851,12 +851,12 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void ResolveBlockOffset_ManualBeatsDeconflict()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
-        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
+        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
         var manual = new SKPoint(5, 5);
 
-        var result = RadarDatablockLayout.ResolveBlockOffset(
+        SKPoint result = RadarDatablockLayout.ResolveBlockOffset(
             ac,
             syncLeader: true,
             hasManual: true,
@@ -871,13 +871,13 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void ResolveBlockOffset_DeconflictBeatsLeaderDirection()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.StudentLeaderDirection = 8; // North, non-default
-        var style = CreateStyle();
-        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        TextStyle style = CreateStyle();
+        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
         var deconflict = new SKPoint(99, 99);
 
-        var result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: true, hasManual: false, default, rectAtOrigin, deconflict);
+        SKPoint result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: true, hasManual: false, default, rectAtOrigin, deconflict);
 
         Assert.Equal(deconflict, result);
     }
@@ -885,12 +885,12 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void ResolveBlockOffset_DeconflictBeatsDefault()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
-        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
+        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
         var deconflict = new SKPoint(99, 99);
 
-        var result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: false, hasManual: false, default, rectAtOrigin, deconflict);
+        SKPoint result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: false, hasManual: false, default, rectAtOrigin, deconflict);
 
         Assert.Equal(deconflict, result);
     }
@@ -898,12 +898,12 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void ResolveBlockOffset_NullDeconflict_ReproducesLeaderDirection()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.StudentLeaderDirection = 8; // North
-        var style = CreateStyle();
-        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        TextStyle style = CreateStyle();
+        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
 
-        var leaderResult = RadarDatablockLayout.ResolveBlockOffset(
+        SKPoint leaderResult = RadarDatablockLayout.ResolveBlockOffset(
             ac,
             syncLeader: true,
             hasManual: false,
@@ -918,11 +918,18 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void ResolveBlockOffset_NullDeconflict_NoLeader_ReturnsDefault()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
-        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
+        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
 
-        var result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: false, hasManual: false, default, rectAtOrigin, deconflictOffset: null);
+        SKPoint result = RadarDatablockLayout.ResolveBlockOffset(
+            ac,
+            syncLeader: false,
+            hasManual: false,
+            default,
+            rectAtOrigin,
+            deconflictOffset: null
+        );
 
         Assert.Equal(RadarDatablockLayout.DefaultOffset, result);
     }
@@ -935,11 +942,11 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void Compute_RectIsTranslationInvariant()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
 
-        var atOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
-        var atOffset = RadarDatablockLayout.Compute(ac, 137, -52, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        SKRect atOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        SKRect atOffset = RadarDatablockLayout.Compute(ac, 137, -52, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
 
         Assert.Equal(atOrigin.Left + 137, atOffset.Left, precision: 3);
         Assert.Equal(atOrigin.Top - 52, atOffset.Top, precision: 3);
@@ -952,9 +959,9 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void HandoffOnly_ReservesOwnerSlot_RegardlessOfFlash()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.HandoffPeerSectorCode = "3E"; // handoff with no owner: the token flashes blank, slot must persist
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         // ReserveOwnerSlot is computed from the stable (handoff-always) line, so it is flash-independent.
         var layout = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
@@ -966,11 +973,11 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void OwnerHandoff_RectStableAcrossFlashCycle()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.OwnerSectorCode = "2S";
         ac.HandoffPeerSectorCode = "APPROACH"; // long enough that line 3 drives the block width
         ac.Scratchpad1 = "RESET";
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var first = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
         // Sample across at least one full 500 ms flash cycle — the reserved slot keeps width + count constant.
@@ -988,11 +995,11 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void SquawkMismatch_LinePresent_WhenAssignedDiffersAndModeC()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.TransponderMode = "C";
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -1011,10 +1018,10 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void SquawkMismatch_LineAbsent_WhenCodesMatch()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.BeaconCode = 301;
         ac.AssignedBeaconCode = 301;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -1033,10 +1040,10 @@ public class RadarDatablockLayoutTests
     public void SquawkMismatch_LineAbsent_WhenNoAssignedCode()
     {
         // VFR cold-call: squawking 1200 with nothing assigned yet — not a mismatch.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 0;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -1056,11 +1063,11 @@ public class RadarDatablockLayoutTests
     [InlineData("Off")]
     public void SquawkMismatch_LineAbsent_WhenTransponderNotTransmitting(string mode)
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.TransponderMode = mode;
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -1082,10 +1089,10 @@ public class RadarDatablockLayoutTests
     public void SquawkMismatch_LineAbsent_WhenReportedIsSpecialPurposeCode(uint reported)
     {
         // An emergency/special code takes visual priority; the mismatch indicator is suppressed.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.BeaconCode = reported;
         ac.AssignedBeaconCode = 301;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -1104,11 +1111,11 @@ public class RadarDatablockLayoutTests
     public void SquawkMismatch_LineShows_WhenSquawkingVfr1200VsDiscrete()
     {
         // The motivating case: a VFR aircraft assigned a discrete code but still squawking 1200.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.FlightRules = "VFR";
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 4321;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -1128,12 +1135,12 @@ public class RadarDatablockLayoutTests
     {
         // Once the pilot is told to squawk VFR (SQVFR/SQV), the latch suppresses the RPO mismatch flash
         // even though the assigned discrete code still differs from the reported 1200.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.TransponderMode = "C";
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
         ac.CommandedSquawkVfr = true;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -1153,12 +1160,12 @@ public class RadarDatablockLayoutTests
     {
         // The intended RPO aid: an assigned-but-not-yet-squawked code flashes at any datablock level
         // (unlike CRC's FDB-only line). The latch is set only once the pilot is told to squawk VFR.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.TransponderMode = "C";
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
         ac.CommandedSquawkVfr = false;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -1176,8 +1183,8 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void SquawkMismatch_RectGrowsByExactlyLineHeight()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
 
         ac.BeaconCode = 301;
         ac.AssignedBeaconCode = 301;
@@ -1210,13 +1217,13 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void SquawkMismatch_RectIsTranslationInvariant()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
-        var atOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
-        var atOffset = RadarDatablockLayout.Compute(ac, 137, -52, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        SKRect atOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        SKRect atOffset = RadarDatablockLayout.Compute(ac, 137, -52, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
 
         Assert.Equal(atOrigin.Left + 137, atOffset.Left, precision: 3);
         Assert.Equal(atOrigin.Top - 52, atOffset.Top, precision: 3);
@@ -1229,10 +1236,10 @@ public class RadarDatablockLayoutTests
     {
         // The mismatch condition itself never flashes (only the assigned token dims in the renderer),
         // so the reserved width + line count stay constant across a full 500 ms cycle.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var first = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
         for (int i = 0; i < 10; i++)
@@ -1248,8 +1255,8 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void Line2_ShowsCwtType_WhenNotIdenting()
     {
-        var ac = CreateModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
 
@@ -1261,9 +1268,9 @@ public class RadarDatablockLayoutTests
     public void Line2_AppendsIdAfterCwtType_WhileIdenting()
     {
         // The ident is appended at the end of the altitude line and keeps the type readout.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.IsIdenting = true;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
 
@@ -1276,9 +1283,9 @@ public class RadarDatablockLayoutTests
     {
         // The ident blinks fully off in the renderer, so the layout must keep the token in the measured
         // string on both phases — otherwise the rect (and the hit area and leader endpoint) would pulse.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.IsIdenting = true;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var first = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
         for (int i = 0; i < 10; i++)
@@ -1295,8 +1302,8 @@ public class RadarDatablockLayoutTests
     public void Line2_WidensToFitId_WhileIdenting()
     {
         // The ident lengthens line 2 rather than displacing the type, so the block has to grow to fit it.
-        var ac = CreateModel();
-        var style = CreateStyle();
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
 
         float idle = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect.Width;
 
@@ -1311,12 +1318,12 @@ public class RadarDatablockLayoutTests
     {
         // An aircraft with neither CWT nor type normally has a bare "alt speed" line 2. The ident
         // still has to land on it — the type token is absent, not an empty slot to skip past.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.AircraftType = "";
         ac.FiledAircraftType = "";
         ac.CwtCode = "";
         ac.IsIdenting = true;
-        var style = CreateStyle();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
 
@@ -1327,7 +1334,7 @@ public class RadarDatablockLayoutTests
     public void CollapsedLimited_AppendsId_WhileIdenting()
     {
         // CRC's BuildLdb appends "ID" after the beacon-code/altitude text on the same line.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.StudentDatablockLevel = StarsDatablockLevel.Limited;
         ac.BeaconCode = 301;
 
@@ -1341,7 +1348,7 @@ public class RadarDatablockLayoutTests
     public void CollapsedPartial_AppendsId_WhileIdenting()
     {
         // CRC's BuildPdb appends "ID" after the altitude/ground-speed line.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
 
         Assert.Equal(["230 25"], RadarDatablockLayout.BuildCollapsedLines(ac));
@@ -1354,7 +1361,7 @@ public class RadarDatablockLayoutTests
     public void CollapsedPartial_KeepsScratchpadLine_WhileIdenting()
     {
         // The ident rides on line 0 only; a scratchpad line 1 must survive untouched.
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
         ac.Scratchpad1 = "OAK";
         ac.IsIdenting = true;
@@ -1365,7 +1372,7 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void MinifiedLine_AppendsId_WhileIdenting()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
 
         Assert.Equal("230 D", RadarDatablockLayout.BuildMinifiedLine(ac));
 
@@ -1376,7 +1383,7 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void MinifiedLine_AppendsId_WhenNoCwt()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.CwtCode = "";
         ac.IsIdenting = true;
 
@@ -1404,7 +1411,7 @@ public class RadarDatablockLayoutTests
     /// <summary>The trailing member of an ATPA pairing: lead callsign, required separation, cone state.</summary>
     private static AircraftModel CreateAtpaTrailer()
     {
-        var ac = CreateModel();
+        AircraftModel ac = CreateModel();
         ac.AtpaLeadCallsign = "SWA1234";
         ac.AtpaAllowedSeparationNm = 3.0;
         ac.AtpaConeState = AtpaConeState.Warning;
@@ -1414,8 +1421,8 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void Atpa_LineShowsInTrailTenths()
     {
-        var ac = CreateAtpaTrailer();
-        var style = CreateStyle();
+        AircraftModel ac = CreateAtpaTrailer();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -1434,8 +1441,8 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void Atpa_LineAbsent_WhenToggleOff()
     {
-        var ac = CreateAtpaTrailer();
-        var style = CreateStyle();
+        AircraftModel ac = CreateAtpaTrailer();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -1455,8 +1462,8 @@ public class RadarDatablockLayoutTests
     {
         // The lead left the scope (or its first position update hasn't landed): the distance is the
         // field's entire content, so there is nothing to draw.
-        var ac = CreateAtpaTrailer();
-        var style = CreateStyle();
+        AircraftModel ac = CreateAtpaTrailer();
+        TextStyle style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
@@ -1474,8 +1481,8 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void Atpa_RectGrowsByExactlyLineHeight()
     {
-        var ac = CreateAtpaTrailer();
-        var style = CreateStyle();
+        AircraftModel ac = CreateAtpaTrailer();
+        TextStyle style = CreateStyle();
 
         var without = RadarDatablockLayout.Compute(
             ac,
@@ -1506,9 +1513,9 @@ public class RadarDatablockLayoutTests
     {
         // The in-trail line is steady, so — unlike the conflict field — both its width and its line slot
         // must hold across a full 500 ms cycle without any reservation flag.
-        var ac = CreateAtpaTrailer();
-        var lead = CreateAtpaLead();
-        var style = CreateStyle();
+        AircraftModel ac = CreateAtpaTrailer();
+        AircraftModel lead = CreateAtpaLead();
+        TextStyle style = CreateStyle();
 
         var first = RadarDatablockLayout.Compute(
             ac,
@@ -1540,14 +1547,14 @@ public class RadarDatablockLayoutTests
     [Fact]
     public void Atpa_RectIsTranslationInvariant()
     {
-        var ac = CreateAtpaTrailer();
-        var lead = CreateAtpaLead();
-        var style = CreateStyle();
+        AircraftModel ac = CreateAtpaTrailer();
+        AircraftModel lead = CreateAtpaLead();
+        TextStyle style = CreateStyle();
 
-        var atOrigin = RadarDatablockLayout
+        SKRect atOrigin = RadarDatablockLayout
             .Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: new DatablockOverlays(false, null, true, lead), callsignMarker: "")
             .Rect;
-        var atOffset = RadarDatablockLayout
+        SKRect atOffset = RadarDatablockLayout
             .Compute(ac, 137, -52, style, showNoLandingClearance: false, overlays: new DatablockOverlays(false, null, true, lead), callsignMarker: "")
             .Rect;
 

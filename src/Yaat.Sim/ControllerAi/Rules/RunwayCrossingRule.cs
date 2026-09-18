@@ -1,4 +1,5 @@
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.ControllerAi.Rules;
@@ -24,11 +25,11 @@ public sealed class RunwayCrossingRule : IDecisionRule
     public void Evaluate(AiRuleScope scope)
     {
         var timedOut = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var aircraft in scope.Jurisdiction)
+        foreach (AircraftState aircraft in scope.Jurisdiction)
         {
-            var memo = scope.MemoFor(aircraft);
-            var layout = scope.Tick.LayoutFor(aircraft);
-            var pending = TaxiRouteProgress.NextUnclearedCrossing(aircraft, layout);
+            AiAircraftMemo memo = scope.MemoFor(aircraft);
+            AirportGroundLayout? layout = scope.Tick.LayoutFor(aircraft);
+            PendingHoldShort? pending = TaxiRouteProgress.NextUnclearedCrossing(aircraft, layout);
             if (pending is null || (pending.DistanceFt > PreClearDistanceFt))
             {
                 memo.ForgetObservation(Name);
@@ -41,23 +42,23 @@ public sealed class RunwayCrossingRule : IDecisionRule
                 continue;
             }
 
-            var bar = pending.Point;
-            var target = bar.TargetName ?? "";
-            var airport = PilotContactRoster.SurfaceAirportOf(aircraft);
-            var pavement = RunwayCrossingGate.PavementFor(target, scope.Tick.RunwaysFor(airport));
+            HoldShortPoint bar = pending.Point;
+            string target = bar.TargetName ?? "";
+            string? airport = PilotContactRoster.SurfaceAirportOf(aircraft);
+            RunwayInfo? pavement = RunwayCrossingGate.PavementFor(target, scope.Tick.RunwaysFor(airport));
             if (pavement is null || !memo.CanAct(scope.Now))
             {
                 continue;
             }
 
-            var end = TaxiRouteProgress.NearestCrossingEnd(aircraft, target, layout);
+            string end = TaxiRouteProgress.NearestCrossingEnd(aircraft, target, layout);
             if (CabStaffing.LocalIsStaffed(scope, airport))
             {
                 AskLocal(scope, aircraft, memo, bar, end, timedOut);
                 continue;
             }
 
-            if (!RunwayCrossingGate.IsClear(aircraft, pavement, scope.Tick.Snapshot, layout, out var blocked))
+            if (!RunwayCrossingGate.IsClear(aircraft, pavement, scope.Tick.Snapshot, layout, out string? blocked))
             {
                 continue;
             }
@@ -107,7 +108,7 @@ public sealed class RunwayCrossingRule : IDecisionRule
             return;
         }
 
-        var taxiway = TaxiwayAt(aircraft, bar) ?? aircraft.Ground.CurrentTaxiway ?? "the hold-short";
+        string taxiway = TaxiwayAt(aircraft, bar) ?? aircraft.Ground.CurrentTaxiway ?? "the hold-short";
         aircraft.PendingWarnings.Add($"[AI-COORD] {scope.Position.Callsign} requests cross runway {end} at {taxiway} for {aircraft.Callsign}");
         scope.Pacing.MarkTransmitted(scope.Now, scope.Tick.AiRng);
         memo.Intent = GroundIntent.CrossingRequested;

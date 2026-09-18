@@ -44,9 +44,9 @@ public class StripRackViewModel
     {
         var resolved = new List<StripItemViewModel>();
         List<string>? unresolved = null;
-        foreach (var id in newOrder)
+        foreach (string id in newOrder)
         {
-            if (itemLookup.TryGetValue(id, out var vm))
+            if (itemLookup.TryGetValue(id, out StripItemViewModel? vm))
             {
                 resolved.Add(vm);
             }
@@ -70,7 +70,7 @@ public class StripRackViewModel
 
         // Drop strips that no longer appear in newOrder. Walk backward so
         // the index doesn't shift under us.
-        for (var i = Strips.Count - 1; i >= 0; i--)
+        for (int i = Strips.Count - 1; i >= 0; i--)
         {
             if (!resolved.Contains(Strips[i]))
             {
@@ -79,14 +79,14 @@ public class StripRackViewModel
         }
 
         // Move-or-insert each strip into its target position in turn.
-        for (var targetIdx = 0; targetIdx < resolved.Count; targetIdx++)
+        for (int targetIdx = 0; targetIdx < resolved.Count; targetIdx++)
         {
-            var expected = resolved[targetIdx];
+            StripItemViewModel expected = resolved[targetIdx];
             if (targetIdx < Strips.Count && ReferenceEquals(Strips[targetIdx], expected))
             {
                 continue;
             }
-            var currentIdx = Strips.IndexOf(expected);
+            int currentIdx = Strips.IndexOf(expected);
             if (currentIdx >= 0)
             {
                 Strips.Move(currentIdx, targetIdx);

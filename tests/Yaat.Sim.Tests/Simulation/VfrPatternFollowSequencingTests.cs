@@ -59,23 +59,23 @@ public class VfrPatternFollowSequencingTests
     [Fact]
     public void Follower_DoesNotOvertake_LeadEstablishedAheadOnFinal()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy = navDb.GetRunway("KOAK", "28R");
+        RunwayInfo? rwy = navDb.GetRunway("KOAK", "28R");
         if (rwy is null)
         {
             _output.WriteLine("KOAK 28R not in navdata — skipping.");
             return;
         }
 
-        var allRunways = navDb.GetRunways("KOAK");
+        IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
 
         var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
@@ -83,9 +83,9 @@ public class VfrPatternFollowSequencingTests
 
         // Lead A: established on a long (2.3 nm) straight-in final, descending on a
         // 3° glideslope, cleared to land — the end state of a large/extended pattern.
-        var leadFinalPos = GeoMath.ProjectPoint(threshold, wp.DownwindHeading, 2.3);
-        var lead = MakeVfr(LeadCallsign, leadFinalPos, wp.FinalHeading, altitude: thresholdElev + (2.3 * 318.0), ias: 75);
-        var leadCircuit = PatternBuilder.BuildCircuit(
+        LatLon leadFinalPos = GeoMath.ProjectPoint(threshold, wp.DownwindHeading, 2.3);
+        AircraftState lead = MakeVfr(LeadCallsign, leadFinalPos, wp.FinalHeading, altitude: thresholdElev + (2.3 * 318.0), ias: 75);
+        List<Phase> leadCircuit = PatternBuilder.BuildCircuit(
             rwy,
             Cat,
             "",
@@ -105,17 +105,17 @@ public class VfrPatternFollowSequencingTests
             TrafficDirection = Dir,
             PatternRunway = rwy,
         };
-        foreach (var p in leadCircuit)
+        foreach (Phase p in leadCircuit)
         {
             lead.Phases.Add(p);
         }
 
         // Follower B: on the downwind, 0.2 nm short of its (normal) base-turn point,
         // following A. Past abeam, at pattern altitude.
-        var followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 0.2);
-        var follower = MakeVfr(FollowerCallsign, followerPos, wp.DownwindHeading, altitude: wp.PatternAltitude, ias: 90);
+        LatLon followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 0.2);
+        AircraftState follower = MakeVfr(FollowerCallsign, followerPos, wp.DownwindHeading, altitude: wp.PatternAltitude, ias: 90);
         follower.Approach.HasReportedTrafficInSight = true;
-        var followerCircuit = PatternBuilder.BuildCircuit(
+        List<Phase> followerCircuit = PatternBuilder.BuildCircuit(
             rwy,
             Cat,
             "",
@@ -135,7 +135,7 @@ public class VfrPatternFollowSequencingTests
             TrafficDirection = Dir,
             PatternRunway = rwy,
         };
-        foreach (var p in followerCircuit)
+        foreach (Phase p in followerCircuit)
         {
             follower.Phases.Add(p);
         }
@@ -157,7 +157,7 @@ public class VfrPatternFollowSequencingTests
             follower,
             TestDispatch.Context(Random.Shared, findAircraft: lookup)
         );
-        var followResult = CommandDispatcher.Dispatch(
+        CommandResult followResult = CommandDispatcher.Dispatch(
             new FollowCommand(LeadCallsign, false),
             follower,
             TestDispatch.Context(Random.Shared, findAircraft: lookup)
@@ -173,9 +173,9 @@ public class VfrPatternFollowSequencingTests
 
         for (int t = 1; t <= 400; t++)
         {
-            foreach (var ac in new[] { lead, follower })
+            foreach (AircraftState? ac in new[] { lead, follower })
             {
-                var ctx = Ctx(ac, rwy, lookup);
+                PhaseContext ctx = Ctx(ac, rwy, lookup);
                 FlightPhysics.Update(ac, ctx.DeltaSeconds);
                 PhaseRunner.Tick(ac, ctx);
             }
@@ -229,22 +229,22 @@ public class VfrPatternFollowSequencingTests
     [Fact]
     public void Follower_KeepsExtendingAndWarns_WhenExtensionCapReached()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy = navDb.GetRunway("KOAK", "28R");
+        RunwayInfo? rwy = navDb.GetRunway("KOAK", "28R");
         if (rwy is null)
         {
             return;
         }
 
-        var allRunways = navDb.GetRunways("KOAK");
+        IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
         double baseTurnAlong = GeoMath.AlongTrackDistanceNm(baseTurn, threshold, wp.DownwindHeading);
@@ -255,8 +255,8 @@ public class VfrPatternFollowSequencingTests
         // NOT turn base on its own: it keeps flying the downwind and advises once so the
         // controller can re-sequence.
         double bAlong = baseTurnAlong + AirborneFollowHelper.MaxFollowExtensionNm + 0.5;
-        var followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading, AirborneFollowHelper.MaxFollowExtensionNm + 0.5);
-        var follower = MakeVfr(FollowerCallsign, followerPos, wp.DownwindHeading, altitude: wp.PatternAltitude, ias: 90);
+        LatLon followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading, AirborneFollowHelper.MaxFollowExtensionNm + 0.5);
+        AircraftState follower = MakeVfr(FollowerCallsign, followerPos, wp.DownwindHeading, altitude: wp.PatternAltitude, ias: 90);
         follower.Approach.HasReportedTrafficInSight = true;
         follower.Approach.FollowingCallsign = LeadCallsign;
         var downwind = new DownwindPhase { Waypoints = wp };
@@ -268,8 +268,8 @@ public class VfrPatternFollowSequencingTests
         };
         follower.Phases.Add(downwind);
 
-        var leadPos = GeoMath.ProjectPoint(threshold, wp.DownwindHeading, bAlong - 0.5);
-        var lead = MakeVfr(LeadCallsign, leadPos, wp.FinalHeading, altitude: rwy.ElevationFt + 300, ias: 70);
+        LatLon leadPos = GeoMath.ProjectPoint(threshold, wp.DownwindHeading, bAlong - 0.5);
+        AircraftState lead = MakeVfr(LeadCallsign, leadPos, wp.FinalHeading, altitude: rwy.ElevationFt + 300, ias: 70);
         lead.Phases = new PhaseList
         {
             AssignedRunway = rwy,
@@ -284,7 +284,7 @@ public class VfrPatternFollowSequencingTests
             : null;
 
         lead.Phases.Start(Ctx(lead, rwy, lookup));
-        var ctx = Ctx(follower, rwy, lookup);
+        PhaseContext ctx = Ctx(follower, rwy, lookup);
         follower.Phases.Start(ctx);
 
         bool completed = downwind.OnTick(ctx);

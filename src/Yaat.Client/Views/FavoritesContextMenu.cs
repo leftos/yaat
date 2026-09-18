@@ -16,14 +16,14 @@ public static class FavoritesContextMenu
             return menu;
         }
 
-        var entries = FavoritesContextMenuModel.Build(vm.DisplayFavorites.Select(e => e.Favorite), aircraft);
+        IReadOnlyList<FavoritesMenuEntry> entries = FavoritesContextMenuModel.Build(vm.DisplayFavorites.Select(e => e.Favorite), aircraft);
         if (entries.Count == 0)
         {
             menu.Items.Add(new MenuItem { Header = "(no items)", IsEnabled = false });
             return menu;
         }
 
-        foreach (var entry in entries)
+        foreach (FavoritesMenuEntry entry in entries)
         {
             if (entry.IsSpacer)
             {
@@ -31,7 +31,7 @@ public static class FavoritesContextMenu
                 continue;
             }
 
-            var text = entry.CommandText;
+            string text = entry.CommandText;
             var item = new MenuItem { Header = entry.Label };
             // A favorite carries arbitrary canonical text, so it goes through the VFR gate the same
             // way typed input does — the other menu items are gated when they are built.

@@ -23,13 +23,13 @@ public sealed record TimelineBookmark(string Id, double TimeSeconds, string? Nam
     public static bool TryNormalizeId(string token, out string id)
     {
         id = "";
-        var trimmed = token.Trim();
+        string trimmed = token.Trim();
         if (trimmed.StartsWith(IdPrefix, StringComparison.OrdinalIgnoreCase))
         {
             trimmed = trimmed[IdPrefix.Length..];
         }
 
-        if (!int.TryParse(trimmed, out var n) || n < 0)
+        if (!int.TryParse(trimmed, out int n) || n < 0)
         {
             return false;
         }

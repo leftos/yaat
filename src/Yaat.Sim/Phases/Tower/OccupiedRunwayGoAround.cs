@@ -56,8 +56,8 @@ internal static class OccupiedRunwayGoAround
     /// </summary>
     public static bool TryTrigger(PhaseContext ctx)
     {
-        var arrival = ctx.Aircraft;
-        var runway = ctx.Runway;
+        AircraftState arrival = ctx.Aircraft;
+        RunwayInfo? runway = ctx.Runway;
         if (
             (!ctx.AutoGoAroundOnOccupiedRunway)
             || (ctx.ListAircraft is null)
@@ -76,7 +76,7 @@ internal static class OccupiedRunwayGoAround
             return false;
         }
 
-        var blocker = FindBlockingOccupant(ctx.ListAircraft(), arrival, runway, ctx.GroundLayout, seconds);
+        BlockingOccupant? blocker = FindBlockingOccupant(ctx.ListAircraft(), arrival, runway, ctx.GroundLayout, seconds);
         if (blocker is null)
         {
             return false;
@@ -108,18 +108,18 @@ internal static class OccupiedRunwayGoAround
         double secondsToThreshold
     )
     {
-        var landingThreshold = LandingThreshold.Resolve(runway, layout);
+        LatLon landingThreshold = LandingThreshold.Resolve(runway, layout);
         double runwayEndFt = runway.PavementLengthFt - LandingThreshold.DisplacementFt(runway, layout);
-        var arrivalCategory = SameRunwaySeparation.ResolveSrsCategory(arrival);
+        SrsCategory arrivalCategory = SameRunwaySeparation.ResolveSrsCategory(arrival);
 
-        foreach (var other in aircraft)
+        foreach (AircraftState other in aircraft)
         {
             if (ReferenceEquals(other, arrival))
             {
                 continue;
             }
 
-            var use = RunwayOccupancy.Classify(other, runway, layout);
+            RunwayUse? use = RunwayOccupancy.Classify(other, runway, layout);
             if ((use is null) || (use.Kind == RunwayUseKind.ShortFinal))
             {
                 continue;
@@ -156,7 +156,7 @@ internal static class OccupiedRunwayGoAround
             return "rotorcraft on the runway";
         }
 
-        var occupantCategory = SameRunwaySeparation.ResolveSrsCategory(occupant);
+        SrsCategory occupantCategory = SameRunwaySeparation.ResolveSrsCategory(occupant);
         double downfieldNowFt = GeoMath.AlongTrackDistanceNm(occupant.Position, landingThreshold, runway.TrueHeading) * GeoMath.FeetPerNm;
         double projectedFt = downfieldNowFt + ((occupant.GroundSpeed * GeoMath.FeetPerNm / 3600.0) * secondsToThreshold);
 
@@ -242,7 +242,7 @@ internal static class OccupiedRunwayGoAround
     /// <summary>The occupant's phase runway (departure, else assigned) is this pavement — an exit from a crossing runway earns no credit here.</summary>
     private static bool UsesThisRunway(AircraftState occupant, RunwayInfo runway)
     {
-        var own = occupant.Phases?.DepartureRunway ?? occupant.Phases?.AssignedRunway;
+        RunwayInfo? own = occupant.Phases?.DepartureRunway ?? occupant.Phases?.AssignedRunway;
         return (own is not null) && Data.NavigationDatabase.AirportIdsMatch(own.AirportId, runway.AirportId) && own.Id.Overlaps(runway.Id);
     }
 }

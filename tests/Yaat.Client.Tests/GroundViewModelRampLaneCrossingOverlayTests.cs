@@ -32,16 +32,16 @@ public class GroundViewModelRampLaneCrossingOverlayTests
     [Fact]
     public void CrossingFromGateOntoM4_OverlayStartsWithTheFreeSpaceLeg()
     {
-        var layout = LoadSfoLayout();
+        AirportGroundLayout? layout = LoadSfoLayout();
         if (layout is null)
         {
             return; // test data absent — skip
         }
 
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetDomainLayoutForTesting(layout);
 
-        var gate = layout.FindParkingByName("B20S")!;
+        GroundNode gate = layout.FindParkingByName("B20S")!;
         var ac = new AircraftModel
         {
             Callsign = "AAL436",
@@ -53,7 +53,7 @@ public class GroundViewModelRampLaneCrossingOverlayTests
             AssignedRunway = "1R",
         };
 
-        var route = vm.ResolveRemainingRoute(ac);
+        TaxiRoute? route = vm.ResolveRemainingRoute(ac);
 
         Assert.NotNull(route);
         Assert.True(route!.Segments[0].FromNodeId < 0, "the overlay must start with the free-space leg from the aircraft");
@@ -71,17 +71,17 @@ public class GroundViewModelRampLaneCrossingOverlayTests
     [Fact]
     public void CrossingFromTeOntoTcForSpot22_OverlayDrawsTheFreeSpaceLeg()
     {
-        var layout = LoadLayout("OAK", "oak.geojson");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak.geojson");
         if (layout is null)
         {
             return; // test data absent — skip
         }
 
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetDomainLayoutForTesting(layout);
 
         // Node 239 is TE's northern terminus, where the crossing onto TC begins.
-        var teEnd = layout.Nodes[239];
+        GroundNode teEnd = layout.Nodes[239];
         var ac = new AircraftModel
         {
             Callsign = "SWA690",
@@ -93,10 +93,10 @@ public class GroundViewModelRampLaneCrossingOverlayTests
             TaxiDestination = "@22",
         };
 
-        var route = vm.ResolveRemainingRoute(ac);
+        TaxiRoute? route = vm.ResolveRemainingRoute(ac);
 
         Assert.NotNull(route);
-        var spot22 = layout.FindParkingByName("22")!;
+        GroundNode spot22 = layout.FindParkingByName("22")!;
         Assert.Equal(spot22.Id, route!.Segments[^1].ToNodeId);
         Assert.Contains(route.Segments, s => (s.FromNodeId >= 0) && (s.ToNodeId >= 0) && !s.Edge.FromNode.Edges.Any(e => e.HasNode(s.ToNodeId)));
         Assert.DoesNotContain(route.Segments, s => s.ToNodeId == 136);

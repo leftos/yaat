@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -39,7 +41,7 @@ public class QueuedClandPreArmE2ETests(ITestOutputHelper output)
             return null;
         }
 
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 
         return new SimulationEngine(new TestAirportGroundData());
@@ -48,18 +50,18 @@ public class QueuedClandPreArmE2ETests(ITestOutputHelper output)
     [Fact]
     public void ClandBehindQueuedErd_AppliesWhenTheEntryFires()
     {
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
             return;
         }
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
 
-        var snap = archive.ReadSnapshotAt(PreClandSeconds);
+        TimedSnapshot? snap = archive.ReadSnapshotAt(PreClandSeconds);
         if (snap is null)
         {
             output.WriteLine($"No snapshot near t={PreClandSeconds}, skipping");
@@ -68,14 +70,14 @@ public class QueuedClandPreArmE2ETests(ITestOutputHelper output)
 
         engine.RestoreFromSnapshot(snap.State);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.Null(ac.Phases); // the reported state: the entry has not built anything yet
-        var queuedEntry = Assert.Single(ac.Queue.Blocks, b => !b.IsApplied);
+        CommandBlock queuedEntry = Assert.Single(ac.Queue.Blocks, b => !b.IsApplied);
         Assert.Contains("ERD 28R", queuedEntry.Description);
         Assert.Null(queuedEntry.ParsedCommands); // restored block — recovery runs from SourceCommandText
 
-        var cland = engine.SendCommand(Callsign, "CLAND");
+        CommandResult cland = engine.SendCommand(Callsign, "CLAND");
         output.WriteLine($"CLAND at t={PreClandSeconds}: success={cland.Success} — {cland.Message}");
         Assert.True(cland.Success, $"CLAND behind the queued ERD should be accepted: {cland.Message}");
 

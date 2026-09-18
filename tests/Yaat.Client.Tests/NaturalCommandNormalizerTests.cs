@@ -14,7 +14,7 @@ public sealed class NaturalCommandNormalizerTests
     {
         var context = new SpeechContext(["SWA123"], [], string.Empty);
 
-        var result = await NaturalCommandNormalizer.TryNormalizeAsync(
+        NaturalCommandNormalization? result = await NaturalCommandNormalizer.TryNormalizeAsync(
             "southwest one two three descend and maintain five thousand",
             context,
             _ruleMapper,
@@ -35,7 +35,7 @@ public sealed class NaturalCommandNormalizerTests
     {
         var context = new SpeechContext(["SWA123"], [], string.Empty);
 
-        var result = await NaturalCommandNormalizer.TryNormalizeAsync(
+        NaturalCommandNormalization? result = await NaturalCommandNormalizer.TryNormalizeAsync(
             "hello there",
             context,
             _ruleMapper,

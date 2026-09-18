@@ -60,7 +60,7 @@ public static class HeadingPreviewRenderer
     public static void Render(SKCanvas canvas, MapViewport vp, AircraftModel ac, HeadingModeState state)
     {
         using var textPaint = new SKPaint { Color = PreviewColor, IsAntialias = true };
-        using var textFont = Services.PlatformHelper.MonospaceFontBold(12);
+        using SKFont textFont = Services.PlatformHelper.MonospaceFontBold(12);
         var textStyle = new TextStyle(textFont, textPaint);
         double cursorBearingTrue = GeoMath.BearingTo(ac.Position.Lat, ac.Position.Lon, state.CursorPos.Lat, state.CursorPos.Lon);
         double cursorBearingMag = MagneticDeclination.TrueToMagnetic(cursorBearingTrue, ac.Position);
@@ -79,13 +79,13 @@ public static class HeadingPreviewRenderer
             IsAntialias = true,
         };
 
-        var (acSx, acSy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        (float acSx, float acSy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
 
         // Project the cursor's distance along the SNAPPED bearing so the line, arc, and label
         // all visually agree with the heading that will actually be dispatched.
         double cursorDistNm = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, state.CursorPos.Lat, state.CursorPos.Lon);
-        var (endLat, endLon) = GeoMath.ProjectPoint(ac.Position.Lat, ac.Position.Lon, new TrueHeading(newHeadingTrue), cursorDistNm);
-        var (curSx, curSy) = vp.LatLonToScreen(endLat, endLon);
+        (double endLat, double endLon) = GeoMath.ProjectPoint(ac.Position.Lat, ac.Position.Lon, new TrueHeading(newHeadingTrue), cursorDistNm);
+        (float curSx, float curSy) = vp.LatLonToScreen(endLat, endLon);
 
         SKPoint arcEndScreen = new(acSx, acSy);
 
@@ -95,7 +95,7 @@ public static class HeadingPreviewRenderer
             double radiusNm = TurnRadiusNm(ac.GroundSpeed, StdTurnRateDegPerSec);
             // Arc center is perpendicular to current heading, on the side of the turn.
             double perpBearing = courseChange > 0 ? curHeadingTrue + 90 : curHeadingTrue - 90;
-            var (centerLat, centerLon) = GeoMath.ProjectPoint(ac.Position.Lat, ac.Position.Lon, new TrueHeading(perpBearing), radiusNm);
+            (double centerLat, double centerLon) = GeoMath.ProjectPoint(ac.Position.Lat, ac.Position.Lon, new TrueHeading(perpBearing), radiusNm);
 
             double startBearingFromCenter = courseChange > 0 ? curHeadingTrue - 90 : curHeadingTrue + 90;
             double endBearingFromCenter = courseChange > 0 ? newHeadingTrue - 90 : newHeadingTrue + 90;
@@ -105,8 +105,8 @@ public static class HeadingPreviewRenderer
             {
                 double t = (double)i / ArcSegments;
                 double b = GeoMath.BlendBearings(startBearingFromCenter, endBearingFromCenter, t);
-                var (lat, lon) = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(b), radiusNm);
-                var (sx, sy) = vp.LatLonToScreen(lat, lon);
+                (double lat, double lon) = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(b), radiusNm);
+                (float sx, float sy) = vp.LatLonToScreen(lat, lon);
                 if (i == 0)
                 {
                     arcPath.MoveTo(sx, sy);

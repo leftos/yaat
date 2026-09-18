@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -64,8 +65,8 @@ public class IssueCtoClearedByCmTests(ITestOutputHelper output)
     [Fact]
     public void CmDuringInitialClimb_DoesNotClearPhaseChain()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -74,10 +75,10 @@ public class IssueCtoClearedByCmTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 return;
@@ -86,13 +87,13 @@ public class IssueCtoClearedByCmTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             int startTime = (int)snapshot.ElapsedSeconds;
 
-            var preCm = engine.FindAircraft(Callsign);
+            AircraftState? preCm = engine.FindAircraft(Callsign);
             Assert.NotNull(preCm);
             Assert.IsType<InitialClimbPhase>(preCm.Phases?.CurrentPhase);
 
             engine.ReplayRange(startTime, CmTime + 5, recording.Actions);
 
-            var postCm = engine.FindAircraft(Callsign);
+            AircraftState? postCm = engine.FindAircraft(Callsign);
             Assert.NotNull(postCm);
 
             output.WriteLine(
@@ -122,8 +123,8 @@ public class IssueCtoClearedByCmTests(ITestOutputHelper output)
     [Fact]
     public void CmDuringInitialClimb_PreservesDeferredVfrTurnTo360()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -132,10 +133,10 @@ public class IssueCtoClearedByCmTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 return;
@@ -146,13 +147,13 @@ public class IssueCtoClearedByCmTests(ITestOutputHelper output)
 
             engine.ReplayRange(startTime, AssertAtSeconds, recording.Actions);
 
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
-            var target = ac.Targets.TargetTrueHeading;
+            TrueHeading? target = ac.Targets.TargetTrueHeading;
             Assert.NotNull(target);
 
-            var targetMag = target.Value.ToMagnetic(ac.Declination);
+            MagneticHeading targetMag = target.Value.ToMagnetic(ac.Declination);
             var ctoMag = new MagneticHeading(360.0);
             double diffFromCto = targetMag.AbsAngleTo(ctoMag);
             double diffFromRunway = targetMag.AbsAngleTo(new MagneticHeading(280.0));

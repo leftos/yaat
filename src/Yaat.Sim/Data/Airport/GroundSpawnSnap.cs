@@ -52,7 +52,7 @@ public static class GroundSpawnSnap
             return;
         }
 
-        var nearest = layout.FindNearestTaxiEdge(aircraft.Position);
+        AirportGroundLayout.NearestTaxiEdge? nearest = layout.FindNearestTaxiEdge(aircraft.Position);
         if (nearest is null)
         {
             Log.LogWarning(
@@ -64,7 +64,7 @@ public static class GroundSpawnSnap
             return;
         }
 
-        var result = nearest.Value;
+        AirportGroundLayout.NearestTaxiEdge result = nearest.Value;
         double distFt = result.DistNm * GeoMath.FeetPerNm;
         if (distFt > MaxSnapDistanceFt)
         {

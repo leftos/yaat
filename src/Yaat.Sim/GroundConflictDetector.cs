@@ -48,6 +48,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -187,8 +188,8 @@ public static class GroundConflictDetector
     )
     {
         _tugRunContinuations = new Dictionary<AircraftState, IReadOnlyList<TugMove>>(ReferenceEqualityComparer.Instance);
-        var explicitLog = diagnosticLog;
-        var sink = DebugSink;
+        Action<string>? explicitLog = diagnosticLog;
+        Action<string>? sink = DebugSink;
         if (sink is not null)
         {
             diagnosticLog = explicitLog is null
@@ -212,11 +213,11 @@ public static class GroundConflictDetector
             }
         }
 
-        var runways = layout is not null ? RunwayOccupancy.AirportRunways(layout.AirportId) : [];
+        IReadOnlyList<RunwayInfo> runways = layout is not null ? RunwayOccupancy.AirportRunways(layout.AirportId) : [];
         var entries = new List<(AircraftState Ac, MovementState State, double? MoveDir)>();
         for (int i = 0; i < aircraft.Count; i++)
         {
-            var ac = aircraft[i];
+            AircraftState ac = aircraft[i];
             if (!ac.IsOnGround)
             {
                 continue;
@@ -225,7 +226,7 @@ public static class GroundConflictDetector
             if (ac.IsShadow)
             {
                 // A coasting surface track past the grace period is a ghost: it must not sweep stops through the movement area.
-                var live = ac.LiveTraffic!;
+                AircraftLiveTraffic live = ac.LiveTraffic!;
                 if (
                     live.IsCoasting
                     && (live.DeliverySilenceSeconds > ExternalCoastGraceFraction * LiveTraffic.LiveTrafficKinematics.RemovalAfterSeconds(live.Source))
@@ -238,7 +239,7 @@ public static class GroundConflictDetector
                     RunwayOccupancy.ClassifyBest(ac, runways, layout) is { } use && RunwayOccupancy.OccupiesSurface(use.Kind);
             }
 
-            var (state, dir) = Classify(ac);
+            (MovementState state, double? dir) = Classify(ac);
             entries.Add((ac, state, dir));
             string holdReason = ac.Ground.Hold switch
             {
@@ -253,7 +254,7 @@ public static class GroundConflictDetector
 
         for (int i = 0; i < entries.Count; i++)
         {
-            var (a, stateA, dirA) = entries[i];
+            (AircraftState? a, MovementState stateA, double? dirA) = entries[i];
 
             if (stateA == MovementState.Following)
             {
@@ -267,7 +268,7 @@ public static class GroundConflictDetector
 
             for (int j = i + 1; j < entries.Count; j++)
             {
-                var (b, stateB, dirB) = entries[j];
+                (AircraftState? b, MovementState stateB, double? dirB) = entries[j];
 
                 if (stateB == MovementState.Following)
                 {
@@ -286,7 +287,7 @@ public static class GroundConflictDetector
                 }
 
                 double distFt = distNm * FtPerNm;
-                var kind = ClassifyPair(a, stateA, b, stateB, distFt, layout);
+                PairKind kind = ClassifyPair(a, stateA, b, stateB, distFt, layout);
 
                 // Make the controller-supplied GIVEWAY relationship visible. The pair
                 // resolution is still Stationary-driven (one aircraft is held, so it
@@ -325,7 +326,7 @@ public static class GroundConflictDetector
 
                     case PairKind.Converging:
                     {
-                        var convWinner = ResolveConvergence(a, b, layout!, diagnosticLog);
+                        AircraftState? convWinner = ResolveConvergence(a, b, layout!, diagnosticLog);
                         // Closing-proximity is the physical-overlap safety net, but at a true
                         // merge (both routes onto the shared node's lane) there is no lateral
                         // room for the wingspan bypass to open — applied symmetrically it pins
@@ -357,14 +358,14 @@ public static class GroundConflictDetector
         double distNm = GeoMath.DistanceNm(subject.Position, reference.Position);
         double distFt = distNm * FtPerNm;
 
-        var (refState, _) = Classify(reference);
+        (MovementState refState, double? _) = Classify(reference);
 
         if (refState == MovementState.Pushing)
         {
             return distFt > PushbackBufferFt;
         }
 
-        var (subState, _) = Classify(subject);
+        (MovementState subState, double? _) = Classify(subject);
         if (layout is not null && subState == MovementState.Taxiing && refState == MovementState.Taxiing)
         {
             return !ShareUpcomingNode(subject, reference);
@@ -372,13 +373,13 @@ public static class GroundConflictDetector
 
         if (refState == MovementState.Stationary)
         {
-            var (_, subDir) = Classify(subject);
+            (MovementState _, double? subDir) = Classify(subject);
             if (subDir is null || subject.GroundSpeed <= 0)
             {
                 return true;
             }
 
-            var (_, refTrailDist) = GetSeparation(reference, subject);
+            (double _, double refTrailDist) = GetSeparation(reference, subject);
             if (distFt > refTrailDist)
             {
                 return true;
@@ -498,8 +499,8 @@ public static class GroundConflictDetector
 
         if (layout is not null && stateA == MovementState.Taxiing && stateB == MovementState.Taxiing)
         {
-            var segA = a.Ground.AssignedTaxiRoute?.CurrentSegment;
-            var segB = b.Ground.AssignedTaxiRoute?.CurrentSegment;
+            TaxiRouteSegment? segA = a.Ground.AssignedTaxiRoute?.CurrentSegment;
+            TaxiRouteSegment? segB = b.Ground.AssignedTaxiRoute?.CurrentSegment;
             if (segA is not null && segB is not null)
             {
                 bool sameEdge =
@@ -512,8 +513,8 @@ public static class GroundConflictDetector
                 }
             }
 
-            var routeA = a.Ground.AssignedTaxiRoute;
-            var routeB = b.Ground.AssignedTaxiRoute;
+            TaxiRoute? routeA = a.Ground.AssignedTaxiRoute;
+            TaxiRoute? routeB = b.Ground.AssignedTaxiRoute;
             if (routeA is not null && routeB is not null && FindSharedUpcomingNode(routeA, routeB) is not null)
             {
                 return PairKind.Converging;
@@ -533,8 +534,8 @@ public static class GroundConflictDetector
         Action<string>? diagnosticLog
     )
     {
-        var segA = a.Ground.AssignedTaxiRoute!.CurrentSegment!;
-        var segB = b.Ground.AssignedTaxiRoute!.CurrentSegment!;
+        TaxiRouteSegment segA = a.Ground.AssignedTaxiRoute!.CurrentSegment!;
+        TaxiRouteSegment segB = b.Ground.AssignedTaxiRoute!.CurrentSegment!;
 
         double distAToTarget = DistToSegTarget(a, segA, layout);
         double distBToTarget = DistToSegTarget(b, segB, layout);
@@ -570,8 +571,8 @@ public static class GroundConflictDetector
         // aircraft able to proceed instead of pinning both indefinitely.
         // Holder = aircraft with the higher remaining-segment count (more route
         // left to fly), since it has more reason to wait. Ties broken by callsign.
-        var routeA = a.Ground.AssignedTaxiRoute;
-        var routeB = b.Ground.AssignedTaxiRoute;
+        TaxiRoute? routeA = a.Ground.AssignedTaxiRoute;
+        TaxiRoute? routeB = b.Ground.AssignedTaxiRoute;
         int remA = routeA is null ? 0 : routeA.Segments.Count - routeA.CurrentSegmentIndex;
         int remB = routeB is null ? 0 : routeB.Segments.Count - routeB.CurrentSegmentIndex;
 
@@ -606,11 +607,11 @@ public static class GroundConflictDetector
     /// </summary>
     private static AircraftState? ResolveConvergence(AircraftState a, AircraftState b, AirportGroundLayout layout, Action<string>? diagnosticLog)
     {
-        var routeA = a.Ground.AssignedTaxiRoute!;
-        var routeB = b.Ground.AssignedTaxiRoute!;
+        TaxiRoute routeA = a.Ground.AssignedTaxiRoute!;
+        TaxiRoute routeB = b.Ground.AssignedTaxiRoute!;
 
         int? sharedNodeId = FindSharedUpcomingNode(routeA, routeB);
-        if (sharedNodeId is null || !layout.Nodes.TryGetValue(sharedNodeId.Value, out var node))
+        if (sharedNodeId is null || !layout.Nodes.TryGetValue(sharedNodeId.Value, out GroundNode? node))
         {
             return null;
         }
@@ -699,14 +700,18 @@ public static class GroundConflictDetector
         }
 
         bool winnerIsA = ReferenceEquals(winner, a);
-        var yielder = winnerIsA ? b : a;
+        AircraftState yielder = winnerIsA ? b : a;
         double? winnerDir = winnerIsA ? dirA : dirB;
-        var winnerState = winnerIsA ? stateA : stateB;
+        MovementState winnerState = winnerIsA ? stateA : stateB;
         double? yielderDir = winnerIsA ? dirB : dirA;
-        var yielderState = winnerIsA ? stateB : stateA;
+        MovementState yielderState = winnerIsA ? stateB : stateA;
 
-        var winnerLimit = winnerDir is { } wd ? ComputeClosingLimit(winner, wd, yielder, yielderState, distFt, diagnosticLog) : null;
-        var yielderLimit = yielderDir is { } yd ? ComputeClosingLimit(yielder, yd, winner, winnerState, distFt, diagnosticLog) : null;
+        (double Limit, string Reason)? winnerLimit = winnerDir is { } wd
+            ? ComputeClosingLimit(winner, wd, yielder, yielderState, distFt, diagnosticLog)
+            : null;
+        (double Limit, string Reason)? yielderLimit = yielderDir is { } yd
+            ? ComputeClosingLimit(yielder, yd, winner, winnerState, distFt, diagnosticLog)
+            : null;
 
         if (winnerLimit is { Limit: <= 0 } && yielderLimit is { Limit: <= 0 })
         {
@@ -900,7 +905,7 @@ public static class GroundConflictDetector
             return null;
         }
 
-        if (!pushbackPhase.TryGetPushLegEnd(pusher, out var legEnd))
+        if (!pushbackPhase.TryGetPushLegEnd(pusher, out LatLon legEnd))
         {
             return null;
         }
@@ -1107,7 +1112,7 @@ public static class GroundConflictDetector
             return null;
         }
 
-        var (stopDist, trailDist) = GetSeparation(obstacle, mover);
+        (double stopDist, double trailDist) = GetSeparation(obstacle, mover);
         if (distFt <= stopDist)
         {
             diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft ≤ stop({stopDist:F0}ft) → limit=0");
@@ -1155,7 +1160,7 @@ public static class GroundConflictDetector
         double walkedFt = 0;
         for (int i = start; (i < route.Segments.Count) && (walkedFt < boundFt); i++)
         {
-            var edge = route.Segments[i].Edge;
+            DirectionalEdge edge = route.Segments[i].Edge;
             double segmentFt = EdgeClearanceFt(edge, obstacle.Position);
             closestFt = closestFt is { } best ? Math.Min(best, segmentFt) : segmentFt;
             walkedFt += i == start ? GeoMath.DistanceNm(mover.Position, edge.ToNode.Position) * FtPerNm : edge.DistanceNm * FtPerNm;
@@ -1176,12 +1181,12 @@ public static class GroundConflictDetector
     {
         if (edge.Edge is GroundArc arc)
         {
-            var curve = arc.ToBezier();
-            var previous = curve.Evaluate(0.0);
+            CubicBezier curve = arc.ToBezier();
+            (double Lat, double Lon) previous = curve.Evaluate(0.0);
             double best = double.MaxValue;
             for (int i = 1; i <= ArcClearanceSamples; i++)
             {
-                var next = curve.Evaluate((double)i / ArcClearanceSamples);
+                (double Lat, double Lon) next = curve.Evaluate((double)i / ArcClearanceSamples);
                 best = Math.Min(best, GeoMath.DistanceToSegmentFt(point.Lat, point.Lon, previous.Lat, previous.Lon, next.Lat, next.Lon));
                 previous = next;
             }
@@ -1196,11 +1201,11 @@ public static class GroundConflictDetector
 
         // Walked in the edge's own node order, not the traversal's: a closest approach does not care which
         // way the aircraft drives it, and the intermediate points are stored against Nodes[0] → Nodes[1].
-        var from = straight.Nodes[0].Position;
-        var to = straight.Nodes[1].Position;
+        LatLon from = straight.Nodes[0].Position;
+        LatLon to = straight.Nodes[1].Position;
         double closest = double.MaxValue;
-        var previousPoint = (from.Lat, from.Lon);
-        foreach (var (lat, lon) in straight.IntermediatePoints)
+        (double Lat, double Lon) previousPoint = (from.Lat, from.Lon);
+        foreach ((double lat, double lon) in straight.IntermediatePoints)
         {
             closest = Math.Min(closest, GeoMath.DistanceToSegmentFt(point.Lat, point.Lon, previousPoint.Lat, previousPoint.Lon, lat, lon));
             previousPoint = (lat, lon);
@@ -1244,7 +1249,7 @@ public static class GroundConflictDetector
             return BuildTugRunContinuation(mover);
         }
 
-        if (!cache.TryGetValue(mover, out var cached))
+        if (!cache.TryGetValue(mover, out IReadOnlyList<TugMove>? cached))
         {
             cached = BuildTugRunContinuation(mover);
             cache[mover] = cached;
@@ -1349,7 +1354,7 @@ public static class GroundConflictDetector
     /// </summary>
     private static double TugMoveBrakingLimitKts(AircraftState mover, double failAlongFt)
     {
-        var category = AircraftCategorization.Categorize(mover.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(mover.AircraftType);
         double speedKts = CategoryPerformance.PushbackSpeed(category);
         double ftPerSecPerKt = FtPerNm / 3600.0;
         double brakingFt = failAlongFt - (speedKts * DetectorIntervalSeconds * ftPerSecPerKt);
@@ -1379,7 +1384,7 @@ public static class GroundConflictDetector
     /// </summary>
     private static double TugMoveStopMarginFt(AircraftState mover)
     {
-        var category = AircraftCategorization.Categorize(mover.AircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(mover.AircraftType);
         double speedKts = CategoryPerformance.PushbackSpeed(category);
         double brakingKtSeconds = (speedKts * speedKts) / (2 * CategoryPerformance.TugDecelRate(category));
         return (brakingKtSeconds + (speedKts * DetectorIntervalSeconds)) * FtPerNm / 3600.0;
@@ -1411,13 +1416,13 @@ public static class GroundConflictDetector
     /// </summary>
     private static double? TugMoveFoulsParkedAt(AircraftState mover, PushbackPhase tugMove, AircraftState obstacle, Action<string>? diagnosticLog)
     {
-        var path = tugMove.RemainingPath(mover, TugRunContinuation(mover));
+        IReadOnlyList<(TugPose Pose, double AlongFt)> path = tugMove.RemainingPath(mover, TugRunContinuation(mover));
         var frame = new GroundOutlineFrame(mover.Position);
         var moverSize = GroundOutlineSize.Of(mover.AircraftType, towedNoseFirst: tugMove.Kind == PushbackLegKind.Pull);
         var obstacleSize = GroundOutlineSize.Of(obstacle.AircraftType, towedNoseFirst: false);
-        var obstacleCentre = frame.ToLocal(obstacle.Position);
+        OutlinePoint obstacleCentre = frame.ToLocal(obstacle.Position);
         var obstacleOutline = GroundOutline.At(obstacleCentre, obstacle.TrueHeading.Degrees, obstacleSize);
-        var startPose = tugMove.StartPose(mover);
+        TugPose startPose = tugMove.StartPose(mover);
         double startFt = GroundOutline.Clearance(
             GroundOutline.At(frame.ToLocal(startPose.Position), startPose.NoseTrueDeg, moverSize),
             obstacleOutline
@@ -1427,8 +1432,8 @@ public static class GroundConflictDetector
         double closestFt = double.MaxValue;
         for (int i = 0; i < path.Count; i++)
         {
-            var (pose, alongFt) = path[i];
-            var centre = frame.ToLocal(pose.Position);
+            (TugPose pose, double alongFt) = path[i];
+            OutlinePoint centre = frame.ToLocal(pose.Position);
             if ((OutlinePoint.Distance(centre, obstacleCentre) - reachFt) >= floorFt)
             {
                 continue;
@@ -1438,7 +1443,7 @@ public static class GroundConflictDetector
             closestFt = Math.Min(closestFt, clearanceFt);
             if (clearanceFt < floorFt)
             {
-                var previous = path[Math.Max(0, i - 1)];
+                (TugPose Pose, double AlongFt) previous = path[Math.Max(0, i - 1)];
                 double previousClearanceFt = ClearanceAt(previous.Pose, frame, moverSize, obstacleOutline);
                 double crossingFt = FloorCrossingAlongFt(floorFt, (previous.AlongFt, previousClearanceFt), (alongFt, clearanceFt));
                 diagnosticLog?.Invoke(
@@ -1586,12 +1591,12 @@ public static class GroundConflictDetector
         // Rule 1: an aircraft on the runway surface proceeds; the other yields.
         if (IsOnRunway(a) != IsOnRunway(b))
         {
-            var onRunway = IsOnRunway(a) ? a : b;
-            var onRunwayDir = IsOnRunway(a) ? closeDirA : closeDirB;
-            var onRunwayState = IsOnRunway(a) ? stateA : stateB;
-            var yielder = IsOnRunway(a) ? b : a;
-            var yielderDir = IsOnRunway(a) ? closeDirB : closeDirA;
-            var yielderState = IsOnRunway(a) ? stateB : stateA;
+            AircraftState onRunway = IsOnRunway(a) ? a : b;
+            double? onRunwayDir = IsOnRunway(a) ? closeDirA : closeDirB;
+            MovementState onRunwayState = IsOnRunway(a) ? stateA : stateB;
+            AircraftState yielder = IsOnRunway(a) ? b : a;
+            double? yielderDir = IsOnRunway(a) ? closeDirB : closeDirA;
+            MovementState yielderState = IsOnRunway(a) ? stateB : stateA;
 
             // Only override when the yielder can give way (a mover); a genuinely
             // parked obstacle keeps the normal closing/lateral treatment so the
@@ -1611,8 +1616,8 @@ public static class GroundConflictDetector
             }
         }
 
-        var limitForA = closeDirA is { } da ? ComputeClosingLimit(a, da, b, stateB, distFt, diagnosticLog) : null;
-        var limitForB = closeDirB is { } db ? ComputeClosingLimit(b, db, a, stateA, distFt, diagnosticLog) : null;
+        (double Limit, string Reason)? limitForA = closeDirA is { } da ? ComputeClosingLimit(a, da, b, stateB, distFt, diagnosticLog) : null;
+        (double Limit, string Reason)? limitForB = closeDirB is { } db ? ComputeClosingLimit(b, db, a, stateA, distFt, diagnosticLog) : null;
 
         diagnosticLog?.Invoke(
             $"  [Crossing] {a.Callsign}(dir={closeDirA?.ToString("F0") ?? "none"},gs={a.GroundSpeed:F1})→limit={limitForA?.Limit.ToString("F1") ?? "null"} "
@@ -1626,8 +1631,8 @@ public static class GroundConflictDetector
             // it), hold the follower and let the lead go — never release a follower through the
             // aircraft it is trailing; symmetric geometry falls back to a deterministic callsign
             // tie-break. closeDirA/closeDirB are non-null here (a <= 0 limit was computed from each).
-            var holder = ChooseMutualStopHolder(a, closeDirA!.Value, b, closeDirB!.Value);
-            var mover = ReferenceEquals(holder, a) ? b : a;
+            AircraftState holder = ChooseMutualStopHolder(a, closeDirA!.Value, b, closeDirB!.Value);
+            AircraftState mover = ReferenceEquals(holder, a) ? b : a;
             diagnosticLog?.Invoke($"  [Crossing] mutual stop: {holder.Callsign} holds, {mover.Callsign} proceeds");
             ApplyMinLimit(holder, 0, "crossing hold", mover, distFt);
         }
@@ -1681,8 +1686,8 @@ public static class GroundConflictDetector
             // momentarily anti-parallel to a neighbour it will turn away from. Hold one and let the
             // other proceed (follower-aware, callsign fallback for the near-symmetric anti-parallel
             // case); its closing-proximity limit still fires if they actually close.
-            var holder = ChooseMutualStopHolder(a, dirA, b, dirB);
-            var mover = ReferenceEquals(holder, a) ? b : a;
+            AircraftState holder = ChooseMutualStopHolder(a, dirA, b, dirB);
+            AircraftState mover = ReferenceEquals(holder, a) ? b : a;
             ApplyMinLimit(holder, 0, "head-on hold", mover, distFt);
             return;
         }
@@ -1734,7 +1739,7 @@ public static class GroundConflictDetector
 
     private static void ApplyTrailLimit(AircraftState trailer, AircraftState leader, double distFt)
     {
-        var (stopDist, trailDist) = GetSeparation(leader, trailer);
+        (double stopDist, double trailDist) = GetSeparation(leader, trailer);
         double maxSpeed;
         string reason;
         if (distFt <= stopDist)
@@ -1834,7 +1839,7 @@ public static class GroundConflictDetector
 
     private static double DistToSegTarget(AircraftState ac, TaxiRouteSegment seg, AirportGroundLayout layout)
     {
-        if (layout.Nodes.TryGetValue(seg.ToNodeId, out var node))
+        if (layout.Nodes.TryGetValue(seg.ToNodeId, out GroundNode? node))
         {
             return GeoMath.DistanceNm(ac.Position, node.Position);
         }
@@ -1850,7 +1855,7 @@ public static class GroundConflictDetector
         double cumulativeA = 0;
         for (int i = routeA.CurrentSegmentIndex; i < routeA.Segments.Count; i++)
         {
-            var seg = routeA.Segments[i];
+            TaxiRouteSegment seg = routeA.Segments[i];
             cumulativeA += seg.Edge.DistanceNm;
             if (cumulativeA > lookaheadNm)
             {
@@ -1862,7 +1867,7 @@ public static class GroundConflictDetector
         double cumulativeB = 0;
         for (int i = routeB.CurrentSegmentIndex; i < routeB.Segments.Count; i++)
         {
-            var seg = routeB.Segments[i];
+            TaxiRouteSegment seg = routeB.Segments[i];
             cumulativeB += seg.Edge.DistanceNm;
             if (cumulativeB > lookaheadNm)
             {
@@ -1880,8 +1885,8 @@ public static class GroundConflictDetector
 
     internal static bool ShareUpcomingNode(AircraftState subject, AircraftState reference)
     {
-        var routeA = subject.Ground.AssignedTaxiRoute;
-        var routeB = reference.Ground.AssignedTaxiRoute;
+        TaxiRoute? routeA = subject.Ground.AssignedTaxiRoute;
+        TaxiRoute? routeB = reference.Ground.AssignedTaxiRoute;
         if (routeA is null || routeB is null)
         {
             return false;

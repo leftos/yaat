@@ -53,7 +53,7 @@ public partial class MainView : UserControl
             }
         };
 
-        var stripsView = this.FindControl<UserControl>("StripsView");
+        UserControl? stripsView = this.FindControl<UserControl>("StripsView");
         if (stripsView is not null)
         {
             stripsView.DataContext = vm;
@@ -88,7 +88,7 @@ public partial class MainView : UserControl
 
     private void SetStatus(string text)
     {
-        var bar = this.FindControl<TextBlock>("StatusBar");
+        TextBlock? bar = this.FindControl<TextBlock>("StatusBar");
         if (bar is not null)
         {
             bar.Text = text;
@@ -102,16 +102,16 @@ public partial class MainView : UserControl
         {
             return dict;
         }
-        var trimmed = search.StartsWith('?') ? search[1..] : search;
-        foreach (var pair in trimmed.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        string trimmed = search.StartsWith('?') ? search[1..] : search;
+        foreach (string pair in trimmed.Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
-            var eq = pair.IndexOf('=');
+            int eq = pair.IndexOf('=');
             if (eq < 0)
             {
                 continue;
             }
-            var key = Uri.UnescapeDataString(pair[..eq]);
-            var val = Uri.UnescapeDataString(pair[(eq + 1)..]);
+            string key = Uri.UnescapeDataString(pair[..eq]);
+            string val = Uri.UnescapeDataString(pair[(eq + 1)..]);
             dict[key] = val;
         }
         return dict;
@@ -132,7 +132,7 @@ public partial class MainView : UserControl
         // bare "(from )" on every command. Same identity that's sent on
         // JoinRoom — keeps the controller's two-letter initials consistent
         // across the join + every subsequent action.
-        var resolvedInitials = !string.IsNullOrWhiteSpace(initials) ? initials : _queryParams.GetValueOrDefault("initials", "");
+        string resolvedInitials = !string.IsNullOrWhiteSpace(initials) ? initials : _queryParams.GetValueOrDefault("initials", "");
         try
         {
             await _connection.SendCommandAsync(callsign, command, resolvedInitials);
@@ -151,14 +151,14 @@ public partial class MainView : UserControl
     /// </summary>
     private async Task ConnectAndAutoJoinAsync(VStripsViewModel vm)
     {
-        var serverUrl = _queryParams.GetValueOrDefault("server", App.LocationOrigin);
-        var initials = _queryParams.GetValueOrDefault("initials", "");
-        var artcc = _queryParams.GetValueOrDefault("artcc", "");
-        var explicitRoomId = _queryParams.GetValueOrDefault("room", "");
+        string serverUrl = _queryParams.GetValueOrDefault("server", App.LocationOrigin);
+        string initials = _queryParams.GetValueOrDefault("initials", "");
+        string artcc = _queryParams.GetValueOrDefault("artcc", "");
+        string explicitRoomId = _queryParams.GetValueOrDefault("room", "");
 
         try
         {
-            var what = string.IsNullOrEmpty(serverUrl) ? "(same-origin)" : serverUrl;
+            string what = string.IsNullOrEmpty(serverUrl) ? "(same-origin)" : serverUrl;
             Log.LogInformation("Connecting to {Server}", what);
             SetStatus($"Connecting to {what}...");
             await _connection.ConnectAsync(serverUrl);
@@ -180,7 +180,7 @@ public partial class MainView : UserControl
 
         try
         {
-            var room = await _connection.FindRoomForMyCidAsync();
+            BrowserRoomInfoDto? room = await _connection.FindRoomForMyCidAsync();
             if (room is null)
             {
                 Log.LogInformation("No active room found yet; will auto-join when one becomes available");
@@ -208,14 +208,14 @@ public partial class MainView : UserControl
     {
         try
         {
-            var state = await _connection.JoinRoomAsync(roomId, initials, artcc, ClientKind.VStrips);
+            BrowserJoinRoomResultDto? state = await _connection.JoinRoomAsync(roomId, initials, artcc, ClientKind.VStrips);
             if (state is null)
             {
                 Log.LogWarning("JoinRoom {RoomId} returned null state", roomId);
                 SetStatus($"JoinRoom {roomId} returned null — room may have ended");
                 return;
             }
-            var bayCount = state.FlightStripsConfig?.Bays?.Length ?? 0;
+            int bayCount = state.FlightStripsConfig?.Bays?.Length ?? 0;
             Log.LogInformation(
                 "Joined {RoomId} as {Initials}; scenario={Scenario}; facility={Facility}; bays={BayCount}",
                 roomId,

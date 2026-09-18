@@ -992,7 +992,7 @@ public class SmartStatusTests
             LandingClearance = "",
             ActiveApproachId = "ILS28R",
         };
-        var text = Text(v);
+        string text = Text(v);
         Assert.StartsWith("No landing clnc · ", text);
         Assert.Contains("ILS28R final", text);
         Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));

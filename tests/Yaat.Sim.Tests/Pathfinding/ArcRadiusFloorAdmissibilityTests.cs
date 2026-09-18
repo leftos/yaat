@@ -23,9 +23,9 @@ public class ArcRadiusFloorAdmissibilityTests
 
     private static (GroundArc Arc, GroundNode From, GroundNode To) ArcWithMinRadius(double minRadiusFt)
     {
-        var from = Node(1, 37.700, -122.200);
-        var (toLat, toLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(90.0), 100.0 / GeoMath.FeetPerNm);
-        var to = Node(2, toLat, toLon);
+        GroundNode from = Node(1, 37.700, -122.200);
+        (double toLat, double toLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(90.0), 100.0 / GeoMath.FeetPerNm);
+        GroundNode to = Node(2, toLat, toLon);
         var arc = new GroundArc
         {
             Nodes = [from, to],
@@ -50,7 +50,7 @@ public class ArcRadiusFloorAdmissibilityTests
     [InlineData(AircraftCategory.Helicopter)]
     public void Arc_TighterThanAnyNoseWheelRadius_IsInadmissibleForEveryCategory(AircraftCategory category)
     {
-        var (arc, from, to) = ArcWithMinRadius(6.0);
+        (GroundArc? arc, GroundNode? from, GroundNode? to) = ArcWithMinRadius(6.0);
 
         Assert.False(GeometricAdmissibility.IsAdmissible(PartialRoute.StartAt(from.Id), arc, to, category));
     }
@@ -60,7 +60,7 @@ public class ArcRadiusFloorAdmissibilityTests
     [InlineData(AircraftCategory.Helicopter)]
     public void Arc_AtOrAboveTheFloor_StaysAdmissibleOnAFirstEdge(AircraftCategory category)
     {
-        var (arc, from, to) = ArcWithMinRadius(GeometricAdmissibility.MinSteerableArcRadiusFt);
+        (GroundArc? arc, GroundNode? from, GroundNode? to) = ArcWithMinRadius(GeometricAdmissibility.MinSteerableArcRadiusFt);
 
         Assert.True(GeometricAdmissibility.IsAdmissible(PartialRoute.StartAt(from.Id), arc, to, category));
     }

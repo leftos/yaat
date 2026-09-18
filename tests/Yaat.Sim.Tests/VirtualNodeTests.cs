@@ -22,8 +22,8 @@ public class VirtualNodeTests(ITestOutputHelper output)
     [Fact]
     public void Create_SamePosition_SameId()
     {
-        var first = VirtualNode.Create(PushedLat, PushedLon);
-        var second = VirtualNode.Create(PushedLat, PushedLon);
+        GroundNode first = VirtualNode.Create(PushedLat, PushedLon);
+        GroundNode second = VirtualNode.Create(PushedLat, PushedLon);
 
         output.WriteLine($"ids: {first.Id} / {second.Id}");
 
@@ -34,8 +34,8 @@ public class VirtualNodeTests(ITestOutputHelper output)
     public void Create_PositionsOneFootApart_DifferentIds()
     {
         var origin = new LatLon(PushedLat, PushedLon);
-        var oneFootNorth = GeoMath.ProjectPoint(origin, new TrueHeading(0), 1.0 / GeoMath.FeetPerNm);
-        var oneFootEast = GeoMath.ProjectPoint(origin, new TrueHeading(90), 1.0 / GeoMath.FeetPerNm);
+        LatLon oneFootNorth = GeoMath.ProjectPoint(origin, new TrueHeading(0), 1.0 / GeoMath.FeetPerNm);
+        LatLon oneFootEast = GeoMath.ProjectPoint(origin, new TrueHeading(90), 1.0 / GeoMath.FeetPerNm);
 
         int here = VirtualNode.Create(origin.Lat, origin.Lon).Id;
         int north = VirtualNode.Create(oneFootNorth.Lat, oneFootNorth.Lon).Id;
@@ -67,13 +67,13 @@ public class VirtualNodeTests(ITestOutputHelper output)
     public void VirtualFirstLeg_RoundTripsThroughSnapshot_WithTheSameFromNodeId()
     {
         TestVnasData.EnsureInitialized();
-        var layout = new TestAirportGroundData().GetLayout(AirportId);
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(AirportId);
         if (layout is null)
         {
             return;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(StartNodeId, out var startNode), $"node {StartNodeId} missing from the {AirportId} layout");
+        Assert.True(layout.Nodes.TryGetValue(StartNodeId, out GroundNode? startNode), $"node {StartNodeId} missing from the {AirportId} layout");
 
         var route = new TaxiRoute
         {

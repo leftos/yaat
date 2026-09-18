@@ -110,7 +110,7 @@ public static class LineUpGraphRoute
     {
         double rwyHdgDeg = runway.TrueHeading.Degrees;
 
-        var start = NearestForwardNode(layout, acPos, acHeading, runway);
+        GroundNode? start = NearestForwardNode(layout, acPos, acHeading, runway);
         if (start is null)
         {
             return null;
@@ -120,7 +120,7 @@ public static class LineUpGraphRoute
         // path, until a node carrying a departure-aligned runway fillet arc is found.
         var path = new List<GroundNode> { start };
         var visited = new HashSet<int> { start.Id };
-        var cur = start;
+        GroundNode cur = start;
 
         GroundNode? junction = null;
         GroundArc? filletArc = null;
@@ -134,7 +134,7 @@ public static class LineUpGraphRoute
                 break;
             }
 
-            var next = NextTowardRunway(cur, runway, visited);
+            GroundNode? next = NextTowardRunway(cur, runway, visited);
             if (next is null)
             {
                 return null;
@@ -150,7 +150,7 @@ public static class LineUpGraphRoute
             return null;
         }
 
-        var route = BuildRoute(acPos, path, filletArc, junction, centerlineNode, runway);
+        TaxiRoute? route = BuildRoute(acPos, path, filletArc, junction, centerlineNode, runway);
         if (route is null)
         {
             return null;
@@ -196,7 +196,7 @@ public static class LineUpGraphRoute
         double acCross = CrossFt(pos, runway);
         GroundNode? best = null;
         double bestDistFt = double.MaxValue;
-        foreach (var n in layout.Nodes.Values)
+        foreach (GroundNode n in layout.Nodes.Values)
         {
             if (CrossFt(n.Position, runway) > acCross + StartNodeBackMarginFt)
             {
@@ -256,14 +256,14 @@ public static class LineUpGraphRoute
         GroundNode? next = null;
         double bestCross = CrossFt(cur.Position, runway);
 
-        foreach (var e in cur.Edges)
+        foreach (IGroundEdge e in cur.Edges)
         {
             if (e.IsRunwayCenterline)
             {
                 continue;
             }
 
-            var o = e.OtherNode(cur);
+            GroundNode o = e.OtherNode(cur);
             if (visited.Contains(o.Id) || IsOnRunwayCenterline(o, runway))
             {
                 continue;
@@ -294,7 +294,7 @@ public static class LineUpGraphRoute
         out GroundNode? centerlineNode
     )
     {
-        foreach (var e in node.Edges)
+        foreach (IGroundEdge e in node.Edges)
         {
             if (e is not GroundArc arc || arc.IsRunwayCenterline)
             {
@@ -306,7 +306,7 @@ public static class LineUpGraphRoute
                 continue;
             }
 
-            var other = arc.OtherNode(node);
+            GroundNode other = arc.OtherNode(node);
             if (!IsOnRunwayCenterline(other, runway))
             {
                 continue;
@@ -330,7 +330,7 @@ public static class LineUpGraphRoute
 
     private static bool IsOnRunwayCenterline(GroundNode node, RunwayInfo runway)
     {
-        foreach (var e in node.Edges)
+        foreach (IGroundEdge e in node.Edges)
         {
             if (e.IsRunwayCenterline && e.MatchesRunway(runway.Designator))
             {
@@ -384,11 +384,11 @@ public static class LineUpGraphRoute
     {
         var segments = new List<TaxiRouteSegment>();
 
-        var start = path[0];
+        GroundNode start = path[0];
         if (GeoMath.DistanceNm(acPos, start.Position) * GeoMath.FeetPerNm > StartNodeCoincidentFt)
         {
             string leadTaxiway = start.Edges.FirstOrDefault(e => !e.IsRunwayCenterline)?.TaxiwayName ?? filletArc.TaxiwayName;
-            var virtualStart = VirtualNode.Create(acPos.Lat, acPos.Lon);
+            GroundNode virtualStart = VirtualNode.Create(acPos.Lat, acPos.Lon);
             var approachEdge = new GroundEdge
             {
                 Nodes = [virtualStart, start],
@@ -400,9 +400,9 @@ public static class LineUpGraphRoute
 
         for (int i = 0; i < path.Count - 1; i++)
         {
-            var fromNode = path[i];
-            var toNode = path[i + 1];
-            var edge = FindEdgeBetween(fromNode, toNode.Id);
+            GroundNode fromNode = path[i];
+            GroundNode toNode = path[i + 1];
+            IGroundEdge? edge = FindEdgeBetween(fromNode, toNode.Id);
             if (edge is null)
             {
                 return null;
@@ -414,13 +414,13 @@ public static class LineUpGraphRoute
         segments.Add(new TaxiRouteSegment { TaxiwayName = filletArc.TaxiwayName, Edge = filletArc.Directed(junction, centerlineNode) });
 
         string centerlineTaxiway = centerlineNode.Edges.FirstOrDefault(e => e.IsRunwayCenterline)?.TaxiwayName ?? filletArc.TaxiwayName;
-        var (rolloutLat, rolloutLon) = GeoMath.ProjectPoint(
+        (double rolloutLat, double rolloutLon) = GeoMath.ProjectPoint(
             centerlineNode.Position.Lat,
             centerlineNode.Position.Lon,
             runway.TrueHeading,
             LineUpGeometry.RolloutLengthFt / GeoMath.FeetPerNm
         );
-        var rolloutTarget = VirtualNode.Create(rolloutLat, rolloutLon);
+        GroundNode rolloutTarget = VirtualNode.Create(rolloutLat, rolloutLon);
         segments.Add(VirtualNode.CreateSegment(centerlineNode, rolloutTarget, centerlineTaxiway));
 
         return new TaxiRoute { Segments = segments, HoldShortPoints = [] };
@@ -428,7 +428,7 @@ public static class LineUpGraphRoute
 
     private static IGroundEdge? FindEdgeBetween(GroundNode fromNode, int toNodeId)
     {
-        foreach (var edge in fromNode.Edges)
+        foreach (IGroundEdge edge in fromNode.Edges)
         {
             if (edge.OtherNodeId(fromNode.Id) == toNodeId)
             {

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
@@ -46,7 +47,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void Cland_BehindQueuedErd_IsAcceptedAndPreservesEntry()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -54,15 +55,15 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
 
         SpawnAirborneOverOak(engine, "TSC001");
 
-        var setup = engine.SendCommand("TSC001", "DCT VPCOL; ERD 28R");
+        CommandResult setup = engine.SendCommand("TSC001", "DCT VPCOL; ERD 28R");
         Assert.True(setup.Success, setup.Message);
 
-        var ac = engine.FindAircraft("TSC001");
+        AircraftState? ac = engine.FindAircraft("TSC001");
         Assert.NotNull(ac);
         Assert.Null(ac.Phases?.CurrentPhase); // ERD queued, not yet fired
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // the queued ERD block
 
-        var cland = engine.SendCommand("TSC001", "CLAND");
+        CommandResult cland = engine.SendCommand("TSC001", "CLAND");
         output.WriteLine($"CLAND: success={cland.Success} — {cland.Message}");
         Assert.True(cland.Success, $"CLAND behind a queued ERD should be accepted: {cland.Message}");
 
@@ -82,7 +83,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void Cland_BehindQueuedErd_BuildsFullStopWhenEntryFires()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -96,7 +97,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
         // Fire the entry: builds the circuit and consumes the pre-issued clearance.
         Assert.True(engine.SendCommand("TSC002", "ERD 28R").Success);
 
-        var ac = engine.FindAircraft("TSC002");
+        AircraftState? ac = engine.FindAircraft("TSC002");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases.LandingClearance);
@@ -114,7 +115,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void ClandWrongRunway_BehindQueuedErd_IsRejectedAndPreservesEntry()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -124,13 +125,13 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
 
         Assert.True(engine.SendCommand("TSC003", "DCT VPCOL; ERD 28R").Success);
 
-        var cland = engine.SendCommand("TSC003", "CLAND 30");
+        CommandResult cland = engine.SendCommand("TSC003", "CLAND 30");
         output.WriteLine($"CLAND 30: success={cland.Success} — {cland.Message}");
         Assert.False(cland.Success, "CLAND for a runway the queued entry does not name should be rejected");
         Assert.Contains("30", cland.Message);
         Assert.Contains("28R", cland.Message);
 
-        var ac = engine.FindAircraft("TSC003");
+        AircraftState? ac = engine.FindAircraft("TSC003");
         Assert.NotNull(ac);
         Assert.Null(ac.Pattern.PendingLandingClearance);
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // queued ERD NOT wiped by the rejection
@@ -144,7 +145,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void BareCland_BehindBareQueuedEntry_IsRejected()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -154,12 +155,12 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
 
         Assert.True(engine.SendCommand("TSC013", "DCT VPCOL; ERD").Success);
 
-        var cland = engine.SendCommand("TSC013", "CLAND");
+        CommandResult cland = engine.SendCommand("TSC013", "CLAND");
         output.WriteLine($"CLAND behind a bare ERD: success={cland.Success} — {cland.Message}");
         Assert.False(cland.Success, "A pre-issued clearance with no resolvable runway must be rejected");
         Assert.Contains("runway", cland.Message, StringComparison.OrdinalIgnoreCase);
 
-        var ac = engine.FindAircraft("TSC013");
+        AircraftState? ac = engine.FindAircraft("TSC013");
         Assert.NotNull(ac);
         Assert.Null(ac.Pattern.PendingLandingClearance);
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // queued entry NOT wiped by the rejection
@@ -169,7 +170,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void BareCland_BehindQueuedErd_AdoptsQueuedEntryRunway()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -180,7 +181,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
         Assert.True(engine.SendCommand("TSC004", "DCT VPCOL; ERD 28R").Success);
         Assert.True(engine.SendCommand("TSC004", "CLAND").Success);
 
-        var ac = engine.FindAircraft("TSC004");
+        AircraftState? ac = engine.FindAircraft("TSC004");
         Assert.NotNull(ac);
         Assert.Equal("28R", ac.Pattern.PendingLandingClearance?.RunwayId);
     }
@@ -192,7 +193,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void Copt_BehindQueuedErd_BuildsTouchAndGoTerminal()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -201,13 +202,13 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
         SpawnAirborneOverOak(engine, "TSC005");
 
         Assert.True(engine.SendCommand("TSC005", "DCT VPCOL; ERD 28R").Success);
-        var copt = engine.SendCommand("TSC005", "COPT");
+        CommandResult copt = engine.SendCommand("TSC005", "COPT");
         output.WriteLine($"COPT: success={copt.Success} — {copt.Message}");
         Assert.True(copt.Success, $"COPT behind a queued ERD should be accepted: {copt.Message}");
 
         Assert.True(engine.SendCommand("TSC005", "ERD 28R").Success);
 
-        var ac = engine.FindAircraft("TSC005");
+        AircraftState? ac = engine.FindAircraft("TSC005");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
         Assert.Equal(ClearanceType.ClearedForOption, ac.Phases.LandingClearance);
@@ -223,23 +224,23 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [InlineData("LA", ClearanceType.ClearedLowApproach, typeof(LowApproachPhase))]
     public void OptionClearance_BehindQueuedErd_BuildsNamedTerminal(string verb, ClearanceType expected, Type terminal)
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var callsign = $"TSC{verb}";
+        string callsign = $"TSC{verb}";
         SpawnAirborneOverOak(engine, callsign);
 
         Assert.True(engine.SendCommand(callsign, "DCT VPCOL; ERD 28R").Success);
-        var clearance = engine.SendCommand(callsign, verb);
+        CommandResult clearance = engine.SendCommand(callsign, verb);
         output.WriteLine($"{verb}: success={clearance.Success} — {clearance.Message}");
         Assert.True(clearance.Success, $"{verb} behind a queued ERD should be accepted: {clearance.Message}");
 
         Assert.True(engine.SendCommand(callsign, "ERD 28R").Success);
 
-        var ac = engine.FindAircraft(callsign);
+        AircraftState? ac = engine.FindAircraft(callsign);
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
         Assert.Equal(expected, ac.Phases.LandingClearance);
@@ -253,7 +254,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void TgMrt_BehindQueuedErd_SetsPersistentTrafficDirection()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -262,11 +263,11 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
         SpawnAirborneOverOak(engine, "TSC006");
 
         Assert.True(engine.SendCommand("TSC006", "DCT VPCOL; ERD 28R").Success);
-        var tg = engine.SendCommand("TSC006", "TG MRT");
+        CommandResult tg = engine.SendCommand("TSC006", "TG MRT");
         output.WriteLine($"TG MRT: success={tg.Success} — {tg.Message}");
         Assert.True(tg.Success, $"TG MRT behind a queued ERD should be accepted: {tg.Message}");
 
-        var ac = engine.FindAircraft("TSC006");
+        AircraftState? ac = engine.FindAircraft("TSC006");
         Assert.NotNull(ac);
         Assert.Equal(PatternDirection.Right, ac.Pattern.TrafficDirection);
         Assert.Equal(ClearanceType.ClearedTouchAndGo, ac.Pattern.PendingLandingClearance?.Clearance);
@@ -280,7 +281,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void Cland_NothingQueued_StillRejected()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -288,7 +289,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
 
         SpawnAirborneOverOak(engine, "TSC007");
 
-        var cland = engine.SendCommand("TSC007", "CLAND");
+        CommandResult cland = engine.SendCommand("TSC007", "CLAND");
         output.WriteLine($"CLAND (nothing queued): success={cland.Success} — {cland.Message}");
         Assert.False(cland.Success, "CLAND with no approach, no follow and nothing queued must still be rejected");
     }
@@ -301,7 +302,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void Cland_ThenEntryForDifferentRunway_VoidsClearanceAndWarns()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -315,7 +316,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
         // The controller changes their mind and enters the pattern for a different runway.
         Assert.True(engine.SendCommand("TSC008", "ERD 30").Success);
 
-        var ac = engine.FindAircraft("TSC008");
+        AircraftState? ac = engine.FindAircraft("TSC008");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
         Assert.Null(ac.Phases.LandingClearance);
@@ -331,7 +332,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void TrailingClandInCompound_ArmsAndApplies()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -339,11 +340,11 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
 
         SpawnAirborneOverOak(engine, "TSC009");
 
-        var compound = engine.SendCommand("TSC009", "DCT VPCOL; ERD 28R; CLAND");
+        CommandResult compound = engine.SendCommand("TSC009", "DCT VPCOL; ERD 28R; CLAND");
         output.WriteLine($"DCT VPCOL; ERD 28R; CLAND: success={compound.Success} — {compound.Message}");
         Assert.True(compound.Success, compound.Message);
 
-        var ac = engine.FindAircraft("TSC009");
+        AircraftState? ac = engine.FindAircraft("TSC009");
         Assert.NotNull(ac);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Pattern.PendingLandingClearance?.Clearance);
         Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // the queued ERD survives
@@ -365,7 +366,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void TrailingClandAfterImmediateEntry_AppliesInPlace()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -373,11 +374,11 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
 
         SpawnAirborneOverOak(engine, "TSC012");
 
-        var compound = engine.SendCommand("TSC012", "ERD 28R; CLAND");
+        CommandResult compound = engine.SendCommand("TSC012", "ERD 28R; CLAND");
         output.WriteLine($"ERD 28R; CLAND: success={compound.Success} — {compound.Message}");
         Assert.True(compound.Success, compound.Message);
 
-        var ac = engine.FindAircraft("TSC012");
+        AircraftState? ac = engine.FindAircraft("TSC012");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases.LandingClearance);
@@ -394,7 +395,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void Cland_BehindQueuedErd_SurvivesSnapshotRoundTrip()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -405,7 +406,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
         Assert.True(engine.SendCommand("TSC010", "DCT VPCOL; ERD 28R").Success);
         Assert.True(engine.SendCommand("TSC010", "CLAND").Success);
 
-        var ac = engine.FindAircraft("TSC010");
+        AircraftState? ac = engine.FindAircraft("TSC010");
         Assert.NotNull(ac);
 
         var restored = AircraftState.FromSnapshot(ac.ToSnapshot(), null);
@@ -429,7 +430,7 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
     [Fact]
     public void Clc_WithOnlyPendingClearance_CancelsIt()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -440,11 +441,11 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
         Assert.True(engine.SendCommand("TSC011", "DCT VPCOL; ERD 28R").Success);
         Assert.True(engine.SendCommand("TSC011", "CLAND").Success);
 
-        var clc = engine.SendCommand("TSC011", "CLC");
+        CommandResult clc = engine.SendCommand("TSC011", "CLC");
         output.WriteLine($"CLC: success={clc.Success} — {clc.Message}");
         Assert.True(clc.Success, $"CLC should cancel a pre-issued clearance: {clc.Message}");
 
-        var ac = engine.FindAircraft("TSC011");
+        AircraftState? ac = engine.FindAircraft("TSC011");
         Assert.NotNull(ac);
         Assert.Null(ac.Pattern.PendingLandingClearance);
     }

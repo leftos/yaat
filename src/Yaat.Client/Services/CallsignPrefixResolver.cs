@@ -44,21 +44,21 @@ internal static class CallsignPrefixResolver
     /// </summary>
     internal static Result Resolve(string input, CommandScheme scheme, IReadOnlyCollection<AircraftModel> aircraft)
     {
-        var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 2)
         {
             return NotAPrefixSingleton;
         }
 
-        var token = parts[0].ToUpperInvariant();
-        var remainder = parts[1].Trim();
+        string token = parts[0].ToUpperInvariant();
+        string remainder = parts[1].Trim();
 
         if (!Callsign.IsValid(token))
         {
             return NotAPrefixSingleton;
         }
 
-        var (match, outcome, candidates) = CallsignMatcher.Match(token, aircraft);
+        (AircraftModel? match, CallsignMatcher.Outcome outcome, IReadOnlyList<AircraftModel>? candidates) = CallsignMatcher.Match(token, aircraft);
 
         // A known command verb (e.g. "CM" = climb/maintain) must never be hijacked by a
         // *partial* (substring) callsign match. Only an exact callsign match may claim the

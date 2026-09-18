@@ -28,8 +28,8 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var nowUtc = scenario.SimTimeUtc;
-        foreach (var ac in World.GetSnapshot())
+        DateTime nowUtc = scenario.SimTimeUtc;
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             TryQueueAutoTdlsForAircraft(Tdls, ac, nowUtc);
         }
@@ -52,13 +52,13 @@ public sealed partial class SimulationEngine
             return null;
         }
 
-        var dep = ac.FlightPlan?.Departure;
+        string? dep = ac.FlightPlan?.Departure;
         if (string.IsNullOrEmpty(dep))
         {
             return null;
         }
 
-        var facility = TdlsMutations.ResolveFacilityForAirport(tdls, dep);
+        string? facility = TdlsMutations.ResolveFacilityForAirport(tdls, dep);
         if (facility is null)
         {
             return null;
@@ -91,8 +91,8 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var tdls = Tdls;
-        var now = scenario.SimTimeUtc;
+        TdlsState tdls = Tdls;
+        DateTime now = scenario.SimTimeUtc;
 
         lock (tdls.Gate)
         {
@@ -107,7 +107,7 @@ public sealed partial class SimulationEngine
                 return;
             }
 
-            foreach (var itemId in due)
+            foreach (string? itemId in due)
             {
                 tdls.ScheduledWilcoAt.Remove(itemId);
                 TdlsMutations.MarkWilco(tdls, itemId, now);
@@ -128,13 +128,13 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var tdls = Tdls;
-        var now = scenario.SimTimeUtc;
+        TdlsState tdls = Tdls;
+        DateTime now = scenario.SimTimeUtc;
 
         lock (tdls.Gate)
         {
             List<TdlsItemRecord>? expired = null;
-            foreach (var item in tdls.Items.Values)
+            foreach (TdlsItemRecord item in tdls.Items.Values)
             {
                 if (item.ExpiresUtc <= now)
                 {
@@ -148,7 +148,7 @@ public sealed partial class SimulationEngine
                 return;
             }
 
-            foreach (var item in expired)
+            foreach (TdlsItemRecord item in expired)
             {
                 TdlsMutations.Expire(tdls, item.Id);
                 tdls.ScheduledWilcoAt.Remove(item.Id);
@@ -167,12 +167,12 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void TickTdlsTrackRemoval()
     {
-        var tdls = Tdls;
+        TdlsState tdls = Tdls;
 
         lock (tdls.Gate)
         {
             List<TdlsItemRecord>? tracked = null;
-            foreach (var item in tdls.Items.Values)
+            foreach (TdlsItemRecord item in tdls.Items.Values)
             {
                 if (World.FindAircraft(item.AircraftId)?.Track.Owner is not null)
                 {
@@ -186,7 +186,7 @@ public sealed partial class SimulationEngine
                 return;
             }
 
-            foreach (var item in tracked)
+            foreach (TdlsItemRecord item in tracked)
             {
                 TdlsMutations.Expire(tdls, item.Id);
                 tdls.ScheduledWilcoAt.Remove(item.Id);
@@ -200,17 +200,17 @@ public sealed partial class SimulationEngine
     /// </summary>
     internal CommandResult SetTdlsOpConfig(TdlsOpsConfigCommand cmd)
     {
-        if (!Tdls.Configs.TryGetValue(cmd.FacilityId, out var config) || !config.DclOpConfigsEnabled)
+        if (!Tdls.Configs.TryGetValue(cmd.FacilityId, out TdlsConfig? config) || !config.DclOpConfigsEnabled)
         {
             return new CommandResult(false, $"{cmd.FacilityId} does not use operational configurations");
         }
 
-        var target =
+        TdlsOpConfig? target =
             config.OpConfigs.FirstOrDefault(c => string.Equals(c.Id, cmd.Config, StringComparison.Ordinal))
             ?? config.OpConfigs.FirstOrDefault(c => string.Equals(c.Name, cmd.Config, StringComparison.OrdinalIgnoreCase));
         if (target is null)
         {
-            var known = string.Join(", ", config.OpConfigs.Select(c => c.Name));
+            string known = string.Join(", ", config.OpConfigs.Select(c => c.Name));
             return new CommandResult(false, $"Unknown operational configuration '{cmd.Config}' at {cmd.FacilityId} (have: {known})");
         }
 
@@ -226,7 +226,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     internal CommandResult ApplyTdlsOpConfig(TdlsOpsConfigCommand cmd)
     {
-        var result = SetTdlsOpConfig(cmd);
+        CommandResult result = SetTdlsOpConfig(cmd);
         if (!result.Success)
         {
             return result;
@@ -265,7 +265,7 @@ public sealed partial class SimulationEngine
 
     private void QueueSpawnTdlsPdc(AircraftState ac, SimScenarioState scenario)
     {
-        var queued = TryQueueAutoTdlsForAircraft(Tdls, ac, scenario.SimTimeUtc);
+        TdlsItemRecord? queued = TryQueueAutoTdlsForAircraft(Tdls, ac, scenario.SimTimeUtc);
         if (queued is null)
         {
             return;
@@ -312,10 +312,10 @@ public sealed partial class SimulationEngine
         InitializeCoordinationChannelsFromArtcc();
         InitializeTowerListsFromArtcc();
 
-        var positionCallsign = Scenario.StudentPosition?.Callsign ?? "";
+        string positionCallsign = Scenario.StudentPosition?.Callsign ?? "";
         if (!string.IsNullOrEmpty(positionCallsign))
         {
-            var accessible = config.GetAllAccessibleStripBays(positionCallsign);
+            IReadOnlyList<AccessibleBay> accessible = config.GetAllAccessibleStripBays(positionCallsign);
             if (accessible.Count > 0)
             {
                 Strips.InitializeFromArtcc(accessible.Select(entry => entry.Bay));

@@ -28,7 +28,7 @@ public class Issue172RealLayoutEtaGateTests
     [Fact]
     public void Yielder_OnM1_NotBraked_WhenWinner_OnM3_ClearsCrossingFirst()
     {
-        var setup = BuildM1M3Convergence(winnerIas: 18.0, yielderIas: 12.0);
+        Convergence? setup = BuildM1M3Convergence(winnerIas: 18.0, yielderIas: 12.0);
         if (setup is null)
         {
             return;
@@ -43,7 +43,7 @@ public class Issue172RealLayoutEtaGateTests
     [Fact]
     public void Yielder_OnM1_DoesYield_WhenWinner_OnM3_IsStopped()
     {
-        var setup = BuildM1M3Convergence(winnerIas: 1.0, yielderIas: 12.0);
+        Convergence? setup = BuildM1M3Convergence(winnerIas: 1.0, yielderIas: 12.0);
         if (setup is null)
         {
             return;
@@ -60,31 +60,31 @@ public class Issue172RealLayoutEtaGateTests
 
     private static Convergence? BuildM1M3Convergence(double winnerIas, double yielderIas)
     {
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         if (layout is null)
         {
             return null;
         }
 
         // node 413 in the recording — resolved by name so node renumbering does not matter.
-        var crossing = layout.FindIntersectionNode("M1", "M3");
+        GroundNode? crossing = layout.FindIntersectionNode("M1", "M3");
         Assert.NotNull(crossing);
 
-        var winnerStart = NearestNodeOnTaxiwayInRange(layout, "M3", crossing.Position, 120.0, 450.0);
-        var yielderStart = NearestNodeOnTaxiwayInRange(layout, "M1", crossing.Position, 700.0, 1400.0);
+        GroundNode? winnerStart = NearestNodeOnTaxiwayInRange(layout, "M3", crossing.Position, 120.0, 450.0);
+        GroundNode? yielderStart = NearestNodeOnTaxiwayInRange(layout, "M1", crossing.Position, 700.0, 1400.0);
         Assert.NotNull(winnerStart);
         Assert.NotNull(yielderStart);
 
-        var winnerRoute = TaxiPathfinder.FindRoute(layout, winnerStart.Id, crossing.Id, AircraftCategory.Jet);
-        var yielderRoute = TaxiPathfinder.FindRoute(layout, yielderStart.Id, crossing.Id, AircraftCategory.Jet);
+        TaxiRoute? winnerRoute = TaxiPathfinder.FindRoute(layout, winnerStart.Id, crossing.Id, AircraftCategory.Jet);
+        TaxiRoute? yielderRoute = TaxiPathfinder.FindRoute(layout, yielderStart.Id, crossing.Id, AircraftCategory.Jet);
         Assert.NotNull(winnerRoute);
         Assert.NotNull(yielderRoute);
 
         // Both must approach the crossing from different directions for it to count as a convergence.
         Assert.Equal(crossing.Id, GroundConflictDetector.FindSharedUpcomingNode(yielderRoute, winnerRoute));
 
-        var winner = MakeTaxiing("JBU", winnerStart, crossing.Position, winnerIas, winnerRoute);
-        var yielder = MakeTaxiing("FFT", yielderStart, crossing.Position, yielderIas, yielderRoute);
+        AircraftState winner = MakeTaxiing("JBU", winnerStart, crossing.Position, winnerIas, winnerRoute);
+        AircraftState yielder = MakeTaxiing("FFT", yielderStart, crossing.Position, yielderIas, yielderRoute);
         return new Convergence(layout, winner, yielder);
     }
 
@@ -93,7 +93,7 @@ public class Issue172RealLayoutEtaGateTests
         double midFt = (minFt + maxFt) / 2.0;
         GroundNode? best = null;
         double bestErr = double.MaxValue;
-        foreach (var node in layout.GetNodesOnTaxiway(taxiway))
+        foreach (GroundNode node in layout.GetNodesOnTaxiway(taxiway))
         {
             double distFt = GeoMath.DistanceNm(node.Position, reference) * FtPerNm;
             if (distFt < minFt || distFt > maxFt)

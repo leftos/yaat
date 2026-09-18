@@ -72,9 +72,9 @@ public class PatternEntryTests : IDisposable
 
     private void DumpPhases(AircraftState aircraft)
     {
-        var phases = aircraft.Phases!.Phases;
+        List<Phase> phases = aircraft.Phases!.Phases;
         _output.WriteLine($"Phases ({phases.Count}):");
-        foreach (var p in phases)
+        foreach (Phase p in phases)
         {
             _output.WriteLine($"  {p.GetType().Name}: {p.Name}");
         }
@@ -87,12 +87,12 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void ERD_FromNorth10nm_InsertsPatternEntryPhase()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.87, -122.22, 3500, 180); // 10nm north, heading south
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180); // 10nm north, heading south
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
@@ -103,7 +103,7 @@ public class PatternEntryTests : IDisposable
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases);
 
-        var phases = aircraft.Phases.Phases;
+        List<Phase> phases = aircraft.Phases.Phases;
         DumpPhases(aircraft);
 
         // First phase should be PatternEntryPhase (aircraft is far from pattern)
@@ -111,7 +111,17 @@ public class PatternEntryTests : IDisposable
         var entry = (PatternEntryPhase)phases[0];
 
         // Entry point should be near the downwind abeam point (midfield per AIM 4-3-3)
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        PatternWaypoints waypoints = PatternGeometry.Compute(
+            runway,
+            ResolvedCategory,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
         double distToAbeam = GeoMath.DistanceNm(entry.EntryLat, entry.EntryLon, waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon);
         _output.WriteLine($"Entry point dist to DownwindAbeam: {distToAbeam:F3}nm");
         Assert.True(distToAbeam < 0.1, $"Entry point should be at midfield abeam. Dist: {distToAbeam:F3}nm");
@@ -126,14 +136,14 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void ERD_FromSouth5nm_WrongSide_MidfieldCrossing()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
         // 5nm south of OAK — for right pattern, pattern is to the north
         // South is the WRONG side
-        var aircraft = MakeAircraft(37.65, -122.20, 2500, 360);
+        AircraftState aircraft = MakeAircraft(37.65, -122.20, 2500, 360);
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
@@ -152,14 +162,14 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void ERD_FromEast8nm_InsertsPatternEntryPhase()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
         // 8nm east of threshold (approach side), heading west
         // East projects positively on crosswind axis (22° NNE) → correct side for right pattern
-        var aircraft = MakeAircraft(37.72, -122.07, 3000, 270);
+        AircraftState aircraft = MakeAircraft(37.72, -122.07, 3000, 270);
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
@@ -177,14 +187,14 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void ERD_FromWest6nm_WrongSide_MidfieldCrossing()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
         // 6nm west of airport — projects negatively on crosswind axis (22° NNE)
         // because west has large negative east-component. Wrong side for right pattern.
-        var aircraft = MakeAircraft(37.73, -122.32, 2500, 90);
+        AircraftState aircraft = MakeAircraft(37.73, -122.32, 2500, 90);
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
@@ -202,14 +212,24 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void ERD_NearbyAircraft_NoPatternEntryPhase()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
         // Aircraft already near the downwind abeam point (midfield entry per AIM 4-3-3)
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
-        var aircraft = MakeAircraft(waypoints.DownwindAbeamLat + 0.005, waypoints.DownwindAbeamLon, waypoints.PatternAltitude, 112);
+        PatternWaypoints waypoints = PatternGeometry.Compute(
+            runway,
+            ResolvedCategory,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
+        AircraftState aircraft = MakeAircraft(waypoints.DownwindAbeamLat + 0.005, waypoints.DownwindAbeamLon, waypoints.PatternAltitude, 112);
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
@@ -231,14 +251,14 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void ELD_FromNorth8nm_LeftPattern_WrongSide_MidfieldCrossing()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
         // Left pattern: crosswind heading 202° (SSW), pattern side is south/southwest
         // North is WRONG side for left pattern
-        var aircraft = MakeAircraft(37.85, -122.20, 3000, 180);
+        AircraftState aircraft = MakeAircraft(37.85, -122.20, 3000, 180);
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
@@ -256,13 +276,13 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void ELD_FromSouth8nm_LeftPattern_CorrectSide()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
         // Left pattern: pattern is to the south → south is correct side
-        var aircraft = MakeAircraft(37.60, -122.20, 3000, 360);
+        AircraftState aircraft = MakeAircraft(37.60, -122.20, 3000, 360);
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
@@ -284,12 +304,12 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void ERB_NoDistance_From8nmEast_SkipsPatternEntry_UsesDerivedFinalDistance()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.80, -122.10, 3000, 270); // 8nm east, heading west (NNE of centerline, on approach side)
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.80, -122.10, 3000, 270); // 8nm east, heading west (NNE of centerline, on approach side)
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -312,13 +332,13 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void ERB_FromSouth_WrongSide_MidfieldCrossing()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
         // South is wrong side for right pattern base entry
-        var aircraft = MakeAircraft(37.65, -122.20, 2500, 360);
+        AircraftState aircraft = MakeAircraft(37.65, -122.20, 2500, 360);
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -335,12 +355,12 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void ERB_3nm_Final_EntryPointFurtherOut()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.80, -122.10, 3000, 270); // 8nm east
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.80, -122.10, 3000, 270); // 8nm east
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
@@ -368,12 +388,12 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void EF_From6nmOnFinal_HasPatternEntryPhase()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.68, -122.14, 2000, 292);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.68, -122.14, 2000, 292);
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Left,
             PatternEntryLeg.Final,
@@ -391,12 +411,12 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void EF_FromNorth_StraightIn()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.85, -122.20, 3000, 180);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.85, -122.20, 3000, 180);
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Left,
             PatternEntryLeg.Final,
@@ -418,10 +438,20 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void DownwindEntryPoint_IsAtMidfieldAbeam_NotDepartureEnd()
     {
-        var runway = MakeOak28R();
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        RunwayInfo runway = MakeOak28R();
+        PatternWaypoints waypoints = PatternGeometry.Compute(
+            runway,
+            ResolvedCategory,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
 
-        var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
+        AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
@@ -441,14 +471,24 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void PatternEntryPhase_SetsCorrectAltitude()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        PatternWaypoints waypoints = PatternGeometry.Compute(
+            runway,
+            ResolvedCategory,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
 
         // Pattern altitude = field elevation + AGL for the resolved category
         double expectedAlt = 9 + CategoryPerformance.PatternAltitudeAgl(ResolvedCategory);
@@ -482,11 +522,11 @@ public class PatternEntryTests : IDisposable
     [InlineData("NW", 37.82, -122.30, 135, false)] // NW → positive → correct
     public void ERD_RightPattern_FromAllDirections(string dir, double lat, double lon, double hdg, bool expectWrongSide)
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(lat, lon, 3000, hdg);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(lat, lon, 3000, hdg);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
@@ -497,7 +537,7 @@ public class PatternEntryTests : IDisposable
         Assert.True(result.Success, $"[{dir}] Entry should succeed: {result.Message}");
         DumpPhases(aircraft);
 
-        var phases = aircraft.Phases!.Phases;
+        List<Phase> phases = aircraft.Phases!.Phases;
 
         if (expectWrongSide)
         {
@@ -525,11 +565,11 @@ public class PatternEntryTests : IDisposable
     [InlineData("NW", 37.82, -122.30, 135, true)] // NW → negative → wrong
     public void ELD_LeftPattern_FromAllDirections(string dir, double lat, double lon, double hdg, bool expectWrongSide)
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(lat, lon, 3000, hdg);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(lat, lon, 3000, hdg);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
@@ -540,7 +580,7 @@ public class PatternEntryTests : IDisposable
         Assert.True(result.Success, $"[{dir}] Entry should succeed: {result.Message}");
         DumpPhases(aircraft);
 
-        var phases = aircraft.Phases!.Phases;
+        List<Phase> phases = aircraft.Phases!.Phases;
 
         if (expectWrongSide)
         {
@@ -565,14 +605,14 @@ public class PatternEntryTests : IDisposable
     [InlineData(PatternEntryLeg.Final, typeof(FinalApproachPhase))]
     public void EntryLeg_ProducesCorrectFirstPatternPhase(PatternEntryLeg leg, Type expectedPhase)
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, leg, runwayId: "28R", finalDistanceNm: null);
 
         DumpPhases(aircraft);
-        var phases = aircraft.Phases!.Phases;
+        List<Phase> phases = aircraft.Phases!.Phases;
 
         Assert.IsType<PatternEntryPhase>(phases[0]);
 
@@ -589,13 +629,13 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void DownwindEntry_HasCorrectFullSequence()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
-        var phases = aircraft.Phases!.Phases;
+        List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
 
         // Expected: PatternEntry → Downwind → Base → FinalApproach → Landing
@@ -610,15 +650,15 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void BaseEntry_HasCorrectSequence()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
         // ERB-no-distance requires aircraft on the approach side (along-track > 0.5nm).
         // (37.80, -122.10) is 8nm NE of the threshold → ~2.6nm along-track, ~5.9nm cross-track.
-        var aircraft = MakeAircraft(37.80, -122.10, 3000, 270);
+        AircraftState aircraft = MakeAircraft(37.80, -122.10, 3000, 270);
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Base, runwayId: "28R", finalDistanceNm: null);
 
-        var phases = aircraft.Phases!.Phases;
+        List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
 
         // New ERB-no-distance behavior: no PatternEntryPhase; BasePhase starts from aircraft's present position.
@@ -631,13 +671,13 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void FinalEntry_HasCorrectSequence()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final, runwayId: "28R", finalDistanceNm: null);
 
-        var phases = aircraft.Phases!.Phases;
+        List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
 
         Assert.Equal(3, phases.Count);
@@ -653,16 +693,26 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void MidfieldCrossing_RightPattern_HasCorrectWaypoints()
     {
-        var runway = MakeOak28R();
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        RunwayInfo runway = MakeOak28R();
+        PatternWaypoints waypoints = PatternGeometry.Compute(
+            runway,
+            ResolvedCategory,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
 
         // South of airport — wrong side for right pattern (pattern is north)
-        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
-        var mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
+        MidfieldCrossingPhase mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
         Assert.NotNull(mc.Waypoints);
         Assert.Equal(PatternDirection.Right, mc.Waypoints!.Direction);
 
@@ -672,10 +722,10 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void MidfieldCrossing_LeftPattern_HasCorrectWaypoints()
     {
-        var runway = MakeOak28R();
+        RunwayInfo runway = MakeOak28R();
 
         // North of airport — wrong side for left pattern (pattern is south)
-        var aircraft = MakeAircraft(37.87, -122.21, 3000, 180);
+        AircraftState aircraft = MakeAircraft(37.87, -122.21, 3000, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
@@ -693,8 +743,18 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void PatternGeometry_LeftPattern_TurnsAreLeft()
     {
-        var runway = MakeOak28R();
-        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
+        RunwayInfo runway = MakeOak28R();
+        PatternWaypoints wp = PatternGeometry.Compute(
+            runway,
+            AircraftCategory.Piston,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
 
         // For left pattern on runway heading 292:
         // Upwind = 292, Crosswind = 292 - 90 = 202, Downwind = 112, Base = 112 - 90 = 22
@@ -709,8 +769,18 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void PatternGeometry_RightPattern_TurnsAreRight()
     {
-        var runway = MakeOak28R();
-        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        RunwayInfo runway = MakeOak28R();
+        PatternWaypoints wp = PatternGeometry.Compute(
+            runway,
+            AircraftCategory.Piston,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
 
         // For right pattern on runway heading 292:
         // Upwind = 292, Crosswind = 292 + 90 = 22, Downwind = 112, Base = 112 + 90 = 202
@@ -725,8 +795,18 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void PatternGeometry_DownwindAbeam_IsAbeamThreshold()
     {
-        var runway = MakeOak28R();
-        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        RunwayInfo runway = MakeOak28R();
+        PatternWaypoints wp = PatternGeometry.Compute(
+            runway,
+            AircraftCategory.Piston,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
 
         double distToThreshold = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.ThresholdLat, wp.ThresholdLon);
         double expectedSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
@@ -742,8 +822,8 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void CTO_MRT_ReplacesInitialClimbWithPatternPhases()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(runway.ThresholdLatitude, runway.ThresholdLongitude, 9, 292);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(runway.ThresholdLatitude, runway.ThresholdLongitude, 9, 292);
         aircraft.IsOnGround = true;
         aircraft.IndicatedAirspeed = 0;
 
@@ -756,12 +836,12 @@ public class PatternEntryTests : IDisposable
         var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right, null, null));
 
         var luaw = (LinedUpAndWaitingPhase)phases.Phases[0];
-        var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, TestDispatch.Context(Random.Shared));
+        CommandResult result = DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
 
-        var allPhases = aircraft.Phases.Phases;
+        List<Phase> allPhases = aircraft.Phases.Phases;
 
         // InitialClimbPhase should have been removed for closed traffic
         Assert.DoesNotContain(allPhases, p => p is InitialClimbPhase);
@@ -779,10 +859,10 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void ERD_NoRunway_Fails()
     {
-        var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
+        AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases = new PhaseList();
 
-        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, null, null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, null, null);
 
         Assert.False(result.Success);
         Assert.Contains("runway", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -794,12 +874,12 @@ public class PatternEntryTests : IDisposable
         // Pattern entry on the ground would clobber the taxi/takeoff sequence
         // and doesn't match real ATC: closed traffic comes via CTO MLT/MRT
         // (ApplyClosedTraffic), not via ERD/ELD on a ground aircraft.
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.87, -122.22, 9, 180);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.87, -122.22, 9, 180);
         aircraft.IsOnGround = true;
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
@@ -814,8 +894,18 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void ERD_VeryClose_1nm_NoPatternEntryPhase()
     {
-        var runway = MakeOak28R();
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        RunwayInfo runway = MakeOak28R();
+        PatternWaypoints waypoints = PatternGeometry.Compute(
+            runway,
+            ResolvedCategory,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
 
         // Place aircraft 0.8nm from the entry point (under 1nm threshold), on correct side
         // Move slightly toward the runway from the abeam point (stays on pattern side)
@@ -825,11 +915,16 @@ public class PatternEntryTests : IDisposable
             runway.ThresholdLatitude,
             runway.ThresholdLongitude
         );
-        var nearEntry = GeoMath.ProjectPoint(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon, new TrueHeading(bearingToThreshold), 0.3);
-        var aircraft = MakeAircraft(nearEntry.Lat, nearEntry.Lon, waypoints.PatternAltitude, 112);
+        (double Lat, double Lon) nearEntry = GeoMath.ProjectPoint(
+            waypoints.DownwindAbeamLat,
+            waypoints.DownwindAbeamLon,
+            new TrueHeading(bearingToThreshold),
+            0.3
+        );
+        AircraftState aircraft = MakeAircraft(nearEntry.Lat, nearEntry.Lon, waypoints.PatternAltitude, 112);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
@@ -866,14 +961,14 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void SFO_ERD_FromSouth_RightPattern_WrongSide()
     {
-        var runway = MakeSfo28R();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = MakeSfo28R();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
         // SFO 28R heading 284°, right pattern → pattern is to the north
         // South is wrong side for right pattern
-        var aircraft = MakeAircraft(37.50, -122.37, 3000, 0);
+        AircraftState aircraft = MakeAircraft(37.50, -122.37, 3000, 0);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
@@ -890,14 +985,14 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void SFO_ELD_FromSouth_LeftPattern_CorrectSide()
     {
-        var runway = MakeSfo28R();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        RunwayInfo runway = MakeSfo28R();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
         // SFO 28R heading 284°, left pattern → pattern is to the south
         // South is correct side for left pattern
-        var aircraft = MakeAircraft(37.50, -122.37, 3000, 0);
+        AircraftState aircraft = MakeAircraft(37.50, -122.37, 3000, 0);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
@@ -937,12 +1032,12 @@ public class PatternEntryTests : IDisposable
     [InlineData("W", 37.75, -122.35, 90, true)] // West → negative on 30° axis → wrong side for left
     public void Runway12_LeftPattern_WrongSideDetection(string dir, double lat, double lon, double hdg, bool expectWrongSide)
     {
-        var runway = MakeRunway12();
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
-        var aircraft = MakeAircraft(lat, lon, 2500, hdg);
+        RunwayInfo runway = MakeRunway12();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        AircraftState aircraft = MakeAircraft(lat, lon, 2500, hdg);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
@@ -983,11 +1078,11 @@ public class PatternEntryTests : IDisposable
         // lead-in would be west of abeam (reverse of downwind heading 112°, i.e. 292°),
         // forcing a near-U-turn at the lead-in and flying past the field.
         // 45° entry lead-in is NNW of abeam (reverse of entry heading 157°, i.e. 337°).
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.72, -122.00, 3000, 270); // ~10nm east, heading west
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.72, -122.00, 3000, 270); // ~10nm east, heading west
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
@@ -998,11 +1093,21 @@ public class PatternEntryTests : IDisposable
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
 
-        var entry = Assert.IsType<PatternEntryPhase>(aircraft.Phases!.Phases[0]);
+        PatternEntryPhase entry = Assert.IsType<PatternEntryPhase>(aircraft.Phases!.Phases[0]);
         Assert.NotNull(entry.LeadInLat);
         Assert.NotNull(entry.LeadInLon);
 
-        var wp = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            runway,
+            ResolvedCategory,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
         double bearingAbeamToLeadIn = GeoMath.BearingTo(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
         double expected45Bearing = new TrueHeading(wp.DownwindHeading.Degrees + 45.0 + 180.0).Degrees; // 337° for OAK 28R right
         double expectedXDWBearing = wp.DownwindHeading.ToReciprocal().Degrees; // 292° for OAK 28R
@@ -1026,11 +1131,11 @@ public class PatternEntryTests : IDisposable
         // Left pattern downwind is south of runway. Extended-downwind lead-in
         // would force a near-U-turn. 45° entry lead-in is SW of abeam
         // (reverse of entry heading 67°, i.e. 247°).
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.65, -122.00, 3000, 270); // SE of field, heading west, correct side for left pattern
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.65, -122.00, 3000, 270); // SE of field, heading west, correct side for left pattern
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
@@ -1041,11 +1146,11 @@ public class PatternEntryTests : IDisposable
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
 
-        var entry = Assert.IsType<PatternEntryPhase>(aircraft.Phases!.Phases[0]);
+        PatternEntryPhase entry = Assert.IsType<PatternEntryPhase>(aircraft.Phases!.Phases[0]);
         Assert.NotNull(entry.LeadInLat);
         Assert.NotNull(entry.LeadInLon);
 
-        var wp = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         double bearingAbeamToLeadIn = GeoMath.BearingTo(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
         double expected45Bearing = new TrueHeading(wp.DownwindHeading.Degrees - 45.0 + 180.0).Degrees; // 247° for OAK 28R left
         double expectedXDWBearing = wp.DownwindHeading.ToReciprocal().Degrees;
@@ -1068,13 +1173,23 @@ public class PatternEntryTests : IDisposable
         // Aircraft positioned ~5nm upwind of abeam, on the extended downwind leg,
         // heading downwind direction. Extended-downwind entry is a pure straight-in
         // (0° turns everywhere) — should be preferred over 45°.
-        var runway = MakeOak28R();
-        var wp = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
-        var upwindPos = GeoMath.ProjectPoint(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.ToReciprocal(), 5.0);
-        var aircraft = MakeAircraft(upwindPos.Lat, upwindPos.Lon, wp.PatternAltitude, wp.DownwindHeading.Degrees);
+        RunwayInfo runway = MakeOak28R();
+        PatternWaypoints wp = PatternGeometry.Compute(
+            runway,
+            ResolvedCategory,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
+        (double Lat, double Lon) upwindPos = GeoMath.ProjectPoint(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.ToReciprocal(), 5.0);
+        AircraftState aircraft = MakeAircraft(upwindPos.Lat, upwindPos.Lon, wp.PatternAltitude, wp.DownwindHeading.Degrees);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
@@ -1085,7 +1200,7 @@ public class PatternEntryTests : IDisposable
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
 
-        var entry = Assert.IsType<PatternEntryPhase>(aircraft.Phases!.Phases[0]);
+        PatternEntryPhase entry = Assert.IsType<PatternEntryPhase>(aircraft.Phases!.Phases[0]);
         Assert.NotNull(entry.LeadInLat);
         Assert.NotNull(entry.LeadInLon);
 
@@ -1110,14 +1225,24 @@ public class PatternEntryTests : IDisposable
     {
         // Pistons get no floor — 0.5 × runway length is the stabilization distance.
         // For OAK 28R (6213ft) with a C182 (piston), that is ~0.511nm.
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.72, -122.00, 3000, 270); // C182, VPMOR-like → 45° expected
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.72, -122.00, 3000, 270); // C182, VPMOR-like → 45° expected
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
-        var wp = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            runway,
+            ResolvedCategory,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null
+        );
         double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
         double expectedNm = runway.PavementLengthFt * 0.5 / 6076.12;
 
@@ -1130,17 +1255,17 @@ public class PatternEntryTests : IDisposable
     {
         // Turboprops get a 1.5nm floor. For OAK 28R (6213ft), 0.5×length=0.511nm, so
         // the floor dominates: expect 1.5nm.
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.72, -122.00, 3000, 270);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.72, -122.00, 3000, 270);
         aircraft.AircraftType = "DH8D"; // Dash 8-Q400 — turboprop
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         Assert.Equal(AircraftCategory.Turboprop, cat);
-        var wp = PatternGeometry.Compute(runway, cat, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(runway, cat, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
         double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
 
         _output.WriteLine($"Turboprop lead-in distance from abeam: {distAbeamToLeadIn:F3}nm (expected 1.5nm floor)");
@@ -1151,17 +1276,17 @@ public class PatternEntryTests : IDisposable
     public void Erd_Jet_LeadInDistanceHas2_0nmFloor()
     {
         // Jets get a 2.0nm floor. For OAK 28R (6213ft), expect 2.0nm.
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.72, -122.00, 3000, 270);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.72, -122.00, 3000, 270);
         aircraft.AircraftType = "B738"; // 737-800 — jet
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         Assert.Equal(AircraftCategory.Jet, cat);
-        var wp = PatternGeometry.Compute(
+        PatternWaypoints wp = PatternGeometry.Compute(
             runway,
             cat,
             aircraft.AircraftType,
@@ -1191,8 +1316,8 @@ public class PatternEntryTests : IDisposable
         const double LengthFt = 30_000;
         // The runway's length is the distance between its ends, so project the far end out to it
         // rather than stating a length the coordinates don't back up.
-        var (endLat, endLon) = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, new TrueHeading(HeadingDeg), LengthFt / GeoMath.FeetPerNm);
-        var runway = TestRunwayFactory.Make(
+        (double endLat, double endLon) = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, new TrueHeading(HeadingDeg), LengthFt / GeoMath.FeetPerNm);
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "KOAK", // reuse KOAK so NavDb finds the 28R designator
             thresholdLat: ThresholdLat,
@@ -1203,17 +1328,17 @@ public class PatternEntryTests : IDisposable
             elevationFt: 9,
             widthFt: 150
         );
-        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        var aircraft = MakeAircraft(37.72, -122.00, 3000, 270);
+        AircraftState aircraft = MakeAircraft(37.72, -122.00, 3000, 270);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-        var wp = PatternGeometry.Compute(
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        PatternWaypoints wp = PatternGeometry.Compute(
             runway,
             cat,
             aircraft.AircraftType,
@@ -1247,14 +1372,14 @@ public class PatternEntryTests : IDisposable
     {
         // C182 south of KOAK 28R, right pattern → south is wrong side.
         // Piston should cross AT pattern altitude (not +500).
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0); // C182 default
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0); // C182 default
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
-        var mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
-        var ctx = MakeContext(aircraft);
+        MidfieldCrossingPhase mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
+        PhaseContext ctx = MakeContext(aircraft);
         mc.OnStart(ctx);
 
         double expectedAlt = mc.Waypoints!.PatternAltitude;
@@ -1268,15 +1393,15 @@ public class PatternEntryTests : IDisposable
         // B738 same position. A jet entering from outside the pattern crosses at the AIM 4-3-3.a.2
         // entry height — 1,500 ft AGL — not at TPA+500: the turbine TPA is already 1,500 AGL, so
         // adding 500 to it crossed the field at 2,000 AGL.
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
-        var mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
-        var ctx = MakeContext(aircraft);
+        MidfieldCrossingPhase mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
+        PhaseContext ctx = MakeContext(aircraft);
         mc.OnStart(ctx);
 
         double expectedAlt = runway.AirportElevationFt + 1500.0;
@@ -1288,14 +1413,14 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void WrongSide_Turboprop_PhaseChain_IncludesTeardrop()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "DH8D";
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
-        var phases = aircraft.Phases!.Phases;
+        List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
         Assert.IsType<MidfieldCrossingPhase>(phases[0]);
         Assert.IsType<TeardropReentryPhase>(phases[1]);
@@ -1305,14 +1430,14 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void WrongSide_Jet_PhaseChain_IncludesTeardrop()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
-        var phases = aircraft.Phases!.Phases;
+        List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
         Assert.IsType<MidfieldCrossingPhase>(phases[0]);
         Assert.IsType<TeardropReentryPhase>(phases[1]);
@@ -1328,15 +1453,15 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void WrongSide_Jet_WithAssignedPatternAltitude_NoTeardrop()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Pattern.AltitudeOverrideFt = 1500;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
-        var phases = aircraft.Phases!.Phases;
+        List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
         Assert.IsType<MidfieldCrossingPhase>(phases[0]);
         Assert.IsType<DownwindPhase>(phases[1]);
@@ -1347,13 +1472,13 @@ public class PatternEntryTests : IDisposable
     public void WrongSide_Piston_PhaseChain_NoTeardrop()
     {
         // C182 wrong-side: only MidfieldCrossing → Downwind, no teardrop.
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
-        var phases = aircraft.Phases!.Phases;
+        List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
         Assert.IsType<MidfieldCrossingPhase>(phases[0]);
         Assert.IsType<DownwindPhase>(phases[1]);
@@ -1364,19 +1489,19 @@ public class PatternEntryTests : IDisposable
     public void TeardropReentry_RightPattern_OutboundAnchorOnPatternSide()
     {
         // Outbound anchor should be on crosswind heading from abeam (pattern-side perpendicular).
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         teardrop.OnStart(ctx);
 
-        var route = ctx.Targets.NavigationRoute;
+        List<NavigationTarget> route = ctx.Targets.NavigationRoute;
         Assert.True(route.Count >= 1, "Teardrop route should have at least one waypoint");
-        var outbound = route[0];
+        NavigationTarget outbound = route[0];
         double bearingAbeamToOutbound = GeoMath.BearingTo(
             teardrop.Waypoints.DownwindAbeamLat,
             teardrop.Waypoints.DownwindAbeamLon,
@@ -1393,17 +1518,17 @@ public class PatternEntryTests : IDisposable
     public void TeardropReentry_LeftPattern_OutboundAnchorOnPatternSide()
     {
         // Mirror for left pattern — outbound on crosswind heading 202° for 28L.
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.87, -122.21, 3000, 180); // N of field, wrong side for left pattern
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.87, -122.21, 3000, 180); // N of field, wrong side for left pattern
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         teardrop.OnStart(ctx);
 
-        var outbound = ctx.Targets.NavigationRoute[0];
+        NavigationTarget outbound = ctx.Targets.NavigationRoute[0];
         double bearing = GeoMath.BearingTo(
             teardrop.Waypoints.DownwindAbeamLat,
             teardrop.Waypoints.DownwindAbeamLon,
@@ -1421,17 +1546,17 @@ public class PatternEntryTests : IDisposable
     {
         // Right pattern: lead-in and abeam (waypoints 2 and 3 in the route) should both be
         // on the 45° reverse-entry line (bearing 337° from abeam).
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         teardrop.OnStart(ctx);
 
-        var route = ctx.Targets.NavigationRoute;
+        List<NavigationTarget> route = ctx.Targets.NavigationRoute;
         Assert.Equal(3, route.Count);
 
         double expected45Reverse = new TrueHeading(teardrop.Waypoints.DownwindHeading.Degrees + 45.0 + 180.0).Degrees;
@@ -1456,17 +1581,17 @@ public class PatternEntryTests : IDisposable
         // Helicopters fly the pattern at 500 AGL per AIM 4-3-3.1.c.
         // PatternAltitudeAgl(Helicopter) = 500, so Waypoints.PatternAltitude = field + 500.
         // Wrong-side helo should cross at that altitude — not 1000, not 1500.
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.63, -122.21, 1500, 0);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 1500, 0);
         aircraft.AircraftType = "R44";
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
-        var mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        MidfieldCrossingPhase mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         Assert.Equal(AircraftCategory.Helicopter, cat);
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         mc.OnStart(ctx);
 
         double expectedAlt = runway.ElevationFt + 500.0; // helo TPA = 500 AGL
@@ -1478,17 +1603,17 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void TeardropReentry_Jet_OutboundAnchorAt3Nm()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         teardrop.OnStart(ctx);
 
-        var outbound = ctx.Targets.NavigationRoute[0];
+        NavigationTarget outbound = ctx.Targets.NavigationRoute[0];
         double dist = GeoMath.DistanceNm(
             teardrop.Waypoints.DownwindAbeamLat,
             teardrop.Waypoints.DownwindAbeamLon,
@@ -1502,17 +1627,17 @@ public class PatternEntryTests : IDisposable
     [Fact]
     public void TeardropReentry_Turboprop_OutboundAnchorAt2_5Nm()
     {
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "DH8D";
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         teardrop.OnStart(ctx);
 
-        var outbound = ctx.Targets.NavigationRoute[0];
+        NavigationTarget outbound = ctx.Targets.NavigationRoute[0];
         double dist = GeoMath.DistanceNm(
             teardrop.Waypoints.DownwindAbeamLat,
             teardrop.Waypoints.DownwindAbeamLon,
@@ -1527,17 +1652,17 @@ public class PatternEntryTests : IDisposable
     public void TeardropReentry_AltitudeProfileDescendsLinearly()
     {
         // Waypoint altitude restrictions: anchor > lead-in > abeam, ending at TPA.
-        var runway = MakeOak28R();
-        var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
-        var ctx = MakeContext(aircraft);
+        PhaseContext ctx = MakeContext(aircraft);
         teardrop.OnStart(ctx);
 
-        var route = ctx.Targets.NavigationRoute;
+        List<NavigationTarget> route = ctx.Targets.NavigationRoute;
         int anchorAlt = route[0].AltitudeRestriction!.Altitude1Ft;
         int leadInAlt = route[1].AltitudeRestriction!.Altitude1Ft;
         int abeamAlt = route[2].AltitudeRestriction!.Altitude1Ft;

@@ -48,26 +48,26 @@ public class SplitBlockLabelTests : IDisposable
 
     private static void DispatchOk(AircraftState ac, string text)
     {
-        var parsed = CommandParser.ParseCompound(text);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx());
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx());
         Assert.True(result.Success, result.Message);
     }
 
     [Fact]
     public void SupersedingLateral_KeepsConditionLabelOnSplitBlock()
     {
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
 
         DispatchOk(ac, "AT OAK FH 270, HO 2W");
-        var queued = Assert.Single(ac.Queue.Blocks);
+        CommandBlock queued = Assert.Single(ac.Queue.Blocks);
         Assert.Equal("at OAK: FH 270, HO 2W", queued.Description);
         Assert.Equal("At OAK: Fly heading 270, Initiate handoff to 2W", queued.NaturalDescription);
 
         // Supersede the FH half; the HO survives and the block is rebuilt around it.
         DispatchOk(ac, "FH 090");
 
-        var survivor = Assert.Single(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
+        CommandBlock survivor = Assert.Single(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
         Assert.Equal("at OAK: HO 2W", survivor.Description);
         Assert.Equal("At OAK: Initiate handoff to 2W", survivor.NaturalDescription);
     }
@@ -75,12 +75,15 @@ public class SplitBlockLabelTests : IDisposable
     [Fact]
     public void SupersedingLateral_LeavesUnconditionalBlockLabelUnprefixed()
     {
-        var ac = MakeAirborne();
+        AircraftState ac = MakeAirborne();
 
         // No condition: the block carries no label prefix, and the split must not invent one.
         DispatchOk(ac, "CM 150, HO 2W");
 
-        var survivor = Assert.Single(ac.Queue.Blocks, b => (b.ParsedCommands is not null) && b.ParsedCommands.Exists(TrackEngine.IsTrackCommand));
+        CommandBlock survivor = Assert.Single(
+            ac.Queue.Blocks,
+            b => (b.ParsedCommands is not null) && b.ParsedCommands.Exists(TrackEngine.IsTrackCommand)
+        );
         Assert.DoesNotContain(":", survivor.Description);
     }
 }

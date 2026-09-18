@@ -32,9 +32,9 @@ public class FlightPlanEditorBeaconRefreshTests
             AssignedBeaconCode = 302,
             BeaconCode = 0,
         };
-        var window = Open(ac);
+        FlightPlanEditorWindow window = Open(ac);
 
-        var bcn = window.FindControl<TextBlock>("BcnText");
+        TextBlock? bcn = window.FindControl<TextBlock>("BcnText");
         Assert.NotNull(bcn);
         Assert.Equal("0302", bcn!.Text);
     }
@@ -48,9 +48,9 @@ public class FlightPlanEditorBeaconRefreshTests
             AssignedBeaconCode = 0,
             BeaconCode = 0,
         };
-        var window = Open(ac);
+        FlightPlanEditorWindow window = Open(ac);
 
-        var bcn = window.FindControl<TextBlock>("BcnText");
+        TextBlock? bcn = window.FindControl<TextBlock>("BcnText");
         Assert.NotNull(bcn);
         Assert.Equal("0000", bcn!.Text);
 
@@ -65,9 +65,9 @@ public class FlightPlanEditorBeaconRefreshTests
     {
         // No route/departure/destination => HasFlightPlan is false => "Create".
         var ac = new AircraftModel { Callsign = "N263FY" };
-        var window = Open(ac);
+        FlightPlanEditorWindow window = Open(ac);
 
-        var submit = window.FindControl<Button>("SubmitButton");
+        Button? submit = window.FindControl<Button>("SubmitButton");
         Assert.NotNull(submit);
         Assert.Equal("Create", submit!.Content as string);
 

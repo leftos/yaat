@@ -49,7 +49,7 @@ public static class AirlineTelephony
             icaos = [];
             return false;
         }
-        if (_data.Value.TelephonyToIcaos.TryGetValue(telephony.ToUpperInvariant(), out var list))
+        if (_data.Value.TelephonyToIcaos.TryGetValue(telephony.ToUpperInvariant(), out IReadOnlyList<string>? list))
         {
             icaos = list;
             return true;
@@ -70,7 +70,7 @@ public static class AirlineTelephony
 
     private static Data Load()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Speech", "Data", "airlines.tsv");
+        string path = Path.Combine(AppContext.BaseDirectory, "Speech", "Data", "airlines.tsv");
         if (!File.Exists(path))
         {
             Log.LogWarning("airlines.tsv not found at {Path}; airline telephony map will be empty", path);
@@ -80,21 +80,21 @@ public static class AirlineTelephony
         var icaoToTelephony = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var telephonyToIcaos = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var line in File.ReadLines(path))
+        foreach (string line in File.ReadLines(path))
         {
             if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
             {
                 continue;
             }
 
-            var fields = line.Split('\t');
+            string[] fields = line.Split('\t');
             if (fields.Length < 2)
             {
                 continue;
             }
 
-            var icao = fields[0].Trim().ToUpperInvariant();
-            var telephony = fields[1].Trim().ToUpperInvariant();
+            string icao = fields[0].Trim().ToUpperInvariant();
+            string telephony = fields[1].Trim().ToUpperInvariant();
             if (icao.Length == 0 || telephony.Length == 0)
             {
                 continue;
@@ -105,7 +105,7 @@ public static class AirlineTelephony
                 icaoToTelephony[icao] = telephony;
             }
 
-            if (!telephonyToIcaos.TryGetValue(telephony, out var icaos))
+            if (!telephonyToIcaos.TryGetValue(telephony, out List<string>? icaos))
             {
                 icaos = [];
                 telephonyToIcaos[telephony] = icaos;
@@ -120,7 +120,7 @@ public static class AirlineTelephony
         );
 
         var frozenTelephony = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var kvp in telephonyToIcaos)
+        foreach (KeyValuePair<string, List<string>> kvp in telephonyToIcaos)
         {
             frozenTelephony[kvp.Key] = kvp.Value.AsReadOnly();
         }

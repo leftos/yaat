@@ -34,7 +34,7 @@ public static class FieldElevationResolver
         // the AGL gate purely because the *filed departure* airport sat above the
         // aircraft. The aircraft's actual position is what STARS displays, so the
         // terrain under that position drives the gate.
-        var nearestElev = navDb.FindNearestAirportElevation(ac.Position);
+        double? nearestElev = navDb.FindNearestAirportElevation(ac.Position);
         if (nearestElev is not null)
         {
             return nearestElev.Value;
@@ -44,7 +44,7 @@ public static class FieldElevationResolver
         // the aircraft's scenario airport, then its filed departure.
         if (!string.IsNullOrEmpty(ac.AirportId))
         {
-            var elev = navDb.GetAirportElevation(ac.AirportId);
+            double? elev = navDb.GetAirportElevation(ac.AirportId);
             if (elev is not null)
             {
                 return elev.Value;

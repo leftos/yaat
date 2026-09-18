@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
 
@@ -47,19 +48,19 @@ internal static class RunwayCrossingDetector
         double widthFt = DefaultRunwayWidthFt;
         if (runwayAirportCode is not null)
         {
-            var navDb = NavigationDatabase.Instance;
-            var rwyInfo = navDb.GetRunway(runwayAirportCode, combinedId.End1) ?? navDb.GetRunway(runwayAirportCode, combinedId.End2);
+            NavigationDatabase navDb = NavigationDatabase.Instance;
+            RunwayInfo? rwyInfo = navDb.GetRunway(runwayAirportCode, combinedId.End1) ?? navDb.GetRunway(runwayAirportCode, combinedId.End2);
             if (rwyInfo is not null)
             {
                 widthFt = rwyInfo.WidthFt;
             }
         }
 
-        var rect = BuildRunwayRectangle(rwy, widthFt, combinedId);
+        RunwayRectangle rect = BuildRunwayRectangle(rwy, widthFt, combinedId);
 
         // Classify every node as on-runway or off-runway
         var onRunwayNodes = new HashSet<int>();
-        foreach (var (nodeId, node) in layout.Nodes)
+        foreach ((int nodeId, GroundNode? node) in layout.Nodes)
         {
             if (IsOnRunway(node.Position, rect))
             {
@@ -71,7 +72,7 @@ internal static class RunwayCrossingDetector
         var edgeSnapshot = new List<GroundEdge>(layout.Edges);
         var processed = new HashSet<(int, int)>();
 
-        foreach (var edge in edgeSnapshot)
+        foreach (GroundEdge edge in edgeSnapshot)
         {
             if (edge.IsRunwayCenterline)
             {
@@ -91,13 +92,13 @@ internal static class RunwayCrossingDetector
             int offId = fromOn ? edge.Nodes[1].Id : edge.Nodes[0].Id;
 
             // Avoid processing the same boundary pair twice
-            var key = (Math.Min(onId, offId), Math.Max(onId, offId));
+            (int, int) key = (Math.Min(onId, offId), Math.Max(onId, offId));
             if (!processed.Add(key))
             {
                 continue;
             }
 
-            if (!layout.Nodes.TryGetValue(onId, out var onNode) || !layout.Nodes.TryGetValue(offId, out var offNode))
+            if (!layout.Nodes.TryGetValue(onId, out GroundNode? onNode) || !layout.Nodes.TryGetValue(offId, out GroundNode? offNode))
             {
                 continue;
             }
@@ -134,7 +135,7 @@ internal static class RunwayCrossingDetector
 
     internal static RunwayRectangle BuildRunwayRectangle(GroundRunway rwy)
     {
-        var coords = rwy.Coordinates;
+        List<(double Lat, double Lon)> coords = rwy.Coordinates;
         double bearing = GeoMath.BearingTo(coords[0].Lat, coords[0].Lon, coords[^1].Lat, coords[^1].Lon);
         double lengthNm = GeoMath.DistanceNm(coords[0].Lat, coords[0].Lon, coords[^1].Lat, coords[^1].Lon);
         double halfWidthNm = (rwy.WidthFt / 2.0) / GeoMath.FeetPerNm;
@@ -252,7 +253,7 @@ internal static class RunwayCrossingDetector
 
         // Classify all nodes as on/off runway for walk lookups
         var onRunwaySet = new HashSet<int>();
-        foreach (var (nid, n) in layout.Nodes)
+        foreach ((int nid, GroundNode? n) in layout.Nodes)
         {
             if (IsOnRunway(n.Position, rect))
             {
@@ -270,7 +271,7 @@ internal static class RunwayCrossingDetector
         // Track which on-runway nodes we projected so we can connect them
         // to their centerline projection with a short perpendicular edge.
 
-        foreach (var (nodeId, node) in layout.Nodes.ToList())
+        foreach ((int nodeId, GroundNode? node) in layout.Nodes.ToList())
         {
             if (node.Type != GroundNodeType.RunwayHoldShort)
             {
@@ -289,7 +290,7 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            var bestNode = layout.Nodes[bestId];
+            GroundNode bestNode = layout.Nodes[bestId];
             double alongTrack = GeoMath.AlongTrackDistanceNm(bestNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading);
             double crossTrack = GeoMath.SignedCrossTrackDistanceNm(bestNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading);
             double crossTrackFt = Math.Abs(crossTrack) * GeoMath.FeetPerNm;
@@ -321,8 +322,8 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            var from = layout.Nodes[fromId];
-            var to = layout.Nodes[toId];
+            GroundNode from = layout.Nodes[fromId];
+            GroundNode to = layout.Nodes[toId];
             double dist = GeoMath.DistanceNm(from.Position, to.Position);
 
             layout.Edges.Add(
@@ -355,13 +356,13 @@ internal static class RunwayCrossingDetector
         ref int nextNodeId
     )
     {
-        var (clLat, clLon) = GeoMath.ProjectPointRaw(rect.RefLat, rect.RefLon, rect.TrueHeading.Degrees, alongTrack);
+        (double clLat, double clLon) = GeoMath.ProjectPointRaw(rect.RefLat, rect.RefLon, rect.TrueHeading.Degrees, alongTrack);
         int bestId = bestNode.Id;
 
         int reuseId = FindCoincidentIntersection(layout, clLat, clLon, Fillet.FilletConstants.CoincidentNodeThresholdFt, bestId);
         if (reuseId != -1)
         {
-            var reuseNode = layout.Nodes[reuseId];
+            GroundNode reuseNode = layout.Nodes[reuseId];
             layout.Edges.Add(
                 new GroundEdge
                 {
@@ -412,7 +413,7 @@ internal static class RunwayCrossingDetector
         int bestId = -1;
         double bestFt = double.MaxValue;
         var target = new LatLon(lat, lon);
-        foreach (var (id, node) in layout.Nodes)
+        foreach ((int id, GroundNode? node) in layout.Nodes)
         {
             if ((id == excludeId) || (node.Type != GroundNodeType.TaxiwayIntersection))
             {
@@ -472,7 +473,7 @@ internal static class RunwayCrossingDetector
     {
         // Find which taxiway this hold-short is on
         string? hsTaxiway = null;
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             if (edge.HasNode(hsNodeId) && !edge.IsRunwayCenterline)
             {
@@ -501,7 +502,7 @@ internal static class RunwayCrossingDetector
         {
             int current = queue.Dequeue();
 
-            foreach (var edge in layout.Edges)
+            foreach (GroundEdge edge in layout.Edges)
             {
                 if (edge.IsRunwayCenterline)
                 {
@@ -526,7 +527,7 @@ internal static class RunwayCrossingDetector
                     continue;
                 }
 
-                if (!layout.Nodes.TryGetValue(nextId, out var nextNode))
+                if (!layout.Nodes.TryGetValue(nextId, out GroundNode? nextNode))
                 {
                     continue;
                 }
@@ -584,9 +585,9 @@ internal static class RunwayCrossingDetector
     )
     {
         string taxiwayName = boundaryEdge.TaxiwayName;
-        var prevNode = startOnNode;
-        var currentNode = startOffNode;
-        var lastEdge = boundaryEdge;
+        GroundNode prevNode = startOnNode;
+        GroundNode currentNode = startOffNode;
+        GroundEdge lastEdge = boundaryEdge;
         var visited = new HashSet<int> { startOnNode.Id, startOffNode.Id };
 
         for (int hop = 0; hop < HoldShortWalkMaxHops; hop++)
@@ -610,7 +611,7 @@ internal static class RunwayCrossingDetector
             double bestTurnDelta = double.MaxValue;
             double bestFarCross = -1.0;
 
-            foreach (var candidate in layout.Edges)
+            foreach (GroundEdge candidate in layout.Edges)
             {
                 if (candidate.IsRunwayCenterline)
                 {
@@ -633,7 +634,7 @@ internal static class RunwayCrossingDetector
                     continue;
                 }
 
-                if (!layout.Nodes.TryGetValue(farId, out var farNode))
+                if (!layout.Nodes.TryGetValue(farId, out GroundNode? farNode))
                 {
                     continue;
                 }
@@ -892,7 +893,7 @@ internal static class RunwayCrossingDetector
     private static bool HasMultipleTaxiwayConnections(int nodeId, AirportGroundLayout layout)
     {
         string? firstTaxiway = null;
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             if (!edge.HasNode(nodeId))
             {
@@ -925,8 +926,8 @@ internal static class RunwayCrossingDetector
     {
         layout.Edges.Remove(edge);
 
-        var nodeA = edge.Nodes[0];
-        var nodeB = edge.Nodes[1];
+        GroundNode nodeA = edge.Nodes[0];
+        GroundNode nodeB = edge.Nodes[1];
 
         var edgeA = new GroundEdge
         {

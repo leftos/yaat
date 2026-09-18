@@ -24,7 +24,7 @@ public class SpawnParserFrdTests
     [Fact]
     public void Parse_FixVariant_FrdToken_ParsesAsAtFix()
     {
-        var (request, error) = SpawnParser.Parse("V S P @AAAME093002 035");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S P @AAAME093002 035");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -41,7 +41,7 @@ public class SpawnParserFrdTests
     [InlineData("V S P - AAAME093002 035")]
     public void Parse_BearingVariant_FrdToken_RedirectsToFixVariant(string args)
     {
-        var (request, error) = SpawnParser.Parse(args);
+        (SpawnRequest? request, string? error) = SpawnParser.Parse(args);
 
         Assert.Null(request);
         Assert.NotNull(error);
@@ -55,7 +55,7 @@ public class SpawnParserFrdTests
     [InlineData("V S P AAAME093002 035")]
     public void Parse_RunwayVariant_FrdToken_RedirectsToFixVariant(string args)
     {
-        var (request, error) = SpawnParser.Parse(args);
+        (SpawnRequest? request, string? error) = SpawnParser.Parse(args);
 
         Assert.Null(request);
         Assert.NotNull(error);
@@ -67,7 +67,7 @@ public class SpawnParserFrdTests
     [Fact]
     public void Parse_ParkingVariant_FrdToken_RequiresAltitude()
     {
-        var (request, error) = SpawnParser.Parse("V S P @AAAME093002");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S P @AAAME093002");
 
         Assert.Null(request);
         Assert.NotNull(error);
@@ -80,7 +80,7 @@ public class SpawnParserFrdTests
     [Fact]
     public void Parse_FixVariant_BareFixName_StillAtFix()
     {
-        var (request, error) = SpawnParser.Parse("V S P @BERKS 035");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S P @BERKS 035");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -91,7 +91,7 @@ public class SpawnParserFrdTests
     [Fact]
     public void Parse_BearingVariant_NumericTokens_StillBearing()
     {
-        var (request, error) = SpawnParser.Parse("V S P -090 10 035");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S P -090 10 035");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -103,7 +103,7 @@ public class SpawnParserFrdTests
     [Fact]
     public void Parse_RunwayVariant_RunwayAndDistance_StillOnFinal()
     {
-        var (request, error) = SpawnParser.Parse("V S P 28R 5");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S P 28R 5");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -115,7 +115,7 @@ public class SpawnParserFrdTests
     [Fact]
     public void Parse_ParkingVariant_BareSpot_StillParking()
     {
-        var (request, error) = SpawnParser.Parse("V S H @H1");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S H @H1");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -128,23 +128,30 @@ public class SpawnParserFrdTests
     [Fact]
     public void Generate_AtFixFrd_SpawnsAtResolvedFrdPosition()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var expected = FrdResolver.Resolve("BERKS090010", navDb);
+        LatLon? expected = FrdResolver.Resolve("BERKS090010", navDb);
         if (expected is null)
         {
             return;
         }
 
-        var (request, parseError) = SpawnParser.Parse("V S P @BERKS090010 035");
+        (SpawnRequest? request, string? parseError) = SpawnParser.Parse("V S P @BERKS090010 035");
         Assert.Null(parseError);
         Assert.NotNull(request);
 
-        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, new Random(42), new BeaconCodePool());
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
+            request,
+            "OAK",
+            [],
+            groundLayout: null,
+            new Random(42),
+            new BeaconCodePool()
+        );
 
         Assert.Null(error);
         Assert.NotNull(state);

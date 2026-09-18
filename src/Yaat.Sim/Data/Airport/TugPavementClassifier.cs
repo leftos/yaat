@@ -31,7 +31,7 @@ internal sealed class TugPavementClassifier
             return null;
         }
 
-        foreach (var runway in _layout.Runways)
+        foreach (GroundRunway runway in _layout.Runways)
         {
             for (int i = 1; i < runway.Coordinates.Count; i++)
             {
@@ -50,7 +50,7 @@ internal sealed class TugPavementClassifier
     /// <summary>True when the leg touches any edge hanging off a runway holding-position node.</summary>
     internal bool ReachesHoldShort(LatLon from, LatLon to)
     {
-        foreach (var edge in _layout.AllEdges)
+        foreach (IGroundEdge edge in _layout.AllEdges)
         {
             bool touchesHoldShort = (edge.Nodes[0].Type == GroundNodeType.RunwayHoldShort) || (edge.Nodes[1].Type == GroundNodeType.RunwayHoldShort);
             if (touchesHoldShort && (GeoMath.SegmentsIntersect(from, to, edge.Nodes[0].Position, edge.Nodes[1].Position) is not null))
@@ -70,7 +70,7 @@ internal sealed class TugPavementClassifier
     /// </summary>
     internal string? TransitedMovementAreaName(LatLon from, LatLon to)
     {
-        foreach (var edge in _layout.AllEdges)
+        foreach (IGroundEdge edge in _layout.AllEdges)
         {
             if (MovementAreaName(edge) is not { } name)
             {

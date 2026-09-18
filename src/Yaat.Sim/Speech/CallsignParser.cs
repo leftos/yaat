@@ -44,7 +44,7 @@ public static class CallsignParser
     /// <returns>Parsed callsign + number of leading tokens consumed, or null on no match.</returns>
     public static ParsedCallsign? TryParseLeading(string transcript, IReadOnlyCollection<string> activeCallsigns)
     {
-        var tokens = Tokenize(transcript);
+        List<string> tokens = Tokenize(transcript);
         return TryParseAt(tokens, startIndex: 0, forward: true, activeCallsigns);
     }
 
@@ -54,12 +54,12 @@ public static class CallsignParser
     /// </summary>
     public static ParsedCallsign? TryParseTrailing(string transcript, IReadOnlyCollection<string> activeCallsigns)
     {
-        var tokens = Tokenize(transcript);
+        List<string> tokens = Tokenize(transcript);
         // Scan backward looking for a telephony start. We try each position from the end,
         // attempting a forward parse from there. The first full match wins.
-        for (var i = tokens.Count - 1; i >= 0; i--)
+        for (int i = tokens.Count - 1; i >= 0; i--)
         {
-            var match = TryParseAt(tokens, i, forward: true, activeCallsigns);
+            ParsedCallsign? match = TryParseAt(tokens, i, forward: true, activeCallsigns);
             if (match is not null)
             {
                 // Ensure the parse consumed through to the end of the transcript
@@ -104,7 +104,7 @@ public static class CallsignParser
             return "";
         }
 
-        var upper = icaoCallsign.Trim().ToUpperInvariant();
+        string upper = icaoCallsign.Trim().ToUpperInvariant();
 
         // US GA: N + digit, spelled digit-by-digit + NATO phonetic for trailing letters.
         if (IsUsGa(upper))
@@ -113,9 +113,9 @@ public static class CallsignParser
         }
 
         // Airline: 3-letter ICAO + digits. Use paired flight number (pilot phrasing).
-        if (TrySplitAirline(upper, out var icao, out var flightNumber))
+        if (TrySplitAirline(upper, out string? icao, out string? flightNumber))
         {
-            if (AirlineTelephony.TryGetTelephony(icao, out var telephony))
+            if (AirlineTelephony.TryGetTelephony(icao, out string? telephony))
             {
                 return telephony.ToLowerInvariant() + " " + PairedFlightNumberSpoken(flightNumber);
             }
@@ -162,18 +162,18 @@ public static class CallsignParser
             return [];
         }
 
-        var upper = icaoCallsign.Trim().ToUpperInvariant();
+        string upper = icaoCallsign.Trim().ToUpperInvariant();
         var variants = new List<string>(6);
 
         // US GA path
         if (IsUsGa(upper))
         {
-            var tail = upper[1..]; // everything after 'N'
-            var fullDigitSpoken = string.Join(' ', tail.Select(SpellChar));
+            string tail = upper[1..]; // everything after 'N'
+            string fullDigitSpoken = string.Join(' ', tail.Select(SpellChar));
 
             // Collect the prefixes pilots might use: "november" + type-based names
             var prefixes = new List<string> { "november" };
-            foreach (var typeName in AircraftTypeNames.GetSpokenNames(aircraftType))
+            foreach (string typeName in AircraftTypeNames.GetSpokenNames(aircraftType))
             {
                 if (!prefixes.Contains(typeName))
                 {
@@ -182,7 +182,7 @@ public static class CallsignParser
             }
 
             // Full forms: prefix + full tail
-            foreach (var prefix in prefixes)
+            foreach (string prefix in prefixes)
             {
                 AddIfNew(variants, $"{prefix} {fullDigitSpoken}");
             }
@@ -190,9 +190,9 @@ public static class CallsignParser
             // Shortened forms: last 3 chars, only if unambiguous and longer than 3
             if (tail.Length > 3 && IsShortenedGaUnambiguous(upper, activeCallsigns))
             {
-                var shortTail = tail[^3..];
-                var shortSpoken = string.Join(' ', shortTail.Select(SpellChar));
-                foreach (var prefix in prefixes)
+                string shortTail = tail[^3..];
+                string shortSpoken = string.Join(' ', shortTail.Select(SpellChar));
+                foreach (string prefix in prefixes)
                 {
                     AddIfNew(variants, $"{prefix} {shortSpoken}");
                 }
@@ -201,11 +201,11 @@ public static class CallsignParser
         }
 
         // Airline path
-        if (TrySplitAirline(upper, out var icao, out var flightNumber))
+        if (TrySplitAirline(upper, out string? icao, out string? flightNumber))
         {
-            if (AirlineTelephony.TryGetTelephony(icao, out var telephony))
+            if (AirlineTelephony.TryGetTelephony(icao, out string? telephony))
             {
-                var telLower = telephony.ToLowerInvariant();
+                string telLower = telephony.ToLowerInvariant();
                 AddIfNew(variants, $"{telLower} {PairedFlightNumberSpoken(flightNumber)}");
                 AddIfNew(variants, $"{telLower} {string.Join(' ', flightNumber.Select(SpellChar))}");
                 return variants;
@@ -250,13 +250,13 @@ public static class CallsignParser
     private static string PairedFlightNumberSpoken(string flightNumber)
     {
         // Split into leading digit run and trailing non-digit characters.
-        var digitEnd = 0;
+        int digitEnd = 0;
         while (digitEnd < flightNumber.Length && char.IsDigit(flightNumber[digitEnd]))
         {
             digitEnd++;
         }
-        var digits = flightNumber[..digitEnd];
-        var tail = flightNumber[digitEnd..];
+        string digits = flightNumber[..digitEnd];
+        string tail = flightNumber[digitEnd..];
 
         var parts = new List<string>();
         if (digits.Length > 0)
@@ -281,14 +281,14 @@ public static class CallsignParser
         {
             return false;
         }
-        var last3 = callsign[^3..];
-        foreach (var other in activeCallsigns)
+        string last3 = callsign[^3..];
+        foreach (string other in activeCallsigns)
         {
             if (string.IsNullOrEmpty(other))
             {
                 continue;
             }
-            var otherUpper = other.Trim().ToUpperInvariant();
+            string otherUpper = other.Trim().ToUpperInvariant();
             if (otherUpper == callsign)
             {
                 continue;
@@ -330,30 +330,30 @@ public static class CallsignParser
             // Whisper's partial normalization may produce ["9", "225"] rather than a single
             // "9225"), then optionally consume trailing NATO phonetic letters so
             // "november 9 225 lima" → N9225L and "november 123 bravo sierra" → N123BS.
-            var digitStart = startIndex + 1;
+            int digitStart = startIndex + 1;
             if (digitStart < tokens.Count && IsDigitString(tokens[digitStart]))
             {
                 var sb = new System.Text.StringBuilder("N");
-                var scan = digitStart;
+                int scan = digitStart;
                 while (scan < tokens.Count && IsDigitString(tokens[scan]))
                 {
                     sb.Append(tokens[scan]);
                     scan++;
                 }
-                while (scan < tokens.Count && TryNatoLetterOrNearMiss(tokens[scan], out var letter))
+                while (scan < tokens.Count && TryNatoLetterOrNearMiss(tokens[scan], out char letter))
                 {
                     sb.Append(letter);
                     scan++;
                 }
-                var callsign = sb.ToString();
-                var resolved = FuzzyResolve(callsign, activeCallsigns);
+                string callsign = sb.ToString();
+                string resolved = FuzzyResolve(callsign, activeCallsigns);
                 return new ParsedCallsign(resolved, scan - startIndex);
             }
             // Hybrid: "november N9225L" where Whisper already emitted the canonical form.
             if (digitStart < tokens.Count && IsUsGaIcaoToken(tokens[digitStart]))
             {
-                var callsign = tokens[digitStart].ToUpperInvariant();
-                var resolved = FuzzyResolve(callsign, activeCallsigns);
+                string callsign = tokens[digitStart].ToUpperInvariant();
+                string resolved = FuzzyResolve(callsign, activeCallsigns);
                 return new ParsedCallsign(resolved, 2);
             }
             return null;
@@ -365,18 +365,18 @@ public static class CallsignParser
         // an English word is impossible, so we accept it regardless of activeCallsigns.
         if (IsUsGaIcaoToken(tokens[startIndex]))
         {
-            var callsign = tokens[startIndex].ToUpperInvariant();
-            var resolved = FuzzyResolve(callsign, activeCallsigns);
+            string callsign = tokens[startIndex].ToUpperInvariant();
+            string resolved = FuzzyResolve(callsign, activeCallsigns);
             return new ParsedCallsign(resolved, 1);
         }
 
         // Bare ICAO airline token (e.g. "SWA123") — only accept when it matches an active
         // callsign, because otherwise random 3-letter+digits tokens in transcripts could
         // produce false positives (e.g. pilots reading back runway + squawk sequences).
-        var leadingUpper = tokens[startIndex].ToUpperInvariant();
+        string leadingUpper = tokens[startIndex].ToUpperInvariant();
         if (TrySplitAirline(leadingUpper, out _, out _))
         {
-            foreach (var active in activeCallsigns)
+            foreach (string active in activeCallsigns)
             {
                 if (string.Equals(active, leadingUpper, StringComparison.OrdinalIgnoreCase))
                 {
@@ -386,30 +386,30 @@ public static class CallsignParser
         }
 
         // Airline: try 3-word, 2-word, 1-word telephony prefix (longest-first for greedy match).
-        for (var phraseLen = 3; phraseLen >= 1; phraseLen--)
+        for (int phraseLen = 3; phraseLen >= 1; phraseLen--)
         {
             if (startIndex + phraseLen > tokens.Count)
             {
                 continue;
             }
-            var phrase = string.Join(' ', tokens.GetRange(startIndex, phraseLen)).ToUpperInvariant();
-            if (!AirlineTelephony.TryGetIcaos(phrase, out var candidates) || candidates.Count == 0)
+            string phrase = string.Join(' ', tokens.GetRange(startIndex, phraseLen)).ToUpperInvariant();
+            if (!AirlineTelephony.TryGetIcaos(phrase, out IReadOnlyList<string>? candidates) || candidates.Count == 0)
             {
                 continue;
             }
 
             // Flight number: next token must be digits.
-            var flightTokenIdx = startIndex + phraseLen;
+            int flightTokenIdx = startIndex + phraseLen;
             if (flightTokenIdx >= tokens.Count || !IsDigitString(tokens[flightTokenIdx]))
             {
                 continue;
             }
-            var flightNumber = tokens[flightTokenIdx];
-            var consumed = phraseLen + 1;
+            string flightNumber = tokens[flightTokenIdx];
+            int consumed = phraseLen + 1;
 
             // Pick the ICAO that matches an active callsign; otherwise first.
-            var chosenIcao = candidates[0];
-            foreach (var icao in candidates)
+            string chosenIcao = candidates[0];
+            foreach (string icao in candidates)
             {
                 if (activeCallsigns.Contains(icao + flightNumber, StringComparer.OrdinalIgnoreCase))
                 {
@@ -418,8 +418,8 @@ public static class CallsignParser
                 }
             }
 
-            var callsign = chosenIcao + flightNumber;
-            var resolved = FuzzyResolve(callsign, activeCallsigns);
+            string callsign = chosenIcao + flightNumber;
+            string resolved = FuzzyResolve(callsign, activeCallsigns);
             return new ParsedCallsign(resolved, consumed);
         }
 
@@ -439,7 +439,7 @@ public static class CallsignParser
     /// </summary>
     private static string FuzzyResolve(string candidate, IReadOnlyCollection<string> activeCallsigns)
     {
-        foreach (var active in activeCallsigns)
+        foreach (string active in activeCallsigns)
         {
             if (string.Equals(active, candidate, StringComparison.OrdinalIgnoreCase))
             {
@@ -448,13 +448,13 @@ public static class CallsignParser
         }
 
         string? uniqueExtension = null;
-        foreach (var active in activeCallsigns)
+        foreach (string active in activeCallsigns)
         {
             if (!active.StartsWith(candidate, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
-            var extension = active[candidate.Length..];
+            string extension = active[candidate.Length..];
             if (extension.Length is < 1 or > 2 || !extension.All(char.IsAsciiLetter))
             {
                 continue;
@@ -497,7 +497,7 @@ public static class CallsignParser
         {
             return true;
         }
-        var rewritten = NatoNearMissResolver.TryResolveSingle(token);
+        string? rewritten = NatoNearMissResolver.TryResolveSingle(token);
         if (rewritten is not null && TryNatoToLetter(rewritten, out letter))
         {
             return true;
@@ -526,7 +526,7 @@ public static class CallsignParser
         {
             return false;
         }
-        for (var i = 2; i < token.Length; i++)
+        for (int i = 2; i < token.Length; i++)
         {
             if (!char.IsLetterOrDigit(token[i]))
             {
@@ -542,7 +542,7 @@ public static class CallsignParser
         {
             return false;
         }
-        foreach (var c in s)
+        foreach (char c in s)
         {
             if (c < '0' || c > '9')
             {
@@ -555,11 +555,11 @@ public static class CallsignParser
     private static List<string> Tokenize(string transcript)
     {
         var tokens = new List<string>();
-        var start = -1;
-        for (var i = 0; i < transcript.Length; i++)
+        int start = -1;
+        for (int i = 0; i < transcript.Length; i++)
         {
-            var c = transcript[i];
-            var isWord = char.IsLetterOrDigit(c);
+            char c = transcript[i];
+            bool isWord = char.IsLetterOrDigit(c);
             if (isWord)
             {
                 if (start == -1)

@@ -22,7 +22,7 @@ public class GeneratorsEditorRoundTripTests
     [Fact]
     public void ArrivalGenerator_WithOmittedMaxTime_RoundTripsAsUnbounded()
     {
-        var vm = Build(
+        ArrivalGeneratorsEditorViewModel vm = Build(
             arrivals:
             [
                 new ScenarioGeneratorConfig
@@ -41,7 +41,7 @@ public class GeneratorsEditorRoundTripTests
     [Fact]
     public void ArrivalGenerator_WithMaxTime_KeepsIt()
     {
-        var vm = Build(
+        ArrivalGeneratorsEditorViewModel vm = Build(
             arrivals:
             [
                 new ScenarioGeneratorConfig
@@ -61,7 +61,7 @@ public class GeneratorsEditorRoundTripTests
     [Fact]
     public void UnboundedArrivalGenerator_SerializesWithoutAMaxTimeProperty()
     {
-        var vm = Build(
+        ArrivalGeneratorsEditorViewModel vm = Build(
             arrivals:
             [
                 new ScenarioGeneratorConfig
@@ -73,7 +73,7 @@ public class GeneratorsEditorRoundTripTests
             ]
         );
 
-        var json = vm.BuildJson();
+        string json = vm.BuildJson();
 
         Assert.DoesNotContain("maxTime", json, StringComparison.Ordinal);
     }
@@ -84,7 +84,7 @@ public class GeneratorsEditorRoundTripTests
     [InlineData(false)]
     public void ActiveToggle_RoundTripsAcrossEveryGeneratorKind(bool? enabled)
     {
-        var vm = Build(
+        ArrivalGeneratorsEditorViewModel vm = Build(
             arrivals:
             [
                 new ScenarioGeneratorConfig
@@ -102,7 +102,7 @@ public class GeneratorsEditorRoundTripTests
         Assert.Equal(enabled, vm.VfrArrivalGenerators[0].Enabled);
         Assert.Equal(enabled, vm.OverflightGenerators[0].Enabled);
 
-        var payload = vm.BuildPayload();
+        GeneratorsPayload payload = vm.BuildPayload();
         Assert.Equal(enabled, payload.AircraftGenerators[0].Enabled);
         Assert.Equal(enabled, payload.VfrArrivalGenerators[0].Enabled);
         Assert.Equal(enabled, payload.OverflightGenerators[0].Enabled);
@@ -112,7 +112,7 @@ public class GeneratorsEditorRoundTripTests
     [Fact]
     public void UntouchedActiveToggle_SerializesWithoutAnEnabledProperty()
     {
-        var vm = Build(
+        ArrivalGeneratorsEditorViewModel vm = Build(
             arrivals:
             [
                 new ScenarioGeneratorConfig
@@ -130,7 +130,7 @@ public class GeneratorsEditorRoundTripTests
     [Fact]
     public void BuildJson_EmitsAllThreeGeneratorArrays()
     {
-        var vm = Build(
+        ArrivalGeneratorsEditorViewModel vm = Build(
             arrivals: [new ScenarioGeneratorConfig { Id = "ifr", Runway = "28R" }],
             vfrArrivals:
             [
@@ -144,15 +144,15 @@ public class GeneratorsEditorRoundTripTests
             overflights: [new OverflightGeneratorConfig { Id = "of", ExitDistance = 30 }]
         );
 
-        var payload = JsonSerializer.Deserialize<GeneratorsPayload>(vm.BuildJson());
+        GeneratorsPayload? payload = JsonSerializer.Deserialize<GeneratorsPayload>(vm.BuildJson());
 
         Assert.NotNull(payload);
         Assert.Equal("ifr", Assert.Single(payload.AircraftGenerators).Id);
-        var vfr = Assert.Single(payload.VfrArrivalGenerators);
+        VfrArrivalGeneratorConfig vfr = Assert.Single(payload.VfrArrivalGenerators);
         Assert.Equal("vfr", vfr.Id);
         Assert.Equal(120, vfr.BearingFrom);
         Assert.Equal(200, vfr.BearingTo);
-        var overflight = Assert.Single(payload.OverflightGenerators);
+        OverflightGeneratorConfig overflight = Assert.Single(payload.OverflightGenerators);
         Assert.Equal("of", overflight.Id);
         Assert.Equal(30, overflight.ExitDistance);
         Assert.True(overflight.SnapHemisphericAltitude);
@@ -161,7 +161,7 @@ public class GeneratorsEditorRoundTripTests
     [Fact]
     public void Revert_RestoresEveryGeneratorKind()
     {
-        var vm = Build(
+        ArrivalGeneratorsEditorViewModel vm = Build(
             arrivals: [new ScenarioGeneratorConfig { Id = "ifr", Runway = "28R" }],
             vfrArrivals: [new VfrArrivalGeneratorConfig { Id = "vfr" }],
             overflights: [new OverflightGeneratorConfig { Id = "of" }]

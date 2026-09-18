@@ -76,7 +76,7 @@ public partial class GeneratorRowViewModel : ObservableObject
     {
         get
         {
-            var rwy = string.IsNullOrEmpty(Runway) ? "?" : Runway;
+            string rwy = string.IsNullOrEmpty(Runway) ? "?" : Runway;
             return $"{rwy} · {EngineType} {WeightCategory} · {IntervalTime}s";
         }
     }

@@ -41,7 +41,7 @@ public class AtpaVolumeGeometryHeadingTests
         }
 
         // IAH 8R true heading is 89.95 deg; the resolver must return that, not the rounded magnetic 88.
-        var heading = AtpaVolumeGeometry.VolumeTrueHeadingDeg(IahVolume());
+        double heading = AtpaVolumeGeometry.VolumeTrueHeadingDeg(IahVolume());
         Assert.Equal(90.0, heading, precision: 0);
         Assert.NotEqual(88.0, heading, precision: 1);
     }
@@ -54,7 +54,7 @@ public class AtpaVolumeGeometryHeadingTests
             return;
         }
 
-        var volume = IahVolume();
+        AtpaVolumeConfig volume = IahVolume();
         var approachCourse = new TrueHeading(AtpaVolumeGeometry.VolumeTrueHeadingDeg(volume));
         var outbound = new TrueHeading((approachCourse.Degrees + 180.0) % 360.0);
         var threshold = new LatLon(volume.RunwayThreshold.Lat, volume.RunwayThreshold.Lon);

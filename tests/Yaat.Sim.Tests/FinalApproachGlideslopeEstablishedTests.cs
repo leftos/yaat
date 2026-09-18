@@ -23,7 +23,7 @@ public class FinalApproachGlideslopeEstablishedTests
         bool forcedInterceptCapture = false
     )
     {
-        var rwy = TestRunwayFactory.Make(
+        RunwayInfo rwy = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "OAK",
             thresholdLat: 37.72,
@@ -36,9 +36,9 @@ public class FinalApproachGlideslopeEstablishedTests
         double gsAlt = GlideSlopeGeometry.AltitudeAtDistance(distNm, 9, AircraftCategory.Jet);
         double startAlt = gsAlt + 200; // above the GS: capture → descend, hold → stays high
 
-        var reciprocal = rwy.TrueHeading.ToReciprocal();
-        var onCenter = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, distNm);
-        var posCoord =
+        TrueHeading reciprocal = rwy.TrueHeading.ToReciprocal();
+        (double Lat, double Lon) onCenter = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, distNm);
+        (double Lat, double Lon) posCoord =
             lateralOffsetNm == 0
                 ? onCenter
                 : GeoMath.ProjectPoint(onCenter.Lat, onCenter.Lon, new TrueHeading(rwy.TrueHeading.Degrees + 90), lateralOffsetNm);
@@ -98,7 +98,7 @@ public class FinalApproachGlideslopeEstablishedTests
     [Fact]
     public void OffCourseHeading_AtGsAltitude_DoesNotCaptureGlideslope()
     {
-        var (phase, ctx) = Setup(headingOffsetDeg: 20, lateralOffsetNm: 0, captureAngleDeg: 20);
+        (FinalApproachPhase? phase, PhaseContext? ctx) = Setup(headingOffsetDeg: 20, lateralOffsetNm: 0, captureAngleDeg: 20);
 
         phase.OnTick(ctx);
 
@@ -108,7 +108,7 @@ public class FinalApproachGlideslopeEstablishedTests
     [Fact]
     public void LaterallyDisplaced_AtGsAltitude_DoesNotCaptureGlideslope()
     {
-        var (phase, ctx) = Setup(headingOffsetDeg: 0, lateralOffsetNm: 0.3, captureAngleDeg: 20);
+        (FinalApproachPhase? phase, PhaseContext? ctx) = Setup(headingOffsetDeg: 0, lateralOffsetNm: 0.3, captureAngleDeg: 20);
 
         phase.OnTick(ctx);
 
@@ -118,7 +118,7 @@ public class FinalApproachGlideslopeEstablishedTests
     [Fact]
     public void Established_AtGsAltitude_CapturesGlideslope()
     {
-        var (phase, ctx) = Setup(headingOffsetDeg: 0, lateralOffsetNm: 0, captureAngleDeg: 20);
+        (FinalApproachPhase? phase, PhaseContext? ctx) = Setup(headingOffsetDeg: 0, lateralOffsetNm: 0, captureAngleDeg: 20);
 
         phase.OnTick(ctx);
 
@@ -130,7 +130,12 @@ public class FinalApproachGlideslopeEstablishedTests
     {
         // A PTACF forced intercept (ForcedInterceptCapture, capture angle > 30°) S-turns back and
         // bypasses the lateral GS gate. A relaxed JFAC/JLOC join at the same steep angle would not.
-        var (phase, ctx) = Setup(headingOffsetDeg: 20, lateralOffsetNm: 0, captureAngleDeg: 45, forcedInterceptCapture: true);
+        (FinalApproachPhase? phase, PhaseContext? ctx) = Setup(
+            headingOffsetDeg: 20,
+            lateralOffsetNm: 0,
+            captureAngleDeg: 45,
+            forcedInterceptCapture: true
+        );
 
         phase.OnTick(ctx);
 
@@ -142,7 +147,12 @@ public class FinalApproachGlideslopeEstablishedTests
     {
         // A relaxed JFAC/JLOC join can capture at a steep cut too, but unlike a PTACF it must hold
         // its altitude until laterally established — it does not bypass the GS gate.
-        var (phase, ctx) = Setup(headingOffsetDeg: 20, lateralOffsetNm: 0, captureAngleDeg: 45, forcedInterceptCapture: false);
+        (FinalApproachPhase? phase, PhaseContext? ctx) = Setup(
+            headingOffsetDeg: 20,
+            lateralOffsetNm: 0,
+            captureAngleDeg: 45,
+            forcedInterceptCapture: false
+        );
 
         phase.OnTick(ctx);
 
@@ -152,7 +162,7 @@ public class FinalApproachGlideslopeEstablishedTests
     [Fact]
     public void VisualApproach_OffCourse_BypassesGate_CapturesGlideslope()
     {
-        var (phase, ctx) = Setup(headingOffsetDeg: 20, lateralOffsetNm: 0, captureAngleDeg: 20, approachId: "VIS28R");
+        (FinalApproachPhase? phase, PhaseContext? ctx) = Setup(headingOffsetDeg: 20, lateralOffsetNm: 0, captureAngleDeg: 20, approachId: "VIS28R");
 
         phase.OnTick(ctx);
 

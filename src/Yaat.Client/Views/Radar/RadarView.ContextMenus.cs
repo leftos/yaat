@@ -15,6 +15,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Mva;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -30,7 +31,7 @@ public partial class RadarView
             return;
         }
 
-        var ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        AircraftModel? ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
         if (ac is not null)
         {
             vm.SelectedAircraft = ac;
@@ -39,13 +40,13 @@ public partial class RadarView
 
     private void OnAircraftCtrlClicked(string callsign)
     {
-        var mainVm = FindMainViewModel();
+        MainViewModel? mainVm = FindMainViewModel();
         if (mainVm is null)
         {
             return;
         }
 
-        var ac = mainVm.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        AircraftModel? ac = mainVm.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
         if (ac is not null)
         {
             FlightPlanEditorManager.Open(ac, mainVm);
@@ -67,23 +68,23 @@ public partial class RadarView
             return;
         }
 
-        var ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        AircraftModel? ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
 
         // Keep the previously-selected aircraft as the command recipient when the
         // controller right-clicks a DIFFERENT aircraft, so selected→right-clicked
         // relative actions (RTIS / FOLLOW) target the selected aircraft. Only adopt
         // the right-clicked aircraft as the selection when nothing was selected or
         // the same aircraft was re-clicked. Left-click remains the way to change selection.
-        var prevSelected = vm.SelectedAircraft;
+        AircraftModel? prevSelected = vm.SelectedAircraft;
         if (ac is not null && (prevSelected is null || string.Equals(prevSelected.Callsign, callsign, StringComparison.OrdinalIgnoreCase)))
         {
             vm.SelectedAircraft = ac;
         }
 
-        var initials = GetInitials();
+        string initials = GetInitials();
         var menu = new ContextMenu();
 
-        var typeText = ac is not null ? $"{callsign} - {ac.DisplayAircraftType}" : callsign;
+        string typeText = ac is not null ? $"{callsign} - {ac.DisplayAircraftType}" : callsign;
         menu.Items.Add(
             new MenuItem
             {
@@ -94,12 +95,12 @@ public partial class RadarView
         );
         if (ac is not null)
         {
-            var routeItem = BuildRouteSummaryItem(ac);
+            MenuItem? routeItem = BuildRouteSummaryItem(ac);
             if (routeItem is not null)
             {
                 menu.Items.Add(routeItem);
             }
-            var holdItem = BuildHoldStatusItem(ac);
+            MenuItem? holdItem = BuildHoldStatusItem(ac);
             if (holdItem is not null)
             {
                 menu.Items.Add(holdItem);
@@ -121,7 +122,7 @@ public partial class RadarView
                 () =>
                 {
                     // Free-text: the RPO types arbitrary canonical, so it goes through the VFR gate like typed input.
-                    var mainVm = FindMainViewModel();
+                    MainViewModel? mainVm = FindMainViewModel();
                     CommandFlyout.Open(
                         _canvas!,
                         callsign,
@@ -161,9 +162,9 @@ public partial class RadarView
 
         AddRelativeTrafficItems(menu, vm, prevSelected, callsign, initials);
 
-        var profile = ContextMenuProfileService.GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false);
+        ContextMenuProfile profile = ContextMenuProfileService.GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false);
 
-        foreach (var group in profile.PrimaryGroups)
+        foreach (MenuGroup group in profile.PrimaryGroups)
         {
             AddMenuGroup(menu, group, vm, callsign, initials, ac);
         }
@@ -173,7 +174,7 @@ public partial class RadarView
             menu.Items.Add(new Separator());
         }
 
-        foreach (var group in profile.SecondaryGroups)
+        foreach (MenuGroup group in profile.SecondaryGroups)
         {
             AddMenuGroup(menu, group, vm, callsign, initials, ac);
         }
@@ -209,7 +210,7 @@ public partial class RadarView
             return;
         }
 
-        var a = selected!.Callsign;
+        string a = selected!.Callsign;
         menu.Items.Add(
             new MenuItem
             {
@@ -234,8 +235,8 @@ public partial class RadarView
         }
 
         var fixes = new List<string>();
-        var started = string.IsNullOrEmpty(ac.NavigatingTo);
-        foreach (var fix in ac.NavigationRoute)
+        bool started = string.IsNullOrEmpty(ac.NavigatingTo);
+        foreach (string fix in ac.NavigationRoute)
         {
             if (!started && fix == ac.NavigatingTo)
             {
@@ -254,8 +255,8 @@ public partial class RadarView
         }
 
         const int maxDisplay = 5;
-        var displayFixes = fixes.Count > maxDisplay ? string.Join(" ", fixes.Take(maxDisplay)) + " ..." : string.Join(" ", fixes);
-        var fullRoute = string.Join(" ", fixes);
+        string displayFixes = fixes.Count > maxDisplay ? string.Join(" ", fixes.Take(maxDisplay)) + " ..." : string.Join(" ", fixes);
+        string fullRoute = string.Join(" ", fixes);
 
         var item = new MenuItem
         {
@@ -283,7 +284,7 @@ public partial class RadarView
             return null;
         }
 
-        var header = ac.HoldKind switch
+        string header = ac.HoldKind switch
         {
             "GiveWay" when !string.IsNullOrEmpty(ac.HoldYieldTarget) => $"Yielding to: {ac.HoldYieldTarget}",
             "HoldPosition" => "Held: position",
@@ -305,7 +306,7 @@ public partial class RadarView
 
     private MenuItem BuildHeadingSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        var hdgLabel = "Heading";
+        string hdgLabel = "Heading";
         if (ac is not null)
         {
             if (!string.IsNullOrEmpty(ac.NavigatingTo))
@@ -321,8 +322,8 @@ public partial class RadarView
         var menu = new MenuItem { Header = hdgLabel };
         menu.Items.Add(CreateMenuItem("Present heading", () => vm.PresentHeadingAsync(cs, init)));
 
-        var headings = BuildHeadingList();
-        var currentHdg = ac is not null ? (int)(Math.Round(ac.Heading.Degrees / 5.0) * 5) : 360;
+        IReadOnlyList<object> headings = BuildHeadingList();
+        int currentHdg = ac is not null ? (int)(Math.Round(ac.Heading.Degrees / 5.0) * 5) : 360;
         if (currentHdg <= 0)
         {
             currentHdg = 360;
@@ -332,7 +333,7 @@ public partial class RadarView
         menu.Items.Add(CreateListMenuItem("Turn left", headings, currentHdg, val => vm.TurnLeftAsync(cs, init, (int)val)));
         menu.Items.Add(CreateListMenuItem("Turn right", headings, currentHdg, val => vm.TurnRightAsync(cs, init, (int)val)));
 
-        var relativeDegrees = BuildRelativeTurnList();
+        IReadOnlyList<object> relativeDegrees = BuildRelativeTurnList();
         menu.Items.Add(CreateListMenuItem("Turn left (degrees)", relativeDegrees, 30, val => vm.RelativeLeftAsync(cs, init, (int)val)));
         menu.Items.Add(CreateListMenuItem("Turn right (degrees)", relativeDegrees, 30, val => vm.RelativeRightAsync(cs, init, (int)val)));
 
@@ -341,17 +342,17 @@ public partial class RadarView
 
     private MenuItem BuildAltitudeSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        var altLabel = "Altitude";
+        string altLabel = "Altitude";
         if (ac?.AssignedAltitude is not null)
         {
             altLabel = $"Altitude (\u2192 {FormatAltitude((int)ac.AssignedAltitude.Value)})";
         }
 
         var menu = new MenuItem { Header = altLabel };
-        var currentAlt = (int)(ac?.Altitude ?? 0);
-        var fieldElev = vm.GetFieldElevation(ac?.Destination);
+        int currentAlt = (int)(ac?.Altitude ?? 0);
+        double fieldElev = vm.GetFieldElevation(ac?.Destination);
 
-        var altitudes = BuildFullAltitudeList(fieldElev);
+        IReadOnlyList<object> altitudes = BuildFullAltitudeList(fieldElev);
         if (altitudes.Count > 0)
         {
             menu.Items.Add(
@@ -361,7 +362,7 @@ public partial class RadarView
                     currentAlt,
                     val =>
                     {
-                        var selected = (int)val;
+                        int selected = (int)val;
                         return selected > currentAlt ? vm.ClimbAndMaintainAsync(cs, init, selected) : vm.DescendAndMaintainAsync(cs, init, selected);
                     },
                     FormatAltitude
@@ -374,7 +375,7 @@ public partial class RadarView
 
     private MenuItem BuildSpeedSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        var spdLabel = "Speed";
+        string spdLabel = "Speed";
         if (ac?.AssignedSpeed is not null && ac.AssignedSpeed.Value > 0)
         {
             spdLabel = $"Speed (\u2192 {ac.AssignedSpeed.Value:F0})";
@@ -382,8 +383,8 @@ public partial class RadarView
 
         var menu = new MenuItem { Header = spdLabel };
 
-        var speeds = BuildSpeedListForAircraft(ac);
-        var currentSpd =
+        IReadOnlyList<object> speeds = BuildSpeedListForAircraft(ac);
+        int currentSpd =
             ac?.AssignedSpeed is not null && ac.AssignedSpeed.Value > 0
                 ? (int)(Math.Round(ac.AssignedSpeed.Value / 10.0) * 10)
                 : (int)((IList<object>)speeds)[speeds.Count / 2];
@@ -401,9 +402,9 @@ public partial class RadarView
             return BuildSpeedList();
         }
 
-        var type = ac.FiledAircraftType;
-        var cat = Yaat.Sim.AircraftCategorization.Categorize(type);
-        var alt = Math.Max(ac.Altitude, 0);
+        string type = ac.FiledAircraftType;
+        AircraftCategory cat = Yaat.Sim.AircraftCategorization.Categorize(type);
+        double alt = Math.Max(ac.Altitude, 0);
 
         double approach = Yaat.Sim.AircraftPerformance.ApproachSpeed(type, cat);
         double climb = Yaat.Sim.AircraftPerformance.ClimbSpeed(type, cat, alt);
@@ -438,14 +439,14 @@ public partial class RadarView
             return "FAS";
         }
 
-        var category = Yaat.Sim.AircraftCategorization.Categorize(ac.FiledAircraftType);
-        var fas = Yaat.Sim.AircraftPerformance.ApproachSpeed(ac.FiledAircraftType, category);
+        AircraftCategory category = Yaat.Sim.AircraftCategorization.Categorize(ac.FiledAircraftType);
+        double fas = Yaat.Sim.AircraftPerformance.ApproachSpeed(ac.FiledAircraftType, category);
         return fas > 0 ? $"FAS - {fas:F0} kt" : "FAS";
     }
 
     private MenuItem BuildNavigationSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        var navLabel = "Navigation";
+        string navLabel = "Navigation";
         if (ac is not null && !string.IsNullOrEmpty(ac.NavigatingTo))
         {
             navLabel = $"Navigation (\u2192 {ac.NavigatingTo})";
@@ -453,7 +454,7 @@ public partial class RadarView
 
         var menu = new MenuItem { Header = navLabel };
 
-        var routeFixes = ac is not null ? BuildRouteFixList(ac) : [];
+        IReadOnlyList<object> routeFixes = ac is not null ? BuildRouteFixList(ac) : [];
         if (vm.FixNames is not null)
         {
             menu.Items.Add(
@@ -592,14 +593,14 @@ public partial class RadarView
         var warpItem = new MenuItem { Header = "Warp..." };
         warpItem.Click += (_, _) =>
         {
-            var hdg = ac is not null ? (int)Math.Round(ac.Heading.Degrees) : 0;
+            int hdg = ac is not null ? (int)Math.Round(ac.Heading.Degrees) : 0;
             if (hdg <= 0)
             {
                 hdg = 360;
             }
 
-            var alt = ac is not null ? (int)Math.Round(ac.Altitude) : 0;
-            var spd = ac is not null ? (int)Math.Round(ac.IndicatedAirspeed) : 0;
+            int alt = ac is not null ? (int)Math.Round(ac.Altitude) : 0;
+            int spd = ac is not null ? (int)Math.Round(ac.IndicatedAirspeed) : 0;
             Dispatcher.UIThread.Post(() => ShowWarpPopup(cs, "", hdg, alt, spd, (frd, h, a, s) => _ = vm.WarpAsync(cs, init, frd, h, a, s)));
         };
         menu.Items.Add(warpItem);
@@ -610,7 +611,7 @@ public partial class RadarView
     private MenuItem BuildDisplaySubmenu(RadarViewModel vm, string callsign)
     {
         var menu = new MenuItem { Header = "Display" };
-        var isMinified = _canvas?.IsMinified(callsign) ?? false;
+        bool isMinified = _canvas?.IsMinified(callsign) ?? false;
         menu.Items.Add(
             CreateMenuItem(
                 isMinified ? "Full datablock" : "Mini datablock",
@@ -634,7 +635,7 @@ public partial class RadarView
                 )
             );
         }
-        var isPathShown = vm.IsPathShown(callsign);
+        bool isPathShown = vm.IsPathShown(callsign);
         menu.Items.Add(
             new MenuItem { Header = isPathShown ? "Hide nav route" : "Show nav route", Command = new RelayCommand(() => vm.ToggleShowPath(callsign)) }
         );
@@ -642,7 +643,7 @@ public partial class RadarView
         // Latching the measurement to the aircraft, so the line follows it (CRC STARS *T on a track).
         if (vm.Measure is { } measure)
         {
-            var header = measure.Anchor is null ? $"Measure from {callsign}" : $"Measure to {callsign}";
+            string header = measure.Anchor is null ? $"Measure from {callsign}" : $"Measure to {callsign}";
             menu.Items.Add(
                 CreateMenuItem(
                     header,
@@ -657,8 +658,8 @@ public partial class RadarView
         var ldr = new MenuItem { Header = "Leader direction" };
         for (int d = 1; d <= 9; d++)
         {
-            var direction = d;
-            var label = direction == 5 ? "5 (default)" : direction.ToString();
+            int direction = d;
+            string label = direction == 5 ? "5 (default)" : direction.ToString();
             ldr.Items.Add(CreateMenuItem(label, () => vm.LeaderDirectionAsync(callsign, GetInitials(), direction)));
         }
 
@@ -666,9 +667,9 @@ public partial class RadarView
 
         var jring = new MenuItem { Header = "J-ring" };
         jring.Items.Add(CreateMenuItem("Clear", () => vm.JRingAsync(callsign, GetInitials(), null)));
-        foreach (var r in new[] { 1.0, 2.0, 3.0, 5.0, 10.0 })
+        foreach (double r in new[] { 1.0, 2.0, 3.0, 5.0, 10.0 })
         {
-            var radius = r;
+            double radius = r;
             jring.Items.Add(CreateMenuItem($"{radius:0} nm", () => vm.JRingAsync(callsign, GetInitials(), radius)));
         }
 
@@ -676,9 +677,9 @@ public partial class RadarView
 
         var cone = new MenuItem { Header = "Cone" };
         cone.Items.Add(CreateMenuItem("Clear", () => vm.ConeAsync(callsign, GetInitials(), null)));
-        foreach (var l in new[] { 1.0, 2.0, 3.0, 5.0, 10.0 })
+        foreach (double l in new[] { 1.0, 2.0, 3.0, 5.0, 10.0 })
         {
-            var length = l;
+            double length = l;
             cone.Items.Add(CreateMenuItem($"{length:0} nm", () => vm.ConeAsync(callsign, GetInitials(), length)));
         }
 
@@ -691,7 +692,7 @@ public partial class RadarView
 
     private MenuItem BuildApproachSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        var apchLabel = "Approach";
+        string apchLabel = "Approach";
         if (ac is not null)
         {
             if (!string.IsNullOrEmpty(ac.ActiveApproachId))
@@ -709,7 +710,7 @@ public partial class RadarView
         IReadOnlyList<CifpApproachProcedure>? approaches = null;
         if (ac is not null && !string.IsNullOrEmpty(ac.Destination))
         {
-            var fromDb = NavigationDatabase.Instance.GetApproaches(ac.Destination);
+            IReadOnlyList<CifpApproachProcedure> fromDb = NavigationDatabase.Instance.GetApproaches(ac.Destination);
             if (fromDb.Count > 0)
             {
                 approaches = fromDb;
@@ -790,8 +791,8 @@ public partial class RadarView
         IReadOnlyList<CifpApproachProcedure>? approaches
     )
     {
-        var defaultRunway = TryGetSmartRunway(ac, approaches);
-        var runways = ac is not null && !string.IsNullOrEmpty(ac.Destination) ? GetRunwayDesignators(ac.Destination) : [];
+        string? defaultRunway = TryGetSmartRunway(ac, approaches);
+        IReadOnlyList<string> runways = ac is not null && !string.IsNullOrEmpty(ac.Destination) ? GetRunwayDesignators(ac.Destination) : [];
 
         if (defaultRunway is not null)
         {
@@ -805,7 +806,7 @@ public partial class RadarView
 
         if (runways.Count > 0)
         {
-            var label = defaultRunway is not null ? "Cleared visual approach (other)..." : "Cleared visual approach...";
+            string label = defaultRunway is not null ? "Cleared visual approach (other)..." : "Cleared visual approach...";
             var items = runways.Cast<object>().ToList();
             menu.Items.Add(CreateListMenuItem(label, items, items[0], val => vm.ClearedVisualApproachAsync(cs, init, (string)val)));
         }
@@ -836,7 +837,9 @@ public partial class RadarView
 
         if (!string.IsNullOrEmpty(ac.ActiveApproachId))
         {
-            var rwy = approaches.FirstOrDefault(a => string.Equals(a.ApproachId, ac.ActiveApproachId, StringComparison.OrdinalIgnoreCase))?.Runway;
+            string? rwy = approaches
+                .FirstOrDefault(a => string.Equals(a.ApproachId, ac.ActiveApproachId, StringComparison.OrdinalIgnoreCase))
+                ?.Runway;
             if (!string.IsNullOrEmpty(rwy))
             {
                 return rwy;
@@ -845,7 +848,9 @@ public partial class RadarView
 
         if (!string.IsNullOrEmpty(ac.ExpectedApproach))
         {
-            var rwy = approaches.FirstOrDefault(a => string.Equals(a.ApproachId, ac.ExpectedApproach, StringComparison.OrdinalIgnoreCase))?.Runway;
+            string? rwy = approaches
+                .FirstOrDefault(a => string.Equals(a.ApproachId, ac.ExpectedApproach, StringComparison.OrdinalIgnoreCase))
+                ?.Runway;
             if (!string.IsNullOrEmpty(rwy))
             {
                 return rwy;
@@ -857,8 +862,8 @@ public partial class RadarView
 
     private void AddJoinStarItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        var defaultStar = TryGetFiledStar(ac);
-        var starIds = ac is not null && !string.IsNullOrEmpty(ac.Destination) ? GetStarIds(ac.Destination) : [];
+        string? defaultStar = TryGetFiledStar(ac);
+        IReadOnlyList<string> starIds = ac is not null && !string.IsNullOrEmpty(ac.Destination) ? GetStarIds(ac.Destination) : [];
 
         if (defaultStar is not null)
         {
@@ -867,7 +872,7 @@ public partial class RadarView
 
         if (starIds.Count > 0)
         {
-            var label = defaultStar is not null ? "Join STAR (other)..." : "Join STAR...";
+            string label = defaultStar is not null ? "Join STAR (other)..." : "Join STAR...";
             var items = starIds.Cast<object>().ToList();
             menu.Items.Add(CreateListMenuItem(label, items, items[0], val => vm.JoinStarAsync(cs, init, (string)val)));
         }
@@ -884,16 +889,16 @@ public partial class RadarView
             return null;
         }
 
-        var tokens = ac.Route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries);
-        foreach (var token in tokens)
+        string[] tokens = ac.Route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries);
+        foreach (string token in tokens)
         {
-            var trimmed = token.Trim();
+            string trimmed = token.Trim();
             if (trimmed.Length == 0)
             {
                 continue;
             }
 
-            var star = NavigationDatabase.Instance.GetStar(ac.Destination, trimmed);
+            CifpStarProcedure? star = NavigationDatabase.Instance.GetStar(ac.Destination, trimmed);
             if (star is not null)
             {
                 return star.ProcedureId;
@@ -905,14 +910,14 @@ public partial class RadarView
 
     private static IReadOnlyList<string> GetStarIds(string airportCode)
     {
-        var stars = NavigationDatabase.Instance.GetStars(airportCode);
+        IReadOnlyList<CifpStarProcedure> stars = NavigationDatabase.Instance.GetStars(airportCode);
         if (stars.Count == 0)
         {
             return [];
         }
 
         var ids = new List<string>(stars.Count);
-        foreach (var s in stars)
+        foreach (CifpStarProcedure s in stars)
         {
             ids.Add(s.ProcedureId);
         }
@@ -923,7 +928,7 @@ public partial class RadarView
 
     private static IReadOnlyList<string> GetRunwayDesignators(string airportCode)
     {
-        var runways = NavigationDatabase.Instance.GetRunways(airportCode);
+        IReadOnlyList<RunwayInfo> runways = NavigationDatabase.Instance.GetRunways(airportCode);
         if (runways.Count == 0)
         {
             return [];
@@ -931,7 +936,7 @@ public partial class RadarView
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var result = new List<string>();
-        foreach (var rwy in runways)
+        foreach (RunwayInfo rwy in runways)
         {
             // De-pad for the picker labels (FAA form). The selected value is re-normalized
             // server-side, so the command still resolves the runway. Dedup on the canonical
@@ -965,9 +970,9 @@ public partial class RadarView
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var result = new List<string>();
-        foreach (var token in ac.Route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries))
+        foreach (string token in ac.Route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries))
         {
-            var trimmed = token.Trim();
+            string trimmed = token.Trim();
             if (trimmed.Length == 0)
             {
                 continue;
@@ -984,11 +989,11 @@ public partial class RadarView
 
     private void AddJoinAirwayItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        var filed = GetFiledAirways(ac);
+        IReadOnlyList<string> filed = GetFiledAirways(ac);
 
         if (filed.Count == 1)
         {
-            var only = filed[0];
+            string only = filed[0];
             menu.Items.Add(CreateMenuItem($"Join airway {only}", () => vm.JoinAirwayAsync(cs, init, only)));
             menu.Items.Add(CreateInputMenuItem("Join airway (other)...", "Airway ID", input => vm.JoinAirwayAsync(cs, init, input)));
             return;
@@ -1014,11 +1019,11 @@ public partial class RadarView
 
     private void AddRouteFixItem(MenuItem menu, string label, AircraftModel? ac, Func<string, Task> dispatch)
     {
-        var fixes = GetRouteFixes(ac);
+        IReadOnlyList<string> fixes = GetRouteFixes(ac);
 
         if (fixes.Count == 1)
         {
-            var only = fixes[0];
+            string only = fixes[0];
             menu.Items.Add(CreateMenuItem($"{label} {only}", () => dispatch(only)));
             menu.Items.Add(CreateInputMenuItem($"{label} (other)...", "Fix name", input => dispatch(input)));
             return;
@@ -1101,7 +1106,7 @@ public partial class RadarView
     internal MenuItem? BuildTowerSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
         var menu = new MenuItem { Header = "Tower" };
-        var rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
+        string rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
 
         // Departures
         if (AircraftCommandApplicability.CanLineUpAndWait(ac))
@@ -1118,9 +1123,9 @@ public partial class RadarView
         }
 
         // Arrivals / pattern landing
-        var canLand = AircraftCommandApplicability.CanClearToLand(ac);
-        var canGoAround = AircraftCommandApplicability.CanGoAround(ac);
-        var canCancelLanding = AircraftCommandApplicability.CanCancelLandingClearance(ac);
+        bool canLand = AircraftCommandApplicability.CanClearToLand(ac);
+        bool canGoAround = AircraftCommandApplicability.CanGoAround(ac);
+        bool canCancelLanding = AircraftCommandApplicability.CanCancelLandingClearance(ac);
         if (canLand || canGoAround || canCancelLanding)
         {
             AddSeparatorIfNonEmpty(menu);
@@ -1245,14 +1250,14 @@ public partial class RadarView
                 menu.Items.Add(BuildProceduresSubmenu(vm, cs, init, ac));
                 break;
             case MenuGroup.Tower:
-                var tower = BuildTowerSubmenu(vm, cs, init, ac);
+                MenuItem? tower = BuildTowerSubmenu(vm, cs, init, ac);
                 if (tower is not null)
                 {
                     menu.Items.Add(tower);
                 }
                 break;
             case MenuGroup.Pattern:
-                var pattern = BuildPatternSubmenu(vm, cs, init, ac);
+                MenuItem? pattern = BuildPatternSubmenu(vm, cs, init, ac);
                 if (pattern is not null)
                 {
                     menu.Items.Add(pattern);
@@ -1270,7 +1275,7 @@ public partial class RadarView
     /// </summary>
     internal MenuItem? BuildPatternSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        var mode = VfrCommandsForIfrMode();
+        VfrCommandsForIfr mode = VfrCommandsForIfrMode();
         var menu = new MenuItem { Header = "Pattern" };
         AddPatternEntryItems(menu, vm, cs, init, ac, mode);
         AddPatternManeuverItems(menu, vm, cs, init, ac, mode);
@@ -1285,7 +1290,7 @@ public partial class RadarView
             return;
         }
 
-        var phase = ac?.CurrentPhase ?? "";
+        string phase = ac?.CurrentPhase ?? "";
 
         // Leg turns — each valid only from the preceding leg
         var turns = new List<MenuItem>();
@@ -1347,7 +1352,7 @@ public partial class RadarView
         }
 
         AddSeparatorIfNonEmpty(menu);
-        foreach (var item in items)
+        foreach (MenuItem item in items)
         {
             menu.Items.Add(item);
         }
@@ -1362,9 +1367,9 @@ public partial class RadarView
             return;
         }
 
-        var runwayAirport = ac is not null ? (!string.IsNullOrEmpty(ac.Destination) ? ac.Destination : ac.Departure) : null;
-        var runways = !string.IsNullOrEmpty(runwayAirport) ? GetRunwayDesignators(runwayAirport) : [];
-        var defaultRunway = !string.IsNullOrEmpty(ac?.AssignedRunway) ? ac.AssignedRunway : null;
+        string? runwayAirport = ac is not null ? (!string.IsNullOrEmpty(ac.Destination) ? ac.Destination : ac.Departure) : null;
+        IReadOnlyList<string> runways = !string.IsNullOrEmpty(runwayAirport) ? GetRunwayDesignators(runwayAirport) : [];
+        string? defaultRunway = !string.IsNullOrEmpty(ac?.AssignedRunway) ? ac.AssignedRunway : null;
 
         if (circuitLegs)
         {
@@ -1389,7 +1394,7 @@ public partial class RadarView
 
         if (runways.Count > 0)
         {
-            var label = defaultRunway is not null ? $"{baseLabel} (other)..." : $"{baseLabel}...";
+            string label = defaultRunway is not null ? $"{baseLabel} (other)..." : $"{baseLabel}...";
             var items = runways.Cast<object>().ToList();
             menu.Items.Add(CreateListMenuItem(label, items, items[0], val => action((string)val)));
         }
@@ -1427,13 +1432,13 @@ public partial class RadarView
                     FontWeight = Avalonia.Media.FontWeight.Bold,
                 }
             );
-            var frd = frdString;
+            string frd = frdString;
             menu.Items.Add(
                 CreateMenuItem(
                     "Copy FRD",
                     async () =>
                     {
-                        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+                        IClipboard? clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
                         if (clipboard is not null)
                         {
                             await clipboard.SetTextAsync(frd);
@@ -1443,7 +1448,7 @@ public partial class RadarView
             );
 
             // Scope-marker pins (CRC ".ff"/".marker"). Pick radius scales with the current range.
-            var pickNm = Math.Max(0.5, vm.RangeNm * 0.04);
+            double pickNm = Math.Max(0.5, vm.RangeNm * 0.04);
             var clickPos = new LatLon(lat, lon);
             bool nearPin = vm.PinnedMarkers is { } pins && pins.Any(m => GeoMath.DistanceNm(clickPos, new LatLon(m.Lat, m.Lon)) <= pickNm);
 
@@ -1463,7 +1468,7 @@ public partial class RadarView
         AddMeasureMenuItems(menu, vm, RblEndpoint.AtPoint(new LatLon(lat, lon), frdString ?? ""), screenPos);
 
         // MVA at the clicked point (FAA-charted; only the loaded facility's coverage, null elsewhere).
-        var mvaSector = MvaDatabase.Default.FindSector(new LatLon(lat, lon));
+        MvaSector? mvaSector = MvaDatabase.Default.FindSector(new LatLon(lat, lon));
         menu.Items.Add(
             new MenuItem
             {
@@ -1475,10 +1480,10 @@ public partial class RadarView
 
         if (vm.SelectedAircraft is not null)
         {
-            var callsign = vm.SelectedAircraft.Callsign;
-            var initials = GetInitials();
+            string callsign = vm.SelectedAircraft.Callsign;
+            string initials = GetInitials();
 
-            var heading = (int)(Math.Round(GeoMath.BearingTo(vm.SelectedAircraft.Position, new LatLon(lat, lon)) / 5.0) * 5);
+            int heading = (int)(Math.Round(GeoMath.BearingTo(vm.SelectedAircraft.Position, new LatLon(lat, lon)) / 5.0) * 5);
             if (heading <= 0)
             {
                 heading = 360;
@@ -1490,21 +1495,21 @@ public partial class RadarView
 
             if (frdString is not null)
             {
-                var target = frdString;
+                string target = frdString;
                 menu.Items.Add(CreateMenuItem($"Direct to {target}", () => vm.DirectToAsync(callsign, initials, target)));
                 menu.Items.Add(CreateMenuItem($"Append direct to {target}", () => vm.AppendDirectToAsync(callsign, initials, target)));
                 menu.Items.Add(CreateMenuItem($"Hold at {target} (left)", () => vm.HoldAtFixLeftAsync(callsign, initials, target)));
                 menu.Items.Add(CreateMenuItem($"Hold at {target} (right)", () => vm.HoldAtFixRightAsync(callsign, initials, target)));
 
-                var warpFrd = target;
-                var warpHdg = (int)Math.Round(vm.SelectedAircraft.Heading.Degrees);
+                string warpFrd = target;
+                int warpHdg = (int)Math.Round(vm.SelectedAircraft.Heading.Degrees);
                 if (warpHdg <= 0)
                 {
                     warpHdg = 360;
                 }
 
-                var warpAlt = (int)Math.Round(vm.SelectedAircraft.Altitude);
-                var warpSpd = (int)Math.Round(vm.SelectedAircraft.IndicatedAirspeed);
+                int warpAlt = (int)Math.Round(vm.SelectedAircraft.Altitude);
+                int warpSpd = (int)Math.Round(vm.SelectedAircraft.IndicatedAirspeed);
                 var warpItem = new MenuItem { Header = $"Warp here ({target})" };
                 warpItem.Click += (_, _) =>
                 {
@@ -1556,7 +1561,7 @@ public partial class RadarView
             return;
         }
 
-        var startLabel = measure.Anchor is null ? "Measure from here" : "Measure to here";
+        string startLabel = measure.Anchor is null ? "Measure from here" : "Measure to here";
         menu.Items.Add(
             CreateMenuItem(startLabel, () => measure.Pick(endpoint, RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits))
         );
@@ -1615,7 +1620,7 @@ public partial class RadarView
                 if (formatLabel is not null)
                 {
                     var labeled = new List<object>(items.Count);
-                    foreach (var i in items)
+                    foreach (object i in items)
                     {
                         labeled.Add(new LabeledValue(formatLabel((int)i), (int)i));
                     }

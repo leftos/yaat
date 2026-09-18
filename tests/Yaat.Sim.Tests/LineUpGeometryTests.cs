@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
@@ -34,7 +35,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         const double threshLon = -122.385;
         const double runwayHdgDeg = 15.0;
         const double lengthFt = 10600.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(threshLat, threshLon, new TrueHeading(runwayHdgDeg), lengthFt / GeoMath.FeetPerNm);
+        (double endLat, double endLon) = GeoMath.ProjectPoint(threshLat, threshLon, new TrueHeading(runwayHdgDeg), lengthFt / GeoMath.FeetPerNm);
         return TestRunwayFactory.Make(
             designator: "01R",
             airportId: "KTEST",
@@ -58,7 +59,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         const double threshLon = -122.20470872222222;
         const double runwayHdgDeg = 292.25597018104963;
         const double lengthFt = 5336.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(threshLat, threshLon, new TrueHeading(runwayHdgDeg), lengthFt / GeoMath.FeetPerNm);
+        (double endLat, double endLon) = GeoMath.ProjectPoint(threshLat, threshLon, new TrueHeading(runwayHdgDeg), lengthFt / GeoMath.FeetPerNm);
         return TestRunwayFactory.Make(
             designator: "28R",
             airportId: "KOAK",
@@ -99,13 +100,18 @@ public class LineUpGeometryTests(ITestOutputHelper output)
     {
         double rwyHdgDeg = rwy.TrueHeading.Degrees;
         double perpRightBearingDeg = (rwyHdgDeg + 90.0) % 360.0;
-        var (alongLat, alongLon) = GeoMath.ProjectPoint(
+        (double alongLat, double alongLon) = GeoMath.ProjectPoint(
             rwy.ThresholdLatitude,
             rwy.ThresholdLongitude,
             rwy.TrueHeading,
             alongFromThreshFt / GeoMath.FeetPerNm
         );
-        var (poseLat, poseLon) = GeoMath.ProjectPoint(alongLat, alongLon, new TrueHeading(perpRightBearingDeg), signedCrossFt / GeoMath.FeetPerNm);
+        (double poseLat, double poseLon) = GeoMath.ProjectPoint(
+            alongLat,
+            alongLon,
+            new TrueHeading(perpRightBearingDeg),
+            signedCrossFt / GeoMath.FeetPerNm
+        );
         return (poseLat, poseLon, new TrueHeading(hdgDeg));
     }
 
@@ -150,10 +156,10 @@ public class LineUpGeometryTests(ITestOutputHelper output)
     [Fact]
     public void Compute_HeadingMatchesRunway_KindIsAlignedAlreadyAligned()
     {
-        var rwy = MakeSfo01RLikeRunway();
-        var (lat, lon, hdg) = PlacePose(rwy, signedCrossFt: 0.0, alongFromThreshFt: 1000.0, hdgDeg: rwy.TrueHeading.Degrees);
+        RunwayInfo rwy = MakeSfo01RLikeRunway();
+        (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: 0.0, alongFromThreshFt: 1000.0, hdgDeg: rwy.TrueHeading.Degrees);
 
-        var plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
 
         output.WriteLine($"plan.Kind={plan.Kind} IsAlreadyAligned={plan.IsAlreadyAligned} turn={plan.TurnAngleDeg:F2}°");
         Assert.Equal(LineUpPathKind.Aligned, plan.Kind);
@@ -165,7 +171,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
     [Fact]
     public void Compute_PerpendicularTurn_KindIsAlignedNotAlreadyAligned()
     {
-        var rwy = MakeSfo01RLikeRunway();
+        RunwayInfo rwy = MakeSfo01RLikeRunway();
         // Aircraft 200 ft left of centerline, heading perpendicular-right
         // toward the runway (rwyHdg + 90° - 180° for "right turn toward"
         // would be wrong; we want heading that converges to centerline from
@@ -176,9 +182,9 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         // heading = rwyHdg + 90° (pointing right across the runway).
         double rwyHdg = rwy.TrueHeading.Degrees;
         double acHdg = (rwyHdg + 90.0) % 360.0;
-        var (lat, lon, hdg) = PlacePose(rwy, signedCrossFt: -200.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
+        (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -200.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
 
-        var plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
 
         output.WriteLine($"plan.Kind={plan.Kind} turn={plan.TurnAngleDeg:F2}° waste=(perp)");
         Assert.Equal(LineUpPathKind.Aligned, plan.Kind);
@@ -194,12 +200,12 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         // ~10° right of runway heading, ~2500 ft past threshold (well onto
         // the runway). Waste-straight ≈ 1840 ft vs ~8100 ft remaining →
         // 22.7% > 20% threshold → pivot path.
-        var rwy = MakeSfo01RLikeRunway();
+        RunwayInfo rwy = MakeSfo01RLikeRunway();
         double rwyHdg = rwy.TrueHeading.Degrees;
         double acHdg = (rwyHdg + 10.0) % 360.0;
-        var (lat, lon, hdg) = PlacePose(rwy, signedCrossFt: -324.0, alongFromThreshFt: 2500.0, hdgDeg: acHdg);
+        (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -324.0, alongFromThreshFt: 2500.0, hdgDeg: acHdg);
 
-        var plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
 
         output.WriteLine($"plan.Kind={plan.Kind} turn={plan.TurnAngleDeg:F2}°");
         Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
@@ -210,12 +216,12 @@ public class LineUpGeometryTests(ITestOutputHelper output)
     {
         // Same shallow 10° heading but only 50 ft cross-track. Waste-straight
         // ≈ 284 ft — well under the 20% × ~8100 ft ≈ 1620 ft threshold.
-        var rwy = MakeSfo01RLikeRunway();
+        RunwayInfo rwy = MakeSfo01RLikeRunway();
         double rwyHdg = rwy.TrueHeading.Degrees;
         double acHdg = (rwyHdg + 10.0) % 360.0;
-        var (lat, lon, hdg) = PlacePose(rwy, signedCrossFt: -100.0, alongFromThreshFt: 2500.0, hdgDeg: acHdg);
+        (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -100.0, alongFromThreshFt: 2500.0, hdgDeg: acHdg);
 
-        var plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
 
         output.WriteLine($"plan.Kind={plan.Kind} turn={plan.TurnAngleDeg:F2}°");
         Assert.Equal(LineUpPathKind.Aligned, plan.Kind);
@@ -231,10 +237,10 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         // past the 08R threshold, heading 284° true (nearly the 26L reciprocal; a
         // 163° net change to line up on 08R/087°). The pivot accomplishes that net
         // turn via two ~90° turns, so it must NOT fault on the single-arc 150° cap.
-        var rwy = MakeMia8RLikeRunway();
+        RunwayInfo rwy = MakeMia8RLikeRunway();
         var acHdg = new TrueHeading(284.32135440824527);
 
-        var plan = LineUpGeometry.Compute(rwy, 25.79997480483538, -80.30043573387157, acHdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, 25.79997480483538, -80.30043573387157, acHdg, AircraftCategory.Jet);
 
         output.WriteLine($"plan.Kind={plan.Kind} turn={plan.TurnAngleDeg:F1}° reason={plan.FaultReason}");
         Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
@@ -257,10 +263,10 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         // backward along the runway, so the nose-out backs the aircraft toward
         // the runway-start corner before the arc corrects. Such a pose must use
         // the pivot, which crosses toward the centerline first.
-        var rwy = MakeOak28RLikeRunway();
+        RunwayInfo rwy = MakeOak28RLikeRunway();
         var acHdg = new TrueHeading(185.76476702628463);
 
-        var plan = LineUpGeometry.Compute(rwy, 37.7255308801834, -122.20450743709728, acHdg, AircraftCategory.Piston);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, 37.7255308801834, -122.20450743709728, acHdg, AircraftCategory.Piston);
 
         output.WriteLine($"plan.Kind={plan.Kind} turn={plan.TurnAngleDeg:F1}° reason={plan.FaultReason}");
         Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
@@ -279,12 +285,12 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         // recovers: turn to perpendicular-toward-centerline, cross, turn onto
         // runway heading. (Pre-#193 this faulted; the convergence gate is now
         // scoped to the aligned path only.)
-        var rwy = MakeSfo01RLikeRunway();
+        RunwayInfo rwy = MakeSfo01RLikeRunway();
         double rwyHdg = rwy.TrueHeading.Degrees;
         double acHdg = (rwyHdg - 45.0 + 360.0) % 360.0;
-        var (lat, lon, hdg) = PlacePose(rwy, signedCrossFt: -200.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
+        (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -200.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
 
-        var plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
 
         output.WriteLine($"plan.Kind={plan.Kind} reason={plan.FaultReason}");
         Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
@@ -297,12 +303,12 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         // Issue #193 shows real airport geometry produces exactly this (a hold
         // short on a taxiway parallel to the runway). With 300 ft of cross-track
         // the pivot lines up via two slow turns rather than faulting.
-        var rwy = MakeSfo01RLikeRunway();
+        RunwayInfo rwy = MakeSfo01RLikeRunway();
         double rwyHdg = rwy.TrueHeading.Degrees;
         double acHdg = (rwyHdg + 170.0) % 360.0;
-        var (lat, lon, hdg) = PlacePose(rwy, signedCrossFt: -300.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
+        (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -300.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
 
-        var plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
 
         output.WriteLine($"plan.Kind={plan.Kind} reason={plan.FaultReason}");
         Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
@@ -315,12 +321,12 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         // below the 25 ft jet nose-wheel radius) but pointing nearly the
         // reciprocal. There is no room for the pivot's perpendicular cross-and-
         // turn, so the geometry faults and the user must recover (TAXI / CANCEL).
-        var rwy = MakeSfo01RLikeRunway();
+        RunwayInfo rwy = MakeSfo01RLikeRunway();
         double rwyHdg = rwy.TrueHeading.Degrees;
         double acHdg = (rwyHdg + 170.0) % 360.0;
-        var (lat, lon, hdg) = PlacePose(rwy, signedCrossFt: 8.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
+        (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: 8.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
 
-        var plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
 
         output.WriteLine($"plan.Kind={plan.Kind} reason={plan.FaultReason}");
         Assert.Equal(LineUpPathKind.Fault, plan.Kind);
@@ -337,7 +343,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         //   NoseOutTo = arc entry
         //   Arc entry -> Arc exit (on centerline)
         //   RolloutFrom = arc exit, RolloutTo = stop point forward of exit
-        var rwy = TestRunwayFactory.Make(
+        RunwayInfo rwy = TestRunwayFactory.Make(
             designator: "09",
             thresholdLat: 37.0,
             thresholdLon: -122.0,
@@ -350,7 +356,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         double acLon = -121.995; // ~500 ft east of threshold
         var hdg = new TrueHeading(0.0);
 
-        var plan = LineUpGeometry.Compute(rwy, acLat, acLon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, acLat, acLon, hdg, AircraftCategory.Jet);
 
         Assert.Equal(LineUpPathKind.Aligned, plan.Kind);
         Assert.False(plan.IsAlreadyAligned);
@@ -427,12 +433,12 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         //   PivotTurn1 exit = PivotStraight from
         //   PivotStraight to = PivotTurn2 entry
         //   PivotTurn2 exit = RolloutFrom (on centerline, aligned with rwy)
-        var rwy = MakeSfo01RLikeRunway();
+        RunwayInfo rwy = MakeSfo01RLikeRunway();
         double rwyHdg = rwy.TrueHeading.Degrees;
         double acHdg = (rwyHdg + 10.0) % 360.0;
-        var (lat, lon, hdg) = PlacePose(rwy, signedCrossFt: -324.0, alongFromThreshFt: 2500.0, hdgDeg: acHdg);
+        (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -324.0, alongFromThreshFt: 2500.0, hdgDeg: acHdg);
 
-        var plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
 
         Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
         Assert.NotNull(plan.PivotTurn1);
@@ -447,10 +453,10 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         // PivotTurn2 final position should be ON the runway centerline.
         // End of turn 2 = (CenterLat, CenterLon) + radius in bearing
         // (StartBearingFromCenter + RightTurn? +sweep : -sweep) from center.
-        var t2 = plan.PivotTurn2;
+        PathPrimitiveSlowTurn t2 = plan.PivotTurn2;
         double finalBearing = t2.StartBearingFromCenterDeg + (t2.RightTurn ? t2.SweepDeg : -t2.SweepDeg);
         finalBearing = ((finalBearing % 360.0) + 360.0) % 360.0;
-        var (finalLat, finalLon) = GeoMath.ProjectPoint(t2.CenterLat, t2.CenterLon, new TrueHeading(finalBearing), t2.RadiusNm);
+        (double finalLat, double finalLon) = GeoMath.ProjectPoint(t2.CenterLat, t2.CenterLon, new TrueHeading(finalBearing), t2.RadiusNm);
         double crossAfterTurn2 = GeoMath.SignedCrossTrackDistanceNm(
             finalLat,
             finalLon,

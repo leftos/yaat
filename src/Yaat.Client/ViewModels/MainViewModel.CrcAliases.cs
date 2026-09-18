@@ -1,5 +1,6 @@
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.ViewModels;
@@ -36,18 +37,18 @@ public partial class MainViewModel
     /// </summary>
     private async Task LoadCrcAliasesAsync()
     {
-        var overrideDirectory = _preferences.CrcAliasDirectory;
-        var artccId = _preferences.ArtccId;
+        string? overrideDirectory = _preferences.CrcAliasDirectory;
+        string artccId = _preferences.ArtccId;
 
         try
         {
-            var result = await Task.Run(() => _crcAliases.Load(overrideDirectory, artccId, BuiltInDotCommands));
+            CrcAliasLoadResult result = await Task.Run(() => _crcAliases.Load(overrideDirectory, artccId, BuiltInDotCommands));
             if (result.AliasCount == 0)
             {
                 return;
             }
 
-            var message = $"CRC aliases: {result.AliasCount} loaded from {string.Join(", ", result.FilesLoaded)}";
+            string message = $"CRC aliases: {result.AliasCount} loaded from {string.Join(", ", result.FilesLoaded)}";
             if (result.ShadowedByBuiltins.Count > 0)
             {
                 message += $" ({result.ShadowedByBuiltins.Count} shadowed by YAAT commands: {string.Join(", ", result.ShadowedByBuiltins)})";
@@ -74,13 +75,13 @@ public partial class MainViewModel
             return true;
         }
 
-        var verb = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        string? verb = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
         if (verb is null || !_crcAliases.Contains(verb))
         {
             return false;
         }
 
-        if (!_crcAliases.TryExpand(text, out var expanded, out var expansionError))
+        if (!_crcAliases.TryExpand(text, out string? expanded, out string? expansionError))
         {
             StatusText = $"CRC alias {verb}: {expansionError}";
             return true;
@@ -95,7 +96,7 @@ public partial class MainViewModel
         switch (execution.Action)
         {
             case CrcAliasAction.Echo:
-                foreach (var line in execution.EchoLines)
+                foreach (string line in execution.EchoLines)
                 {
                     AddSystemEntry(line);
                 }
@@ -125,7 +126,7 @@ public partial class MainViewModel
     /// </summary>
     private CrcAliasContext BuildCrcAliasContext()
     {
-        var aircraft = SelectedAircraft;
+        AircraftModel? aircraft = SelectedAircraft;
         return aircraft is null ? CrcAliasContext.None : new CrcAliasContext(aircraft.Departure, aircraft.Destination, aircraft.Route);
     }
 }

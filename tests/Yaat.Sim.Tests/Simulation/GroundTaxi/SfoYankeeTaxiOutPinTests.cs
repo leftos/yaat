@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -54,15 +55,15 @@ public class SfoYankeeTaxiOutPinTests
     [Fact]
     public void E75L_PushYTowardA1_EndsOnY_TaxiesOutWithoutReversal()
     {
-        var built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
         if (built is null)
         {
             return;
         }
 
-        var ground = built.Value;
-        var ac = SfoGroundHarness.SpawnParked(ground, "YKE1", "E75L", "B12");
-        var push = Push(ground, ac, "PUSH Y A1");
+        SfoGround ground = built.Value;
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "YKE1", "E75L", "B12");
+        PushRun push = Push(ground, ac, "PUSH Y A1");
 
         Assert.True(
             push.MinDistanceToAlphaFt >= MinDistanceFromAlphaFt,
@@ -70,12 +71,12 @@ public class SfoYankeeTaxiOutPinTests
                 + "the tail reversed across Yankee toward Alpha instead of stopping on the lane"
         );
 
-        var restPosition = ac.Position;
+        LatLon restPosition = ac.Position;
         double restHeadingDeg = ac.TrueHeading.Degrees;
         AssertRestingOnYankee(ground, ac, push, "PUSH Y A1");
 
-        var route = SendTaxi(ground, ac, "TAXI Y A A1 1R");
-        var connectorEntry = ConnectorEntry(route, ground.Layout);
+        TaxiRoute route = SendTaxi(ground, ac, "TAXI Y A A1 1R");
+        LatLon connectorEntry = ConnectorEntry(route, ground.Layout);
         double laneBearingDeg = YankeeBearingToward(ground.Layout, restPosition, connectorEntry);
         double alignErrDeg = new TrueHeading(laneBearingDeg).AbsAngleTo(new TrueHeading(restHeadingDeg));
         _output.WriteLine(
@@ -91,7 +92,7 @@ public class SfoYankeeTaxiOutPinTests
         AssertLeavesYankeeViaConnector(route);
         SfoGroundHarness.AssertHoldShorts(_output, route, ("1R", HoldShortReason.DestinationRunway, false));
 
-        var taxi = ObserveTaxiStart(ground, ac, "Y");
+        TaxiStart taxi = ObserveTaxiStart(ground, ac, "Y");
         AssertContinuousTurn(taxi.MaxAbsTurnDeg, "TAXI Y A A1 1R");
         Assert.True(
             taxi.FirstTaxiwayLeft is not null,
@@ -115,7 +116,7 @@ public class SfoYankeeTaxiOutPinTests
     /// </summary>
     private PushRun Push(SfoGround ground, AircraftState ac, string command)
     {
-        var result = ground.Engine.SendCommand(ac.Callsign, command);
+        CommandResult result = ground.Engine.SendCommand(ac.Callsign, command);
         Assert.True(result.Success, $"'{command}' from B12 failed: {result.Message}");
 
         bool everPushed = false;
@@ -163,10 +164,10 @@ public class SfoYankeeTaxiOutPinTests
     /// <summary>Issues a taxi clearance, asserts it was accepted, and returns the route it resolved to.</summary>
     private TaxiRoute SendTaxi(SfoGround ground, AircraftState ac, string command)
     {
-        var result = ground.Engine.SendCommand(ac.Callsign, command);
+        CommandResult result = ground.Engine.SendCommand(ac.Callsign, command);
         Assert.True(result.Success, $"'{command}' after the pushback failed: {result.Message}");
 
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         SfoGroundHarness.DumpRoute(_output, route);
         return route;
@@ -233,7 +234,7 @@ public class SfoYankeeTaxiOutPinTests
     /// </summary>
     private static void AssertLeavesYankeeViaConnector(TaxiRoute route)
     {
-        var legs = NamedLegs(route);
+        List<string> legs = NamedLegs(route);
         string sequence = string.Join(" ", legs.Distinct(StringComparer.OrdinalIgnoreCase));
         Assert.True(legs.Count > 0, "the route has no named-taxiway segments (only ramp lead-outs and junction arcs)");
         Assert.Equal("Y", legs[0]);
@@ -248,9 +249,9 @@ public class SfoYankeeTaxiOutPinTests
     /// <summary>The position of the node at which the route leaves Yankee for its AY connector.</summary>
     private static LatLon ConnectorEntry(TaxiRoute route, AirportGroundLayout layout)
     {
-        var segment = route.Segments.FirstOrDefault(s => s.TaxiwayName.StartsWith("AY", StringComparison.OrdinalIgnoreCase));
+        TaxiRouteSegment? segment = route.Segments.FirstOrDefault(s => s.TaxiwayName.StartsWith("AY", StringComparison.OrdinalIgnoreCase));
         Assert.True(segment is not null, "the route has no AY connector segment to measure the push alignment against");
-        Assert.True(layout.Nodes.TryGetValue(segment!.FromNodeId, out var node), $"route node {segment.FromNodeId} is not in the layout");
+        Assert.True(layout.Nodes.TryGetValue(segment!.FromNodeId, out GroundNode? node), $"route node {segment.FromNodeId} is not in the layout");
         return node!.Position;
     }
 
@@ -264,15 +265,15 @@ public class SfoYankeeTaxiOutPinTests
         double bestFt = double.PositiveInfinity;
         LatLon edgeFrom = default;
         LatLon edgeTo = default;
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             if (!edge.MatchesTaxiway("Y"))
             {
                 continue;
             }
 
-            var a = edge.Nodes[0].Position;
-            var b = edge.Nodes[1].Position;
+            LatLon a = edge.Nodes[0].Position;
+            LatLon b = edge.Nodes[1].Position;
             double distFt = GeoMath.DistanceToSegmentFt(from.Lat, from.Lon, a.Lat, a.Lon, b.Lat, b.Lon);
             if (distFt < bestFt)
             {

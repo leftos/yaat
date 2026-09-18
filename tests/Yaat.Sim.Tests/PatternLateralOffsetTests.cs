@@ -42,7 +42,7 @@ public class PatternLateralOffsetTests
 
     private static PhaseContext Ctx(AircraftState ac, double dt = 1.0)
     {
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         return new PhaseContext
         {
             Aircraft = ac,
@@ -62,13 +62,13 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Handler_BareOffset_AppliesDefault05Nm_OnDownwind()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
         var downwind = new DownwindPhase { Waypoints = wp };
         ac.Phases!.Add(downwind);
         ac.Phases.Start(Ctx(ac));
 
-        var result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Right, null);
+        CommandResult result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Right, null);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(downwind.LateralOffset);
@@ -80,13 +80,13 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Handler_ExplicitOffset_AppliesGivenDistance()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
         var downwind = new DownwindPhase { Waypoints = wp };
         ac.Phases!.Add(downwind);
         ac.Phases.Start(Ctx(ac));
 
-        var result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Left, 0.7);
+        CommandResult result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Left, 0.7);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(0.7, downwind.LateralOffset!.TargetNm);
@@ -101,13 +101,13 @@ public class PatternLateralOffsetTests
     [InlineData(10.0)]
     public void Handler_OutOfRangeOffset_Rejects(double offsetNm)
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
         var downwind = new DownwindPhase { Waypoints = wp };
         ac.Phases!.Add(downwind);
         ac.Phases.Start(Ctx(ac));
 
-        var result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Right, offsetNm);
+        CommandResult result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Right, offsetNm);
 
         Assert.False(result.Success);
         Assert.Null(downwind.LateralOffset);
@@ -116,13 +116,13 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Handler_OnBasePhase_SetsOffsetOnBasePhase()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.BaseTurnLat, wp.BaseTurnLon, wp.BaseHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.BaseTurnLat, wp.BaseTurnLon, wp.BaseHeading.Degrees);
         var basePhase = new BasePhase { Waypoints = wp };
         ac.Phases!.Add(basePhase);
         ac.Phases.Start(Ctx(ac));
 
-        var result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Right, 0.4);
+        CommandResult result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Right, 0.4);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(basePhase.LateralOffset);
@@ -133,9 +133,9 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Handler_NoActivePhase_Rejects()
     {
-        var ac = MakeAircraft(37.0, -122.0);
+        AircraftState ac = MakeAircraft(37.0, -122.0);
 
-        var result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Right, null);
+        CommandResult result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Right, null);
 
         Assert.False(result.Success);
     }
@@ -143,13 +143,13 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Handler_OnUpwind_SetsOffsetOnUpwindPhase()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.DepartureEndLat, wp.DepartureEndLon, wp.UpwindHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.DepartureEndLat, wp.DepartureEndLon, wp.UpwindHeading.Degrees);
         var upwind = new UpwindPhase { Waypoints = wp };
         ac.Phases!.Add(upwind);
         ac.Phases.Start(Ctx(ac));
 
-        var result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Right, 0.4);
+        CommandResult result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Right, 0.4);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(upwind.LateralOffset);
@@ -159,13 +159,13 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Handler_OnCrosswind_SetsOffsetOnCrosswindPhase()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.CrosswindTurnLat, wp.CrosswindTurnLon, wp.CrosswindHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.CrosswindTurnLat, wp.CrosswindTurnLon, wp.CrosswindHeading.Degrees);
         var crosswind = new CrosswindPhase { Waypoints = wp };
         ac.Phases!.Add(crosswind);
         ac.Phases.Start(Ctx(ac));
 
-        var result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Left, 0.6);
+        CommandResult result = PatternCommandHandler.TryOffsetPattern(ac, TurnDirection.Left, 0.6);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(crosswind.LateralOffset);
@@ -180,8 +180,8 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Downwind_OffsetRight_FirstTickSetsInterceptHeading()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
         var downwind = new DownwindPhase { Waypoints = wp };
         ac.Phases!.Add(downwind);
         ac.Phases.Start(Ctx(ac));
@@ -201,8 +201,8 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Downwind_OffsetLeft_FirstTickSetsInterceptHeading()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
         var downwind = new DownwindPhase { Waypoints = wp };
         ac.Phases!.Add(downwind);
         ac.Phases.Start(Ctx(ac));
@@ -220,8 +220,8 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Downwind_OffsetRight_OnceAcquired_RestoresParallelHeading()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
         var downwind = new DownwindPhase { Waypoints = wp };
         ac.Phases!.Add(downwind);
         ac.Phases.Start(Ctx(ac));
@@ -233,7 +233,7 @@ public class PatternLateralOffsetTests
         // Downwind is opposite runway: rwy heading = 280, downwind heading ~100.
         // "Right of heading 100" = heading 100 + 90 = bearing 190.
         var rightPerp = new TrueHeading((wp.DownwindHeading.Degrees + 90) % 360);
-        var newPos = GeoMath.ProjectPoint(ac.Position.Lat, ac.Position.Lon, rightPerp, 0.6);
+        (double Lat, double Lon) newPos = GeoMath.ProjectPoint(ac.Position.Lat, ac.Position.Lon, rightPerp, 0.6);
         ac.Position = new LatLon(newPos.Lat, newPos.Lon);
 
         downwind.OnTick(Ctx(ac));
@@ -246,8 +246,8 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Downwind_NoOffsetIssued_KeepsDefaultHeading()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
         var downwind = new DownwindPhase { Waypoints = wp };
         ac.Phases!.Add(downwind);
         ac.Phases.Start(Ctx(ac));
@@ -265,8 +265,8 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Downwind_LateralOffsetSurvivesSnapshotRoundTrip()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.Degrees);
         var downwind = new DownwindPhase { Waypoints = wp };
         ac.Phases!.Add(downwind);
         ac.Phases.Start(Ctx(ac));
@@ -285,8 +285,8 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Upwind_LateralOffsetSurvivesSnapshotRoundTrip()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.DepartureEndLat, wp.DepartureEndLon, wp.UpwindHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.DepartureEndLat, wp.DepartureEndLon, wp.UpwindHeading.Degrees);
         var upwind = new UpwindPhase { Waypoints = wp };
         ac.Phases!.Add(upwind);
         ac.Phases.Start(Ctx(ac));
@@ -304,8 +304,8 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Crosswind_LateralOffsetSurvivesSnapshotRoundTrip()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.CrosswindTurnLat, wp.CrosswindTurnLon, wp.CrosswindHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.CrosswindTurnLat, wp.CrosswindTurnLon, wp.CrosswindHeading.Degrees);
         var crosswind = new CrosswindPhase { Waypoints = wp };
         ac.Phases!.Add(crosswind);
         ac.Phases.Start(Ctx(ac));
@@ -323,8 +323,8 @@ public class PatternLateralOffsetTests
     [Fact]
     public void Base_LateralOffsetSurvivesSnapshotRoundTrip()
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(wp.BaseTurnLat, wp.BaseTurnLon, wp.BaseHeading.Degrees);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(wp.BaseTurnLat, wp.BaseTurnLon, wp.BaseHeading.Degrees);
         var basePhase = new BasePhase { Waypoints = wp };
         ac.Phases!.Add(basePhase);
         ac.Phases.Start(Ctx(ac));

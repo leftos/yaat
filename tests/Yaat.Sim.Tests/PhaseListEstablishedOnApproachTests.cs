@@ -51,7 +51,7 @@ public class PhaseListEstablishedOnApproachTests
         // JFAC/JLOC reached FinalApproachPhase but holds its assigned altitude until laterally
         // established — the MVA still applies, so the tint must keep firing. A naive
         // "CurrentPhase is FinalApproachPhase" check would wrongly return true here.
-        var phases = Make(new FinalApproachPhase(), Clearance(lateralOnly: true));
+        PhaseList phases = Make(new FinalApproachPhase(), Clearance(lateralOnly: true));
 
         Assert.False(phases.IsEstablishedOnApproach());
     }
@@ -59,7 +59,7 @@ public class PhaseListEstablishedOnApproachTests
     [Fact]
     public void OnFinal_ClearedApproach_IsEstablished()
     {
-        var phases = Make(new FinalApproachPhase(), Clearance(lateralOnly: false));
+        PhaseList phases = Make(new FinalApproachPhase(), Clearance(lateralOnly: false));
 
         Assert.True(phases.IsEstablishedOnApproach());
     }
@@ -67,7 +67,7 @@ public class PhaseListEstablishedOnApproachTests
     [Fact]
     public void ApproachNav_ClearedApproach_IsEstablished()
     {
-        var phases = Make(new ApproachNavigationPhase { Fixes = [] }, Clearance(lateralOnly: false));
+        PhaseList phases = Make(new ApproachNavigationPhase { Fixes = [] }, Clearance(lateralOnly: false));
 
         Assert.True(phases.IsEstablishedOnApproach());
     }
@@ -75,7 +75,7 @@ public class PhaseListEstablishedOnApproachTests
     [Fact]
     public void VectoredIntercept_ClearedApproach_IsEstablished()
     {
-        var phases = Make(Intercept(), Clearance(lateralOnly: false));
+        PhaseList phases = Make(Intercept(), Clearance(lateralOnly: false));
 
         Assert.True(phases.IsEstablishedOnApproach());
     }
@@ -83,7 +83,7 @@ public class PhaseListEstablishedOnApproachTests
     [Fact]
     public void LateralOnlyJoin_OnIntercept_IsNotEstablished()
     {
-        var phases = Make(Intercept(), Clearance(lateralOnly: true));
+        PhaseList phases = Make(Intercept(), Clearance(lateralOnly: true));
 
         Assert.False(phases.IsEstablishedOnApproach());
     }
@@ -91,7 +91,7 @@ public class PhaseListEstablishedOnApproachTests
     [Fact]
     public void ApproachPhase_WithoutActiveClearance_IsNotEstablished()
     {
-        var phases = Make(new ApproachNavigationPhase { Fixes = [] }, approach: null);
+        PhaseList phases = Make(new ApproachNavigationPhase { Fixes = [] }, approach: null);
 
         Assert.False(phases.IsEstablishedOnApproach());
     }
@@ -100,7 +100,7 @@ public class PhaseListEstablishedOnApproachTests
     public void GoAround_EvenWithActiveApproach_IsNotEstablished()
     {
         // Missed approach / go-around is climbing away from the runway — MVA applies again.
-        var phases = Make(new GoAroundPhase(), Clearance(lateralOnly: false));
+        PhaseList phases = Make(new GoAroundPhase(), Clearance(lateralOnly: false));
 
         Assert.False(phases.IsEstablishedOnApproach());
     }
@@ -110,7 +110,7 @@ public class PhaseListEstablishedOnApproachTests
     {
         // A pattern aircraft cleared to land on downwind has no active approach procedure
         // stepping it down — it is not "established on an approach", so the tint stays on.
-        var phases = Make(new DownwindPhase(), approach: null, landing: ClearanceType.ClearedToLand);
+        PhaseList phases = Make(new DownwindPhase(), approach: null, landing: ClearanceType.ClearedToLand);
 
         Assert.False(phases.IsEstablishedOnApproach());
     }
@@ -118,7 +118,7 @@ public class PhaseListEstablishedOnApproachTests
     [Fact]
     public void NoCurrentPhase_IsNotEstablished()
     {
-        var phases = Make(current: null, approach: null);
+        PhaseList phases = Make(current: null, approach: null);
 
         Assert.False(phases.IsEstablishedOnApproach());
     }

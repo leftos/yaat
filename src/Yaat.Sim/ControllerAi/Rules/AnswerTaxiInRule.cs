@@ -14,9 +14,9 @@ public sealed class AnswerTaxiInRule : IDecisionRule
 
     public void Evaluate(AiRuleScope scope)
     {
-        foreach (var aircraft in scope.Jurisdiction)
+        foreach (AircraftState aircraft in scope.Jurisdiction)
         {
-            var memo = scope.MemoFor(aircraft);
+            AiAircraftMemo memo = scope.MemoFor(aircraft);
             if (!Applies(aircraft))
             {
                 memo.ForgetObservation(Name);
@@ -28,8 +28,8 @@ public sealed class AnswerTaxiInRule : IDecisionRule
                 continue;
             }
 
-            var requested = aircraft.PendingPilotRequest!.ParkingName!;
-            var taken = ArrivalParkingPicker.TakenSpots(scope.Tick.Snapshot, aircraft.Callsign);
+            string requested = aircraft.PendingPilotRequest!.ParkingName!;
+            HashSet<string> taken = ArrivalParkingPicker.TakenSpots(scope.Tick.Snapshot, aircraft.Callsign);
             string? parking = requested;
             string why = $"taxi-in request answered with the parking the pilot asked for, {requested}";
             if (taken.Contains(requested))

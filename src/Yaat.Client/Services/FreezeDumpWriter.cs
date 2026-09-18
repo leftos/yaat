@@ -49,7 +49,7 @@ internal static class FreezeDumpWriter
         {
             string path = Path.Combine(directory, $"yaat-freeze-{DateTime.Now:yyyyMMdd-HHmmss}.dmp");
             using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
-            using Process self = Process.GetCurrentProcess();
+            using var self = Process.GetCurrentProcess();
 
             bool ok = MiniDumpWriteDump(
                 self.Handle,
@@ -82,7 +82,7 @@ internal static class FreezeDumpWriter
 
     private static void PruneOldDumps(string directory, string justWritten)
     {
-        var existing = Directory.GetFiles(directory, "yaat-freeze-*.dmp");
+        string[] existing = Directory.GetFiles(directory, "yaat-freeze-*.dmp");
         if (existing.Length <= KeepDumps)
         {
             return;
@@ -91,7 +91,7 @@ internal static class FreezeDumpWriter
         // Timestamped names sort chronologically, so the just-written dump is last; the guard is
         // defense in depth against a clock oddity putting it in the delete range.
         Array.Sort(existing, StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < (existing.Length - KeepDumps); i++)
+        for (int i = 0; i < (existing.Length - KeepDumps); i++)
         {
             if (!string.Equals(existing[i], justWritten, StringComparison.OrdinalIgnoreCase))
             {

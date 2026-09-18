@@ -1,6 +1,9 @@
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -28,7 +31,7 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -47,8 +50,8 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
     [Fact]
     public void OnHsDel_DeletesAircraftWhenItReachesHoldingAfterExit()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -56,11 +59,11 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
 
         engine.Replay(recording, 450);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.False(ac.Phases?.CurrentPhase is HoldingAfterExitPhase, "Aircraft should not yet be in HoldingAfterExitPhase at t=450");
 
-        var result = engine.SendCommand(Callsign, "ONHS DEL");
+        CommandResult result = engine.SendCommand(Callsign, "ONHS DEL");
         Assert.True(result.Success, $"ONHS DEL should dispatch successfully: {result.Message}");
 
         // Issue #226: the queued-block ack must use the friendly command name, not the raw
@@ -89,7 +92,7 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
 
             engine.TickPostPhysics();
 
-            var live = engine.FindAircraft(Callsign);
+            AircraftState? live = engine.FindAircraft(Callsign);
             if (live is null)
             {
                 output.WriteLine($"aircraft auto-deleted at +{t}s (replay t={450 + t})");
@@ -108,8 +111,8 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
     [Fact]
     public void NoDel_CancelsQueuedOnHsDel_AircraftSurvives()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -117,15 +120,15 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
 
         engine.Replay(recording, 450);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
-        var onhsResult = engine.SendCommand(Callsign, "ONHS DEL");
+        CommandResult onhsResult = engine.SendCommand(Callsign, "ONHS DEL");
         Assert.True(onhsResult.Success, $"ONHS DEL should dispatch: {onhsResult.Message}");
 
         Assert.Contains(ac.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.EnteringHoldingAfterExit);
 
-        var nodelResult = engine.SendCommand(Callsign, "NODEL");
+        CommandResult nodelResult = engine.SendCommand(Callsign, "NODEL");
         Assert.True(nodelResult.Success, $"NODEL should dispatch: {nodelResult.Message}");
 
         Assert.DoesNotContain(ac.Queue.Blocks, b => b.Trigger?.Type == BlockTriggerType.EnteringHoldingAfterExit);
@@ -135,7 +138,7 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
         for (int t = 1; t <= 180; t++)
         {
             engine.TickOneSecond();
-            var live = engine.FindAircraft(Callsign);
+            AircraftState? live = engine.FindAircraft(Callsign);
             if (live is null)
             {
                 Assert.Fail($"{Callsign} was deleted at +{t}s after NODEL cancel — auto-delete should have been suppressed");
@@ -157,8 +160,8 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
     [Fact]
     public void NoDel_RestoresAutoDeleteExempt()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -166,13 +169,13 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
 
         engine.Replay(recording, 450);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
         // Simulate the state after a prior command flipped exempt off.
         ac.Ground.AutoDeleteExempt = false;
 
-        var nodelResult = engine.SendCommand(Callsign, "NODEL");
+        CommandResult nodelResult = engine.SendCommand(Callsign, "NODEL");
         Assert.True(nodelResult.Success, $"NODEL should dispatch: {nodelResult.Message}");
 
         Assert.True(ac.Ground.AutoDeleteExempt, "NODEL should re-arm AutoDeleteExempt = true");
@@ -187,8 +190,8 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
     [Fact]
     public void OnHsDel_QueuedBlockSurvivesSnapshotRoundTrip()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -196,14 +199,14 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
 
         engine.Replay(recording, 450);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
 
-        var result = engine.SendCommand(Callsign, "ONHS DEL");
+        CommandResult result = engine.SendCommand(Callsign, "ONHS DEL");
         Assert.True(result.Success, $"ONHS DEL should dispatch: {result.Message}");
 
         // Round-trip the queue via DTO snapshot
-        var queueSnapshot = ac.Queue.ToSnapshot();
+        CommandQueueDto queueSnapshot = ac.Queue.ToSnapshot();
         var restored = CommandQueue.FromSnapshot(queueSnapshot);
 
         Assert.Contains(restored.Blocks, b => b.Trigger?.Type == BlockTriggerType.EnteringHoldingAfterExit);

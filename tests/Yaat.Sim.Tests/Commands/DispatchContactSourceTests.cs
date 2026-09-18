@@ -67,7 +67,7 @@ public class DispatchContactSourceTests
 
     private static CompoundCommand Cto()
     {
-        var parsed = CommandParser.ParseCompound("CTO");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("CTO");
         Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.Reason}");
         return parsed.Value!;
     }
@@ -80,9 +80,13 @@ public class DispatchContactSourceTests
             return;
         }
 
-        var ac = MakeLinedUpIfrDeparture(Oak28R());
+        AircraftState ac = MakeLinedUpIfrDeparture(Oak28R());
 
-        var result = CommandDispatcher.DispatchCompound(Cto(), ac, TestDispatch.Context(new SerializableRandom(42), isScenarioScripted: true));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            Cto(),
+            ac,
+            TestDispatch.Context(new SerializableRandom(42), isScenarioScripted: true)
+        );
 
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
         Assert.False(ac.HasMadeInitialContact, "A scripted preset clearance must not establish student contact.");
@@ -96,9 +100,13 @@ public class DispatchContactSourceTests
             return;
         }
 
-        var ac = MakeLinedUpIfrDeparture(Oak28R());
+        AircraftState ac = MakeLinedUpIfrDeparture(Oak28R());
 
-        var result = CommandDispatcher.DispatchCompound(Cto(), ac, TestDispatch.Context(new SerializableRandom(42), isScenarioScripted: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            Cto(),
+            ac,
+            TestDispatch.Context(new SerializableRandom(42), isScenarioScripted: false)
+        );
 
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
         Assert.True(
@@ -115,19 +123,23 @@ public class DispatchContactSourceTests
             return;
         }
 
-        var ac = MakeLinedUpIfrDeparture(Oak28R());
+        AircraftState ac = MakeLinedUpIfrDeparture(Oak28R());
 
         // Leading WAIT defers the CTO payload; the deferral must inherit the scripted origin.
-        var waitCto = CommandParser.ParseCompound("WAIT 5; CTO").Value!;
-        var deferResult = CommandDispatcher.DispatchCompound(waitCto, ac, TestDispatch.Context(new SerializableRandom(42), isScenarioScripted: true));
+        CompoundCommand waitCto = CommandParser.ParseCompound("WAIT 5; CTO").Value!;
+        CommandResult deferResult = CommandDispatcher.DispatchCompound(
+            waitCto,
+            ac,
+            TestDispatch.Context(new SerializableRandom(42), isScenarioScripted: true)
+        );
 
         Assert.True(deferResult.Success, $"Defer failed: {deferResult.Message}");
         Assert.False(ac.HasMadeInitialContact, "Nothing has executed yet — only the WAIT deferred.");
-        var deferred = Assert.Single(ac.DeferredDispatches);
+        DeferredDispatch deferred = Assert.Single(ac.DeferredDispatches);
         Assert.True(deferred.IsScenarioScripted, "A preset WAIT deferral must carry the scripted origin.");
 
         // Re-fire the payload exactly as ProcessDeferredDispatches does (scripted inherited, conditionals preserved).
-        var reFire = CommandDispatcher.DispatchCompound(
+        CommandResult reFire = CommandDispatcher.DispatchCompound(
             deferred.Payload,
             ac,
             TestDispatch.Context(new SerializableRandom(42), isScenarioScripted: deferred.IsScenarioScripted, preserveConditionals: true)
@@ -145,15 +157,15 @@ public class DispatchContactSourceTests
             return;
         }
 
-        var ac = MakeLinedUpIfrDeparture(Oak28R());
+        AircraftState ac = MakeLinedUpIfrDeparture(Oak28R());
 
-        var waitCto = CommandParser.ParseCompound("WAIT 5; CTO").Value!;
+        CompoundCommand waitCto = CommandParser.ParseCompound("WAIT 5; CTO").Value!;
         CommandDispatcher.DispatchCompound(waitCto, ac, TestDispatch.Context(new SerializableRandom(42), isScenarioScripted: false));
 
-        var deferred = Assert.Single(ac.DeferredDispatches);
+        DeferredDispatch deferred = Assert.Single(ac.DeferredDispatches);
         Assert.False(deferred.IsScenarioScripted, "A live controller WAIT deferral stays non-scripted.");
 
-        var reFire = CommandDispatcher.DispatchCompound(
+        CommandResult reFire = CommandDispatcher.DispatchCompound(
             deferred.Payload,
             ac,
             TestDispatch.Context(new SerializableRandom(42), isScenarioScripted: deferred.IsScenarioScripted, preserveConditionals: true)
@@ -166,7 +178,7 @@ public class DispatchContactSourceTests
     [Fact]
     public void DeferredDispatch_IsScenarioScripted_SurvivesSnapshotRoundTrip()
     {
-        var payload = CommandParser.ParseCompound("FH 270").Value!;
+        CompoundCommand payload = CommandParser.ParseCompound("FH 270").Value!;
         var deferred = new DeferredDispatch(5, payload) { SourceText = "WAIT 5; FH 270", IsScenarioScripted = true };
 
         var restored = DeferredDispatch.FromSnapshot(deferred.ToSnapshot());
@@ -187,10 +199,14 @@ public class DispatchContactSourceTests
             return;
         }
 
-        var runway = Oak28R();
-        var ac = MakeLinedUpIfrDeparture(runway);
+        RunwayInfo runway = Oak28R();
+        AircraftState ac = MakeLinedUpIfrDeparture(runway);
 
-        var result = CommandDispatcher.DispatchCompound(Cto(), ac, TestDispatch.Context(new SerializableRandom(42), isScenarioScripted: true));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            Cto(),
+            ac,
+            TestDispatch.Context(new SerializableRandom(42), isScenarioScripted: true)
+        );
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
         Assert.False(ac.HasMadeInitialContact);
 

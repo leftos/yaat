@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -24,14 +25,14 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -51,8 +52,8 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
     [Fact]
     public void Alwys3_RouteHasBerksConstraint()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -62,15 +63,15 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
         // SKW5456 spawns at t=660
         engine.Replay(recording, 662);
 
-        var aircraft = engine.FindAircraft("SKW5456");
+        AircraftState? aircraft = engine.FindAircraft("SKW5456");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"SKW5456: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");
         output.WriteLine($"  Altitude: {aircraft.Altitude:F0}, TargetAlt: {aircraft.Targets.TargetAltitude}");
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         output.WriteLine($"  Route ({route.Count} fixes):");
-        foreach (var fix in route)
+        foreach (NavigationTarget fix in route)
         {
             string constraint = fix.AltitudeRestriction is not null ? $" [alt: {fix.AltitudeRestriction}]" : "";
             string speed = fix.SpeedRestriction is not null ? $" [spd: {fix.SpeedRestriction}]" : "";
@@ -78,7 +79,7 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
         }
 
         // BERKS must be in the route with an altitude constraint
-        var berks = route.FirstOrDefault(t => t.Name.Equals("BERKS", StringComparison.OrdinalIgnoreCase));
+        NavigationTarget? berks = route.FirstOrDefault(t => t.Name.Equals("BERKS", StringComparison.OrdinalIgnoreCase));
         Assert.NotNull(berks);
         Assert.NotNull(berks.AltitudeRestriction);
         output.WriteLine($"  BERKS constraint: {berks.AltitudeRestriction}");
@@ -91,8 +92,8 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
     [Fact]
     public void Alwys3_CrossesArrtuAt10000()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -101,7 +102,7 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
 
         engine.Replay(recording, 662);
 
-        var aircraft = engine.FindAircraft("SKW5456");
+        AircraftState? aircraft = engine.FindAircraft("SKW5456");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"SKW5456 at spawn: alt={aircraft.Altitude:F0} StarViaMode={aircraft.Procedure.StarViaMode}");
@@ -128,7 +129,7 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
 
             if (t % 60 == 0 && !arrtuSequenced)
             {
-                var nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
+                string nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
                 output.WriteLine(
                     $"  t={t, 4} alt={aircraft.Altitude, 7:F0} tgtAlt={aircraft.Targets.TargetAltitude?.ToString("F0") ?? "null", 7} VS={aircraft.VerticalSpeed, 6:F0} next={nextFix}"
                 );
@@ -152,8 +153,8 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
     [Fact]
     public void Alwys3_CrossesBerksAtOrBelow5000()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -163,16 +164,16 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
         // SKW5456 spawns at t=660, fast-forward to just after spawn
         engine.Replay(recording, 662);
 
-        var aircraft = engine.FindAircraft("SKW5456");
+        AircraftState? aircraft = engine.FindAircraft("SKW5456");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"SKW5456 at spawn: alt={aircraft.Altitude:F0} StarViaMode={aircraft.Procedure.StarViaMode}");
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         output.WriteLine($"  Route: {string.Join(" → ", route.Select(f => f.Name))}");
 
         // Find BERKS position in the route
-        var berks = route.FirstOrDefault(t => t.Name.Equals("BERKS", StringComparison.OrdinalIgnoreCase));
+        NavigationTarget? berks = route.FirstOrDefault(t => t.Name.Equals("BERKS", StringComparison.OrdinalIgnoreCase));
         if (berks is null)
         {
             Assert.Fail("BERKS not found in route — runway transition missing");
@@ -203,7 +204,7 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
 
             if (t % 60 == 0)
             {
-                var nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
+                string nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
                 output.WriteLine(
                     $"  t={t, 4} alt={aircraft.Altitude, 7:F0} tgtAlt={aircraft.Targets.TargetAltitude?.ToString("F0") ?? "null", 7} VS={aircraft.VerticalSpeed, 6:F0} next={nextFix}"
                 );

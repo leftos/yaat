@@ -1,4 +1,6 @@
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -31,7 +33,7 @@ public class Issue291CrossMultiRunwayTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -46,8 +48,8 @@ public class Issue291CrossMultiRunwayTests(ITestOutputHelper output)
     [Fact]
     public void Cross28R28L_ClearsCurrentHold_AndPreClearsUpcoming28L()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -55,7 +57,7 @@ public class Issue291CrossMultiRunwayTests(ITestOutputHelper output)
 
         engine.Replay(recording, 1300);
 
-        var ac = engine.FindAircraft("N7LJ");
+        AircraftState? ac = engine.FindAircraft("N7LJ");
         Assert.NotNull(ac);
 
         var holdPhase = ac.Phases?.CurrentPhase as HoldingShortPhase;
@@ -63,16 +65,16 @@ public class Issue291CrossMultiRunwayTests(ITestOutputHelper output)
         Assert.Equal("28R/10L", holdPhase.HoldShort.TargetName);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, holdPhase.HoldShort.Reason);
 
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
-        var upcoming28L = route.HoldShortPoints.FirstOrDefault(h =>
+        HoldShortPoint? upcoming28L = route.HoldShortPoints.FirstOrDefault(h =>
             h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28L") && h.Reason == HoldShortReason.RunwayCrossing
         );
         Assert.NotNull(upcoming28L);
         Assert.False(upcoming28L.IsCleared, "Pre-condition: 28L crossing should be uncleared before CROSS 28R 28L");
 
-        var result = engine.SendCommand("N7LJ", "CROSS 28R 28L");
+        CommandResult result = engine.SendCommand("N7LJ", "CROSS 28R 28L");
         output.WriteLine($"CROSS 28R 28L: success={result.Success} msg={result.Message}");
 
         Assert.True(result.Success, $"CROSS 28R 28L should succeed, got: {result.Message}");

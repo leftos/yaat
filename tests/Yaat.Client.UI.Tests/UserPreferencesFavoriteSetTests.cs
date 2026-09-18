@@ -73,7 +73,7 @@ public class UserPreferencesFavoriteSetTests : IDisposable
             Assert.Equal(["OakFav"], store.GetSetFavorites(store.FindAirportSet("OAK")!.Id).Select(f => f.Label));
             Assert.Equal(["ScnFav"], store.GetSetFavorites(store.FindScenarioSet("SCN-1")!.Id).Select(f => f.Label));
 
-            var named = store.FindNamedSet("Mig Set");
+            FavoriteSet? named = store.FindNamedSet("Mig Set");
             Assert.NotNull(named);
             // Set membership replaces the old scope fields entirely; the SFO airport scope on the
             // set favorite does not fabricate an SFO container.
@@ -112,7 +112,7 @@ public class UserPreferencesFavoriteSetTests : IDisposable
         {
             FavoriteLegacyMigration.Run(prefs, store);
 
-            var migrated = new UserPreferences().GetWindowProfile("FST-Profile");
+            SavedWindowProfile? migrated = new UserPreferences().GetWindowProfile("FST-Profile");
             Assert.NotNull(migrated);
             Assert.Null(migrated.LoadedFavoriteSetNames);
             Assert.Equal([store.FindNamedSet("Profile Set")!.Id], migrated.LoadedFavoriteSetIds);
@@ -150,9 +150,9 @@ public class UserPreferencesFavoriteSetTests : IDisposable
     /// <summary>Splices legacy favorites fields into the shared preferences.json on disk (merging with whatever is there).</summary>
     private static void InjectLegacyFavorites(string legacyJson)
     {
-        var path = YaatPaths.Combine("preferences.json");
-        var root = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path))!.AsObject() : new JsonObject();
-        foreach (var (key, value) in JsonNode.Parse(legacyJson)!.AsObject().ToList())
+        string path = YaatPaths.Combine("preferences.json");
+        JsonObject root = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path))!.AsObject() : new JsonObject();
+        foreach ((string? key, JsonNode? value) in JsonNode.Parse(legacyJson)!.AsObject().ToList())
         {
             root[key] = value?.DeepClone();
         }

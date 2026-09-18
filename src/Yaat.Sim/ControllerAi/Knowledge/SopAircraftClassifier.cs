@@ -18,7 +18,7 @@ public static class SopAircraftClassifier
 
     public static SopAircraftClass Classify(string aircraftType)
     {
-        var category = AircraftCategorization.Categorize(aircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraftType);
         if (category == AircraftCategory.Jet)
         {
             return SopAircraftClass.J;
@@ -39,19 +39,19 @@ public static class SopAircraftClassifier
     /// </summary>
     public static bool Matches(AircraftPredicate predicate, string aircraftType)
     {
-        var category = AircraftCategorization.Categorize(aircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraftType);
         if ((predicate.Category is { } wantedCategory) && (wantedCategory != category))
         {
             return false;
         }
 
-        var sopClass = Classify(aircraftType);
+        SopAircraftClass sopClass = Classify(aircraftType);
         if ((predicate.SopClass is { } wantedClass) && (wantedClass != sopClass))
         {
             return false;
         }
 
-        var faa = FaaAircraftDatabase.Get(aircraftType);
+        FaaAircraftRecord? faa = FaaAircraftDatabase.Get(aircraftType);
         if (predicate.MtowOverLb is { } mtowOver)
         {
             bool over = faa?.MtowLb is { } mtow ? mtow > mtowOver : sopClass == SopAircraftClass.T;

@@ -40,13 +40,13 @@ public class FilletCornerSpanGuardTests
             return;
         }
 
-        var pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
-        var layout = LayoutCloner.DeepClone(pre);
+        AirportGroundLayout pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
+        AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         new FilletArcGenerator().Apply(layout);
 
         var violations = new List<string>();
 
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             string origin = edge.Origin ?? "";
             if (!origin.StartsWith("corner", StringComparison.Ordinal))
@@ -63,7 +63,7 @@ public class FilletCornerSpanGuardTests
             }
         }
 
-        foreach (var arc in layout.Arcs)
+        foreach (GroundArc arc in layout.Arcs)
         {
             string origin = arc.Origin ?? "";
             if (!origin.StartsWith("corner", StringComparison.Ordinal))
@@ -78,7 +78,7 @@ public class FilletCornerSpanGuardTests
             }
         }
 
-        foreach (var v in violations.Take(10))
+        foreach (string? v in violations.Take(10))
         {
             _output.WriteLine(v);
         }
@@ -101,14 +101,14 @@ public class FilletCornerSpanGuardTests
             return;
         }
 
-        var pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
-        var layout = LayoutCloner.DeepClone(pre);
+        AirportGroundLayout pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
+        AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         new FilletArcGenerator().Apply(layout);
 
         var seen = new HashSet<(int, int)>();
         var violations = new List<string>();
 
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             int a = edge.Nodes[0].Id;
             int b = edge.Nodes[1].Id;
@@ -128,7 +128,7 @@ public class FilletCornerSpanGuardTests
             }
         }
 
-        foreach (var v in violations)
+        foreach (string v in violations)
         {
             _output.WriteLine(v);
         }
@@ -158,20 +158,20 @@ public class FilletCornerSpanGuardTests
             return;
         }
 
-        var pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
-        var layout = LayoutCloner.DeepClone(pre);
+        AirportGroundLayout pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
+        AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         new FilletArcGenerator().Apply(layout);
 
         var byPair = new Dictionary<(int, int), List<GroundArc>>();
-        foreach (var arc in layout.Arcs)
+        foreach (GroundArc arc in layout.Arcs)
         {
             if (arc.Origin?.StartsWith("corner", StringComparison.Ordinal) != true)
             {
                 continue;
             }
 
-            var key = (Math.Min(arc.Nodes[0].Id, arc.Nodes[1].Id), Math.Max(arc.Nodes[0].Id, arc.Nodes[1].Id));
-            if (!byPair.TryGetValue(key, out var list))
+            (int, int) key = (Math.Min(arc.Nodes[0].Id, arc.Nodes[1].Id), Math.Max(arc.Nodes[0].Id, arc.Nodes[1].Id));
+            if (!byPair.TryGetValue(key, out List<GroundArc>? list))
             {
                 list = [];
                 byPair[key] = list;
@@ -185,7 +185,7 @@ public class FilletCornerSpanGuardTests
             .Select(kv => $"#{kv.Key.Item1}<->#{kv.Key.Item2}: {string.Join(" | ", kv.Value.Select(a => $"[{a.TaxiwayName}] {a.Origin}"))}")
             .ToList();
 
-        foreach (var v in violations)
+        foreach (string? v in violations)
         {
             _output.WriteLine(v);
         }
@@ -218,13 +218,13 @@ public class FilletCornerSpanGuardTests
             return;
         }
 
-        var pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
-        var layout = LayoutCloner.DeepClone(pre);
+        AirportGroundLayout pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
+        AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         new FilletArcGenerator().Apply(layout);
 
         var violations = new List<string>();
         int tangentCutNodesParsed = layout.Nodes.Values.Count(n => TangentCutJunction(n) is not null);
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             if (!edge.IsRunwayCenterline)
             {
@@ -248,7 +248,7 @@ public class FilletCornerSpanGuardTests
             }
         }
 
-        foreach (var v in violations.Take(20))
+        foreach (string? v in violations.Take(20))
         {
             _output.WriteLine(v);
         }
@@ -301,8 +301,8 @@ public class FilletCornerSpanGuardTests
             return;
         }
 
-        var pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
-        var layout = LayoutCloner.DeepClone(pre);
+        AirportGroundLayout pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
+        AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         new FilletArcGenerator().Apply(layout);
 
         var nodes = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.TaxiwayIntersection).ToList();
@@ -324,7 +324,7 @@ public class FilletCornerSpanGuardTests
             }
         }
 
-        foreach (var v in violations.Take(20))
+        foreach (string? v in violations.Take(20))
         {
             _output.WriteLine(v);
         }

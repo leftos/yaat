@@ -46,15 +46,15 @@ public partial class MainViewModel
 
         try
         {
-            var scenarioJson = json;
-            var difficulties = ScenarioDifficultyHelper.GetAvailableDifficulties(scenarioJson);
+            string scenarioJson = json;
+            List<string> difficulties = ScenarioDifficultyHelper.GetAvailableDifficulties(scenarioJson);
 
             if (difficulties.Count >= 2)
             {
-                var hardest = difficulties[^1];
+                string hardest = difficulties[^1];
                 _log.LogInformation("Auto-selecting difficulty: {Level}", hardest);
-                var (filtered, warnings) = ScenarioDifficultyHelper.FilterByDifficulty(scenarioJson, hardest);
-                foreach (var w in warnings)
+                (string? filtered, List<string>? warnings) = ScenarioDifficultyHelper.FilterByDifficulty(scenarioJson, hardest);
+                foreach (string w in warnings)
                 {
                     AddWarningEntry($"[WARN] {w}");
                 }
@@ -64,7 +64,7 @@ public partial class MainViewModel
 
             _pendingScenarioSource = null;
             _pendingApiScenarioId = null;
-            var scenarioId = ScenarioIdentity.ResolveFromJson(scenarioJson);
+            string scenarioId = ScenarioIdentity.ResolveFromJson(scenarioJson);
             await SendScenarioToServer(scenarioJson, apiId, 100, 100, _preferences.GetSoloGoAroundProbability(scenarioId));
         }
         catch (Exception ex)
@@ -127,7 +127,7 @@ public partial class MainViewModel
                 json = await File.ReadAllTextAsync(ScenarioFilePath);
             }
 
-            var seedScenarioId = ScenarioIdentity.ResolveFromJson(json);
+            string seedScenarioId = ScenarioIdentity.ResolveFromJson(json);
             var setupPlan = ScenarioSetupPlan.Create(
                 json,
                 _preferences.SoloTrainingMode,
@@ -139,7 +139,7 @@ public partial class MainViewModel
             if (setupPlan.RequiresSetup)
             {
                 DifficultyOptions.Clear();
-                foreach (var option in setupPlan.DifficultyOptions)
+                foreach (DifficultyOption option in setupPlan.DifficultyOptions)
                 {
                     DifficultyOptions.Add(option);
                 }
@@ -175,8 +175,8 @@ public partial class MainViewModel
     private async Task ConfirmScenarioSetupAsync()
     {
         ShowScenarioSetup = false;
-        var json = _pendingScenarioJson;
-        var apiId = _pendingDifficultyApiId;
+        string? json = _pendingScenarioJson;
+        string? apiId = _pendingDifficultyApiId;
         _pendingScenarioJson = null;
         _pendingDifficultyApiId = null;
 
@@ -185,7 +185,7 @@ public partial class MainViewModel
             return;
         }
 
-        var scenarioJson = json;
+        string scenarioJson = json;
         if (DifficultyOptions.Count > 0)
         {
             if (SelectedDifficultyIndex < 0 || SelectedDifficultyIndex >= DifficultyOptions.Count)
@@ -193,21 +193,21 @@ public partial class MainViewModel
                 return;
             }
 
-            var selected = DifficultyOptions[SelectedDifficultyIndex];
-            var (filtered, warnings) = ScenarioDifficultyHelper.FilterByDifficulty(json, selected.Level);
+            DifficultyOption selected = DifficultyOptions[SelectedDifficultyIndex];
+            (string? filtered, List<string>? warnings) = ScenarioDifficultyHelper.FilterByDifficulty(json, selected.Level);
             scenarioJson = filtered;
-            foreach (var w in warnings)
+            foreach (string w in warnings)
             {
                 AddWarningEntry($"[WARN] {w}");
             }
         }
 
-        var parkingRate = ParkingInitialCallupIntervalSecondsToRate(ScenarioSetupParkingInitialCallupIntervalSeconds);
-        var arrivalRate = Math.Clamp(ScenarioSetupArrivalGeneratorRatePercent, 0, 100);
-        var goAroundProbability = Math.Clamp(ScenarioSetupSoloGoAroundProbabilityPercent, 0, 100);
-        var loadParkingRate = ShowScenarioSetupParkingInitialCallupRate ? parkingRate : 100;
-        var loadArrivalRate = ShowScenarioSetupArrivalGeneratorRate ? arrivalRate : 100;
-        var loadGoAroundProbability = ShowScenarioSetupGoAroundProbability ? goAroundProbability : 0;
+        int parkingRate = ParkingInitialCallupIntervalSecondsToRate(ScenarioSetupParkingInitialCallupIntervalSeconds);
+        int arrivalRate = Math.Clamp(ScenarioSetupArrivalGeneratorRatePercent, 0, 100);
+        int goAroundProbability = Math.Clamp(ScenarioSetupSoloGoAroundProbabilityPercent, 0, 100);
+        int loadParkingRate = ShowScenarioSetupParkingInitialCallupRate ? parkingRate : 100;
+        int loadArrivalRate = ShowScenarioSetupArrivalGeneratorRate ? arrivalRate : 100;
+        int loadGoAroundProbability = ShowScenarioSetupGoAroundProbability ? goAroundProbability : 0;
         if (ShowScenarioSetupPacingControls)
         {
             _preferences.SetSoloPacingRates(
@@ -216,7 +216,7 @@ public partial class MainViewModel
             );
             if (ShowScenarioSetupGoAroundProbability)
             {
-                var scenarioId = ScenarioIdentity.ResolveFromJson(scenarioJson);
+                string scenarioId = ScenarioIdentity.ResolveFromJson(scenarioJson);
                 _preferences.SetSoloGoAroundProbabilityForScenario(scenarioId, goAroundProbability);
             }
         }
@@ -258,7 +258,7 @@ public partial class MainViewModel
     {
         try
         {
-            var result = await _connection.GetScenarioJsonByIdAsync(apiScenarioId);
+            ScenarioJsonResultDto result = await _connection.GetScenarioJsonByIdAsync(apiScenarioId);
 
             if (result.AccessDeniedReason is { } reason)
             {
@@ -293,7 +293,7 @@ public partial class MainViewModel
     )
     {
         StashLoadedScenarioJson(json);
-        var result = await _connection.LoadScenarioAsync(
+        LoadScenarioResultDto result = await _connection.LoadScenarioAsync(
             json,
             soloParkingInitialCallupRatePercent,
             soloArrivalGeneratorRatePercent,
@@ -303,7 +303,7 @@ public partial class MainViewModel
         if (result.Success)
         {
             ApplyScenarioResult(result);
-            var scenarioName = result.Name;
+            string scenarioName = result.Name;
             if (apiId is not null)
             {
                 _preferences.AddRecentScenario("", scenarioName, apiId);
@@ -346,7 +346,7 @@ public partial class MainViewModel
 
         try
         {
-            var result = await _connection.UnloadScenarioAircraftAsync();
+            UnloadScenarioResultDto result = await _connection.UnloadScenarioAircraftAsync();
 
             if (result.RequiresConfirmation)
             {
@@ -392,7 +392,7 @@ public partial class MainViewModel
         ShowRestartScenarioConfirmation = false;
         try
         {
-            var result = await _connection.RestartScenarioAsync();
+            CommandResultDto result = await _connection.RestartScenarioAsync();
             if (!result.Success)
             {
                 ReportScenarioActionFailure("Restart", result.Message ?? "Restart failed");
@@ -453,7 +453,7 @@ public partial class MainViewModel
     {
         SetStudentPositionType(result.StudentPositionType);
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
-        foreach (var radar in AllRadarViews)
+        foreach (RadarViewModel radar in AllRadarViews)
         {
             radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
         }
@@ -495,7 +495,7 @@ public partial class MainViewModel
 
             SetStudentPositionType(dto.StudentPositionType);
             _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
-            foreach (var radar in AllRadarViews)
+            foreach (RadarViewModel radar in AllRadarViews)
             {
                 radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
             }
@@ -552,7 +552,7 @@ public partial class MainViewModel
         Aircraft.Clear();
         ClearBookmarks();
         int delayed = 0;
-        foreach (var dto in bootstrap.Aircraft)
+        foreach (AircraftDto dto in bootstrap.Aircraft)
         {
             var model = AircraftModel.FromDto(dto, ComputeDistance);
             ApplyAutoClearedToLand(model);
@@ -565,13 +565,13 @@ public partial class MainViewModel
         InitialDelayedSpawnCount = delayed;
         PendingDelayedSpawnCount = delayed;
 
-        var artccId = _preferences.ArtccId;
+        string artccId = _preferences.ArtccId;
         // Stashed so a Radar/Ground window opened later in this scenario bootstraps from the same data.
         _lastScenarioArtccId = artccId;
         _lastRadarPrimaryAirportId = bootstrap.PrimaryAirportId;
         _lastScenarioId = bootstrap.ScenarioId;
         Radar.ApplyScenarioBootstrap(bootstrap, artccId);
-        foreach (var instance in ExtraRadarViews)
+        foreach (RadarViewInstance instance in ExtraRadarViews)
         {
             // An extra window stays on the airport it was opened with — the scenario's airport is the
             // docked view's. Re-seeding reloads this instance's own video maps and per-scenario settings.
@@ -579,7 +579,7 @@ public partial class MainViewModel
         }
 
         Ground.ApplyScenarioBootstrap(bootstrap, artccId);
-        foreach (var instance in ExtraGroundViews)
+        foreach (GroundViewInstance instance in ExtraGroundViews)
         {
             // The new scenario id keys this window's own per-scenario view settings; re-seeding the
             // airport re-evaluates whether it mirrors the primary, whose airport may have just changed.
@@ -625,8 +625,8 @@ public partial class MainViewModel
         // Use the returned list directly — AccessibleFacilities is updated via
         // Dispatcher.InvokeAsync inside RefreshAccessibleFacilitiesAsync, but
         // we don't want to race even that bookkeeping.
-        var facilities = await VTdls.RefreshAccessibleFacilitiesAsync();
-        var preferred = ResolvePreferredTdlsFacility(facilities, primaryAirportId);
+        List<AccessibleFacilityDto> facilities = await VTdls.RefreshAccessibleFacilitiesAsync();
+        string? preferred = ResolvePreferredTdlsFacility(facilities, primaryAirportId);
         if (preferred is not null)
         {
             await VTdls.SwitchFacilityAsync(preferred);
@@ -650,8 +650,8 @@ public partial class MainViewModel
 
         if (!string.IsNullOrEmpty(primaryAirportId))
         {
-            var bare = primaryAirportId.StartsWith('K') && primaryAirportId.Length == 4 ? primaryAirportId[1..] : primaryAirportId;
-            var match =
+            string bare = primaryAirportId.StartsWith('K') && primaryAirportId.Length == 4 ? primaryAirportId[1..] : primaryAirportId;
+            AccessibleFacilityDto? match =
                 facilities.FirstOrDefault(f => string.Equals(f.FacilityId, bare, StringComparison.OrdinalIgnoreCase))
                 ?? facilities.FirstOrDefault(f => string.Equals(f.FacilityId, primaryAirportId, StringComparison.OrdinalIgnoreCase));
             if (match is not null)
@@ -660,7 +660,7 @@ public partial class MainViewModel
             }
         }
 
-        var leaf = facilities.FirstOrDefault(f => !f.IsConsolidated);
+        AccessibleFacilityDto? leaf = facilities.FirstOrDefault(f => !f.IsConsolidated);
         return (leaf ?? facilities[0]).FacilityId;
     }
 
@@ -683,20 +683,20 @@ public partial class MainViewModel
         IsLiveSession = false;
         SetStudentPositionType(null);
         _isAutoClearedToLand = false;
-        foreach (var radar in AllRadarViews)
+        foreach (RadarViewModel radar in AllRadarViews)
         {
             radar.ShowMvaHints = false;
         }
 
         _commandInput.PrimaryAirportId = null;
-        foreach (var radar in AllRadarViews)
+        foreach (RadarViewModel radar in AllRadarViews)
         {
             radar.SetPrimaryAirportId(null);
             radar.ClearShownPaths();
             radar.DataBlockState.Clear();
         }
 
-        foreach (var ground in AllGroundViews)
+        foreach (GroundViewModel ground in AllGroundViews)
         {
             ground.ClearShownTaxiRoutes();
             ground.DataBlockState.Clear();
@@ -719,12 +719,12 @@ public partial class MainViewModel
         PendingDelayedSpawnCount = 0;
         // Every Ground View clears itself: a mirroring extra follows the cleared layout through
         // PropertyChanged, but its scenario id, ground aircraft and shown routes are its own.
-        foreach (var ground in AllGroundViews)
+        foreach (GroundViewModel ground in AllGroundViews)
         {
             ground.ClearLayout();
         }
 
-        foreach (var radar in AllRadarViews)
+        foreach (RadarViewModel radar in AllRadarViews)
         {
             radar.ClearVideoMaps();
         }
@@ -736,12 +736,12 @@ public partial class MainViewModel
         // linked-facility tab is never re-bootstrapped by the next scenario load (see MainViewModel.Strips.cs,
         // which builds it with autoBootstrapFromScenarioLoaded: false), so dropping its facility would leave it
         // blank for the rest of the session. ClearRoomState drops the scope on top of this.
-        foreach (var entry in StripsEntries)
+        foreach (VStripsDockEntryViewModel entry in StripsEntries)
         {
             entry.Vm.Clear();
             entry.SecondaryVm?.Clear();
         }
-        foreach (var entry in TdlsEntries)
+        foreach (VTdlsDockEntryViewModel entry in TdlsEntries)
         {
             entry.Vm.Clear();
         }
@@ -787,24 +787,24 @@ public sealed record ScenarioSetupPlan(
         int goAroundProbabilityPercent
     )
     {
-        var difficulties = ScenarioDifficultyHelper.GetAvailableDifficulties(scenarioJson);
+        List<string> difficulties = ScenarioDifficultyHelper.GetAvailableDifficulties(scenarioJson);
         var options = new List<DifficultyOption>();
         if (difficulties.Count >= 2)
         {
-            var counts = ScenarioDifficultyHelper.GetCountsPerCeiling(scenarioJson, difficulties);
-            foreach (var level in difficulties)
+            Dictionary<string, int> counts = ScenarioDifficultyHelper.GetCountsPerCeiling(scenarioJson, difficulties);
+            foreach (string level in difficulties)
             {
                 options.Add(new DifficultyOption(level, counts[level]));
             }
         }
 
-        var showParkingInitialCallupRate = soloTrainingMode && ScenarioDifficultyHelper.HasParkingSpawns(scenarioJson);
-        var showArrivalGeneratorRate = soloTrainingMode && ScenarioDifficultyHelper.HasArrivalGenerators(scenarioJson);
+        bool showParkingInitialCallupRate = soloTrainingMode && ScenarioDifficultyHelper.HasParkingSpawns(scenarioJson);
+        bool showArrivalGeneratorRate = soloTrainingMode && ScenarioDifficultyHelper.HasArrivalGenerators(scenarioJson);
         // Surface the go-around slider only when the setup dialog is already popping for
         // another solo reason. Avoids forcing a popup on every solo-mode load — operators
         // who only want to tweak this can do so via the mid-session settings flyout, which
         // also persists per-scenario.
-        var showGoAroundProbability = soloTrainingMode && (showParkingInitialCallupRate || showArrivalGeneratorRate);
+        bool showGoAroundProbability = soloTrainingMode && (showParkingInitialCallupRate || showArrivalGeneratorRate);
 
         return new ScenarioSetupPlan(
             options,

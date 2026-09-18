@@ -39,7 +39,7 @@ public class HoldShortReasonSnapshotTests
     [Fact]
     public void TaxiRoute_RoundTrip_PreservesDestinationRunwayReason()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
@@ -60,7 +60,7 @@ public class HoldShortReasonSnapshotTests
             CurrentSegmentIndex = 0,
         };
 
-        var dto = route.ToSnapshot();
+        TaxiRouteDto dto = route.ToSnapshot();
         var restored = TaxiRoute.FromSnapshot(dto, layout);
 
         Assert.NotNull(restored);
@@ -88,7 +88,7 @@ public class HoldShortReasonSnapshotTests
     [Fact]
     public void TaxiRoute_LegacySnapshotWithoutReason_FallsBackToExplicitHoldShort()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;

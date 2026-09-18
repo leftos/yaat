@@ -28,13 +28,13 @@ internal sealed class TerminalColorizer : DocumentColorizingTransformer
 
     protected override void ColorizeLine(DocumentLine line)
     {
-        var index = line.LineNumber - 1;
+        int index = line.LineNumber - 1;
         if (index < 0 || index >= _lineKinds.Count)
         {
             return;
         }
 
-        var brush = _brushes.TryGetValue(_lineKinds[index], out var b) ? b : Brushes.White;
+        IBrush brush = _brushes.TryGetValue(_lineKinds[index], out IBrush? b) ? b : Brushes.White;
         ChangeLinePart(line.Offset, line.EndOffset, element => element.TextRunProperties.SetForegroundBrush(brush));
     }
 
@@ -55,7 +55,7 @@ internal sealed class TerminalColorizer : DocumentColorizingTransformer
 
     private static IBrush Parse(string hex, IBrush fallback)
     {
-        if (Color.TryParse(hex, out var color))
+        if (Color.TryParse(hex, out Color color))
         {
             return new SolidColorBrush(color);
         }

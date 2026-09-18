@@ -145,7 +145,7 @@ public interface IGroundEdge
         }
 
         string normalizedDesignator = RunwayIdentifier.NormalizeDesignator(designator);
-        foreach (var part in name.Split('/'))
+        foreach (Range part in name.Split('/'))
         {
             if (RunwayIdentifier.NormalizeDesignator(name[part].ToString()).Equals(normalizedDesignator, StringComparison.OrdinalIgnoreCase))
             {
@@ -377,7 +377,7 @@ public sealed class GroundArc : IGroundEdge
     {
         lock (_speedProfiles)
         {
-            if (!_speedProfiles.TryGetValue(category, out var profile))
+            if (!_speedProfiles.TryGetValue(category, out SpeedSample[]? profile))
             {
                 profile = BuildSpeedProfile(category);
                 _speedProfiles[category] = profile;
@@ -389,17 +389,17 @@ public sealed class GroundArc : IGroundEdge
 
     private SpeedSample[] BuildSpeedProfile(AircraftCategory category)
     {
-        var curve = ToBezier();
+        CubicBezier curve = ToBezier();
         double refLat = Nodes[0].Position.Lat;
         var samples = new SpeedSample[SpeedProfileSamples + 1];
         double lengthFt = 0.0;
-        var previous = curve.Evaluate(0.0);
+        (double Lat, double Lon) previous = curve.Evaluate(0.0);
         for (int i = 0; i <= SpeedProfileSamples; i++)
         {
             double t = (double)i / SpeedProfileSamples;
             if (i > 0)
             {
-                var point = curve.Evaluate(t);
+                (double Lat, double Lon) point = curve.Evaluate(t);
                 lengthFt += GeoMath.DistanceNm(new LatLon(previous.Lat, previous.Lon), new LatLon(point.Lat, point.Lon)) * GeoMath.FeetPerNm;
                 previous = point;
             }
@@ -417,7 +417,7 @@ public sealed class GroundArc : IGroundEdge
     /// </summary>
     public double TraversalSeconds(AircraftCategory category)
     {
-        var profile = SpeedProfile(category);
+        IReadOnlyList<SpeedSample> profile = SpeedProfile(category);
         double seconds = 0.0;
         for (int i = 1; i < profile.Count; i++)
         {
@@ -568,7 +568,7 @@ public sealed class GroundArc : IGroundEdge
     /// </summary>
     public double TangentBearingAt(GroundNode atNode, GroundNode fromNode, GroundNode toNode)
     {
-        var bezier = ToBezier();
+        CubicBezier bezier = ToBezier();
         bool forward = fromNode.Id == Nodes[0].Id;
 
         if (forward)
@@ -684,11 +684,11 @@ public sealed class GroundRunway
 
     /// <summary>Author-specified preferred turn-off side for the given landing end, or null when none is authored.</summary>
     public ExitSide? TurnoffForEnd(string designator) =>
-        TurnoffByEnd.TryGetValue(RunwayIdentifier.NormalizeDesignator(designator), out var side) ? side : null;
+        TurnoffByEnd.TryGetValue(RunwayIdentifier.NormalizeDesignator(designator), out ExitSide side) ? side : null;
 
     /// <summary>Author-specified forbidden turn-off taxiways for the given landing end (empty when none).</summary>
     public IReadOnlyList<string> NoTurnoffForEnd(string designator) =>
-        NoTurnoffByEnd.TryGetValue(RunwayIdentifier.NormalizeDesignator(designator), out var names) ? names : [];
+        NoTurnoffByEnd.TryGetValue(RunwayIdentifier.NormalizeDesignator(designator), out IReadOnlyList<string>? names) ? names : [];
 
     /// <summary>Displaced-threshold distance in feet for the given landing end; 0 when none is authored.</summary>
     public double ThresholdDisplacementForEnd(string designator) =>
@@ -709,12 +709,12 @@ public sealed class GroundRunway
 
         string end = RunwayIdentifier.NormalizeDesignator(designator);
         bool isEnd1 = string.Equals(end, Id.End1, StringComparison.OrdinalIgnoreCase);
-        var (approachLat, approachLon) = isEnd1 ? Coordinates[0] : Coordinates[^1];
-        var (departureLat, departureLon) = isEnd1 ? Coordinates[^1] : Coordinates[0];
+        (double approachLat, double approachLon) = isEnd1 ? Coordinates[0] : Coordinates[^1];
+        (double departureLat, double departureLon) = isEnd1 ? Coordinates[^1] : Coordinates[0];
 
         double landingCourse = GeoMath.BearingTo(approachLat, approachLon, departureLat, departureLon);
         double displacementNm = ThresholdDisplacementForEnd(end) / GeoMath.FeetPerNm;
-        var (lat, lon) = GeoMath.ProjectPointRaw(approachLat, approachLon, landingCourse, displacementNm);
+        (double lat, double lon) = GeoMath.ProjectPointRaw(approachLat, approachLon, landingCourse, displacementNm);
         return (new LatLon(lat, lon), landingCourse);
     }
 }
@@ -747,12 +747,12 @@ public sealed class AirportGroundLayout
     /// </summary>
     public bool NodeHasEdgeTo(int nodeId, string taxiwayName)
     {
-        if (!Nodes.TryGetValue(nodeId, out var node))
+        if (!Nodes.TryGetValue(nodeId, out GroundNode? node))
         {
             return false;
         }
 
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge.MatchesTaxiway(taxiwayName))
             {
@@ -769,19 +769,19 @@ public sealed class AirportGroundLayout
     /// </summary>
     public void RebuildAdjacencyLists()
     {
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             node.Edges.Clear();
         }
 
-        foreach (var edge in AllEdges)
+        foreach (IGroundEdge edge in AllEdges)
         {
-            if (Nodes.TryGetValue(edge.Nodes[0].Id, out var nodeA))
+            if (Nodes.TryGetValue(edge.Nodes[0].Id, out GroundNode? nodeA))
             {
                 nodeA.Edges.Add(edge);
             }
 
-            if (Nodes.TryGetValue(edge.Nodes[1].Id, out var nodeB))
+            if (Nodes.TryGetValue(edge.Nodes[1].Id, out GroundNode? nodeB))
             {
                 nodeB.Edges.Add(edge);
             }
@@ -789,11 +789,11 @@ public sealed class AirportGroundLayout
 
         // Build the taxiway-node index eagerly so concurrent readers don't race.
         var index = new Dictionary<string, List<GroundNode>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
-                if (!index.TryGetValue(edge.TaxiwayName, out var list))
+                if (!index.TryGetValue(edge.TaxiwayName, out List<GroundNode>? list))
                 {
                     list = [];
                     index[edge.TaxiwayName] = list;
@@ -830,7 +830,7 @@ public sealed class AirportGroundLayout
     /// </summary>
     public bool RunwayCenterlineBetween(LatLon from, LatLon to)
     {
-        foreach (var runway in Runways)
+        foreach (GroundRunway runway in Runways)
         {
             for (int i = 1; i < runway.Coordinates.Count; i++)
             {
@@ -856,7 +856,7 @@ public sealed class AirportGroundLayout
     {
         if (_nodesByTaxiway is not null)
         {
-            foreach (var key in _nodesByTaxiway.Keys)
+            foreach (string key in _nodesByTaxiway.Keys)
             {
                 if (
                     key.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
@@ -876,7 +876,7 @@ public sealed class AirportGroundLayout
 
     public GroundNode? FindParkingByName(string name)
     {
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             if (node.Type == GroundNodeType.Parking && string.Equals(node.Name, name, StringComparison.OrdinalIgnoreCase))
             {
@@ -889,7 +889,7 @@ public sealed class AirportGroundLayout
 
     public GroundNode? FindHelipadByName(string name)
     {
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             if (node.Type == GroundNodeType.Helipad && string.Equals(node.Name, name, StringComparison.OrdinalIgnoreCase))
             {
@@ -915,7 +915,7 @@ public sealed class AirportGroundLayout
     /// </summary>
     public GroundNode? FindSpotNodeByName(string name)
     {
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             if (node.Type == GroundNodeType.Spot && string.Equals(node.Name, name, StringComparison.OrdinalIgnoreCase))
             {
@@ -940,14 +940,14 @@ public sealed class AirportGroundLayout
             return null;
         }
 
-        var candidates = GetNodesOnTaxiway(taxiA);
+        List<GroundNode> candidates = GetNodesOnTaxiway(taxiA);
         GroundNode? best = null;
         double bestMetric = double.MaxValue;
 
-        foreach (var node in candidates)
+        foreach (GroundNode node in candidates)
         {
             bool matchesB = false;
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway(taxiB))
                 {
@@ -982,7 +982,7 @@ public sealed class AirportGroundLayout
         double maxDistNm = maxDistFt / GeoMath.FeetPerNm;
         GroundNode? best = null;
         double bestDistNm = double.MaxValue;
-        foreach (var node in GetNodesOnTaxiway(taxiwayName))
+        foreach (GroundNode node in GetNodesOnTaxiway(taxiwayName))
         {
             double dist = GeoMath.DistanceNm(position, node.Position);
             if (dist > maxDistNm || dist >= bestDistNm)
@@ -1002,7 +1002,7 @@ public sealed class AirportGroundLayout
         GroundNode? best = null;
         double bestDist = double.MaxValue;
 
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             double dist = GeoMath.DistanceNm(new LatLon(lat, lon), node.Position);
             if (dist < bestDist)
@@ -1044,9 +1044,9 @@ public sealed class AirportGroundLayout
         double bestAlongNm = 0;
 
         var seen = new HashSet<IGroundEdge>();
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (!seen.Add(edge))
                 {
@@ -1061,7 +1061,7 @@ public sealed class AirportGroundLayout
                     continue;
                 }
 
-                var (footLat, footLon, alongNm, _) = GeoMath.FootOfPerpendicular(
+                (double footLat, double footLon, double alongNm, bool _) = GeoMath.FootOfPerpendicular(
                     lat,
                     lon,
                     straight.Nodes[0].Position.Lat,
@@ -1141,7 +1141,7 @@ public sealed class AirportGroundLayout
         // 90+ ft away, leaving the aircraft off-line from segment 0 and
         // unable to converge under the short-route speed cap (slow-creep
         // spin observed at SFO 42-4 → 10L).
-        foreach (var parkingNode in Nodes.Values)
+        foreach (GroundNode parkingNode in Nodes.Values)
         {
             if (parkingNode.Type is not (GroundNodeType.Parking or GroundNodeType.Helipad))
             {
@@ -1153,9 +1153,9 @@ public sealed class AirportGroundLayout
             }
 
             GroundNode? colocatedNeighbor = null;
-            foreach (var edge in parkingNode.Edges)
+            foreach (IGroundEdge edge in parkingNode.Edges)
             {
-                var other = edge.OtherNode(parkingNode);
+                GroundNode other = edge.OtherNode(parkingNode);
                 if (other.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
                 {
                     continue;
@@ -1170,7 +1170,7 @@ public sealed class AirportGroundLayout
             return colocatedNeighbor ?? parkingNode;
         }
 
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
             {
@@ -1216,14 +1216,14 @@ public sealed class AirportGroundLayout
     /// </summary>
     private static bool HasHeadingAlignedTaxiEdge(GroundNode node, TrueHeading heading)
     {
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge.IsRunwayCenterline || edge.IsRamp)
             {
                 continue;
             }
 
-            var other = edge.OtherNode(node);
+            GroundNode other = edge.OtherNode(node);
             double bearing = GeoMath.BearingTo(node.Position, other.Position);
             if (GeoMath.AbsBearingDifference(bearing, heading.Degrees) < 90.0)
             {
@@ -1247,7 +1247,7 @@ public sealed class AirportGroundLayout
         GroundNode? bestAny = null;
         double bestAnyDist = double.MaxValue;
 
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             if (!HasRunwayCenterlineEdge(node))
             {
@@ -1286,7 +1286,7 @@ public sealed class AirportGroundLayout
     /// </summary>
     private static bool HasRunwayEdgeForDesignator(GroundNode node, string designator)
     {
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge.MatchesRunway(designator))
             {
@@ -1307,7 +1307,7 @@ public sealed class AirportGroundLayout
         GroundNode? best = null;
         double bestDiff = double.MaxValue;
 
-        foreach (var edge in currentNode.Edges)
+        foreach (IGroundEdge edge in currentNode.Edges)
         {
             if (!edge.IsRunwayCenterline)
             {
@@ -1319,7 +1319,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            var neighbor = edge.OtherNode(currentNode);
+            GroundNode neighbor = edge.OtherNode(currentNode);
 
             double bearing = GeoMath.BearingTo(currentNode.Position, neighbor.Position);
             double diff = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
@@ -1387,16 +1387,17 @@ public sealed class AirportGroundLayout
 
         for (int i = 0; i < maxIterations; i++)
         {
-            var raw = FindExitFromCenterline(
-                lat,
-                lon,
-                runwayHeading,
-                runwayDesignator,
-                preference,
-                excludeBranchPoints,
-                excludeHoldShortNodes,
-                localTaxiwayExclusion.Count > 0 ? localTaxiwayExclusion : null
-            );
+            (GroundNode HoldShort, string Taxiway, List<GroundNode> Path, double ExitAngle, ExitSide Side, GroundNode WalkCenterline)? raw =
+                FindExitFromCenterline(
+                    lat,
+                    lon,
+                    runwayHeading,
+                    runwayDesignator,
+                    preference,
+                    excludeBranchPoints,
+                    excludeHoldShortNodes,
+                    localTaxiwayExclusion.Count > 0 ? localTaxiwayExclusion : null
+                );
             if (raw is null)
             {
                 break;
@@ -1413,7 +1414,7 @@ public sealed class AirportGroundLayout
 
             if (filter is not null)
             {
-                var verdict = filter(candidate);
+                CandidateVerdict verdict = filter(candidate);
                 if (verdict == CandidateVerdict.Skip)
                 {
                     localTaxiwayExclusion.Add(candidate.Taxiway);
@@ -1469,7 +1470,7 @@ public sealed class AirportGroundLayout
         HashSet<string>? excludeTaxiways = null
     )
     {
-        var startNode = FindNearestCenterlineNode(lat, lon, runwayHeading, runwayDesignator);
+        GroundNode? startNode = FindNearestCenterlineNode(lat, lon, runwayHeading, runwayDesignator);
         if (startNode is null)
         {
             return null;
@@ -1480,7 +1481,7 @@ public sealed class AirportGroundLayout
         HashSet<string>? forbiddenTaxiways = null;
         if ((preference?.Taxiway is null) && (FindRunway(runwayDesignator) is { } authoredRwy))
         {
-            var forbidden = authoredRwy.NoTurnoffForEnd(runwayDesignator);
+            IReadOnlyList<string> forbidden = authoredRwy.NoTurnoffForEnd(runwayDesignator);
             if (forbidden.Count > 0)
             {
                 forbiddenTaxiways = new HashSet<string>(forbidden, StringComparer.OrdinalIgnoreCase);
@@ -1503,7 +1504,7 @@ public sealed class AirportGroundLayout
         // nothing forward turns up.
         const int maxCenterlineHops = 30;
         const double BackExitAngleThreshold = 100.0;
-        var current = startNode;
+        GroundNode? current = startNode;
         (GroundNode Node, string Taxiway, List<GroundNode> Path, double ExitAngle, ExitSide Side, GroundNode WalkCenterline)? deferredBackExit = null;
         for (int hop = 0; hop < maxCenterlineHops && current is not null; hop++)
         {
@@ -1530,7 +1531,14 @@ public sealed class AirportGroundLayout
                 preference?.Taxiway ?? "any",
                 preference?.Side?.ToString() ?? "any"
             );
-            var result = FindAdjacentHoldShort(current, runwayDesignator, runwayHeading, preference, excludeHoldShortNodes, forbiddenTaxiways);
+            (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? result = FindAdjacentHoldShort(
+                current,
+                runwayDesignator,
+                runwayHeading,
+                preference,
+                excludeHoldShortNodes,
+                forbiddenTaxiways
+            );
             if (result is not null)
             {
                 double? exitAngle =
@@ -1605,14 +1613,14 @@ public sealed class AirportGroundLayout
         var visited = new HashSet<int> { centerlineNode.Id };
         for (int ci = 0; ci < clusterNodes.Count; ci++)
         {
-            foreach (var edge in clusterNodes[ci].Edges)
+            foreach (IGroundEdge edge in clusterNodes[ci].Edges)
             {
                 if (!edge.IsRunwayCenterline)
                 {
                     continue;
                 }
 
-                var neighbor = edge.OtherNode(clusterNodes[ci]);
+                GroundNode neighbor = edge.OtherNode(clusterNodes[ci]);
                 if (edge.DistanceNm <= tangentLinkThresholdNm && visited.Add(neighbor.Id))
                 {
                     clusterNodes.Add(neighbor);
@@ -1640,7 +1648,7 @@ public sealed class AirportGroundLayout
 
         while (queue.Count > 0)
         {
-            var (current, branchTwy, path, totalDist, depth) = queue.Dequeue();
+            (GroundNode? current, string? branchTwy, List<GroundNode>? path, double totalDist, int depth) = queue.Dequeue();
             Log.LogDebug(
                 "[ExitBFS] dequeue #{Id} twy={Twy} depth={Depth} dist={Dist:F4} type={Type}",
                 current.Id,
@@ -1749,7 +1757,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            foreach (var edge in current.Edges)
+            foreach (IGroundEdge edge in current.Edges)
             {
                 if (edge.IsRunwayCenterline)
                 {
@@ -1768,7 +1776,7 @@ public sealed class AirportGroundLayout
                     continue;
                 }
 
-                var next = edge.OtherNode(current);
+                GroundNode next = edge.OtherNode(current);
                 if (!visited.Add(next.Id))
                 {
                     Log.LogDebug("[ExitBFS]   skip walk #{From}→#{To}: already visited", current.Id, next.Id);
@@ -1833,19 +1841,19 @@ public sealed class AirportGroundLayout
         List<GroundNode> CrossingPath
     )? FindParallelRunwayCrossing(GroundNode landingHoldShortNode, GroundNode comeFromNode, string exitTaxiwayName, string landingRunwayDesignator)
     {
-        var pullUpPath = WalkToParallelNearHoldShort(landingHoldShortNode, comeFromNode.Id, exitTaxiwayName, landingRunwayDesignator);
+        List<GroundNode>? pullUpPath = WalkToParallelNearHoldShort(landingHoldShortNode, comeFromNode.Id, exitTaxiwayName, landingRunwayDesignator);
         if (pullUpPath is null)
         {
             return null;
         }
 
-        var nearHoldShort = pullUpPath[^1];
+        GroundNode nearHoldShort = pullUpPath[^1];
         if (nearHoldShort.RunwayId is not { } nearRunwayId || !IsParallelRunway(landingRunwayDesignator, nearRunwayId))
         {
             return null;
         }
 
-        var crossingPath = WalkAcrossToFarHoldShort(nearHoldShort, pullUpPath[^2].Id, exitTaxiwayName, nearRunwayId);
+        List<GroundNode>? crossingPath = WalkAcrossToFarHoldShort(nearHoldShort, pullUpPath[^2].Id, exitTaxiwayName, nearRunwayId);
         if (crossingPath is null)
         {
             return null;
@@ -1879,12 +1887,12 @@ public sealed class AirportGroundLayout
     {
         const int maxHops = 10;
         var path = new List<GroundNode> { landingHoldShort };
-        var current = landingHoldShort;
+        GroundNode current = landingHoldShort;
         int prevId = comeFromId;
 
         for (int hop = 0; hop < maxHops; hop++)
         {
-            var next = StepForwardOnTaxiway(current, prevId, exitTaxiwayName);
+            GroundNode? next = StepForwardOnTaxiway(current, prevId, exitTaxiwayName);
             if (next is null)
             {
                 return null;
@@ -1924,12 +1932,12 @@ public sealed class AirportGroundLayout
     {
         const int maxHops = 10;
         var path = new List<GroundNode> { nearHoldShort };
-        var current = nearHoldShort;
+        GroundNode current = nearHoldShort;
         int prevId = comeFromId;
 
         for (int hop = 0; hop < maxHops; hop++)
         {
-            var next = StepForwardOnTaxiway(current, prevId, exitTaxiwayName);
+            GroundNode? next = StepForwardOnTaxiway(current, prevId, exitTaxiwayName);
             if (next is null)
             {
                 return null;
@@ -1962,14 +1970,14 @@ public sealed class AirportGroundLayout
         GroundNode? arc = null;
         int arcCount = 0;
 
-        foreach (var edge in current.Edges)
+        foreach (IGroundEdge edge in current.Edges)
         {
             if (edge.IsRunwayCenterline || !edge.MatchesTaxiway(taxiwayName))
             {
                 continue;
             }
 
-            var other = edge.OtherNode(current);
+            GroundNode other = edge.OtherNode(current);
             if (other.Id == prevId)
             {
                 continue;
@@ -2007,7 +2015,7 @@ public sealed class AirportGroundLayout
     /// </summary>
     private static bool HasForeignTaxiwayBranch(GroundNode node, string taxiwayName)
     {
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge.IsRunwayCenterline || edge.MatchesTaxiway(taxiwayName))
             {
@@ -2086,9 +2094,9 @@ public sealed class AirportGroundLayout
         bool arcsOnly
     )
     {
-        foreach (var clusterNode in clusterNodes)
+        foreach (GroundNode clusterNode in clusterNodes)
         {
-            foreach (var edge in clusterNode.Edges)
+            foreach (IGroundEdge edge in clusterNode.Edges)
             {
                 if (edge.IsRunwayCenterline)
                 {
@@ -2101,7 +2109,7 @@ public sealed class AirportGroundLayout
                     continue;
                 }
 
-                var neighbor = edge.OtherNode(clusterNode);
+                GroundNode neighbor = edge.OtherNode(clusterNode);
 
                 if (visited.Contains(neighbor.Id))
                 {
@@ -2196,20 +2204,20 @@ public sealed class AirportGroundLayout
 
         while (queue.Count > 0)
         {
-            var (current, path) = queue.Dequeue();
+            (GroundNode? current, List<GroundNode>? path) = queue.Dequeue();
             if (path.Count > maxDepth)
             {
                 continue;
             }
 
-            foreach (var edge in current.Edges)
+            foreach (IGroundEdge edge in current.Edges)
             {
                 if (!edge.MatchesTaxiway(taxiwayName))
                 {
                     continue;
                 }
 
-                var neighbor = edge.OtherNode(current);
+                GroundNode neighbor = edge.OtherNode(current);
                 if (!visited.Add(neighbor.Id))
                 {
                     continue;
@@ -2218,7 +2226,7 @@ public sealed class AirportGroundLayout
                 var nextPath = new List<GroundNode>(path) { neighbor };
 
                 bool onCenterline = false;
-                foreach (var nEdge in neighbor.Edges)
+                foreach (IGroundEdge nEdge in neighbor.Edges)
                 {
                     if (nEdge.IsRunwayCenterline)
                     {
@@ -2255,7 +2263,7 @@ public sealed class AirportGroundLayout
         GroundNode? best = null;
         double bestAlongTrack = double.MaxValue;
 
-        foreach (var node in GetRunwayHoldShortNodes(runwayDesignator))
+        foreach (GroundNode node in GetRunwayHoldShortNodes(runwayDesignator))
         {
             double alongTrack = GeoMath.AlongTrackDistanceNm(node.Position, new LatLon(lat, lon), runwayHeading);
             if (alongTrack <= 0)
@@ -2277,7 +2285,7 @@ public sealed class AirportGroundLayout
             if (preference?.Taxiway is { } taxiway)
             {
                 bool hasMatchingEdge = false;
-                foreach (var edge in node.Edges)
+                foreach (IGroundEdge edge in node.Edges)
                 {
                     if (!edge.IsRunwayCenterline && edge.MatchesTaxiway(taxiway))
                     {
@@ -2311,7 +2319,7 @@ public sealed class AirportGroundLayout
     /// </summary>
     public GroundRunway? FindGroundRunway(string designator)
     {
-        foreach (var rwy in Runways)
+        foreach (GroundRunway rwy in Runways)
         {
             var id = RunwayIdentifier.Parse(rwy.Name);
             if (id.Contains(designator))
@@ -2335,7 +2343,7 @@ public sealed class AirportGroundLayout
         double bestScore = double.MaxValue;
         GroundRunway? targetRunway = runwayDesignator is not null ? FindGroundRunway(runwayDesignator) : null;
 
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             if (!IsValidExitCandidate(node, targetRunway))
             {
@@ -2380,7 +2388,7 @@ public sealed class AirportGroundLayout
         double bestScore = double.MaxValue;
         GroundRunway? targetRunway = runwayDesignator is not null ? FindGroundRunway(runwayDesignator) : null;
 
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             if (!IsValidExitCandidate(node, targetRunway))
             {
@@ -2427,7 +2435,7 @@ public sealed class AirportGroundLayout
         GroundNode? best = null;
         double bestDist = double.MaxValue;
 
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
             {
@@ -2451,7 +2459,7 @@ public sealed class AirportGroundLayout
             // into T5B) is not a useful pushback target — the aircraft center would
             // stop on the curve instead of on the taxiway proper. Issue #162.
             bool hasMatchingEdge = false;
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge is GroundEdge straight && !straight.IsRunwayCenterline && straight.MatchesTaxiway(taxiwayName))
                 {
@@ -2485,7 +2493,7 @@ public sealed class AirportGroundLayout
         double? bestBearing = null;
         double bestDiff = double.MaxValue;
 
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             // Skip arcs — only straight GroundEdges define a meaningful taxiway bearing.
             // An arc's chord bearing is not the taxiway's direction. Issue #162.
@@ -2504,7 +2512,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            var otherNode = straight.OtherNode(node);
+            GroundNode otherNode = straight.OtherNode(node);
 
             double bearing = GeoMath.BearingTo(node.Position, otherNode.Position);
             double diff = GeoMath.AbsBearingDifference(bearing, preferredBearing);
@@ -2532,7 +2540,7 @@ public sealed class AirportGroundLayout
         bearing = 0;
 
         var subLaneNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var edge in spot.Edges)
+        foreach (IGroundEdge edge in spot.Edges)
         {
             if (edge is GroundEdge straight && !straight.IsRunwayCenterline && !straight.IsRamp)
             {
@@ -2542,7 +2550,7 @@ public sealed class AirportGroundLayout
 
         double? bestBearing = null;
         int bestHops = int.MaxValue;
-        foreach (var edge in spot.Edges)
+        foreach (IGroundEdge edge in spot.Edges)
         {
             if (edge is not GroundEdge first || first.IsRunwayCenterline || first.IsRamp)
             {
@@ -2581,8 +2589,8 @@ public sealed class AirportGroundLayout
 
         while (frontier.Count > 0)
         {
-            var (node, depth) = frontier.Dequeue();
-            foreach (var edge in node.Edges)
+            (GroundNode? node, int depth) = frontier.Dequeue();
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.IsRunwayCenterline)
                 {
@@ -2596,7 +2604,7 @@ public sealed class AirportGroundLayout
                 {
                     continue;
                 }
-                var other = edge.OtherNode(node);
+                GroundNode other = edge.OtherNode(node);
                 if (visited.Add(other.Id))
                 {
                     frontier.Enqueue((other, depth + 1));
@@ -2644,7 +2652,7 @@ public sealed class AirportGroundLayout
     /// </summary>
     public string? GetExitTaxiwayName(GroundNode exitNode)
     {
-        foreach (var edge in exitNode.Edges)
+        foreach (IGroundEdge edge in exitNode.Edges)
         {
             if (!edge.IsRunwayCenterline)
             {
@@ -2661,7 +2669,7 @@ public sealed class AirportGroundLayout
     public List<GroundNode> GetRunwayHoldShortNodes(string runwayId)
     {
         var result = new List<GroundNode>();
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } id && id.Contains(runwayId))
             {
@@ -2682,7 +2690,7 @@ public sealed class AirportGroundLayout
         GroundNode? best = null;
         double bestDiff = double.MaxValue;
 
-        foreach (var edge in exitNode.Edges)
+        foreach (IGroundEdge edge in exitNode.Edges)
         {
             if (edge.IsRunwayCenterline)
             {
@@ -2694,7 +2702,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            var otherNode = edge.OtherNode(exitNode);
+            GroundNode otherNode = edge.OtherNode(exitNode);
 
             // Prefer the direction that doesn't require turning back toward the runway
             double bearing = GeoMath.BearingTo(exitNode.Position, otherNode.Position);
@@ -2726,12 +2734,12 @@ public sealed class AirportGroundLayout
             return null;
         }
 
-        var from = path[^2];
-        var to = path[^1];
+        GroundNode from = path[^2];
+        GroundNode to = path[^1];
         // Prefer the arc when both a preserved straight shortcut and a corner arc join the same node
         // pair — the arc's arrival tangent is the real traversal direction; the chord would understate
         // a reverse corner's sweep.
-        var edge =
+        IGroundEdge? edge =
             from.Edges.FirstOrDefault(e => (e is GroundArc) && (e.OtherNode(from).Id == to.Id))
             ?? from.Edges.FirstOrDefault(e => e.OtherNode(from).Id == to.Id);
         double bearing = edge is GroundArc arc ? arc.TangentBearingAt(to, from, to) : GeoMath.BearingTo(from.Position, to.Position);
@@ -2751,7 +2759,7 @@ public sealed class AirportGroundLayout
         // standard exit has a larger angle (~90°).
         double? bestAngle = null;
 
-        foreach (var edge in exitNode.Edges)
+        foreach (IGroundEdge edge in exitNode.Edges)
         {
             if (edge.IsRunwayCenterline)
             {
@@ -2763,7 +2771,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            var otherNode = edge.OtherNode(exitNode);
+            GroundNode otherNode = edge.OtherNode(exitNode);
 
             // Skip edges going toward the runway centerline — we want the away direction
             if (HasRunwayCenterlineEdge(otherNode))
@@ -2815,7 +2823,7 @@ public sealed class AirportGroundLayout
         }
 
         // Enumerate all exits on both sides
-        var exits = EnumerateExitsBothSides(runwayDesignator, runwayHeading);
+        List<(int HoldShortId, ExitSide Side, bool IsHighSpeed)> exits = EnumerateExitsBothSides(runwayDesignator, runwayHeading);
         if (exits.Count == 0)
         {
             return null;
@@ -2870,7 +2878,7 @@ public sealed class AirportGroundLayout
         var exits = new List<(int HoldShortId, ExitSide Side, bool IsHighSpeed)>();
         var seen = new HashSet<int>();
 
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             bool isCenterline = node.Edges.Any(e => e.MatchesRunway(designator));
             if (!isCenterline)
@@ -2879,7 +2887,7 @@ public sealed class AirportGroundLayout
             }
 
             var searched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.IsRunwayCenterline)
                 {
@@ -2892,10 +2900,15 @@ public sealed class AirportGroundLayout
                 }
 
                 ExitSide[] sides = [ExitSide.Left, ExitSide.Right];
-                foreach (var side in sides)
+                foreach (ExitSide side in sides)
                 {
                     var pref = new ExitPreference { Taxiway = edge.TaxiwayName, Side = side };
-                    var result = FindAdjacentHoldShort(node, designator, rwyHeading, pref);
+                    (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? result = FindAdjacentHoldShort(
+                        node,
+                        designator,
+                        rwyHeading,
+                        pref
+                    );
                     if (result is null)
                     {
                         continue;
@@ -2939,7 +2952,7 @@ public sealed class AirportGroundLayout
         int counted = 0;
         foreach (int hsId in holdShortIds)
         {
-            if (!Nodes.TryGetValue(hsId, out var hsNode))
+            if (!Nodes.TryGetValue(hsId, out GroundNode? hsNode))
             {
                 continue;
             }
@@ -2958,7 +2971,7 @@ public sealed class AirportGroundLayout
     /// </summary>
     public ExitSide? FindParallelRunwayHsSide(string designator, TrueHeading runwayHeading)
     {
-        foreach (var rwy in Runways)
+        foreach (GroundRunway rwy in Runways)
         {
             var id = RunwayIdentifier.Parse(rwy.Name);
 
@@ -2995,7 +3008,10 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            var parallelExits = EnumerateExitsBothSides(parallelDesignator, new TrueHeading(parallelBearing));
+            List<(int HoldShortId, ExitSide Side, bool IsHighSpeed)> parallelExits = EnumerateExitsBothSides(
+                parallelDesignator,
+                new TrueHeading(parallelBearing)
+            );
             int pHsLeft = parallelExits.Count(e => e.IsHighSpeed && (e.Side == ExitSide.Left));
             int pHsRight = parallelExits.Count(e => e.IsHighSpeed && (e.Side == ExitSide.Right));
 
@@ -3031,7 +3047,7 @@ public sealed class AirportGroundLayout
         double bestScore = double.MaxValue;
         GroundRunway? targetRunway = runwayDesignator is not null ? FindGroundRunway(runwayDesignator) : null;
 
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             if (!IsValidExitCandidate(node, targetRunway))
             {
@@ -3056,7 +3072,7 @@ public sealed class AirportGroundLayout
 
             if (preference?.Taxiway is { } taxiway)
             {
-                foreach (var edge in node.Edges)
+                foreach (IGroundEdge edge in node.Edges)
                 {
                     if (!edge.IsRunwayCenterline && edge.MatchesTaxiway(taxiway))
                     {
@@ -3136,7 +3152,7 @@ public sealed class AirportGroundLayout
         nearest.Fill(double.MaxValue);
 
         bool anyParking = false;
-        foreach (var node in Nodes.Values)
+        foreach (GroundNode node in Nodes.Values)
         {
             if (node.Type != GroundNodeType.Parking)
             {
@@ -3193,7 +3209,7 @@ public sealed class AirportGroundLayout
     {
         double targetDist = MinDistanceToRunwayCenterline(node, targetRunway);
 
-        foreach (var rwy in Runways)
+        foreach (GroundRunway rwy in Runways)
         {
             if (ReferenceEquals(rwy, targetRunway))
             {
@@ -3217,7 +3233,7 @@ public sealed class AirportGroundLayout
     private static double MinDistanceToRunwayCenterline(GroundNode node, GroundRunway runway)
     {
         double minDist = double.MaxValue;
-        var coords = runway.Coordinates;
+        List<(double Lat, double Lon)> coords = runway.Coordinates;
 
         for (int i = 0; i < coords.Count - 1; i++)
         {
@@ -3294,7 +3310,7 @@ public sealed class AirportGroundLayout
         }
 
         bool hasTaxiwayEdge = false;
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (!edge.IsRunwayCenterline)
             {
@@ -3332,7 +3348,7 @@ public sealed class AirportGroundLayout
 
     internal static bool HasRunwayCenterlineEdge(GroundNode node)
     {
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge.IsRunwayCenterline)
             {

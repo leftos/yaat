@@ -36,7 +36,7 @@ public class AirportE2ETests
 
     private static AircraftState MakeGroundAircraft(string departure = "OAK", LatLon? position = null)
     {
-        var pos = position ?? new LatLon(37.728, -122.218);
+        LatLon pos = position ?? new LatLon(37.728, -122.218);
         var ac = new AircraftState
         {
             Callsign = "TEST1",
@@ -80,20 +80,20 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiFromParking_D_Succeeds()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var parking = FindParking(layout, "NEW7");
+        GroundNode? parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(position: parking.Position);
+        AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         // TAXI D — walks south along D from NEW7 parking (via RAMP edge)
         var taxi = new TaxiCommand(["D"], []);
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
         Assert.NotNull(ac.Ground.AssignedTaxiRoute);
@@ -106,30 +106,30 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiFromParking_DC_ReachesC()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var parking = FindParking(layout, "NEW7");
+        GroundNode? parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(position: parking.Position);
+        AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         // TAXI D C — taxi up D and stop at the D/C intersection. With no downstream destination and
         // C passing through the junction both ways, the route does not commit a direction along C;
         // the aircraft holds at the junction, ready to be turned either way on C by a follow-up taxi.
         var taxi = new TaxiCommand(["D", "C"], []);
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
 
-        var route = ac.Ground.AssignedTaxiRoute!;
+        TaxiRoute route = ac.Ground.AssignedTaxiRoute!;
         Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase));
 
         // Reaches the D/C intersection but does not walk along C.
-        var dcJunction = layout.FindIntersectionNode("D", "C");
+        GroundNode? dcJunction = layout.FindIntersectionNode("D", "C");
         Assert.NotNull(dcJunction);
         Assert.Equal(dcJunction.Id, route.Segments[^1].ToNodeId);
         Assert.DoesNotContain(route.Segments, s => string.Equals(s.TaxiwayName, "C", StringComparison.OrdinalIgnoreCase));
@@ -138,20 +138,20 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiFromParking_DCBW_ToRunway30_HasHoldShortAndPhases()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var parking = FindParking(layout, "NEW7");
+        GroundNode? parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(position: parking.Position);
+        AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         // TAXI D C B W to runway 30 — full route from NEW7 to runway 30
         var taxi = new TaxiCommand(["D", "C", "B", "W"], [], DestinationRunway: "30");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
 
@@ -170,42 +170,42 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiDCBTUW_HasHoldShortsForBothRunways()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var parking = FindParking(layout, "NEW7");
+        GroundNode? parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(position: parking.Position);
+        AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         var taxi = new TaxiCommand(["D", "C", "B", "T", "U", "W"], []);
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
 
-        var route = ac.Ground.AssignedTaxiRoute!;
+        TaxiRoute route = ac.Ground.AssignedTaxiRoute!;
 
-        var allHs = route.HoldShortPoints;
-        var hsInfo = string.Join("; ", allHs.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
+        List<HoldShortPoint> allHs = route.HoldShortPoints;
+        string hsInfo = string.Join("; ", allHs.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
 
         // Also dump all RunwayHoldShort nodes encountered in the route
         var hsNodesInRoute = route
-            .Segments.Where(s => layout.Nodes.TryGetValue(s.ToNodeId, out var n) && n.Type == GroundNodeType.RunwayHoldShort)
+            .Segments.Where(s => layout.Nodes.TryGetValue(s.ToNodeId, out GroundNode? n) && n.Type == GroundNodeType.RunwayHoldShort)
             .Select(s =>
             {
-                var n = layout.Nodes[s.ToNodeId];
+                GroundNode n = layout.Nodes[s.ToNodeId];
                 return $"seg→{s.ToNodeId}(rwy={n.RunwayId},lat={n.Position.Lat:F6},lon={n.Position.Lon:F6})";
             })
             .ToList();
-        var hsNodeInfo = string.Join("; ", hsNodesInRoute);
+        string hsNodeInfo = string.Join("; ", hsNodesInRoute);
 
         // Route crosses both 28R/10L and 28L/10R on B taxiway
-        var has28R = allHs.Any(h =>
+        bool has28R = allHs.Any(h =>
             h.Reason == HoldShortReason.RunwayCrossing && h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28R")
         );
-        var has28L = allHs.Any(h =>
+        bool has28L = allHs.Any(h =>
             h.Reason == HoldShortReason.RunwayCrossing && h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28L")
         );
 
@@ -219,29 +219,29 @@ public class AirportE2ETests
     [InlineData(200)] // Wide
     public void OAK_TaxiDCBTUW_HasHoldShortsForBothRunways_WithRunwayWidth(int widthFt)
     {
-        var layout = LoadLayoutWithWidth("OAK", "oak", widthFt);
+        AirportGroundLayout? layout = LoadLayoutWithWidth("OAK", "oak", widthFt);
         if (layout is null)
         {
             return;
         }
 
-        var parking = FindParking(layout, "NEW7");
+        GroundNode? parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(position: parking.Position);
+        AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         var taxi = new TaxiCommand(["D", "C", "B", "T", "U", "W"], []);
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi should succeed (width={widthFt}): {result.Message}");
 
-        var route = ac.Ground.AssignedTaxiRoute!;
-        var allHs = route.HoldShortPoints;
-        var hsInfo = string.Join("; ", allHs.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
+        TaxiRoute route = ac.Ground.AssignedTaxiRoute!;
+        List<HoldShortPoint> allHs = route.HoldShortPoints;
+        string hsInfo = string.Join("; ", allHs.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
 
-        var has28R = allHs.Any(h =>
+        bool has28R = allHs.Any(h =>
             h.Reason == HoldShortReason.RunwayCrossing && h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28R")
         );
-        var has28L = allHs.Any(h =>
+        bool has28L = allHs.Any(h =>
             h.Reason == HoldShortReason.RunwayCrossing && h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28L")
         );
 
@@ -292,19 +292,19 @@ public class AirportE2ETests
     [Fact]
     public void OAK_PushbackFromParking_FacingD_Succeeds()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var parking = FindParking(layout, "NEW7");
+        GroundNode? parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(position: parking.Position);
+        AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         var push = new PushbackCommand(null, null, "D", null, null);
-        var result = GroundCommandHandler.TryPushback(ac, push, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, push, layout, null);
 
         Assert.True(result.Success, $"Pushback should succeed: {result.Message}");
         Assert.IsType<PushbackPhase>(ac.Phases!.CurrentPhase);
@@ -313,7 +313,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiDF_MultipleHoldShorts_CrossesRunway15_33()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
@@ -324,9 +324,9 @@ public class AirportE2ETests
         Assert.True(dEdges.Count > 0);
 
         GroundNode? startNode = null;
-        foreach (var edge in dEdges)
+        foreach (GroundEdge? edge in dEdges)
         {
-            var node = edge.Nodes[0];
+            GroundNode node = edge.Nodes[0];
             if (node.Position.Lat > 37.735)
             {
                 startNode = node;
@@ -339,11 +339,11 @@ public class AirportE2ETests
             return;
         }
 
-        var ac = MakeGroundAircraft(position: startNode.Position);
+        AircraftState ac = MakeGroundAircraft(position: startNode.Position);
 
         // D → K → F: D connects to K, K connects to F. Both D and F cross 15/33.
         var taxi = new TaxiCommand(["D", "K", "F"], []);
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi D K F should succeed: {result.Message}");
 
@@ -355,7 +355,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiDKF_AutoCrossRunway_ClearsHoldShorts()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
@@ -364,9 +364,9 @@ public class AirportE2ETests
         var dEdges = layout.Edges.Where(e => e.MatchesTaxiway("D")).ToList();
 
         GroundNode? startNode = null;
-        foreach (var edge in dEdges)
+        foreach (GroundEdge? edge in dEdges)
         {
-            var node = edge.Nodes[0];
+            GroundNode node = edge.Nodes[0];
             if (node.Position.Lat > 37.735)
             {
                 startNode = node;
@@ -379,11 +379,11 @@ public class AirportE2ETests
             return;
         }
 
-        var ac = MakeGroundAircraft(position: startNode.Position);
+        AircraftState ac = MakeGroundAircraft(position: startNode.Position);
 
         // Taxi with auto-cross-runway flag
         var taxi = new TaxiCommand(["D", "K", "F"], []);
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout, autoCrossRunway: true);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout, autoCrossRunway: true);
 
         Assert.True(result.Success, $"Taxi D K F (auto-cross) should succeed: {result.Message}");
 
@@ -397,27 +397,27 @@ public class AirportE2ETests
     [Fact]
     public void OAK_FullTaxiToTakeoff_DCBW_HoldShort30_HasPhases()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var parking = FindParking(layout, "NEW7");
+        GroundNode? parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(position: parking.Position);
+        AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         // Step 1: Taxi from parking to runway 30 via D C B W
         var taxi = new TaxiCommand(["D", "C", "B", "W"], [], DestinationRunway: "30");
-        var taxiResult = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult taxiResult = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(taxiResult.Success, $"Taxi failed: {taxiResult.Message}");
 
         // Verify we're in TaxiingPhase
         Assert.IsType<TaxiingPhase>(ac.Phases!.CurrentPhase);
 
         // Verify route has destination hold-short for runway 30
-        var destHs = ac.Ground.AssignedTaxiRoute!.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
+        HoldShortPoint? destHs = ac.Ground.AssignedTaxiRoute!.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
         Assert.NotNull(destHs);
 
         // The destination hold-short target should reference runway 30
@@ -434,27 +434,27 @@ public class AirportE2ETests
     [Fact]
     public void OAK_PushbackThenTaxi_NEW7_PushD_TaxiDC()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var parking = FindParking(layout, "NEW7");
+        GroundNode? parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(position: parking.Position);
+        AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         // Step 1: Pushback facing D
         var push = new PushbackCommand(null, null, "D", null, null);
-        var pushResult = GroundCommandHandler.TryPushback(ac, push, layout, null);
+        CommandResult pushResult = GroundCommandHandler.TryPushback(ac, push, layout, null);
         Assert.True(pushResult.Success, $"Pushback failed: {pushResult.Message}");
         Assert.IsType<PushbackPhase>(ac.Phases!.CurrentPhase);
 
         // Step 2: Complete pushback by ticking until done
         for (int i = 0; i < 200; i++)
         {
-            var ctx = MinCtx(ac);
+            PhaseContext ctx = MinCtx(ac);
             FlightPhysics.Update(ac, ctx.DeltaSeconds);
             PhaseRunner.Tick(ac, ctx);
 
@@ -466,7 +466,7 @@ public class AirportE2ETests
 
         // After pushback, issue taxi via D C
         var taxi = new TaxiCommand(["D", "C"], []);
-        var taxiResult = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult taxiResult = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(taxiResult.Success, $"Taxi after pushback failed: {taxiResult.Message}");
         Assert.IsType<TaxiingPhase>(ac.Phases.CurrentPhase);
     }
@@ -474,21 +474,21 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiD_NeedsVariantForRunway30()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var parking = FindParking(layout, "NEW7");
+        GroundNode? parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(position: parking.Position);
+        AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         // TAXI D to runway 30 — D doesn't reach runway 30 (it's in the 28/15-33 area).
         // Should fail because D alone can't reach the 30 threshold.
         var taxi = new TaxiCommand(["D"], [], DestinationRunway: "30");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.False(result.Success, "D alone should not reach runway 30");
     }
@@ -496,7 +496,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_HoldShortNodes_NotAtJunctions()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
@@ -507,7 +507,7 @@ public class AirportE2ETests
         Assert.True(hsNodes.Count > 0, "OAK should have hold-short nodes");
 
         var failures = new List<string>();
-        foreach (var hs in hsNodes)
+        foreach (GroundNode? hs in hsNodes)
         {
             // A junction node connects to multiple distinct non-runway taxiways.
             // Hold-short nodes should NOT be at junctions — they should be on a
@@ -534,13 +534,13 @@ public class AirportE2ETests
     [Fact]
     public void OAK_NoDuplicateEdgesOnNodes()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        foreach (var (id, node) in layout.Nodes)
+        foreach ((int id, GroundNode? node) in layout.Nodes)
         {
             // Each edge should appear exactly once in the node's adjacency list
             var dupes = node.Edges.GroupBy(e => (e.Nodes[0].Id, e.Nodes[1].Id, e.TaxiwayName)).Where(g => g.Count() > 1).ToList();
@@ -557,14 +557,14 @@ public class AirportE2ETests
 
     private static GroundNode? FindNodeOnTaxiway(AirportGroundLayout layout, string taxiwayName)
     {
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (node.Type != GroundNodeType.TaxiwayIntersection)
             {
                 continue;
             }
 
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway(taxiwayName))
                 {
@@ -578,7 +578,7 @@ public class AirportE2ETests
 
     private static GroundNode? FindHoldShortForRunway(AirportGroundLayout layout, string runway)
     {
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } rwyId && rwyId.Contains(runway))
             {
@@ -592,7 +592,7 @@ public class AirportE2ETests
     private static List<string> GetTaxiwaySequence(TaxiRoute route)
     {
         var names = new List<string>();
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             // A fillet's composite label ("W - B") is the junction, not a taxiway of its own: count it as the
             // taxiway it is entered from, exactly as the pathfinder's transition cost does.
@@ -614,7 +614,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_FindRoutes_FromC_ToRunway30_PrefersCBW()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
@@ -622,7 +622,7 @@ public class AirportE2ETests
 
         // Find a node on C that also connects to B (the C/B junction)
         GroundNode? startNode = null;
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
             if (node.Type != GroundNodeType.TaxiwayIntersection)
             {
@@ -631,7 +631,7 @@ public class AirportE2ETests
 
             bool hasC = false;
             bool hasB = false;
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.MatchesTaxiway("C"))
                 {
@@ -653,15 +653,15 @@ public class AirportE2ETests
 
         Assert.NotNull(startNode);
 
-        var hsNode = FindHoldShortForRunway(layout, "30");
+        GroundNode? hsNode = FindHoldShortForRunway(layout, "30");
         Assert.NotNull(hsNode);
 
-        var routes = TaxiPathfinder.FindRoutes(layout, startNode.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
+        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(layout, startNode.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
         Assert.True(routes.Count > 0, "Should find at least one route from C/B junction to RWY 30");
 
         // The first (best) route should use B → W (with optional variant suffix
         // like W1 if the destination is a variant hold-short) — fewest taxiway transitions
-        var bestSeq = GetTaxiwaySequence(routes[0]);
+        List<string> bestSeq = GetTaxiwaySequence(routes[0]);
         Assert.True(
             bestSeq.Count <= 4 && bestSeq.Contains("B") && bestSeq.Any(n => n.StartsWith("W")),
             $"Best route should go via B → W (few taxiways), got: [{string.Join(", ", bestSeq)}]"
@@ -676,7 +676,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_FindRoutes_RankedByTaxiwayTransitions()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
@@ -684,13 +684,13 @@ public class AirportE2ETests
 
         // From a C node to a runway 30 hold-short: verify routes are ranked
         // with fewer taxiway transitions first
-        var startNode = FindNodeOnTaxiway(layout, "C");
+        GroundNode? startNode = FindNodeOnTaxiway(layout, "C");
         Assert.NotNull(startNode);
 
-        var hsNode = FindHoldShortForRunway(layout, "30");
+        GroundNode? hsNode = FindHoldShortForRunway(layout, "30");
         Assert.NotNull(hsNode);
 
-        var routes = TaxiPathfinder.FindRoutes(layout, startNode.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
+        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(layout, startNode.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
         if (routes.Count < 2)
         {
             return; // Can't test ranking with only one route
@@ -699,7 +699,7 @@ public class AirportE2ETests
         // The first route (from penalized A*) should have the fewest taxiway
         // transitions. Alternatives from Yen's K-shortest are sorted by distance,
         // so they may have fewer or more taxiways.
-        var firstSeq = GetTaxiwaySequence(routes[0]);
+        List<string> firstSeq = GetTaxiwaySequence(routes[0]);
         int minTaxiways = routes.Min(r => GetTaxiwaySequence(r).Count);
         Assert.True(
             firstSeq.Count <= minTaxiways + 1,
@@ -710,28 +710,28 @@ public class AirportE2ETests
     [Fact]
     public void OAK_FindRoutes_FromParking_ToRunway30_FirstRouteIsReasonable()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var parking = FindParking(layout, "NEW7");
+        GroundNode? parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
         // Target the runway-30 hold-short nearest the parking spot — the realistic exit a taxi
         // clearance would use. (A bare first-by-iteration hold-short can land on a mid-field
         // high-speed exit like W3, which legitimately needs extra taxiways to taxi up.)
-        var hsNode = layout
+        GroundNode? hsNode = layout
             .Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } r && r.Contains("30"))
             .OrderBy(n => GeoMath.DistanceNm(parking.Position, n.Position))
             .FirstOrDefault();
         Assert.NotNull(hsNode);
 
-        var routes = TaxiPathfinder.FindRoutes(layout, parking.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
+        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(layout, parking.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
         Assert.True(routes.Count > 0, "Should find route from NEW7 to RWY 30");
 
-        var bestSeq = GetTaxiwaySequence(routes[0]);
+        List<string> bestSeq = GetTaxiwaySequence(routes[0]);
 
         // The canonical route is D C B W — should not be something convoluted
         // with 6+ taxiway transitions
@@ -748,7 +748,7 @@ public class AirportE2ETests
     [Fact]
     public void SFO_LayoutLoads_HasMultipleRunwayHoldShorts()
     {
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
@@ -770,7 +770,7 @@ public class AirportE2ETests
     [Fact]
     public void SFO_TaxiRoute_HasVariantInference()
     {
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
@@ -803,7 +803,7 @@ public class AirportE2ETests
     /// </summary>
     private static (GroundNode? pushback, GroundNode? junction, GroundNode? spot7A) FindSfoT7ANodes(AirportGroundLayout layout)
     {
-        var spot7A = layout.FindSpotByName("7A");
+        GroundNode? spot7A = layout.FindSpotByName("7A");
         if (spot7A is null)
         {
             return (null, null, null);
@@ -818,11 +818,11 @@ public class AirportE2ETests
         var t7aNodeIds = t7aEdges.SelectMany(e => new[] { e.Nodes[0].Id, e.Nodes[1].Id }).Distinct().ToHashSet();
 
         // Junction: T7A node that also has an A edge
-        var junction = layout.Nodes.Values.FirstOrDefault(n => t7aNodeIds.Contains(n.Id) && n.Edges.Any(e => e.MatchesTaxiway("A")));
+        GroundNode? junction = layout.Nodes.Values.FirstOrDefault(n => t7aNodeIds.Contains(n.Id) && n.Edges.Any(e => e.MatchesTaxiway("A")));
 
         // Pushback node: T7A point 2 at (37.620251, -122.385900) — the node SKW5966 pushed back to
         // Find the T7A node closest to that coordinate
-        var pushback = layout
+        GroundNode? pushback = layout
             .Nodes.Values.Where(n => t7aNodeIds.Contains(n.Id))
             .OrderBy(n => GeoMath.DistanceNm(n.Position, new LatLon(37.620251, -122.385900)))
             .FirstOrDefault();
@@ -835,27 +835,27 @@ public class AirportE2ETests
     {
         // Demonstrates the bug: TAXI T7A from the pushback node walks south
         // to the dead end because WalkTaxiway has no directional context.
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
         }
 
-        var (pushback, _, spot7A) = FindSfoT7ANodes(layout);
+        (GroundNode? pushback, GroundNode? _, GroundNode? spot7A) = FindSfoT7ANodes(layout);
         Assert.NotNull(pushback);
         Assert.NotNull(spot7A);
 
-        var ac = MakeGroundAircraft("SFO", pushback.Position);
+        AircraftState ac = MakeGroundAircraft("SFO", pushback.Position);
 
         // TAXI T7A — bare taxiway, no destination. This is what the buggy "TAXI HERE" sent.
         var taxi = new TaxiCommand(["T7A"], []);
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi T7A should succeed: {result.Message}");
 
         // The route goes south (away from gate 7A and taxiway A).
         // Last segment ends at the southernmost T7A node (dead end).
-        var lastSeg = ac.Ground.AssignedTaxiRoute!.Segments[^1];
-        var lastNode = layout.Nodes[lastSeg.ToNodeId];
+        TaxiRouteSegment lastSeg = ac.Ground.AssignedTaxiRoute!.Segments[^1];
+        GroundNode lastNode = layout.Nodes[lastSeg.ToNodeId];
 
         // The dead-end node should be further south (lower latitude) than the pushback node
         Assert.True(
@@ -877,26 +877,26 @@ public class AirportE2ETests
     {
         // TAXI $7A — A* direct from pushback node to gate 7A.
         // Should route north along T7A toward the gate.
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
         }
 
-        var (pushback, _, spot7A) = FindSfoT7ANodes(layout);
+        (GroundNode? pushback, GroundNode? _, GroundNode? spot7A) = FindSfoT7ANodes(layout);
         Assert.NotNull(pushback);
         Assert.NotNull(spot7A);
 
-        var ac = MakeGroundAircraft("SFO", pushback.Position);
+        AircraftState ac = MakeGroundAircraft("SFO", pushback.Position);
 
         // TAXI $7A — no explicit path, A* to spot
         var taxi = new TaxiCommand([], [], DestinationSpot: "7A");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"TAXI $7A should succeed: {result.Message}");
 
         // Route should end at or very near gate 7A
-        var lastSeg = ac.Ground.AssignedTaxiRoute!.Segments[^1];
-        var lastNode = layout.Nodes[lastSeg.ToNodeId];
+        TaxiRouteSegment lastSeg = ac.Ground.AssignedTaxiRoute!.Segments[^1];
+        GroundNode lastNode = layout.Nodes[lastSeg.ToNodeId];
         double distToSpot = GeoMath.DistanceNm(lastNode.Position, spot7A.Position);
         Assert.True(distToSpot < 0.02, $"TAXI $7A should end near gate 7A: last node dist={distToSpot:F4}nm");
 
@@ -912,27 +912,27 @@ public class AirportE2ETests
     {
         // TAXI T7A $7A — explicit T7A path extended to gate 7A.
         // ResolveExplicitPath walks T7A (south to dead end), then A* extends to 7A.
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
         }
 
-        var (pushback, _, spot7A) = FindSfoT7ANodes(layout);
+        (GroundNode? pushback, GroundNode? _, GroundNode? spot7A) = FindSfoT7ANodes(layout);
         Assert.NotNull(pushback);
         Assert.NotNull(spot7A);
 
-        var ac = MakeGroundAircraft("SFO", pushback.Position);
+        AircraftState ac = MakeGroundAircraft("SFO", pushback.Position);
 
         // TAXI T7A $7A — explicit path + spot destination
         var taxi = new TaxiCommand(["T7A"], [], DestinationSpot: "7A");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         if (result.Success)
         {
             // If it succeeds, verify route ends near gate 7A
-            var lastSeg = ac.Ground.AssignedTaxiRoute!.Segments[^1];
-            var lastNode = layout.Nodes[lastSeg.ToNodeId];
+            TaxiRouteSegment lastSeg = ac.Ground.AssignedTaxiRoute!.Segments[^1];
+            GroundNode lastNode = layout.Nodes[lastSeg.ToNodeId];
             double distToSpot = GeoMath.DistanceNm(lastNode.Position, spot7A.Position);
             Assert.True(distToSpot < 0.02, $"TAXI T7A $7A should end near gate 7A: last node dist={distToSpot:F4}nm");
         }
@@ -950,19 +950,19 @@ public class AirportE2ETests
     {
         // Verify Bug 2 fix: after TAXI T7A completes (at dead end),
         // aircraft has HoldingInPositionPhase — not phase-less.
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
         }
 
-        var (pushback, _, _) = FindSfoT7ANodes(layout);
+        (GroundNode? pushback, GroundNode? _, GroundNode? _) = FindSfoT7ANodes(layout);
         Assert.NotNull(pushback);
 
-        var ac = MakeGroundAircraft("SFO", pushback.Position);
+        AircraftState ac = MakeGroundAircraft("SFO", pushback.Position);
 
         var taxi = new TaxiCommand(["T7A"], []);
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi T7A should succeed: {result.Message}");
 
         // Route should be short (only a few segments on the spur)
@@ -1010,26 +1010,26 @@ public class AirportE2ETests
     {
         // End-to-end: TAXI $7A completes, aircraft is in HoldingInPositionPhase,
         // then a second taxi command succeeds.
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
         }
 
-        var (pushback, _, spot7A) = FindSfoT7ANodes(layout);
+        (GroundNode? pushback, GroundNode? _, GroundNode? spot7A) = FindSfoT7ANodes(layout);
         Assert.NotNull(pushback);
         Assert.NotNull(spot7A);
 
-        var ac = MakeGroundAircraft("SFO", pushback.Position);
+        AircraftState ac = MakeGroundAircraft("SFO", pushback.Position);
 
         // Step 1: TAXI $7A
         var taxi1 = new TaxiCommand([], [], DestinationSpot: "7A");
-        var result1 = GroundCommandHandler.TryTaxi(ac, taxi1, layout);
+        CommandResult result1 = GroundCommandHandler.TryTaxi(ac, taxi1, layout);
         Assert.True(result1.Success, $"TAXI $7A should succeed: {result1.Message}");
 
         // Simulate route completion: place aircraft at destination and mark route done.
-        var lastSeg = ac.Ground.AssignedTaxiRoute!.Segments[^1];
-        var lastNode = layout.Nodes[lastSeg.ToNodeId];
+        TaxiRouteSegment lastSeg = ac.Ground.AssignedTaxiRoute!.Segments[^1];
+        GroundNode lastNode = layout.Nodes[lastSeg.ToNodeId];
         ac.Position = lastNode.Position;
         ac.Ground.AssignedTaxiRoute.CurrentSegmentIndex = ac.Ground.AssignedTaxiRoute.Segments.Count;
         ac.Phases = new PhaseList();
@@ -1040,7 +1040,7 @@ public class AirportE2ETests
 
         // Step 2: Issue another taxi — should succeed because HoldingInPositionPhase accepts Taxi
         var taxi2 = new TaxiCommand(["A"], []);
-        var result2 = GroundCommandHandler.TryTaxi(ac, taxi2, layout);
+        CommandResult result2 = GroundCommandHandler.TryTaxi(ac, taxi2, layout);
         Assert.True(result2.Success, $"Second taxi should succeed: {result2.Message}");
         Assert.IsType<TaxiingPhase>(ac.Phases.CurrentPhase);
     }
@@ -1051,18 +1051,18 @@ public class AirportE2ETests
         // A taxi spot is an intermediate waypoint the aircraft waits on, not a stand. TAXI $7A issued
         // while the aircraft already stands on 7A takes the zero-segment shortcut, which must reach the
         // same terminal phase TaxiingPhase.CompleteRoute picks when the aircraft has to drive there.
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
         }
 
-        var spot7A = layout.FindSpotNodeByName("7A");
+        GroundNode? spot7A = layout.FindSpotNodeByName("7A");
         Assert.NotNull(spot7A);
 
-        var ac = MakeGroundAircraft("SFO", spot7A.Position);
+        AircraftState ac = MakeGroundAircraft("SFO", spot7A.Position);
 
-        var result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand([], [], DestinationSpot: "7A"), layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand([], [], DestinationSpot: "7A"), layout);
         Assert.True(result.Success, $"TAXI $7A should succeed: {result.Message}");
 
         Assert.Empty(ac.Ground.AssignedTaxiRoute!.Segments);
@@ -1075,18 +1075,18 @@ public class AirportE2ETests
     {
         // The counter-case to the spot shortcut: a gate is a stand, so the zero-segment TAXI @D3 still
         // parks the aircraft and records the stand it occupies.
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
         }
 
-        var gateD3 = layout.FindParkingByName("D3");
+        GroundNode? gateD3 = layout.FindParkingByName("D3");
         Assert.NotNull(gateD3);
 
-        var ac = MakeGroundAircraft("SFO", gateD3.Position);
+        AircraftState ac = MakeGroundAircraft("SFO", gateD3.Position);
 
-        var result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand([], [], DestinationParking: "D3"), layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand([], [], DestinationParking: "D3"), layout);
         Assert.True(result.Success, $"TAXI @D3 should succeed: {result.Message}");
 
         Assert.Empty(ac.Ground.AssignedTaxiRoute!.Segments);
@@ -1106,23 +1106,23 @@ public class AirportE2ETests
     [Fact]
     public void SFO_TaxiCE_ToRunway28R_ShouldSucceed()
     {
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
         }
 
         // Find a C-only node (not at C/E junction) to simulate a realistic start
-        var cOnlyNode = layout.Nodes.Values.FirstOrDefault(n =>
+        GroundNode? cOnlyNode = layout.Nodes.Values.FirstOrDefault(n =>
             n.Edges.Any(e => e.MatchesTaxiway("C")) && !n.Edges.Any(e => e.MatchesTaxiway("E")) && n.Type == GroundNodeType.TaxiwayIntersection
         );
         Assert.NotNull(cOnlyNode);
 
-        var ac = MakeGroundAircraft("SFO", cOnlyNode.Position);
+        AircraftState ac = MakeGroundAircraft("SFO", cOnlyNode.Position);
 
         // TAXI C E 28R — should find a route from C via E to runway 28R
         var taxi = new TaxiCommand(["C", "E"], [], DestinationRunway: "28R");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"TAXI C E 28R should succeed: {result.Message}");
     }
@@ -1130,7 +1130,7 @@ public class AirportE2ETests
     [Fact]
     public void SFO_TaxiwayE_HasHoldShortFor28R()
     {
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
@@ -1147,9 +1147,9 @@ public class AirportE2ETests
 
         // Collect all taxiways that connect to 28R hold-short nodes
         var connectingTaxiways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var hs in hs28R)
+        foreach (GroundNode? hs in hs28R)
         {
-            foreach (var edge in hs.Edges)
+            foreach (IGroundEdge edge in hs.Edges)
             {
                 if (!edge.IsRunwayCenterline)
                 {
@@ -1168,23 +1168,23 @@ public class AirportE2ETests
     [Fact]
     public void SFO_TaxiM1_ToRunway1L_ShouldSucceed()
     {
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
         }
 
         // Find a node on M1 (not at a multi-taxiway junction)
-        var m1Node = layout.Nodes.Values.FirstOrDefault(n =>
+        GroundNode? m1Node = layout.Nodes.Values.FirstOrDefault(n =>
             n.Edges.Any(e => e.MatchesTaxiway("M1")) && n.Type == GroundNodeType.TaxiwayIntersection
         );
         Assert.NotNull(m1Node);
 
-        var ac = MakeGroundAircraft("SFO", m1Node.Position);
+        AircraftState ac = MakeGroundAircraft("SFO", m1Node.Position);
 
         // TAXI M1 to runway 1L — M1 connects to 1L holds-short
         var taxi = new TaxiCommand(["M1"], [], DestinationRunway: "1L");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"TAXI M1 1L should succeed: {result.Message}");
     }
@@ -1192,26 +1192,26 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiFromPCM_B_ToRunway28L_StopsAtFirstHoldShort()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var parking = FindParking(layout, "PCM1");
+        GroundNode? parking = FindParking(layout, "PCM1");
         Assert.NotNull(parking);
 
-        var ac = MakeGroundAircraft(position: parking.Position);
+        AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         var taxi = new TaxiCommand(["B"], [], DestinationRunway: "28L");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
 
-        var route = ac.Ground.AssignedTaxiRoute!;
+        TaxiRoute route = ac.Ground.AssignedTaxiRoute!;
         var crossings = route.HoldShortPoints.Where(h => h.Reason == HoldShortReason.RunwayCrossing).ToList();
         var destinations = route.HoldShortPoints.Where(h => h.Reason == HoldShortReason.DestinationRunway).ToList();
 
-        var hsInfo = string.Join("; ", route.HoldShortPoints.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
+        string hsInfo = string.Join("; ", route.HoldShortPoints.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
 
         // Route should stop at the first 28L/10R hold-short on B, not walk past both runways
         Assert.Single(destinations);
@@ -1222,7 +1222,7 @@ public class AirportE2ETests
         );
 
         // Destination hold-short should be at a 28L/10R hold-short node
-        var destHs = destinations[0];
+        HoldShortPoint destHs = destinations[0];
         Assert.NotNull(destHs.TargetName);
         Assert.Contains("28L", destHs.TargetName);
     }
@@ -1236,32 +1236,32 @@ public class AirportE2ETests
     {
         // PUSH @A9 from parking A4: a tug move whose last planned move ends on A9, with no taxi route (a
         // pushback is towed to the stand, it does not taxi there).
-        var layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
             return;
         }
 
-        var a4 = FindParking(layout, "A4");
-        var a9 = FindParking(layout, "A9");
+        GroundNode? a4 = FindParking(layout, "A4");
+        GroundNode? a9 = FindParking(layout, "A9");
         Assert.NotNull(a4);
         Assert.NotNull(a9);
 
-        var ac = MakeGroundAircraft("SFO", a4.Position);
+        AircraftState ac = MakeGroundAircraft("SFO", a4.Position);
         ac.TrueHeading = new TrueHeading(a4.TrueHeading?.Degrees ?? 104);
 
         var cmd = new PushbackCommand(null, null, null, "A9", null);
-        var result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
         Assert.True(result.Success, $"PUSH @A9 should succeed: {result.Message}");
         Assert.Contains("A9", result.Message!);
-        var phase = Assert.IsType<PushbackPhase>(ac.Phases!.CurrentPhase);
+        PushbackPhase phase = Assert.IsType<PushbackPhase>(ac.Phases!.CurrentPhase);
         Assert.Equal("A9", ac.Ground.ParkingSpot);
 
         // No taxi route, and the last queued tug move is planned to end on A9.
         Assert.Null(ac.Ground.AssignedTaxiRoute);
         Assert.True(phase.StartsAtStand, "the first move off A4 is the stand push-off");
-        var lastMove = ac.Phases.Phases.OfType<PushbackPhase>().Last();
+        PushbackPhase lastMove = ac.Phases.Phases.OfType<PushbackPhase>().Last();
         double distToA9 = GeoMath.DistanceNm(lastMove.PlannedEnd, a9.Position);
         Assert.True(distToA9 < 0.02, $"Pushback should end on A9: dist={distToA9:F4}nm");
         Assert.IsType<AtParkingPhase>(ac.Phases.Phases[^1]);
@@ -1274,21 +1274,21 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiGFromRunway28RExit_ToSIG1_DoesNotCrossRunway()
     {
-        var layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
         if (layout is null)
         {
             return;
         }
 
-        var sig1 = layout.FindHelipadByName("SIG1") ?? layout.FindParkingByName("SIG1");
+        GroundNode? sig1 = layout.FindHelipadByName("SIG1") ?? layout.FindParkingByName("SIG1");
         Assert.NotNull(sig1);
 
         // Find the 28R hold-short node on taxiway G (north side — the exit side after landing 28R).
         // SIG1 is north of 28R, so the correct hold-short is the one closer to SIG1.
-        var holdShortNodes = layout.GetRunwayHoldShortNodes("28R");
+        List<GroundNode> holdShortNodes = layout.GetRunwayHoldShortNodes("28R");
         GroundNode? exitHoldShort = null;
         double bestDist = double.MaxValue;
-        foreach (var hs in holdShortNodes)
+        foreach (GroundNode hs in holdShortNodes)
         {
             bool onG = hs.Edges.Any(e => e.MatchesTaxiway("G"));
             if (!onG)
@@ -1307,16 +1307,16 @@ public class AirportE2ETests
 
         Assert.NotNull(exitHoldShort);
 
-        var ac = MakeGroundAircraft(position: exitHoldShort.Position);
+        AircraftState ac = MakeGroundAircraft(position: exitHoldShort.Position);
 
         var taxi = new TaxiCommand(["G"], [], DestinationParking: "SIG1");
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
         Assert.NotNull(ac.Ground.AssignedTaxiRoute);
 
-        var route = ac.Ground.AssignedTaxiRoute!;
-        var hsInfo = string.Join("; ", route.HoldShortPoints.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
+        TaxiRoute route = ac.Ground.AssignedTaxiRoute!;
+        string hsInfo = string.Join("; ", route.HoldShortPoints.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
 
         // Route should NOT cross runway 28R — aircraft is already on the correct side
         Assert.False(

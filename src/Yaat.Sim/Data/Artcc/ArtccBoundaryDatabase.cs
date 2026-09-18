@@ -29,7 +29,7 @@ public sealed class ArtccBoundaryDatabase
     {
         Boundaries = boundaries;
         _byId = new Dictionary<string, ArtccBoundary>(StringComparer.OrdinalIgnoreCase);
-        foreach (var boundary in boundaries)
+        foreach (ArtccBoundary boundary in boundaries)
         {
             _byId.TryAdd(boundary.Id, boundary);
         }
@@ -41,9 +41,9 @@ public sealed class ArtccBoundaryDatabase
 
     public static ArtccBoundaryDatabase LoadDefault()
     {
-        var baseDir = AppContext.BaseDirectory;
-        var dataDir = Path.Combine(baseDir, DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        var files = FindGeoJsonFiles(dataDir);
+        string baseDir = AppContext.BaseDirectory;
+        string dataDir = Path.Combine(baseDir, DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        string[] files = FindGeoJsonFiles(dataDir);
         if (files.Length == 0)
         {
             files = [.. FindFixturesFromWorkingTree()];
@@ -63,7 +63,7 @@ public sealed class ArtccBoundaryDatabase
         var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, "src", "Yaat.Sim", DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string candidate = Path.Combine(dir.FullName, "src", "Yaat.Sim", DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
             if (Directory.Exists(candidate))
             {
                 return FindGeoJsonFiles(candidate).ToList();
@@ -88,7 +88,7 @@ public sealed class ArtccBoundaryDatabase
     public static ArtccBoundaryDatabase FromGeoJsonFiles(IEnumerable<string> paths)
     {
         var boundaries = new List<ArtccBoundary>();
-        foreach (var path in paths.Order(StringComparer.OrdinalIgnoreCase))
+        foreach (string? path in paths.Order(StringComparer.OrdinalIgnoreCase))
         {
             boundaries.AddRange(FromGeoJson(ReadGeoJsonText(path)).Boundaries);
         }
@@ -103,7 +103,7 @@ public sealed class ArtccBoundaryDatabase
             return File.ReadAllText(path);
         }
 
-        using var file = File.OpenRead(path);
+        using FileStream file = File.OpenRead(path);
         using var brotli = new BrotliStream(file, CompressionMode.Decompress);
         using var reader = new StreamReader(brotli);
         return reader.ReadToEnd();
@@ -112,26 +112,26 @@ public sealed class ArtccBoundaryDatabase
     public static ArtccBoundaryDatabase FromGeoJson(string geoJson)
     {
         using var doc = JsonDocument.Parse(geoJson);
-        var root = doc.RootElement;
-        if (!root.TryGetProperty("features", out var features) || features.ValueKind != JsonValueKind.Array)
+        JsonElement root = doc.RootElement;
+        if (!root.TryGetProperty("features", out JsonElement features) || features.ValueKind != JsonValueKind.Array)
         {
             return new ArtccBoundaryDatabase([]);
         }
 
         var boundaries = new List<ArtccBoundary>();
-        foreach (var feature in features.EnumerateArray())
+        foreach (JsonElement feature in features.EnumerateArray())
         {
-            if (!feature.TryGetProperty("properties", out var props) || !feature.TryGetProperty("geometry", out var geometry))
+            if (!feature.TryGetProperty("properties", out JsonElement props) || !feature.TryGetProperty("geometry", out JsonElement geometry))
             {
                 continue;
             }
 
-            if (!props.TryGetProperty("id", out var idElement) || idElement.ValueKind != JsonValueKind.String)
+            if (!props.TryGetProperty("id", out JsonElement idElement) || idElement.ValueKind != JsonValueKind.String)
             {
                 continue;
             }
 
-            var rings = ParseRings(geometry);
+            List<IReadOnlyList<LatLon>> rings = ParseRings(geometry);
             if (rings.Count == 0)
             {
                 continue;
@@ -146,7 +146,7 @@ public sealed class ArtccBoundaryDatabase
     private static List<IReadOnlyList<LatLon>> ParseRings(JsonElement geometry)
     {
         var rings = new List<IReadOnlyList<LatLon>>();
-        if (!geometry.TryGetProperty("type", out var typeElement) || !geometry.TryGetProperty("coordinates", out var coords))
+        if (!geometry.TryGetProperty("type", out JsonElement typeElement) || !geometry.TryGetProperty("coordinates", out JsonElement coords))
         {
             return rings;
         }
@@ -157,7 +157,7 @@ public sealed class ArtccBoundaryDatabase
                 ParsePolygon(coords, rings);
                 break;
             case "MultiPolygon":
-                foreach (var polygon in coords.EnumerateArray())
+                foreach (JsonElement polygon in coords.EnumerateArray())
                 {
                     ParsePolygon(polygon, rings);
                 }
@@ -169,12 +169,12 @@ public sealed class ArtccBoundaryDatabase
 
     private static void ParsePolygon(JsonElement polygon, List<IReadOnlyList<LatLon>> rings)
     {
-        foreach (var ringElement in polygon.EnumerateArray())
+        foreach (JsonElement ringElement in polygon.EnumerateArray())
         {
             var ring = new List<LatLon>();
-            foreach (var coordinate in ringElement.EnumerateArray())
+            foreach (JsonElement coordinate in ringElement.EnumerateArray())
             {
-                var pair = coordinate.EnumerateArray().ToArray();
+                JsonElement[] pair = coordinate.EnumerateArray().ToArray();
                 if (pair.Length < 2)
                 {
                     continue;

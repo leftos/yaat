@@ -29,9 +29,9 @@ public static class FlightStripSnapshotMapper
                 .ToList();
 
             var bayRacks = new List<StripBayRackSnapshotDto>();
-            foreach (var (bayId, racks) in strips.Bays)
+            foreach ((string? bayId, Dictionary<string, List<string>[]>? racks) in strips.Bays)
             {
-                foreach (var (rackKey, columns) in racks)
+                foreach ((string? rackKey, List<string>[]? columns) in racks)
                 {
                     bayRacks.Add(
                         new StripBayRackSnapshotDto
@@ -64,7 +64,7 @@ public static class FlightStripSnapshotMapper
             strips.DeparturePrinterQueue.Clear();
             strips.ArrivalPrinterQueue.Clear();
 
-            foreach (var item in dto.Items)
+            foreach (StripItemSnapshotDto item in dto.Items)
             {
                 strips.Items[item.Id] = new StripItemRecord(
                     item.Id,
@@ -79,9 +79,9 @@ public static class FlightStripSnapshotMapper
                 );
             }
 
-            foreach (var rack in dto.BayRacks)
+            foreach (StripBayRackSnapshotDto rack in dto.BayRacks)
             {
-                if (!strips.Bays.TryGetValue(rack.BayId, out var racks))
+                if (!strips.Bays.TryGetValue(rack.BayId, out Dictionary<string, List<string>[]>? racks))
                 {
                     racks = new Dictionary<string, List<string>[]>();
                     strips.Bays[rack.BayId] = racks;

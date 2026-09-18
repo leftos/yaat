@@ -30,7 +30,7 @@ public sealed class ApproachEvaluator
     /// </summary>
     public void RecordLanding(ApproachScore score)
     {
-        var stored = FindStored(score.Callsign, score.RunwayId);
+        StoredApproach? stored = FindStored(score.Callsign, score.RunwayId);
         if (stored is null)
         {
             // Landing received without prior establishment — store it now.
@@ -47,7 +47,7 @@ public sealed class ApproachEvaluator
     {
         var approaches = _stored.Select(s => new ScoredApproach(s.Score, s.Grade ?? ComputeGrade(s.Score), s.SeparationNm)).ToList();
 
-        var runwayStats = BuildRunwayStats(approaches, scenarioElapsedSeconds);
+        List<RunwayStats> runwayStats = BuildRunwayStats(approaches, scenarioElapsedSeconds);
         string overallGrade = ComputeOverallGrade(approaches);
 
         return new ApproachReportData(approaches, runwayStats, scenarioElapsedSeconds, overallGrade);
@@ -143,7 +143,7 @@ public sealed class ApproachEvaluator
     {
         for (int i = _stored.Count - 1; i >= 0; i--)
         {
-            var s = _stored[i];
+            StoredApproach s = _stored[i];
             if (
                 s.Score.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase)
                 && s.Score.RunwayId.Equals(runwayId, StringComparison.OrdinalIgnoreCase)
@@ -165,7 +165,7 @@ public sealed class ApproachEvaluator
     {
         double? minSep = null;
 
-        foreach (var stored in _stored)
+        foreach (StoredApproach stored in _stored)
         {
             if (!stored.Score.RunwayId.Equals(score.RunwayId, StringComparison.OrdinalIgnoreCase))
             {
@@ -181,7 +181,7 @@ public sealed class ApproachEvaluator
             double precedingLat = stored.Score.EstablishedLat;
             double precedingLon = stored.Score.EstablishedLon;
 
-            var live = snapshot.FirstOrDefault(a => a.Callsign.Equals(stored.Score.Callsign, StringComparison.OrdinalIgnoreCase));
+            AircraftState? live = snapshot.FirstOrDefault(a => a.Callsign.Equals(stored.Score.Callsign, StringComparison.OrdinalIgnoreCase));
             if (live is not null)
             {
                 precedingLat = live.Position.Lat;
@@ -202,9 +202,9 @@ public sealed class ApproachEvaluator
     {
         var byRunway = new Dictionary<string, List<ScoredApproach>>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var a in approaches)
+        foreach (ScoredApproach a in approaches)
         {
-            if (!byRunway.TryGetValue(a.Score.RunwayId, out var list))
+            if (!byRunway.TryGetValue(a.Score.RunwayId, out List<ScoredApproach>? list))
             {
                 list = [];
                 byRunway[a.Score.RunwayId] = list;
@@ -215,7 +215,7 @@ public sealed class ApproachEvaluator
 
         var stats = new List<RunwayStats>();
 
-        foreach (var (runwayId, group) in byRunway)
+        foreach ((string? runwayId, List<ScoredApproach>? group) in byRunway)
         {
             var landed = group.Where(a => a.Score.LandedAtSeconds.HasValue).OrderBy(a => a.Score.LandedAtSeconds!.Value).ToList();
             int landingCount = landed.Count;
@@ -240,7 +240,7 @@ public sealed class ApproachEvaluator
             }
 
             double? minSep = null;
-            foreach (var a in group)
+            foreach (ScoredApproach a in group)
             {
                 if (a.SeparationNm.HasValue && (minSep is null || a.SeparationNm.Value < minSep.Value))
                 {

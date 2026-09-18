@@ -23,7 +23,7 @@ public class OnHandoffConditionTests
     [InlineData("ONHO SPD 180", "ONHO SPD 180")]
     public void SchemeParser_OnhoSimpleCommand(string input, string expected)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme);
         Assert.NotNull(result);
         Assert.Equal(expected, result.CanonicalString);
     }
@@ -40,7 +40,7 @@ public class OnHandoffConditionTests
     [InlineData("ONH AT LIVVY DEL", "ONHO; AT LIVVY DEL")]
     public void SchemeParser_OnhAlias_CanonicalizesToOnho(string input, string expected)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme);
         Assert.NotNull(result);
         Assert.Equal(expected, result.CanonicalString);
     }
@@ -55,7 +55,7 @@ public class OnHandoffConditionTests
     [InlineData("ONHO AT CAVDI DCT KATRN", "ONHO; AT CAVDI DCT KATRN")]
     public void SchemeParser_OnhoWithAtCondition_UnpacksToSequentialBlocks(string input, string expected)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme);
         Assert.NotNull(result);
         Assert.Equal(expected, result.CanonicalString);
     }
@@ -65,7 +65,7 @@ public class OnHandoffConditionTests
     [InlineData("ONHO AT 9500 DEL")]
     public void SchemeParser_OnhoWithAtAltitude_Parses(string input)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme);
         Assert.NotNull(result);
     }
 
@@ -77,7 +77,7 @@ public class OnHandoffConditionTests
     [InlineData("ONHO WAIT 20 CM 230", "ONHO WAIT 20 CM 230")]
     public void SchemeParser_OnhoWithWait_ExpandsWait(string input, string expected)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme);
         Assert.NotNull(result);
         Assert.Equal(expected, result.CanonicalString);
     }
@@ -87,7 +87,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void CommandParser_OnhoSimple_ProducesSingleBlockWithCondition()
     {
-        var result = CommandParser.ParseCompound("ONHO CAPP");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("ONHO CAPP");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.IsType<OnHandoffCondition>(result.Value!.Blocks[0].Condition);
@@ -97,7 +97,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void CommandParser_OnhoAtFix_ProducesTwoBlocks()
     {
-        var result = CommandParser.ParseCompound("ONHO AT LIVVY DEL");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("ONHO AT LIVVY DEL");
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value!.Blocks.Count);
 
@@ -118,9 +118,9 @@ public class OnHandoffConditionTests
     {
         // The leading WAIT is merged into its conditioned block so the payload is held for the wait's
         // duration after the handoff, rather than firing on the handoff (issue #286).
-        var result = CommandParser.ParseCompound("ONHO WAIT 30 CM 360");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("ONHO WAIT 30 CM 360");
         Assert.True(result.IsSuccess);
-        var block = Assert.Single(result.Value!.Blocks);
+        ParsedBlock block = Assert.Single(result.Value!.Blocks);
 
         Assert.IsType<OnHandoffCondition>(block.Condition);
         Assert.Equal(2, block.Commands.Count);
@@ -131,7 +131,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void CommandParser_OnhoDm_ProducesSingleBlock()
     {
-        var result = CommandParser.ParseCompound("ONHO DM 060");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("ONHO DM 060");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.IsType<OnHandoffCondition>(result.Value!.Blocks[0].Condition);
@@ -144,7 +144,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void SchemeParser_BareHo_Parses()
     {
-        var result = CommandSchemeParser.ParseCompound("HO", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("HO", Scheme);
         Assert.NotNull(result);
         Assert.Equal("HO", result.CanonicalString);
     }
@@ -152,7 +152,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void SchemeParser_HoWithPosition_Parses()
     {
-        var result = CommandSchemeParser.ParseCompound("HO 3O", Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound("HO 3O", Scheme);
         Assert.NotNull(result);
         Assert.Equal("HO 3O", result.CanonicalString);
     }
@@ -163,7 +163,7 @@ public class OnHandoffConditionTests
     [InlineData("DELAY 5 HO", "WAIT 5; HO")]
     public void SchemeParser_ConditionedHo_Parses(string input, string expected)
     {
-        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound(input, Scheme);
         Assert.NotNull(result);
         Assert.Equal(expected, result.CanonicalString);
     }
@@ -171,7 +171,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void CommandParser_WaitHo_ProducesTwoBlocks()
     {
-        var result = CommandParser.ParseCompound("WAIT 10 HO");
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("WAIT 10 HO");
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value!.Blocks.Count);
         Assert.IsType<WaitCommand>(result.Value!.Blocks[0].Commands[0]);
@@ -214,7 +214,7 @@ public class OnHandoffConditionTests
         ac.Track.Owner = TrackOwner.CreateStars("OAK_GND", "ZOA", 3, "O");
         ac.Track.HandoffPeer = acceptor;
 
-        var result = TrackEngine.HandleAccept(
+        CommandResult result = TrackEngine.HandleAccept(
             ac,
             new Yaat.Sim.Simulation.SimScenarioState
             {

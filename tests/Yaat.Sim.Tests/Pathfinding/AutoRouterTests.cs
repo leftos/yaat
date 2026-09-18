@@ -40,7 +40,7 @@ public class AutoRouterTests
     private static AirportGroundLayout Layout(params GroundNode[] nodes)
     {
         var layout = new AirportGroundLayout { AirportId = "TEST" };
-        foreach (var n in nodes)
+        foreach (GroundNode n in nodes)
         {
             layout.Nodes[n.Id] = n;
         }
@@ -77,11 +77,11 @@ public class AutoRouterTests
     {
         // When start and destination are the same node, the materialiser returns an empty route.
         // This is documented behavior: zero-segment route (aircraft is already there).
-        var n0 = Node(0, 37.700, -122.200);
-        var layout = Layout(n0);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        AirportGroundLayout layout = Layout(n0);
 
-        var ctx = NodeContext(layout, 0, 0);
-        var (route, failure) = AutoRouter.Run(ctx);
+        SearchContext ctx = NodeContext(layout, 0, 0);
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(ctx);
 
         Assert.NotNull(route);
         Assert.Null(failure);
@@ -95,13 +95,13 @@ public class AutoRouterTests
     [Fact]
     public void TwoAdjacentNodes_ReturnsSingleSegmentRoute()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var layout = Layout(n0, n1);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1);
         Edge(n0, n1, "A");
 
-        var ctx = NodeContext(layout, 0, 1);
-        var (route, failure) = AutoRouter.Run(ctx);
+        SearchContext ctx = NodeContext(layout, 0, 1);
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(ctx);
 
         Assert.NotNull(route);
         Assert.Null(failure);
@@ -117,15 +117,15 @@ public class AutoRouterTests
     [Fact]
     public void ThreeNodeLine_ReturnsTwoSegmentRoute()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.702, -122.200);
-        var layout = Layout(n0, n1, n2);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1, n2);
         Edge(n0, n1, "A");
         Edge(n1, n2, "A");
 
-        var ctx = NodeContext(layout, 0, 2);
-        var (route, failure) = AutoRouter.Run(ctx);
+        SearchContext ctx = NodeContext(layout, 0, 2);
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(ctx);
 
         Assert.NotNull(route);
         Assert.Null(failure);
@@ -145,12 +145,12 @@ public class AutoRouterTests
     {
         // True cost of n0→n1→n2 (with Shortest preference) = sum of segment distances.
         // Heuristic h(n0, n2) = GeoMath.DistanceNm(n0, n2) ≤ true cost.
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.701, -122.190); // offset east
-        var layout = Layout(n0, n1, n2);
-        var e01 = Edge(n0, n1, "A");
-        var e12 = Edge(n1, n2, "A");
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.701, -122.190); // offset east
+        AirportGroundLayout layout = Layout(n0, n1, n2);
+        GroundEdge e01 = Edge(n0, n1, "A");
+        GroundEdge e12 = Edge(n1, n2, "A");
 
         double trueCost = e01.DistanceNm + e12.DistanceNm;
         double heuristic = GeoMath.DistanceNm(n0.Position, n2.Position);
@@ -166,13 +166,13 @@ public class AutoRouterTests
     public void DisconnectedGraph_ReturnsDestinationUnreachable()
     {
         // Node 0 is not connected to node 1.
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.710, -122.200);
-        var layout = Layout(n0, n1);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.710, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1);
         // No edge between n0 and n1.
 
-        var ctx = NodeContext(layout, 0, 1);
-        var (route, failure) = AutoRouter.Run(ctx);
+        SearchContext ctx = NodeContext(layout, 0, 1);
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(ctx);
 
         Assert.Null(route);
         Assert.NotNull(failure);
@@ -188,19 +188,19 @@ public class AutoRouterTests
     {
         // Layout: n0 → n1 (north). n1 → n2 (south) — 180° U-turn, exceeds Jet 135° limit.
         // n1 only connects back south (U-turn), so no admissible path exists.
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.700, -122.200); // same lat as n0, requires U-turn from n1
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.700, -122.200); // same lat as n0, requires U-turn from n1
 
         // Use n2b (slightly further south) to avoid trivial same-position degenerate case.
-        var n2b = Node(2, 37.6995, -122.200);
-        var layout = Layout(n0, n1, n2b);
+        GroundNode n2b = Node(2, 37.6995, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1, n2b);
         Edge(n0, n1, "A");
         Edge(n1, n2b, "A");
 
         // Route from n0 to n2b — only path is n0→n1→n2b (180° turn at n1).
-        var ctx = NodeContext(layout, 0, 2);
-        var (route, failure) = AutoRouter.Run(ctx);
+        SearchContext ctx = NodeContext(layout, 0, 2);
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(ctx);
 
         // Either fails (DestinationUnreachable) because the U-turn is rejected.
         Assert.Null(route);
@@ -225,17 +225,17 @@ public class AutoRouterTests
         // With Shortest preference, Path 1 wins. With FewestTurns, Path 2 might win if
         // the cost function is calibrated (or both might be equivalent on this tiny layout).
         // We at least verify both preferences run without error and return valid routes.
-        var n0 = Node(0, 37.700, -122.200);
-        var n3 = Node(3, 37.700, -122.190); // same lat as n0, offset east
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n3 = Node(3, 37.700, -122.190); // same lat as n0, offset east
 
         // Path 1: north then east then south (two 90° turns)
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.701, -122.190);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.701, -122.190);
 
         // Path 2: straight east (no turns)
-        var n4 = Node(4, 37.700, -122.195);
+        GroundNode n4 = Node(4, 37.700, -122.195);
 
-        var layout = Layout(n0, n1, n2, n3, n4);
+        AirportGroundLayout layout = Layout(n0, n1, n2, n3, n4);
         Edge(n0, n1, "A"); // north
         Edge(n1, n2, "A"); // east
         Edge(n2, n3, "A"); // south
@@ -243,11 +243,11 @@ public class AutoRouterTests
         Edge(n0, n4, "B"); // east detour start
         Edge(n4, n3, "B"); // east detour end
 
-        var ctxShortest = NodeContext(layout, 0, 3, RoutePreference.Shortest);
-        var ctxFewest = NodeContext(layout, 0, 3, RoutePreference.FewestTurns);
+        SearchContext ctxShortest = NodeContext(layout, 0, 3, RoutePreference.Shortest);
+        SearchContext ctxFewest = NodeContext(layout, 0, 3, RoutePreference.FewestTurns);
 
-        var (routeShortest, failShortest) = AutoRouter.Run(ctxShortest);
-        var (routeFewest, failFewest) = AutoRouter.Run(ctxFewest);
+        (TaxiRoute? routeShortest, PathfindingFailure? failShortest) = AutoRouter.Run(ctxShortest);
+        (TaxiRoute? routeFewest, PathfindingFailure? failFewest) = AutoRouter.Run(ctxFewest);
 
         Assert.NotNull(routeShortest);
         Assert.Null(failShortest);
@@ -266,20 +266,20 @@ public class AutoRouterTests
     [Fact]
     public void Determinism_SameCallTwice_IdenticalSegments()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.702, -122.200);
-        var n3 = Node(3, 37.702, -122.190);
-        var layout = Layout(n0, n1, n2, n3);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        GroundNode n3 = Node(3, 37.702, -122.190);
+        AirportGroundLayout layout = Layout(n0, n1, n2, n3);
         Edge(n0, n1, "A");
         Edge(n1, n2, "A");
         Edge(n2, n3, "A");
 
-        var ctx1 = NodeContext(layout, 0, 3, RoutePreference.FewestTurns);
-        var ctx2 = NodeContext(layout, 0, 3, RoutePreference.FewestTurns);
+        SearchContext ctx1 = NodeContext(layout, 0, 3, RoutePreference.FewestTurns);
+        SearchContext ctx2 = NodeContext(layout, 0, 3, RoutePreference.FewestTurns);
 
-        var (route1, _) = AutoRouter.Run(ctx1);
-        var (route2, _) = AutoRouter.Run(ctx2);
+        (TaxiRoute? route1, PathfindingFailure? _) = AutoRouter.Run(ctx1);
+        (TaxiRoute? route2, PathfindingFailure? _) = AutoRouter.Run(ctx2);
 
         Assert.NotNull(route1);
         Assert.NotNull(route2);
@@ -295,18 +295,18 @@ public class AutoRouterTests
     [Fact]
     public void Determinism_WithAndWithoutDiagnosticLog_IdenticalSegments()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.702, -122.200);
-        var layout = Layout(n0, n1, n2);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1, n2);
         Edge(n0, n1, "A");
         Edge(n1, n2, "A");
 
-        var ctxNoLog = NodeContext(layout, 0, 2);
-        var ctxWithLog = NodeContext(layout, 0, 2, log: _ => { });
+        SearchContext ctxNoLog = NodeContext(layout, 0, 2);
+        SearchContext ctxWithLog = NodeContext(layout, 0, 2, log: _ => { });
 
-        var (routeNoLog, _) = AutoRouter.Run(ctxNoLog);
-        var (routeWithLog, _) = AutoRouter.Run(ctxWithLog);
+        (TaxiRoute? routeNoLog, PathfindingFailure? _) = AutoRouter.Run(ctxNoLog);
+        (TaxiRoute? routeWithLog, PathfindingFailure? _) = AutoRouter.Run(ctxWithLog);
 
         Assert.NotNull(routeNoLog);
         Assert.NotNull(routeWithLog);
@@ -326,11 +326,11 @@ public class AutoRouterTests
     [Fact]
     public void StartNodeNotInLayout_ReturnsStartNodeUnreachable()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var layout = Layout(n0);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        AirportGroundLayout layout = Layout(n0);
 
-        var ctx = NodeContext(layout, 999, 0); // 999 doesn't exist
-        var (route, failure) = AutoRouter.Run(ctx);
+        SearchContext ctx = NodeContext(layout, 999, 0); // 999 doesn't exist
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(ctx);
 
         Assert.Null(route);
         Assert.NotNull(failure);
@@ -344,9 +344,9 @@ public class AutoRouterTests
     [Fact]
     public void EndOfLastTaxiwayDestination_ReturnsFailure()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var layout = Layout(n0, n1);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1);
         Edge(n0, n1, "A");
 
         var ctx = new SearchContext(
@@ -361,7 +361,7 @@ public class AutoRouterTests
             null
         );
 
-        var (route, failure) = AutoRouter.Run(ctx);
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(ctx);
 
         Assert.Null(route);
         Assert.NotNull(failure);
@@ -375,15 +375,15 @@ public class AutoRouterTests
     [Fact]
     public void DiagnosticLog_SuccessfulRoute_EmitsStartAndSuccessMessages()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var layout = Layout(n0, n1);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1);
         Edge(n0, n1, "A");
 
         var messages = new List<string>();
-        var ctx = NodeContext(layout, 0, 1, log: m => messages.Add(m));
+        SearchContext ctx = NodeContext(layout, 0, 1, log: m => messages.Add(m));
 
-        var (route, failure) = AutoRouter.Run(ctx);
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(ctx);
 
         Assert.NotNull(route);
         Assert.Null(failure);
@@ -398,14 +398,14 @@ public class AutoRouterTests
     [Fact]
     public void FindRoute_SimpleThreeNodeChain_ReturnsRoute()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.702, -122.200);
-        var layout = Layout(n0, n1, n2);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.702, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1, n2);
         Edge(n0, n1, "A");
         Edge(n1, n2, "A");
 
-        var route = TaxiPathfinder.FindRoute(layout, 0, 2, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, 0, 2, AircraftCategory.Jet);
 
         Assert.NotNull(route);
         Assert.Equal(2, route.Segments.Count);
@@ -415,21 +415,21 @@ public class AutoRouterTests
     public void FindRoutes_NullPreference_ReturnsUpToThreeRoutes()
     {
         // Layout with two distinct paths n0→n3 (via n1 or via n2).
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var n2 = Node(2, 37.700, -122.195);
-        var n3 = Node(3, 37.701, -122.195);
-        var layout = Layout(n0, n1, n2, n3);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        GroundNode n2 = Node(2, 37.700, -122.195);
+        GroundNode n3 = Node(3, 37.701, -122.195);
+        AirportGroundLayout layout = Layout(n0, n1, n2, n3);
         Edge(n0, n1, "A");
         Edge(n1, n3, "A");
         Edge(n0, n2, "B");
         Edge(n2, n3, "B");
 
-        var routes = TaxiPathfinder.FindRoutes(layout, 0, 3, null, 3, null, AircraftCategory.Jet);
+        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(layout, 0, 3, null, 3, null, AircraftCategory.Jet);
 
         Assert.NotEmpty(routes);
         Assert.True(routes.Count <= 3);
-        foreach (var r in routes)
+        foreach (TaxiRoute r in routes)
         {
             Assert.Equal(3, r.Segments[^1].ToNodeId);
         }
@@ -438,12 +438,12 @@ public class AutoRouterTests
     [Fact]
     public void FindRoutes_WithPreference_ReturnsSingleRoute()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200);
-        var layout = Layout(n0, n1);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        AirportGroundLayout layout = Layout(n0, n1);
         Edge(n0, n1, "A");
 
-        var routes = TaxiPathfinder.FindRoutes(layout, 0, 1, RoutePreference.Shortest, 5, null, AircraftCategory.Jet);
+        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(layout, 0, 1, RoutePreference.Shortest, 5, null, AircraftCategory.Jet);
 
         Assert.Single(routes);
     }
@@ -451,12 +451,12 @@ public class AutoRouterTests
     [Fact]
     public void FindFullLengthLineupHoldShort_DelegatesToMaterialiser()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
         n1.RunwayId = new RunwayIdentifier("28R", "10L");
-        var layout = Layout(n0, n1);
+        AirportGroundLayout layout = Layout(n0, n1);
 
-        var result = TaxiPathfinder.FindFullLengthLineupHoldShort(layout, n0, "28R", [n1]);
+        GroundNode result = TaxiPathfinder.FindFullLengthLineupHoldShort(layout, n0, "28R", [n1]);
 
         Assert.Equal(n1.Id, result.Id);
     }

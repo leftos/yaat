@@ -59,15 +59,15 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
                 Altitude = 8000,
             };
 
-            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng, new BeaconCodePool());
+            (AircraftState? state, string? error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng, new BeaconCodePool());
             Assert.Null(error);
             Assert.NotNull(state);
 
             // Recover the airline ICAO from the callsign prefix (3 letters before the digits).
-            var airline = ExtractAirlineIcao(state.Callsign);
+            string? airline = ExtractAirlineIcao(state.Callsign);
             Assert.NotNull(airline);
 
-            if (!AirlineFleets.TryGetTypes(airline, out var fleet))
+            if (!AirlineFleets.TryGetTypes(airline, out IReadOnlyDictionary<string, int>? fleet))
             {
                 fleetUnknown++;
                 continue;
@@ -84,7 +84,7 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
         }
 
         output.WriteLine($"{weight}+{engine}: samples={SamplesPerSeed}, mismatches={mismatches}, fleetUnknown={fleetUnknown}");
-        foreach (var mismatch in sampleMismatches)
+        foreach (string mismatch in sampleMismatches)
         {
             output.WriteLine($"  MISMATCH: {mismatch}");
         }
@@ -109,7 +109,7 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
 
         // Southwest only flies 737-family. Sample heavily and assert every type is in its fleet.
         var rng = new Random(0xBEEF);
-        if (!AirlineFleets.TryGetTypes("SWA", out var swaFleet))
+        if (!AirlineFleets.TryGetTypes("SWA", out IReadOnlyDictionary<string, int>? swaFleet))
         {
             output.WriteLine("SWA missing from AirlineFleets; skipping");
             return;
@@ -129,7 +129,7 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
                 ExplicitAirline = "SWA",
             };
 
-            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng, new BeaconCodePool());
+            (AircraftState? state, string? error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng, new BeaconCodePool());
             Assert.Null(error);
             Assert.NotNull(state);
             Assert.StartsWith("SWA", state.Callsign);
@@ -155,12 +155,12 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
             return;
         }
 
-        Assert.True(AirportAirlines.TryGetAirlinesForAirport("OAK", out var oakAirlines));
-        var bucketTypes = AircraftGenerator.GetTypesForCombo(WeightClass.Large, EngineKind.Jet);
+        Assert.True(AirportAirlines.TryGetAirlinesForAirport("OAK", out IReadOnlyList<AirportAirlineEntry>? oakAirlines));
+        string[]? bucketTypes = AircraftGenerator.GetTypesForCombo(WeightClass.Large, EngineKind.Jet);
         Assert.NotNull(bucketTypes);
 
         var compatibleOakAirlines = oakAirlines
-            .Where(a => AirlineFleets.TryGetTypes(a.Icao, out var fleet) && bucketTypes.Any(t => fleet.ContainsKey(t)))
+            .Where(a => AirlineFleets.TryGetTypes(a.Icao, out IReadOnlyDictionary<string, int>? fleet) && bucketTypes.Any(t => fleet.ContainsKey(t)))
             .Select(a => a.Icao)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         Assert.NotEmpty(compatibleOakAirlines);
@@ -181,11 +181,11 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
                 PreferredAirlineAirportId = "OAK",
             };
 
-            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng, new BeaconCodePool());
+            (AircraftState? state, string? error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng, new BeaconCodePool());
             Assert.Null(error);
             Assert.NotNull(state);
 
-            var airline = ExtractAirlineIcao(state.Callsign);
+            string? airline = ExtractAirlineIcao(state.Callsign);
             Assert.NotNull(airline);
             seen.Add(airline);
             Assert.Contains(airline, compatibleOakAirlines);
@@ -205,7 +205,7 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
         // VFR N-numbers are 'N' then mostly digits (e.g. "N123AB"). Disambiguate by
         // checking whether the first three chars are all letters — works for "NKS"
         // (N-K-S all letters → airline) and excludes "N123" (digits at index 1).
-        var prefix = callsign[..3];
+        string prefix = callsign[..3];
         return prefix.All(char.IsLetter) ? prefix.ToUpperInvariant() : null;
     }
 }

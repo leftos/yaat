@@ -27,7 +27,7 @@ public class M103PatternTrafficCheckInTests
     /// </summary>
     private static RunwayInfo DefaultRunway()
     {
-        var end = GeoMath.ProjectPoint(37.7212, -122.2208, new TrueHeading(280), 1.0);
+        (double Lat, double Lon) end = GeoMath.ProjectPoint(37.7212, -122.2208, new TrueHeading(280), 1.0);
         return TestRunwayFactory.Make(
             designator: "28R",
             heading: 280,
@@ -67,7 +67,7 @@ public class M103PatternTrafficCheckInTests
 
     private static PhaseContext Ctx(AircraftState ac, RunwayInfo? rwy = null, bool soloMode = true, bool autoClearedToLand = false, double dt = 1.0)
     {
-        var runway = rwy ?? DefaultRunway();
+        RunwayInfo runway = rwy ?? DefaultRunway();
         return new PhaseContext
         {
             Aircraft = ac,
@@ -101,13 +101,13 @@ public class M103PatternTrafficCheckInTests
     public void PatternEntry_VfrFirstActivation_FiresInitialCallAndSetsFlag()
     {
         // 3 nm south of the runway threshold, 1500 ft.
-        var ac = MakeAircraft(isVfr: true, altitude: 1500);
+        AircraftState ac = MakeAircraft(isVfr: true, altitude: 1500);
         ac.Position = GeoMath.ProjectPoint(new LatLon(37.7212, -122.2208), new TrueHeading(180), 3);
 
-        var phase = MakePatternEntry();
+        PatternEntryPhase phase = MakePatternEntry();
         phase.OnStart(Ctx(ac));
 
-        var line = SinglePilotLine(ac);
+        string? line = SinglePilotLine(ac);
         Assert.NotNull(line);
         Assert.Contains("november one two three alpha bravo", line, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("three miles south at one thousand five hundred", line, StringComparison.OrdinalIgnoreCase);
@@ -120,10 +120,10 @@ public class M103PatternTrafficCheckInTests
     public void PatternEntry_AlreadyContacted_DoesNotFire()
     {
         // Aircraft that was already announced via M10.1.2 airborne-spawn check-in won't re-announce.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.HasMadeInitialContact = true;
 
-        var phase = MakePatternEntry();
+        PatternEntryPhase phase = MakePatternEntry();
         phase.OnStart(Ctx(ac));
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -132,8 +132,8 @@ public class M103PatternTrafficCheckInTests
     [Fact]
     public void PatternEntry_Ifr_DoesNotFire()
     {
-        var ac = MakeAircraft(isVfr: false);
-        var phase = MakePatternEntry();
+        AircraftState ac = MakeAircraft(isVfr: false);
+        PatternEntryPhase phase = MakePatternEntry();
         phase.OnStart(Ctx(ac));
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -143,8 +143,8 @@ public class M103PatternTrafficCheckInTests
     [Fact]
     public void PatternEntry_SoloModeOff_DoesNotFire()
     {
-        var ac = MakeAircraft();
-        var phase = MakePatternEntry();
+        AircraftState ac = MakeAircraft();
+        PatternEntryPhase phase = MakePatternEntry();
         phase.OnStart(Ctx(ac, soloMode: false));
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -155,8 +155,8 @@ public class M103PatternTrafficCheckInTests
     public void PatternEntry_RunwayNull_DoesNotFire()
     {
         // No runway in context → phase can't anchor distance/bearing → skips the call.
-        var ac = MakeAircraft();
-        var phase = MakePatternEntry();
+        AircraftState ac = MakeAircraft();
+        PatternEntryPhase phase = MakePatternEntry();
         var ctx = new PhaseContext
         {
             Aircraft = ac,
@@ -177,9 +177,9 @@ public class M103PatternTrafficCheckInTests
     [Fact]
     public void PatternEntry_SnapshotRoundTrip_PreservesAnnouncedFlag()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Position = GeoMath.ProjectPoint(new LatLon(37.7212, -122.2208), new TrueHeading(180), 3);
-        var phase = MakePatternEntry();
+        PatternEntryPhase phase = MakePatternEntry();
         phase.OnStart(Ctx(ac));
 
         var dto = (PatternEntryPhaseDto)phase.ToSnapshot();
@@ -187,7 +187,7 @@ public class M103PatternTrafficCheckInTests
 
         var restored = PatternEntryPhase.FromSnapshot(dto);
         // Restored phase shouldn't re-fire on a second OnStart.
-        var ac2 = MakeAircraft();
+        AircraftState ac2 = MakeAircraft();
         ac2.Position = GeoMath.ProjectPoint(new LatLon(37.7212, -122.2208), new TrueHeading(180), 3);
         restored.OnStart(Ctx(ac2));
 
@@ -212,8 +212,8 @@ public class M103PatternTrafficCheckInTests
         bool extended = false
     )
     {
-        var wp = DefaultWaypoints();
-        var ac = MakeAircraft(isVfr: isVfr, altitude: wp.PatternAltitude);
+        PatternWaypoints wp = DefaultWaypoints();
+        AircraftState ac = MakeAircraft(isVfr: isVfr, altitude: wp.PatternAltitude);
         ac.Position = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
         ac.TrueHeading = wp.DownwindHeading;
 
@@ -223,7 +223,7 @@ public class M103PatternTrafficCheckInTests
         }
 
         var phase = new DownwindPhase { Waypoints = wp, IsExtended = extended };
-        var ctx = Ctx(ac, soloMode: soloMode, autoClearedToLand: autoClearedToLand);
+        PhaseContext ctx = Ctx(ac, soloMode: soloMode, autoClearedToLand: autoClearedToLand);
         phase.OnStart(ctx);
         return (phase, ac, ctx);
     }
@@ -231,10 +231,10 @@ public class M103PatternTrafficCheckInTests
     [Fact]
     public void Downwind_SoloVfrUnclearedAtMidfield_FiresPilotSpeech()
     {
-        var (phase, ac, ctx) = BuildDownwindAtMidfield();
+        (DownwindPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildDownwindAtMidfield();
         phase.OnTick(ctx);
 
-        var line = SinglePilotLine(ac);
+        string? line = SinglePilotLine(ac);
         Assert.NotNull(line);
         Assert.Contains("midfield downwind runway two eight right", line, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(ac.PendingWarnings);
@@ -243,11 +243,11 @@ public class M103PatternTrafficCheckInTests
     [Fact]
     public void Downwind_RpoModeUnclearedAtMidfield_FiresControllerWarning()
     {
-        var (phase, ac, ctx) = BuildDownwindAtMidfield(soloMode: false);
+        (DownwindPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildDownwindAtMidfield(soloMode: false);
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
-        var warning = ac.PendingWarnings.SingleOrDefault();
+        string? warning = ac.PendingWarnings.SingleOrDefault();
         Assert.NotNull(warning);
         Assert.Contains("midfield downwind runway 28R", warning);
     }
@@ -256,7 +256,7 @@ public class M103PatternTrafficCheckInTests
     public void Downwind_IfrAtMidfield_FiresControllerWarningEvenInSoloMode()
     {
         // IFR pattern aircraft don't speak in solo mode (gated by IsVfr) — falls through to the warning channel.
-        var (phase, ac, ctx) = BuildDownwindAtMidfield(isVfr: false);
+        (DownwindPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildDownwindAtMidfield(isVfr: false);
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -266,7 +266,7 @@ public class M103PatternTrafficCheckInTests
     [Fact]
     public void Downwind_ClearedAtMidfield_FiresNothing()
     {
-        var (phase, ac, ctx) = BuildDownwindAtMidfield(cleared: true);
+        (DownwindPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildDownwindAtMidfield(cleared: true);
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -276,7 +276,7 @@ public class M103PatternTrafficCheckInTests
     [Fact]
     public void Downwind_AutoClearedToLand_FiresNothing()
     {
-        var (phase, ac, ctx) = BuildDownwindAtMidfield(autoClearedToLand: true);
+        (DownwindPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildDownwindAtMidfield(autoClearedToLand: true);
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -288,7 +288,7 @@ public class M103PatternTrafficCheckInTests
     {
         // EXT issued (IsExtended) — controller is actively sequencing the aircraft,
         // so the "uncleared at midfield" reminder is a false positive and must not fire.
-        var (phase, ac, ctx) = BuildDownwindAtMidfield(extended: true);
+        (DownwindPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildDownwindAtMidfield(extended: true);
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -298,7 +298,7 @@ public class M103PatternTrafficCheckInTests
     [Fact]
     public void Downwind_ExtendedAtMidfield_RpoMode_FiresNothing()
     {
-        var (phase, ac, ctx) = BuildDownwindAtMidfield(soloMode: false, extended: true);
+        (DownwindPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildDownwindAtMidfield(soloMode: false, extended: true);
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -308,7 +308,7 @@ public class M103PatternTrafficCheckInTests
     [Fact]
     public void Downwind_FiresOnceWithinSamePhaseInstance()
     {
-        var (phase, ac, ctx) = BuildDownwindAtMidfield();
+        (DownwindPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildDownwindAtMidfield();
         phase.OnTick(ctx);
         phase.OnTick(ctx);
         phase.OnTick(ctx);
@@ -320,18 +320,18 @@ public class M103PatternTrafficCheckInTests
     public void Downwind_FreshInstancePerLap_ReFires()
     {
         // First lap.
-        var (phase1, ac, ctx1) = BuildDownwindAtMidfield();
+        (DownwindPhase? phase1, AircraftState? ac, PhaseContext? ctx1) = BuildDownwindAtMidfield();
         phase1.OnTick(ctx1);
         Assert.Single(ac.PendingPilotTransmissions);
 
         // Second lap: fresh DownwindPhase instance built by PatternBuilder.BuildNextCircuit().
-        var wp = DefaultWaypoints();
+        PatternWaypoints wp = DefaultWaypoints();
         ac.Position = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
         ac.TrueHeading = wp.DownwindHeading;
         ac.Phases!.LandingClearance = null; // still uncleared on lap 2
 
         var phase2 = new DownwindPhase { Waypoints = wp };
-        var ctx2 = Ctx(ac);
+        PhaseContext ctx2 = Ctx(ac);
         phase2.OnStart(ctx2);
         phase2.OnTick(ctx2);
 
@@ -354,11 +354,11 @@ public class M103PatternTrafficCheckInTests
         double distNm = 0.8
     )
     {
-        var ac = MakeAircraft(callsign: "N123AB", isVfr: isVfr, altitude: 300, ias: 75);
+        AircraftState ac = MakeAircraft(callsign: "N123AB", isVfr: isVfr, altitude: 300, ias: 75);
         // Already announced upstream (e.g., via PatternEntryPhase or M10.1.2) — short-final is a reminder, not initial contact.
         ac.HasMadeInitialContact = true;
 
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         // Distance from threshold along reversed-runway direction (i.e., on final, approaching from upwind direction = 100° → aircraft is east of threshold? No.
         // For runway 28 (heading 280°), the approach end is on the east side; aircraft on final approaches FROM the east heading 280°.
         // Aircraft 0.8 nm from threshold on final = 0.8 nm to the east of threshold (along 100° from threshold).
@@ -376,7 +376,7 @@ public class M103PatternTrafficCheckInTests
         }
 
         var phase = new FinalApproachPhase { SkipInterceptCheck = true };
-        var ctx = Ctx(ac, rwy, soloMode: soloMode);
+        PhaseContext ctx = Ctx(ac, rwy, soloMode: soloMode);
         phase.OnStart(ctx);
         return (phase, ac, ctx);
     }
@@ -384,13 +384,13 @@ public class M103PatternTrafficCheckInTests
     [Fact]
     public void FinalApproach_SoloVfrPatternUnclearedAtShortFinal_FiresPilotSpeech()
     {
-        var (phase, ac, ctx) = BuildShortFinal();
+        (FinalApproachPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildShortFinal();
         // Pattern traffic with HasMadeInitialContact already true → M10.1.1 OnFinal does NOT fire on OnStart.
         Assert.Empty(ac.PendingPilotTransmissions);
 
         phase.OnTick(ctx);
 
-        var line = SinglePilotLine(ac);
+        string? line = SinglePilotLine(ac);
         Assert.NotNull(line);
         Assert.Contains("short final runway two eight right", line, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(ac.PendingWarnings);
@@ -399,11 +399,11 @@ public class M103PatternTrafficCheckInTests
     [Fact]
     public void FinalApproach_RpoModePatternUncleared_FiresControllerWarning()
     {
-        var (phase, ac, ctx) = BuildShortFinal(soloMode: false);
+        (FinalApproachPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildShortFinal(soloMode: false);
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
-        var warning = ac.PendingWarnings.SingleOrDefault();
+        string? warning = ac.PendingWarnings.SingleOrDefault();
         Assert.NotNull(warning);
         // RPO-default warning now shows the pilot's compact terminal line (callsign in the SAY column).
         Assert.Contains("short final runway 28R", warning);
@@ -414,7 +414,7 @@ public class M103PatternTrafficCheckInTests
     {
         // VFR aircraft on straight-in arrival (not pattern traffic) — pilot speech is gated by _isPatternTraffic.
         // Falls through to the existing warning channel.
-        var (phase, ac, ctx) = BuildShortFinal(isPatternTraffic: false);
+        (FinalApproachPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildShortFinal(isPatternTraffic: false);
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -425,7 +425,7 @@ public class M103PatternTrafficCheckInTests
     public void FinalApproach_IfrPatternUncleared_FiresControllerWarningNotPilotSpeech()
     {
         // IFR pattern aircraft — gated by IsVfr; falls through to warning.
-        var (phase, ac, ctx) = BuildShortFinal(isVfr: false);
+        (FinalApproachPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildShortFinal(isVfr: false);
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -435,7 +435,7 @@ public class M103PatternTrafficCheckInTests
     [Fact]
     public void FinalApproach_PatternCleared_FiresNothing()
     {
-        var (phase, ac, ctx) = BuildShortFinal(cleared: true);
+        (FinalApproachPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildShortFinal(cleared: true);
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -446,7 +446,7 @@ public class M103PatternTrafficCheckInTests
     public void FinalApproach_PatternBeyondOneNm_DoesNotFire()
     {
         // 2 NM out — beyond the NoClearanceWarningDistNm = 1.0 trigger.
-        var (phase, ac, ctx) = BuildShortFinal(distNm: 2.0);
+        (FinalApproachPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildShortFinal(distNm: 2.0);
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -459,15 +459,15 @@ public class M103PatternTrafficCheckInTests
         // Defense-in-depth: even if HasMadeInitialContact is somehow false, pattern traffic
         // should never trigger the M10.1.1 spawn-on-final speech (PatternEntryPhase owns the
         // initial call for pattern aircraft).
-        var ac = MakeAircraft(callsign: "N123AB", isVfr: true, altitude: 1000, ias: 80);
+        AircraftState ac = MakeAircraft(callsign: "N123AB", isVfr: true, altitude: 1000, ias: 80);
         ac.HasMadeInitialContact = false;
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         ac.Position = GeoMath.ProjectPoint(new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), new TrueHeading(100), 3);
         ac.TrueHeading = new TrueHeading(280);
         ac.Phases!.TrafficDirection = PatternDirection.Left;
 
         var phase = new FinalApproachPhase { SkipInterceptCheck = true };
-        var ctx = Ctx(ac, rwy, soloMode: true);
+        PhaseContext ctx = Ctx(ac, rwy, soloMode: true);
         phase.OnStart(ctx);
 
         // M10.1.1 OnStart spawn-on-final speech should NOT fire for pattern traffic.

@@ -104,7 +104,7 @@ public sealed class TickRecorder
     /// </summary>
     public void Record(int time)
     {
-        foreach (var ac in _aircraft)
+        foreach (AircraftState ac in _aircraft)
         {
             if (Filter is not null && !Filter(ac))
             {
@@ -155,7 +155,7 @@ public sealed class TickRecorder
             return;
         }
 
-        var rec = FaaAircraftDatabase.Get(aircraft.AircraftType);
+        FaaAircraftRecord? rec = FaaAircraftDatabase.Get(aircraft.AircraftType);
         _metadata[aircraft.Callsign] = new AircraftMetadata
         {
             Callsign = aircraft.Callsign,
@@ -229,7 +229,7 @@ public sealed class TickRecorder
         {
             for (int i = 0; i < _callsigns.Length; i++)
             {
-                var ac = _engine.FindAircraft(_callsigns[i]);
+                AircraftState? ac = _engine.FindAircraft(_callsigns[i]);
                 if (ac is null)
                 {
                     continue;
@@ -238,7 +238,7 @@ public sealed class TickRecorder
                 _airportId ??= ac.Ground.LayoutAirportId;
                 if (!_metadata.ContainsKey(ac.Callsign))
                 {
-                    var rec = FaaAircraftDatabase.Get(ac.AircraftType);
+                    FaaAircraftRecord? rec = FaaAircraftDatabase.Get(ac.AircraftType);
                     _metadata[ac.Callsign] = new AircraftMetadata
                     {
                         Callsign = ac.Callsign,

@@ -27,8 +27,8 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
     /// </summary>
     private static (GroundNode Near, GroundNode Far)? ResolveCrossingBars(AirportGroundLayout layout)
     {
-        var near = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "F");
-        var far = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "C");
+        GroundNode? near = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "F");
+        GroundNode? far = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "10R", "C");
         return (near is null) || (far is null) ? null : (near, far);
     }
 
@@ -41,19 +41,19 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
     [Fact]
     public void TaxiFC_HoldShort10R_FromTheFoxtrotBar_HoldsOnTheNearSide()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var bars = ResolveCrossingBars(layout);
+        (GroundNode Near, GroundNode Far)? bars = ResolveCrossingBars(layout);
         if (bars is not { } crossing)
         {
             return;
         }
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: crossing.Near.Id,
             taxiwayNames: ["F", "C"],
@@ -65,12 +65,12 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
         Assert.Null(failReason);
         Assert.NotNull(route);
         output.WriteLine($"near=#{crossing.Near.Id} far=#{crossing.Far.Id} summary={route.ToSummary()}");
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             output.WriteLine($"  hold-short #{hs.NodeId} {hs.TargetName} {hs.Reason}");
         }
 
-        var explicitHold = Assert.Single(route.HoldShortPoints, hs => hs.Reason == HoldShortReason.ExplicitHoldShort);
+        HoldShortPoint explicitHold = Assert.Single(route.HoldShortPoints, hs => hs.Reason == HoldShortReason.ExplicitHoldShort);
         Assert.Equal(crossing.Near.Id, explicitHold.NodeId);
         Assert.DoesNotContain(route.HoldShortPoints, hs => hs.NodeId == crossing.Far.Id);
     }
@@ -81,19 +81,19 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
         // Same geometry without the HS token. The crossing is still annotated on the near side; it is
         // GroundCommandHandler's implicit first-crossing clearance that lets the aircraft go, and that
         // only ever clears a RunwayCrossing point — so the side must be right here too.
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var bars = ResolveCrossingBars(layout);
+        (GroundNode Near, GroundNode Far)? bars = ResolveCrossingBars(layout);
         if (bars is not { } crossing)
         {
             return;
         }
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: crossing.Near.Id,
             taxiwayNames: ["F", "C"],
@@ -106,7 +106,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
         Assert.NotNull(route);
         output.WriteLine($"near=#{crossing.Near.Id} far=#{crossing.Far.Id} summary={route.ToSummary()}");
 
-        var crossingHold = Assert.Single(route.HoldShortPoints, hs => hs.Reason == HoldShortReason.RunwayCrossing);
+        HoldShortPoint crossingHold = Assert.Single(route.HoldShortPoints, hs => hs.Reason == HoldShortReason.RunwayCrossing);
         Assert.Equal(crossing.Near.Id, crossingHold.NodeId);
         Assert.DoesNotContain(route.HoldShortPoints, hs => hs.NodeId == crossing.Far.Id);
     }
@@ -118,19 +118,19 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
         // annotation pass (it runs over an appended parking extension and over a runway-exit route).
         // It pairs crossings the same way and must not mistake the exit-side bar for a new entry
         // when the crossing straddles two taxiway names.
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var bars = ResolveCrossingBars(layout);
+        (GroundNode Near, GroundNode Far)? bars = ResolveCrossingBars(layout);
         if (bars is not { } crossing)
         {
             return;
         }
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: crossing.Near.Id,
             taxiwayNames: ["F", "C"],
@@ -144,7 +144,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
 
         var holdShorts = new List<HoldShortPoint>();
         HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, route.Segments, holdShorts);
-        foreach (var hs in holdShorts)
+        foreach (HoldShortPoint hs in holdShorts)
         {
             output.WriteLine($"  hold-short #{hs.NodeId} {hs.TargetName} {hs.Reason}");
         }
@@ -157,20 +157,20 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
     {
         // The near bar is a mid-route node here rather than the start node, which already worked.
         // Pinned so the fix to the start-node case cannot regress it.
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var bars = ResolveCrossingBars(layout);
+        (GroundNode Near, GroundNode Far)? bars = ResolveCrossingBars(layout);
         if (bars is not { } crossing)
         {
             return;
         }
 
         // One hop back along F, away from the runway.
-        var backOnF = crossing
+        GroundNode? backOnF = crossing
             .Near.Edges.Where(e => string.Equals(e.TaxiwayName, "F", StringComparison.OrdinalIgnoreCase))
             .Select(e => e.OtherNode(crossing.Near))
             .OrderByDescending(n => GeoMath.DistanceNm(n.Position, crossing.Far.Position))
@@ -180,7 +180,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             return;
         }
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: backOnF.Id,
             taxiwayNames: ["F", "C"],
@@ -193,7 +193,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
         Assert.NotNull(route);
         output.WriteLine($"from=#{backOnF.Id} summary={route.ToSummary()}");
 
-        var explicitHold = Assert.Single(route.HoldShortPoints, hs => hs.Reason == HoldShortReason.ExplicitHoldShort);
+        HoldShortPoint explicitHold = Assert.Single(route.HoldShortPoints, hs => hs.Reason == HoldShortReason.ExplicitHoldShort);
         Assert.Equal(crossing.Near.Id, explicitHold.NodeId);
         Assert.DoesNotContain(route.HoldShortPoints, hs => hs.NodeId == crossing.Far.Id);
     }

@@ -20,7 +20,7 @@ public sealed class LayoutAnalyzer
     {
         string geoJson = File.ReadAllText(geoJsonPath);
         string airportId = Path.GetFileNameWithoutExtension(geoJsonPath).ToUpperInvariant();
-        var layout = GeoJsonParser.Parse(airportId, geoJson, airportCode, filletMode);
+        AirportGroundLayout layout = GeoJsonParser.Parse(airportId, geoJson, airportCode, filletMode);
         return new LayoutAnalyzer(layout);
     }
 
@@ -31,7 +31,7 @@ public sealed class LayoutAnalyzer
     /// </summary>
     public void RunExitQuery(string runwayDesignator, ExitPreference preference)
     {
-        var rwy = Layout.FindGroundRunway(runwayDesignator);
+        GroundRunway? rwy = Layout.FindGroundRunway(runwayDesignator);
         if (rwy is null)
         {
             Console.Error.WriteLine($"Runway {runwayDesignator} not found");
@@ -50,7 +50,7 @@ public sealed class LayoutAnalyzer
 
         var rwyHeading = new TrueHeading(rwBearing);
 
-        foreach (var node in Layout.Nodes.Values)
+        foreach (GroundNode node in Layout.Nodes.Values)
         {
             if (!node.Edges.Any(e => e.MatchesRunway(runwayDesignator)))
             {
@@ -58,7 +58,12 @@ public sealed class LayoutAnalyzer
             }
 
             Console.WriteLine($"\n--- Centerline #{node.Id} ({node.Position.Lat:F6},{node.Position.Lon:F6}) ---");
-            var result = Layout.FindAdjacentHoldShort(node, runwayDesignator, rwyHeading, preference);
+            (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? result = Layout.FindAdjacentHoldShort(
+                node,
+                runwayDesignator,
+                rwyHeading,
+                preference
+            );
             if (result is not null)
             {
                 Console.WriteLine($"  → Selected: HS #{result.Value.Node.Id} via {result.Value.Taxiway}");
@@ -73,14 +78,14 @@ public sealed class LayoutAnalyzer
     public OverviewResult GetOverview()
     {
         var countsByType = new Dictionary<string, int>();
-        foreach (var node in Layout.Nodes.Values)
+        foreach (GroundNode node in Layout.Nodes.Values)
         {
             string typeName = node.Type.ToString();
             countsByType[typeName] = countsByType.GetValueOrDefault(typeName) + 1;
         }
 
         var taxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var edge in Layout.AllEdges)
+        foreach (IGroundEdge edge in Layout.AllEdges)
         {
             if (!edge.IsRunwayCenterline)
             {
@@ -118,10 +123,10 @@ public sealed class LayoutAnalyzer
     private NodeInfo BuildNodeInfo(GroundNode node)
     {
         var edges = new List<EdgeInfo>();
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             int neighborId = edge.OtherNodeId(node.Id);
-            Layout.Nodes.TryGetValue(neighborId, out var neighbor);
+            Layout.Nodes.TryGetValue(neighborId, out GroundNode? neighbor);
 
             double bearing = (neighbor is not null) ? GeoMath.BearingTo(node.Position, neighbor.Position) : 0;
 
@@ -214,7 +219,7 @@ public sealed class LayoutAnalyzer
 
     public NodeInfo? GetNodeDetail(int id)
     {
-        return Layout.Nodes.TryGetValue(id, out var node) ? BuildNodeInfo(node) : null;
+        return Layout.Nodes.TryGetValue(id, out GroundNode? node) ? BuildNodeInfo(node) : null;
     }
 
     /// <summary>Max hops the bridge BFS walks looking for an alternate route between an edge pair's arms.</summary>
@@ -227,13 +232,13 @@ public sealed class LayoutAnalyzer
     /// </summary>
     public NodeAnglesResult? GetNodeAngles(int id)
     {
-        if (!Layout.Nodes.TryGetValue(id, out var node))
+        if (!Layout.Nodes.TryGetValue(id, out GroundNode? node))
         {
             return null;
         }
 
         var arms = new List<(int Neighbor, string Taxiway, double DepartBearing)>();
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             int neighborId = edge.OtherNodeId(node.Id);
             double depart;
@@ -241,7 +246,7 @@ public sealed class LayoutAnalyzer
             {
                 depart = ComputeArcTangentAtNode(arc, arc.Nodes[0].Id == node.Id);
             }
-            else if (Layout.Nodes.TryGetValue(neighborId, out var neighbor))
+            else if (Layout.Nodes.TryGetValue(neighborId, out GroundNode? neighbor))
             {
                 depart = GeoMath.BearingTo(node.Position, neighbor.Position);
             }
@@ -259,7 +264,7 @@ public sealed class LayoutAnalyzer
             for (int j = i + 1; j < arms.Count; j++)
             {
                 double fan = FanAngle(arms[i].DepartBearing, arms[j].DepartBearing);
-                var bridge = FindBridge(node.Id, arms[i].Neighbor, arms[j].Neighbor, arms[i].Taxiway, arms[j].Taxiway);
+                BridgeInfo? bridge = FindBridge(node.Id, arms[i].Neighbor, arms[j].Neighbor, arms[i].Taxiway, arms[j].Taxiway);
                 pairs.Add(new EdgePairAngle(arms[i].Taxiway, arms[i].Neighbor, arms[j].Taxiway, arms[j].Neighbor, fan, 180.0 - fan, bridge));
             }
         }
@@ -298,12 +303,12 @@ public sealed class LayoutAnalyzer
                 break;
             }
 
-            if (depth[cur] >= BridgeMaxHops || !Layout.Nodes.TryGetValue(cur, out var curNode))
+            if (depth[cur] >= BridgeMaxHops || !Layout.Nodes.TryGetValue(cur, out GroundNode? curNode))
             {
                 continue;
             }
 
-            foreach (var edge in curNode.Edges)
+            foreach (IGroundEdge edge in curNode.Edges)
             {
                 int nb = edge.OtherNodeId(cur);
                 if (nb == excludeNode || depth.ContainsKey(nb))
@@ -337,12 +342,12 @@ public sealed class LayoutAnalyzer
         var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { taxiwayA, taxiwayB };
         for (int k = 0; k + 1 < path.Count; k++)
         {
-            if (!Layout.Nodes.TryGetValue(path[k], out var a))
+            if (!Layout.Nodes.TryGetValue(path[k], out GroundNode? a))
             {
                 continue;
             }
 
-            foreach (var edge in a.Edges)
+            foreach (IGroundEdge edge in a.Edges)
             {
                 if (edge.OtherNodeId(path[k]) != path[k + 1])
                 {
@@ -373,7 +378,7 @@ public sealed class LayoutAnalyzer
         var seenIntersections = new HashSet<(string, int)>();
         int holdShortCount = 0;
 
-        foreach (var edge in Layout.AllEdges)
+        foreach (IGroundEdge edge in Layout.AllEdges)
         {
             if (edge.MatchesTaxiway(name))
             {
@@ -385,7 +390,7 @@ public sealed class LayoutAnalyzer
         var nodes = new List<NodeInfo>();
         foreach (int id in nodeIds.OrderBy(id => id))
         {
-            if (!Layout.Nodes.TryGetValue(id, out var node))
+            if (!Layout.Nodes.TryGetValue(id, out GroundNode? node))
             {
                 continue;
             }
@@ -396,7 +401,7 @@ public sealed class LayoutAnalyzer
                 holdShortCount++;
             }
 
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 if (edge.IsRunwayCenterline || edge.MatchesTaxiway(name))
                 {
@@ -434,7 +439,7 @@ public sealed class LayoutAnalyzer
     public IntersectionResult GetIntersection(string twy1, string twy2)
     {
         var result = new List<NodeInfo>();
-        foreach (var (id, node) in Layout.Nodes)
+        foreach ((int id, GroundNode? node) in Layout.Nodes)
         {
             bool hasTwy1 = node.Edges.Any(e => e.MatchesTaxiway(twy1));
             bool hasTwy2 = node.Edges.Any(e => e.MatchesTaxiway(twy2));
@@ -455,7 +460,7 @@ public sealed class LayoutAnalyzer
     /// </summary>
     public NodeDistanceResult? GetNodeDistance(int fromId, int toId)
     {
-        if (!Layout.Nodes.TryGetValue(fromId, out var from) || !Layout.Nodes.TryGetValue(toId, out var to))
+        if (!Layout.Nodes.TryGetValue(fromId, out GroundNode? from) || !Layout.Nodes.TryGetValue(toId, out GroundNode? to))
         {
             return null;
         }
@@ -492,9 +497,9 @@ public sealed class LayoutAnalyzer
         double totalNm = 0;
         for (int i = 0; i + 1 < nodeIds.Count; i++)
         {
-            var fromNode = Layout.Nodes[nodeIds[i]];
-            var toNode = Layout.Nodes[nodeIds[i + 1]];
-            var edge = FindEdge(fromNode, nodeIds[i + 1]);
+            GroundNode fromNode = Layout.Nodes[nodeIds[i]];
+            GroundNode toNode = Layout.Nodes[nodeIds[i + 1]];
+            IGroundEdge? edge = FindEdge(fromNode, nodeIds[i + 1]);
             double legNm = edge?.DistanceNm ?? GeoMath.DistanceNm(fromNode.Position, toNode.Position);
             string mode = edge is not null ? "edge" : "straight";
             double bearing = GeoMath.BearingTo(fromNode.Position, toNode.Position);
@@ -527,7 +532,7 @@ public sealed class LayoutAnalyzer
 
     private static IGroundEdge? FindEdge(GroundNode from, int toId)
     {
-        foreach (var edge in from.Edges)
+        foreach (IGroundEdge edge in from.Edges)
         {
             if (edge.Nodes[0].Id == toId || edge.Nodes[1].Id == toId)
             {
@@ -545,7 +550,7 @@ public sealed class LayoutAnalyzer
     public List<string> KnownRunwayDesignators()
     {
         var designators = new List<string>();
-        foreach (var rwy in Layout.Runways)
+        foreach (GroundRunway rwy in Layout.Runways)
         {
             var id = RunwayIdentifier.Parse(rwy.Name);
             designators.Add(id.End1);
@@ -557,7 +562,7 @@ public sealed class LayoutAnalyzer
 
     public bool HasRunwayDesignator(string designator)
     {
-        foreach (var rwy in Layout.Runways)
+        foreach (GroundRunway rwy in Layout.Runways)
         {
             var id = RunwayIdentifier.Parse(rwy.Name);
             if (id.Contains(designator))
@@ -592,7 +597,7 @@ public sealed class LayoutAnalyzer
         var centerlineNodes = new List<NodeInfo>();
         var holdShortNodes = new List<NodeInfo>();
 
-        foreach (var node in Layout.Nodes.Values)
+        foreach (GroundNode node in Layout.Nodes.Values)
         {
             bool isHoldShort = (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } rwyId) && rwyId.Contains(designator);
             bool hasCenterlineEdge = node.Edges.Any(e => e.MatchesRunway(designator));
@@ -613,7 +618,7 @@ public sealed class LayoutAnalyzer
     public ExitsResult GetExits(string designator)
     {
         var exits = new List<ExitCandidate>();
-        var rwy = Layout.FindGroundRunway(designator);
+        GroundRunway? rwy = Layout.FindGroundRunway(designator);
         TrueHeading? globalRwyHeading = null;
 
         if (rwy is not null)
@@ -631,7 +636,7 @@ public sealed class LayoutAnalyzer
             globalRwyHeading = new TrueHeading(rwBearing);
         }
 
-        foreach (var node in Layout.Nodes.Values)
+        foreach (GroundNode node in Layout.Nodes.Values)
         {
             bool isCenterline = node.Edges.Any(e => e.MatchesRunway(designator));
             if (!isCenterline)
@@ -647,10 +652,10 @@ public sealed class LayoutAnalyzer
             // Search both sides per taxiway to enumerate hold-shorts on each side
             // (e.g., SFO E has HS 836 south and HS 837 north from the same centerline node).
             var searched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 // Collect individual taxiway names from this edge (arcs may have multiple)
-                var edgeTaxiwayNames = CollectNonRunwayTaxiwayNames(edge);
+                List<string> edgeTaxiwayNames = CollectNonRunwayTaxiwayNames(edge);
                 foreach (string twyName in edgeTaxiwayNames)
                 {
                     if (!searched.Add(twyName))
@@ -659,10 +664,15 @@ public sealed class LayoutAnalyzer
                     }
 
                     ExitSide[] sides = [ExitSide.Left, ExitSide.Right];
-                    foreach (var side in sides)
+                    foreach (ExitSide side in sides)
                     {
                         var pref = new ExitPreference { Taxiway = twyName, Side = side };
-                        var result = Layout.FindAdjacentHoldShort(node, designator, rwyHeading, pref);
+                        (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? result = Layout.FindAdjacentHoldShort(
+                            node,
+                            designator,
+                            rwyHeading,
+                            pref
+                        );
                         if (result is null)
                         {
                             continue;
@@ -774,7 +784,7 @@ public sealed class LayoutAnalyzer
         while (queue.Count > 0)
         {
             int nodeId = queue.Dequeue();
-            if (!Layout.Nodes.TryGetValue(nodeId, out var node))
+            if (!Layout.Nodes.TryGetValue(nodeId, out GroundNode? node))
             {
                 continue;
             }
@@ -784,7 +794,7 @@ public sealed class LayoutAnalyzer
                 parkingCount++;
             }
 
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 // Don't cross runways — runway edges connect centerline nodes
                 if (edge.IsRunwayCenterline)
@@ -825,7 +835,7 @@ public sealed class LayoutAnalyzer
         int counted = 0;
         foreach (int hsId in holdShortIds)
         {
-            if (!Layout.Nodes.TryGetValue(hsId, out var hsNode))
+            if (!Layout.Nodes.TryGetValue(hsId, out GroundNode? hsNode))
             {
                 continue;
             }
@@ -845,12 +855,12 @@ public sealed class LayoutAnalyzer
 
     private TrueHeading EstimateRunwayHeading(GroundNode node, string designator)
     {
-        foreach (var edge in node.Edges)
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge.MatchesRunway(designator))
             {
                 int neighborId = edge.OtherNodeId(node.Id);
-                if (Layout.Nodes.TryGetValue(neighborId, out var neighbor))
+                if (Layout.Nodes.TryGetValue(neighborId, out GroundNode? neighbor))
                 {
                     return new TrueHeading(GeoMath.BearingTo(node.Position, neighbor.Position));
                 }
@@ -862,10 +872,10 @@ public sealed class LayoutAnalyzer
 
     public FullDumpResult GetFullDump()
     {
-        var overview = GetOverview();
+        OverviewResult overview = GetOverview();
 
         var allNodes = new Dictionary<int, NodeInfo>();
-        foreach (var node in Layout.Nodes.Values)
+        foreach (GroundNode node in Layout.Nodes.Values)
         {
             allNodes[node.Id] = BuildNodeInfo(node);
         }
@@ -909,7 +919,7 @@ public sealed class LayoutAnalyzer
 
     public BfsPathResult GetBfsPath(int startNodeId, string taxiway)
     {
-        if (!Layout.Nodes.TryGetValue(startNodeId, out var startNode))
+        if (!Layout.Nodes.TryGetValue(startNodeId, out GroundNode? startNode))
         {
             return new BfsPathResult(startNodeId, taxiway, [new BfsStep(startNodeId, "NotFound", 0, [])], null, null, null);
         }
@@ -920,10 +930,10 @@ public sealed class LayoutAnalyzer
         var queue = new Queue<(GroundNode Node, string BranchTaxiway, List<int> Path, double TotalDist, int Depth)>();
 
         var seedEdges = new List<BfsEdgeExplored>();
-        foreach (var edge in startNode.Edges)
+        foreach (IGroundEdge edge in startNode.Edges)
         {
             int neighborId = edge.OtherNodeId(startNodeId);
-            Layout.Nodes.TryGetValue(neighborId, out var neighbor);
+            Layout.Nodes.TryGetValue(neighborId, out GroundNode? neighbor);
             string neighborType = neighbor?.Type.ToString() ?? "Unknown";
 
             if (edge.IsRunwayCenterline)
@@ -962,7 +972,7 @@ public sealed class LayoutAnalyzer
 
         while (queue.Count > 0)
         {
-            var (current, branchTwy, path, totalDist, depth) = queue.Dequeue();
+            (GroundNode? current, string? branchTwy, List<int>? path, double totalDist, int depth) = queue.Dequeue();
             var edgesExplored = new List<BfsEdgeExplored>();
 
             if (current.Type == GroundNodeType.RunwayHoldShort)
@@ -981,10 +991,10 @@ public sealed class LayoutAnalyzer
                 continue;
             }
 
-            foreach (var edge in current.Edges)
+            foreach (IGroundEdge edge in current.Edges)
             {
                 int nextId = edge.OtherNodeId(current.Id);
-                Layout.Nodes.TryGetValue(nextId, out var next);
+                Layout.Nodes.TryGetValue(nextId, out GroundNode? next);
                 string nextType = next?.Type.ToString() ?? "Unknown";
 
                 if (edge.IsRunwayCenterline)

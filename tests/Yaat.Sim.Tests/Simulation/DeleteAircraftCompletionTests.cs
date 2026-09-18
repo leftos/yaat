@@ -16,9 +16,9 @@ public class DeleteAircraftCompletionTests
     [Fact]
     public void DeleteAircraft_ActiveAircraft_IsStampedDropped_AndRecorded()
     {
-        var engine = Engine();
+        SimulationEngine engine = Engine();
         engine.Scenario!.ElapsedSeconds = 600;
-        var ac = Aircraft("N1");
+        AircraftState ac = Aircraft("N1");
         ac.SpawnedAtSeconds = 100;
         engine.World.AddAircraft(ac);
 
@@ -27,7 +27,7 @@ public class DeleteAircraftCompletionTests
         Assert.Null(engine.World.FindAircraft("N1"));
         Assert.Equal(CompletionReason.Dropped, ac.CompletionReason);
         Assert.Equal(600, ac.CompletedAtSeconds);
-        var record = Assert.Single(engine.World.GetCompletedAircraft());
+        CompletedAircraftRecord record = Assert.Single(engine.World.GetCompletedAircraft());
         Assert.Equal("N1", record.Callsign);
         Assert.Equal(CompletionReason.Dropped, record.Reason);
         Assert.Equal(600, record.CompletedAtSeconds);
@@ -37,9 +37,9 @@ public class DeleteAircraftCompletionTests
     [Fact]
     public void DeleteAircraft_AlreadyLanded_KeepsLandedStamp()
     {
-        var engine = Engine();
+        SimulationEngine engine = Engine();
         engine.Scenario!.ElapsedSeconds = 600;
-        var ac = Aircraft("N1");
+        AircraftState ac = Aircraft("N1");
         ac.CompletionReason = CompletionReason.Landed;
         ac.CompletedAtSeconds = 450;
         ac.CompletionDetail = "28R";
@@ -47,7 +47,7 @@ public class DeleteAircraftCompletionTests
 
         engine.DeleteAircraft("N1", "DEL");
 
-        var record = Assert.Single(engine.World.GetCompletedAircraft());
+        CompletedAircraftRecord record = Assert.Single(engine.World.GetCompletedAircraft());
         Assert.Equal(CompletionReason.Landed, record.Reason);
         Assert.Equal(450, record.CompletedAtSeconds);
         Assert.Equal("28R", record.Detail);
@@ -56,7 +56,7 @@ public class DeleteAircraftCompletionTests
     [Fact]
     public void DeleteAircraft_OnlyInDelayedQueue_ClearsQueue_NoRecord()
     {
-        var engine = Engine();
+        SimulationEngine engine = Engine();
         engine.Scenario!.DelayedQueue.Add(
             new DelayedSpawn
             {
@@ -74,15 +74,15 @@ public class DeleteAircraftCompletionTests
     [Fact]
     public void ReplayedDelete_StampsDropped()
     {
-        var engine = Engine();
+        SimulationEngine engine = Engine();
         engine.Scenario!.ElapsedSeconds = 600;
-        var ac = Aircraft("N1");
+        AircraftState ac = Aircraft("N1");
         engine.World.AddAircraft(ac);
 
         engine.Actions.Apply(new RecordedCommand(600, "N1", "DEL", "XX", "conn"));
 
         Assert.Null(engine.World.FindAircraft("N1"));
-        var record = Assert.Single(engine.World.GetCompletedAircraft());
+        CompletedAircraftRecord record = Assert.Single(engine.World.GetCompletedAircraft());
         Assert.Equal(CompletionReason.Dropped, record.Reason);
         Assert.Equal("DEL", record.Detail);
     }

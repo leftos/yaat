@@ -116,7 +116,7 @@ public class ReplayAtcRosterTests
         engine.Scenario!.AtcPositions.Add(Resolve(_zoa, OakDepPositionId, ["KOAK"]));
         engine.Scenario.AtcPositions.Add(Resolve(_zoa, OakTwrPositionId, []));
 
-        var snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
 
         if (Engine() is not { } restored)
         {
@@ -125,7 +125,7 @@ public class ReplayAtcRosterTests
 
         restored.RestoreFromSnapshot(snapshot);
 
-        var roster = restored.Scenario!.AtcPositions;
+        List<ResolvedAtcPosition> roster = restored.Scenario!.AtcPositions;
         Assert.Equal(2, roster.Count);
         Assert.Equal([OakDepPositionId, OakTwrPositionId], roster.Select(p => p.Source.PositionId));
         Assert.Equal(["ZOA", "ZOA"], roster.Select(p => p.Source.ArtccId));
@@ -157,9 +157,9 @@ public class ReplayAtcRosterTests
 
         engine.Scenario!.AtcPositions.Add(Resolve(_zoa, OakDepPositionId, ["KOAK"]));
 
-        var node = JsonNode.Parse(JsonSerializer.Serialize(engine.CaptureSnapshot(actionIndex: 0), RecordingJsonOptions.Default))!;
+        JsonNode node = JsonNode.Parse(JsonSerializer.Serialize(engine.CaptureSnapshot(actionIndex: 0), RecordingJsonOptions.Default))!;
         node["Scenario"]!.AsObject().Remove("AtcPositions");
-        var legacy = JsonSerializer.Deserialize<StateSnapshotDto>(node.ToJsonString(), RecordingJsonOptions.Default)!;
+        StateSnapshotDto legacy = JsonSerializer.Deserialize<StateSnapshotDto>(node.ToJsonString(), RecordingJsonOptions.Default)!;
         Assert.Null(legacy.Scenario.AtcPositions);
 
         if (Engine() is not { } restored)
@@ -170,7 +170,7 @@ public class ReplayAtcRosterTests
         restored.Scenario!.AtcPositions.Add(Resolve(_zoa, OakTwrPositionId, ["KOAK"]));
         restored.RestoreFromSnapshot(legacy);
 
-        var kept = Assert.Single(restored.Scenario.AtcPositions);
+        ResolvedAtcPosition kept = Assert.Single(restored.Scenario.AtcPositions);
         Assert.Equal(OakTwrPositionId, kept.Source.PositionId);
     }
 
@@ -187,8 +187,8 @@ public class ReplayAtcRosterTests
             return;
         }
 
-        var owner = _zoa.ResolvePosition(OakDepPositionId)!;
-        var recording = BuildRecording([
+        TrackOwner owner = _zoa.ResolvePosition(OakDepPositionId)!;
+        SessionRecording recording = BuildRecording([
             new AtcPositionDto
             {
                 Id = OakDepPositionId,
@@ -207,7 +207,7 @@ public class ReplayAtcRosterTests
         engine.TerminalEntryEmitted += entry => lines.Add(entry.Message);
 
         engine.Replay(recording, 0);
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.True(FieldElevationResolver.IsBelowDisplayFloor(aircraft!, NavigationDatabase.Instance));
         Assert.Null(aircraft!.Track.Owner);
@@ -222,7 +222,7 @@ public class ReplayAtcRosterTests
         // Without the roster there is nothing to resolve the departure against — the legacy behavior, pinned.
         var legacyEngine = new SimulationEngine(new TestAirportGroundData());
         legacyEngine.Replay(BuildRecording(initialAtcPositions: null), crossedAt);
-        var legacyAircraft = legacyEngine.FindAircraft(Callsign)!;
+        AircraftState legacyAircraft = legacyEngine.FindAircraft(Callsign)!;
         Assert.False(FieldElevationResolver.IsBelowDisplayFloor(legacyAircraft, NavigationDatabase.Instance));
         Assert.Null(legacyAircraft.Track.Owner);
     }

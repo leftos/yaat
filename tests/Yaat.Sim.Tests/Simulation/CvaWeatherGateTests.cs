@@ -1,5 +1,7 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -47,10 +49,10 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
     /// </summary>
     private static AircraftState Spawn(SimulationEngine engine, double finalDistanceNm, double altitude, bool towardRunway)
     {
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("OAK", "30");
         Assert.NotNull(rwy);
         double reciprocal = (rwy.TrueHeading.Degrees + 180) % 360;
-        var (lat, lon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, finalDistanceNm);
+        (double lat, double lon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, finalDistanceNm);
         double heading = towardRunway ? rwy.TrueHeading.Degrees : reciprocal;
         var ac = new AircraftState
         {
@@ -78,7 +80,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
     [Fact]
     public void Cva_RejectedBelowMinimumCeiling()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return; // navdata absent → skip, per no-synthetic-data convention
@@ -87,7 +89,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
         engine.World.Weather = OakMetar("5SM OVC009");
         Spawn(engine, finalDistanceNm: 6.0, altitude: 2000, towardRunway: true);
 
-        var result = engine.SendCommand("GATE1", "CVA 30");
+        CommandResult result = engine.SendCommand("GATE1", "CVA 30");
 
         Assert.False(result.Success, $"CVA must be rejected under a 900 ft ceiling, got: {result.Message}");
     }
@@ -95,7 +97,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
     [Fact]
     public void Cva_RejectedBelowMinimumVisibility()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -104,7 +106,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
         engine.World.Weather = OakMetar("2SM CLR");
         Spawn(engine, finalDistanceNm: 6.0, altitude: 2000, towardRunway: true);
 
-        var result = engine.SendCommand("GATE1", "CVA 30");
+        CommandResult result = engine.SendCommand("GATE1", "CVA 30");
 
         Assert.False(result.Success, $"CVA must be rejected under 2 SM visibility, got: {result.Message}");
     }
@@ -112,7 +114,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
     [Fact]
     public void Cva_AtExactBasicVfrMinimums_Allowed()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -122,7 +124,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
         engine.World.Weather = OakMetar("3SM OVC010");
         Spawn(engine, finalDistanceNm: 3.0, altitude: 900, towardRunway: true);
 
-        var result = engine.SendCommand("GATE1", "CVA 30");
+        CommandResult result = engine.SendCommand("GATE1", "CVA 30");
 
         Assert.True(result.Success, $"a 1000/3 visual is legally clearable, got: {result.Message}");
     }
@@ -130,7 +132,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
     [Fact]
     public void Cva_WeatherNotAvailable_Allowed()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -139,7 +141,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
         engine.World.Weather = null;
         Spawn(engine, finalDistanceNm: 6.0, altitude: 2000, towardRunway: true);
 
-        var result = engine.SendCommand("GATE1", "CVA 30");
+        CommandResult result = engine.SendCommand("GATE1", "CVA 30");
 
         Assert.True(result.Success, $"no reported weather → §7-4-3.c weather-not-available path, got: {result.Message}");
     }
@@ -147,7 +149,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
     [Fact]
     public void Cvaf_ForcesThroughWeatherGate()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -156,7 +158,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
         engine.World.Weather = OakMetar("2SM OVC009");
         Spawn(engine, finalDistanceNm: 6.0, altitude: 2000, towardRunway: true);
 
-        var result = engine.SendCommand("GATE1", "CVAF 30");
+        CommandResult result = engine.SendCommand("GATE1", "CVAF 30");
 
         Assert.True(result.Success, $"CVAF is the instructor override and bypasses the weather gate, got: {result.Message}");
     }
@@ -164,7 +166,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
     [Fact]
     public void Cva_PatternEntry_RejectedUnderLowCeiling()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -175,7 +177,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
         engine.World.Weather = OakMetar("3SM OVC015");
         Spawn(engine, finalDistanceNm: 6.0, altitude: 2500, towardRunway: false);
 
-        var result = engine.SendCommand("GATE1", "CVA 30");
+        CommandResult result = engine.SendCommand("GATE1", "CVA 30");
 
         Assert.False(result.Success, $"a pattern-entry CVA must be rejected when the IFR downwind would sit in the deck, got: {result.Message}");
     }
@@ -183,7 +185,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
     [Fact]
     public void Cva_StraightIn_AllowedUnderSameCeiling()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
@@ -194,7 +196,7 @@ public class CvaWeatherGateTests(ITestOutputHelper output)
         engine.World.Weather = OakMetar("3SM OVC015");
         Spawn(engine, finalDistanceNm: 4.0, altitude: 1200, towardRunway: true);
 
-        var result = engine.SendCommand("GATE1", "CVA 30");
+        CommandResult result = engine.SendCommand("GATE1", "CVA 30");
 
         Assert.True(result.Success, $"a straight-in visual under 1500/3 is legal, got: {result.Message}");
     }

@@ -37,7 +37,7 @@ public sealed class GroundBrain : IPositionBrain
     {
         _pacing.BeginTick();
         var present = new HashSet<string>(context.Snapshot.Select(ac => ac.Callsign), StringComparer.Ordinal);
-        foreach (var callsign in _memos.Keys.Where(c => !present.Contains(c)).ToList())
+        foreach (string? callsign in _memos.Keys.Where(c => !present.Contains(c)).ToList())
         {
             _memos.Remove(callsign);
         }
@@ -52,12 +52,12 @@ public sealed class GroundBrain : IPositionBrain
             Memos = _memos,
             Pacing = _pacing,
         };
-        foreach (var rule in _watchdogs)
+        foreach (IDecisionRule rule in _watchdogs)
         {
             rule.Evaluate(scope);
         }
 
-        foreach (var rule in _decisions)
+        foreach (IDecisionRule rule in _decisions)
         {
             rule.Evaluate(scope);
         }
@@ -76,20 +76,24 @@ public sealed class GroundBrain : IPositionBrain
     /// </summary>
     private void SettleOutcomes(AiTickContext context)
     {
-        foreach (var outcome in context.Outcomes)
+        foreach (AiCommandOutcome outcome in context.Outcomes)
         {
             if (!string.Equals(outcome.Request.From.PositionId, Position.PositionId, StringComparison.Ordinal))
             {
                 continue;
             }
 
-            if (_memos.TryGetValue(outcome.Request.Callsign, out var memo) && memo.InFlight is { } inFlight && Matches(inFlight, outcome.Request))
+            if (
+                _memos.TryGetValue(outcome.Request.Callsign, out AiAircraftMemo? memo)
+                && memo.InFlight is { } inFlight
+                && Matches(inFlight, outcome.Request)
+            )
             {
                 memo.Complete(outcome.Success, context.ElapsedSeconds);
             }
         }
 
-        foreach (var (callsign, memo) in _memos.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        foreach ((string? callsign, AiAircraftMemo? memo) in _memos.OrderBy(kv => kv.Key, StringComparer.Ordinal))
         {
             if (memo.InFlight is { } stale && (context.ElapsedSeconds > memo.EffectDeadlineSeconds))
             {

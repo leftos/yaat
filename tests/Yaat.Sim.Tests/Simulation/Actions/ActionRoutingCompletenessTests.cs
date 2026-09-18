@@ -44,9 +44,9 @@ public class ActionRoutingCompletenessTests
         var unclassified = new List<string>();
         var undummied = new List<string>();
 
-        foreach (var type in ParsedCommandDummies.ConcreteTypes())
+        foreach (Type type in ParsedCommandDummies.ConcreteTypes())
         {
-            var dummy = ParsedCommandDummies.Create(type);
+            ParsedCommand? dummy = ParsedCommandDummies.Create(type);
             if (dummy is null)
             {
                 undummied.Add(type.Name);
@@ -55,7 +55,7 @@ public class ActionRoutingCompletenessTests
 
             try
             {
-                var classification = RecordedCommandClassifier.ClassifyParsed(dummy);
+                RecordedCommandClassifier.Classification classification = RecordedCommandClassifier.ClassifyParsed(dummy);
                 Assert.Equal(RecordedCommandClassifier.ScopeOf(classification.Kind), classification.Scope);
             }
             catch (UnroutedCommandException)
@@ -75,7 +75,7 @@ public class ActionRoutingCompletenessTests
     [Fact]
     public void EveryKind_HasAScope()
     {
-        foreach (var kind in Enum.GetValues<RecordedCommandKind>())
+        foreach (RecordedCommandKind kind in Enum.GetValues<RecordedCommandKind>())
         {
             // ScopeOf throws for a kind without a row.
             _ = RecordedCommandClassifier.ScopeOf(kind);
@@ -90,9 +90,9 @@ public class ActionRoutingCompletenessTests
     public void EveryKind_HasAnArm()
     {
         var neverRecorded = new List<RecordedCommandKind>();
-        foreach (var kind in Enum.GetValues<RecordedCommandKind>())
+        foreach (RecordedCommandKind kind in Enum.GetValues<RecordedCommandKind>())
         {
-            var arm = ArmTable.For(kind);
+            ActionArm arm = ArmTable.For(kind);
             Assert.Equal(kind, arm.Kind);
             Assert.Equal(RecordedCommandClassifier.ScopeOf(kind), arm.Scope);
             if (arm.Recording == RecordingPolicy.Never)
@@ -117,9 +117,9 @@ public class ActionRoutingCompletenessTests
         var aviationWithoutArm = new List<string>();
         var stale = new List<string>();
 
-        foreach (var type in ParsedCommandDummies.ConcreteTypes())
+        foreach (Type type in ParsedCommandDummies.ConcreteTypes())
         {
-            var dummy = ParsedCommandDummies.Create(type);
+            ParsedCommand? dummy = ParsedCommandDummies.Create(type);
             if (dummy is null)
             {
                 continue;
@@ -201,7 +201,7 @@ public class ActionRoutingCompletenessTests
 
         try
         {
-            var result = CommandDispatcher.Dispatch(dummy, aircraft, TestDispatch.Context(new Random(0)));
+            CommandResult result = CommandDispatcher.Dispatch(dummy, aircraft, TestDispatch.Context(new Random(0)));
             return noArmMessage.Length == 0 || result.Message != noArmMessage;
         }
         catch (Exception)

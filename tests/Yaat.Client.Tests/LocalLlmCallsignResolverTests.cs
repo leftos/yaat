@@ -18,7 +18,7 @@ public class LocalLlmCallsignResolverTests
     [InlineData("UAL456")]
     public void ValidateAgainstActive_ExactMatch_ReturnsCallsign(string raw)
     {
-        var result = LocalLlmCallsignResolver.ValidateAgainstActive(raw, Active);
+        string? result = LocalLlmCallsignResolver.ValidateAgainstActive(raw, Active);
         Assert.Contains(result, Active, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -30,7 +30,7 @@ public class LocalLlmCallsignResolverTests
     [InlineData("N9225L, explanation follows")] // trailing comma text
     public void ValidateAgainstActive_StripsNoise_ReturnsCallsign(string raw)
     {
-        var result = LocalLlmCallsignResolver.ValidateAgainstActive(raw, Active);
+        string? result = LocalLlmCallsignResolver.ValidateAgainstActive(raw, Active);
         Assert.NotNull(result);
         Assert.Contains(result!, Active, StringComparer.OrdinalIgnoreCase);
     }

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Approach;
@@ -146,7 +147,7 @@ public sealed class InterceptCoursePhase : Phase
         // threshold, so we measure cross-track against the published anchor (e.g. the LDA's
         // displaced MAP fix) when the active clearance carries one. For ordinary approaches
         // the anchor is null and we fall back to the threshold, matching pre-anchor behaviour.
-        var clearance = ctx.Aircraft.Phases?.ActiveApproach;
+        ApproachClearance? clearance = ctx.Aircraft.Phases?.ActiveApproach;
         double anchorLat = clearance?.FinalApproachAnchorLat ?? ThresholdLat;
         double anchorLon = clearance?.FinalApproachAnchorLon ?? ThresholdLon;
 
@@ -384,7 +385,7 @@ public sealed class InterceptCoursePhase : Phase
             return;
         }
 
-        var runway = ctx.Aircraft.Phases?.AssignedRunway;
+        RunwayInfo? runway = ctx.Aircraft.Phases?.AssignedRunway;
         if (runway is null)
         {
             return;
@@ -446,7 +447,7 @@ public sealed class InterceptCoursePhase : Phase
     private void HandleBustThrough(PhaseContext ctx)
     {
         string label = ApproachId ?? "approach";
-        var text = Pilot.PilotResponder.BuildUnable(ctx.Aircraft, "passing through the localizer") with
+        PilotSpeechText text = Pilot.PilotResponder.BuildUnable(ctx.Aircraft, "passing through the localizer") with
         {
             RpoTerminal = $"unable, passing through the localizer — {label}.",
         };
@@ -460,7 +461,7 @@ public sealed class InterceptCoursePhase : Phase
     private void HandleInterceptTimeout(PhaseContext ctx)
     {
         string label = ApproachId ?? "approach";
-        var text = Pilot.PilotResponder.BuildUnableToInterceptRequestVectors(ctx.Aircraft) with
+        PilotSpeechText text = Pilot.PilotResponder.BuildUnableToInterceptRequestVectors(ctx.Aircraft) with
         {
             RpoTerminal = $"unable to intercept the localizer, request vectors — {label}.",
         };

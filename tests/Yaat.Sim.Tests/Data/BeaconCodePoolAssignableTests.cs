@@ -70,7 +70,7 @@ public class BeaconCodePoolAssignableTests
         var pool = new BeaconCodePool();
         for (int i = 0; i < 2000; i++)
         {
-            var code = pool.AssignNextCode(isVfr: false);
+            uint code = pool.AssignNextCode(isVfr: false);
             if (code == 0)
             {
                 break;

@@ -53,7 +53,7 @@ public class AirborneFollowTests : IDisposable
 
     private static PhaseContext Ctx(AircraftState ac, Func<string, AircraftState?>? lookup = null, double dt = 1.0, WeatherProfile? weather = null)
     {
-        var rwy = DefaultRunway();
+        RunwayInfo rwy = DefaultRunway();
         return new PhaseContext
         {
             Aircraft = ac,
@@ -75,10 +75,10 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void GetAdjustedSpeed_ReturnsNull_WhenNoFollowingCallsign()
     {
-        var ac = MakeAircraft(followingCallsign: null);
-        var ctx = Ctx(ac);
+        AircraftState ac = MakeAircraft(followingCallsign: null);
+        PhaseContext ctx = Ctx(ac);
 
-        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
+        double? result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         Assert.Null(result);
     }
@@ -86,10 +86,10 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void GetAdjustedSpeed_ClearsFollow_WhenLeaderNotFound()
     {
-        var ac = MakeAircraft(followingCallsign: "LEADER");
-        var ctx = Ctx(ac, lookup: _ => null);
+        AircraftState ac = MakeAircraft(followingCallsign: "LEADER");
+        PhaseContext ctx = Ctx(ac, lookup: _ => null);
 
-        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
+        double? result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         Assert.Null(result);
         Assert.Null(ac.Approach.FollowingCallsign);
@@ -102,10 +102,10 @@ public class AirborneFollowTests : IDisposable
         // the prior tick's adjusted value back in is what allowed IAS to escape the
         // stabilized-approach gate. Repeated calls with the same baseline must yield
         // the same upper bound (baseline + MaxSpeedAdjustKts).
-        var follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
-        var leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.05);
+        AircraftState follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
+        AircraftState leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.05);
 
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
         double baseline = 90.0;
 
         double? first = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
@@ -124,10 +124,10 @@ public class AirborneFollowTests : IDisposable
         // For a C172 with Vref=75, that's 97.5 kt — and FAS+20 = 95 would leave only
         // 2.5 kt of margin. MaxSpeedAdjustFinalKts caps catch-up closer to Vref so
         // chasing the leader can't trip the gate.
-        var follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
-        var leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.05);
+        AircraftState follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
+        AircraftState leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.05);
 
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
         double vref = 75.0;
 
         double? result = AirborneFollowHelper.GetAdjustedSpeed(ctx, vref, vref, AirborneFollowHelper.MaxSpeedAdjustFinalKts);
@@ -142,13 +142,13 @@ public class AirborneFollowTests : IDisposable
     {
         // Outside the pattern (VfrFollow / PatternEntry) the follower still needs to
         // chase the leader — preserve the +MaxSpeedAdjustKts ceiling for free-flight.
-        var follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
-        var leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.05);
+        AircraftState follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
+        AircraftState leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.05);
 
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
         double normalSpeed = 90.0;
 
-        var result = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, 65.0);
+        double? result = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, 65.0);
 
         Assert.NotNull(result);
         Assert.True(result > normalSpeed, $"Expected free-flight speed above {normalSpeed}, got {result}");
@@ -158,18 +158,18 @@ public class AirborneFollowTests : IDisposable
     public void GetAdjustedSpeed_DecreasesSpeed_WhenTooCloseToLeader()
     {
         // Place follower and leader very close (0.2nm)
-        var follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
-        var leader = MakeAircraft(
+        AircraftState follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
+        AircraftState leader = MakeAircraft(
             callsign: "LEAD",
             type: "C172",
             lat: 37.0,
             lon: -122.0 + (0.2 / 60.0) // ~0.2nm east
         );
 
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
         double normalSpeed = 90.0;
 
-        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, normalSpeed, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
+        double? result = AirborneFollowHelper.GetAdjustedSpeed(ctx, normalSpeed, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         Assert.NotNull(result);
         Assert.True(result < normalSpeed, $"Expected speed below {normalSpeed}, got {result}");
@@ -179,13 +179,13 @@ public class AirborneFollowTests : IDisposable
     public void GetAdjustedSpeed_NeverBelowMinSpeed()
     {
         // Place follower extremely close to leader so max deceleration kicks in
-        var follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
-        var leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.0 + (0.01 / 60.0));
+        AircraftState follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
+        AircraftState leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.0 + (0.01 / 60.0));
 
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
         double minSpeed = 65.0;
 
-        var result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
+        double? result = AirborneFollowHelper.GetAdjustedSpeed(ctx, 90.0, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         Assert.NotNull(result);
         Assert.True(result >= minSpeed, $"Expected speed >= {minSpeed}, got {result}");
@@ -195,19 +195,19 @@ public class AirborneFollowTests : IDisposable
     public void GetAdjustedSpeed_LargerDesiredDistance_ForJetLeader()
     {
         // Piston follower behind a jet leader — should want more distance
-        var follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
+        AircraftState follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
         // Leader is 1.5nm away — close for a jet (desired 2.0) but ok for a piston (desired 1.0)
-        var jetLeader = MakeAircraft(callsign: "LEAD", type: "B738", lat: 37.0, lon: -122.0 + (1.5 / 54.0));
-        var pistonLeader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.0 + (1.5 / 54.0));
+        AircraftState jetLeader = MakeAircraft(callsign: "LEAD", type: "B738", lat: 37.0, lon: -122.0 + (1.5 / 54.0));
+        AircraftState pistonLeader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.0 + (1.5 / 54.0));
 
-        var ctxJet = Ctx(follower, lookup: cs => cs == "LEAD" ? jetLeader : null);
-        var resultJet = AirborneFollowHelper.GetAdjustedSpeed(ctxJet, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
+        PhaseContext ctxJet = Ctx(follower, lookup: cs => cs == "LEAD" ? jetLeader : null);
+        double? resultJet = AirborneFollowHelper.GetAdjustedSpeed(ctxJet, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         // Reset follow state (cleared if leader disappears)
         follower.Approach.FollowingCallsign = "LEAD";
 
-        var ctxPiston = Ctx(follower, lookup: cs => cs == "LEAD" ? pistonLeader : null);
-        var resultPiston = AirborneFollowHelper.GetAdjustedSpeed(ctxPiston, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
+        PhaseContext ctxPiston = Ctx(follower, lookup: cs => cs == "LEAD" ? pistonLeader : null);
+        double? resultPiston = AirborneFollowHelper.GetAdjustedSpeed(ctxPiston, 90.0, 65.0, AirborneFollowHelper.MaxSpeedAdjustKts);
 
         Assert.NotNull(resultJet);
         Assert.NotNull(resultPiston);
@@ -224,8 +224,8 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void ShouldExtendDownwind_False_WhenNoFollow()
     {
-        var ac = MakeAircraft(followingCallsign: null);
-        var ctx = Ctx(ac);
+        AircraftState ac = MakeAircraft(followingCallsign: null);
+        PhaseContext ctx = Ctx(ac);
 
         Assert.False(AirborneFollowHelper.ShouldExtendDownwind(ctx));
     }
@@ -233,8 +233,8 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void ShouldExtendDownwind_False_WhenLeaderNotFound()
     {
-        var ac = MakeAircraft(followingCallsign: "LEAD");
-        var ctx = Ctx(ac, lookup: _ => null);
+        AircraftState ac = MakeAircraft(followingCallsign: "LEAD");
+        PhaseContext ctx = Ctx(ac, lookup: _ => null);
 
         Assert.False(AirborneFollowHelper.ShouldExtendDownwind(ctx));
     }
@@ -243,10 +243,10 @@ public class AirborneFollowTests : IDisposable
     public void ShouldExtendDownwind_True_WhenTooClose()
     {
         // Place follower and leader very close (0.3nm < 1.0 * 0.6 = 0.6nm for piston)
-        var follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
-        var leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.0 + (0.3 / 60.0));
+        AircraftState follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
+        AircraftState leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.0 + (0.3 / 60.0));
 
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
 
         Assert.True(AirborneFollowHelper.ShouldExtendDownwind(ctx));
     }
@@ -255,10 +255,10 @@ public class AirborneFollowTests : IDisposable
     public void ShouldExtendDownwind_False_WhenAdequateSpacing()
     {
         // Place follower and leader at 2nm apart (>> 1.0 * 0.6 for piston)
-        var follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
-        var leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.0 + (2.0 / 60.0));
+        AircraftState follower = MakeAircraft(callsign: "FOLL", lat: 37.0, lon: -122.0, followingCallsign: "LEAD");
+        AircraftState leader = MakeAircraft(callsign: "LEAD", type: "C172", lat: 37.0, lon: -122.0 + (2.0 / 60.0));
 
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? leader : null);
 
         Assert.False(AirborneFollowHelper.ShouldExtendDownwind(ctx));
     }
@@ -284,16 +284,16 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void Follow_Airborne_SetsFollowingCallsign()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.FlightPlan.FlightRules = "VFR";
         ac.Approach.HasReportedTrafficInSight = true;
         ac.Phases = new PhaseList();
         ac.Phases.Add(new DownwindPhase());
         // Start the phase so CurrentPhase is set.
-        var startCtx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(ac);
         ac.Phases.Start(startCtx);
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
@@ -316,15 +316,15 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void Follow_Airborne_NotVfr_DispatcherDoesNotGate()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.FlightPlan.FlightRules = "IFR";
         ac.Approach.HasReportedTrafficInSight = true;
         ac.Phases = new PhaseList();
         ac.Phases.Add(new DownwindPhase());
-        var startCtx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(ac);
         ac.Phases.Start(startCtx);
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
@@ -334,11 +334,11 @@ public class AirborneFollowTests : IDisposable
     public void Followf_Succeeds_WithoutRtis()
     {
         // FOLLOWF folds the RTISF in — no prior traffic-in-sight report needed.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.FlightPlan.FlightRules = "VFR";
         Assert.False(ac.Approach.HasReportedTrafficInSight);
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", true), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", true), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
@@ -349,10 +349,14 @@ public class AirborneFollowTests : IDisposable
     public void Followf_BlockedInSoloMode()
     {
         // FOLLOWF is RPO-only, like RTISF — solo students must use RTIS first.
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.FlightPlan.FlightRules = "VFR";
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", true), ac, TestDispatch.Context(Random.Shared, soloTrainingMode: true));
+        CommandResult result = CommandDispatcher.Dispatch(
+            new FollowCommand("LEAD", true),
+            ac,
+            TestDispatch.Context(Random.Shared, soloTrainingMode: true)
+        );
 
         Assert.False(result.Success);
         Assert.Contains("RPO-only", result.Message);
@@ -361,11 +365,11 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void FollowGround_RoutesToGroundHandler()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.IsOnGround = true;
 
         // Ground follow needs a ground layout — without one, it should fail gracefully
-        var result = CommandDispatcher.Dispatch(new FollowGroundCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FollowGroundCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 
         // Ground handler rejects without ground layout
         Assert.False(result.Success);
@@ -378,11 +382,11 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void CvaFollow_Fails_WhenRtisNotReported()
     {
-        var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
+        AircraftState ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
         ac.Approach.HasReportedTrafficInSight = false;
 
         var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD", false);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("traffic not in sight", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -393,12 +397,12 @@ public class AirborneFollowTests : IDisposable
     {
         // 7110.65 §7-4-3.a.2 NOTE: a following aircraft need not report the airport in sight —
         // reporting the preceding traffic is sufficient. Field-in-sight is deliberately false.
-        var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
+        AircraftState ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
         ac.Approach.HasReportedFieldInSight = false;
         ac.Approach.HasReportedTrafficInSight = true;
 
         var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD", false);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
@@ -408,13 +412,13 @@ public class AirborneFollowTests : IDisposable
     public void CvaFollow_RejectedBehindSuper()
     {
         // Visual separation is not authorized behind a super (7110.65 §7-4-3.a.4 NOTE, §7-2-1).
-        var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
+        AircraftState ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
         ac.Approach.HasReportedTrafficInSight = true;
-        var superLead = MakeAircraft(callsign: "BAW1", type: "A388", lat: 37.03, lon: -122.1);
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "BAW1" ? superLead : null);
+        AircraftState superLead = MakeAircraft(callsign: "BAW1", type: "A388", lat: 37.03, lon: -122.1);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "BAW1" ? superLead : null);
 
         var cmd = new ClearedVisualApproachCommand("28", null, null, "BAW1", false);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, ctx);
+        CommandResult result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, ctx);
 
         Assert.False(result.Success);
         Assert.Contains("super", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -423,10 +427,10 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void Rtisf_ForcesTrafficInSight()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Approach.HasReportedTrafficInSight = false;
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(ac.Approach.HasReportedTrafficInSight);
@@ -435,10 +439,10 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void Rfisf_ForcesFieldInSight()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Approach.HasReportedFieldInSight = false;
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightForcedCommand(), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new ReportFieldInSightForcedCommand(), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.True(ac.Approach.HasReportedFieldInSight);
@@ -447,7 +451,7 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void CvaFollow_Succeeds_AfterRtisf()
     {
-        var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
+        AircraftState ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
         ac.Approach.HasReportedTrafficInSight = false;
 
         // Force traffic in sight via RTISF
@@ -455,7 +459,7 @@ public class AirborneFollowTests : IDisposable
 
         // Now CVA FOLLOW should work
         var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD", false);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
@@ -466,12 +470,12 @@ public class AirborneFollowTests : IDisposable
     {
         // CVAF folds both the RFISF and RTISF in — a following visual approach needs no
         // prior field-in-sight or traffic-in-sight report.
-        var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
+        AircraftState ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
         ac.Approach.HasReportedFieldInSight = false;
         ac.Approach.HasReportedTrafficInSight = false;
 
         var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD", true);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
@@ -480,10 +484,10 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void Cvaf_BlockedInSoloMode()
     {
-        var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
+        AircraftState ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
 
         var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD", true);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared, soloTrainingMode: true));
+        CommandResult result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared, soloTrainingMode: true));
 
         Assert.False(result.Success);
         Assert.Contains("RPO-only", result.Message);
@@ -536,7 +540,7 @@ public class AirborneFollowTests : IDisposable
     )
         where TPhase : Phase, new()
     {
-        var ac = MakeAircraft(callsign: callsign, type: type, lat: lat, lon: lon, heading: heading, followingCallsign: followingCallsign);
+        AircraftState ac = MakeAircraft(callsign: callsign, type: type, lat: lat, lon: lon, heading: heading, followingCallsign: followingCallsign);
         ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(designator: runwayDesignator, heading: 280, elevationFt: 0) };
         ac.Phases.Add(new TPhase());
         // Phase.OnStart returns early when Waypoints / Runway are unset; calling Start
@@ -575,7 +579,7 @@ public class AirborneFollowTests : IDisposable
         // grow the gap (no initial closing phase that would let the runaway timer
         // reset bestSoFar to a smaller value before the test windows ends).
         const double StartLon = -121.99;
-        var follower = MakeAircraftOnPatternPhase<DownwindPhase>(
+        AircraftState follower = MakeAircraftOnPatternPhase<DownwindPhase>(
             callsign: "FOLL",
             type: "C172",
             lat: 36.99,
@@ -583,7 +587,13 @@ public class AirborneFollowTests : IDisposable
             heading: 100,
             followingCallsign: LeadCallsign
         );
-        var lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: StartLon, heading: 280);
+        AircraftState lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(
+            callsign: LeadCallsign,
+            type: "C172",
+            lat: 37.00,
+            lon: StartLon,
+            heading: 280
+        );
 
         // Lead heads west (lon decreases), follower heads east (lon increases) —
         // the longitudinal gap grows monotonically every tick and ends up well beyond
@@ -595,7 +605,7 @@ public class AirborneFollowTests : IDisposable
         {
             follower.Position = new LatLon(follower.Position.Lat, follower.Position.Lon + LonStepDeg);
             lead.Position = new LatLon(lead.Position.Lat, lead.Position.Lon - LonStepDeg);
-            var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null);
+            PhaseContext ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null);
             AirborneFollowHelper.CheckLeadLifecycle(ctx);
         }
 
@@ -617,8 +627,8 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void UpwindPhase_OnTick_ClearsFollow_WhenLeadDespawns()
     {
-        var wp = DefaultPatternWaypoints();
-        var ac = MakeAircraft(
+        PatternWaypoints wp = DefaultPatternWaypoints();
+        AircraftState ac = MakeAircraft(
             lat: wp.DepartureEndLat,
             lon: wp.DepartureEndLon,
             heading: wp.UpwindHeading.Degrees,
@@ -653,8 +663,8 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void UpwindPhase_OnTick_AppliesFollowSpeedAdjustment()
     {
-        var wp = DefaultPatternWaypoints();
-        var ac = MakeAircraft(
+        PatternWaypoints wp = DefaultPatternWaypoints();
+        AircraftState ac = MakeAircraft(
             lat: wp.DepartureEndLat,
             lon: wp.DepartureEndLon,
             heading: wp.UpwindHeading.Degrees,
@@ -664,7 +674,7 @@ public class AirborneFollowTests : IDisposable
         // Lead 0.7 nm ahead — close enough that piston desired (1.0 nm) calls
         // for a slowdown, but past the 0.5 nm "can't maintain separation"
         // threshold so the helper adjusts speed instead of cancelling follow.
-        var lead = MakeAircraft(callsign: "LEAD", type: "C172", lat: ac.Position.Lat, lon: ac.Position.Lon + (0.7 / 48.0));
+        AircraftState lead = MakeAircraft(callsign: "LEAD", type: "C172", lat: ac.Position.Lat, lon: ac.Position.Lon + (0.7 / 48.0));
 
         var phase = new UpwindPhase { Waypoints = wp };
         var ctx = new PhaseContext
@@ -698,8 +708,8 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void CrosswindPhase_OnTick_ClearsFollow_WhenLeadDespawns()
     {
-        var wp = DefaultPatternWaypoints();
-        var ac = MakeAircraft(
+        PatternWaypoints wp = DefaultPatternWaypoints();
+        AircraftState ac = MakeAircraft(
             lat: wp.CrosswindTurnLat,
             lon: wp.CrosswindTurnLon,
             heading: wp.CrosswindHeading.Degrees,
@@ -731,8 +741,8 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void CrosswindPhase_OnTick_AppliesFollowSpeedAdjustment()
     {
-        var wp = DefaultPatternWaypoints();
-        var ac = MakeAircraft(
+        PatternWaypoints wp = DefaultPatternWaypoints();
+        AircraftState ac = MakeAircraft(
             lat: wp.CrosswindTurnLat,
             lon: wp.CrosswindTurnLon,
             heading: wp.CrosswindHeading.Degrees,
@@ -741,7 +751,7 @@ public class AirborneFollowTests : IDisposable
         );
         // Lead 0.7 nm north — close enough for piston desired (1.0 nm) to call
         // for a slowdown, past the 0.5 nm "can't maintain separation" threshold.
-        var lead = MakeAircraft(callsign: "LEAD", type: "C172", lat: ac.Position.Lat + (0.7 / 60.0), lon: ac.Position.Lon);
+        AircraftState lead = MakeAircraft(callsign: "LEAD", type: "C172", lat: ac.Position.Lat + (0.7 / 60.0), lon: ac.Position.Lon);
 
         double baseline = AircraftPerformance.DownwindSpeed(ac.AircraftType, AircraftCategorization.Categorize(ac.AircraftType));
         ac.Targets.TargetSpeed = baseline;
@@ -775,7 +785,7 @@ public class AirborneFollowTests : IDisposable
 
     private static AircraftState MakeAirborneVfrAircraft(string callsign = "FOLL", string type = "C172")
     {
-        var ac = MakeAircraft(callsign: callsign, type: type);
+        AircraftState ac = MakeAircraft(callsign: callsign, type: type);
         ac.FlightPlan.FlightRules = "VFR";
         ac.Approach.HasReportedTrafficInSight = true;
         ac.Phases = new PhaseList();
@@ -785,11 +795,11 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void Follow_ClearsExtendedUpwind()
     {
-        var ac = MakeAirborneVfrAircraft();
+        AircraftState ac = MakeAirborneVfrAircraft();
         ac.Phases!.Add(new UpwindPhase { IsExtended = true });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
@@ -799,11 +809,11 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void Follow_ClearsExtendedCrosswind()
     {
-        var ac = MakeAirborneVfrAircraft();
+        AircraftState ac = MakeAirborneVfrAircraft();
         ac.Phases!.Add(new CrosswindPhase { IsExtended = true });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
@@ -813,11 +823,11 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void Follow_ClearsExtendedDownwind()
     {
-        var ac = MakeAirborneVfrAircraft();
+        AircraftState ac = MakeAirborneVfrAircraft();
         ac.Phases!.Add(new DownwindPhase { IsExtended = true });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
@@ -826,7 +836,7 @@ public class AirborneFollowTests : IDisposable
 
     private static AircraftState MakePatternFollower(string runwayDesignator)
     {
-        var ac = MakeAircraftOnPatternPhase<DownwindPhase>(
+        AircraftState ac = MakeAircraftOnPatternPhase<DownwindPhase>(
             callsign: "FOLL",
             type: "C172",
             lat: 37.00,
@@ -852,8 +862,8 @@ public class AirborneFollowTests : IDisposable
     public void Follow_CrossRunway_ReSequencesOntoLeadRunway()
     {
         const string LeadCallsign = "LEAD";
-        var follower = MakePatternFollower("28L");
-        var lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(
+        AircraftState follower = MakePatternFollower("28L");
+        AircraftState lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(
             callsign: LeadCallsign,
             type: "C172",
             lat: 37.01,
@@ -863,7 +873,7 @@ public class AirborneFollowTests : IDisposable
         );
 
         Func<string, AircraftState?> lookup = cs => cs == LeadCallsign ? lead : null;
-        var result = CommandDispatcher.Dispatch(
+        CommandResult result = CommandDispatcher.Dispatch(
             new FollowCommand(LeadCallsign, false),
             follower,
             TestDispatch.Context(Random.Shared, findAircraft: lookup)
@@ -890,14 +900,14 @@ public class AirborneFollowTests : IDisposable
     public void Follow_CrossRunway_FromBaseOrFinal_IsRefused(Type legType)
     {
         const string LeadCallsign = "LEAD";
-        var follower = MakeAircraft(callsign: "FOLL", type: "C172", lat: 37.00, lon: -122.00, heading: 190);
+        AircraftState follower = MakeAircraft(callsign: "FOLL", type: "C172", lat: 37.00, lon: -122.00, heading: 190);
         follower.FlightPlan.FlightRules = "VFR";
         follower.Approach.HasReportedTrafficInSight = true;
         follower.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(designator: "28L", heading: 280, elevationFt: 0) };
         follower.Phases.Add((Phase)Activator.CreateInstance(legType)!);
         follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
 
-        var lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(
+        AircraftState lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(
             callsign: LeadCallsign,
             type: "C172",
             lat: 37.01,
@@ -907,7 +917,7 @@ public class AirborneFollowTests : IDisposable
         );
 
         Func<string, AircraftState?> lookup = cs => cs == LeadCallsign ? lead : null;
-        var result = CommandDispatcher.Dispatch(
+        CommandResult result = CommandDispatcher.Dispatch(
             new FollowCommand(LeadCallsign, false),
             follower,
             TestDispatch.Context(Random.Shared, findAircraft: lookup)
@@ -928,8 +938,8 @@ public class AirborneFollowTests : IDisposable
     public void Follow_SameRunway_KeepsExistingPatternLeg()
     {
         const string LeadCallsign = "LEAD";
-        var follower = MakePatternFollower("28R");
-        var lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(
+        AircraftState follower = MakePatternFollower("28R");
+        AircraftState lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(
             callsign: LeadCallsign,
             type: "C172",
             lat: 37.01,
@@ -939,7 +949,7 @@ public class AirborneFollowTests : IDisposable
         );
 
         Func<string, AircraftState?> lookup = cs => cs == LeadCallsign ? lead : null;
-        var result = CommandDispatcher.Dispatch(
+        CommandResult result = CommandDispatcher.Dispatch(
             new FollowCommand(LeadCallsign, false),
             follower,
             TestDispatch.Context(Random.Shared, findAircraft: lookup)
@@ -964,7 +974,7 @@ public class AirborneFollowTests : IDisposable
     {
         const string LeadCallsign = "LEAD";
 
-        var follower = MakeAircraftOnPatternPhase<DownwindPhase>(
+        AircraftState follower = MakeAircraftOnPatternPhase<DownwindPhase>(
             callsign: "FOLL",
             type: "C172",
             lat: 37.00,
@@ -972,7 +982,7 @@ public class AirborneFollowTests : IDisposable
             heading: 100,
             followingCallsign: LeadCallsign
         );
-        var lead = MakeAircraftOnPatternPhase<DownwindPhase>(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.99, heading: 100);
+        AircraftState lead = MakeAircraftOnPatternPhase<DownwindPhase>(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.99, heading: 100);
         // Lead has been on Downwind 60 s longer than the follower, so it is ahead in the
         // same-leg ordering (IsLeadPatternFlowBehind is false and the extended-leg
         // flow-ahead exception does not apply) — i.e. exactly the geometry the old
@@ -984,7 +994,7 @@ public class AirborneFollowTests : IDisposable
             // Lead moves east faster than the follower — distance grows monotonically,
             // well past the old 0.1 nm tolerance / 30 s grace window.
             lead.Position = new LatLon(lead.Position.Lat, lead.Position.Lon + 0.001);
-            var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null);
+            PhaseContext ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null);
             bool cancelled = AirborneFollowHelper.CheckLeadLifecycle(ctx);
             Assert.False(cancelled, $"Follow cancelled at tick {i} — a lead pulling away must never break off the follow.");
         }
@@ -1008,14 +1018,21 @@ public class AirborneFollowTests : IDisposable
         // Traffic-acquisition weather is sourced from the nearest reporting station
         // to the ownship's POSITION, so the KTEST station must have a resolvable
         // position in the (scoped, synthetic) nav database for its METAR to apply.
-        using var _ = NavigationDatabase.ScopedOverride(
+        using IDisposable _ = NavigationDatabase.ScopedOverride(
             TestNavDbFactory.Make(
                 fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
                 runways: [DefaultRunway()]
             )
         );
-        var follower = MakeAircraft(callsign: "FOLL", type: "C172", lat: 37.00, lon: -122.0, altitude: 3000, followingCallsign: LeadCallsign);
-        var lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.99, altitude: 1000);
+        AircraftState follower = MakeAircraft(
+            callsign: "FOLL",
+            type: "C172",
+            lat: 37.00,
+            lon: -122.0,
+            altitude: 3000,
+            followingCallsign: LeadCallsign
+        );
+        AircraftState lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.99, altitude: 1000);
 
         var weather = new WeatherProfile
         {
@@ -1026,7 +1043,7 @@ public class AirborneFollowTests : IDisposable
         };
 
         follower.Approach.HasReportedTrafficInSight = true;
-        var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
 
         bool cancelled = AirborneFollowHelper.CheckLeadLifecycle(ctx);
 
@@ -1046,14 +1063,21 @@ public class AirborneFollowTests : IDisposable
     {
         const string LeadCallsign = "LEAD";
 
-        using var _ = NavigationDatabase.ScopedOverride(
+        using IDisposable _ = NavigationDatabase.ScopedOverride(
             TestNavDbFactory.Make(
                 fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
                 runways: [DefaultRunway()]
             )
         );
-        var follower = MakeAircraft(callsign: "FOLL", type: "C172", lat: 37.00, lon: -122.0, altitude: 3000, followingCallsign: LeadCallsign);
-        var lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.93, altitude: 3000);
+        AircraftState follower = MakeAircraft(
+            callsign: "FOLL",
+            type: "C172",
+            lat: 37.00,
+            lon: -122.0,
+            altitude: 3000,
+            followingCallsign: LeadCallsign
+        );
+        AircraftState lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.93, altitude: 3000);
 
         var weather = new WeatherProfile
         {
@@ -1064,7 +1088,7 @@ public class AirborneFollowTests : IDisposable
         };
 
         follower.Approach.HasReportedTrafficInSight = true;
-        var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
 
         bool cancelled = AirborneFollowHelper.CheckLeadLifecycle(ctx);
 
@@ -1095,14 +1119,21 @@ public class AirborneFollowTests : IDisposable
     {
         const string LeadCallsign = "LEAD";
 
-        using var _ = NavigationDatabase.ScopedOverride(
+        using IDisposable _ = NavigationDatabase.ScopedOverride(
             TestNavDbFactory.Make(
                 fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
                 runways: [DefaultRunway()]
             )
         );
-        var follower = MakeAircraft(callsign: "FOLL", type: "C172", lat: 37.00, lon: -122.0, altitude: 3000, followingCallsign: LeadCallsign);
-        var lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.93, altitude: 3000);
+        AircraftState follower = MakeAircraft(
+            callsign: "FOLL",
+            type: "C172",
+            lat: 37.00,
+            lon: -122.0,
+            altitude: 3000,
+            followingCallsign: LeadCallsign
+        );
+        AircraftState lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.93, altitude: 3000);
 
         follower.Phases = new PhaseList { ActiveApproach = MakeVisualClearance() };
         var downwind = new DownwindPhase();
@@ -1119,7 +1150,7 @@ public class AirborneFollowTests : IDisposable
             },
         };
 
-        var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
 
         bool cancelled = AirborneFollowHelper.CheckLeadLifecycle(ctx);
 
@@ -1145,14 +1176,21 @@ public class AirborneFollowTests : IDisposable
     {
         const string LeadCallsign = "LEAD";
 
-        using var _ = NavigationDatabase.ScopedOverride(
+        using IDisposable _ = NavigationDatabase.ScopedOverride(
             TestNavDbFactory.Make(
                 fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
                 runways: [DefaultRunway()]
             )
         );
-        var follower = MakeAircraft(callsign: "FOLL", type: "C172", lat: 37.00, lon: -122.0, altitude: 3000, followingCallsign: LeadCallsign);
-        var lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.93, altitude: 3000);
+        AircraftState follower = MakeAircraft(
+            callsign: "FOLL",
+            type: "C172",
+            lat: 37.00,
+            lon: -122.0,
+            altitude: 3000,
+            followingCallsign: LeadCallsign
+        );
+        AircraftState lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.93, altitude: 3000);
 
         follower.Phases = new PhaseList { ActiveApproach = MakeVisualClearance() };
         follower.Phases.Add(new DownwindPhase());
@@ -1167,7 +1205,7 @@ public class AirborneFollowTests : IDisposable
             },
         };
 
-        var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
 
         bool cancelled = AirborneFollowHelper.CheckLeadLifecycle(ctx);
 
@@ -1192,7 +1230,7 @@ public class AirborneFollowTests : IDisposable
     {
         const string LeadCallsign = "LEAD";
 
-        var follower = MakeAircraftOnPatternPhase<CrosswindPhase>(
+        AircraftState follower = MakeAircraftOnPatternPhase<CrosswindPhase>(
             callsign: "FOLL",
             type: "C172",
             lat: 37.00,
@@ -1200,7 +1238,7 @@ public class AirborneFollowTests : IDisposable
             heading: 10,
             followingCallsign: LeadCallsign
         );
-        var lead = MakeAircraftOnPatternPhase<CrosswindPhase>(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.99, heading: 10);
+        AircraftState lead = MakeAircraftOnPatternPhase<CrosswindPhase>(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.99, heading: 10);
         ((CrosswindPhase)lead.Phases!.CurrentPhase!).IsExtended = true;
 
         bool cancelled = false;
@@ -1208,7 +1246,7 @@ public class AirborneFollowTests : IDisposable
         {
             // Lead runs outbound on its extended crosswind — gap grows monotonically.
             lead.Position = new LatLon(lead.Position.Lat + 0.001, lead.Position.Lon);
-            var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null);
+            PhaseContext ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null);
             if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
             {
                 cancelled = true;
@@ -1238,11 +1276,11 @@ public class AirborneFollowTests : IDisposable
 
     private static PatternWaypoints BuildSeqWaypoints()
     {
-        var baseTurn = GeoMath.ProjectPoint(SeqThreshold, SeqDownwindHeading, 1.0);
-        var crosswindTurn = GeoMath.ProjectPoint(SeqThreshold, SeqDownwindHeading.ToReciprocal(), 1.0);
+        LatLon baseTurn = GeoMath.ProjectPoint(SeqThreshold, SeqDownwindHeading, 1.0);
+        LatLon crosswindTurn = GeoMath.ProjectPoint(SeqThreshold, SeqDownwindHeading.ToReciprocal(), 1.0);
         var offsetHeading = new TrueHeading(SeqDownwindHeading.Degrees + 90.0);
-        var downwindStart = GeoMath.ProjectPoint(crosswindTurn, offsetHeading, 0.8);
-        var abeam = GeoMath.ProjectPoint(SeqThreshold, offsetHeading, 0.8);
+        LatLon downwindStart = GeoMath.ProjectPoint(crosswindTurn, offsetHeading, 0.8);
+        LatLon abeam = GeoMath.ProjectPoint(SeqThreshold, offsetHeading, 0.8);
         return new PatternWaypoints
         {
             DepartureEndLat = crosswindTurn.Lat,
@@ -1273,13 +1311,13 @@ public class AirborneFollowTests : IDisposable
     /// in the approach direction = further back in the landing sequence).</summary>
     private static (double Lat, double Lon) AtAlongTrack(double alongTrackNm)
     {
-        var p = GeoMath.ProjectPoint(SeqThreshold, SeqDownwindHeading, alongTrackNm);
+        LatLon p = GeoMath.ProjectPoint(SeqThreshold, SeqDownwindHeading, alongTrackNm);
         return (p.Lat, p.Lon);
     }
 
     private AircraftState FollowerOnDownwindAt(double alongTrackNm, string? leadCallsign, string type = "C172")
     {
-        var (lat, lon) = AtAlongTrack(alongTrackNm);
+        (double lat, double lon) = AtAlongTrack(alongTrackNm);
         return MakeAircraftOnPatternPhase<DownwindPhase>(
             callsign: "FOLL",
             type: type,
@@ -1293,7 +1331,7 @@ public class AirborneFollowTests : IDisposable
     private AircraftState LeadOnPhaseAt<TPhase>(double alongTrackNm, string type = "C172")
         where TPhase : Phase, new()
     {
-        var (lat, lon) = AtAlongTrack(alongTrackNm);
+        (double lat, double lon) = AtAlongTrack(alongTrackNm);
         return MakeAircraftOnPatternPhase<TPhase>(callsign: "LEAD", type: type, lat: lat, lon: lon, heading: 280);
     }
 
@@ -1303,9 +1341,9 @@ public class AirborneFollowTests : IDisposable
         // Follower on Downwind 0.5 nm out; lead on Final 0.86 nm out (just rolled out
         // ahead, still forward of the follower's 3-9 line) → hold: the base leg would be
         // flown into it.
-        var follower = FollowerOnDownwindAt(0.5, "LEAD");
-        var lead = LeadOnPhaseAt<FinalApproachPhase>(0.86);
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        AircraftState follower = FollowerOnDownwindAt(0.5, "LEAD");
+        AircraftState lead = LeadOnPhaseAt<FinalApproachPhase>(0.86);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
         Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
@@ -1313,9 +1351,9 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void ShouldHoldForLeadSequencing_True_WhenLeadAheadOnBase()
     {
-        var follower = FollowerOnDownwindAt(0.5, "LEAD");
-        var lead = LeadOnPhaseAt<BasePhase>(0.9);
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        AircraftState follower = FollowerOnDownwindAt(0.5, "LEAD");
+        AircraftState lead = LeadOnPhaseAt<BasePhase>(0.9);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
         Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
@@ -1326,9 +1364,9 @@ public class AirborneFollowTests : IDisposable
         // Follower has extended well downwind (2.5 nm out) while the lead is short final
         // (0.3 nm, aft of the 3-9 line). Follower ETA ≈ 100 s vs lead touchdown ≈ 12 s + 40 s
         // clearance, and it would roll out 2.2 nm behind → release, turn base.
-        var follower = FollowerOnDownwindAt(2.5, "LEAD");
-        var lead = LeadOnPhaseAt<FinalApproachPhase>(0.3);
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        AircraftState follower = FollowerOnDownwindAt(2.5, "LEAD");
+        AircraftState lead = LeadOnPhaseAt<FinalApproachPhase>(0.3);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
         Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
@@ -1339,10 +1377,10 @@ public class AirborneFollowTests : IDisposable
         // Lead has passed (0.3 nm final, aft of the follower at 0.5 nm) but is crawling at
         // 40 kt: touchdown in ~27 s, clear at ~67 s, while the follower (1.5 nm of path less
         // the two corner cuts, at 90 kt) would cross the threshold at ~50 s → hold.
-        var follower = FollowerOnDownwindAt(0.5, "LEAD");
-        var lead = LeadOnPhaseAt<FinalApproachPhase>(0.3);
+        AircraftState follower = FollowerOnDownwindAt(0.5, "LEAD");
+        AircraftState lead = LeadOnPhaseAt<FinalApproachPhase>(0.3);
         lead.IndicatedAirspeed = 40;
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
         Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
@@ -1353,9 +1391,9 @@ public class AirborneFollowTests : IDisposable
         // Lead on 0.2 nm final (touchdown in ~11 s, clear at ~51 s); the follower, 2.0 nm out
         // and already past its base point, arrives at ~70 s and would roll out 1.8 nm behind →
         // release. This is the "traffic passed abeam, turn base now" case.
-        var follower = FollowerOnDownwindAt(2.0, "LEAD");
-        var lead = LeadOnPhaseAt<FinalApproachPhase>(0.2);
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        AircraftState follower = FollowerOnDownwindAt(2.0, "LEAD");
+        AircraftState lead = LeadOnPhaseAt<FinalApproachPhase>(0.2);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
         Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
@@ -1367,10 +1405,10 @@ public class AirborneFollowTests : IDisposable
         // 1.2 nm final lands ~31 s in, well before the follower's ~108 s arrival (clearance
         // satisfied), but at rollout the follower would be only 1.8 nm behind a still-airborne
         // jet — under the 3.0 nm jet trail → hold.
-        var follower = FollowerOnDownwindAt(3.0, "LEAD");
-        var lead = LeadOnPhaseAt<FinalApproachPhase>(1.2, type: "B738");
+        AircraftState follower = FollowerOnDownwindAt(3.0, "LEAD");
+        AircraftState lead = LeadOnPhaseAt<FinalApproachPhase>(1.2, type: "B738");
         lead.IndicatedAirspeed = 150;
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
         Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
@@ -1381,9 +1419,9 @@ public class AirborneFollowTests : IDisposable
         // Lead is on an EARLIER leg (Upwind) — it is trailing, not leading. The
         // base-turn hold must not fire; spacing for a trailing lead is the speed
         // path's concern.
-        var follower = FollowerOnDownwindAt(0.5, "LEAD");
-        var lead = LeadOnPhaseAt<UpwindPhase>(0.5);
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        AircraftState follower = FollowerOnDownwindAt(0.5, "LEAD");
+        AircraftState lead = LeadOnPhaseAt<UpwindPhase>(0.5);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
         Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
@@ -1394,9 +1432,9 @@ public class AirborneFollowTests : IDisposable
         // Both on Downwind — only a strictly later leg counts as pattern-flow-ahead,
         // so a co-leg lead does not trigger the sequencing hold (same-leg spacing is
         // handled by the proximity / speed paths).
-        var follower = FollowerOnDownwindAt(0.3, "LEAD");
-        var lead = LeadOnPhaseAt<DownwindPhase>(0.9);
-        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        AircraftState follower = FollowerOnDownwindAt(0.3, "LEAD");
+        AircraftState lead = LeadOnPhaseAt<DownwindPhase>(0.9);
+        PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
 
         Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
@@ -1404,11 +1442,11 @@ public class AirborneFollowTests : IDisposable
     [Fact]
     public void ShouldHoldForLeadSequencing_False_WhenNoFollowOrLeadMissing()
     {
-        var noFollow = FollowerOnDownwindAt(0.5, leadCallsign: null);
+        AircraftState noFollow = FollowerOnDownwindAt(0.5, leadCallsign: null);
         Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(Ctx(noFollow), SeqWaypoints));
 
-        var orphan = FollowerOnDownwindAt(0.5, "GHOST");
-        var ctx = Ctx(orphan, lookup: _ => null);
+        AircraftState orphan = FollowerOnDownwindAt(0.5, "GHOST");
+        PhaseContext ctx = Ctx(orphan, lookup: _ => null);
         Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqWaypoints));
     }
 
@@ -1419,15 +1457,15 @@ public class AirborneFollowTests : IDisposable
         // final; the follower is already past its base point 2.0 nm out, so it would roll
         // out 1.7 nm behind a lead that is still airborne at that instant: fine behind a
         // piston, too tight behind a jet.
-        var followerBehindPiston = FollowerOnDownwindAt(2.0, "LEAD");
-        var pistonLead = LeadOnPhaseAt<FinalApproachPhase>(0.3, type: "C172");
-        var pistonCtx = Ctx(followerBehindPiston, lookup: cs => cs == "LEAD" ? pistonLead : null);
+        AircraftState followerBehindPiston = FollowerOnDownwindAt(2.0, "LEAD");
+        AircraftState pistonLead = LeadOnPhaseAt<FinalApproachPhase>(0.3, type: "C172");
+        PhaseContext pistonCtx = Ctx(followerBehindPiston, lookup: cs => cs == "LEAD" ? pistonLead : null);
         Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(pistonCtx, SeqWaypoints));
 
-        var followerBehindJet = FollowerOnDownwindAt(2.0, "LEAD");
-        var jetLead = LeadOnPhaseAt<FinalApproachPhase>(0.3, type: "B738");
+        AircraftState followerBehindJet = FollowerOnDownwindAt(2.0, "LEAD");
+        AircraftState jetLead = LeadOnPhaseAt<FinalApproachPhase>(0.3, type: "B738");
         jetLead.IndicatedAirspeed = 150;
-        var jetCtx = Ctx(followerBehindJet, lookup: cs => cs == "LEAD" ? jetLead : null);
+        PhaseContext jetCtx = Ctx(followerBehindJet, lookup: cs => cs == "LEAD" ? jetLead : null);
         Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(jetCtx, SeqWaypoints));
     }
 }

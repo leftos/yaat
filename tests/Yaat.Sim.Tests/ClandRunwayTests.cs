@@ -21,8 +21,8 @@ public class ClandRunwayTests
     [Fact]
     public void Parse_ClandWithRunway_SetsRunwayId()
     {
-        var cmd = CommandParser.Parse("CLAND 28R");
-        var cland = Assert.IsType<ClearedToLandCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CLAND 28R");
+        ClearedToLandCommand cland = Assert.IsType<ClearedToLandCommand>(cmd.Value);
         Assert.Equal("28R", cland.RunwayId);
         Assert.False(cland.NoDelete);
     }
@@ -30,16 +30,16 @@ public class ClandRunwayTests
     [Fact]
     public void Parse_BareCland_HasNullRunwayId()
     {
-        var cmd = CommandParser.Parse("CLAND");
-        var cland = Assert.IsType<ClearedToLandCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CLAND");
+        ClearedToLandCommand cland = Assert.IsType<ClearedToLandCommand>(cmd.Value);
         Assert.Null(cland.RunwayId);
     }
 
     [Fact]
     public void Parse_ClandRunwayWithNodel_BothSet()
     {
-        var cmd = CommandParser.Parse("CLAND 28R NODEL");
-        var cland = Assert.IsType<ClearedToLandCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CLAND 28R NODEL");
+        ClearedToLandCommand cland = Assert.IsType<ClearedToLandCommand>(cmd.Value);
         Assert.Equal("28R", cland.RunwayId);
         Assert.True(cland.NoDelete);
     }
@@ -50,15 +50,15 @@ public class ClandRunwayTests
         // FAA names single-digit runways without a leading zero ("8R"), but the rest of
         // the sim keys runway identity on the zero-padded canonical ("08R"). Normalize the
         // token at the parse boundary so an unpadded designator never enters sim state.
-        var cmd = CommandParser.Parse("CLAND 8R");
-        var cland = Assert.IsType<ClearedToLandCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CLAND 8R");
+        ClearedToLandCommand cland = Assert.IsType<ClearedToLandCommand>(cmd.Value);
         Assert.Equal("08R", cland.RunwayId);
     }
 
     [Fact]
     public void Parse_ClandGarbageArg_Rejected()
     {
-        var cmd = CommandParser.Parse("CLAND FOO");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CLAND FOO");
         Assert.False(cmd.IsSuccess);
     }
 
@@ -67,9 +67,13 @@ public class ClandRunwayTests
     [Fact]
     public void Handler_FollowingNoRunway_ClandRunway_ArmsClearance()
     {
-        var ac = MakeFollower();
+        AircraftState ac = MakeFollower();
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryClearedToLand(
+            new ClearedToLandCommand { RunwayId = "28R" },
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases!.LandingClearance);
@@ -79,9 +83,9 @@ public class ClandRunwayTests
     [Fact]
     public void Handler_FollowingNoRunway_BareCland_ArmsInheritingLeadRunway()
     {
-        var ac = MakeFollower();
+        AircraftState ac = MakeFollower();
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases!.LandingClearance);
@@ -95,10 +99,14 @@ public class ClandRunwayTests
         // Scope: CLAND <rwy> does not build an approach for an enroute aircraft that
         // is not following traffic — it only fills the missing assignment for a
         // follower (or an aircraft already on an approach/pattern).
-        var ac = MakeFollower();
+        AircraftState ac = MakeFollower();
         ac.Approach.FollowingCallsign = null;
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryClearedToLand(
+            new ClearedToLandCommand { RunwayId = "28R" },
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.False(result.Success);
         Assert.Contains("no approach", result.Message!, System.StringComparison.OrdinalIgnoreCase);
@@ -113,9 +121,13 @@ public class ClandRunwayTests
         // Aircraft is established for the canonical "08R"; the controller (or an agent
         // constructing the command directly, bypassing the parse-boundary normalize)
         // clears it with the FAA form "8R". These name the same runway end and must match.
-        var ac = MakeEstablished("8R");
+        AircraftState ac = MakeEstablished("8R");
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "8R" }, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryClearedToLand(
+            new ClearedToLandCommand { RunwayId = "8R" },
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases!.LandingClearance);
@@ -127,9 +139,13 @@ public class ClandRunwayTests
         // Direction-sensitivity guard: "26L" is the OPPOSITE end of the 08R/26L runway.
         // Clearing an aircraft established for 08R to land 26L must still be rejected — the
         // normalization fix must not collapse opposite ends (i.e. must not use Id.Contains).
-        var ac = MakeEstablished("8R");
+        AircraftState ac = MakeEstablished("8R");
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "26L" }, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryClearedToLand(
+            new ClearedToLandCommand { RunwayId = "26L" },
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.False(result.Success);
         Assert.Contains("established for runway", result.Message!, System.StringComparison.OrdinalIgnoreCase);
@@ -141,9 +157,13 @@ public class ClandRunwayTests
         // A following aircraft arms the clearance for later application by VfrFollowPhase.
         // The armed runway must be stored canonical ("08R") so the runway match at join
         // (against the joined runway's normalized Designator) succeeds.
-        var ac = MakeFollower();
+        AircraftState ac = MakeFollower();
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "8R" }, ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = PatternCommandHandler.TryClearedToLand(
+            new ClearedToLandCommand { RunwayId = "8R" },
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("08R", ac.Phases!.ClearedRunwayId);
@@ -156,8 +176,8 @@ public class ClandRunwayTests
         // ApplyArmedLandingClearance must recognize these as the same end and apply the
         // clearance instead of deferring and awaiting an explicit re-clearance.
         var phase = new VfrFollowPhase("N314GT");
-        var ac = MakeFollower();
-        var runway = TestRunwayFactory.Make(designator: "8R", airportId: "KMIA", heading: 87);
+        AircraftState ac = MakeFollower();
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "8R", airportId: "KMIA", heading: 87);
 
         phase.ApplyArmedLandingClearance(ac, ClearanceType.ClearedToLand, "8R", runway);
 
@@ -171,8 +191,8 @@ public class ClandRunwayTests
         // Direction-sensitivity guard: armed for the opposite end (26L) but joining 08R —
         // the clearance must NOT be applied.
         var phase = new VfrFollowPhase("N314GT");
-        var ac = MakeFollower();
-        var runway = TestRunwayFactory.Make(designator: "8R", airportId: "KMIA", heading: 87);
+        AircraftState ac = MakeFollower();
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "8R", airportId: "KMIA", heading: 87);
 
         phase.ApplyArmedLandingClearance(ac, ClearanceType.ClearedToLand, "26L", runway);
 

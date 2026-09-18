@@ -25,7 +25,7 @@ internal static class Program
         // strip view logs land in the browser DevTools console. The
         // desktop AppLog.InitializeForBrowser path lived in Yaat.Client.Core,
         // which the WASM client no longer references.
-        var factory = LoggerFactory.Create(builder =>
+        ILoggerFactory factory = LoggerFactory.Create(builder =>
         {
             builder.SetMinimumLevel(LogLevel.Information);
             builder.AddProvider(new ConsoleLineLoggerProvider());

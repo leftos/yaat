@@ -10,11 +10,11 @@ public class FilletGeneratorInterfaceTests
     [InlineData(FilletMode.Standard, "standard", 1)]
     public void Factory_Create_ReturnsExpectedId(FilletMode mode, string expectedId, int expectedArcsOnSimpleLayout)
     {
-        var generator = FilletGeneratorFactory.Create(mode);
+        IFilletArcGenerator generator = FilletGeneratorFactory.Create(mode);
         Assert.Equal(expectedId, generator.Id);
 
-        var layout = BuildSimpleIntersectionLayout();
-        var stats = generator.Apply(layout);
+        AirportGroundLayout layout = BuildSimpleIntersectionLayout();
+        FilletStatistics stats = generator.Apply(layout);
 
         Assert.Equal(expectedArcsOnSimpleLayout, layout.Arcs.Count);
         if (mode == FilletMode.None)
@@ -37,8 +37,8 @@ public class FilletGeneratorInterfaceTests
     [Fact]
     public void Factory_AppliesFilletOnSimpleLayout()
     {
-        var layout = BuildSimpleIntersectionLayout();
-        var stats = FilletGeneratorFactory.Create(FilletMode.Standard).Apply(layout);
+        AirportGroundLayout layout = BuildSimpleIntersectionLayout();
+        FilletStatistics stats = FilletGeneratorFactory.Create(FilletMode.Standard).Apply(layout);
         Assert.True(stats.ArcsCreated >= 1);
         Assert.Equal(0, stats.OrphansRescued);
         Assert.Equal(0, stats.DirectShortensAdded);
@@ -47,7 +47,7 @@ public class FilletGeneratorInterfaceTests
     [Fact]
     public void GeoJsonParser_None_SkipsFilletPass()
     {
-        var layout = GeoJsonParser.Parse("TEST", MinimalGeoJson(), null, FilletMode.None);
+        AirportGroundLayout layout = GeoJsonParser.Parse("TEST", MinimalGeoJson(), null, FilletMode.None);
         Assert.Empty(layout.Arcs);
     }
 

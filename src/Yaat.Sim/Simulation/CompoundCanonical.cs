@@ -23,16 +23,16 @@ public static class CompoundCanonical
         }
 
         var result = new StringBuilder(canonical.Length + 16);
-        var changed = false;
-        var unitStart = 0;
-        for (var i = 0; i <= canonical.Length; i++)
+        bool changed = false;
+        int unitStart = 0;
+        for (int i = 0; i <= canonical.Length; i++)
         {
             if (i < canonical.Length && canonical[i] is not (';' or ','))
             {
                 continue;
             }
-            var unit = canonical[unitStart..i];
-            var rewritten = RewritePreservingPadding(unit, rewriteUnit);
+            string unit = canonical[unitStart..i];
+            string rewritten = RewritePreservingPadding(unit, rewriteUnit);
             changed |= !ReferenceEquals(rewritten, unit);
             result.Append(rewritten);
             if (i < canonical.Length)
@@ -46,18 +46,18 @@ public static class CompoundCanonical
 
     private static string RewritePreservingPadding(string unit, Func<string, string> rewriteUnit)
     {
-        var trimmed = unit.Trim();
+        string trimmed = unit.Trim();
         if (trimmed.Length == 0)
         {
             return unit;
         }
-        var rewritten = rewriteUnit(trimmed);
+        string rewritten = rewriteUnit(trimmed);
         if (string.Equals(rewritten, trimmed, StringComparison.Ordinal))
         {
             return unit;
         }
-        var lead = unit[..unit.IndexOf(trimmed[0])];
-        var trail = unit[(lead.Length + trimmed.Length)..];
+        string lead = unit[..unit.IndexOf(trimmed[0])];
+        string trail = unit[(lead.Length + trimmed.Length)..];
         return lead + rewritten + trail;
     }
 }

@@ -68,14 +68,14 @@ public class WaitCommandDispatchTests
     [Fact]
     public void ToCanonicalType_WaitCommand_ReturnsWait()
     {
-        var result = CommandDescriber.ToCanonicalType(new WaitCommand(10));
+        CanonicalCommandType result = CommandDescriber.ToCanonicalType(new WaitCommand(10));
         Assert.Equal(CanonicalCommandType.Wait, result);
     }
 
     [Fact]
     public void ToCanonicalType_WaitDistanceCommand_ReturnsWaitDistance()
     {
-        var result = CommandDescriber.ToCanonicalType(new WaitDistanceCommand(5));
+        CanonicalCommandType result = CommandDescriber.ToCanonicalType(new WaitDistanceCommand(5));
         Assert.Equal(CanonicalCommandType.WaitDistance, result);
     }
 
@@ -86,7 +86,7 @@ public class WaitCommandDispatchTests
     [Fact]
     public void WaitCommand_Standalone_DuringPushback_IsRejected()
     {
-        var ac = MakeGroundAircraft();
+        AircraftState ac = MakeGroundAircraft();
         StartPhase(
             ac,
             new PushbackPhase
@@ -100,7 +100,7 @@ public class WaitCommandDispatchTests
 
         // Standalone WAIT (no following commands) during pushback is rejected
         // because WAIT without a payload is meaningless
-        var result = CommandDispatcher.DispatchCompound(WaitCompound(15), ac, TestDispatch.Context(new SerializableRandom(42)));
+        CommandResult result = CommandDispatcher.DispatchCompound(WaitCompound(15), ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.False(result.Success);
     }
@@ -108,9 +108,9 @@ public class WaitCommandDispatchTests
     [Fact]
     public void WaitCommand_Standalone_WithoutPhases_IsAccepted()
     {
-        var ac = MakeGroundAircraft();
+        AircraftState ac = MakeGroundAircraft();
         // No active phases — standalone WAIT goes through normal queue path
-        var result = CommandDispatcher.DispatchCompound(WaitCompound(10), ac, TestDispatch.Context(new SerializableRandom(42)));
+        CommandResult result = CommandDispatcher.DispatchCompound(WaitCompound(10), ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Single(ac.Queue.Blocks);
@@ -123,7 +123,7 @@ public class WaitCommandDispatchTests
     [Fact]
     public void WaitThenTaxi_DuringPushback_CreatesDeferredDispatch()
     {
-        var ac = MakeGroundAircraft();
+        AircraftState ac = MakeGroundAircraft();
         StartPhase(
             ac,
             new PushbackPhase
@@ -138,7 +138,7 @@ public class WaitCommandDispatchTests
         // WAIT 15; TAXI A — two sequential blocks
         var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(15)]), new ParsedBlock(null, [new TaxiCommand(["A"], [])])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         // Phases preserved — deferred dispatch doesn't touch them
@@ -154,12 +154,12 @@ public class WaitCommandDispatchTests
     [Fact]
     public void WaitThenTaxi_WithoutPhases_CreatesDeferredDispatch()
     {
-        var ac = MakeGroundAircraft();
+        AircraftState ac = MakeGroundAircraft();
 
         // No active phases — deferred dispatch still works
         var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10)]), new ParsedBlock(null, [new TaxiCommand(["B"], [])])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Single(ac.DeferredDispatches);
@@ -169,12 +169,12 @@ public class WaitCommandDispatchTests
     [Fact]
     public void WaitCommaFH_CreatesDeferredDispatch()
     {
-        var ac = MakeAirborneAircraft();
+        AircraftState ac = MakeAirborneAircraft();
 
         // "WAIT 10, FH 270" — single block with parallel WAIT + FH 270
         var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10), new FlyHeadingCommand(new MagneticHeading(270))])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Single(ac.DeferredDispatches);
@@ -188,7 +188,7 @@ public class WaitCommandDispatchTests
     [Fact]
     public void ChainedWaits_CreateSingleDeferredWithNestedPayload()
     {
-        var ac = MakeGroundAircraft();
+        AircraftState ac = MakeGroundAircraft();
 
         // WAIT 5; WAIT 10; FH 270 — first WAIT defers [WAIT 10; FH 270]
         var compound = new CompoundCommand([
@@ -197,7 +197,7 @@ public class WaitCommandDispatchTests
             new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(270))]),
         ]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success);
         Assert.Single(ac.DeferredDispatches);
@@ -213,13 +213,13 @@ public class WaitCommandDispatchTests
     [Fact]
     public void BehindPush_AtParking_CreatesDeferredDispatch()
     {
-        var ac = MakeGroundAircraft();
+        AircraftState ac = MakeGroundAircraft();
         StartPhase(ac, new AtParkingPhase());
 
         // BEHIND UAL999 PUSH T9
         var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("UAL999"), [new PushbackCommand(null, "T9", null, null, null)])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         // Phases preserved — aircraft stays at parking
@@ -243,13 +243,13 @@ public class WaitCommandDispatchTests
     [Fact]
     public void BehindTaxi_AfterPushback_CreatesDeferredDispatch()
     {
-        var ac = MakeGroundAircraft();
+        AircraftState ac = MakeGroundAircraft();
         StartPhase(ac, new HoldingAfterPushbackPhase());
 
         // BEHIND UAL999 TAXI A B
         var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("UAL999"), [new TaxiCommand(["A", "B"], [])])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         // Phases preserved — aircraft stays in holding-after-pushback
@@ -266,12 +266,12 @@ public class WaitCommandDispatchTests
     [Fact]
     public void BehindPush_MessageDescribesDeferred()
     {
-        var ac = MakeGroundAircraft();
+        AircraftState ac = MakeGroundAircraft();
         StartPhase(ac, new AtParkingPhase());
 
         var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("UAL999"), [new PushbackCommand(null, "T9", null, null, null)])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
         Assert.True(result.Success);
         Assert.Contains("UAL999", result.Message);

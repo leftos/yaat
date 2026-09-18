@@ -166,13 +166,13 @@ public sealed class FavoriteStore
 
     public static string? NormalizeAirportId(string? airportId)
     {
-        var trimmed = airportId?.Trim();
+        string? trimmed = airportId?.Trim();
         return string.IsNullOrEmpty(trimmed) ? null : trimmed.ToUpperInvariant();
     }
 
     public FavoriteSet GetOrCreateAirportSet(string airportId)
     {
-        var existing = FindAirportSet(airportId);
+        FavoriteSet? existing = FindAirportSet(airportId);
         if (existing is not null)
         {
             return existing;
@@ -192,7 +192,7 @@ public sealed class FavoriteStore
 
     public FavoriteSet GetOrCreateScenarioSet(string scenarioId, string displayName)
     {
-        var existing = FindScenarioSet(scenarioId);
+        FavoriteSet? existing = FindScenarioSet(scenarioId);
         if (existing is not null)
         {
             // The display name travels with whatever scenario is active when favorites are saved
@@ -222,7 +222,7 @@ public sealed class FavoriteStore
     /// <summary>Returns the new set, or null on a blank name or a case-insensitive collision with another named set.</summary>
     public FavoriteSet? CreateNamedSet(string name)
     {
-        var trimmed = name.Trim();
+        string trimmed = name.Trim();
         if (string.IsNullOrEmpty(trimmed) || FindNamedSet(trimmed) is not null)
         {
             return null;
@@ -243,14 +243,14 @@ public sealed class FavoriteStore
     /// <summary>Returns false when the set is missing/not Named, the new name is blank, or it collides with another named set.</summary>
     public bool RenameNamedSet(string setId, string newName)
     {
-        var set = GetSet(setId);
-        var trimmed = newName.Trim();
+        FavoriteSet? set = GetSet(setId);
+        string trimmed = newName.Trim();
         if (set is null || set.Kind != FavoriteSetKind.Named || string.IsNullOrEmpty(trimmed))
         {
             return false;
         }
 
-        var collision = FindNamedSet(trimmed);
+        FavoriteSet? collision = FindNamedSet(trimmed);
         if (collision is not null && !string.Equals(collision.Id, set.Id, StringComparison.OrdinalIgnoreCase))
         {
             return false;
@@ -265,7 +265,7 @@ public sealed class FavoriteStore
     /// <summary>Deletes the container (memberships only — the favorite entities survive). Global cannot be deleted.</summary>
     public bool DeleteSet(string setId)
     {
-        var set = GetSet(setId);
+        FavoriteSet? set = GetSet(setId);
         if (set is null || set.Kind == FavoriteSetKind.Global)
         {
             return false;
@@ -283,12 +283,12 @@ public sealed class FavoriteStore
     /// </summary>
     public void Clear()
     {
-        foreach (var favoriteId in _favoriteFiles.Keys.ToList())
+        foreach (string? favoriteId in _favoriteFiles.Keys.ToList())
         {
             DeleteFile(_favoriteFiles, favoriteId);
         }
 
-        foreach (var setId in _setFiles.Keys.ToList())
+        foreach (string? setId in _setFiles.Keys.ToList())
         {
             DeleteFile(_setFiles, setId);
         }
@@ -320,7 +320,7 @@ public sealed class FavoriteStore
             return false;
         }
 
-        foreach (var set in _sets)
+        foreach (FavoriteSet set in _sets)
         {
             if (set.FavoriteIds.RemoveAll(id => string.Equals(id, favoriteId, StringComparison.OrdinalIgnoreCase)) > 0)
             {
@@ -336,7 +336,7 @@ public sealed class FavoriteStore
     /// <summary>Replaces a set's ordered membership list. Unknown favorite ids are dropped; duplicates collapse to the first occurrence.</summary>
     public void ReplaceSetFavorites(string setId, List<string> favoriteIds)
     {
-        var set = GetSet(setId);
+        FavoriteSet? set = GetSet(setId);
         if (set is null)
         {
             Log.LogWarning("ReplaceSetFavorites: unknown set id {SetId}", setId);
@@ -357,7 +357,7 @@ public sealed class FavoriteStore
     /// <summary>Inserts the favorite at the given position in the set's order (clamped; no-op when already a member).</summary>
     public void InsertInSet(string setId, string favoriteId, int index)
     {
-        var set = GetSet(setId);
+        FavoriteSet? set = GetSet(setId);
         if (set is null || !_favorites.ContainsKey(favoriteId))
         {
             Log.LogWarning("InsertInSet: unknown set {SetId} or favorite {FavoriteId}", setId, favoriteId);
@@ -376,7 +376,7 @@ public sealed class FavoriteStore
 
     public void RemoveFromSet(string setId, string favoriteId)
     {
-        var set = GetSet(setId);
+        FavoriteSet? set = GetSet(setId);
         if (set is null || set.FavoriteIds.RemoveAll(id => string.Equals(id, favoriteId, StringComparison.OrdinalIgnoreCase)) == 0)
         {
             return;
@@ -389,7 +389,7 @@ public sealed class FavoriteStore
     /// <summary>The set's favorites resolved in order (silently skipping ids whose entity is gone).</summary>
     public List<FavoriteCommand> GetSetFavorites(string setId)
     {
-        var set = GetSet(setId);
+        FavoriteSet? set = GetSet(setId);
         return set is null ? [] : set.FavoriteIds.Select(GetFavorite).Where(f => f is not null).Cast<FavoriteCommand>().ToList();
     }
 
@@ -424,7 +424,7 @@ public sealed class FavoriteStore
             visible.Add(scenarioSet);
         }
 
-        foreach (var setId in loadedSetIds)
+        foreach (string setId in loadedSetIds)
         {
             if (GetSet(setId) is { Kind: FavoriteSetKind.Named } named)
             {
@@ -438,13 +438,13 @@ public sealed class FavoriteStore
     /// <summary>Appends the given favorites to the set, skipping ids already present or unknown (import merge path).</summary>
     internal void AppendToSet(string setId, IEnumerable<string> favoriteIds)
     {
-        var set = GetSet(setId);
+        FavoriteSet? set = GetSet(setId);
         if (set is null)
         {
             return;
         }
 
-        var merged = NormalizeMembership(set.FavoriteIds.Concat(favoriteIds));
+        List<string> merged = NormalizeMembership(set.FavoriteIds.Concat(favoriteIds));
         if (merged.SequenceEqual(set.FavoriteIds))
         {
             return;
@@ -462,7 +462,7 @@ public sealed class FavoriteStore
     /// </summary>
     internal (FavoriteSet Set, bool Added) UpsertImportedNamedSet(FavoriteSet incoming)
     {
-        var existing = GetSet(incoming.Id);
+        FavoriteSet? existing = GetSet(incoming.Id);
         if (existing is { Kind: FavoriteSetKind.Named })
         {
             existing.Name = ResolveImportedSetName(incoming.Name, existing.Id);
@@ -487,9 +487,9 @@ public sealed class FavoriteStore
 
     private string ResolveImportedSetName(string name, string? selfId)
     {
-        var baseName = string.IsNullOrWhiteSpace(name) ? "Imported set" : name.Trim();
-        var candidate = baseName;
-        var suffix = 2;
+        string baseName = string.IsNullOrWhiteSpace(name) ? "Imported set" : name.Trim();
+        string candidate = baseName;
+        int suffix = 2;
         while (FindNamedSet(candidate) is { } clash && !string.Equals(clash.Id, selfId, StringComparison.OrdinalIgnoreCase))
         {
             candidate = $"{baseName} ({suffix})";
@@ -508,7 +508,7 @@ public sealed class FavoriteStore
     {
         while (true)
         {
-            var id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4));
+            string id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4));
             if (!exists(id))
             {
                 return id;
@@ -527,8 +527,8 @@ public sealed class FavoriteStore
     /// </summary>
     internal static string SanitizeFileName(string name, string fallback)
     {
-        var chars = name.Select(c => (InvalidFileNameChars.Contains(c) || char.IsControl(c)) ? '_' : c).ToArray();
-        var sanitized = new string(chars).Trim().Trim('.');
+        char[] chars = name.Select(c => (InvalidFileNameChars.Contains(c) || char.IsControl(c)) ? '_' : c).ToArray();
+        string sanitized = new string(chars).Trim().Trim('.');
         if (sanitized.Length > 60)
         {
             sanitized = sanitized[..60].TrimEnd().TrimEnd('.');
@@ -541,7 +541,7 @@ public sealed class FavoriteStore
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var result = new List<string>();
-        foreach (var id in favoriteIds)
+        foreach (string id in favoriteIds)
         {
             if (_favorites.ContainsKey(id) && seen.Add(id))
             {
@@ -570,9 +570,9 @@ public sealed class FavoriteStore
 
     private void LoadAll()
     {
-        foreach (var path in EnumerateJsonFiles(_commandsDir))
+        foreach (string path in EnumerateJsonFiles(_commandsDir))
         {
-            var favorite = ReadEntity<FavoriteCommand>(path);
+            FavoriteCommand? favorite = ReadEntity<FavoriteCommand>(path);
             if (favorite is null || string.IsNullOrWhiteSpace(favorite.Id) || !_favorites.TryAdd(favorite.Id, favorite))
             {
                 Log.LogWarning("Skipping favorite file {Path}: unreadable, missing id, or duplicate id", path);
@@ -581,10 +581,10 @@ public sealed class FavoriteStore
             _favoriteFiles[favorite.Id] = path;
         }
 
-        foreach (var path in EnumerateJsonFiles(_setsDir))
+        foreach (string path in EnumerateJsonFiles(_setsDir))
         {
-            var set = ReadEntity<FavoriteSet>(path);
-            var duplicate =
+            FavoriteSet? set = ReadEntity<FavoriteSet>(path);
+            bool duplicate =
                 set is not null
                 && (GetSet(set.Id) is not null || (set.Kind == FavoriteSetKind.Global && _sets.Any(s => s.Kind == FavoriteSetKind.Global)));
             if (set is null || string.IsNullOrWhiteSpace(set.Id) || duplicate)
@@ -634,7 +634,7 @@ public sealed class FavoriteStore
 
     private void SaveFavoriteFile(FavoriteCommand favorite)
     {
-        var stem = SanitizeFileName(favorite.IsSpacer ? "blank" : favorite.Label, "favorite");
+        string stem = SanitizeFileName(favorite.IsSpacer ? "blank" : favorite.Label, "favorite");
         WriteEntityFile(_favoriteFiles, favorite.Id, _commandsDir, stem, favorite);
     }
 
@@ -645,16 +645,16 @@ public sealed class FavoriteStore
 
     private void WriteEntityFile<T>(Dictionary<string, string> files, string id, string dir, string stem, T entity)
     {
-        var path = Path.Combine(dir, $"{stem}.{id}.json");
-        var json = JsonSerializer.Serialize(entity, JsonOptions);
+        string path = Path.Combine(dir, $"{stem}.{id}.json");
+        string json = JsonSerializer.Serialize(entity, JsonOptions);
         lock (FileLock)
         {
-            var tmpPath = path + ".tmp";
+            string tmpPath = path + ".tmp";
             File.WriteAllText(tmpPath, json);
             File.Move(tmpPath, path, overwrite: true);
             // A label/name change moves the entity to a new filename; drop the old file.
             if (
-                files.TryGetValue(id, out var previous)
+                files.TryGetValue(id, out string? previous)
                 && !string.Equals(previous, path, StringComparison.OrdinalIgnoreCase)
                 && File.Exists(previous)
             )
@@ -667,7 +667,7 @@ public sealed class FavoriteStore
 
     private void DeleteFile(Dictionary<string, string> files, string id)
     {
-        if (!files.Remove(id, out var path))
+        if (!files.Remove(id, out string? path))
         {
             return;
         }

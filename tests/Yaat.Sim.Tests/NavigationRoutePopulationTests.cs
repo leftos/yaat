@@ -18,7 +18,7 @@ public class NavigationRoutePopulationTests
 
     private static ScenarioLoadResult LoadWithNavPath(string navigationPath, NavigationDatabase navDb)
     {
-        var scenarioJson = $$"""
+        string scenarioJson = $$"""
             {
                 "id": "test",
                 "name": "Test",
@@ -71,12 +71,12 @@ public class NavigationRoutePopulationTests
         var airways = new Dictionary<string, IReadOnlyList<string>> { ["V108"] = (IReadOnlyList<string>)["FIX_A", "FIX_B", "FIX_C", "FIX_D"] };
 
         var navDb = NavigationDatabase.ForTesting(fixes, airways: airways);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = LoadWithNavPath("FIX_A V108 FIX_C", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("FIX_A V108 FIX_C", navDb);
 
         Assert.Single(result.ImmediateAircraft);
-        var names = RouteFixNames(result);
+        string[] names = RouteFixNames(result);
 
         // Should expand V108 segment from FIX_A to FIX_C
         Assert.Contains("FIX_A", names);
@@ -99,9 +99,9 @@ public class NavigationRoutePopulationTests
         var airways = new Dictionary<string, IReadOnlyList<string>> { ["V108"] = (IReadOnlyList<string>)["FIX_A", "FIX_B"] };
 
         var navDb = NavigationDatabase.ForTesting(fixes, airways: airways);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = LoadWithNavPath("FIX_A V108 FIX_B", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("FIX_A V108 FIX_B", navDb);
 
         Assert.DoesNotContain(result.Warnings, w => w.Contains("V108"));
     }
@@ -119,14 +119,14 @@ public class NavigationRoutePopulationTests
         var airways = new Dictionary<string, IReadOnlyList<string>> { ["V108"] = (IReadOnlyList<string>)["FIX_A", "FIX_B"] };
 
         var navDb = NavigationDatabase.ForTesting(fixes, airways: airways);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // V108 is the first token — no previous fix to expand from
-        var result = LoadWithNavPath("V108 FIX_B", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("V108 FIX_B", navDb);
 
         Assert.Single(result.ImmediateAircraft);
         // Should still resolve FIX_B as a regular fix
-        var names = RouteFixNames(result);
+        string[] names = RouteFixNames(result);
         Assert.Contains("FIX_B", names);
     }
 
@@ -143,13 +143,13 @@ public class NavigationRoutePopulationTests
         var airways = new Dictionary<string, IReadOnlyList<string>> { ["V108"] = (IReadOnlyList<string>)["FIX_A", "FIX_B"] };
 
         var navDb = NavigationDatabase.ForTesting(fixes, airways: airways);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // V108 is the last token — no next fix to expand to
-        var result = LoadWithNavPath("FIX_A V108", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("FIX_A V108", navDb);
 
         Assert.Single(result.ImmediateAircraft);
-        var names = RouteFixNames(result);
+        string[] names = RouteFixNames(result);
         Assert.Contains("FIX_A", names);
     }
 
@@ -166,12 +166,12 @@ public class NavigationRoutePopulationTests
         };
 
         var navDb = NavigationDatabase.ForTesting(fixes);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = LoadWithNavPath("C83", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("C83", navDb);
 
         Assert.Single(result.ImmediateAircraft);
-        var names = RouteFixNames(result);
+        string[] names = RouteFixNames(result);
         Assert.Contains("C83", names);
         Assert.DoesNotContain(result.Warnings, w => w.Contains("C83"));
     }
@@ -188,12 +188,12 @@ public class NavigationRoutePopulationTests
         };
 
         var navDb = NavigationDatabase.ForTesting(fixes);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = LoadWithNavPath("Q136", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("Q136", navDb);
 
         Assert.Single(result.ImmediateAircraft);
-        var names = RouteFixNames(result);
+        string[] names = RouteFixNames(result);
         Assert.Contains("Q136", names);
     }
 
@@ -209,12 +209,12 @@ public class NavigationRoutePopulationTests
         };
 
         var navDb = NavigationDatabase.ForTesting(fixes);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = LoadWithNavPath("BDEGA4", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("BDEGA4", navDb);
 
         Assert.Single(result.ImmediateAircraft);
-        var names = RouteFixNames(result);
+        string[] names = RouteFixNames(result);
         Assert.DoesNotContain("BDEGA", names);
         Assert.Contains(result.Warnings, w => w.Contains("BDEGA4"));
     }

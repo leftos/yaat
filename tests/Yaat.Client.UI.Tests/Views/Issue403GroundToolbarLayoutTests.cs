@@ -27,7 +27,7 @@ public class Issue403GroundToolbarLayoutTests
     [AvaloniaFact]
     public void ToolbarButtons_NeverOverlapCanvas_AtWideAndNarrowWidths()
     {
-        var (window, view) = ShowGroundView(800);
+        (Window? window, GroundView? view) = ShowGroundView(800);
         try
         {
             AssertNoButtonOverlapsCanvas(view);
@@ -45,21 +45,21 @@ public class Issue403GroundToolbarLayoutTests
     [AvaloniaFact]
     public void NarrowWidth_ToolbarScrollsInsteadOfClipping()
     {
-        var (window, view) = ShowGroundView(480);
+        (Window? window, GroundView? view) = ShowGroundView(480);
         try
         {
-            var canvas = view.FindControl<GroundCanvas>("Canvas");
+            GroundCanvas? canvas = view.FindControl<GroundCanvas>("Canvas");
             Assert.NotNull(canvas);
             Assert.True(canvas.Bounds.Height > 100, $"Canvas collapsed to {canvas.Bounds.Height:F1}px tall");
 
-            var scroller = view.FindControl<ScrollViewer>("ToolbarScroller");
+            ScrollViewer? scroller = view.FindControl<ScrollViewer>("ToolbarScroller");
             Assert.NotNull(scroller);
             Assert.True(
                 scroller.Extent.Width > scroller.Viewport.Width + Epsilon,
                 $"Toolbar extent {scroller.Extent.Width:F1} should exceed the {scroller.Viewport.Width:F1} viewport so the tail can be scrolled into view"
             );
 
-            var reset = view.FindControl<Button>("ResetButton");
+            Button? reset = view.FindControl<Button>("ResetButton");
             Assert.NotNull(reset);
             Assert.True(reset.Bounds.Width > 0, "RESET button was clipped to zero width");
         }
@@ -71,20 +71,20 @@ public class Issue403GroundToolbarLayoutTests
 
     private static void AssertNoButtonOverlapsCanvas(GroundView view)
     {
-        var canvas = view.FindControl<GroundCanvas>("Canvas");
+        GroundCanvas? canvas = view.FindControl<GroundCanvas>("Canvas");
         Assert.NotNull(canvas);
-        var canvasOrigin = canvas.TranslatePoint(new Point(0, 0), view);
+        Point? canvasOrigin = canvas.TranslatePoint(new Point(0, 0), view);
         Assert.NotNull(canvasOrigin);
         var canvasRect = new Rect(canvasOrigin.Value, canvas.Bounds.Size);
 
         var buttons = view.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("gnd-filter")).ToList();
         Assert.NotEmpty(buttons);
 
-        foreach (var button in buttons)
+        foreach (Button? button in buttons)
         {
-            var origin = button.TranslatePoint(new Point(0, 0), view);
+            Point? origin = button.TranslatePoint(new Point(0, 0), view);
             Assert.NotNull(origin);
-            var rect = new Rect(origin.Value, button.Bounds.Size).Deflate(Epsilon);
+            Rect rect = new Rect(origin.Value, button.Bounds.Size).Deflate(Epsilon);
             Assert.False(
                 canvasRect.Intersects(rect),
                 $"Button '{button.Content}' at {rect} overlaps the ground canvas at {canvasRect} (view width {view.Bounds.Width:F0})"
@@ -111,7 +111,7 @@ public class Issue403GroundToolbarLayoutTests
     {
         // Headless Avalonia needs a few measure/arrange + dispatcher cycles before
         // size changes flow to nested controls; pump until stable.
-        for (var i = 0; i < 5; i++)
+        for (int i = 0; i < 5; i++)
         {
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();

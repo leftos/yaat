@@ -13,17 +13,17 @@ public static class VideoMapParser
         var lines = new List<VideoMapLine>();
 
         using var doc = JsonDocument.Parse(geoJson);
-        var root = doc.RootElement;
+        JsonElement root = doc.RootElement;
 
         if (
-            root.TryGetProperty("type", out var typeProp)
+            root.TryGetProperty("type", out JsonElement typeProp)
             && typeProp.GetString() == "FeatureCollection"
-            && root.TryGetProperty("features", out var features)
+            && root.TryGetProperty("features", out JsonElement features)
         )
         {
-            foreach (var feature in features.EnumerateArray())
+            foreach (JsonElement feature in features.EnumerateArray())
             {
-                if (!feature.TryGetProperty("geometry", out var geometry) || geometry.ValueKind == JsonValueKind.Null)
+                if (!feature.TryGetProperty("geometry", out JsonElement geometry) || geometry.ValueKind == JsonValueKind.Null)
                 {
                     continue;
                 }
@@ -42,13 +42,13 @@ public static class VideoMapParser
 
     private static void ExtractLines(JsonElement geometry, List<VideoMapLine> lines)
     {
-        if (!geometry.TryGetProperty("type", out var geoType))
+        if (!geometry.TryGetProperty("type", out JsonElement geoType))
         {
             return;
         }
 
-        var type = geoType.GetString();
-        if (!geometry.TryGetProperty("coordinates", out var coords))
+        string? type = geoType.GetString();
+        if (!geometry.TryGetProperty("coordinates", out JsonElement coords))
         {
             return;
         }
@@ -56,7 +56,7 @@ public static class VideoMapParser
         switch (type)
         {
             case "LineString":
-                var line = ParseLineString(coords);
+                VideoMapLine? line = ParseLineString(coords);
                 if (line is not null)
                 {
                     lines.Add(line);
@@ -64,9 +64,9 @@ public static class VideoMapParser
                 break;
 
             case "MultiLineString":
-                foreach (var lineCoords in coords.EnumerateArray())
+                foreach (JsonElement lineCoords in coords.EnumerateArray())
                 {
-                    var ml = ParseLineString(lineCoords);
+                    VideoMapLine? ml = ParseLineString(lineCoords);
                     if (ml is not null)
                     {
                         lines.Add(ml);
@@ -76,9 +76,9 @@ public static class VideoMapParser
 
             case "Polygon":
                 // Treat polygon rings as lines (outline only)
-                foreach (var ring in coords.EnumerateArray())
+                foreach (JsonElement ring in coords.EnumerateArray())
                 {
-                    var rl = ParseLineString(ring);
+                    VideoMapLine? rl = ParseLineString(ring);
                     if (rl is not null)
                     {
                         lines.Add(rl);
@@ -87,11 +87,11 @@ public static class VideoMapParser
                 break;
 
             case "MultiPolygon":
-                foreach (var polygon in coords.EnumerateArray())
+                foreach (JsonElement polygon in coords.EnumerateArray())
                 {
-                    foreach (var ring in polygon.EnumerateArray())
+                    foreach (JsonElement ring in polygon.EnumerateArray())
                     {
-                        var mpl = ParseLineString(ring);
+                        VideoMapLine? mpl = ParseLineString(ring);
                         if (mpl is not null)
                         {
                             lines.Add(mpl);
@@ -101,9 +101,9 @@ public static class VideoMapParser
                 break;
 
             case "GeometryCollection":
-                if (geometry.TryGetProperty("geometries", out var geoms))
+                if (geometry.TryGetProperty("geometries", out JsonElement geoms))
                 {
-                    foreach (var g in geoms.EnumerateArray())
+                    foreach (JsonElement g in geoms.EnumerateArray())
                     {
                         ExtractLines(g, lines);
                     }
@@ -116,9 +116,9 @@ public static class VideoMapParser
     {
         var points = new List<(double Lat, double Lon)>();
 
-        foreach (var coord in coordArray.EnumerateArray())
+        foreach (JsonElement coord in coordArray.EnumerateArray())
         {
-            var arr = coord.EnumerateArray().ToArray();
+            JsonElement[] arr = coord.EnumerateArray().ToArray();
             if (arr.Length < 2)
             {
                 continue;
@@ -131,8 +131,8 @@ public static class VideoMapParser
             }
 
             // GeoJSON: [longitude, latitude]
-            var lon = arr[0].GetDouble();
-            var lat = arr[1].GetDouble();
+            double lon = arr[0].GetDouble();
+            double lat = arr[1].GetDouble();
             points.Add((lat, lon));
         }
 

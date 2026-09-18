@@ -1,4 +1,5 @@
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim;
 
@@ -14,7 +15,10 @@ public static class VisualAcquisition
 {
     public static VisualAcquisitionResult TryAcquireTraffic(AircraftState ownship, AircraftState target, WeatherProfile? weather)
     {
-        var (layers, visibilitySm, referenceElevation) = ResolveWeatherNearOwnship(ownship, weather);
+        (IReadOnlyList<MetarParser.CloudLayer>? layers, double? visibilitySm, double referenceElevation) = ResolveWeatherNearOwnship(
+            ownship,
+            weather
+        );
         return VisualDetection.TryAcquireTraffic(ownship, target, layers, referenceElevation, visibilitySm, ownship.BankAngle);
     }
 
@@ -27,7 +31,10 @@ public static class VisualAcquisition
     /// </summary>
     public static VisualAcquisitionResult TryMaintainTrafficContact(AircraftState ownship, AircraftState target, WeatherProfile? weather)
     {
-        var (layers, visibilitySm, referenceElevation) = ResolveWeatherNearOwnship(ownship, weather);
+        (IReadOnlyList<MetarParser.CloudLayer>? layers, double? visibilitySm, double referenceElevation) = ResolveWeatherNearOwnship(
+            ownship,
+            weather
+        );
         return VisualDetection.TryMaintainTrafficContact(ownship, target, layers, referenceElevation, visibilitySm);
     }
 
@@ -45,13 +52,16 @@ public static class VisualAcquisition
         WeatherProfile? weather
     )
     {
-        var near = weather?.GetWeatherNearPosition(ownship.Position, MetarInterpolator.MaxInterpolationRangeNm);
+        (MetarParser.ParsedMetar Metar, string StationAirportId)? near = weather?.GetWeatherNearPosition(
+            ownship.Position,
+            MetarInterpolator.MaxInterpolationRangeNm
+        );
         if (near is null)
         {
             return (null, null, 0.0);
         }
 
-        var (metar, stationAirportId) = near.Value;
+        (MetarParser.ParsedMetar? metar, string? stationAirportId) = near.Value;
         double elevation = NavigationDatabase.Instance.GetAirportElevation(stationAirportId) ?? 0.0;
         return (metar.Layers, metar.VisibilityStatuteMiles, elevation);
     }
@@ -66,21 +76,21 @@ public static class VisualAcquisition
     /// </summary>
     public static VisualAcquisitionResult? TryAcquireAirport(AircraftState ownship, WeatherProfile? weather)
     {
-        var destination = ownship.FlightPlan.Destination;
+        string destination = ownship.FlightPlan.Destination;
         if (string.IsNullOrWhiteSpace(destination))
         {
             return null;
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var aptPos = navDb.GetFixPosition(destination);
-        var aptElevation = navDb.GetAirportElevation(destination);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        (double Lat, double Lon)? aptPos = navDb.GetFixPosition(destination);
+        double? aptElevation = navDb.GetAirportElevation(destination);
         if (aptPos is null || aptElevation is null)
         {
             return null;
         }
 
-        var metar = weather?.GetWeatherForAirport(destination);
+        MetarParser.ParsedMetar? metar = weather?.GetWeatherForAirport(destination);
         return VisualDetection.TryAcquireAirport(
             ownship,
             aptPos.Value.Lat,
@@ -106,7 +116,7 @@ public static class VisualAcquisition
     /// </summary>
     public static double AirportSizeCapNm(string airportId)
     {
-        var runways = NavigationDatabase.Instance.GetRunways(airportId);
+        IReadOnlyList<RunwayInfo> runways = NavigationDatabase.Instance.GetRunways(airportId);
         if (runways.Count == 0)
         {
             return SmallAirportFloorNm;
@@ -115,10 +125,10 @@ public static class VisualAcquisition
         double maxExtentNm = 0.0;
         for (int i = 0; i < runways.Count; i++)
         {
-            var ri = runways[i];
+            RunwayInfo ri = runways[i];
             for (int j = i; j < runways.Count; j++)
             {
-                var rj = runways[j];
+                RunwayInfo rj = runways[j];
                 maxExtentNm = Math.Max(maxExtentNm, GeoMath.DistanceNm(ri.Lat1, ri.Lon1, rj.Lat1, rj.Lon1));
                 maxExtentNm = Math.Max(maxExtentNm, GeoMath.DistanceNm(ri.Lat1, ri.Lon1, rj.Lat2, rj.Lon2));
                 maxExtentNm = Math.Max(maxExtentNm, GeoMath.DistanceNm(ri.Lat2, ri.Lon2, rj.Lat1, rj.Lon1));

@@ -26,7 +26,7 @@ public sealed partial class SimulationEngine
 {
     private void ProcessDeferredDispatches(double deltaSeconds)
     {
-        foreach (var aircraft in World.GetSnapshot())
+        foreach (AircraftState aircraft in World.GetSnapshot())
         {
             if (aircraft.DeferredDispatches.Count == 0)
             {
@@ -38,7 +38,7 @@ public sealed partial class SimulationEngine
             // several commands expiring on the same sub-tick — e.g. two reaction-delayed commands the
             // order-preserving clamp parked on the same fire time — apply in the order they were issued.
             List<DeferredDispatch>? ready = null;
-            foreach (var d in aircraft.DeferredDispatches)
+            foreach (DeferredDispatch d in aircraft.DeferredDispatches)
             {
                 bool isReady;
                 if (d.GiveWayTarget is not null)
@@ -74,7 +74,7 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            foreach (var d in ready)
+            foreach (DeferredDispatch d in ready)
             {
                 aircraft.DeferredDispatches.Remove(d);
             }
@@ -86,14 +86,14 @@ public sealed partial class SimulationEngine
             var survivingDeferrals = new List<DeferredDispatch>(aircraft.DeferredDispatches);
             aircraft.DeferredDispatches.Clear();
 
-            foreach (var d in ready)
+            foreach (DeferredDispatch d in ready)
             {
                 // Reaction delays (the command-run delay) fire silently — the controller already saw
                 // the "complying in Ns" acknowledgement when the command was issued. WAIT/BEHIND/distance
                 // deferrals were explicitly requested, so they still announce themselves.
                 if (!d.IsReactionDelay)
                 {
-                    var payloadDesc = DescribeDeferredPayload(d);
+                    string payloadDesc = DescribeDeferredPayload(d);
                     string conditionDesc;
                     if (d.GiveWayTarget is not null)
                     {
@@ -120,7 +120,7 @@ public sealed partial class SimulationEngine
                     continue;
                 }
 
-                var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+                AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
                 var deferredCtx = new DispatchContext(
                     groundLayout,
                     World.Rng,
@@ -138,7 +138,7 @@ public sealed partial class SimulationEngine
                     PreserveConditionals: true,
                     IsScenarioScripted: d.IsScenarioScripted
                 );
-                var deferredResult = CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
+                CommandResult deferredResult = CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
                 if (!deferredResult.Success)
                 {
                     // A deferred/preset command that fails when it finally fires (e.g. a DVIA whose STAR
@@ -170,19 +170,19 @@ public sealed partial class SimulationEngine
             return false;
         }
 
-        var commands = compound.Blocks[0].Commands;
+        List<ParsedCommand> commands = compound.Blocks[0].Commands;
         if (commands.Count == 0 || !commands.TrueForAll(TrackEngine.IsTrackCommand))
         {
             return false;
         }
 
-        var scenario = Scenario!;
+        SimScenarioState scenario = Scenario!;
         var track = new TrackDispatchContext(Identity: null, scenario, Redirect: null, ConflictAlerts);
-        foreach (var command in commands)
+        foreach (ParsedCommand command in commands)
         {
             // A verb the track table has no arm for returns null; treated as a refusal so it warns instead of
             // silently applying nothing.
-            var result = TrackEngine.Dispatch(command, aircraft, track) ?? ActionRefusals.HostOnly(command);
+            CommandResult result = TrackEngine.Dispatch(command, aircraft, track) ?? ActionRefusals.HostOnly(command);
             if (!result.Success)
             {
                 aircraft.PendingWarnings.Add($"{aircraft.Callsign}: {result.Message}");
@@ -204,19 +204,19 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void ProcessTriggeredTrackBlocks()
     {
-        var scenario = Scenario;
+        SimScenarioState? scenario = Scenario;
         if (scenario is null)
         {
             return;
         }
 
         var track = new TrackDispatchContext(Identity: null, scenario, Redirect: null, ConflictAlerts);
-        foreach (var aircraft in World.GetSnapshot())
+        foreach (AircraftState aircraft in World.GetSnapshot())
         {
-            var blocks = aircraft.Queue.Blocks;
+            List<CommandBlock> blocks = aircraft.Queue.Blocks;
             for (int i = 0; i < blocks.Count; i++)
             {
-                var block = blocks[i];
+                CommandBlock block = blocks[i];
                 if (!block.IsApplied || !block.HasTrackCommand || block.TrackApplied)
                 {
                     continue;
@@ -225,18 +225,18 @@ public sealed partial class SimulationEngine
                 // Mark before dispatching so the scan never re-fires this block, even if dispatch throws.
                 block.TrackApplied = true;
 
-                foreach (var trackCommand in ResolveTrackCommandsForBlock(block, aircraft))
+                foreach (ParsedCommand trackCommand in ResolveTrackCommandsForBlock(block, aircraft))
                 {
                     // Null is "no arm in the track table" — a refusal like any other, never a silent success.
-                    var result = TrackEngine.Dispatch(trackCommand, aircraft, track) ?? ActionRefusals.HostOnly(trackCommand);
+                    CommandResult result = TrackEngine.Dispatch(trackCommand, aircraft, track) ?? ActionRefusals.HostOnly(trackCommand);
                     if (!result.Success)
                     {
                         // Abort the chain remainder — the follow-on blocks were premised on this
                         // track command succeeding (e.g. "AT FIXIE HO 2B; FH 090" must not fly the
                         // heading after a failed handoff). Same contract as FlightPhysics.ApplyBlock.
-                        var discarded = aircraft.Queue.DiscardChainRemainder(block);
-                        var label = !string.IsNullOrEmpty(block.SourceCommandText) ? block.SourceCommandText : block.NaturalDescription;
-                        var warning = $"{aircraft.Callsign} {label}: {result.Message}";
+                        List<string> discarded = aircraft.Queue.DiscardChainRemainder(block);
+                        string label = !string.IsNullOrEmpty(block.SourceCommandText) ? block.SourceCommandText : block.NaturalDescription;
+                        string warning = $"{aircraft.Callsign} {label}: {result.Message}";
                         if (discarded.Count > 0)
                         {
                             warning += $" — rest of transmission discarded: {string.Join("; ", discarded)}";
@@ -268,7 +268,7 @@ public sealed partial class SimulationEngine
             return [];
         }
 
-        var reparsed = CommandParser.ParseCompound(block.SourceCommandText, aircraft.FlightPlan.Route);
+        ParseResult<CompoundCommand> reparsed = CommandParser.ParseCompound(block.SourceCommandText, aircraft.FlightPlan.Route);
         if (!reparsed.IsSuccess || reparsed.Value is not { } compound)
         {
             return [];
@@ -283,7 +283,7 @@ public sealed partial class SimulationEngine
         // Multiple sub-blocks share this source text — disambiguate by the block's at-fix trigger.
         if (block.Trigger is { Type: BlockTriggerType.ReachFix, FixName: { } fixName })
         {
-            var match = trackBlocks.Find(b =>
+            ParsedBlock? match = trackBlocks.Find(b =>
                 b.Condition is AtFixCondition at && string.Equals(at.FixName, fixName, StringComparison.OrdinalIgnoreCase)
             );
             if (match is not null)
@@ -303,9 +303,9 @@ public sealed partial class SimulationEngine
     private static string DescribeDeferredPayload(DeferredDispatch d)
     {
         var parts = new List<string>();
-        foreach (var block in d.Payload.Blocks)
+        foreach (ParsedBlock block in d.Payload.Blocks)
         {
-            var cmds = string.Join(", ", block.Commands.Select(CommandDescriber.DescribeNatural));
+            string cmds = string.Join(", ", block.Commands.Select(CommandDescriber.DescribeNatural));
             parts.Add(cmds);
         }
 
@@ -314,7 +314,7 @@ public sealed partial class SimulationEngine
 
     private bool IsGiveWayDeferredMet(AircraftState aircraft, string targetCallsign)
     {
-        var target = FindAircraft(targetCallsign);
+        AircraftState? target = FindAircraft(targetCallsign);
         if (target is null || !target.IsOnGround)
         {
             return true; // Target gone or airborne — no conflict

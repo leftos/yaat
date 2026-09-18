@@ -33,8 +33,8 @@ public class TakeoffPhaseIntersectionDepartureTests
         // centerline — the position it would reach after taxiing to a runway
         // intersection and lining up there. TakeoffPhase must accelerate from
         // this position, not snap back to the threshold.
-        var runway = Runway28R();
-        var startPos = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading, 0.5);
+        RunwayInfo runway = Runway28R();
+        (double Lat, double Lon) startPos = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading, 0.5);
         var ac = new AircraftState
         {
             Callsign = "TEST1",
@@ -76,8 +76,8 @@ public class TakeoffPhaseIntersectionDepartureTests
         // airborne — the intersection just shortens the available distance,
         // which YAAT does not model as a hard constraint (no "runway too short"
         // check); the takeoff still completes.
-        var runway = Runway28R();
-        var startPos = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading, 0.5);
+        RunwayInfo runway = Runway28R();
+        (double Lat, double Lon) startPos = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading, 0.5);
         var ac = new AircraftState
         {
             Callsign = "TEST1",

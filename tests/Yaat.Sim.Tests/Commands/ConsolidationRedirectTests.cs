@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.ControllerAi;
 using Yaat.Sim.Tests.Helpers;
@@ -35,8 +36,8 @@ public class ConsolidationRedirectTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = Student;
         scenario.StudentTcp = TrackResolver.FindTcpByCode(scenario, "2B")!;
         scenario.AtcPositions.Add(
@@ -63,9 +64,9 @@ public class ConsolidationRedirectTests
     /// <summary>4Q's airspace is combined into 4U by a manual override; whether 4U is attended is the engine's state.</summary>
     private static AttendanceActionHost CombineFourQIntoFourU(SimulationEngine engine, bool fourUAttended)
     {
-        var scenario = engine.Scenario!;
-        var fourU = TrackResolver.FindTcpByCode(scenario, "4U")!;
-        var fourQ = TrackResolver.FindTcpByCode(scenario, "4Q")!;
+        SimScenarioState scenario = engine.Scenario!;
+        Tcp fourU = TrackResolver.FindTcpByCode(scenario, "4U")!;
+        Tcp fourQ = TrackResolver.FindTcpByCode(scenario, "4Q")!;
         Assert.True(engine.ConsolidationState.Consolidate(fourU, fourQ, basic: true));
         if (fourUAttended)
         {
@@ -83,11 +84,11 @@ public class ConsolidationRedirectTests
             return;
         }
 
-        var host = CombineFourQIntoFourU(engine, fourUAttended: true);
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AttendanceActionHost host = CombineFourQIntoFourU(engine, fourUAttended: true);
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Student;
 
-        var outcome = engine.Actions.Apply(Recorded("HO 4Q"), host);
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("HO 4Q"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal($"Handoff {AiTestFixture.Callsign} to 4Q (redirected to 4U)", outcome.Result.Message);
@@ -104,11 +105,11 @@ public class ConsolidationRedirectTests
             return;
         }
 
-        var host = CombineFourQIntoFourU(engine, fourUAttended: false);
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AttendanceActionHost host = CombineFourQIntoFourU(engine, fourUAttended: false);
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Student;
 
-        var outcome = engine.Actions.Apply(Recorded("HO 4Q"), host);
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("HO 4Q"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal($"Handoff {AiTestFixture.Callsign} to 4Q", outcome.Result.Message);
@@ -124,11 +125,11 @@ public class ConsolidationRedirectTests
             return;
         }
 
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Nct4Q;
         ac.Track.HandoffPeer = Student;
 
-        var outcome = engine.Actions.Apply(Recorded("HO 4U"), new AttendanceActionHost());
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("HO 4U"), new AttendanceActionHost());
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal($"Redirected handoff {AiTestFixture.Callsign} to 4U", outcome.Result.Message);
@@ -145,11 +146,11 @@ public class ConsolidationRedirectTests
             return;
         }
 
-        var host = CombineFourQIntoFourU(engine, fourUAttended: true);
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AttendanceActionHost host = CombineFourQIntoFourU(engine, fourUAttended: true);
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Student;
 
-        var outcome = engine.Actions.Apply(Recorded("PO 4Q"), host);
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("PO 4Q"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("4U", ac.Track.Pointout!.Recipient.ToString());

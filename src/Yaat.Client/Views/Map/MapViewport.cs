@@ -27,18 +27,18 @@ public sealed class MapViewport
 
     public (float X, float Y) LatLonToScreen(double lat, double lon)
     {
-        var ppd = PixelsPerDeg;
-        var cos = CosCenter;
-        var rx = (lon - CenterLon) * cos * ppd;
-        var ry = -(lat - CenterLat) * ppd;
+        double ppd = PixelsPerDeg;
+        double cos = CosCenter;
+        double rx = (lon - CenterLon) * cos * ppd;
+        double ry = -(lat - CenterLat) * ppd;
 
         if (RotationDeg != 0)
         {
-            var rad = -RotationDeg * Math.PI / 180.0;
-            var cosR = Math.Cos(rad);
-            var sinR = Math.Sin(rad);
-            var rotX = rx * cosR - ry * sinR;
-            var rotY = rx * sinR + ry * cosR;
+            double rad = -RotationDeg * Math.PI / 180.0;
+            double cosR = Math.Cos(rad);
+            double sinR = Math.Sin(rad);
+            double rotX = rx * cosR - ry * sinR;
+            double rotY = rx * sinR + ry * cosR;
             rx = rotX;
             ry = rotY;
         }
@@ -48,51 +48,51 @@ public sealed class MapViewport
 
     public (double Lat, double Lon) ScreenToLatLon(float x, float y)
     {
-        var ppd = PixelsPerDeg;
-        var cos = CosCenter;
+        double ppd = PixelsPerDeg;
+        double cos = CosCenter;
         if (cos < 1e-10)
         {
             cos = 1e-10;
         }
 
-        var sx = x - PixelWidth / 2.0;
-        var sy = y - PixelHeight / 2.0;
+        double sx = x - PixelWidth / 2.0;
+        double sy = y - PixelHeight / 2.0;
 
         if (RotationDeg != 0)
         {
-            var rad = RotationDeg * Math.PI / 180.0;
-            var cosR = Math.Cos(rad);
-            var sinR = Math.Sin(rad);
-            var ux = sx * cosR - sy * sinR;
-            var uy = sx * sinR + sy * cosR;
+            double rad = RotationDeg * Math.PI / 180.0;
+            double cosR = Math.Cos(rad);
+            double sinR = Math.Sin(rad);
+            double ux = sx * cosR - sy * sinR;
+            double uy = sx * sinR + sy * cosR;
             sx = ux;
             sy = uy;
         }
 
-        var lon = sx / (cos * ppd) + CenterLon;
-        var lat = -sy / ppd + CenterLat;
+        double lon = sx / (cos * ppd) + CenterLon;
+        double lat = -sy / ppd + CenterLat;
         return (lat, lon);
     }
 
     public void Pan(float deltaScreenX, float deltaScreenY)
     {
-        var ppd = PixelsPerDeg;
-        var cos = CosCenter;
+        double ppd = PixelsPerDeg;
+        double cos = CosCenter;
         if (cos < 1e-10)
         {
             cos = 1e-10;
         }
 
-        var dx = (double)deltaScreenX;
-        var dy = (double)deltaScreenY;
+        double dx = (double)deltaScreenX;
+        double dy = (double)deltaScreenY;
 
         if (RotationDeg != 0)
         {
-            var rad = RotationDeg * Math.PI / 180.0;
-            var cosR = Math.Cos(rad);
-            var sinR = Math.Sin(rad);
-            var udx = dx * cosR - dy * sinR;
-            var udy = dx * sinR + dy * cosR;
+            double rad = RotationDeg * Math.PI / 180.0;
+            double cosR = Math.Cos(rad);
+            double sinR = Math.Sin(rad);
+            double udx = dx * cosR - dy * sinR;
+            double udy = dx * sinR + dy * cosR;
             dx = udx;
             dy = udy;
         }
@@ -103,26 +103,26 @@ public sealed class MapViewport
 
     public void ZoomAt(float screenX, float screenY, double factor)
     {
-        var (lat, lon) = ScreenToLatLon(screenX, screenY);
+        (double lat, double lon) = ScreenToLatLon(screenX, screenY);
         Zoom = Math.Clamp(Zoom * factor, MinZoom, MaxZoom);
         // After zoom, adjust center so the point under cursor stays fixed
-        var ppd = PixelsPerDeg;
-        var cos = CosCenter;
+        double ppd = PixelsPerDeg;
+        double cos = CosCenter;
         if (cos < 1e-10)
         {
             cos = 1e-10;
         }
 
-        var sx = screenX - PixelWidth / 2.0;
-        var sy = screenY - PixelHeight / 2.0;
+        double sx = screenX - PixelWidth / 2.0;
+        double sy = screenY - PixelHeight / 2.0;
 
         if (RotationDeg != 0)
         {
-            var rad = RotationDeg * Math.PI / 180.0;
-            var cosR = Math.Cos(rad);
-            var sinR = Math.Sin(rad);
-            var ux = sx * cosR - sy * sinR;
-            var uy = sx * sinR + sy * cosR;
+            double rad = RotationDeg * Math.PI / 180.0;
+            double cosR = Math.Cos(rad);
+            double sinR = Math.Sin(rad);
+            double ux = sx * cosR - sy * sinR;
+            double uy = sx * sinR + sy * cosR;
             sx = ux;
             sy = uy;
         }
@@ -149,8 +149,8 @@ public sealed class MapViewport
         CenterLat = (minLat + maxLat) / 2.0;
         CenterLon = (minLon + maxLon) / 2.0;
 
-        var latSpan = maxLat - minLat;
-        var lonSpan = maxLon - minLon;
+        double latSpan = maxLat - minLat;
+        double lonSpan = maxLon - minLon;
 
         if (latSpan < 1e-8 && lonSpan < 1e-8)
         {
@@ -158,15 +158,15 @@ public sealed class MapViewport
             return;
         }
 
-        var cos = CosCenter;
+        double cos = CosCenter;
         if (cos < 1e-10)
         {
             cos = 1e-10;
         }
 
         // Calculate zoom to fit both dimensions with 10% padding
-        var padW = PixelWidth * 0.9;
-        var padH = PixelHeight * 0.9;
+        double padW = PixelWidth * 0.9;
+        double padH = PixelHeight * 0.9;
         if (padW < 1)
         {
             padW = 1;
@@ -177,8 +177,8 @@ public sealed class MapViewport
             padH = 1;
         }
 
-        var zoomLat = latSpan > 1e-8 ? padH / (latSpan * DefaultPixelsPerDeg) : MaxZoom;
-        var zoomLon = lonSpan > 1e-8 ? padW / (lonSpan * cos * DefaultPixelsPerDeg) : MaxZoom;
+        double zoomLat = latSpan > 1e-8 ? padH / (latSpan * DefaultPixelsPerDeg) : MaxZoom;
+        double zoomLon = lonSpan > 1e-8 ? padW / (lonSpan * cos * DefaultPixelsPerDeg) : MaxZoom;
         Zoom = Math.Clamp(Math.Min(zoomLat, zoomLon), MinZoom, MaxZoom);
     }
 }

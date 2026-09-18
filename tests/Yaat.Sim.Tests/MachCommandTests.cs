@@ -23,12 +23,12 @@ public class MachCommandTests
     [Fact]
     public void MachCommand_SetsTargetMach_ClearsTargetSpeed()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.TargetSpeed = 300;
         ac.Targets.SpeedFloor = 250;
         ac.Targets.SpeedCeiling = 320;
 
-        var result = CommandDispatcher.Dispatch(new MachCommand(0.82), ac, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new MachCommand(0.82), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal(0.82, ac.Targets.TargetMach);
@@ -80,7 +80,7 @@ public class MachCommandTests
         TestVnasData.EnsureInitialized();
 
         // Start at IAS 250 so there's a meaningful delta from M0.82 (~279 KIAS at FL350)
-        var ac = CreateAircraft(altitude: 35000, ias: 250);
+        AircraftState ac = CreateAircraft(altitude: 35000, ias: 250);
         ac.Targets.TargetMach = 0.82;
 
         FlightPhysics.Update(ac, 1.0);
@@ -93,7 +93,7 @@ public class MachCommandTests
     [Fact]
     public void SpeedCommand_ClearsTargetMach()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.TargetMach = 0.82;
 
         CommandDispatcher.Dispatch(new SpeedCommand(250), ac, TestDispatch.Context(Random.Shared));
@@ -104,7 +104,7 @@ public class MachCommandTests
     [Fact]
     public void ResumeNormalSpeed_ClearsTargetMach()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.TargetMach = 0.82;
 
         CommandDispatcher.Dispatch(new ResumeNormalSpeedCommand(), ac, TestDispatch.Context(Random.Shared));
@@ -115,7 +115,7 @@ public class MachCommandTests
     [Fact]
     public void DeleteSpeedRestrictions_ClearsTargetMach()
     {
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.TargetMach = 0.82;
 
         CommandDispatcher.Dispatch(new DeleteSpeedRestrictionsCommand(), ac, TestDispatch.Context(Random.Shared));
@@ -128,7 +128,7 @@ public class MachCommandTests
     {
         TestVnasData.EnsureInitialized();
 
-        var ac = CreateAircraft();
+        AircraftState ac = CreateAircraft();
         ac.Targets.TargetMach = 0.82;
 
         CommandDispatcher.Dispatch(new ReduceToFinalApproachSpeedCommand(), ac, TestDispatch.Context(Random.Shared));

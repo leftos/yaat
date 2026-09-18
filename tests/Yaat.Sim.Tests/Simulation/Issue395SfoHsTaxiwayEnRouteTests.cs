@@ -63,7 +63,7 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
         output.WriteLine($"[{label}] segments={route.Segments.Count} sequence=\"{route.FormatTaxiwaySequence()}\" summary=\"{route.ToSummary()}\"");
         output.WriteLine($"[{label}] taxiways=[{string.Join(", ", SegmentTaxiways(route))}]");
         output.WriteLine($"[{label}] warnings=[{string.Join(" | ", route.Warnings)}]");
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             output.WriteLine($"[{label}]   HS node={hs.NodeId} target={hs.TargetName} reason={hs.Reason}");
         }
@@ -77,7 +77,7 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
     {
         Assert.Equal("T7A A A1", route.FormatTaxiwaySequence());
 
-        var taxiways = SegmentTaxiways(route);
+        List<string> taxiways = SegmentTaxiways(route);
         Assert.DoesNotContain("A2", taxiways, StringComparer.OrdinalIgnoreCase);
         Assert.DoesNotContain("M1", taxiways, StringComparer.OrdinalIgnoreCase);
         Assert.DoesNotContain("H", taxiways, StringComparer.OrdinalIgnoreCase);
@@ -101,8 +101,8 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
     [Fact]
     public void Skw6887_HsH_RouteStaysOnAToA1()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -110,9 +110,9 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
 
         engine.Replay(recording, JustAfterSpawn);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         LogRoute("replay", route);
 
@@ -122,8 +122,8 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
     [Fact]
     public void Skw6887_HoldsShortOfH_ThenResumesToRunway1R()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -136,7 +136,7 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
         for (int t = 0; t < 300; t++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
             Assert.False(
                 ac.Phases?.CurrentPhase is CrossingRunwayPhase,
@@ -153,7 +153,7 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
 
         Assert.NotNull(holdShortH);
 
-        var result = engine.SendCommand(Callsign, "RES");
+        CommandResult result = engine.SendCommand(Callsign, "RES");
         Assert.True(result.Success, $"RES failed: {result.Message}");
 
         // Keep replaying the recording's other actions (the LUAW/CTO cycle that drains the 1R
@@ -162,13 +162,13 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
         for (int t = 0; t < 600; t++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
             Assert.False(ac.Phases?.CurrentPhase is CrossingRunwayPhase, $"Entered a runway crossing on the way to 1R at +{t}s after RES");
 
             if (t % 60 == 0)
             {
-                var route = ac.Ground.AssignedTaxiRoute;
+                TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
                 output.WriteLine(
                     $"+{t}s phase={ac.Phases?.CurrentPhase?.GetType().Name} ias={ac.IndicatedAirspeed:F0} twy={ac.Ground.CurrentTaxiway} "
                         + $"seg={route?.CurrentSegmentIndex}/{route?.Segments.Count} queue={ac.Ground.RunwayQueuePosition} yield={ac.Ground.AutoYieldTarget}"
@@ -193,13 +193,13 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
     [Fact]
     public void TaxiT7aAA1_1R_HsH_FromF5_DoesNotDetourViaH()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
-        var f5 = layout.FindParkingByName("F5");
+        GroundNode? f5 = layout.FindParkingByName("F5");
         Assert.NotNull(f5);
 
         var ac = new AircraftState
@@ -215,13 +215,13 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
         };
         ac.Phases = new PhaseList();
 
-        var parsed = CommandParser.Parse("TAXI T7A A A1 1R HS H");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("TAXI T7A A A1 1R HS H");
         Assert.True(parsed.IsSuccess, $"parse failed: {parsed.Reason}");
-        var taxi = Assert.IsType<TaxiCommand>(parsed.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(parsed.Value);
 
-        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"TAXI failed: {result.Message}");
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         LogRoute("layout", route);
 

@@ -19,8 +19,8 @@ public static class WakeTurbulenceData
     /// <summary>Get CWT code (A-I) for an aircraft type designator. Returns null if unknown.</summary>
     public static string? GetCwt(string aircraftType)
     {
-        var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
-        return _cwtLookup.TryGetValue(baseType, out var cwt) && !string.IsNullOrEmpty(cwt) ? cwt : null;
+        string baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        return _cwtLookup.TryGetValue(baseType, out string? cwt) && !string.IsNullOrEmpty(cwt) ? cwt : null;
     }
 
     /// <summary>Coarse wake-turbulence weight class for separation purposes.</summary>
@@ -38,7 +38,7 @@ public static class WakeTurbulenceData
     /// </summary>
     public static WakeClass WakeClassForType(string aircraftType, AircraftCategory fallbackCategory)
     {
-        var cwt = GetCwt(aircraftType);
+        string? cwt = GetCwt(aircraftType);
         if (cwt is not null)
         {
             return cwt switch
@@ -74,13 +74,13 @@ public static class WakeTurbulenceData
         AircraftCategory followerCategory
     )
     {
-        var leadCwt = GetCwt(leaderType);
-        var followCwt = GetCwt(followerType);
+        string? leadCwt = GetCwt(leaderType);
+        string? followCwt = GetCwt(followerType);
         if (leadCwt is not null && followCwt is not null)
         {
             // Both CWT categories known: use the precise TBL 5-5-2 cell (a pair absent from the table
             // carries no wake requirement).
-            return CwtOnApproachMinimaNm.TryGetValue((leadCwt[0], followCwt[0]), out var nm) ? nm : 0.0;
+            return CwtOnApproachMinimaNm.TryGetValue((leadCwt[0], followCwt[0]), out double nm) ? nm : 0.0;
         }
 
         // Fall back to the coarse weight-class minima when a CWT category is unavailable.
@@ -168,10 +168,10 @@ public static class WakeTurbulenceData
     public static double TrafficDetectionRangeNm(string aircraftType, AircraftCategory fallbackCategory)
     {
         // Physical-dimensions path: most airline and GA types have real data here.
-        var acd = FaaAircraftDatabase.Get(aircraftType);
+        FaaAircraftRecord? acd = FaaAircraftDatabase.Get(aircraftType);
         if (acd is not null)
         {
-            var rangeFromDims = ComputeRangeFromDimensions(acd);
+            double rangeFromDims = ComputeRangeFromDimensions(acd);
             if (rangeFromDims > 0.0)
             {
                 return rangeFromDims;
@@ -180,7 +180,7 @@ public static class WakeTurbulenceData
 
         // Fallback 1: CWT bucket. Values derived by evaluating ComputeRangeFromDimensions
         // on a representative type per bucket with the 9 arcmin threshold (see below).
-        var cwt = GetCwt(aircraftType);
+        string? cwt = GetCwt(aircraftType);
         if (cwt is not null)
         {
             return cwt switch

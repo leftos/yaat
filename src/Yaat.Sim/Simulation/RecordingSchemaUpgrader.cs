@@ -59,8 +59,8 @@ public static class RecordingSchemaUpgrader
 
     private static RecordingUpgradeResult UpgradeSessionRecordingBytes(byte[] input)
     {
-        var json = RecordingCompression.Decompress(input);
-        var recording =
+        string json = RecordingCompression.Decompress(input);
+        SessionRecording recording =
             JsonSerializer.Deserialize<SessionRecording>(json, RecordingJsonOptions.Default)
             ?? throw new InvalidOperationException("Failed to deserialize recording.");
 
@@ -69,7 +69,7 @@ public static class RecordingSchemaUpgrader
             return RecordingUpgradeResult.NeedsResim(input);
         }
 
-        var changed = MigrateSnapshots(recording.Snapshots!);
+        bool changed = MigrateSnapshots(recording.Snapshots!);
         changed |= RewriteRecordedCanonicals(
             recording.Actions,
             ResolveBays(recording.ArtccConfigJson, recording.StudentPositionState?.Position?.Callsign, recording.ScenarioJson)
@@ -79,7 +79,7 @@ public static class RecordingSchemaUpgrader
             return RecordingUpgradeResult.Unchanged(input);
         }
 
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(recording, RecordingJsonOptions.Default);
+        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(recording, RecordingJsonOptions.Default);
         return RecordingUpgradeResult.Migrated(RecordingCompression.Compress(bytes));
     }
 
@@ -94,13 +94,13 @@ public static class RecordingSchemaUpgrader
             return [];
         }
 
-        var config = JsonSerializer.Deserialize<ArtccConfigRoot>(artccConfigJson, RecordingJsonOptions.Default);
+        ArtccConfigRoot? config = JsonSerializer.Deserialize<ArtccConfigRoot>(artccConfigJson, RecordingJsonOptions.Default);
         if (config is null)
         {
             return [];
         }
 
-        var callsign = positionCallsign ?? ResolveStudentCallsignFromScenario(config, scenarioJson);
+        string? callsign = positionCallsign ?? ResolveStudentCallsignFromScenario(config, scenarioJson);
         if (string.IsNullOrEmpty(callsign))
         {
             return [];
@@ -126,31 +126,31 @@ public static class RecordingSchemaUpgrader
         }
 
         using var doc = JsonDocument.Parse(scenarioJson);
-        if (!doc.RootElement.TryGetProperty("studentPositionId", out var idElement) || idElement.ValueKind != JsonValueKind.String)
+        if (!doc.RootElement.TryGetProperty("studentPositionId", out JsonElement idElement) || idElement.ValueKind != JsonValueKind.String)
         {
             return null;
         }
 
-        var positionId = idElement.GetString();
+        string? positionId = idElement.GetString();
         if (string.IsNullOrEmpty(positionId))
         {
             return null;
         }
 
-        var (_, _, _, position) = config.FindPosition(positionId);
+        (string? _, string? _, string? _, PositionConfig? position) = config.FindPosition(positionId);
         return position?.Callsign;
     }
 
     private static bool RewriteRecordedCanonicals(List<RecordedAction> actions, IReadOnlyList<AccessibleBay> bays)
     {
-        var changed = false;
-        for (var i = 0; i < actions.Count; i++)
+        bool changed = false;
+        for (int i = 0; i < actions.Count; i++)
         {
             if (actions[i] is not RecordedCommand command)
             {
                 continue;
             }
-            var rewritten = HalfStripEditCanonicalRewriter.Rewrite(command.Command);
+            string rewritten = HalfStripEditCanonicalRewriter.Rewrite(command.Command);
             if (bays.Count > 0)
             {
                 rewritten = StripBayCanonicalQualifier.QualifyCompound(rewritten, bays);
@@ -175,7 +175,7 @@ public static class RecordingSchemaUpgrader
 
         if (zip.GetEntry("manifest.json") is not null)
         {
-            var (changed, output) = RewriteArchiveSnapshots(input);
+            (bool changed, byte[]? output) = RewriteArchiveSnapshots(input);
             return changed ? RecordingUpgradeResult.Migrated(output) : RecordingUpgradeResult.Unchanged(input);
         }
 
@@ -184,7 +184,7 @@ public static class RecordingSchemaUpgrader
             return UpgradeNestedArchiveBundle(input);
         }
 
-        foreach (var legacy in LegacyInlineEntries)
+        foreach (string legacy in LegacyInlineEntries)
         {
             if (zip.GetEntry(legacy) is not null)
             {
@@ -197,8 +197,8 @@ public static class RecordingSchemaUpgrader
 
     private static RecordingUpgradeResult UpgradeNestedArchiveBundle(byte[] outerBytes)
     {
-        var inner = ReadZipEntry(outerBytes, InnerRecordingEntry);
-        var (changed, newInner) = RewriteArchiveSnapshots(inner);
+        byte[] inner = ReadZipEntry(outerBytes, InnerRecordingEntry);
+        (bool changed, byte[]? newInner) = RewriteArchiveSnapshots(inner);
         return changed
             ? RecordingUpgradeResult.Migrated(ReplaceZipEntry(outerBytes, InnerRecordingEntry, newInner))
             : RecordingUpgradeResult.Unchanged(outerBytes);
@@ -206,8 +206,8 @@ public static class RecordingSchemaUpgrader
 
     private static RecordingUpgradeResult UpgradeLegacyInlineBundle(byte[] outerBytes, string innerEntry)
     {
-        var inner = ReadZipEntry(outerBytes, innerEntry);
-        var result = UpgradeSessionRecordingBytes(inner);
+        byte[] inner = ReadZipEntry(outerBytes, innerEntry);
+        RecordingUpgradeResult result = UpgradeSessionRecordingBytes(inner);
         if (result.NeedsResimulation)
         {
             return RecordingUpgradeResult.NeedsResim(outerBytes);
@@ -226,28 +226,28 @@ public static class RecordingSchemaUpgrader
         using var source = new MemoryStream(archiveBytes, writable: false);
         using var sourceZip = new ZipArchive(source, ZipArchiveMode.Read);
 
-        var bays = ResolveArchiveBays(sourceZip);
+        IReadOnlyList<AccessibleBay> bays = ResolveArchiveBays(sourceZip);
 
         bool changed = false;
         using var output = new MemoryStream();
         using (var destZip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
         {
-            foreach (var entry in sourceZip.Entries)
+            foreach (ZipArchiveEntry entry in sourceZip.Entries)
             {
-                var content = ReadEntryBytes(entry);
+                byte[] content = ReadEntryBytes(entry);
                 if (IsSnapshotEntry(entry.FullName))
                 {
-                    content = MigrateSnapshotEntry(content, out var entryChanged);
+                    content = MigrateSnapshotEntry(content, out bool entryChanged);
                     changed |= entryChanged;
                 }
                 else if (entry.FullName == ActionsEntry)
                 {
-                    content = MigrateActionsEntry(content, bays, out var entryChanged);
+                    content = MigrateActionsEntry(content, bays, out bool entryChanged);
                     changed |= entryChanged;
                 }
 
-                var dest = destZip.CreateEntry(entry.FullName, CompressionLevel.NoCompression);
-                using var ds = dest.Open();
+                ZipArchiveEntry dest = destZip.CreateEntry(entry.FullName, CompressionLevel.NoCompression);
+                using Stream ds = dest.Open();
                 ds.Write(content);
             }
         }
@@ -264,31 +264,34 @@ public static class RecordingSchemaUpgrader
     /// </summary>
     private static IReadOnlyList<AccessibleBay> ResolveArchiveBays(ZipArchive zip)
     {
-        var configEntry = zip.GetEntry(ArtccConfigEntry);
+        ZipArchiveEntry? configEntry = zip.GetEntry(ArtccConfigEntry);
         if (configEntry is null)
         {
             return [];
         }
 
-        var snapshotEntry = zip.Entries.Where(e => IsSnapshotEntry(e.FullName)).OrderBy(e => e.FullName, StringComparer.Ordinal).FirstOrDefault();
+        ZipArchiveEntry? snapshotEntry = zip
+            .Entries.Where(e => IsSnapshotEntry(e.FullName))
+            .OrderBy(e => e.FullName, StringComparer.Ordinal)
+            .FirstOrDefault();
         if (snapshotEntry is null)
         {
             return [];
         }
 
-        var snapshotJson = DecompressBrotli(ReadEntryBytes(snapshotEntry));
-        var snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(snapshotJson, RecordingJsonOptions.Default);
-        var positionCallsign = snapshot?.Scenario.StudentPosition?.Callsign;
-        var scenarioEntry = zip.GetEntry(ScenarioEntry);
-        var scenarioJson = scenarioEntry is null ? null : DecompressBrotli(ReadEntryBytes(scenarioEntry));
+        string snapshotJson = DecompressBrotli(ReadEntryBytes(snapshotEntry));
+        StateSnapshotDto? snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(snapshotJson, RecordingJsonOptions.Default);
+        string? positionCallsign = snapshot?.Scenario.StudentPosition?.Callsign;
+        ZipArchiveEntry? scenarioEntry = zip.GetEntry(ScenarioEntry);
+        string? scenarioJson = scenarioEntry is null ? null : DecompressBrotli(ReadEntryBytes(scenarioEntry));
 
         return ResolveBays(DecompressBrotli(ReadEntryBytes(configEntry)), positionCallsign, scenarioJson);
     }
 
     private static byte[] MigrateActionsEntry(byte[] brotliContent, IReadOnlyList<AccessibleBay> bays, out bool changed)
     {
-        var json = DecompressBrotli(brotliContent);
-        var actions =
+        string json = DecompressBrotli(brotliContent);
+        List<RecordedAction> actions =
             JsonSerializer.Deserialize<List<RecordedAction>>(json, RecordingJsonOptions.Default)
             ?? throw new InvalidOperationException("Failed to deserialize actions entry.");
 
@@ -302,8 +305,8 @@ public static class RecordingSchemaUpgrader
         // RecordingArchive.ReadBrotliEntry) rather than via the autodetecting
         // RecordingCompression.Decompress, whose plain-JSON heuristic can misfire on a Brotli stream
         // whose first byte happens to be '{' or '['.
-        var json = DecompressBrotli(brotliContent);
-        var dto =
+        string json = DecompressBrotli(brotliContent);
+        StateSnapshotDto dto =
             JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)
             ?? throw new InvalidOperationException("Failed to deserialize snapshot entry.");
 
@@ -315,14 +318,14 @@ public static class RecordingSchemaUpgrader
 
         SnapshotSchemaMigrator.Migrate(dto);
         changed = true;
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(dto, RecordingJsonOptions.Default);
+        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(dto, RecordingJsonOptions.Default);
         return RecordingCompression.Compress(bytes);
     }
 
     private static bool MigrateSnapshots(List<TimedSnapshot> snapshots)
     {
         bool changed = false;
-        foreach (var snapshot in snapshots)
+        foreach (TimedSnapshot snapshot in snapshots)
         {
             if (snapshot.State.SchemaVersion != SnapshotSchemaMigrator.CurrentSchemaVersion)
             {
@@ -343,7 +346,7 @@ public static class RecordingSchemaUpgrader
     {
         using var ms = new MemoryStream(zipBytes, writable: false);
         using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
-        var entry = zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Zip entry not found: {entryName}");
+        ZipArchiveEntry entry = zip.GetEntry(entryName) ?? throw new InvalidOperationException($"Zip entry not found: {entryName}");
         return ReadEntryBytes(entry);
     }
 
@@ -355,11 +358,11 @@ public static class RecordingSchemaUpgrader
         using var output = new MemoryStream();
         using (var destZip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
         {
-            foreach (var entry in sourceZip.Entries)
+            foreach (ZipArchiveEntry entry in sourceZip.Entries)
             {
-                var content = string.Equals(entry.FullName, entryName, StringComparison.Ordinal) ? newContent : ReadEntryBytes(entry);
-                var dest = destZip.CreateEntry(entry.FullName, CompressionLevel.Optimal);
-                using var ds = dest.Open();
+                byte[] content = string.Equals(entry.FullName, entryName, StringComparison.Ordinal) ? newContent : ReadEntryBytes(entry);
+                ZipArchiveEntry dest = destZip.CreateEntry(entry.FullName, CompressionLevel.Optimal);
+                using Stream ds = dest.Open();
                 ds.Write(content);
             }
         }
@@ -369,7 +372,7 @@ public static class RecordingSchemaUpgrader
 
     private static byte[] ReadEntryBytes(ZipArchiveEntry entry)
     {
-        using var es = entry.Open();
+        using Stream es = entry.Open();
         using var ms = new MemoryStream();
         es.CopyTo(ms);
         return ms.ToArray();

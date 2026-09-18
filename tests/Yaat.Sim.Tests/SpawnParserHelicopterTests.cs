@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Scenarios;
@@ -26,7 +27,7 @@ public class SpawnParserHelicopterTests
     [Fact]
     public void Parse_HEngine_WithExplicitHeliType_ParkingVariant()
     {
-        var (request, error) = SpawnParser.Parse("V S H @H1 R22");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S H @H1 R22");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -39,7 +40,7 @@ public class SpawnParserHelicopterTests
     [Fact]
     public void Parse_HEngine_NoExplicitType_LeavesTypeForAutoSelection()
     {
-        var (request, error) = SpawnParser.Parse("V S H @H1");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S H @H1");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -55,7 +56,7 @@ public class SpawnParserHelicopterTests
     [InlineData("V H H @H1")]
     public void Parse_HEngine_AcceptedForAnyWeight(string args)
     {
-        var (request, error) = SpawnParser.Parse(args);
+        (SpawnRequest? request, string? error) = SpawnParser.Parse(args);
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -72,7 +73,7 @@ public class SpawnParserHelicopterTests
             return; // specs data unavailable in this environment
         }
 
-        var (request, error) = SpawnParser.Parse("V S H @H1 PUMA");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("V S H @H1 PUMA");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -85,7 +86,7 @@ public class SpawnParserHelicopterTests
     {
         // Guards the data-driven all-letter detector: KOAK is a 4-letter all-letter airport ICAO,
         // not an aircraft type, so it must remain the destination airport.
-        var (request, error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R LVL KOAK");
+        (SpawnRequest? request, string? error) = SpawnParser.Parse("I H J TBARR.TBARR4.34R LVL KOAK");
 
         Assert.Null(error);
         Assert.NotNull(request);
@@ -102,14 +103,14 @@ public class SpawnParserHelicopterTests
             return;
         }
 
-        var groundLayout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? groundLayout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(groundLayout);
 
-        var (request, parseError) = SpawnParser.Parse("V S H @NEW1");
+        (SpawnRequest? request, string? parseError) = SpawnParser.Parse("V S H @NEW1");
         Assert.Null(parseError);
         Assert.NotNull(request);
 
-        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout, new Random(7), new BeaconCodePool());
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout, new Random(7), new BeaconCodePool());
 
         Assert.Null(error);
         Assert.NotNull(state);
@@ -131,14 +132,14 @@ public class SpawnParserHelicopterTests
             return;
         }
 
-        var groundLayout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? groundLayout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(groundLayout);
 
-        var (request, parseError) = SpawnParser.Parse("V S H @NEW1 H60");
+        (SpawnRequest? request, string? parseError) = SpawnParser.Parse("V S H @NEW1 H60");
         Assert.Null(parseError);
         Assert.NotNull(request);
 
-        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout, new Random(7), new BeaconCodePool());
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout, new Random(7), new BeaconCodePool());
 
         Assert.Null(error);
         Assert.NotNull(state);
@@ -168,7 +169,14 @@ public class SpawnParserHelicopterTests
             Altitude = 3000,
         };
 
-        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, new Random(11), new BeaconCodePool());
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(
+            request,
+            "OAK",
+            [],
+            groundLayout: null,
+            new Random(11),
+            new BeaconCodePool()
+        );
 
         Assert.Null(error);
         Assert.NotNull(state);

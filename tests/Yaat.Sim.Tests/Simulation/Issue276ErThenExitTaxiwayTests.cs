@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -29,7 +30,7 @@ public class Issue276ErThenExitTaxiwayTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -44,8 +45,8 @@ public class Issue276ErThenExitTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void LXJ574_ExitsRightAtD_NotLeft()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -57,7 +58,7 @@ public class Issue276ErThenExitTaxiwayTests(ITestOutputHelper output)
         // Replay to just before touchdown/exit resolution, then tick to the exit.
         engine.Replay(recording, 460);
 
-        var ac = engine.FindAircraft("LXJ574");
+        AircraftState? ac = engine.FindAircraft("LXJ574");
         Assert.NotNull(ac);
         output.WriteLine(
             $"t=460: alt={ac.Altitude:F0} gs={ac.GroundSpeed:F0} hdg={ac.TrueHeading.Degrees:F0} phase={ac.Phases?.CurrentPhase?.GetType().Name}"
@@ -112,7 +113,7 @@ public class Issue276ErThenExitTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void NamedTaxiwayWithUnsupportedSide_FallsBackToOtherSide()
     {
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         if (layout is null)
         {
             return;
@@ -122,10 +123,15 @@ public class Issue276ErThenExitTaxiwayTests(ITestOutputHelper output)
 
         // C3's runway branch node is at ~(37.628669,-122.393256); locate by position
         // so the test is robust to node-id churn.
-        var centerlineNode = layout.FindNearestCenterlineNode(37.628669, -122.393256, heading, "28R");
+        GroundNode? centerlineNode = layout.FindNearestCenterlineNode(37.628669, -122.393256, heading, "28R");
         Assert.NotNull(centerlineNode);
 
-        var result = layout.FindAdjacentHoldShort(centerlineNode, "28R", heading, new ExitPreference { Side = ExitSide.Left, Taxiway = "C3" });
+        (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? result = layout.FindAdjacentHoldShort(
+            centerlineNode,
+            "28R",
+            heading,
+            new ExitPreference { Side = ExitSide.Left, Taxiway = "C3" }
+        );
 
         Assert.NotNull(result);
         Assert.Equal("C3", result.Value.Taxiway);

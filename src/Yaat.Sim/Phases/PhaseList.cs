@@ -297,7 +297,7 @@ public sealed class PhaseList
 
     public void AdvanceToNext(PhaseContext ctx)
     {
-        var current = CurrentPhase;
+        Phase? current = CurrentPhase;
         if (current is not null)
         {
             current.Status = PhaseStatus.Completed;
@@ -360,7 +360,7 @@ public sealed class PhaseList
     {
         while (CurrentPhase is not null && CurrentPhase is not T)
         {
-            var skipped = CurrentPhase;
+            Phase skipped = CurrentPhase;
             skipped.Status = PhaseStatus.Skipped;
             skipped.OnEnd(ctx, PhaseStatus.Skipped);
             CurrentIndex++;
@@ -418,9 +418,9 @@ public sealed class PhaseList
             LahsoHoldShort = dto.LahsoHoldShort is not null ? LahsoTarget.FromSnapshot(dto.LahsoHoldShort) : null,
         };
 
-        foreach (var phaseDto in dto.Phases)
+        foreach (PhaseDto phaseDto in dto.Phases)
         {
-            var phase = RestorePhase(phaseDto, groundLayout);
+            Phase phase = RestorePhase(phaseDto, groundLayout);
             list.Add(phase);
         }
 
@@ -502,7 +502,7 @@ public sealed class PhaseList
     {
         var target = new LatLon(dto.TargetLat, dto.TargetLon);
         int? spotNodeId = dto.Route?.Segments is { Count: > 0 } segments ? segments[^1].ToNodeId : null;
-        if ((groundLayout is { } layout) && (spotNodeId is { } nodeId) && layout.Nodes.TryGetValue(nodeId, out var spotNode))
+        if ((groundLayout is { } layout) && (spotNodeId is { } nodeId) && layout.Nodes.TryGetValue(nodeId, out GroundNode? spotNode))
         {
             target = spotNode.Position;
         }

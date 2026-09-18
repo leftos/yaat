@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
@@ -41,14 +42,14 @@ public class Issue172Jbu577ClearRunwayTests(ITestOutputHelper output)
     [Fact]
     public void Clrwy_FromTailOverRunwayHold_PullsForwardClearOfRunwayAndHolds()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
 
         // Replay to JBU577 holding short of B with its tail over the runway. Recorded commands
@@ -82,15 +83,15 @@ public class Issue172Jbu577ClearRunwayTests(ITestOutputHelper output)
         Assert.NotNull(jbu);
         var holdPhase = jbu.Phases?.CurrentPhase as HoldingShortPhase;
         Assert.NotNull(holdPhase);
-        var runwayNodeId = holdPhase.HoldShort.TailOverRunwayNodeId;
+        int? runwayNodeId = holdPhase.HoldShort.TailOverRunwayNodeId;
         Assert.NotNull(runwayNodeId);
-        var runwayNode = layout.Nodes[runwayNodeId.Value];
+        GroundNode runwayNode = layout.Nodes[runwayNodeId.Value];
 
-        var route = jbu.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = jbu.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         output.WriteLine($"Route: {route.ToSummary()} ({route.Segments.Count} segments)");
         output.WriteLine("  segs: " + string.Join("; ", route.Segments.Select(s => $"{s.TaxiwayName}@{s.ToNodeId}")));
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             output.WriteLine(
                 $"  HS: node={hs.NodeId} reason={hs.Reason} target={hs.TargetName} cleared={hs.IsCleared} tailOver={hs.TailOverRunwayNodeId}"
@@ -102,7 +103,7 @@ public class Issue172Jbu577ClearRunwayTests(ITestOutputHelper output)
         output.WriteLine($"BEFORE: phase={jbu.Phases?.CurrentPhase?.GetType().Name} distRunway={distRunwayBefore:F0} occupied={occupiedBefore}");
         Assert.True(occupiedBefore, "runway node should be occupied while JBU577 holds with its tail over it");
 
-        var result = engine.SendCommand("JBU577", "CLRWY");
+        CommandResult result = engine.SendCommand("JBU577", "CLRWY");
         output.WriteLine($"CLRWY echo: {result.Message}");
         Assert.True(result.Success, result.Message);
 

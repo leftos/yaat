@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -70,7 +71,10 @@ public class VisualTrafficWeatherSourceTests(ITestOutputHelper output)
 
     private static void AssertNearestStationIsHayward(WeatherProfile weather, AircraftState follower)
     {
-        var near = weather.GetWeatherNearPosition(follower.Position, MetarInterpolator.MaxInterpolationRangeNm);
+        (MetarParser.ParsedMetar Metar, string StationAirportId)? near = weather.GetWeatherNearPosition(
+            follower.Position,
+            MetarInterpolator.MaxInterpolationRangeNm
+        );
         Assert.NotNull(near);
         Assert.Equal("KHWD", near.Value.Item2, ignoreCase: true);
     }
@@ -78,23 +82,23 @@ public class VisualTrafficWeatherSourceTests(ITestOutputHelper output)
     [Fact]
     public void MaintainedTrafficContact_DestinationMetarBad_LocalStationClear_HoldsContact()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return; // navdata absent → skip, per no-synthetic-data convention
         }
 
-        var (leader, trailer, finalCourse) = EstablishCvaFollowWithTrafficInSight(engine);
+        (AircraftState? leader, AircraftState? trailer, double finalCourse) = EstablishCvaFollowWithTrafficInSight(engine);
 
         // Destination reports 2SM fog, but the air the follower is flying in (KHWD,
         // the nearest station) is clear. The 5 nm gap far exceeds the destination's
         // 2 SM maintained range (2 × 0.869 × 1.25 ≈ 2.2 nm) — only destination-sourced
         // weather would break this contact.
-        var weather = TwoStations("2SM CLR 20/12 A2992", "10SM CLR 20/12 A2992");
+        WeatherProfile weather = TwoStations("2SM CLR 20/12 A2992", "10SM CLR 20/12 A2992");
         AssertNearestStationIsHayward(weather, trailer);
         engine.World.Weather = weather;
 
-        var (newLeadLat, newLeadLon) = GeoMath.ProjectPointRaw(trailer.Position.Lat, trailer.Position.Lon, finalCourse, 5.0);
+        (double newLeadLat, double newLeadLon) = GeoMath.ProjectPointRaw(trailer.Position.Lat, trailer.Position.Lon, finalCourse, 5.0);
         leader.Position = new LatLon(newLeadLat, newLeadLon);
 
         engine.TickVisualDetection();
@@ -108,22 +112,22 @@ public class VisualTrafficWeatherSourceTests(ITestOutputHelper output)
     [Fact]
     public void MaintainedTrafficContact_DestinationClear_LocalStationBad_BreaksContact()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var (leader, trailer, finalCourse) = EstablishCvaFollowWithTrafficInSight(engine);
+        (AircraftState? leader, AircraftState? trailer, double finalCourse) = EstablishCvaFollowWithTrafficInSight(engine);
 
         // Converse: the destination is clear but the follower's own air mass has
         // collapsed to 2SM. A 5 nm gap is genuinely out of sight — destination-sourced
         // weather would wrongly keep the contact alive.
-        var weather = TwoStations("10SM CLR 20/12 A2992", "2SM CLR 20/12 A2992");
+        WeatherProfile weather = TwoStations("10SM CLR 20/12 A2992", "2SM CLR 20/12 A2992");
         AssertNearestStationIsHayward(weather, trailer);
         engine.World.Weather = weather;
 
-        var (newLeadLat, newLeadLon) = GeoMath.ProjectPointRaw(trailer.Position.Lat, trailer.Position.Lon, finalCourse, 5.0);
+        (double newLeadLat, double newLeadLon) = GeoMath.ProjectPointRaw(trailer.Position.Lat, trailer.Position.Lon, finalCourse, 5.0);
         leader.Position = new LatLon(newLeadLat, newLeadLon);
         Assert.True(GeoMath.DistanceNm(trailer.Position, leader.Position) > (2.0 * SmToNm * 1.25));
 
@@ -138,13 +142,13 @@ public class VisualTrafficWeatherSourceTests(ITestOutputHelper output)
     [Fact]
     public void TrafficAcquisition_UsesOwnshipNearestStation()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var (_, trailer, _) = EstablishCvaFollowWithTrafficInSight(engine);
+        (AircraftState _, AircraftState? trailer, double _) = EstablishCvaFollowWithTrafficInSight(engine);
 
         // Probe the acquire path directly: force the transient lost-contact state (in
         // production it exists only between a loss event and its consequence) while keeping
@@ -155,7 +159,7 @@ public class VisualTrafficWeatherSourceTests(ITestOutputHelper output)
         // A BKN deck at the follower's local station lies between the follower (3500 ft)
         // and the lead (3000 ft); the destination is clear. Acquisition must fail —
         // destination-sourced weather would see a clear sky and acquire immediately.
-        var weather = TwoStations("10SM CLR 20/12 A2992", "10SM BKN032 20/12 A2992");
+        WeatherProfile weather = TwoStations("10SM CLR 20/12 A2992", "10SM BKN032 20/12 A2992");
         AssertNearestStationIsHayward(weather, trailer);
         engine.World.Weather = weather;
 
@@ -180,15 +184,15 @@ public class VisualTrafficWeatherSourceTests(ITestOutputHelper output)
     [Fact]
     public void NoFlapAgainstCheckLeadLifecycle()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var (_, trailer, _) = EstablishCvaFollowWithTrafficInSight(engine);
+        (AircraftState _, AircraftState? trailer, double _) = EstablishCvaFollowWithTrafficInSight(engine);
 
-        var weather = TwoStations("2SM CLR 20/12 A2992", "10SM CLR 20/12 A2992");
+        WeatherProfile weather = TwoStations("2SM CLR 20/12 A2992", "10SM CLR 20/12 A2992");
         AssertNearestStationIsHayward(weather, trailer);
         engine.World.Weather = weather;
 
@@ -211,16 +215,16 @@ public class VisualTrafficWeatherSourceTests(ITestOutputHelper output)
     /// </summary>
     private static (AircraftState Leader, AircraftState Trailer, double FinalCourse) EstablishCvaFollowWithTrafficInSight(SimulationEngine engine)
     {
-        var navDb = NavigationDatabase.Instance;
-        var rwy = navDb.GetRunway("OAK", "30");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? rwy = navDb.GetRunway("OAK", "30");
         Assert.NotNull(rwy);
         double finalCourse = rwy.TrueHeading.Degrees;
         double reciprocal = (finalCourse + 180) % 360;
 
-        var (leadLat, leadLon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 10.0);
-        var (trailLat, trailLon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 15.0);
-        var leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 3000);
-        var trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 3500);
+        (double leadLat, double leadLon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 10.0);
+        (double trailLat, double trailLon) = GeoMath.ProjectPointRaw(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, 15.0);
+        AircraftState leader = MakeB738OnFinal("LEAD1", leadLat, leadLon, finalCourse, altitude: 3000);
+        AircraftState trailer = MakeB738OnFinal("TRAIL1", trailLat, trailLon, finalCourse, altitude: 3500);
         engine.World.AddAircraft(leader);
         engine.World.AddAircraft(trailer);
 

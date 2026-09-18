@@ -32,7 +32,7 @@ public static class OneWayResolver
 
     private static HashSet<(int, int)> BuildForLayout(AirportGroundLayout layout)
     {
-        var db = NavigationDatabase.InstanceOrNull;
+        NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
         IReadOnlyList<OneWayConstraint> constraints = db?.AirportSidecars.GetOneWayConstraints(layout.AirportId) ?? [];
         return Resolve(layout, constraints);
     }
@@ -44,7 +44,7 @@ public static class OneWayResolver
     public static HashSet<(int From, int To)> Resolve(AirportGroundLayout layout, IReadOnlyList<OneWayConstraint> constraints)
     {
         var forbidden = new HashSet<(int, int)>();
-        foreach (var constraint in constraints)
+        foreach (OneWayConstraint constraint in constraints)
         {
             ResolveConstraint(layout, constraint, forbidden);
         }
@@ -54,7 +54,7 @@ public static class OneWayResolver
 
     private static void ResolveConstraint(AirportGroundLayout layout, OneWayConstraint constraint, HashSet<(int, int)> forbidden)
     {
-        var nodes = PolylineSnapper.Snap(layout, constraint.Path, "One-way", Log);
+        List<GroundNode>? nodes = PolylineSnapper.Snap(layout, constraint.Path, "One-way", Log);
         if (nodes is null)
         {
             return;
@@ -62,7 +62,7 @@ public static class OneWayResolver
 
         for (int i = 0; i + 1 < nodes.Count; i++)
         {
-            var span = PolylineSnapper.BuildSpan(layout, nodes[i], nodes[i + 1]);
+            List<(int From, int To)>? span = PolylineSnapper.BuildSpan(layout, nodes[i], nodes[i + 1]);
             if (span is null)
             {
                 Log.LogWarning(
@@ -74,7 +74,7 @@ public static class OneWayResolver
                 continue;
             }
 
-            foreach (var (from, to) in span)
+            foreach ((int from, int to) in span)
             {
                 forbidden.Add((to, from));
                 if (constraint.BlockBoth)

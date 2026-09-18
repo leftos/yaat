@@ -216,11 +216,11 @@ public partial class VStripsView : UserControl
         var result = new List<IFindableItem>();
         if (DataContext is VStripsViewModel { SelectedBay: { } bay })
         {
-            foreach (var rack in bay.Racks)
+            foreach (StripRackViewModel rack in bay.Racks)
             {
                 // Racks render bottom-up (index 0 at the visual bottom), so walk the
                 // collection in reverse to yield matches top-to-bottom.
-                for (var i = rack.Strips.Count - 1; i >= 0; i--)
+                for (int i = rack.Strips.Count - 1; i >= 0; i--)
                 {
                     result.Add(rack.Strips[i]);
                 }
@@ -238,8 +238,11 @@ public partial class VStripsView : UserControl
         Avalonia.Threading.Dispatcher.UIThread.Post(
             () =>
             {
-                var host = this.FindControl<ItemsControl>("RacksHost");
-                var strip = host?.GetVisualDescendants().OfType<FlightStripControl>().FirstOrDefault(c => ReferenceEquals(c.Tag, target));
+                ItemsControl? host = this.FindControl<ItemsControl>("RacksHost");
+                FlightStripControl? strip = host
+                    ?.GetVisualDescendants()
+                    .OfType<FlightStripControl>()
+                    .FirstOrDefault(c => ReferenceEquals(c.Tag, target));
                 strip?.BringIntoView();
             },
             Avalonia.Threading.DispatcherPriority.Loaded
@@ -249,8 +252,8 @@ public partial class VStripsView : UserControl
     /// <summary>Handles the Find keys (Ctrl+F / F3 / Shift+F3 / Esc); returns true if consumed.</summary>
     private bool HandleFindKeys(KeyEventArgs e)
     {
-        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
-        var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
 
         if (ctrl && (e.Key == Key.F))
         {
@@ -293,7 +296,7 @@ public partial class VStripsView : UserControl
         {
             return;
         }
-        var pinned = StickyScroll.PinnedBottomOffset(
+        double? pinned = StickyScroll.PinnedBottomOffset(
             scrollViewer.Offset.Y,
             scrollViewer.Extent.Height,
             scrollViewer.Viewport.Height,
@@ -326,9 +329,9 @@ public partial class VStripsView : UserControl
         }
 
         var menu = new MenuFlyout();
-        foreach (var facility in vm.AccessibleFacilities)
+        foreach (AccessibleFacilityDto facility in vm.AccessibleFacilities)
         {
-            var header = facility.IsStudentFacility ? $"{facility.FacilityName} (own)" : facility.FacilityName;
+            string header = facility.IsStudentFacility ? $"{facility.FacilityName} (own)" : facility.FacilityName;
             var item = new MenuItem { Header = header, Tag = facility };
             item.Click += async (_, _) =>
             {
@@ -398,7 +401,7 @@ public partial class VStripsView : UserControl
             }
             if (v is Border b && b.Tag is StripRackViewModel rack)
             {
-                var index = ComputeDropIndex(b, rack, rootPos);
+                int index = ComputeDropIndex(b, rack, rootPos);
                 return new DropTarget(DropTargetKind.Rack, b, rack, index, (DataContext as VStripsViewModel)?.SelectedBay, null);
             }
             v = v.GetVisualParent() as Visual;
@@ -424,13 +427,13 @@ public partial class VStripsView : UserControl
     /// </summary>
     private int ComputeDropIndex(Border rackBorder, StripRackViewModel rack, Point rootPos)
     {
-        var stripsHost = rackBorder.FindDescendantOfType<ItemsControl>();
+        ItemsControl? stripsHost = rackBorder.FindDescendantOfType<ItemsControl>();
         if (stripsHost is null || rack.Strips.Count == 0)
         {
             return 0;
         }
 
-        var visible = GetVisiblePresenters(stripsHost, rack);
+        List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> visible = GetVisiblePresenters(stripsHost, rack);
         if (visible.Count == 0)
         {
             return 0;
@@ -440,13 +443,13 @@ public partial class VStripsView : UserControl
         // space — TranslatePoint carries the LayoutTransformControl scale, so
         // the band comparison happens in the same space the presenters were
         // measured in. Null only when the host is detached mid-teardown.
-        var posInHost = this.TranslatePoint(rootPos, stripsHost);
+        Point? posInHost = this.TranslatePoint(rootPos, stripsHost);
         if (posInHost is null)
         {
             return visible.Count;
         }
-        var pos = posInHost.Value;
-        var bands = BuildUnshiftedBands(visible);
+        Point pos = posInHost.Value;
+        List<(double Top, double Bottom)> bands = BuildUnshiftedBands(visible);
         if (bands.Any(b => b.Bottom <= b.Top))
         {
             // Pre-layout — treat as append.
@@ -454,7 +457,7 @@ public partial class VStripsView : UserControl
         }
         // Anchor hysteresis to the active preview index so the gap doesn't
         // flicker while the pointer hovers a band boundary.
-        var currentIndex = ReferenceEquals(_dropPreviewRack, rack) ? _dropPreviewIndex : -1;
+        int currentIndex = ReferenceEquals(_dropPreviewRack, rack) ? _dropPreviewIndex : -1;
         return ComputeDropIndexFromBands(pos.Y, bands, currentIndex, DropIndexHysteresis);
     }
 
@@ -477,15 +480,15 @@ public partial class VStripsView : UserControl
         StripRackViewModel rack
     )
     {
-        var cache = GetCachedPresenters(stripsHost, rack);
+        List<(ContentPresenter Presenter, StripItemViewModel Vm)> cache = GetCachedPresenters(stripsHost, rack);
         var result = new List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)>(cache.Count);
-        foreach (var (presenter, vm) in cache)
+        foreach ((ContentPresenter? presenter, StripItemViewModel? vm) in cache)
         {
             if (!presenter.IsVisible)
             {
                 continue;
             }
-            var topPoint = presenter.TranslatePoint(new Point(0, 0), stripsHost);
+            Point? topPoint = presenter.TranslatePoint(new Point(0, 0), stripsHost);
             if (topPoint is null)
             {
                 continue;
@@ -505,14 +508,14 @@ public partial class VStripsView : UserControl
     /// </summary>
     private List<(ContentPresenter Presenter, StripItemViewModel Vm)> GetCachedPresenters(ItemsControl stripsHost, StripRackViewModel rack)
     {
-        if (_presenterCache.TryGetValue(rack, out var cached))
+        if (_presenterCache.TryGetValue(rack, out List<(ContentPresenter Presenter, StripItemViewModel Vm)>? cached))
         {
             return cached;
         }
-        var sourceStrip = _draggingStrip;
-        var sourceRackEqualsThis = ReferenceEquals(_draggingFromRack, rack);
+        StripItemViewModel? sourceStrip = _draggingStrip;
+        bool sourceRackEqualsThis = ReferenceEquals(_draggingFromRack, rack);
         var list = new List<(ContentPresenter Presenter, StripItemViewModel Vm)>(rack.Strips.Count);
-        foreach (var presenter in stripsHost.GetVisualDescendants().OfType<ContentPresenter>())
+        foreach (ContentPresenter presenter in stripsHost.GetVisualDescendants().OfType<ContentPresenter>())
         {
             if (presenter.Child is not FlightStripControl strip || strip.DataContext is not StripItemViewModel stripVm)
             {
@@ -544,10 +547,10 @@ public partial class VStripsView : UserControl
     )
     {
         var bands = new List<(double Top, double Bottom)>(visible.Count);
-        foreach (var (presenter, _, measuredTop) in visible)
+        foreach ((ContentPresenter? presenter, StripItemViewModel _, double measuredTop) in visible)
         {
-            var previewOffset = presenter.RenderTransform is TranslateTransform transform ? transform.Y : 0.0;
-            var top = measuredTop - previewOffset;
+            double previewOffset = presenter.RenderTransform is TranslateTransform transform ? transform.Y : 0.0;
+            double top = measuredTop - previewOffset;
             bands.Add((top, top + presenter.Bounds.Height));
         }
         return bands;
@@ -570,19 +573,19 @@ public partial class VStripsView : UserControl
         {
             return 0;
         }
-        for (var i = 0; i < bands.Count; i++)
+        for (int i = 0; i < bands.Count; i++)
         {
-            var (top, bottom) = bands[i];
+            (double top, double bottom) = bands[i];
             if (posY >= top && posY <= bottom)
             {
-                var mid = (top + bottom) / 2;
+                double mid = (top + bottom) / 2;
                 return posY < mid ? i + 1 : i;
             }
         }
         // Not inside any strip band — decide between "above the stack" (append)
         // and "below the stack" (insert at 0) by comparing against the topmost
         // strip's top. Bottom-up render means strip[count-1] has the smallest Top.
-        var stackTop = bands[^1].Top;
+        double stackTop = bands[^1].Top;
         return posY < stackTop ? bands.Count : 0;
     }
 
@@ -603,17 +606,17 @@ public partial class VStripsView : UserControl
         double hysteresisPx
     )
     {
-        var raw = ComputeDropIndexFromBands(posY, bands);
+        int raw = ComputeDropIndexFromBands(posY, bands);
         if ((currentIndex < 0) || (raw == currentIndex) || (Math.Abs(raw - currentIndex) > 1))
         {
             return raw;
         }
-        var lower = Math.Min(raw, currentIndex);
+        int lower = Math.Min(raw, currentIndex);
         if (lower >= bands.Count)
         {
             return raw;
         }
-        var boundary = (bands[lower].Top + bands[lower].Bottom) / 2;
+        double boundary = (bands[lower].Top + bands[lower].Bottom) / 2;
         if (raw > currentIndex)
         {
             // Moving up the stack (smaller Y): flip only once the pointer is
@@ -651,7 +654,7 @@ public partial class VStripsView : UserControl
 
     private async void OnStripPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        var props = e.GetCurrentPoint(this).Properties;
+        PointerPointProperties props = e.GetCurrentPoint(this).Properties;
 
         if (e.Source is not Visual hit || DataContext is not VStripsViewModel vm)
         {
@@ -671,7 +674,7 @@ public partial class VStripsView : UserControl
             return;
         }
 
-        var stripView = hit.FindAncestorOfType<FlightStripControl>();
+        FlightStripControl? stripView = hit.FindAncestorOfType<FlightStripControl>();
 
         // Right-click: strip → strip context menu; empty rack space → empty-rack
         // menu (add half-strip / separator / blank). Matches CRC's docs/crc/
@@ -684,7 +687,7 @@ public partial class VStripsView : UserControl
                 e.Handled = true;
                 return;
             }
-            var rackBorder = FindRackBorder(hit);
+            Border? rackBorder = FindRackBorder(hit);
             if (rackBorder?.Tag is StripRackViewModel rack)
             {
                 ShowEmptyRackMenu(rackBorder, rack, vm);
@@ -748,7 +751,7 @@ public partial class VStripsView : UserControl
         {
             return;
         }
-        var props = e.GetCurrentPoint(this).Properties;
+        PointerPointProperties props = e.GetCurrentPoint(this).Properties;
         if (!props.IsLeftButtonPressed)
         {
             // Button released without our PointerReleased firing (rare, e.g.
@@ -759,9 +762,9 @@ public partial class VStripsView : UserControl
             return;
         }
 
-        var pos = e.GetPosition(this);
-        var dx = pos.X - _pressPos.X;
-        var dy = pos.Y - _pressPos.Y;
+        Point pos = e.GetPosition(this);
+        double dx = pos.X - _pressPos.X;
+        double dy = pos.Y - _pressPos.Y;
         if (dx * dx + dy * dy < DragThresholdSq)
         {
             return;
@@ -780,7 +783,7 @@ public partial class VStripsView : UserControl
     private void StartPointerDrag(PointerEventArgs e, StripItemViewModel strip)
     {
         _dragState = DragState.Dragging;
-        var stripView = _pressedStripView!;
+        FlightStripControl stripView = _pressedStripView!;
         _pressedStripView = null;
 
         if (DataContext is not VStripsViewModel)
@@ -863,13 +866,13 @@ public partial class VStripsView : UserControl
     /// </summary>
     private void UpdateAutoscroll(Point rootPos)
     {
-        var scrollViewer = _racksScrollViewer;
+        ScrollViewer? scrollViewer = _racksScrollViewer;
         if (scrollViewer is null)
         {
             StopAutoscroll();
             return;
         }
-        var posInViewer = this.TranslatePoint(rootPos, scrollViewer);
+        Point? posInViewer = this.TranslatePoint(rootPos, scrollViewer);
         if (posInViewer is not { } pos || pos.X < 0 || pos.Y < 0 || pos.X > scrollViewer.Bounds.Width || pos.Y > scrollViewer.Bounds.Height)
         {
             // Pointer is outside the racks area (header, trash, printer
@@ -878,8 +881,8 @@ public partial class VStripsView : UserControl
             return;
         }
 
-        var stepX = EdgeStep(pos.X, scrollViewer.Bounds.Width);
-        var stepY = EdgeStep(pos.Y, scrollViewer.Bounds.Height);
+        double stepX = EdgeStep(pos.X, scrollViewer.Bounds.Width);
+        double stepY = EdgeStep(pos.Y, scrollViewer.Bounds.Height);
         if ((stepX == 0) && (stepY == 0))
         {
             StopAutoscroll();
@@ -916,13 +919,13 @@ public partial class VStripsView : UserControl
 
     private void OnAutoscrollTick()
     {
-        var scrollViewer = _racksScrollViewer;
+        ScrollViewer? scrollViewer = _racksScrollViewer;
         if ((_dragState != DragState.Dragging) || (scrollViewer is null))
         {
             StopAutoscroll();
             return;
         }
-        var before = scrollViewer.Offset;
+        Vector before = scrollViewer.Offset;
         scrollViewer.Offset = new Vector(before.X + _autoscrollStep.X, before.Y + _autoscrollStep.Y);
         if (scrollViewer.Offset != before)
         {
@@ -980,7 +983,7 @@ public partial class VStripsView : UserControl
         _dragPointer?.Capture(null);
         _dragPointer = null;
 
-        var target = ResolveDropTarget(e.GetPosition(this));
+        DropTarget target = ResolveDropTarget(e.GetPosition(this));
         Log.LogInformation(
             "Strip drag end: strip={StripId} target={Kind} rack={Rack} index={Index} bay={Bay}",
             strip.Id,
@@ -1064,14 +1067,14 @@ public partial class VStripsView : UserControl
         {
             return null;
         }
-        var stripsHost = target.RackBorder.FindDescendantOfType<ItemsControl>();
+        ItemsControl? stripsHost = target.RackBorder.FindDescendantOfType<ItemsControl>();
         if (stripsHost is null)
         {
             return null;
         }
 
-        var visible = GetVisiblePresenters(stripsHost, target.Rack);
-        var stripHeight = ResolveDragStripHeight(visible);
+        List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> visible = GetVisiblePresenters(stripsHost, target.Rack);
+        double stripHeight = ResolveDragStripHeight(visible);
         double topY;
         double x = 0;
         if (visible.Count == 0)
@@ -1080,11 +1083,11 @@ public partial class VStripsView : UserControl
         }
         else
         {
-            var bands = BuildUnshiftedBands(visible);
-            var idx = Math.Clamp(target.Index, 0, bands.Count);
+            List<(double Top, double Bottom)> bands = BuildUnshiftedBands(visible);
+            int idx = Math.Clamp(target.Index, 0, bands.Count);
             // Bottom-up stack: the inserted strip's bottom edge is the band
             // below it (or the current bottom strip's bottom edge for idx 0).
-            var bottomY = idx == 0 ? bands[0].Bottom : bands[idx - 1].Top;
+            double bottomY = idx == 0 ? bands[0].Bottom : bands[idx - 1].Top;
             topY = bottomY - stripHeight;
             x = visible[0].Presenter.TranslatePoint(new Point(0, 0), stripsHost)?.X ?? 0;
         }
@@ -1100,7 +1103,7 @@ public partial class VStripsView : UserControl
     /// </summary>
     private async Task SettleGhostAsync(Point destinationTopLeft)
     {
-        var translate = _dragGhostTransform;
+        TranslateTransform? translate = _dragGhostTransform;
         if (_dragGhost is null || translate is null)
         {
             return;
@@ -1204,7 +1207,7 @@ public partial class VStripsView : UserControl
             ResolveHover(_lastDragRootPos);
             return;
         }
-        var scrollViewer = _racksScrollViewer;
+        ScrollViewer? scrollViewer = _racksScrollViewer;
         if (scrollViewer is null)
         {
             return;
@@ -1244,12 +1247,12 @@ public partial class VStripsView : UserControl
     /// </summary>
     private static bool TryScrollBayBar(ScrollViewer bayBar, Vector delta)
     {
-        var max = bayBar.Extent.Width - bayBar.Viewport.Width;
+        double max = bayBar.Extent.Width - bayBar.Viewport.Width;
         if (max <= 0)
         {
             return false;
         }
-        var notch = (delta.X != 0) ? delta.X : delta.Y;
+        double notch = (delta.X != 0) ? delta.X : delta.Y;
         if (notch == 0)
         {
             return false;
@@ -1261,7 +1264,7 @@ public partial class VStripsView : UserControl
 
     private static bool PointerIsWithin(Control control, PointerEventArgs e)
     {
-        var pos = e.GetPosition(control);
+        Point pos = e.GetPosition(control);
         return (pos.X >= 0) && (pos.Y >= 0) && (pos.X <= control.Bounds.Width) && (pos.Y <= control.Bounds.Height);
     }
 
@@ -1279,7 +1282,7 @@ public partial class VStripsView : UserControl
     /// </summary>
     private void ResolveHover(Point rootPos)
     {
-        var target = ResolveDropTarget(rootPos);
+        DropTarget target = ResolveDropTarget(rootPos);
 
         SetTrashHighlight(target.Kind == DropTargetKind.Trash);
         // Light up the hovered bay button (external bays included — they are
@@ -1416,11 +1419,11 @@ public partial class VStripsView : UserControl
         {
             return;
         }
-        var stripView = this.FindControl<ItemsControl>("RacksHost")
+        FlightStripControl? stripView = this.FindControl<ItemsControl>("RacksHost")
             ?.GetVisualDescendants()
             .OfType<FlightStripControl>()
             .FirstOrDefault(c => ReferenceEquals(c.DataContext, strip));
-        var presenter = stripView?.FindAncestorOfType<ContentPresenter>();
+        ContentPresenter? presenter = stripView?.FindAncestorOfType<ContentPresenter>();
         if (presenter is not null)
         {
             presenter.IsVisible = false;
@@ -1467,7 +1470,7 @@ public partial class VStripsView : UserControl
     /// </summary>
     private void ShowDragGhost(StripItemViewModel strip, FlightStripControl sourceView, PointerEventArgs e)
     {
-        var canvas = _dragGhostCanvas;
+        Canvas? canvas = _dragGhostCanvas;
         if (canvas is null)
         {
             return;
@@ -1483,11 +1486,11 @@ public partial class VStripsView : UserControl
         // while the rack strips render at ZoomScale. Scale is listed before
         // the translate with a top-left origin, so the translate stays in
         // canvas pixels and UpdateGhostPosition's math is scale-agnostic.
-        var zoom = (DataContext as VStripsViewModel)?.ZoomScale ?? 1.0;
+        double zoom = (DataContext as VStripsViewModel)?.ZoomScale ?? 1.0;
         _ghostBaseZoom = zoom;
 
-        var pointerInCanvas = e.GetPosition(canvas);
-        var stripTopLeft = sourceView.TranslatePoint(new Point(0, 0), canvas);
+        Point pointerInCanvas = e.GetPosition(canvas);
+        Point? stripTopLeft = sourceView.TranslatePoint(new Point(0, 0), canvas);
         _ghostGrabOffset = stripTopLeft is { } topLeft
             ? new Point(Math.Max(0, pointerInCanvas.X - topLeft.X), Math.Max(0, pointerInCanvas.Y - topLeft.Y))
             : new Point(24, 16);
@@ -1630,7 +1633,7 @@ public partial class VStripsView : UserControl
     /// </summary>
     private void ShowStripContextMenu(Control anchor, StripItemViewModel strip, VStripsViewModel vm)
     {
-        var menu = BuildStripContextMenu(strip, vm, anchor);
+        MenuFlyout menu = BuildStripContextMenu(strip, vm, anchor);
         // showAtPointer: true anchors the flyout at the current cursor
         // position rather than the anchor control's top-left, which for
         // a full-width rack Border would land far from where the user
@@ -1649,7 +1652,7 @@ public partial class VStripsView : UserControl
     /// </summary>
     internal MenuFlyout BuildStripContextMenu(StripItemViewModel strip, VStripsViewModel vm, Control? editorAnchor = null)
     {
-        var anchor = editorAnchor ?? (Control)this;
+        Control anchor = editorAnchor ?? (Control)this;
         var menu = new MenuFlyout();
 
         // Every emit dispatches by strip id, so scanned copies
@@ -1669,18 +1672,18 @@ public partial class VStripsView : UserControl
             var editLines = new MenuItem { Header = "Edit lines" };
             editLines.Click += (_, _) =>
             {
-                var editor = this.FindControl<InlineTextEditPopup>("InlineEditor");
+                InlineTextEditPopup? editor = this.FindControl<InlineTextEditPopup>("InlineEditor");
                 if (editor is null)
                 {
                     return;
                 }
-                var initial = string.Join(" / ", strip.FieldValues.Where(v => !string.IsNullOrEmpty(v)));
+                string initial = string.Join(" / ", strip.FieldValues.Where(v => !string.IsNullOrEmpty(v)));
                 editor.Open(
                     anchor,
                     initial,
                     text =>
                     {
-                        var parts = text.Split(" / ", StringSplitOptions.None);
+                        string[] parts = text.Split(" / ", StringSplitOptions.None);
                         _ = vm.AmendHalfStripAsync(strip, parts);
                     }
                 );
@@ -1693,21 +1696,21 @@ public partial class VStripsView : UserControl
             var editLabel = new MenuItem { Header = "Edit label" };
             editLabel.Click += (_, _) =>
             {
-                var editor = this.FindControl<InlineTextEditPopup>("InlineEditor");
+                InlineTextEditPopup? editor = this.FindControl<InlineTextEditPopup>("InlineEditor");
                 if (editor is null)
                 {
                     return;
                 }
-                var initial = strip.FieldValues.Length > 0 ? strip.FieldValues[0] : "";
+                string initial = strip.FieldValues.Length > 0 ? strip.FieldValues[0] : "";
                 editor.Open(anchor, initial, text => _ = vm.EditSeparatorLabelAsync(strip, text));
             };
             menu.Items.Add(editLabel);
         }
 
         var pushMenu = new MenuItem { Header = "Push to" };
-        foreach (var bay in vm.Bays)
+        foreach (StripBayViewModel bay in vm.Bays)
         {
-            var baySnapshot = bay;
+            StripBayViewModel baySnapshot = bay;
             var item = new MenuItem { Header = bay.IsExternal ? $"{bay.Name}  ↗" : bay.Name };
             // "Push to <bay>" from the context menu appends to the tail of
             // rack 0 — the new strip takes the first-available bottom slot.
@@ -1719,14 +1722,14 @@ public partial class VStripsView : UserControl
         // "Push all in rack to" — bulk move every strip in this strip's
         // rack. Hidden when the rack only holds this single strip (then
         // "Push to" already does the same job).
-        var (_, sourceRack) = FindRackContaining(vm, strip);
+        (StripBayViewModel? _, StripRackViewModel? sourceRack) = FindRackContaining(vm, strip);
         if (sourceRack is not null && sourceRack.Strips.Count > 1)
         {
             var pushAllMenu = new MenuItem { Header = "Push all in rack to" };
-            foreach (var bay in vm.Bays)
+            foreach (StripBayViewModel bay in vm.Bays)
             {
-                var baySnapshot = bay;
-                var rackSnapshot = sourceRack;
+                StripBayViewModel baySnapshot = bay;
+                StripRackViewModel rackSnapshot = sourceRack;
                 var item = new MenuItem { Header = bay.IsExternal ? $"{bay.Name}  ↗" : bay.Name };
                 item.Click += async (_, _) => await PushAllInRackAsync(vm, rackSnapshot, baySnapshot);
                 pushAllMenu.Items.Add(item);
@@ -1746,9 +1749,9 @@ public partial class VStripsView : UserControl
             if (externalBays.Count > 0)
             {
                 var scanMenu = new MenuItem { Header = "Scan to" };
-                foreach (var bay in externalBays)
+                foreach (StripBayViewModel? bay in externalBays)
                 {
-                    var baySnapshot = bay;
+                    StripBayViewModel baySnapshot = bay;
                     // Submenu only shows external bays, so the ↗ marker
                     // would be redundant — drop it here.
                     var item = new MenuItem { Header = bay.Name };
@@ -1780,7 +1783,7 @@ public partial class VStripsView : UserControl
     /// </summary>
     private static void ShowEmptyRackMenu(Control anchor, StripRackViewModel rack, VStripsViewModel vm)
     {
-        var menu = BuildEmptyRackMenu(rack, vm);
+        MenuFlyout? menu = BuildEmptyRackMenu(rack, vm);
         if (menu is null)
         {
             return;
@@ -1805,7 +1808,7 @@ public partial class VStripsView : UserControl
         {
             return null;
         }
-        var selectedBay = vm.SelectedBay;
+        StripBayViewModel selectedBay = vm.SelectedBay;
         var menu = new MenuFlyout();
 
         var addHalfStrip = new MenuItem { Header = "Add half-strip" };
@@ -1815,9 +1818,9 @@ public partial class VStripsView : UserControl
         if (!vm.SeparatorsLocked)
         {
             var addSeparator = new MenuItem { Header = "Add separator" };
-            foreach (var style in new[] { SeparatorStyle.Handwritten, SeparatorStyle.White, SeparatorStyle.Red, SeparatorStyle.Green })
+            foreach (SeparatorStyle style in new[] { SeparatorStyle.Handwritten, SeparatorStyle.White, SeparatorStyle.Red, SeparatorStyle.Green })
             {
-                var styleSnapshot = style;
+                SeparatorStyle styleSnapshot = style;
                 var item = new MenuItem { Header = style.ToString() };
                 item.Click += async (_, _) => await vm.CreateSeparatorAsync(styleSnapshot, selectedBay, rack.RackIndex, index: null, label: null);
                 addSeparator.Items.Add(item);
@@ -1846,10 +1849,10 @@ public partial class VStripsView : UserControl
         if (rack.Strips.Count > 0)
         {
             var pushAllMenu = new MenuItem { Header = "Push all to" };
-            foreach (var bay in vm.Bays)
+            foreach (StripBayViewModel bay in vm.Bays)
             {
-                var baySnapshot = bay;
-                var rackSnapshot = rack;
+                StripBayViewModel baySnapshot = bay;
+                StripRackViewModel rackSnapshot = rack;
                 var item = new MenuItem { Header = bay.IsExternal ? $"{bay.Name}  ↗" : bay.Name };
                 item.Click += async (_, _) => await PushAllInRackAsync(vm, rackSnapshot, baySnapshot);
                 pushAllMenu.Items.Add(item);
@@ -1869,9 +1872,9 @@ public partial class VStripsView : UserControl
     /// </summary>
     private static (StripBayViewModel? Bay, StripRackViewModel? Rack) FindRackContaining(VStripsViewModel vm, StripItemViewModel strip)
     {
-        foreach (var bay in vm.Bays)
+        foreach (StripBayViewModel bay in vm.Bays)
         {
-            foreach (var r in bay.Racks)
+            foreach (StripRackViewModel r in bay.Racks)
             {
                 if (r.Strips.Contains(strip))
                 {
@@ -1891,8 +1894,8 @@ public partial class VStripsView : UserControl
     /// </summary>
     private static async Task PushAllInRackAsync(VStripsViewModel vm, StripRackViewModel sourceRack, StripBayViewModel destBay)
     {
-        var snapshot = sourceRack.Strips.ToArray();
-        foreach (var strip in snapshot)
+        StripItemViewModel[] snapshot = sourceRack.Strips.ToArray();
+        foreach (StripItemViewModel? strip in snapshot)
         {
             await vm.MoveStripAsync(strip, destBay, rack: 0, index: null);
         }
@@ -1962,14 +1965,14 @@ public partial class VStripsView : UserControl
     /// </summary>
     private void ApplyDropPreview(Border rackBorder, StripRackViewModel rack, int visualIdx, bool animate)
     {
-        var rackContent = rackBorder.FindDescendantOfType<Grid>();
-        var stripsHost = rackBorder.FindDescendantOfType<ItemsControl>();
+        Grid? rackContent = rackBorder.FindDescendantOfType<Grid>();
+        ItemsControl? stripsHost = rackBorder.FindDescendantOfType<ItemsControl>();
         if (rackContent is null || stripsHost is null)
         {
             return;
         }
 
-        var visible = GetVisiblePresenters(stripsHost, rack);
+        List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> visible = GetVisiblePresenters(stripsHost, rack);
         ApplyDropPreviewToVisible(rackContent, rack, visualIdx, visible, animate);
     }
 
@@ -1981,16 +1984,16 @@ public partial class VStripsView : UserControl
         bool animate
     )
     {
-        var stripHeight = ResolveDragStripHeight(visible);
+        double stripHeight = ResolveDragStripHeight(visible);
         _dropPreviewRack = rack;
         _dropPreviewIndex = visualIdx;
         RemovePreviewLine();
         _dropPreviewShifted.Clear();
 
-        for (var i = 0; i < visible.Count; i++)
+        for (int i = 0; i < visible.Count; i++)
         {
-            var shifted = (visualIdx < visible.Count) && (i >= visualIdx);
-            var transform = GetPreviewTransform(visible[i].Presenter, animate);
+            bool shifted = (visualIdx < visible.Count) && (i >= visualIdx);
+            TranslateTransform transform = GetPreviewTransform(visible[i].Presenter, animate);
             transform.Y = shifted ? -stripHeight : 0.0;
             if (shifted)
             {
@@ -2003,8 +2006,8 @@ public partial class VStripsView : UserControl
             // Append-at-top: overlay a yellow line at the top edge of the
             // visual-topmost strip. visible is sorted by top-Y descending, so
             // visible[^1] is the topmost.
-            var topmost = visible[^1].Presenter;
-            var topPoint = topmost.TranslatePoint(new Point(0, 0), rackContent);
+            ContentPresenter topmost = visible[^1].Presenter;
+            Point? topPoint = topmost.TranslatePoint(new Point(0, 0), rackContent);
             if (topPoint is null)
             {
                 return;
@@ -2101,8 +2104,8 @@ public partial class VStripsView : UserControl
         {
             return;
         }
-        var rackContent = rackBorder.FindDescendantOfType<Grid>();
-        var stripsHost = rackBorder.FindDescendantOfType<ItemsControl>();
+        Grid? rackContent = rackBorder.FindDescendantOfType<Grid>();
+        ItemsControl? stripsHost = rackBorder.FindDescendantOfType<ItemsControl>();
         if (rackContent is null || stripsHost is null)
         {
             return;
@@ -2119,7 +2122,7 @@ public partial class VStripsView : UserControl
         // same frame as the source hide so the two cancel out visually. An
         // animated shift would let the strips dip into the collapsed slot
         // and slide back up.
-        var visible = GetVisiblePresenters(stripsHost, rack);
+        List<(ContentPresenter Presenter, StripItemViewModel Vm, double Top)> visible = GetVisiblePresenters(stripsHost, rack);
         ApplyDropPreviewToVisible(rackContent, rack, fromIdx, visible, animate: false);
     }
 
@@ -2156,7 +2159,7 @@ public partial class VStripsView : UserControl
     /// </summary>
     private void ClearDropPreview(bool animate)
     {
-        foreach (var (_, transform) in _dropPreviewShifted)
+        foreach ((ContentPresenter _, TranslateTransform? transform) in _dropPreviewShifted)
         {
             if (!animate)
             {
@@ -2196,8 +2199,8 @@ public partial class VStripsView : UserControl
         {
             return;
         }
-        var box = this.FindControl<TextBox>("RequestStripInput");
-        var aircraftId = box?.Text?.Trim() ?? "";
+        TextBox? box = this.FindControl<TextBox>("RequestStripInput");
+        string aircraftId = box?.Text?.Trim() ?? "";
         if (string.IsNullOrEmpty(aircraftId))
         {
             return;
@@ -2339,9 +2342,9 @@ public partial class VStripsView : UserControl
             return;
         }
 
-        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
-        var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
-        var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        bool alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+        bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
 
         // Bay cycling (docs/crc/vstrips.md:281).
         if (e.Key == Key.PageDown && !ctrl && !alt)
@@ -2364,7 +2367,7 @@ public partial class VStripsView : UserControl
         {
             if (vm.SelectedBay is not null)
             {
-                var targetRack = FindSelectedStripRack(vm) ?? 0;
+                int targetRack = FindSelectedStripRack(vm) ?? 0;
                 if (e.Key == Key.H)
                 {
                     await vm.CreateHalfStripAsync(vm.SelectedBay, targetRack, Array.Empty<string>());
@@ -2387,8 +2390,8 @@ public partial class VStripsView : UserControl
         {
             if (e.Key is Key.Left or Key.Right && vm.AccessibleFacilities.Count > 0)
             {
-                var currentIdx = 0;
-                for (var i = 0; i < vm.AccessibleFacilities.Count; i++)
+                int currentIdx = 0;
+                for (int i = 0; i < vm.AccessibleFacilities.Count; i++)
                 {
                     if (vm.AccessibleFacilities[i].FacilityId == vm.FacilityId)
                     {
@@ -2396,15 +2399,15 @@ public partial class VStripsView : UserControl
                         break;
                     }
                 }
-                var step = e.Key == Key.Right ? 1 : -1;
-                var count = vm.AccessibleFacilities.Count;
-                var nextIdx = ((currentIdx + step) % count + count) % count;
+                int step = e.Key == Key.Right ? 1 : -1;
+                int count = vm.AccessibleFacilities.Count;
+                int nextIdx = ((currentIdx + step) % count + count) % count;
                 await vm.SwitchFacilityAsync(vm.AccessibleFacilities[nextIdx].FacilityId);
                 e.Handled = true;
                 return;
             }
 
-            var bayIdx = KeyToDigit(e.Key) - 1;
+            int bayIdx = KeyToDigit(e.Key) - 1;
             if (bayIdx >= 0 && bayIdx < vm.Bays.Count)
             {
                 if (vm.SelectedStrip is { } sel)
@@ -2426,7 +2429,7 @@ public partial class VStripsView : UserControl
         // (rendered as "18"). Supports both main-row digits and Numpad.
         if (ctrl && !alt && !shift && vm.SelectedStrip is { IsFullStrip: true } editStrip)
         {
-            var box = KeyToDigit(e.Key);
+            int box = KeyToDigit(e.Key);
             if (box >= 1 && box <= 9)
             {
                 OpenAnnotationEditorForSelected(vm, editStrip, box);
@@ -2487,22 +2490,22 @@ public partial class VStripsView : UserControl
         // Enter on half-strip → edit lines; on separator → edit label.
         if (!ctrl && !shift && !alt && e.Key == Key.Enter && vm.SelectedStrip is { } enterSel)
         {
-            var anchor = this.FindControl<Canvas>("DragGhostCanvas");
-            var editor = this.FindControl<InlineTextEditPopup>("InlineEditor");
+            Canvas? anchor = this.FindControl<Canvas>("DragGhostCanvas");
+            InlineTextEditPopup? editor = this.FindControl<InlineTextEditPopup>("InlineEditor");
             if (anchor is null || editor is null)
             {
                 return;
             }
             if (enterSel.IsHalfStrip)
             {
-                var initial = string.Join(" / ", enterSel.FieldValues.Where(v => !string.IsNullOrEmpty(v)));
+                string initial = string.Join(" / ", enterSel.FieldValues.Where(v => !string.IsNullOrEmpty(v)));
                 editor.Open(anchor, initial, text => _ = vm.AmendHalfStripAsync(enterSel, text.Split(" / ", StringSplitOptions.None)));
                 e.Handled = true;
                 return;
             }
             if (enterSel.IsSeparator)
             {
-                var initial = enterSel.FieldValues.Length > 0 ? enterSel.FieldValues[0] : "";
+                string initial = enterSel.FieldValues.Length > 0 ? enterSel.FieldValues[0] : "";
                 editor.Open(anchor, initial, text => _ = vm.EditSeparatorLabelAsync(enterSel, text));
                 e.Handled = true;
                 return;
@@ -2579,7 +2582,7 @@ public partial class VStripsView : UserControl
         {
             return null;
         }
-        for (var r = 0; r < vm.SelectedBay.Racks.Count; r++)
+        for (int r = 0; r < vm.SelectedBay.Racks.Count; r++)
         {
             if (vm.SelectedBay.Racks[r].Strips.Contains(vm.SelectedStrip))
             {
@@ -2597,13 +2600,13 @@ public partial class VStripsView : UserControl
     /// </summary>
     private void OpenAnnotationEditorForSelected(VStripsViewModel vm, StripItemViewModel strip, int box)
     {
-        var editor = this.FindControl<InlineTextEditPopup>("InlineEditor");
+        InlineTextEditPopup? editor = this.FindControl<InlineTextEditPopup>("InlineEditor");
         if (editor is null || strip.AircraftId is null)
         {
             return;
         }
-        var anchor = this.FindControl<Canvas>("DragGhostCanvas") ?? (Control)this;
-        var current = box switch
+        Control anchor = this.FindControl<Canvas>("DragGhostCanvas") ?? (Control)this;
+        string current = box switch
         {
             1 => strip.Annotation10,
             2 => strip.Annotation11,
@@ -2616,7 +2619,7 @@ public partial class VStripsView : UserControl
             9 => strip.Annotation18,
             _ => "",
         };
-        var boxId = box.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        string boxId = box.ToString(System.Globalization.CultureInfo.InvariantCulture);
         editor.Open(anchor, current, text => _ = vm.AnnotateAsync(strip, boxId, text), substituteCheckmark: true);
     }
 
@@ -2632,18 +2635,18 @@ public partial class VStripsView : UserControl
         {
             return;
         }
-        var order = new[] { SeparatorStyle.Handwritten, SeparatorStyle.White, SeparatorStyle.Red, SeparatorStyle.Green };
-        var cur = strip.Type switch
+        SeparatorStyle[] order = new[] { SeparatorStyle.Handwritten, SeparatorStyle.White, SeparatorStyle.Red, SeparatorStyle.Green };
+        SeparatorStyle cur = strip.Type switch
         {
             StripItemType.WhiteSeparator => SeparatorStyle.White,
             StripItemType.RedSeparator => SeparatorStyle.Red,
             StripItemType.GreenSeparator => SeparatorStyle.Green,
             _ => SeparatorStyle.Handwritten,
         };
-        var curIdx = Array.IndexOf(order, cur);
-        var step = forward ? 1 : -1;
-        var nextIdx = ((curIdx + step) % order.Length + order.Length) % order.Length;
-        var nextStyle = order[nextIdx];
+        int curIdx = Array.IndexOf(order, cur);
+        int step = forward ? 1 : -1;
+        int nextIdx = ((curIdx + step) % order.Length + order.Length) % order.Length;
+        SeparatorStyle nextStyle = order[nextIdx];
         if (vm.SeparatorsLocked && nextStyle != SeparatorStyle.Handwritten)
         {
             return;
@@ -2653,11 +2656,11 @@ public partial class VStripsView : UserControl
         // the same label but new style. Delete addresses the existing
         // separator by id so two same-label separators in the rack don't
         // collide; the create lays the replacement at the same slot.
-        var rack = -1;
-        var index = -1;
-        for (var r = 0; r < vm.SelectedBay.Racks.Count; r++)
+        int rack = -1;
+        int index = -1;
+        for (int r = 0; r < vm.SelectedBay.Racks.Count; r++)
         {
-            var idx = vm.SelectedBay.Racks[r].Strips.IndexOf(strip);
+            int idx = vm.SelectedBay.Racks[r].Strips.IndexOf(strip);
             if (idx >= 0)
             {
                 rack = r;
@@ -2669,9 +2672,9 @@ public partial class VStripsView : UserControl
         {
             return;
         }
-        var label = strip.FieldValues.Length > 0 ? strip.FieldValues[0] : null;
-        var del = VStripsCanonicalBuilder.BuildSeparatorDeleteById(strip.Id);
-        var create = VStripsCanonicalBuilder.BuildSeparatorCreate(nextStyle, vm.SelectedBay.FacilityId, vm.SelectedBay.Name, rack, index, label);
+        string? label = strip.FieldValues.Length > 0 ? strip.FieldValues[0] : null;
+        string del = VStripsCanonicalBuilder.BuildSeparatorDeleteById(strip.Id);
+        string create = VStripsCanonicalBuilder.BuildSeparatorCreate(nextStyle, vm.SelectedBay.FacilityId, vm.SelectedBay.Name, rack, index, label);
         // Use the public dispatch through a create-call bounded by the
         // separator lock check we just did; reuse EditSeparatorLabelAsync's
         // _sendCommand path by going through the canonical builders directly.

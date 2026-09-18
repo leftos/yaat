@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
@@ -28,37 +29,37 @@ public partial class CommandInputView : UserControl
     {
         base.OnLoaded(e);
 
-        var cmdInput = this.FindControl<TextBox>("CommandInput");
+        TextBox? cmdInput = this.FindControl<TextBox>("CommandInput");
         if (cmdInput is not null)
         {
             cmdInput.KeyDown += OnCommandKeyDown;
         }
 
-        var suggestionList = this.FindControl<ListBox>("SuggestionList");
+        ListBox? suggestionList = this.FindControl<ListBox>("SuggestionList");
         if (suggestionList is not null)
         {
             suggestionList.Tapped += OnSuggestionTapped;
         }
 
-        var sigHelpPrev = this.FindControl<Button>("SigHelpPrev");
+        Button? sigHelpPrev = this.FindControl<Button>("SigHelpPrev");
         if (sigHelpPrev is not null)
         {
             sigHelpPrev.Click += OnSigHelpPrevClick;
         }
 
-        var sigHelpNext = this.FindControl<Button>("SigHelpNext");
+        Button? sigHelpNext = this.FindControl<Button>("SigHelpNext");
         if (sigHelpNext is not null)
         {
             sigHelpNext.Click += OnSigHelpNextClick;
         }
 
-        var saveFavItem = this.FindControl<MenuItem>("SaveAsFavoriteMenuItem");
+        MenuItem? saveFavItem = this.FindControl<MenuItem>("SaveAsFavoriteMenuItem");
         if (saveFavItem is not null)
         {
             saveFavItem.Click += OnSaveAsFavoriteClick;
         }
 
-        var liveFiltersButton = this.FindControl<Button>("LiveTrafficFiltersButton");
+        Button? liveFiltersButton = this.FindControl<Button>("LiveTrafficFiltersButton");
         if (liveFiltersButton is not null)
         {
             liveFiltersButton.Click += OnLiveTrafficFiltersClick;
@@ -90,7 +91,7 @@ public partial class CommandInputView : UserControl
 
     public void FocusCommandInput()
     {
-        var cmdInput = this.FindControl<TextBox>("CommandInput");
+        TextBox? cmdInput = this.FindControl<TextBox>("CommandInput");
         cmdInput?.Focus();
     }
 
@@ -102,7 +103,7 @@ public partial class CommandInputView : UserControl
         }
 
         var cmdInput = sender as TextBox;
-        var input = vm.CommandInput;
+        CommandInputController input = vm.CommandInput;
 
         if (e.Key == _aircraftSelectKey && e.KeyModifiers == _aircraftSelectModifiers)
         {
@@ -154,7 +155,7 @@ public partial class CommandInputView : UserControl
                 }
                 else
                 {
-                    var older = input.NavigateHistory(-1, vm.CommandText, vm.GetRecallHistory());
+                    string? older = input.NavigateHistory(-1, vm.CommandText, vm.GetRecallHistory());
                     if (older is not null)
                     {
                         vm.CommandText = older;
@@ -171,7 +172,7 @@ public partial class CommandInputView : UserControl
                 }
                 else
                 {
-                    var newer = input.NavigateHistory(1, vm.CommandText, vm.GetRecallHistory());
+                    string? newer = input.NavigateHistory(1, vm.CommandText, vm.GetRecallHistory());
                     if (newer is not null)
                     {
                         vm.CommandText = newer;
@@ -189,7 +190,7 @@ public partial class CommandInputView : UserControl
                         input.SelectedSuggestionIndex = 0;
                     }
 
-                    var accepted = input.AcceptSuggestion(vm.CommandText);
+                    (string Text, int Caret)? accepted = input.AcceptSuggestion(vm.CommandText);
                     if (accepted is not null)
                     {
                         vm.CommandText = accepted.Value.Text;
@@ -202,7 +203,7 @@ public partial class CommandInputView : UserControl
             case Key.Enter:
                 if (input.IsSuggestionsVisible && input.SelectedSuggestionIndex >= 0 && vm.Preferences.AutoExpandSuggestionOnEnter)
                 {
-                    var expanded = input.AcceptSuggestion(vm.CommandText);
+                    (string Text, int Caret)? expanded = input.AcceptSuggestion(vm.CommandText);
                     if (expanded is not null)
                     {
                         vm.CommandText = expanded.Value.Text;
@@ -227,11 +228,11 @@ public partial class CommandInputView : UserControl
             return;
         }
 
-        var accepted = vm.CommandInput.AcceptSuggestion(vm.CommandText);
+        (string Text, int Caret)? accepted = vm.CommandInput.AcceptSuggestion(vm.CommandText);
         if (accepted is not null)
         {
             vm.CommandText = accepted.Value.Text;
-            var cmdInput = this.FindControl<TextBox>("CommandInput");
+            TextBox? cmdInput = this.FindControl<TextBox>("CommandInput");
             MoveCaret(cmdInput, accepted.Value.Caret);
             cmdInput?.Focus();
         }
@@ -270,7 +271,7 @@ public partial class CommandInputView : UserControl
         }
 
         var dialog = new LiveTrafficFilterWindow(vm.Preferences, vm.SessionLiveTrafficFilter);
-        var result = await dialog.ShowDialog<string?>(window);
+        string? result = await dialog.ShowDialog<string?>(window);
         if (result is not null)
         {
             vm.SessionLiveTrafficFilter = result;
@@ -286,7 +287,7 @@ public partial class CommandInputView : UserControl
 
         if (TopLevel.GetTopLevel(this) is Window window)
         {
-            var favBar = window.FindControl<FavoritesBarView>("FavoritesBar");
+            FavoritesBarView? favBar = window.FindControl<FavoritesBarView>("FavoritesBar");
             favBar?.OpenAddFlyoutForCommand(vm.CommandText);
         }
     }

@@ -34,11 +34,11 @@ public class PointoutTests
     [Fact]
     public void PoNoArgs_AcceptsInboundPointout()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
-        var recipient = MakeOwner("NCT_APP", 2, "N");
+        TrackOwner recipient = MakeOwner("NCT_APP", 2, "N");
 
-        var result = TrackEngine.HandlePointOutNoArgs(ac, recipient);
+        CommandResult result = TrackEngine.HandlePointOutNoArgs(ac, recipient);
 
         Assert.True(result.Success);
         Assert.NotNull(ac.Track.Pointout);
@@ -50,11 +50,11 @@ public class PointoutTests
     [Fact]
     public void PoNoArgs_RetractsOutboundPointout()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
-        var sender = MakeOwner("NCT_CTR", 1, "D");
+        TrackOwner sender = MakeOwner("NCT_CTR", 1, "D");
 
-        var result = TrackEngine.HandlePointOutNoArgs(ac, sender);
+        CommandResult result = TrackEngine.HandlePointOutNoArgs(ac, sender);
 
         Assert.True(result.Success);
         Assert.Null(ac.Track.Pointout);
@@ -65,10 +65,10 @@ public class PointoutTests
     [Fact]
     public void PoNoArgs_NoPendingPointout_ReturnsError()
     {
-        var ac = MakeAircraft();
-        var identity = MakeOwner("NCT_APP", 2, "N");
+        AircraftState ac = MakeAircraft();
+        TrackOwner identity = MakeOwner("NCT_APP", 2, "N");
 
-        var result = TrackEngine.HandlePointOutNoArgs(ac, identity);
+        CommandResult result = TrackEngine.HandlePointOutNoArgs(ac, identity);
 
         Assert.False(result.Success);
     }
@@ -78,11 +78,11 @@ public class PointoutTests
     [Fact]
     public void PoNoArgs_UnrelatedIdentity_ReturnsError()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
-        var unrelated = MakeOwner("NCT_DEP", 3, "B");
+        TrackOwner unrelated = MakeOwner("NCT_DEP", 3, "B");
 
-        var result = TrackEngine.HandlePointOutNoArgs(ac, unrelated);
+        CommandResult result = TrackEngine.HandlePointOutNoArgs(ac, unrelated);
 
         Assert.False(result.Success);
     }
@@ -92,12 +92,12 @@ public class PointoutTests
     [Fact]
     public void HandlePointOut_RejectsWhenPendingExists()
     {
-        var owner = MakeOwner("NCT_CTR", 1, "D");
-        var ac = MakeAircraft(owner);
-        var originalPo = MakePendingPointout(2, "N", 1, "D");
+        TrackOwner owner = MakeOwner("NCT_CTR", 1, "D");
+        AircraftState ac = MakeAircraft(owner);
+        StarsPointout originalPo = MakePendingPointout(2, "N", 1, "D");
         ac.Track.Pointout = originalPo;
 
-        var result = TrackEngine.HandlePointOut(ac, MakeTcp(3, "B"), MakeTcp(1, "D"), elapsedSeconds: 0);
+        CommandResult result = TrackEngine.HandlePointOut(ac, MakeTcp(3, "B"), MakeTcp(1, "D"), elapsedSeconds: 0);
 
         Assert.False(result.Success);
         Assert.Same(originalPo, ac.Track.Pointout);
@@ -109,14 +109,14 @@ public class PointoutTests
     [Fact]
     public void HandlePointOut_AllowsWhenAccepted()
     {
-        var owner = MakeOwner("NCT_CTR", 1, "D");
-        var ac = MakeAircraft(owner);
+        TrackOwner owner = MakeOwner("NCT_CTR", 1, "D");
+        AircraftState ac = MakeAircraft(owner);
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
         ac.Track.Pointout.Status = StarsPointoutStatus.Accepted;
 
-        var newTarget = MakeTcp(3, "B");
-        var senderTcp = MakeTcp(1, "D");
-        var result = TrackEngine.HandlePointOut(ac, newTarget, senderTcp, elapsedSeconds: 0);
+        Tcp newTarget = MakeTcp(3, "B");
+        Tcp senderTcp = MakeTcp(1, "D");
+        CommandResult result = TrackEngine.HandlePointOut(ac, newTarget, senderTcp, elapsedSeconds: 0);
 
         Assert.True(result.Success);
         Assert.Equal("3B", ac.Track.Pointout!.Recipient.ToString());
@@ -127,14 +127,14 @@ public class PointoutTests
     [Fact]
     public void HandlePointOut_AllowsWhenRejected()
     {
-        var owner = MakeOwner("NCT_CTR", 1, "D");
-        var ac = MakeAircraft(owner);
+        TrackOwner owner = MakeOwner("NCT_CTR", 1, "D");
+        AircraftState ac = MakeAircraft(owner);
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
         ac.Track.Pointout.Status = StarsPointoutStatus.Rejected;
 
-        var newTarget = MakeTcp(3, "B");
-        var senderTcp = MakeTcp(1, "D");
-        var result = TrackEngine.HandlePointOut(ac, newTarget, senderTcp, elapsedSeconds: 0);
+        Tcp newTarget = MakeTcp(3, "B");
+        Tcp senderTcp = MakeTcp(1, "D");
+        CommandResult result = TrackEngine.HandlePointOut(ac, newTarget, senderTcp, elapsedSeconds: 0);
 
         Assert.True(result.Success);
         Assert.Equal("3B", ac.Track.Pointout!.Recipient.ToString());
@@ -145,11 +145,11 @@ public class PointoutTests
     [Fact]
     public void Handoff_DoesNotClearPointout()
     {
-        var owner = MakeOwner("NCT_CTR", 1, "D");
-        var ac = MakeAircraft(owner);
+        TrackOwner owner = MakeOwner("NCT_CTR", 1, "D");
+        AircraftState ac = MakeAircraft(owner);
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
 
-        var target = MakeOwner("NCT_APP", 2, "N");
+        TrackOwner target = MakeOwner("NCT_APP", 2, "N");
         ac.Track.HandoffPeer = target;
         ac.Track.HandoffInitiatedAt = 100;
 
@@ -165,8 +165,8 @@ public class PointoutTests
     [Fact]
     public void Drop_DoesNotClearPointout()
     {
-        var owner = MakeOwner("NCT_CTR", 1, "D");
-        var ac = MakeAircraft(owner);
+        TrackOwner owner = MakeOwner("NCT_CTR", 1, "D");
+        AircraftState ac = MakeAircraft(owner);
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
 
         TrackEngine.HandleDrop(ac);
@@ -180,11 +180,11 @@ public class PointoutTests
     [Fact]
     public void ForceHandoff_DoesNotClearPointout()
     {
-        var owner = MakeOwner("NCT_CTR", 1, "D");
-        var ac = MakeAircraft(owner);
+        TrackOwner owner = MakeOwner("NCT_CTR", 1, "D");
+        AircraftState ac = MakeAircraft(owner);
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
 
-        var target = MakeOwner("NCT_APP", 2, "N");
+        TrackOwner target = MakeOwner("NCT_APP", 2, "N");
 
         // Force handoff transfers ownership directly
         ac.Track.Owner = target;
@@ -201,10 +201,10 @@ public class PointoutTests
     [Fact]
     public void HandleAcknowledge_AcceptsPendingPointout()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
 
-        var result = TrackEngine.HandleAcknowledge(ac);
+        CommandResult result = TrackEngine.HandleAcknowledge(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(StarsPointoutStatus.Accepted, ac.Track.Pointout!.Status);
@@ -213,10 +213,10 @@ public class PointoutTests
     [Fact]
     public void HandleRejectPointout_RejectsPendingPointout()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
 
-        var result = TrackEngine.HandleRejectPointout(ac);
+        CommandResult result = TrackEngine.HandleRejectPointout(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(StarsPointoutStatus.Rejected, ac.Track.Pointout!.Status);
@@ -225,10 +225,10 @@ public class PointoutTests
     [Fact]
     public void HandleRetractPointout_ClearsPendingPointout()
     {
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
 
-        var result = TrackEngine.HandleRetractPointout(ac);
+        CommandResult result = TrackEngine.HandleRetractPointout(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Null(ac.Track.Pointout);
@@ -243,41 +243,41 @@ public class PointoutTests
     [Fact]
     public void HandleAcknowledge_SetsRecipientRecentlyAcceptedFlag()
     {
-        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        AircraftState ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D"); // recipient TCP id = "tcp-2N"
 
-        var result = TrackEngine.HandleAcknowledge(ac);
+        CommandResult result = TrackEngine.HandleAcknowledge(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(StarsPointoutStatus.Accepted, ac.Track.Pointout!.Status);
-        Assert.True(ac.Stars.SharedState.TryGetValue("tcp-2N", out var shared));
+        Assert.True(ac.Stars.SharedState.TryGetValue("tcp-2N", out StarsTrackSharedState? shared));
         Assert.True(shared!.IsRecentlyAcceptedIncomingPointout);
     }
 
     [Fact]
     public void PoNoArgs_Accept_SetsRecipientRecentlyAcceptedFlag()
     {
-        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        AircraftState ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D"); // recipient TCP id = "tcp-2N"
-        var recipient = MakeOwner("NCT_APP", 2, "N");
+        TrackOwner recipient = MakeOwner("NCT_APP", 2, "N");
 
-        var result = TrackEngine.HandlePointOutNoArgs(ac, recipient);
+        CommandResult result = TrackEngine.HandlePointOutNoArgs(ac, recipient);
 
         Assert.True(result.Success, result.Message);
-        Assert.True(ac.Stars.SharedState.TryGetValue("tcp-2N", out var shared));
+        Assert.True(ac.Stars.SharedState.TryGetValue("tcp-2N", out StarsTrackSharedState? shared));
         Assert.True(shared!.IsRecentlyAcceptedIncomingPointout);
     }
 
     [Fact]
     public void HandleAcknowledge_PreservesExistingRecipientSharedState()
     {
-        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        AircraftState ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
         ac.Stars.SharedState["tcp-2N"] = new StarsTrackSharedState { ForceFdb = true, LeaderDirection = 3 };
 
         TrackEngine.HandleAcknowledge(ac);
 
-        var shared = ac.Stars.SharedState["tcp-2N"];
+        StarsTrackSharedState shared = ac.Stars.SharedState["tcp-2N"];
         Assert.True(shared.IsRecentlyAcceptedIncomingPointout);
         Assert.True(shared.ForceFdb);
         Assert.Equal(3, shared.LeaderDirection);
@@ -286,12 +286,12 @@ public class PointoutTests
     [Fact]
     public void HandleRejectPointout_DoesNotSetRecentlyAcceptedFlag()
     {
-        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        AircraftState ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
 
         TrackEngine.HandleRejectPointout(ac);
 
-        Assert.False(ac.Stars.SharedState.TryGetValue("tcp-2N", out var shared) && shared!.IsRecentlyAcceptedIncomingPointout);
+        Assert.False(ac.Stars.SharedState.TryGetValue("tcp-2N", out StarsTrackSharedState? shared) && shared!.IsRecentlyAcceptedIncomingPointout);
     }
 
     // ── ClearDismissedIncomingPointout: recipient slew-to-clear drops a completed pointout ──
@@ -299,7 +299,7 @@ public class PointoutTests
     [Fact]
     public void ClearDismissedIncomingPointout_ClearsAcceptedPointout_OnFlagFlipFalse()
     {
-        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        AircraftState ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
         ac.Track.Pointout.Status = StarsPointoutStatus.Accepted;
 
@@ -311,7 +311,7 @@ public class PointoutTests
     [Fact]
     public void ClearDismissedIncomingPointout_KeepsPendingPointout()
     {
-        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        AircraftState ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D"); // still Pending
 
         TrackEngine.ClearDismissedIncomingPointout(ac, MakeTcp(2, "N").Id, wasRecentlyAccepted: true, isRecentlyAccepted: false);
@@ -323,7 +323,7 @@ public class PointoutTests
     [Fact]
     public void ClearDismissedIncomingPointout_KeepsWhenFlagStillSet()
     {
-        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        AircraftState ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
         ac.Track.Pointout.Status = StarsPointoutStatus.Accepted;
 
@@ -337,7 +337,7 @@ public class PointoutTests
     [Fact]
     public void ClearDismissedIncomingPointout_KeepsWhenNoPriorAcceptedFlag()
     {
-        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        AircraftState ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
         ac.Track.Pointout.Status = StarsPointoutStatus.Accepted;
 
@@ -351,7 +351,7 @@ public class PointoutTests
     [Fact]
     public void ClearDismissedIncomingPointout_IgnoresWrongRecipient()
     {
-        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        AircraftState ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
         ac.Track.Pointout.Status = StarsPointoutStatus.Accepted;
 

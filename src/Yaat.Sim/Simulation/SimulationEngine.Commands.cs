@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
@@ -72,7 +73,7 @@ public sealed partial class SimulationEngine
     /// <summary>The dispatch context for a controller-issued command against <paramref name="aircraft"/> on this engine.</summary>
     internal DispatchContext BuildDispatchContext(AircraftState aircraft, bool isScenarioScripted)
     {
-        var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+        AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
         return new DispatchContext(
             groundLayout,
             World.Rng,
@@ -109,14 +110,14 @@ public sealed partial class SimulationEngine
         var taxi = new TaxiAutoCommand(taxiAll.DestinationRunway, taxiAll.DestinationParking, taxiAll.DestinationSpot);
         int taxied = 0;
         int failed = 0;
-        foreach (var aircraft in World.GetSnapshot())
+        foreach (AircraftState aircraft in World.GetSnapshot())
         {
             if (aircraft.Phases?.CurrentPhase is not AtParkingPhase)
             {
                 continue;
             }
 
-            var result = CommandDispatcher.Dispatch(taxi, aircraft, BuildDispatchContext(aircraft, isScenarioScripted: false));
+            CommandResult result = CommandDispatcher.Dispatch(taxi, aircraft, BuildDispatchContext(aircraft, isScenarioScripted: false));
             if (result.Success)
             {
                 taxied++;
@@ -129,7 +130,7 @@ public sealed partial class SimulationEngine
             }
         }
 
-        var message = failed > 0 ? $"TAXIALL: {taxied} aircraft taxied, {failed} failed" : $"TAXIALL: {taxied} aircraft taxied";
+        string message = failed > 0 ? $"TAXIALL: {taxied} aircraft taxied, {failed} failed" : $"TAXIALL: {taxied} aircraft taxied";
         return new CommandResult(true, message);
     }
 
@@ -190,8 +191,8 @@ public sealed partial class SimulationEngine
 
         if (result.Success && answering)
         {
-            var activityLevel = World.ActiveFrequency.GetActivityLevel(elapsedSeconds);
-            var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadbackAsApplied(
+            FrequencyActivityLevel activityLevel = World.ActiveFrequency.GetActivityLevel(elapsedSeconds);
+            PilotSpeechText? readback = Yaat.Sim.Pilot.PilotResponder.BuildReadbackAsApplied(
                 compound,
                 result.EffectiveCommand,
                 aircraft,
@@ -218,13 +219,13 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var definition = CommandRegistry.Get(rejectedType);
+        CommandDefinition? definition = CommandRegistry.Get(rejectedType);
         if (definition?.ProducesPilotUnable != true)
         {
             return;
         }
 
-        var transmission = PilotResponder.BuildUnable(aircraft, result.Message);
+        PilotSpeechText transmission = PilotResponder.BuildUnable(aircraft, result.Message);
         PilotResponder.QueueSoloPilotTransmission(aircraft, transmission, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
     }
 
@@ -236,7 +237,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var ac = FindAircraft(callsign);
+        AircraftState? ac = FindAircraft(callsign);
         if (ac is null)
         {
             return;
@@ -395,14 +396,14 @@ public sealed partial class SimulationEngine
     /// </summary>
     public uint RequestNewBeaconCode(string callsign, string? assignedByFacilityId, string? assignedBySectorId)
     {
-        var ac = FindAircraft(callsign);
+        AircraftState? ac = FindAircraft(callsign);
         if (ac is null)
         {
             return 0;
         }
 
         BeaconCodePool.Release(ac.Transponder.AssignedCode);
-        var newCode = BeaconCodePool.AssignNextCode(ac.FlightPlan.IsVfr);
+        uint newCode = BeaconCodePool.AssignNextCode(ac.FlightPlan.IsVfr);
         ac.Transponder.AssignCode(newCode, assignedByFacilityId, assignedBySectorId);
         return newCode;
     }

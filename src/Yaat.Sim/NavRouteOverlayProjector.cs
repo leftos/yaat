@@ -1,4 +1,6 @@
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
@@ -49,15 +51,15 @@ public static class NavRouteOverlayProjector
     /// </summary>
     private static List<NavRouteShapeDto> BuildMilitaryRouteCorridor(Phases.MilitaryRoutePhase phase)
     {
-        var route = Data.NavigationDatabase.Instance.GetMilitaryRoute(phase.Designator);
+        MilitaryRoute? route = Data.NavigationDatabase.Instance.GetMilitaryRoute(phase.Designator);
         if (route is null || route.Widths.Count == 0)
         {
             return [];
         }
 
-        var navDb = Data.NavigationDatabase.Instance;
+        NavigationDatabase navDb = Data.NavigationDatabase.Instance;
         var centerline = new List<(LatLon Position, string Id)>();
-        foreach (var name in phase.PointNames)
+        foreach (string name in phase.PointNames)
         {
             int index = route.IndexOf(NamePointId(route.Designator, name));
             if (navDb.GetFixPosition(name) is { } position && index >= 0)
@@ -75,7 +77,7 @@ public static class NavRouteOverlayProjector
         var right = new List<LatLon>();
         for (int i = 0; i < centerline.Count; i++)
         {
-            var span = route.WidthAt(centerline[i].Id);
+            MilitaryRouteWidthSpan? span = route.WidthAt(centerline[i].Id);
             if (span is null)
             {
                 return [];
@@ -219,7 +221,7 @@ public static class NavRouteOverlayProjector
 
         for (int i = start; i < departure.Legs.Count; i++)
         {
-            var leg = departure.Legs[i];
+            ProcedureLeg leg = departure.Legs[i];
 
             LatLon end;
             if (leg.FixPosition is { } fixPos)
@@ -236,7 +238,7 @@ public static class NavRouteOverlayProjector
                 break;
             }
 
-            var labels = BuildCodedLegLabels(leg);
+            List<string> labels = BuildCodedLegLabels(leg);
             shapes.Add(
                 new NavRouteShapeDto(
                     NavRouteShapeKind.CodedLegVector,
@@ -258,7 +260,7 @@ public static class NavRouteOverlayProjector
 
     private static List<string> BuildCodedLegLabels(ProcedureLeg leg)
     {
-        var altitude = leg.AltitudeRestriction;
+        CifpAltitudeRestriction? altitude = leg.AltitudeRestriction;
         if (altitude is null && leg.TargetAltitudeFt is { } target)
         {
             // CA/VA/FA "climb to X" — a floor the aircraft climbs to reach.
@@ -277,7 +279,7 @@ public static class NavRouteOverlayProjector
     {
         double radiusNm = TurnRadiusNm(aircraft);
         double legNm = HoldStraightLegNm(aircraft, hold, radiusNm);
-        var points = HoldRacetrackPoints(
+        List<LatLon> points = HoldRacetrackPoints(
             new LatLon(hold.FixLat, hold.FixLon),
             hold.InboundCourse,
             hold.Direction == TurnDirection.Right,

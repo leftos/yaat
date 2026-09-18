@@ -36,7 +36,7 @@ public class BookmarkStepTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
         engine.Scenario!.ElapsedSeconds = 42;
         return engine;
     }
@@ -54,10 +54,10 @@ public class BookmarkStepTests
             return;
         }
 
-        var result = Issue(engine, new AttendanceActionHost(), "BM ADD Go-around 28R");
+        CommandResult result = Issue(engine, new AttendanceActionHost(), "BM ADD Go-around 28R");
 
         Assert.True(result.Success, result.Message);
-        var bookmark = Assert.Single(Bookmarks(engine));
+        TimelineBookmark bookmark = Assert.Single(Bookmarks(engine));
         Assert.Equal("bm-0", bookmark.Id);
         Assert.Equal("Go-around 28R", bookmark.Name);
         Assert.Equal(42, bookmark.TimeSeconds);
@@ -76,7 +76,7 @@ public class BookmarkStepTests
         var host = new AttendanceActionHost();
         Assert.True(Issue(engine, host, "BM ADD first").Success);
 
-        var result = Issue(engine, host, "BM REN bm-0 Conflict");
+        CommandResult result = Issue(engine, host, "BM REN bm-0 Conflict");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("Conflict", Assert.Single(Bookmarks(engine)).Name);
@@ -94,7 +94,7 @@ public class BookmarkStepTests
         Assert.True(Issue(engine, host, "BM ADD first").Success);
         Assert.True(Issue(engine, host, "BM ADD second").Success);
 
-        var result = Issue(engine, host, "BM DEL bm-0");
+        CommandResult result = Issue(engine, host, "BM DEL bm-0");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("second", Assert.Single(Bookmarks(engine)).Name);
@@ -112,7 +112,7 @@ public class BookmarkStepTests
         Assert.True(Issue(engine, host, "BM ADD first").Success);
         Assert.True(Issue(engine, host, "BM ADD second").Success);
 
-        var result = Issue(engine, host, "BM DEL ALL");
+        CommandResult result = Issue(engine, host, "BM DEL ALL");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("Deleted 2 bookmark(s)", result.Message);
@@ -166,7 +166,7 @@ public class BookmarkStepTests
             return;
         }
 
-        var outcome = engine.Actions.Apply(new RecordedCommand(0, "", "BM ADD test", "XX", "conn-1"), new AttendanceActionHost());
+        ActionOutcome outcome = engine.Actions.Apply(new RecordedCommand(0, "", "BM ADD test", "XX", "conn-1"), new AttendanceActionHost());
 
         Assert.False(outcome.Result.Success);
         Assert.Empty(Bookmarks(engine));

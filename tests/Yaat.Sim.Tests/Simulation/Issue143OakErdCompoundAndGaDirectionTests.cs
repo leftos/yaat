@@ -57,8 +57,8 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
     [Fact]
     public void CompoundDctErd_BuildsPatternPhases()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -68,7 +68,7 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
         // (5s after dispatch) and tick forward looking for pattern phase activation.
         engine.Replay(recording, 1075);
 
-        var ac = engine.FindAircraft("N80ZU");
+        AircraftState? ac = engine.FindAircraft("N80ZU");
         Assert.NotNull(ac);
 
         bool sawPatternPhase = false;
@@ -83,7 +83,7 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
                 break;
             }
 
-            var phase = ac.Phases?.CurrentPhase;
+            Phase? phase = ac.Phases?.CurrentPhase;
             if (phase is PatternEntryPhase or DownwindPhase or BasePhase or FinalApproachPhase)
             {
                 sawPatternPhase = true;
@@ -117,16 +117,16 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
     [Fact]
     public void BareErd28R_SetsTrafficDirectionToRight()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var ac = SpawnAirborneOverOak(engine, "TST001", trueHeadingDeg: 280, altFt: 2000);
+        AircraftState? ac = SpawnAirborneOverOak(engine, "TST001", trueHeadingDeg: 280, altFt: 2000);
         Assert.NotNull(ac);
 
-        var erdResult = engine.SendCommand("TST001", "ERD 28R");
+        CommandResult erdResult = engine.SendCommand("TST001", "ERD 28R");
         output.WriteLine($"ERD 28R: {erdResult.Success} — {erdResult.Message}");
         Assert.True(erdResult.Success, erdResult.Message);
 
@@ -152,17 +152,17 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
     [Fact]
     public void GoAround_PreservesRightPatternFor28R()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var ac = SpawnAirborneOverOak(engine, "TST001", trueHeadingDeg: 280, altFt: 1000);
+        AircraftState? ac = SpawnAirborneOverOak(engine, "TST001", trueHeadingDeg: 280, altFt: 1000);
         Assert.NotNull(ac);
 
         // Establish a right-pattern entry for 28R explicitly.
-        var erdResult = engine.SendCommand("TST001", "ERD 28R");
+        CommandResult erdResult = engine.SendCommand("TST001", "ERD 28R");
         output.WriteLine($"ERD 28R: {erdResult.Success} — {erdResult.Message}");
         Assert.True(erdResult.Success);
 
@@ -176,7 +176,7 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
         ac.Phases.TrafficDirection = PatternDirection.Right;
 
         // Trigger a go-around via the helper directly.
-        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
         GoAroundHelper.Trigger(ctx, "test-trigger");
 
         ac = engine.FindAircraft("TST001");
@@ -195,23 +195,23 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
     [InlineData("28L", PatternDirection.Left)]
     public void GoAround_NoPriorDirection_UsesParallelRunwaySide(string runwayDesignator, PatternDirection expected)
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
-        var ac = SpawnAirborneOverOak(engine, "TST002", trueHeadingDeg: 280, altFt: 1000);
+        AircraftState? ac = SpawnAirborneOverOak(engine, "TST002", trueHeadingDeg: 280, altFt: 1000);
         Assert.NotNull(ac);
 
-        var rwy = NavigationDatabase.Instance.GetRunway("OAK", runwayDesignator);
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("OAK", runwayDesignator);
         Assert.NotNull(rwy);
 
         // Set up phases without a prior TrafficDirection (e.g. straight-in approach).
         ac.Phases = new PhaseList { AssignedRunway = rwy };
         Assert.Null(ac.Phases.TrafficDirection);
 
-        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
         GoAroundHelper.Trigger(ctx, "test-parallel-runway-side");
 
         ac = engine.FindAircraft("TST002");
@@ -229,25 +229,25 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
     [Fact]
     public void GoAround_NoPriorDirection_NonParallelRunway_DefaultsLeft()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             return;
         }
 
         // SQL 30 is a single non-parallel runway.
-        var rwy = NavigationDatabase.Instance.GetRunway("SQL", "30");
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("SQL", "30");
         if (rwy is null)
         {
             output.WriteLine("SQL/30 not in navdata; skipping");
             return;
         }
 
-        var ac = SpawnAirborneAt(engine, "TST003", lat: 37.5, lon: -122.25, headingDeg: 300, altFt: 1000);
+        AircraftState? ac = SpawnAirborneAt(engine, "TST003", lat: 37.5, lon: -122.25, headingDeg: 300, altFt: 1000);
         ac.Phases = new PhaseList { AssignedRunway = rwy };
         Assert.Null(ac.Phases.TrafficDirection);
 
-        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
         GoAroundHelper.Trigger(ctx, "test-non-parallel");
 
         ac = engine.FindAircraft("TST003");

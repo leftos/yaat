@@ -34,7 +34,7 @@ public sealed partial class SimulationEngine
     public bool ApplyLiveTrafficSample(string callsign, LiveTrafficSample sample, AircraftSnapshotDto? spawnState)
     {
         bool spawned = false;
-        var ac = World.FindAircraft(callsign);
+        AircraftState? ac = World.FindAircraft(callsign);
         if (ac is null)
         {
             if (spawnState is null)
@@ -103,20 +103,20 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void TickLiveTrafficRunwayUse()
     {
-        var runways = RunwayOccupancy.AirportRunways(Scenario?.PrimaryAirportId);
-        var layout = World.GroundLayout;
-        foreach (var ac in World.GetSnapshot())
+        IReadOnlyList<RunwayInfo> runways = RunwayOccupancy.AirportRunways(Scenario?.PrimaryAirportId);
+        AirportGroundLayout? layout = World.GroundLayout;
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             if (ac.LiveTraffic is not { } lt)
             {
                 continue;
             }
 
-            var use =
+            RunwayUse? use =
                 RunwayOccupancy.ClassifyBest(ac, runways, layout)
                 ?? RunwayOccupancy.ClassifyBest(ac, RunwayOccupancy.AirportRunways(ac.FlightPlan.Destination), layout)
                 ?? RunwayOccupancy.ClassifyBest(ac, RunwayOccupancy.AirportRunways(ac.FlightPlan.Departure), layout);
-            var kind = use?.Kind;
+            RunwayUseKind? kind = use?.Kind;
             if (!ac.IsOnGround || kind is null)
             {
                 // Airborne again, or off the pavement: the next takeoff roll from this runway is a real one.
@@ -186,7 +186,7 @@ public sealed partial class SimulationEngine
     /// <summary>Removes a shadow (never an assumed aircraft) and records the removal. Not a completion.</summary>
     public bool RemoveLiveTraffic(string callsign, LiveTrafficRemovalReason reason)
     {
-        var ac = World.FindAircraft(callsign);
+        AircraftState? ac = World.FindAircraft(callsign);
         if (ac is null || !ac.IsShadow)
         {
             return false;
@@ -205,7 +205,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void ApplyRecordedLiveTrafficSample(RecordedLiveTrafficSample recorded)
     {
-        var ac = World.FindAircraft(recorded.Callsign);
+        AircraftState? ac = World.FindAircraft(recorded.Callsign);
         if (ac is null)
         {
             if (recorded.SpawnState is null)
@@ -253,7 +253,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public void ApplyRecordedLiveTrafficRemoval(RecordedLiveTrafficRemoval recorded, IActionHost host)
     {
-        var ac = World.FindAircraft(recorded.Callsign);
+        AircraftState? ac = World.FindAircraft(recorded.Callsign);
         if (ac is { IsShadow: true })
         {
             World.RemoveAircraft(recorded.Callsign);

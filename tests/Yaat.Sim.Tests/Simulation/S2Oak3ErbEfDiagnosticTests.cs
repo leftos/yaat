@@ -31,7 +31,7 @@ public class S2Oak3ErbEfDiagnosticTests(ITestOutputHelper output)
             return;
         }
 
-        var recording = RecordingLoader.Load(RecordingPath);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         if (recording is null)
         {
             return;
@@ -42,18 +42,18 @@ public class S2Oak3ErbEfDiagnosticTests(ITestOutputHelper output)
 
         // Replay to t=333 (1s before EF 28L). N42416 should be on FinalApproach for 28R.
         engine.Replay(recording, 333);
-        var preAc = engine.FindAircraft("N42416");
+        AircraftState? preAc = engine.FindAircraft("N42416");
         Assert.NotNull(preAc);
         Assert.IsType<Yaat.Sim.Phases.Tower.FinalApproachPhase>(preAc.Phases?.CurrentPhase);
         Assert.Equal("28R", preAc.Phases?.AssignedRunway?.Designator);
-        var preFinalApproach = preAc.Phases!.CurrentPhase;
+        Phase preFinalApproach = preAc.Phases!.CurrentPhase;
         output.WriteLine(
             $"t=333 (pre-EF): rwy={preAc.Phases.AssignedRunway?.Designator} alt={preAc.Altitude:F0} hdg={preAc.TrueHeading.Degrees:F0} phase={preFinalApproach!.GetType().Name}"
         );
 
         // Tick one more second — the t=334 action `EF 28L, CLAND` applies during this tick.
         engine.ReplayOneSecond();
-        var postAc = engine.FindAircraft("N42416");
+        AircraftState? postAc = engine.FindAircraft("N42416");
         Assert.NotNull(postAc);
         output.WriteLine(
             $"t=334 (post-EF): rwy={postAc.Phases?.AssignedRunway?.Designator} alt={postAc.Altitude:F0} hdg={postAc.TrueHeading.Degrees:F0} phase={postAc.Phases?.CurrentPhase?.GetType().Name} chain={DescribePhases(postAc)}"
@@ -72,7 +72,7 @@ public class S2Oak3ErbEfDiagnosticTests(ITestOutputHelper output)
         {
             return "(null)";
         }
-        var plist = ac.Phases.Phases;
+        List<Phase> plist = ac.Phases.Phases;
         if (plist.Count == 0)
         {
             return "(empty)";

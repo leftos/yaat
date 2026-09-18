@@ -35,8 +35,8 @@ public class FreezeDumpWriterTests : IDisposable
         Assert.NotNull(path);
         Assert.True(File.Exists(path));
         // MDMP magic — proves dbghelp actually wrote a minidump, not an empty placeholder.
-        using var stream = File.OpenRead(path);
-        var magic = new byte[4];
+        using FileStream stream = File.OpenRead(path);
+        byte[] magic = new byte[4];
         stream.ReadExactly(magic);
         Assert.Equal("MDMP"u8.ToArray(), magic);
     }
@@ -54,7 +54,7 @@ public class FreezeDumpWriterTests : IDisposable
         string? path = FreezeDumpWriter.TryWrite(_dir);
 
         Assert.NotNull(path);
-        var remaining = Directory.GetFiles(_dir, "yaat-freeze-*.dmp");
+        string[] remaining = Directory.GetFiles(_dir, "yaat-freeze-*.dmp");
         Assert.Equal(3, remaining.Length);
         Assert.DoesNotContain(remaining, f => f.EndsWith("000001.dmp", StringComparison.Ordinal));
     }

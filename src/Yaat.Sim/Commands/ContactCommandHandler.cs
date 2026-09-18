@@ -32,7 +32,7 @@ public static class ContactCommandHandler
 
         if (cmd.Target is { Length: > 0 } target)
         {
-            var resolution = ResolveExplicitTarget(target, ctx.ArtccConfig);
+            ResolvedTarget resolution = ResolveExplicitTarget(target, ctx.ArtccConfig);
             switch (resolution)
             {
                 case ResolvedTarget.NotFound:
@@ -53,12 +53,12 @@ public static class ContactCommandHandler
         }
         else
         {
-            var owner = aircraft.Track.HandoffPeer ?? (aircraft.Track.HandoffAccepted ? aircraft.Track.Owner : null);
+            TrackOwner? owner = aircraft.Track.HandoffPeer ?? (aircraft.Track.HandoffAccepted ? aircraft.Track.Owner : null);
             if (owner is null)
             {
                 return new CommandResult(false, "no handoff target — issue HOO first or specify position");
             }
-            var pos = ctx.ArtccConfig?.FindPositionByCallsign(owner.Callsign);
+            PositionConfig? pos = ctx.ArtccConfig?.FindPositionByCallsign(owner.Callsign);
             facilityName = pos is not null ? ResolveFacilityName(pos) : FacilityShortname.From(owner.Callsign);
             frequencyMhz = pos is not null ? pos.Frequency / 1_000_000.0 : null;
             handoffDetail = owner.Callsign;
@@ -69,10 +69,10 @@ public static class ContactCommandHandler
             aircraft.Ground.ReleasedToGround = true;
         }
 
-        var pilotSpeech = frequencyMhz is double freq
+        PilotSpeechText pilotSpeech = frequencyMhz is double freq
             ? PilotResponder.BuildContactReadback(aircraft, facilityName, freq)
             : BuildContactReadbackNoFreq(aircraft, facilityName);
-        var warning = $"[Contact] {facilityName}" + (frequencyMhz is double f ? $" {f:0.000}" : "");
+        string warning = $"[Contact] {facilityName}" + (frequencyMhz is double f ? $" {f:0.000}" : "");
         Route(aircraft, ctx, pilotSpeech, warning);
         StampHandoffCompletion(aircraft, ctx, handoffDetail);
         return new CommandResult(true, "");
@@ -89,7 +89,7 @@ public static class ContactCommandHandler
     public static CommandResult HandleFrequencyChangeApproved(AircraftState aircraft, DispatchContext ctx)
     {
         aircraft.Ground.ReleasedToGround = true;
-        var pilotSpeech = PilotResponder.BuildFrequencyChangeApproved(aircraft);
+        PilotSpeechText pilotSpeech = PilotResponder.BuildFrequencyChangeApproved(aircraft);
         Route(aircraft, ctx, pilotSpeech, "[FCA] frequency change approved");
         StampHandoffCompletion(aircraft, ctx, detail: null);
         return new CommandResult(true, "");
@@ -135,7 +135,7 @@ public static class ContactCommandHandler
 
     private static Pilot.PilotSpeechText BuildContactReadbackNoFreq(AircraftState aircraft, string facilityName)
     {
-        var spoken = Yaat.Sim.Speech.CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        string spoken = Yaat.Sim.Speech.CallsignParser.IcaoToSpoken(aircraft.Callsign);
         return new Pilot.PilotSpeechText($"{facilityName}, so long.", $"{facilityName}, {spoken}, so long.");
     }
 
@@ -154,23 +154,23 @@ public static class ContactCommandHandler
         {
             return new ResolvedTarget.NotFound();
         }
-        var trimmed = target.Trim();
+        string trimmed = target.Trim();
 
-        if (LooksLikeFrequency(trimmed) && double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var mhz))
+        if (LooksLikeFrequency(trimmed) && double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out double mhz))
         {
-            var byFreq = config.FindPositionByFrequency(mhz);
+            PositionConfig? byFreq = config.FindPositionByFrequency(mhz);
             return byFreq is null ? new ResolvedTarget.NotFound() : new ResolvedTarget.Found(byFreq);
         }
 
         if (trimmed.Contains('_'))
         {
-            var byCallsign = config.FindPositionByCallsign(trimmed.ToUpperInvariant());
+            PositionConfig? byCallsign = config.FindPositionByCallsign(trimmed.ToUpperInvariant());
             return byCallsign is null ? new ResolvedTarget.NotFound() : new ResolvedTarget.Found(byCallsign);
         }
 
         // TCP-code path can resolve to multiple positions (consolidated TWR + GND on shared
         // STARS scope). Force the controller to disambiguate rather than silently picking one.
-        var byTcp = config.FindPositionsByTcpCodeAnyFacility(trimmed.ToUpperInvariant());
+        IReadOnlyList<PositionConfig> byTcp = config.FindPositionsByTcpCodeAnyFacility(trimmed.ToUpperInvariant());
         return byTcp.Count switch
         {
             0 => new ResolvedTarget.NotFound(),
@@ -182,7 +182,7 @@ public static class ContactCommandHandler
     private static bool LooksLikeFrequency(string s)
     {
         // "121.9" / "128.525" — three digits, dot, one or more digits, in the VHF aviation band.
-        var dot = s.IndexOf('.');
+        int dot = s.IndexOf('.');
         if (dot < 1 || dot >= s.Length - 1)
         {
             return false;

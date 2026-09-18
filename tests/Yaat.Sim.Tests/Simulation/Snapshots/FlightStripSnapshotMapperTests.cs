@@ -26,7 +26,7 @@ public class FlightStripSnapshotMapperTests
     [Fact]
     public void RoundTrip_PreservesItemsBaysAndPrinterQueue()
     {
-        var dto = FlightStripSnapshotMapper.Capture(Seeded());
+        FlightStripSnapshotDto dto = FlightStripSnapshotMapper.Capture(Seeded());
 
         Assert.Single(dto.Items);
         Assert.Single(dto.BayRacks);
@@ -38,7 +38,7 @@ public class FlightStripSnapshotMapperTests
         lock (restored.Gate)
         {
             Assert.True(restored.Items.ContainsKey("s1"));
-            var item = restored.Items["s1"];
+            StripItemRecord item = restored.Items["s1"];
             Assert.Equal("AAL100", item.AircraftId);
             Assert.Equal("bay1", item.BayId);
             Assert.Equal(["a", "b", "c", "d", "e", "f", "g", "h", "i"], item.FieldValues);
@@ -52,9 +52,9 @@ public class FlightStripSnapshotMapperTests
     [Fact]
     public void Restore_ReplacesWhateverTheTargetHeld()
     {
-        var empty = FlightStripSnapshotMapper.Capture(new FlightStripState());
+        FlightStripSnapshotDto empty = FlightStripSnapshotMapper.Capture(new FlightStripState());
 
-        var populated = Seeded();
+        FlightStripState populated = Seeded();
         FlightStripSnapshotMapper.Restore(populated, empty);
 
         lock (populated.Gate)

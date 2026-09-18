@@ -21,7 +21,7 @@ public static class RunwayIntersectionCalculator
         RunwayInfo secondRunway
     )
     {
-        var result = GeoMath.SegmentsIntersect(
+        (double Lat, double Lon, double T, double U)? result = GeoMath.SegmentsIntersect(
             firstRunway.Lat1,
             firstRunway.Lon1,
             firstRunway.Lat2,
@@ -56,10 +56,15 @@ public static class RunwayIntersectionCalculator
         double secondLengthNm = (secondRunway.PavementLengthFt / GeoMath.FeetPerNm) + maxBeyondDepartureEndNm;
         var firstThreshold = new LatLon(firstRunway.ThresholdLatitude, firstRunway.ThresholdLongitude);
         var secondThreshold = new LatLon(secondRunway.ThresholdLatitude, secondRunway.ThresholdLongitude);
-        var firstProjectedEnd = GeoMath.ProjectPoint(firstThreshold, firstRunway.TrueHeading, firstLengthNm);
-        var secondProjectedEnd = GeoMath.ProjectPoint(secondThreshold, secondRunway.TrueHeading, secondLengthNm);
+        LatLon firstProjectedEnd = GeoMath.ProjectPoint(firstThreshold, firstRunway.TrueHeading, firstLengthNm);
+        LatLon secondProjectedEnd = GeoMath.ProjectPoint(secondThreshold, secondRunway.TrueHeading, secondLengthNm);
 
-        var result = GeoMath.SegmentsIntersect(firstThreshold, firstProjectedEnd, secondThreshold, secondProjectedEnd);
+        (LatLon Point, double T, double U)? result = GeoMath.SegmentsIntersect(
+            firstThreshold,
+            firstProjectedEnd,
+            secondThreshold,
+            secondProjectedEnd
+        );
         if (result is null)
         {
             return null;
@@ -84,8 +89,8 @@ public static class RunwayIntersectionCalculator
     public static (double Lat, double Lon, double DistFromStartNm)? FindIntersection(GroundRunway landingRunway, GroundRunway crossingRunway)
     {
         // Try every pair of segments between the two centerlines
-        var landCoords = landingRunway.Coordinates;
-        var crossCoords = crossingRunway.Coordinates;
+        List<(double Lat, double Lon)> landCoords = landingRunway.Coordinates;
+        List<(double Lat, double Lon)> crossCoords = crossingRunway.Coordinates;
 
         if (landCoords.Count < 2 || crossCoords.Count < 2)
         {
@@ -102,7 +107,7 @@ public static class RunwayIntersectionCalculator
 
             for (int j = 0; j < crossCoords.Count - 1; j++)
             {
-                var result = GeoMath.SegmentsIntersect(
+                (double Lat, double Lon, double T, double U)? result = GeoMath.SegmentsIntersect(
                     landCoords[i].Lat,
                     landCoords[i].Lon,
                     landCoords[i + 1].Lat,

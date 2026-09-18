@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
@@ -36,8 +37,8 @@ public class TrackFamilyArmTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = Student;
         scenario.StudentTcp = new Tcp(3, "T", "tcp-oak-twr", null);
         scenario.AtcPositions.Add(
@@ -61,11 +62,11 @@ public class TrackFamilyArmTests
             return;
         }
 
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Nct4U;
         ac.Track.HandoffPeer = Student;
 
-        var outcome = engine.Actions.Apply(Recorded("", "ACCEPTALL"));
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("", "ACCEPTALL"));
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("Accepted 1 handoff(s)", outcome.Result.Message);
@@ -84,10 +85,10 @@ public class TrackFamilyArmTests
             return;
         }
 
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Student;
 
-        var outcome = engine.Actions.Apply(Recorded("", "HOALL 4U"));
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("", "HOALL 4U"));
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("Initiated handoff for 1 aircraft to 4U", outcome.Result.Message);
@@ -105,7 +106,7 @@ public class TrackFamilyArmTests
 
         engine.Scenario!.StudentPosition = null;
 
-        var outcome = engine.Actions.Apply(Recorded("", "ACCEPTALL"));
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("", "ACCEPTALL"));
 
         Assert.False(outcome.Result.Success);
         Assert.Equal("No active position — use AS to set one", outcome.Result.Message);
@@ -119,22 +120,22 @@ public class TrackFamilyArmTests
             return;
         }
 
-        var first = engine.Actions.Apply(Recorded("", "GHOST GHOST1 28R"));
-        var second = engine.Actions.Apply(Recorded("", "GHOST GHOST2 28R"));
+        ActionOutcome first = engine.Actions.Apply(Recorded("", "GHOST GHOST1 28R"));
+        ActionOutcome second = engine.Actions.Apply(Recorded("", "GHOST GHOST2 28R"));
 
         Assert.True(first.Result.Success, first.Result.Message);
         Assert.True(second.Result.Success, second.Result.Message);
         Assert.Equal(new ActionTrace(RecordedCommandKind.GhostTrack, ActionScope.Callsign), first.Trace);
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
-        var reciprocal = runway.TrueHeading.ToReciprocal();
-        var ghost1 = engine.FindAircraft("GHOST1")!;
-        var ghost2 = engine.FindAircraft("GHOST2")!;
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        TrueHeading reciprocal = runway.TrueHeading.ToReciprocal();
+        AircraftState ghost1 = engine.FindAircraft("GHOST1")!;
+        AircraftState ghost2 = engine.FindAircraft("GHOST2")!;
         Assert.True(ghost1.Ghost.IsUnsupported);
         Assert.False(ghost1.Ghost.IsOverlay);
         Assert.Equal("28R", ghost1.Ghost.RunwayId);
         Assert.True(ghost1.Track.Owner!.MatchesPosition(Student));
-        var (lat1, lon1) = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 0.1);
-        var (lat2, lon2) = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 0.2);
+        (double lat1, double lon1) = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 0.1);
+        (double lat2, double lon2) = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 0.2);
         Assert.Equal(new LatLon(lat1, lon1), ghost1.Position);
         Assert.Equal(new LatLon(lat2, lon2), ghost2.Position);
     }
@@ -147,10 +148,10 @@ public class TrackFamilyArmTests
             return;
         }
 
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Nct4U;
 
-        var refused = engine.Actions.Apply(Recorded("", $"GHOST {AiTestFixture.Callsign} 28R"));
+        ActionOutcome refused = engine.Actions.Apply(Recorded("", $"GHOST {AiTestFixture.Callsign} 28R"));
         Assert.False(refused.Result.Success);
         Assert.Equal(
             $"{AiTestFixture.Callsign} owned by {TrackEngine.FormatOwner(Nct4U)}, not you — use AS to switch position, or HOF to force",
@@ -159,7 +160,7 @@ public class TrackFamilyArmTests
         Assert.False(ac.Ghost.IsUnsupported);
 
         ac.Track.Owner = null;
-        var overlaid = engine.Actions.Apply(Recorded("", $"GHOST {AiTestFixture.Callsign} 28R"));
+        ActionOutcome overlaid = engine.Actions.Apply(Recorded("", $"GHOST {AiTestFixture.Callsign} 28R"));
 
         Assert.True(overlaid.Result.Success, overlaid.Result.Message);
         Assert.Equal($"Ghost overlay on {AiTestFixture.Callsign}", overlaid.Result.Message);
@@ -177,10 +178,10 @@ public class TrackFamilyArmTests
             return;
         }
 
-        var ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Student;
 
-        var parked = engine.Actions.Apply(Recorded(AiTestFixture.Callsign, $"RPOSLOC {AiTestFixture.Callsign} 37.7 -122.2"));
+        ActionOutcome parked = engine.Actions.Apply(Recorded(AiTestFixture.Callsign, $"RPOSLOC {AiTestFixture.Callsign} 37.7 -122.2"));
 
         Assert.True(parked.Result.Success, parked.Result.Message);
         Assert.Equal(new ActionTrace(RecordedCommandKind.Reposition, ActionScope.Aircraft), parked.Trace);
@@ -190,7 +191,7 @@ public class TrackFamilyArmTests
         Assert.Null(ac.Track.Owner);
         Assert.True(ac.DataBlock.CreatedBy!.MatchesPosition(Student));
 
-        var rebound = engine.Actions.Apply(Recorded(AiTestFixture.Callsign, $"RPOSMOVE {AiTestFixture.Callsign} {AiTestFixture.Callsign}"));
+        ActionOutcome rebound = engine.Actions.Apply(Recorded(AiTestFixture.Callsign, $"RPOSMOVE {AiTestFixture.Callsign} {AiTestFixture.Callsign}"));
 
         Assert.True(rebound.Result.Success, rebound.Result.Message);
         Assert.Equal(DataBlockBinding.Bound, ac.DataBlock.Binding);
@@ -214,8 +215,8 @@ public class TrackFamilyArmTests
         };
         engine.ConflictAlerts.Conflicts[conflict.Id] = conflict;
 
-        var acknowledged = engine.Actions.Apply(Recorded(AiTestFixture.Callsign, "CAACK"));
-        var nothingLeft = engine.Actions.Apply(Recorded(AiTestFixture.Callsign, "CAACK"));
+        ActionOutcome acknowledged = engine.Actions.Apply(Recorded(AiTestFixture.Callsign, "CAACK"));
+        ActionOutcome nothingLeft = engine.Actions.Apply(Recorded(AiTestFixture.Callsign, "CAACK"));
 
         Assert.True(acknowledged.Result.Success, acknowledged.Result.Message);
         Assert.Equal($"Acknowledged 1 conflict alert(s) for {AiTestFixture.Callsign}", acknowledged.Result.Message);

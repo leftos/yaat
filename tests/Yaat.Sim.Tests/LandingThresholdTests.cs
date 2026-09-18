@@ -27,7 +27,7 @@ public class LandingThresholdTests
 
     private static RunwayInfo Runway(string airportId, string designator)
     {
-        var rwy = NavigationDatabase.Instance.GetRunway(airportId, designator);
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway(airportId, designator);
         Assert.NotNull(rwy);
         return rwy;
     }
@@ -37,9 +37,9 @@ public class LandingThresholdTests
     [Fact]
     public void Resolve_NoLayout_FallsBackToThePavementThreshold()
     {
-        var rwy = Runway("KSJC", "30L");
+        RunwayInfo rwy = Runway("KSJC", "30L");
 
-        var threshold = LandingThreshold.Resolve(rwy, layout: null);
+        LatLon threshold = LandingThreshold.Resolve(rwy, layout: null);
 
         Assert.Equal(rwy.ThresholdLatitude, threshold.Lat);
         Assert.Equal(rwy.ThresholdLongitude, threshold.Lon);
@@ -49,9 +49,9 @@ public class LandingThresholdTests
     [Fact]
     public void Resolve_UndisplacedEnd_ReturnsThePavementThreshold()
     {
-        var rwy = Runway("KOAK", "28R");
+        RunwayInfo rwy = Runway("KOAK", "28R");
 
-        var threshold = LandingThreshold.Resolve(rwy, Layout("oak.geojson", "OAK"));
+        LatLon threshold = LandingThreshold.Resolve(rwy, Layout("oak.geojson", "OAK"));
 
         Assert.Equal(0, LandingThreshold.DisplacementFt(rwy, Layout("oak.geojson", "OAK")));
         Assert.InRange(FeetApart(threshold, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude)), 0, 1);
@@ -66,11 +66,11 @@ public class LandingThresholdTests
     [InlineData("12R", 1297.0)]
     public void Resolve_DisplacedEnd_MovesDownfieldByThePublishedDisplacement(string designator, double expectedFt)
     {
-        var layout = Layout("sjc.geojson", "SJC");
-        var rwy = Runway("KSJC", designator);
+        AirportGroundLayout layout = Layout("sjc.geojson", "SJC");
+        RunwayInfo rwy = Runway("KSJC", designator);
         var pavement = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
 
-        var threshold = LandingThreshold.Resolve(rwy, layout);
+        LatLon threshold = LandingThreshold.Resolve(rwy, layout);
 
         Assert.Equal(expectedFt, LandingThreshold.DisplacementFt(rwy, layout));
         Assert.InRange(FeetApart(threshold, pavement), expectedFt - 5, expectedFt + 5);
@@ -88,9 +88,9 @@ public class LandingThresholdTests
     [Fact]
     public void Resolve_StaysOnTheRunwayInfoCenterline()
     {
-        var rwy = Runway("KSJC", "30L");
+        RunwayInfo rwy = Runway("KSJC", "30L");
 
-        var threshold = LandingThreshold.Resolve(rwy, Layout("sjc.geojson", "SJC"));
+        LatLon threshold = LandingThreshold.Resolve(rwy, Layout("sjc.geojson", "SJC"));
 
         double xteFt =
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(threshold.Lat, threshold.Lon, rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading))
@@ -105,7 +105,7 @@ public class LandingThresholdTests
     [Fact]
     public void Resolve_LayoutForADifferentAirport_IsIgnored()
     {
-        var rwy = Runway("KSJC", "30L");
+        RunwayInfo rwy = Runway("KSJC", "30L");
 
         Assert.Equal(0, LandingThreshold.DisplacementFt(rwy, Layout("oak.geojson", "OAK")));
     }
@@ -113,10 +113,10 @@ public class LandingThresholdTests
     [Fact]
     public void Resolve_LayoutWithoutThatRunway_FallsBackToThePavementThreshold()
     {
-        var rwy = Runway("KSJC", "30L");
+        RunwayInfo rwy = Runway("KSJC", "30L");
         var layout = new AirportGroundLayout { AirportId = "SJC" };
 
-        var threshold = LandingThreshold.Resolve(rwy, layout);
+        LatLon threshold = LandingThreshold.Resolve(rwy, layout);
 
         Assert.Equal(rwy.ThresholdLatitude, threshold.Lat);
         Assert.Equal(rwy.ThresholdLongitude, threshold.Lon);

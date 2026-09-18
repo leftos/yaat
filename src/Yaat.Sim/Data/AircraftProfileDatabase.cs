@@ -36,7 +36,7 @@ public static class AircraftProfileDatabase
         var lookup = new Dictionary<string, AircraftProfile>(baseProfiles, StringComparer.OrdinalIgnoreCase);
         var overriddenFields = new Dictionary<string, IReadOnlySet<string>>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var ov in overrides)
+        foreach (AircraftProfileOverride ov in overrides)
         {
             if (string.IsNullOrWhiteSpace(ov.TypeCode))
             {
@@ -44,14 +44,14 @@ public static class AircraftProfileDatabase
                 continue;
             }
 
-            var type = ov.TypeCode.Trim().ToUpperInvariant();
+            string type = ov.TypeCode.Trim().ToUpperInvariant();
 
             AircraftProfile baseProfile;
-            if (lookup.TryGetValue(type, out var direct))
+            if (lookup.TryGetValue(type, out AircraftProfile? direct))
             {
                 baseProfile = direct;
             }
-            else if (AircraftSiblingMap.TryResolve(type, out var sibling) && baseProfiles.TryGetValue(sibling, out var sibProfile))
+            else if (AircraftSiblingMap.TryResolve(type, out string? sibling) && baseProfiles.TryGetValue(sibling, out AircraftProfile? sibProfile))
             {
                 baseProfile = sibProfile with { TypeCode = type };
             }
@@ -60,7 +60,7 @@ public static class AircraftProfileDatabase
                 baseProfile = CategoryPerformance.BaselineProfile(AircraftCategorization.Categorize(type)) with { TypeCode = type };
             }
 
-            var (merged, fields) = ov.ApplyTo(baseProfile);
+            (AircraftProfile? merged, IReadOnlySet<string>? fields) = ov.ApplyTo(baseProfile);
             lookup[type] = merged;
             overriddenFields[type] = fields;
         }
@@ -83,8 +83,8 @@ public static class AircraftProfileDatabase
             return false;
         }
 
-        var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
-        return _overriddenFields.TryGetValue(baseType, out var set) && set.Contains(fieldName);
+        string baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        return _overriddenFields.TryGetValue(baseType, out IReadOnlySet<string>? set) && set.Contains(fieldName);
     }
 
     /// <summary>
@@ -112,13 +112,13 @@ public static class AircraftProfileDatabase
             return null;
         }
 
-        var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
-        if (_lookup.TryGetValue(baseType, out var profile))
+        string baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        if (_lookup.TryGetValue(baseType, out AircraftProfile? profile))
         {
             return profile;
         }
 
-        if (AircraftSiblingMap.TryResolve(baseType, out var sibling) && _lookup.TryGetValue(sibling, out var sibProfile))
+        if (AircraftSiblingMap.TryResolve(baseType, out string? sibling) && _lookup.TryGetValue(sibling, out AircraftProfile? sibProfile))
         {
             bool shouldWarn;
             lock (SiblingFallbackWarnedLock)
@@ -146,13 +146,13 @@ public static class AircraftProfileDatabase
     /// </summary>
     public static Dictionary<string, AircraftProfile> LoadFromFile(string path)
     {
-        var json = File.ReadAllText(path);
-        var profiles =
+        string json = File.ReadAllText(path);
+        List<AircraftProfile> profiles =
             JsonSerializer.Deserialize<List<AircraftProfile>>(json)
             ?? throw new InvalidOperationException($"Failed to deserialize aircraft profiles from {path}");
 
         var result = new Dictionary<string, AircraftProfile>(profiles.Count, StringComparer.OrdinalIgnoreCase);
-        foreach (var profile in profiles)
+        foreach (AircraftProfile profile in profiles)
         {
             result[profile.TypeCode] = profile;
         }
@@ -171,7 +171,7 @@ public static class AircraftProfileDatabase
             return [];
         }
 
-        var json = File.ReadAllText(path);
+        string json = File.ReadAllText(path);
         return JsonSerializer.Deserialize<List<AircraftProfileOverride>>(json)
             ?? throw new InvalidOperationException($"Failed to deserialize aircraft profile overrides from {path}");
     }

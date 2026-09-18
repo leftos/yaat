@@ -28,7 +28,7 @@ public sealed class CrcAliasStoreTests : IDisposable
 
     private string Expand(CrcAliasStore store, string input)
     {
-        Assert.True(store.TryExpand(input, out var expanded, out var error), error);
+        Assert.True(store.TryExpand(input, out string? expanded, out string? error), error);
         return expanded;
     }
 
@@ -38,7 +38,7 @@ public sealed class CrcAliasStoreTests : IDisposable
         WriteFile("ZOA.txt", ".C172 .echo from artcc");
         WriteFile("MyAliases.txt", ".NNA320 .echo from personal");
 
-        var store = LoadStore("ZOA");
+        CrcAliasStore store = LoadStore("ZOA");
 
         Assert.Equal(2, store.Count);
         Assert.Equal(["ZOA.txt", "MyAliases.txt"], store.LastLoad.FilesLoaded);
@@ -51,7 +51,7 @@ public sealed class CrcAliasStoreTests : IDisposable
         WriteFile("ZOA.txt", ".C172 .echo real");
         WriteFile("badpilot_aliases.txt", ".BADRWY .echo ignored");
 
-        var store = LoadStore("ZOA");
+        CrcAliasStore store = LoadStore("ZOA");
 
         Assert.True(store.Contains(".C172"));
         Assert.False(store.Contains(".BADRWY"));
@@ -80,7 +80,7 @@ public sealed class CrcAliasStoreTests : IDisposable
     {
         WriteFile("MyAliases.txt", ".FbC .echo *** F BEHIND C - 3.5NM");
 
-        var store = LoadStore(artccId: null);
+        CrcAliasStore store = LoadStore(artccId: null);
 
         Assert.True(store.Contains(".fbc"));
         Assert.Equal(".echo *** F BEHIND C - 3.5NM", Expand(store, ".FBC"));
@@ -91,7 +91,7 @@ public sealed class CrcAliasStoreTests : IDisposable
     {
         var store = new CrcAliasStore();
 
-        var result = store.Load(Path.Combine(_directory, "does-not-exist"), "ZOA", BuiltIns);
+        CrcAliasLoadResult result = store.Load(Path.Combine(_directory, "does-not-exist"), "ZOA", BuiltIns);
 
         Assert.Equal(0, result.AliasCount);
         Assert.Empty(result.FilesLoaded);
@@ -102,7 +102,7 @@ public sealed class CrcAliasStoreTests : IDisposable
     {
         WriteFile("MyAliases.txt", ".C172 .echo personal only");
 
-        var store = LoadStore("ZZZ");
+        CrcAliasStore store = LoadStore("ZZZ");
 
         Assert.Equal(1, store.Count);
         Assert.Equal(["MyAliases.txt"], store.LastLoad.FilesLoaded);
@@ -120,7 +120,7 @@ public sealed class CrcAliasStoreTests : IDisposable
     public void LoadReplacesPreviousContents()
     {
         WriteFile("MyAliases.txt", ".OLD .echo gone");
-        var store = LoadStore(artccId: null);
+        CrcAliasStore store = LoadStore(artccId: null);
         Assert.True(store.Contains(".OLD"));
 
         WriteFile("MyAliases.txt", ".NEW .echo here");
@@ -145,9 +145,9 @@ public sealed class CrcAliasStoreTests : IDisposable
     {
         WriteFile("MyAliases.txt", ".LOOP .LOOP");
 
-        var store = LoadStore(artccId: null);
+        CrcAliasStore store = LoadStore(artccId: null);
 
-        Assert.False(store.TryExpand(".LOOP", out _, out var error));
+        Assert.False(store.TryExpand(".LOOP", out _, out string? error));
         Assert.Contains("recursion", error, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -191,7 +191,7 @@ public sealed class CrcAliasStoreTests : IDisposable
     {
         WriteFile("MyAliases.txt", ".C172 .echo known");
 
-        var store = LoadStore(artccId: null);
+        CrcAliasStore store = LoadStore(artccId: null);
 
         Assert.False(store.Contains(".NOPE"));
         Assert.Equal(".NOPE", Expand(store, ".NOPE"));

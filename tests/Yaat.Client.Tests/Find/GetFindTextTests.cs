@@ -22,7 +22,7 @@ public class GetFindTextTests
         );
         var vm = new StripItemViewModel(dto);
 
-        var text = vm.GetFindText();
+        string text = vm.GetFindText();
 
         Assert.Contains("UAL123", text);
         Assert.Contains("KSFO", text);
@@ -72,7 +72,7 @@ public class GetFindTextTests
         );
         var vm = new TdlsItemViewModel(dto);
 
-        var text = vm.GetFindText();
+        string text = vm.GetFindText();
 
         Assert.Contains("UAL123", text);
         Assert.Contains("KLAX", text);

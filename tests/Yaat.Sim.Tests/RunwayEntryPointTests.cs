@@ -34,8 +34,8 @@ public class RunwayEntryPointTests
         // KOAK 15 is entered from F on one side at ~27 ft and D on the other at ~123 ft. Different names, but
         // opposite sides of the same runway end — one entrance reachable from either side, so both are full
         // length.
-        var foxtrot = HoldShortsOn("15", "F");
-        var delta = HoldShortsOn("15", "D");
+        List<GroundNode> foxtrot = HoldShortsOn("15", "F");
+        List<GroundNode> delta = HoldShortsOn("15", "D");
         if (_layout is null || foxtrot.Count == 0 || delta.Count == 0)
         {
             return;
@@ -50,7 +50,7 @@ public class RunwayEntryPointTests
     {
         // KOAK 33 is entered by C, which crosses the end at an angle — its two bars are ~271 ft apart
         // along-track, past the opposite-side band, but one taxiway is one entrance.
-        var charlie = HoldShortsOn("33", "C");
+        List<GroundNode> charlie = HoldShortsOn("33", "C");
         if (_layout is null || charlie.Count < 2)
         {
             return;
@@ -64,8 +64,8 @@ public class RunwayEntryPointTests
     {
         // KOAK 10L: C1 at ~44 ft is full length; J sits on the other side but ~419 ft down, well past the
         // band and on a different taxiway, so it is a real intersection departure.
-        var c1 = HoldShortsOn("10L", "C1");
-        var j = HoldShortsOn("10L", "J");
+        List<GroundNode> c1 = HoldShortsOn("10L", "C1");
+        List<GroundNode> j = HoldShortsOn("10L", "J");
         if (_layout is null || c1.Count == 0 || j.Count == 0)
         {
             return;
@@ -78,14 +78,14 @@ public class RunwayEntryPointTests
     [Fact]
     public void BothTaxiwayBHoldShorts_AreFullLengthFor28R()
     {
-        var nodes = HoldShortsOn("28R", "B");
+        List<GroundNode> nodes = HoldShortsOn("28R", "B");
         if (_layout is null || nodes.Count == 0)
         {
             return;
         }
 
         Assert.Equal(2, nodes.Count);
-        foreach (var node in nodes)
+        foreach (GroundNode node in nodes)
         {
             Assert.Null(RunwayEntryPoint.Resolve(_layout, node.Id, "28R", currentTaxiway: null));
         }
@@ -98,13 +98,13 @@ public class RunwayEntryPointTests
     [InlineData("P")]
     public void HoldShortsDownTheRunway_AreIntersectionsFor28R(string taxiway)
     {
-        var nodes = HoldShortsOn("28R", taxiway);
+        List<GroundNode> nodes = HoldShortsOn("28R", taxiway);
         if (_layout is null || nodes.Count == 0)
         {
             return;
         }
 
-        foreach (var node in nodes)
+        foreach (GroundNode node in nodes)
         {
             Assert.Equal(taxiway, RunwayEntryPoint.Resolve(_layout, node.Id, "28R", currentTaxiway: null));
         }
@@ -113,8 +113,8 @@ public class RunwayEntryPointTests
     [Fact]
     public void ReciprocalEnd_FlipsWhichHoldShortIsFullLength()
     {
-        var c1 = HoldShortsOn("10L", "C1");
-        var b = HoldShortsOn("10L", "B");
+        List<GroundNode> c1 = HoldShortsOn("10L", "C1");
+        List<GroundNode> b = HoldShortsOn("10L", "B");
         if (_layout is null || c1.Count == 0 || b.Count == 0)
         {
             return;
@@ -129,7 +129,7 @@ public class RunwayEntryPointTests
     {
         // KSMF 17R has A3 and A both on the same side of the end, ~27 ft apart — well inside the
         // opposite-side band, so only the side test keeps them apart. Same side is always two entrances.
-        var smf = new TestAirportGroundData().GetLayout("SMF");
+        AirportGroundLayout? smf = new TestAirportGroundData().GetLayout("SMF");
         if (smf is null)
         {
             return;
@@ -153,7 +153,7 @@ public class RunwayEntryPointTests
     [Fact]
     public void CurrentTaxiwayHint_DoesNotOverrideTheNodesOwnTaxiway()
     {
-        var nodes = HoldShortsOn("28R", "E");
+        List<GroundNode> nodes = HoldShortsOn("28R", "E");
         if (_layout is null || nodes.Count == 0)
         {
             return;
@@ -165,7 +165,7 @@ public class RunwayEntryPointTests
     [Fact]
     public void UnknownRunwayOrNode_ReturnsNull()
     {
-        var nodes = HoldShortsOn("28R", "E");
+        List<GroundNode> nodes = HoldShortsOn("28R", "E");
         if (_layout is null || nodes.Count == 0)
         {
             return;

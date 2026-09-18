@@ -1,6 +1,8 @@
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -150,7 +152,7 @@ public class Ual58Spot9ReversalTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("SFO");
+        AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {
             return null;
@@ -158,7 +160,7 @@ public class Ual58Spot9ReversalTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var archive = RecordingLoader.OpenArchive(BundlePath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(BundlePath);
         if (archive is null)
         {
             return null;
@@ -166,11 +168,11 @@ public class Ual58Spot9ReversalTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
+            SessionRecording recording = archive.ToBaseSessionRecording();
             var engine = new SimulationEngine(groundData);
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(restoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(restoreAtSeconds);
             if (snapshot is null)
             {
                 return null;
@@ -179,7 +181,7 @@ public class Ual58Spot9ReversalTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             int startSeconds = (int)snapshot.ElapsedSeconds;
 
-            var aircraft = engine.FindAircraft(Callsign);
+            AircraftState? aircraft = engine.FindAircraft(Callsign);
             if (aircraft is null)
             {
                 return null;
@@ -223,7 +225,7 @@ public class Ual58Spot9ReversalTests(ITestOutputHelper output)
                 finalHeadingDeg = headingDeg;
                 closestToTaxiwayADeg = Math.Min(closestToTaxiwayADeg, Math.Abs(GeoMath.SignedBearingDifference(headingDeg, TaxiwayABearingDeg)));
 
-                var route = aircraft.Ground.AssignedTaxiRoute;
+                TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
                 int segmentIndex = route?.CurrentSegmentIndex ?? -1;
                 int segmentCount = route?.Segments.Count ?? 0;
 

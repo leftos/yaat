@@ -6,6 +6,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -57,7 +58,7 @@ public class ParallelRunwayMltFromUpwindTests(ITestOutputHelper output)
     [Fact]
     public void Mlt28L_OnUpwind28R_ContinuesUpwindAndTurnsBeyondBothDepartureEnds()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -65,22 +66,28 @@ public class ParallelRunwayMltFromUpwindTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            var aircraft = RestoreAndClimbToUpwind(engine, archive, "28R", PatternDirection.Right);
+            AircraftState? aircraft = RestoreAndClimbToUpwind(engine, archive, "28R", PatternDirection.Right);
             if (aircraft is null)
             {
                 return;
             }
 
-            var rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
-            var rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
+            RunwayInfo rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
+            RunwayInfo rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
 
-            var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, "28L", null, aircraft.Ground.Layout);
+            CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+                aircraft,
+                PatternDirection.Left,
+                "28L",
+                null,
+                aircraft.Ground.Layout
+            );
             Assert.True(result.Success, $"MLT 28L was refused: {result.Message}");
             // The transition continues the upwind past both departure ends — there is no field crossing
             // to announce, and claiming one would have the RPO expecting a track across the runway.
@@ -94,7 +101,7 @@ public class ParallelRunwayMltFromUpwindTests(ITestOutputHelper output)
     [Fact]
     public void MrtBackTo28R_AfterMlt28L_OnUpwind_TurnsBeyondBothDepartureEnds()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -102,29 +109,41 @@ public class ParallelRunwayMltFromUpwindTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
-            var aircraft = RestoreAndClimbToUpwind(engine, archive, "28R", PatternDirection.Right);
+            AircraftState? aircraft = RestoreAndClimbToUpwind(engine, archive, "28R", PatternDirection.Right);
             if (aircraft is null)
             {
                 return;
             }
 
-            var rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
-            var rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
+            RunwayInfo rwy28R = NavigationDatabase.Instance.GetRunway(AirportId, "28R")!;
+            RunwayInfo rwy28L = NavigationDatabase.Instance.GetRunway(AirportId, "28L")!;
 
             // First switch: the aircraft is now on a 28L transition upwind (its waypoints carry 28L's
             // threshold), so the second command is itself a runway switch back to 28R.
-            var toLeft = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, "28L", null, aircraft.Ground.Layout);
+            CommandResult toLeft = PatternCommandHandler.TryChangePatternDirection(
+                aircraft,
+                PatternDirection.Left,
+                "28L",
+                null,
+                aircraft.Ground.Layout
+            );
             Assert.True(toLeft.Success, $"MLT 28L was refused: {toLeft.Message}");
             engine.TickOneSecond();
 
             aircraft = engine.FindAircraft(Callsign)!;
-            var back = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, "28R", null, aircraft.Ground.Layout);
+            CommandResult back = PatternCommandHandler.TryChangePatternDirection(
+                aircraft,
+                PatternDirection.Right,
+                "28R",
+                null,
+                aircraft.Ground.Layout
+            );
             Assert.True(back.Success, $"MRT 28R was refused: {back.Message}");
 
             AssertTransitionInstalled(aircraft, rwy28R, rwy28L);
@@ -140,7 +159,7 @@ public class ParallelRunwayMltFromUpwindTests(ITestOutputHelper output)
     {
         engine.Replay(archive.ToBaseSessionRecording(), 0);
 
-        var snapshot = archive.ReadSnapshotAt(GoAroundSnapshotTime);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(GoAroundSnapshotTime);
         if (snapshot is null)
         {
             output.WriteLine($"No snapshot near t={GoAroundSnapshotTime} — skipping");
@@ -150,7 +169,7 @@ public class ParallelRunwayMltFromUpwindTests(ITestOutputHelper output)
 
         for (int i = 0; i < MaxTicksToUpwind; i++)
         {
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             if (
                 (ac?.Phases?.CurrentPhase is UpwindPhase)
                 && string.Equals(ac.Phases.AssignedRunway?.Designator, runwayId, StringComparison.OrdinalIgnoreCase)
@@ -176,14 +195,14 @@ public class ParallelRunwayMltFromUpwindTests(ITestOutputHelper output)
     /// </summary>
     private void AssertTransitionInstalled(AircraftState aircraft, RunwayInfo patternRunway, RunwayInfo otherRunway)
     {
-        var chain = aircraft.Phases?.Phases ?? [];
+        List<Phase> chain = aircraft.Phases?.Phases ?? [];
         output.WriteLine($"chain=[{string.Join(",", chain.Select(p => $"{p.GetType().Name}:{p.Status}"))}]");
 
         Assert.Equal(patternRunway.Designator, aircraft.Phases?.AssignedRunway?.Designator);
         Assert.DoesNotContain(chain, p => p is MidfieldCrossingPhase);
 
-        var upwind = Assert.IsType<UpwindPhase>(aircraft.Phases?.CurrentPhase);
-        var waypoints = upwind.Waypoints;
+        UpwindPhase upwind = Assert.IsType<UpwindPhase>(aircraft.Phases?.CurrentPhase);
+        PatternWaypoints? waypoints = upwind.Waypoints;
         Assert.NotNull(waypoints);
 
         double turnAlongTrack = AlongTrack(patternRunway, waypoints.CrosswindTurnLat, waypoints.CrosswindTurnLon);
@@ -225,7 +244,7 @@ public class ParallelRunwayMltFromUpwindTests(ITestOutputHelper output)
         for (int i = 0; i < MaxTicksAfterCommand; i++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
             Assert.DoesNotContain(ac.Phases?.Phases ?? [], p => p is MidfieldCrossingPhase);
 

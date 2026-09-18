@@ -26,7 +26,7 @@ public class ArtccAirportResolverTests
             return;
         }
 
-        var airports = ArtccAirportResolver.ExtractUnderlyingAirports(File.ReadAllText(ZoaConfigPath));
+        List<string> airports = ArtccAirportResolver.ExtractUnderlyingAirports(File.ReadAllText(ZoaConfigPath));
 
         Assert.NotEmpty(airports);
 
@@ -44,7 +44,7 @@ public class ArtccAirportResolverTests
             return;
         }
 
-        var airports = ArtccAirportResolver.ExtractUnderlyingAirports(File.ReadAllText(ZoaConfigPath));
+        List<string> airports = ArtccAirportResolver.ExtractUnderlyingAirports(File.ReadAllText(ZoaConfigPath));
 
         // OAK/SFO appear under several facilities and repeatedly across NCT's 32 areas.
         Assert.Equal(airports.Count, airports.Distinct(StringComparer.OrdinalIgnoreCase).Count());
@@ -53,7 +53,7 @@ public class ArtccAirportResolverTests
     [Fact]
     public void ExtractUnderlyingAirports_ConfigWithoutStarsConfiguration_ReturnsEmpty()
     {
-        var airports = ArtccAirportResolver.ExtractUnderlyingAirports("""{"id":"ZZZ","facility":{"id":"ZZZ"}}""");
+        List<string> airports = ArtccAirportResolver.ExtractUnderlyingAirports("""{"id":"ZZZ","facility":{"id":"ZZZ"}}""");
 
         Assert.Empty(airports);
     }

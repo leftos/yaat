@@ -1,3 +1,4 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.ControllerAi;
@@ -14,7 +15,7 @@ public sealed class EngineAiCommandSink(SimulationEngine engine) : IAiCommandSin
 
     public void Issue(AiCommandRequest request)
     {
-        var result = engine.DispatchAiCommand(request.From, request.Callsign, request.Canonical);
+        CommandResult result = engine.DispatchAiCommand(request.From, request.Callsign, request.Canonical);
         _outcomes.Add(new AiCommandOutcome(request, result.Success, result.Success ? null : result.Message));
     }
 

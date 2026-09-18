@@ -1,6 +1,8 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -53,19 +55,19 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
     private (SimulationEngine Engine, TimedSnapshot Snapshot, SessionRecording Recording, RecordingArchive Archive)? RestoreAt(double targetSeconds)
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
         }
 
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return null;
         }
 
-        var snapshot = archive.ReadSnapshotAt(targetSeconds);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(targetSeconds);
         if (snapshot is null)
         {
             archive.Dispose();
@@ -76,7 +78,7 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         var engine = new SimulationEngine(groundData);
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0); // load scenario + weather, no actions
         engine.RestoreFromSnapshot(snapshot.State);
 
@@ -92,7 +94,7 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
     [Fact]
     public void SelectBestTransition_KFB7_ReturnsModTransition()
     {
-        var ctx = RestoreAt(1180);
+        (SimulationEngine Engine, TimedSnapshot Snapshot, SessionRecording Recording, RecordingArchive Archive)? ctx = RestoreAt(1180);
         if (ctx is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -100,16 +102,16 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
         }
         using (ctx.Value.Archive)
         {
-            var aircraft = ctx.Value.Engine.FindAircraft("KFB7");
+            AircraftState? aircraft = ctx.Value.Engine.FindAircraft("KFB7");
             Assert.NotNull(aircraft);
 
             output.WriteLine($"NavRoute: {string.Join(" → ", aircraft.Targets.NavigationRoute.Select(n => n.Name))}");
 
-            var resolved = ApproachCommandHandler.ResolveApproach("I28R", "MOD", aircraft);
+            ApproachCommandHandler.ResolvedApproach resolved = ApproachCommandHandler.ResolveApproach("I28R", "MOD", aircraft);
             Assert.True(resolved.Success, $"Should resolve I28R at KMOD. Got: {resolved.Error}");
 
-            var procedure = resolved.Procedure!;
-            var selected = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
+            CifpApproachProcedure procedure = resolved.Procedure!;
+            CifpTransition? selected = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
             output.WriteLine($"Selected transition: {selected?.Name ?? "(none)"}");
 
             Assert.NotNull(selected);
@@ -132,7 +134,7 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
     [Fact]
     public void CappI28R_KFB7_DownstreamFixesExcludeDlray()
     {
-        var ctx = RestoreAt(1180);
+        (SimulationEngine Engine, TimedSnapshot Snapshot, SessionRecording Recording, RecordingArchive Archive)? ctx = RestoreAt(1180);
         if (ctx is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -140,20 +142,21 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
         }
         using (ctx.Value.Archive)
         {
-            var engine = ctx.Value.Engine;
-            var aircraft = engine.FindAircraft("KFB7");
+            SimulationEngine engine = ctx.Value.Engine;
+            AircraftState? aircraft = engine.FindAircraft("KFB7");
             Assert.NotNull(aircraft);
 
             output.WriteLine($"Pre-CAPP NavRoute: {string.Join(" → ", aircraft.Targets.NavigationRoute.Select(n => n.Name))}");
 
-            var result = engine.SendCommand("KFB7", "CAPP I28R");
+            CommandResult result = engine.SendCommand("KFB7", "CAPP I28R");
             output.WriteLine($"CAPP result: Success={result.Success} Message={result.Message}");
             Assert.True(result.Success, $"CAPP I28R should succeed. Got: {result.Message}");
 
             // Collect all downstream fix names regardless of whether the deferred path
             // (NavRoute fixes) or immediate path (ApproachNavigationPhase fixes) is taken.
             var navRouteFixes = aircraft.Targets.NavigationRoute.Select(n => n.Name).ToList();
-            var phaseFixes = aircraft.Phases?.Phases.OfType<ApproachNavigationPhase>().FirstOrDefault()?.Fixes.Select(f => f.Name).ToList() ?? new();
+            List<string> phaseFixes =
+                aircraft.Phases?.Phases.OfType<ApproachNavigationPhase>().FirstOrDefault()?.Fixes.Select(f => f.Name).ToList() ?? new();
 
             output.WriteLine($"Post-CAPP NavRoute: {string.Join(" → ", navRouteFixes)}");
             output.WriteLine($"Post-CAPP ApproachNavigationPhase fixes: {string.Join(" → ", phaseFixes)}");
@@ -172,7 +175,7 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
     [Fact]
     public void CappI28R_KFB7_InsertsHoldingPatternPhaseAtZelat()
     {
-        var ctx = RestoreAt(1180);
+        (SimulationEngine Engine, TimedSnapshot Snapshot, SessionRecording Recording, RecordingArchive Archive)? ctx = RestoreAt(1180);
         if (ctx is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -180,20 +183,20 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
         }
         using (ctx.Value.Archive)
         {
-            var engine = ctx.Value.Engine;
-            var aircraft = engine.FindAircraft("KFB7");
+            SimulationEngine engine = ctx.Value.Engine;
+            AircraftState? aircraft = engine.FindAircraft("KFB7");
             Assert.NotNull(aircraft);
 
-            var result = engine.SendCommand("KFB7", "CAPP I28R");
+            CommandResult result = engine.SendCommand("KFB7", "CAPP I28R");
             Assert.True(result.Success, $"CAPP I28R should succeed. Got: {result.Message}");
 
             Assert.NotNull(aircraft.Phases);
-            foreach (var phase in aircraft.Phases.Phases)
+            foreach (Phase phase in aircraft.Phases.Phases)
             {
                 output.WriteLine($"Phase: {phase.GetType().Name}");
             }
 
-            var holdPhase = aircraft.Phases.Phases.OfType<HoldingPatternPhase>().FirstOrDefault();
+            HoldingPatternPhase? holdPhase = aircraft.Phases.Phases.OfType<HoldingPatternPhase>().FirstOrDefault();
             Assert.NotNull(holdPhase);
 
             Assert.Equal("ZELAT", holdPhase.FixName);
@@ -202,8 +205,8 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
 
             // Inbound course must use the same convention as JAPP's existing HILPT block:
             // (HoldInLieuLeg.OutboundCourse + 180) % 360, falling back to the FAC.
-            var procedure = ApproachCommandHandler.ResolveApproach("I28R", "MOD", aircraft).Procedure!;
-            var holdLeg = procedure.HoldInLieuLeg!;
+            CifpApproachProcedure procedure = ApproachCommandHandler.ResolveApproach("I28R", "MOD", aircraft).Procedure!;
+            CifpLeg holdLeg = procedure.HoldInLieuLeg!;
             int expectedInboundCourse = holdLeg.OutboundCourse.HasValue ? (int)((holdLeg.OutboundCourse.Value + 180) % 360) : holdPhase.InboundCourse;
             Assert.Equal(expectedInboundCourse, holdPhase.InboundCourse);
         }
@@ -219,7 +222,7 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
     [Fact]
     public void CappI28R_KFB7_AircraftDoesNotFlyPastZelatToDlray()
     {
-        var ctx = RestoreAt(1180);
+        (SimulationEngine Engine, TimedSnapshot Snapshot, SessionRecording Recording, RecordingArchive Archive)? ctx = RestoreAt(1180);
         if (ctx is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -227,7 +230,7 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
         }
         using (ctx.Value.Archive)
         {
-            var engine = ctx.Value.Engine;
+            SimulationEngine engine = ctx.Value.Engine;
             int startSeconds = (int)ctx.Value.Snapshot.ElapsedSeconds;
 
             const double dlrayLat = 37.463075;
@@ -244,7 +247,7 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
             {
                 engine.ReplayRange(t - 1, t, ctx.Value.Recording.Actions);
 
-                var ac = engine.FindAircraft("KFB7");
+                AircraftState? ac = engine.FindAircraft("KFB7");
                 if (ac is null)
                 {
                     break;

@@ -25,8 +25,8 @@ public class ConditionalListTests
 
     private static AircraftState BuildAircraftWithMixedConditionals()
     {
-        var ac = MakeGroundAircraft();
-        var ctx = TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false);
+        AircraftState ac = MakeGroundAircraft();
+        DispatchContext ctx = TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false);
 
         // Deferred WAIT-led taxi.
         CommandDispatcher.DispatchCompound(
@@ -55,9 +55,9 @@ public class ConditionalListTests
     [Fact]
     public void Enumerate_SpansQueueBlocksAndDeferrals_ExcludesReactionDelay()
     {
-        var ac = BuildAircraftWithMixedConditionals();
+        AircraftState ac = BuildAircraftWithMixedConditionals();
 
-        var entries = ConditionalList.Enumerate(ac, liveCountdown: true);
+        List<ConditionalEntry> entries = ConditionalList.Enumerate(ac, liveCountdown: true);
 
         // ONHO queue block (#1) + WAIT-taxi deferral (#2); reaction-delay excluded.
         Assert.Equal(2, entries.Count);
@@ -79,9 +79,9 @@ public class ConditionalListTests
     [Fact]
     public void Delete_ByIndex_RemovesDeferral_KeepsQueueBlockAndReactionDelay()
     {
-        var ac = BuildAircraftWithMixedConditionals();
+        AircraftState ac = BuildAircraftWithMixedConditionals();
 
-        var result = ConditionalList.Delete(ac, 2); // the WAIT-taxi deferral
+        ConditionalList.DeleteResult result = ConditionalList.Delete(ac, 2); // the WAIT-taxi deferral
 
         Assert.True(result.Success);
         Assert.Equal(1, result.DeletedCount);
@@ -93,9 +93,9 @@ public class ConditionalListTests
     [Fact]
     public void Delete_ByIndex_RemovesQueueBlock_KeepsDeferral()
     {
-        var ac = BuildAircraftWithMixedConditionals();
+        AircraftState ac = BuildAircraftWithMixedConditionals();
 
-        var result = ConditionalList.Delete(ac, 1); // the ONHO queue block
+        ConditionalList.DeleteResult result = ConditionalList.Delete(ac, 1); // the ONHO queue block
 
         Assert.True(result.Success);
         Assert.Empty(ac.Queue.Blocks);
@@ -107,9 +107,9 @@ public class ConditionalListTests
     [Fact]
     public void Delete_All_RemovesQueueBlocksAndDeferrals_KeepsReactionDelay()
     {
-        var ac = BuildAircraftWithMixedConditionals();
+        AircraftState ac = BuildAircraftWithMixedConditionals();
 
-        var result = ConditionalList.Delete(ac, null);
+        ConditionalList.DeleteResult result = ConditionalList.Delete(ac, null);
 
         Assert.True(result.Success);
         Assert.Equal(2, result.DeletedCount); // ONHO block + WAIT-taxi deferral
@@ -121,9 +121,9 @@ public class ConditionalListTests
     [Fact]
     public void Delete_OutOfRange_ReportsDeletableCount()
     {
-        var ac = BuildAircraftWithMixedConditionals();
+        AircraftState ac = BuildAircraftWithMixedConditionals();
 
-        var result = ConditionalList.Delete(ac, 9);
+        ConditionalList.DeleteResult result = ConditionalList.Delete(ac, 9);
 
         Assert.False(result.Success);
         Assert.Equal(2, result.DeletableCount);

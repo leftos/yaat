@@ -12,7 +12,7 @@ public static class ClientProductTitle
 {
     public static string Build(int pendingCount, string? facilityId, string product, bool includeYaatSuffix)
     {
-        var title = string.IsNullOrEmpty(facilityId) ? product : $"{facilityId} - {product}";
+        string title = string.IsNullOrEmpty(facilityId) ? product : $"{facilityId} - {product}";
         if (includeYaatSuffix)
         {
             title += " (YAAT)";

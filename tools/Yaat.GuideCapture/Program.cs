@@ -32,14 +32,14 @@ public static class Program
         Console.Error.WriteLine("This build was produced without it; the tool cannot run.");
         return 2;
 #else
-        if (!TryParseArgs(args, out var sceneFilter, out var outDir, out var renderScaling, out var error))
+        if (!TryParseArgs(args, out string? sceneFilter, out string? outDir, out double renderScaling, out string? error))
         {
             Console.Error.WriteLine(error);
             PrintUsage();
             return 2;
         }
 
-        var exitCode = MainAsync(sceneFilter, outDir, renderScaling).GetAwaiter().GetResult();
+        int exitCode = MainAsync(sceneFilter, outDir, renderScaling).GetAwaiter().GetResult();
 
         // Force-terminate. The Avalonia headless dispatcher and ASP.NET Core
         // hosted services leave non-background threads alive after Main
@@ -104,7 +104,7 @@ public static class Program
         renderScaling = 1.0;
         error = string.Empty;
 
-        for (var i = 0; i < args.Length; i++)
+        for (int i = 0; i < args.Length; i++)
         {
             switch (args[i])
             {

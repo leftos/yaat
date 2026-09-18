@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -19,8 +20,8 @@ public class KoakOakes3FmTerminatorTests
     [Fact]
     public void Oakes3_LastFix_CarriesPublishedOutboundCourse_AndFliesItAtRouteEnd()
     {
-        var star = NavigationDatabase.Instance.GetStar("KOAK", "OAKES3");
-        if (star is null || star.CommonLegs.Count == 0 || !star.RunwayTransitions.TryGetValue("RW12", out var rw12))
+        CifpStarProcedure? star = NavigationDatabase.Instance.GetStar("KOAK", "OAKES3");
+        if (star is null || star.CommonLegs.Count == 0 || !star.RunwayTransitions.TryGetValue("RW12", out CifpTransition? rw12))
         {
             return; // OAKES3 / RW12 not in the bundled CIFP cycle — skip offline.
         }
@@ -30,10 +31,10 @@ public class KoakOakes3FmTerminatorTests
         var orderedLegs = new List<Yaat.Sim.Data.Vnas.CifpLeg>();
         orderedLegs.AddRange(star.CommonLegs);
         orderedLegs.AddRange(rw12.Legs);
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs);
         Assert.NotEmpty(targets);
 
-        var last = targets[^1];
+        NavigationTarget last = targets[^1];
         Assert.Equal("HIRMO", last.Name);
         Assert.NotNull(last.TerminalCourseMagnetic);
         Assert.Equal(260.8, last.TerminalCourseMagnetic!.Value, 1);
@@ -65,7 +66,7 @@ public class KoakOakes3FmTerminatorTests
         // rather than holding its 90° arrival heading.
         Assert.Empty(ac.Targets.NavigationRoute);
         Assert.NotNull(ac.Targets.TargetTrueHeading);
-        var expected = new MagneticHeading(260.8).ToTrue(ac.Declination);
+        TrueHeading expected = new MagneticHeading(260.8).ToTrue(ac.Declination);
         Assert.True(
             ac.Targets.TargetTrueHeading!.Value.AbsAngleTo(expected) < 1.0,
             $"expected FM outbound ~{expected.Degrees:F0}° true, got {ac.Targets.TargetTrueHeading.Value.Degrees:F0}°"

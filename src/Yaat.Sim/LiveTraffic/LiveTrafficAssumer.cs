@@ -171,7 +171,7 @@ public static class LiveTrafficAssumer
         }
 
         string summary = SeedState(aircraft, lt, ctx, notes);
-        foreach (var note in notes)
+        foreach (string note in notes)
         {
             aircraft.PendingWarnings.Add(note);
         }
@@ -221,7 +221,7 @@ public static class LiveTrafficAssumer
 
     private static string SeedState(AircraftState ac, AircraftLiveTraffic lt, DispatchContext ctx, List<string> notes)
     {
-        var (runway, kind) = ClassifyRunwayUse(ac, ctx);
+        (RunwayInfo? runway, RunwayUseKind? kind) = ClassifyRunwayUse(ac, ctx);
         if (ac.IsOnGround)
         {
             return SeedSurface(ac, ctx, runway, kind);
@@ -276,9 +276,9 @@ public static class LiveTrafficAssumer
     {
         RunwayInfo? best = null;
         RunwayUseKind? bestKind = null;
-        foreach (var runway in CandidateRunways(ac, ctx))
+        foreach (RunwayInfo runway in CandidateRunways(ac, ctx))
         {
-            var kind = RunwayOccupancy.ClassifyByGeometry(ac, runway, ctx.GroundLayout);
+            RunwayUseKind? kind = RunwayOccupancy.ClassifyByGeometry(ac, runway, ctx.GroundLayout);
             if (kind is null || (bestKind is not null && kind.Value >= bestKind.Value))
             {
                 continue;
@@ -296,7 +296,7 @@ public static class LiveTrafficAssumer
     private static IEnumerable<RunwayInfo> CandidateRunways(AircraftState ac, DispatchContext ctx)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var airport in new[] { ctx.GroundLayout?.AirportId, ac.FlightPlan.Destination, ac.FlightPlan.Departure })
+        foreach (string? airport in new[] { ctx.GroundLayout?.AirportId, ac.FlightPlan.Destination, ac.FlightPlan.Departure })
         {
             if (string.IsNullOrWhiteSpace(airport) || !seen.Add(airport))
             {
@@ -304,7 +304,7 @@ public static class LiveTrafficAssumer
             }
 
             // The nav DB lists pavements; orient each to the end the aircraft is tracking toward.
-            foreach (var runway in RunwaysFor(airport))
+            foreach (RunwayInfo runway in RunwaysFor(airport))
             {
                 yield return RunwayOccupancy.AlignedEnd(ac.TrueTrack.Degrees, runway);
             }
@@ -348,7 +348,7 @@ public static class LiveTrafficAssumer
 
     private static void SeedSpeed(AircraftState ac, AircraftLiveTraffic lt)
     {
-        var cat = AircraftCategorization.Categorize(ac.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
         double def = AircraftPerformance.DefaultSpeed(ac.AircraftType, cat, ac.Altitude, null);
         double ias;
         if (ac.Altitude < 10_000)
@@ -414,7 +414,7 @@ public static class LiveTrafficAssumer
     /// <summary>The first published at/at-or-below crossing altitude on the installed route that lies below the aircraft.</summary>
     private static double? NextRestrictionBelow(AircraftState ac)
     {
-        foreach (var target in ac.Targets.NavigationRoute)
+        foreach (NavigationTarget target in ac.Targets.NavigationRoute)
         {
             if (target.AltitudeRestriction is { } r && r.Type != CifpAltitudeRestrictionType.AtOrAbove && r.Altitude1Ft < ac.Altitude)
             {
@@ -523,7 +523,7 @@ public static class LiveTrafficAssumer
             return climbSummary;
         }
 
-        var (rejoinSummary, rejoined) = TrySeedRouteRejoin(ac, lt, notes);
+        (string? rejoinSummary, bool rejoined) = TrySeedRouteRejoin(ac, lt, notes);
         if (rejoined)
         {
             return rejoinSummary!;
@@ -544,10 +544,10 @@ public static class LiveTrafficAssumer
             return null;
         }
 
-        foreach (var runway in CandidateRunways(ac, ctx))
+        foreach (RunwayInfo runway in CandidateRunways(ac, ctx))
         {
             double distNm = RunwayOccupancy.DistanceToLandingThresholdNm(ac, runway, ctx.GroundLayout);
-            var threshold = LandingThreshold.Resolve(runway, ctx.GroundLayout);
+            LatLon threshold = LandingThreshold.Resolve(runway, ctx.GroundLayout);
             double displacementNm = GeoMath.DistanceNm(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), threshold);
             double gateNm =
                 ApproachGateDatabase.GetMinInterceptDistanceNm(runway.AirportId, runway.Designator, displacementNm)
@@ -564,7 +564,7 @@ public static class LiveTrafficAssumer
             if (distNm <= gateNm && offDeg <= EstablishedHeadingDeg && xtkNm <= EstablishedCrossTrackNm)
             {
                 ac.Procedure.DestinationRunway = runway.Designator;
-                var result = ApproachCommandHandler.TryClearedApproach(
+                CommandResult result = ApproachCommandHandler.TryClearedApproach(
                     new ClearedApproachCommand(null, runway.AirportId, true, null, null, null, null, null, null, null, null),
                     ac
                 );
@@ -580,7 +580,7 @@ public static class LiveTrafficAssumer
             if (distNm <= gateNm && IsFieldVmc(ctx, runway.AirportId))
             {
                 ac.Approach.HasReportedFieldInSight = true;
-                var visual = ApproachCommandHandler.TryClearedVisualApproach(
+                CommandResult visual = ApproachCommandHandler.TryClearedVisualApproach(
                     new ClearedVisualApproachCommand(runway.Designator, runway.AirportId, null, null, false),
                     ac,
                     ctx
@@ -604,7 +604,7 @@ public static class LiveTrafficAssumer
 
     private static bool IsFieldVmc(DispatchContext ctx, string airportId)
     {
-        var metar = ctx.Weather?.GetWeatherForAirport(airportId);
+        MetarParser.ParsedMetar? metar = ctx.Weather?.GetWeatherForAirport(airportId);
         if (metar is null)
         {
             return true;
@@ -627,9 +627,9 @@ public static class LiveTrafficAssumer
             return null;
         }
 
-        foreach (var pavement in RunwaysFor(ac.FlightPlan.Departure))
+        foreach (RunwayInfo pavement in RunwaysFor(ac.FlightPlan.Departure))
         {
-            var runway = RunwayOccupancy.AlignedEnd(ac.TrueTrack.Degrees, pavement);
+            RunwayInfo runway = RunwayOccupancy.AlignedEnd(ac.TrueTrack.Degrees, pavement);
             var end = new LatLon(runway.EndLatitude, runway.EndLongitude);
             if (
                 GeoMath.DistanceNm(ac.Position, end) > InitialClimbDistanceNm
@@ -665,9 +665,9 @@ public static class LiveTrafficAssumer
             return (null, false);
         }
 
-        var navDb = NavigationDatabase.Instance;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
         var resolved = new List<ResolvedFix>();
-        foreach (var name in RouteExpander.Expand(ac.FlightPlan.Route, navDb, includeAllTransitionsOnMismatch: false))
+        foreach (string name in RouteExpander.Expand(ac.FlightPlan.Route, navDb, includeAllTransitionsOnMismatch: false))
         {
             if (navDb.ResolveFixOrFrd(name) is { } pos)
             {
@@ -687,7 +687,7 @@ public static class LiveTrafficAssumer
         }
 
         ac.Targets.NavigationRoute.Clear();
-        foreach (var fix in resolved.Skip(candidate))
+        foreach (ResolvedFix? fix in resolved.Skip(candidate))
         {
             ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
         }
@@ -744,7 +744,7 @@ public static class LiveTrafficAssumer
             }
         }
 
-        var fix = Point(route[candidate]);
+        LatLon fix = Point(route[candidate]);
         double bearingOff = Math.Abs(AngleDiff(GeoMath.BearingTo(ac.Position, fix), ac.TrueTrack.Degrees));
         double minNm = Math.Max(RejoinMinDistanceNm, ac.GroundSpeed * RejoinMinSeconds / 3600.0);
         return bearingOff <= RejoinConeDeg && GeoMath.DistanceNm(ac.Position, fix) >= minNm ? candidate : -1;
@@ -765,7 +765,7 @@ public static class LiveTrafficAssumer
             return false;
         }
 
-        var runways = RunwaysFor(airport);
+        IReadOnlyList<RunwayInfo> runways = RunwaysFor(airport);
         return runways.Count > 0 && GeoMath.DistanceNm(ac.Position, new LatLon(runways[0].Lat1, runways[0].Lon1)) <= nm;
     }
 
@@ -782,7 +782,7 @@ public static class LiveTrafficAssumer
             return true;
         }
 
-        var h = lt.History;
+        List<LiveTrafficHistoryPoint> h = lt.History;
         if (h.Count < 3)
         {
             return false;

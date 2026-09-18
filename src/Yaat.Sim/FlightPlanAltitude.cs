@@ -31,15 +31,15 @@ public static class FlightPlanAltitude
         {
             return ("IFR", PlannedAltitude.Otp(null));
         }
-        if (text.StartsWith("VFR/", StringComparison.Ordinal) && int.TryParse(text.AsSpan(4), out var vfrAlt))
+        if (text.StartsWith("VFR/", StringComparison.Ordinal) && int.TryParse(text.AsSpan(4), out int vfrAlt))
         {
             return ("VFR", PlannedAltitude.Vfr(vfrAlt * 100));
         }
-        if (text.StartsWith("OTP/", StringComparison.Ordinal) && int.TryParse(text.AsSpan(4), out var otpAlt))
+        if (text.StartsWith("OTP/", StringComparison.Ordinal) && int.TryParse(text.AsSpan(4), out int otpAlt))
         {
             return ("IFR", PlannedAltitude.Otp(otpAlt * 100));
         }
-        if (int.TryParse(text, out var alt))
+        if (int.TryParse(text, out int alt))
         {
             return ("IFR", PlannedAltitude.Ifr(alt * 100));
         }
@@ -53,7 +53,7 @@ public static class FlightPlanAltitude
     /// </summary>
     public static PlannedAltitude FromRulesAndFeet(string flightRules, int? feet)
     {
-        var alt = feet is int f and > 0 ? f : (int?)null;
+        int? alt = feet is int f and > 0 ? f : (int?)null;
         if (flightRules.Equals("OTP", StringComparison.OrdinalIgnoreCase))
         {
             return PlannedAltitude.Otp(alt);
@@ -77,7 +77,7 @@ public static class FlightPlanAltitude
             return $"{altitude.BlockFloorFeet!.Value / 100:D3}B{altitude.CruiseFeet!.Value / 100:D3}";
         }
 
-        var altStr = altitude.CruiseFeet is { } feet and > 0 ? (feet / 100).ToString("D3") : "";
+        string altStr = altitude.CruiseFeet is { } feet and > 0 ? (feet / 100).ToString("D3") : "";
 
         if (altitude.IsAbove)
         {

@@ -1,8 +1,10 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Eram;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.ControllerAi;
 using Yaat.Sim.Tests.Helpers;
@@ -39,7 +41,7 @@ public class EramCrrGroupStepTests
     /// <summary>A recording of everything the engine has run so far, carrying the ARTCC the replay re-initialises from.</summary>
     private SessionRecording Recording(SimulationEngine engine)
     {
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         return new SessionRecording
         {
             ScenarioJson = AiTestFixture.ParkedAtOak,
@@ -62,10 +64,10 @@ public class EramCrrGroupStepTests
 
         var host = new AttendanceActionHost();
 
-        var applied = engine.Actions.ApplyRecorded(Created(0, "Yellow", 37.5, -122.0), host);
+        CommandResult applied = engine.Actions.ApplyRecorded(Created(0, "Yellow", 37.5, -122.0), host);
 
         Assert.True(applied.Success, applied.Message);
-        var group = Assert.Single(engine.CrrGroups.Values);
+        EramCrrGroup group = Assert.Single(engine.CrrGroups.Values);
         Assert.Equal(Label, group.Label);
         Assert.Equal(EramCrrColor.Yellow, group.Color);
         Assert.Equal(37.5, group.Latitude, 6);
@@ -90,7 +92,7 @@ public class EramCrrGroupStepTests
 
         Assert.True(engine.Actions.ApplyRecorded(Created(1, "White", 38.25, -121.5), host).Success);
 
-        var group = Assert.Single(engine.CrrGroups.Values);
+        EramCrrGroup group = Assert.Single(engine.CrrGroups.Values);
         Assert.Equal(38.25, group.Latitude, 6);
         Assert.Equal(-121.5, group.Longitude, 6);
         Assert.Equal(EramCrrColor.White, group.Color);
@@ -111,7 +113,7 @@ public class EramCrrGroupStepTests
 
         Assert.True(engine.Actions.ApplyRecorded(Created(2, "Coral", 37.5, -122.0), host).Success);
 
-        var group = Assert.Single(engine.CrrGroups.Values);
+        EramCrrGroup group = Assert.Single(engine.CrrGroups.Values);
         Assert.Equal(EramCrrColor.Coral, group.Color);
         Assert.Equal(37.5, group.Latitude, 6);
         Assert.Equal(-122.0, group.Longitude, 6);
@@ -130,7 +132,7 @@ public class EramCrrGroupStepTests
         Assert.True(engine.Actions.ApplyRecorded(Created(0, "White", 37.5, -122.0), host).Success);
         Assert.NotEmpty(engine.CrrGroups);
 
-        var deleted = engine.Actions.ApplyRecorded(new RecordedEramCrrGroup(3, Label, Color: null, Lat: null, Lon: null), host);
+        CommandResult deleted = engine.Actions.ApplyRecorded(new RecordedEramCrrGroup(3, Label, Color: null, Lat: null, Lon: null), host);
 
         Assert.True(deleted.Success, deleted.Message);
         Assert.Empty(engine.CrrGroups);
@@ -169,9 +171,9 @@ public class EramCrrGroupStepTests
         Assert.True(engine.Actions.ApplyRecorded(Created(0, "Green", 37.5, -122.0), host).Success);
         Assert.True(engine.Actions.ApplyRecorded(new RecordedEramCrrGroup(0, "ALT", "Coral", 38.0, -121.0), host).Success);
 
-        var snapshot = engine.CaptureSnapshot(engine.Scenario!.ActionLog.Count);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot(engine.Scenario!.ActionLog.Count);
 
-        var restored = Engine()!;
+        SimulationEngine restored = Engine()!;
         restored.RestoreFromSnapshot(snapshot);
 
         Assert.Equal(2, restored.CrrGroups.Count);
@@ -200,9 +202,9 @@ public class EramCrrGroupStepTests
         }
 
         Assert.True(engine.Actions.IssueDerived(Created(engine.Scenario!.ElapsedSeconds, "Yellow", 37.5, -122.0), host).Success);
-        var live = Assert.Single(engine.CrrGroups.Values);
+        EramCrrGroup live = Assert.Single(engine.CrrGroups.Values);
 
-        var recording = Recording(engine);
+        SessionRecording recording = Recording(engine);
 
         var replayed = new SimulationEngine(new TestAirportGroundData());
         replayed.Replay(recording, engine.Scenario!.ElapsedSeconds + 5);

@@ -52,7 +52,7 @@ internal sealed class TaxiBudgetEvaluator
 
     public void Observe(AircraftState aircraft)
     {
-        var phase = aircraft.Phases?.CurrentPhase;
+        Phase? phase = aircraft.Phases?.CurrentPhase;
         bool legitimateStop = phase is HoldingShortPhase or CrossingRunwayPhase or AtParkingPhase;
 
         if (_prevPos is { } pp)

@@ -27,7 +27,7 @@ public sealed class VfrTrafficAdvisorySttTests
     [InlineData("traffic behind you two miles a cessna", "RTIS TAIL 2 cessna")]
     public void Relative_NoContext_MapsToCanonical(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, MapContext.Empty);
+        MapResult? result = PhraseologyMapper.Map(transcript, MapContext.Empty);
 
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
@@ -39,7 +39,7 @@ public sealed class VfrTrafficAdvisorySttTests
     [InlineData("traffic on a two mile final for runway two eight right a cessna", "RTIS FINAL 2 28R cessna")]
     public void Pattern_NoContext_MapsToCanonical(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, MapContext.Empty);
+        MapResult? result = PhraseologyMapper.Map(transcript, MapContext.Empty);
 
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
@@ -50,7 +50,7 @@ public sealed class VfrTrafficAdvisorySttTests
     {
         var context = new MapContext([], []) { CustomFixPatterns = NavigationDatabase.Instance.CustomFixSpeechPatterns };
 
-        var result = PhraseologyMapper.Map("traffic over the oakland coliseum a cessna", context);
+        MapResult? result = PhraseologyMapper.Map("traffic over the oakland coliseum a cessna", context);
 
         Assert.NotNull(result);
         Assert.Equal("RTIS OVER VPCOL cessna", result!.CanonicalCommand);

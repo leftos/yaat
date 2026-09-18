@@ -6,7 +6,9 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MsBox.Avalonia;
+using MsBox.Avalonia.Base;
 using MsBox.Avalonia.Dto;
+using MsBox.Avalonia.Enums;
 using MsBox.Avalonia.Models;
 using Xunit;
 using Yaat.Client.UI.Tests.Helpers;
@@ -29,7 +31,7 @@ public class MessageBoxDialogTests
         var owner = new Window { Width = 300, Height = 200 };
         owner.ShowAndRunLayout();
 
-        var box = MessageBoxManager.GetMessageBoxCustom(
+        IMsBox<string> box = MessageBoxManager.GetMessageBoxCustom(
             new MessageBoxCustomParams
             {
                 ButtonDefinitions = [new ButtonDefinition { Name = "Add to existing" }, new ButtonDefinition { Name = "Cancel", IsCancel = true }],
@@ -37,7 +39,7 @@ public class MessageBoxDialogTests
                 ContentMessage = "Add or replace?",
             }
         );
-        var result = box.ShowWindowDialogAsync(owner);
+        Task<string> result = box.ShowWindowDialogAsync(owner);
 
         ClickDialogButton(owner, "Add to existing");
 
@@ -50,7 +52,9 @@ public class MessageBoxDialogTests
         var owner = new Window { Width = 300, Height = 200 };
         owner.ShowAndRunLayout();
 
-        var result = MessageBoxManager.GetMessageBoxStandard("Import Favorites", "Imported 452 new favorite(s).").ShowWindowDialogAsync(owner);
+        Task<ButtonResult> result = MessageBoxManager
+            .GetMessageBoxStandard("Import Favorites", "Imported 452 new favorite(s).")
+            .ShowWindowDialogAsync(owner);
 
         // The standard view keeps every button in the tree and shows only the ones its ButtonEnum names.
         ClickDialogButton(owner, b => b.IsEffectivelyVisible);
@@ -64,12 +68,12 @@ public class MessageBoxDialogTests
     private static void ClickDialogButton(Window owner, Predicate<Button> match)
     {
         Dispatcher.UIThread.RunJobs();
-        var dialog = Assert.Single(owner.OwnedWindows, w => w.GetType().Name == "MsBoxWindow");
+        Window dialog = Assert.Single(owner.OwnedWindows, w => w.GetType().Name == "MsBoxWindow");
         dialog.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
 
-        var button = Assert.Single(dialog.GetVisualDescendants().OfType<Button>(), match);
-        var center = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), dialog);
+        Button button = Assert.Single(dialog.GetVisualDescendants().OfType<Button>(), match);
+        Point? center = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), dialog);
         Assert.NotNull(center);
 
         dialog.MouseDown(center.Value, MouseButton.Left);

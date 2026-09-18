@@ -69,12 +69,12 @@ public class AvoidTaxiwayPathfinderTests
     /// </summary>
     private static AirportGroundLayout TwoPathLayout(out int start, out int destBoth, out int destOnlyX)
     {
-        var n0 = Node(0, 37.700, -122.200); // start
-        var nx = Node(1, 37.700, -122.190); // on X
-        var nd = Node(2, 37.700, -122.180); // reachable via X (short) and via A detour (long)
-        var na1 = Node(3, 37.730, -122.200); // A detour
-        var na2 = Node(4, 37.730, -122.180); // A detour
-        var nd2 = Node(5, 37.690, -122.190); // only reachable from nx via X
+        GroundNode n0 = Node(0, 37.700, -122.200); // start
+        GroundNode nx = Node(1, 37.700, -122.190); // on X
+        GroundNode nd = Node(2, 37.700, -122.180); // reachable via X (short) and via A detour (long)
+        GroundNode na1 = Node(3, 37.730, -122.200); // A detour
+        GroundNode na2 = Node(4, 37.730, -122.180); // A detour
+        GroundNode nd2 = Node(5, 37.690, -122.190); // only reachable from nx via X
 
         Edge(n0, nx, "X");
         Edge(nx, nd, "X");
@@ -84,7 +84,7 @@ public class AvoidTaxiwayPathfinderTests
         Edge(na2, nd, "A");
 
         var layout = new AirportGroundLayout { AirportId = "TST" };
-        foreach (var n in new[] { n0, nx, nd, na1, na2, nd2 })
+        foreach (GroundNode? n in new[] { n0, nx, nd, na1, na2, nd2 })
         {
             layout.Nodes[n.Id] = n;
         }
@@ -102,9 +102,9 @@ public class AvoidTaxiwayPathfinderTests
     [Fact]
     public void HardExclude_UsesAlternative_WhenDestinationReachableWithoutAvoidedTaxiway()
     {
-        var layout = TwoPathLayout(out int start, out int destBoth, out _);
+        AirportGroundLayout layout = TwoPathLayout(out int start, out int destBoth, out _);
 
-        var (route, failure) = AutoRouter.Run(Ctx(layout, start, destBoth, AvoidSet("X"), AvoidTaxiwayMode.HardExclude));
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(Ctx(layout, start, destBoth, AvoidSet("X"), AvoidTaxiwayMode.HardExclude));
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -115,9 +115,9 @@ public class AvoidTaxiwayPathfinderTests
     [Fact]
     public void HardExclude_ReturnsNull_WhenDestinationReachableOnlyViaAvoidedTaxiway()
     {
-        var layout = TwoPathLayout(out int start, out _, out int destOnlyX);
+        AirportGroundLayout layout = TwoPathLayout(out int start, out _, out int destOnlyX);
 
-        var (route, failure) = AutoRouter.Run(Ctx(layout, start, destOnlyX, AvoidSet("X"), AvoidTaxiwayMode.HardExclude));
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(Ctx(layout, start, destOnlyX, AvoidSet("X"), AvoidTaxiwayMode.HardExclude));
 
         Assert.Null(route);
         Assert.NotNull(failure);
@@ -126,9 +126,9 @@ public class AvoidTaxiwayPathfinderTests
     [Fact]
     public void SoftPenalty_ReachesDestination_OnlyViaAvoidedTaxiway()
     {
-        var layout = TwoPathLayout(out int start, out _, out int destOnlyX);
+        AirportGroundLayout layout = TwoPathLayout(out int start, out _, out int destOnlyX);
 
-        var (route, failure) = AutoRouter.Run(Ctx(layout, start, destOnlyX, AvoidSet("X"), AvoidTaxiwayMode.SoftPenalty));
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(Ctx(layout, start, destOnlyX, AvoidSet("X"), AvoidTaxiwayMode.SoftPenalty));
 
         Assert.Null(failure);
         Assert.NotNull(route);
@@ -153,7 +153,7 @@ public class AvoidTaxiwayPathfinderTests
             return;
         }
 
-        var avoided = NavigationDatabase.Instance.AirportSidecars.GetAvoidedTaxiways("OAK");
+        IReadOnlySet<string> avoided = NavigationDatabase.Instance.AirportSidecars.GetAvoidedTaxiways("OAK");
         Assert.Contains("S", avoided);
         // Same set resolves via the ICAO form.
         Assert.Contains("S", NavigationDatabase.Instance.AirportSidecars.GetAvoidedTaxiways("KOAK"));
@@ -162,14 +162,14 @@ public class AvoidTaxiwayPathfinderTests
     [Fact]
     public void Oak_Compile_AutoMode_EnablesHardExclude_ExplicitMode_Disables()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null || TestVnasData.NavigationDb is null)
         {
             return;
         }
 
-        var ga1 = layout.FindParkingByName("GA1");
-        var dest = layout.FindParkingByName("A");
+        GroundNode? ga1 = layout.FindParkingByName("GA1");
+        GroundNode? dest = layout.FindParkingByName("A");
         Assert.NotNull(ga1);
         Assert.NotNull(dest);
 
@@ -213,19 +213,21 @@ public class AvoidTaxiwayPathfinderTests
     [Fact]
     public void Oak_HardExcludeAlone_CannotReachParkingOnlyOffS()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null || TestVnasData.NavigationDb is null)
         {
             return;
         }
 
-        var ga1 = layout.FindParkingByName("GA1");
-        var parkingA = layout.FindParkingByName("A");
+        GroundNode? ga1 = layout.FindParkingByName("GA1");
+        GroundNode? parkingA = layout.FindParkingByName("A");
         Assert.NotNull(ga1);
         Assert.NotNull(parkingA);
 
         // Parking A hangs off taxiway S — with S hard-excluded (pass 1), it must be unreachable.
-        var (route, failure) = AutoRouter.Run(Ctx(layout, ga1.Id, parkingA.Id, AvoidSet("S"), AvoidTaxiwayMode.HardExclude));
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(
+            Ctx(layout, ga1.Id, parkingA.Id, AvoidSet("S"), AvoidTaxiwayMode.HardExclude)
+        );
 
         Assert.Null(route);
         Assert.NotNull(failure);
@@ -234,19 +236,19 @@ public class AvoidTaxiwayPathfinderTests
     [Fact]
     public void Oak_AutoRoute_ReachesParkingOnlyOffS_ViaTwoPassFallback()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null || TestVnasData.NavigationDb is null)
         {
             return;
         }
 
-        var ga1 = layout.FindParkingByName("GA1");
-        var parkingA = layout.FindParkingByName("A");
+        GroundNode? ga1 = layout.FindParkingByName("GA1");
+        GroundNode? parkingA = layout.FindParkingByName("A");
         Assert.NotNull(ga1);
         Assert.NotNull(parkingA);
 
         // FindRoute runs the two-pass: pass 1 (hard-exclude S) fails, pass 2 reaches A via S.
-        var route = TaxiPathfinder.FindRoute(layout, ga1.Id, parkingA.Id, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, ga1.Id, parkingA.Id, AircraftCategory.Jet);
 
         Assert.NotNull(route);
         Assert.True(UsesTaxiway(route, "S"), "A is only reachable via S, so the fallback route must use S.");

@@ -23,7 +23,7 @@ public class TickBenchmarkTests(ITestOutputHelper output)
         var world = new SimulationWorld();
         for (int i = 0; i < aircraftCount; i++)
         {
-            var ac = MakeAircraft($"TEST{i}", i);
+            AircraftState ac = MakeAircraft($"TEST{i}", i);
             world.AddAircraft(ac);
         }
 
@@ -62,7 +62,7 @@ public class TickBenchmarkTests(ITestOutputHelper output)
         var world = new SimulationWorld();
         for (int i = 0; i < 20; i++)
         {
-            var ac = MakeAircraftWithPhases($"PHASE{i}", i);
+            AircraftState ac = MakeAircraftWithPhases($"PHASE{i}", i);
             world.AddAircraft(ac);
         }
 
@@ -101,7 +101,7 @@ public class TickBenchmarkTests(ITestOutputHelper output)
 
     private static AircraftState MakeAircraftWithPhases(string callsign, int index)
     {
-        var ac = MakeAircraft(callsign, index);
+        AircraftState ac = MakeAircraft(callsign, index);
         ac.Phases = new PhaseList();
         ac.Targets.TargetTrueHeading = new TrueHeading(350);
         ac.Targets.TargetAltitude = 8000;

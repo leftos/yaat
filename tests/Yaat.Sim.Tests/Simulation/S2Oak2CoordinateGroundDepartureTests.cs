@@ -26,7 +26,7 @@ public class S2Oak2CoordinateGroundDepartureTests
 
     private static SimulationEngine? LoadFreshScenario()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         if (recording is null)
         {
             return null;
@@ -52,15 +52,15 @@ public class S2Oak2CoordinateGroundDepartureTests
     [Fact]
     public void CoordinateDepartures_SpawnOnGround_WithTaxiRoute()
     {
-        var engine = LoadFreshScenario();
+        SimulationEngine? engine = LoadFreshScenario();
         if (engine is null)
         {
             return;
         }
 
-        foreach (var callsign in GroundDepartures)
+        foreach (string callsign in GroundDepartures)
         {
-            var ac = engine.FindAircraft(callsign);
+            AircraftState? ac = engine.FindAircraft(callsign);
             Assert.NotNull(ac);
             Assert.True(ac.IsOnGround, $"{callsign} must spawn on the ground");
             Assert.NotNull(ac.Ground.Layout);
@@ -73,7 +73,7 @@ public class S2Oak2CoordinateGroundDepartureTests
     [Fact]
     public void CoordinateDepartures_DoNotFlyOff_OnUnpause()
     {
-        var engine = LoadFreshScenario();
+        SimulationEngine? engine = LoadFreshScenario();
         if (engine is null)
         {
             return;
@@ -84,9 +84,9 @@ public class S2Oak2CoordinateGroundDepartureTests
             engine.TickOneSecond();
         }
 
-        foreach (var callsign in GroundDepartures)
+        foreach (string callsign in GroundDepartures)
         {
-            var ac = engine.FindAircraft(callsign);
+            AircraftState? ac = engine.FindAircraft(callsign);
             Assert.NotNull(ac);
             Assert.True(ac.IsOnGround, $"{callsign} flew off the ground on unpause");
             Assert.True(ac.Altitude < 50, $"{callsign} climbed to {ac.Altitude:F0} ft — it should stay at field elevation");

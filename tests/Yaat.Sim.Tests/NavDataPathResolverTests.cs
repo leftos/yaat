@@ -8,7 +8,7 @@ public class NavDataPathResolverTests
     [Fact]
     public void EnsureCurrent_SecondCall_ReturnsSamePathWithoutReDownload()
     {
-        var testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
+        string testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
         // AllowDownload: false, matching ModuleInit. It is inert here either way — ModuleInit has
         // already resolved, so EnsureCurrent short-circuits — but leaving it true would mean this
         // test issues a vNAS config fetch the moment that stops being true, breaking
@@ -19,8 +19,8 @@ public class NavDataPathResolverTests
             AllowDownload: false
         );
 
-        var first = NavDataPathResolver.EnsureCurrent(options);
-        var second = NavDataPathResolver.EnsureCurrent(options);
+        string? first = NavDataPathResolver.EnsureCurrent(options);
+        string? second = NavDataPathResolver.EnsureCurrent(options);
 
         Assert.Equal(first, second);
         if (first is not null)
@@ -53,7 +53,7 @@ public class NavDataPathResolverTests
     [Fact]
     public void RequireNavData_Throws_WhenNothingResolved()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() => ModuleInit.RequireNavData(null));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => ModuleInit.RequireNavData(null));
 
         // The message has to say how to recover, not just that something is wrong.
         Assert.Contains("refresh-navdata.py", ex.Message, StringComparison.Ordinal);
@@ -64,7 +64,7 @@ public class NavDataPathResolverTests
     public void RequireNavData_Throws_WhenResolvedPathDoesNotExist()
     {
         // A non-null path that points at nothing is the more dangerous case: it looks resolved.
-        var missing = Path.Combine(Path.GetTempPath(), $"yaat-absent-navdata-{Guid.NewGuid():N}.dat");
+        string missing = Path.Combine(Path.GetTempPath(), $"yaat-absent-navdata-{Guid.NewGuid():N}.dat");
 
         Assert.Throws<InvalidOperationException>(() => ModuleInit.RequireNavData(missing));
     }
@@ -72,7 +72,7 @@ public class NavDataPathResolverTests
     [Fact]
     public void RequireNavData_ReturnsPath_WhenPresent()
     {
-        var resolved = NavDataPathResolver.CachedPath;
+        string? resolved = NavDataPathResolver.CachedPath;
         Assert.NotNull(resolved);
 
         Assert.Equal(resolved, ModuleInit.RequireNavData(resolved));
@@ -83,7 +83,7 @@ public class NavDataPathResolverTests
     {
         // TestData/NavData.dat is committed, so a healthy checkout always resolves offline. This is
         // what keeps the config fetch (and its ~240 ms) off the normal path.
-        var testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
+        string testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
         var options = new NavDataResolveOptions(
             BundledPath: Path.Combine(testDataDir, "NavData.dat"),
             BundledManifestPath: Path.Combine(testDataDir, "navdata-manifest.json"),

@@ -61,9 +61,9 @@ public class HelicopterAtxiE2ETests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var (engine, _, heli, _) = SetupHeliAtHeli();
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli, GroundNode _) = SetupHeliAtHeli();
 
-        var result = engine.SendCommand("TEST1", command);
+        CommandResult result = engine.SendCommand("TEST1", command);
         output.WriteLine($"{command} ({description}): success={result.Success} message=\"{result.Message}\"");
 
         Assert.True(result.Success, $"ATXI should accept {description}: {command} → {result.Message}");
@@ -88,9 +88,9 @@ public class HelicopterAtxiE2ETests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var (engine, _, heli, fdx1Spot) = SetupHeliAtHeli();
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli, GroundNode? fdx1Spot) = SetupHeliAtHeli();
 
-        var atxi = engine.SendCommand("TEST1", "ATXI FDX1");
+        CommandResult atxi = engine.SendCommand("TEST1", "ATXI FDX1");
         output.WriteLine($"ATXI FDX1: success={atxi.Success} message=\"{atxi.Message}\"");
         Assert.True(atxi.Success, $"ATXI rejected: {atxi.Message}");
         Assert.IsType<AirTaxiPhase>(heli.Phases!.CurrentPhase);
@@ -143,11 +143,11 @@ public class HelicopterAtxiE2ETests(ITestOutputHelper output)
     private (SimulationEngine Engine, AirportGroundLayout Layout, AircraftState Heli, GroundNode Fdx1) SetupHeliAtHeli()
     {
         var groundData = new TestAirportGroundData();
-        var layout = groundData.GetLayout("OAK");
+        AirportGroundLayout? layout = groundData.GetLayout("OAK");
         Assert.NotNull(layout);
 
-        var heliSpot = layout.FindSpotByName("HELI");
-        var fdx1Spot = layout.FindSpotByName("FDX1");
+        GroundNode? heliSpot = layout.FindSpotByName("HELI");
+        GroundNode? fdx1Spot = layout.FindSpotByName("FDX1");
         Assert.NotNull(heliSpot);
         Assert.NotNull(fdx1Spot);
 

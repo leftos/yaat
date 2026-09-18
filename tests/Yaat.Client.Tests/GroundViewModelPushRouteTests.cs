@@ -20,9 +20,9 @@ public class GroundViewModelPushRouteTests
     [Fact]
     public void FinishPushRoute_SpotThenSpot_EmitsBothTargetsWithSpotSigils()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(RampLayout());
-        var ac = MakeAircraft();
+        AircraftModel ac = MakeAircraft();
 
         vm.StartPushRoute(ac);
         Assert.True(vm.AddPushWaypoint(2)); // Spot "A"
@@ -34,9 +34,9 @@ public class GroundViewModelPushRouteTests
     [Fact]
     public void FinishPushRoute_PlainIntersectionTarget_EmitsNodeRef()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(RampLayout());
-        var ac = MakeAircraft();
+        AircraftModel ac = MakeAircraft();
 
         vm.StartPushRoute(ac);
         Assert.True(vm.AddPushWaypoint(2)); // Spot "A"
@@ -48,9 +48,9 @@ public class GroundViewModelPushRouteTests
     [Fact]
     public void UndoPushWaypoint_DropsLastLegAndShrinksPreviewToTheRemainingTargets()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(RampLayout());
-        var ac = MakeAircraft();
+        AircraftModel ac = MakeAircraft();
 
         vm.StartPushRoute(ac);
         Assert.True(vm.AddPushWaypoint(2));
@@ -67,9 +67,9 @@ public class GroundViewModelPushRouteTests
     [Fact]
     public void PushRoutePreview_MatchesPlannerForTheSameInputs()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(RampLayout());
-        var ac = MakeParkedAircraft();
+        AircraftModel ac = MakeParkedAircraft();
 
         vm.StartPushRoute(ac);
         Assert.True(vm.AddPushWaypoint(2));
@@ -82,16 +82,16 @@ public class GroundViewModelPushRouteTests
     [Fact]
     public void PushRoutePreview_StartsAtTheAircraftsOwnPosition()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(RampLayout());
-        var ac = MakeParkedAircraft();
+        AircraftModel ac = MakeParkedAircraft();
 
         vm.StartPushRoute(ac);
         Assert.True(vm.AddPushWaypoint(2));
         Assert.True(vm.AddPushWaypoint(3));
 
         // The path carries its own start, so nothing else has to be held alongside it to draw the first move.
-        var first = vm.PushRoutePreview!.Moves[0].Samples[0];
+        TugPose first = vm.PushRoutePreview!.Moves[0].Samples[0];
         Assert.Equal(ac.Position.Lat, first.Position.Lat, 9);
         Assert.Equal(ac.Position.Lon, first.Position.Lon, 9);
         Assert.Equal(ac.Heading.Degrees, first.NoseTrueDeg, 9);
@@ -100,9 +100,9 @@ public class GroundViewModelPushRouteTests
     [Fact]
     public void OneTarget_IsAHalfBuiltRouteWithNoPreviewAndNoRefusal()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(RampLayout());
-        var ac = MakeAircraft();
+        AircraftModel ac = MakeAircraft();
 
         vm.StartPushRoute(ac);
         Assert.True(vm.AddPushWaypoint(2));
@@ -116,9 +116,9 @@ public class GroundViewModelPushRouteTests
     [Fact]
     public void RefusedPlan_KeepsWaypointNullsPreviewAndRefusesToSend()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(RampLayout());
-        var ac = MakeAircraft();
+        AircraftModel ac = MakeAircraft();
 
         vm.StartPushRoute(ac);
         Assert.True(vm.AddPushWaypoint(2));
@@ -145,9 +145,9 @@ public class GroundViewModelPushRouteTests
     [Fact]
     public void StartPushRoute_MarksTheDrawModeAsPushAndAnchorsAtTheAircraftNode()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(RampLayout());
-        var ac = MakeAircraft();
+        AircraftModel ac = MakeAircraft();
 
         vm.StartPushRoute(ac);
 
@@ -162,9 +162,9 @@ public class GroundViewModelPushRouteTests
     [Fact]
     public void StartDrawRoute_StillGraphRoutesAndReportsTaxiKind()
     {
-        var vm = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(RampLayout());
-        var ac = MakeAircraft();
+        AircraftModel ac = MakeAircraft();
 
         vm.StartDrawRoute(ac);
         Assert.Equal(DrawRouteKind.Taxi, vm.DrawKind);
@@ -172,7 +172,7 @@ public class GroundViewModelPushRouteTests
         Assert.True(vm.AddDrawWaypoint(3));
 
         // The taxi tool still routes through the graph: node 2 is on the path without being clicked.
-        var result = vm.FinishDrawRoute();
+        (TaxiRoute Route, string NodeRefPath, TaxiSpotDestination? Spot)? result = vm.FinishDrawRoute();
         Assert.NotNull(result);
         Assert.Equal("#2 #3", result!.Value.NodeRefPath);
         Assert.Null(vm.PushRoutePreview);
@@ -188,11 +188,11 @@ public class GroundViewModelPushRouteTests
     // PUSHM will carry — the preview has no planning of its own to get right.
     private static TugPlan? PlanFor(GroundViewModel vm, AircraftModel ac, params int[] nodeIds)
     {
-        var layout = vm.DomainLayout!;
+        AirportGroundLayout layout = vm.DomainLayout!;
         var goals = new List<TugGoal>();
         foreach (int id in nodeIds)
         {
-            var node = layout.Nodes[id];
+            GroundNode node = layout.Nodes[id];
             string token = node switch
             {
                 { Type: GroundNodeType.Spot, Name: { Length: > 0 } spot } => $"${spot}",
@@ -212,7 +212,7 @@ public class GroundViewModelPushRouteTests
             PreviousKind = null,
         };
 
-        var plan = TugMovePlanner.Plan(layout, request, out string refusal);
+        TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
         Assert.Equal("", refusal);
         Assert.NotNull(plan);
         return plan;
@@ -225,8 +225,8 @@ public class GroundViewModelPushRouteTests
         Assert.Equal(expected!.Moves.Count, actual!.Moves.Count);
         for (int i = 0; i < expected.Moves.Count; i++)
         {
-            var want = expected.Moves[i].Move;
-            var got = actual.Moves[i].Move;
+            TugMove want = expected.Moves[i].Move;
+            TugMove got = actual.Moves[i].Move;
             Assert.Equal(want.Kind, got.Kind);
             Assert.Equal(want.Shape, got.Shape);
             Assert.Equal(want.DwellBefore, got.DwellBefore);

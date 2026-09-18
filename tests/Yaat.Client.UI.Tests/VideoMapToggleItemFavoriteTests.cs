@@ -19,7 +19,7 @@ public class VideoMapToggleItemFavoriteTests
     [Fact]
     public void IsFavorite_FalseWhenNoScopeFavorited()
     {
-        var item = MakeItem();
+        VideoMapToggleItem item = MakeItem();
 
         Assert.False(item.IsFavorite);
     }
@@ -31,7 +31,7 @@ public class VideoMapToggleItemFavoriteTests
     [InlineData(true, true, true)]
     public void IsFavorite_TrueWhenAnyScopeFavorited(bool artcc, bool airport, bool scenario)
     {
-        var item = MakeItem();
+        VideoMapToggleItem item = MakeItem();
         item.IsFavoriteArtcc = artcc;
         item.IsFavoriteAirport = airport;
         item.IsFavoriteScenario = scenario;
@@ -42,8 +42,8 @@ public class VideoMapToggleItemFavoriteTests
     [Fact]
     public void IsFavorite_RaisesChangeNotification_WhenScopeFlagChanges()
     {
-        var item = MakeItem();
-        var raised = false;
+        VideoMapToggleItem item = MakeItem();
+        bool raised = false;
         item.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(VideoMapToggleItem.IsFavorite))

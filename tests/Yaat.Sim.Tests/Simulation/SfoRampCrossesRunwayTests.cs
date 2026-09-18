@@ -1,4 +1,6 @@
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Acceptance;
@@ -30,7 +32,7 @@ public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -49,8 +51,8 @@ public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiCommand_AcrossRunways_ShouldFail()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -58,7 +60,7 @@ public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
 
         // Replay far enough for N70234 to exist
         engine.Replay(recording, 100);
-        var aircraft = engine.FindAircraft("N70234");
+        AircraftState? aircraft = engine.FindAircraft("N70234");
 
         // Try further into the recording if not found yet. Use FastForwardTo to advance
         // from current state — Replay() resets to t=0 each call, which makes this loop O(N²).
@@ -84,7 +86,7 @@ public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
 
         output.WriteLine($"N70234 at ({aircraft.Position.Lat:F6}, {aircraft.Position.Lon:F6}) onGround={aircraft.IsOnGround}");
 
-        var result = engine.SendCommand("N70234", "TAXI A E 28R HS E");
+        CommandResult result = engine.SendCommand("N70234", "TAXI A E 28R HS E");
         output.WriteLine($"TAXI result: Success={result.Success}, Message={result.Message}");
 
         Assert.False(

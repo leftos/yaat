@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -37,7 +38,7 @@ public class Issue187StarDviaTests(ITestOutputHelper output)
 
     private double RunDescentProbe(SimulationEngine engine, string callsign, int seconds)
     {
-        var aircraft = engine.FindAircraft(callsign);
+        AircraftState? aircraft = engine.FindAircraft(callsign);
         double minAlt = aircraft!.Altitude;
         for (int t = 1; t <= seconds; t++)
         {
@@ -51,7 +52,7 @@ public class Issue187StarDviaTests(ITestOutputHelper output)
             minAlt = Math.Min(minAlt, aircraft.Altitude);
             if (t % 60 == 0)
             {
-                var next = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
+                string next = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
                 output.WriteLine(
                     $"  {callsign} t=+{t, 3} alt={aircraft.Altitude, 7:F0} tgt={aircraft.Targets.TargetAltitude?.ToString("F0") ?? "null", 7} VS={aircraft.VerticalSpeed, 6:F0} next={next}"
                 );
@@ -64,8 +65,8 @@ public class Issue187StarDviaTests(ITestOutputHelper output)
     [Fact]
     public void Ual8144_JarrThenDvia_Descends()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -74,7 +75,7 @@ public class Issue187StarDviaTests(ITestOutputHelper output)
 
         engine.Replay(recording, 60); // past spawn (t=0) and the WAIT 5 DVIA firing (~t=10)
 
-        var aircraft = engine.FindAircraft("UAL8144");
+        AircraftState? aircraft = engine.FindAircraft("UAL8144");
         Assert.NotNull(aircraft);
         output.WriteLine(
             $"UAL8144 @ t=60: alt={aircraft.Altitude:F0} StarVia={aircraft.Procedure.StarViaMode} ActiveStar={aircraft.Procedure.ActiveStarId}"
@@ -90,8 +91,8 @@ public class Issue187StarDviaTests(ITestOutputHelper output)
     [Fact]
     public void Uca4348_BareDviaNoJarr_SelfResolvesAndDescends()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -100,7 +101,7 @@ public class Issue187StarDviaTests(ITestOutputHelper output)
 
         engine.Replay(recording, 420); // UCA4348 spawns t=360; WAIT 5 DVIA fires ~t=365
 
-        var aircraft = engine.FindAircraft("UCA4348");
+        AircraftState? aircraft = engine.FindAircraft("UCA4348");
         Assert.NotNull(aircraft);
         output.WriteLine(
             $"UCA4348 @ t=420: alt={aircraft.Altitude:F0} StarVia={aircraft.Procedure.StarViaMode} ActiveStar={aircraft.Procedure.ActiveStarId}"
@@ -117,21 +118,21 @@ public class Issue187StarDviaTests(ITestOutputHelper output)
     [Fact]
     public void Ual8144_OnTejas5ToRwy27_FliesForwardWithoutBacktrack()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
             return;
         }
 
-        var navDb = TestVnasData.NavigationDb!;
-        var iah = navDb.GetFixPosition("IAH") ?? navDb.GetFixPosition("KIAH");
+        NavigationDatabase navDb = TestVnasData.NavigationDb!;
+        (double Lat, double Lon)? iah = navDb.GetFixPosition("IAH") ?? navDb.GetFixPosition("KIAH");
         Assert.NotNull(iah);
         var dest = new LatLon(iah.Value.Lat, iah.Value.Lon);
 
         engine.Replay(recording, 2);
-        var aircraft = engine.FindAircraft("UAL8144");
+        AircraftState? aircraft = engine.FindAircraft("UAL8144");
         Assert.NotNull(aircraft);
         output.WriteLine($"UAL8144 route @ spawn: {string.Join(" -> ", aircraft.Targets.NavigationRoute.Select(f => f.Name))}");
 

@@ -23,7 +23,7 @@ public class AircraftState
     /// </summary>
     public static string StripTypePrefix(string aircraftType)
     {
-        var parts = aircraftType.Split('/');
+        string[] parts = aircraftType.Split('/');
         if (parts.Length >= 2 && IsTypePrefix(parts[0]))
         {
             return parts[1];
@@ -77,7 +77,7 @@ public class AircraftState
     /// <summary>Caps note text to <see cref="MaxNoteLength"/> characters (trailing whitespace trimmed).</summary>
     public static string TruncateNote(string text)
     {
-        var trimmed = text.TrimEnd();
+        string trimmed = text.TrimEnd();
         return trimmed.Length > MaxNoteLength ? trimmed[..MaxNoteLength] : trimmed;
     }
 
@@ -488,7 +488,7 @@ public class AircraftState
         // hold-short — would no longer reach the route the rest of the sim reads.
         if (ac.Phases is { } phases && ac.Ground.AssignedTaxiRoute is { } taxiRoute)
         {
-            foreach (var phase in phases.Phases)
+            foreach (Phase phase in phases.Phases)
             {
                 if (
                     phase is Phases.Ground.HoldingShortPhase holdingShort
@@ -510,7 +510,7 @@ public class AircraftState
 
         if (dto.PositionHistory is not null)
         {
-            foreach (var p in dto.PositionHistory)
+            foreach (PositionDto p in dto.PositionHistory)
             {
                 ac.PositionHistory.Add((p.Lat, p.Lon));
             }
@@ -518,7 +518,7 @@ public class AircraftState
 
         if (dto.DeferredDispatches is not null)
         {
-            foreach (var dd in dto.DeferredDispatches)
+            foreach (DeferredDispatchDto dd in dto.DeferredDispatches)
             {
                 var dispatch = DeferredDispatch.FromSnapshot(dd);
                 if (dispatch is not null)

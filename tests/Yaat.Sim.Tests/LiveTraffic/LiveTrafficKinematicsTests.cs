@@ -60,7 +60,7 @@ public class LiveTrafficKinematicsTests
             },
         };
         engine.World.Weather = weather;
-        foreach (var ac in aircraft)
+        foreach (AircraftState ac in aircraft)
         {
             engine.World.AddAircraft(ac);
         }
@@ -79,8 +79,8 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void GroundAcceleration_IsTheLeastSquaresSlopeOfTheReportedSpeeds_InsideTheWindow()
     {
-        var ac = Shadow(Sample(0, Origin, 0, 10, 280, 0, LiveTrafficSource.Asdex));
-        foreach (var (t, gs) in new[] { (1.0, 14.0), (2.0, 21.0), (3.0, 24.0), (4.0, 31.0), (5.0, 35.0) })
+        AircraftState ac = Shadow(Sample(0, Origin, 0, 10, 280, 0, LiveTrafficSource.Asdex));
+        foreach ((double t, double gs) in new[] { (1.0, 14.0), (2.0, 21.0), (3.0, 24.0), (4.0, 31.0), (5.0, 35.0) })
         {
             LiveTrafficKinematics.Apply(ac, Sample(t, Origin, 0, gs, 280, 0, LiveTrafficSource.Asdex));
         }
@@ -92,7 +92,7 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void GroundAcceleration_IsUnknown_WithTooFewSamples_OrWhileCoasting()
     {
-        var ac = Shadow(Sample(0, Origin, 0, 10, 280, 0, LiveTrafficSource.Asdex));
+        AircraftState ac = Shadow(Sample(0, Origin, 0, 10, 280, 0, LiveTrafficSource.Asdex));
         Assert.Null(LiveTrafficKinematics.GroundAcceleration(ac.LiveTraffic!, 4.0));
         LiveTrafficKinematics.Apply(ac, Sample(1, Origin, 0, 15, 280, 0, LiveTrafficSource.Asdex));
         Assert.Null(LiveTrafficKinematics.GroundAcceleration(ac.LiveTraffic!, 4.0));
@@ -106,7 +106,7 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void CreateShadow_IsShadowWithSampleStateAndReportedBeacon()
     {
-        var ac = Shadow(AirborneSample(0));
+        AircraftState ac = Shadow(AirborneSample(0));
 
         Assert.True(ac.IsShadow);
         Assert.Null(ac.Phases);
@@ -122,13 +122,13 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void DeadReckonsBetweenSamples_AlongTrackAtGroundSpeed()
     {
-        var ac = Shadow(AirborneSample(0));
-        var engine = EngineWith(null, ac);
+        AircraftState ac = Shadow(AirborneSample(0));
+        SimulationEngine engine = EngineWith(null, ac);
 
         TickSeconds(engine, 10);
 
         double expectedNm = 250 * 10 / 3600.0;
-        var expected = GeoMath.ProjectPoint(Origin, new TrueHeading(90), expectedNm);
+        LatLon expected = GeoMath.ProjectPoint(Origin, new TrueHeading(90), expectedNm);
         Assert.InRange(GeoMath.DistanceNm(expected, ac.Position), 0, 0.005);
         Assert.InRange(ac.Altitude, 9_900 - 1, 9_900 + 1);
         Assert.Equal(-600, ac.VerticalSpeed);
@@ -140,8 +140,8 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void MotionIsSubTickResolution_NotOncePerSecond()
     {
-        var ac = Shadow(AirborneSample(0));
-        var engine = EngineWith(null, ac);
+        AircraftState ac = Shadow(AirborneSample(0));
+        SimulationEngine engine = EngineWith(null, ac);
 
         engine.TickPhysics(0.25);
 
@@ -152,15 +152,15 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void ShadowIgnoresControlTargetsAndPhysics()
     {
-        var ac = Shadow(AirborneSample(0));
+        AircraftState ac = Shadow(AirborneSample(0));
         ac.Targets.TargetTrueHeading = new TrueHeading(180);
         ac.Targets.TargetAltitude = 5_000;
         ac.Targets.TargetSpeed = 150;
-        var engine = EngineWith(null, ac);
+        SimulationEngine engine = EngineWith(null, ac);
 
         TickSeconds(engine, 30);
 
-        var expected = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 250 * 30 / 3600.0);
+        LatLon expected = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 250 * 30 / 3600.0);
         Assert.InRange(GeoMath.DistanceNm(expected, ac.Position), 0, 0.01);
         Assert.InRange(ac.TrueTrack.Degrees, 89.5, 90.5);
     }
@@ -186,8 +186,8 @@ public class LiveTrafficKinematicsTests
                 },
             ],
         };
-        var ac = Shadow(AirborneSample(0, verticalSpeedFpm: 0));
-        var engine = EngineWith(weather, ac);
+        AircraftState ac = Shadow(AirborneSample(0, verticalSpeedFpm: 0));
+        SimulationEngine engine = EngineWith(weather, ac);
 
         TickSeconds(engine, 5);
 
@@ -198,15 +198,15 @@ public class LiveTrafficKinematicsTests
         Assert.True(ac.IndicatedAirspeed > 0);
         Assert.NotEqual(0, ac.Declination);
         Assert.NotEqual(ac.TrueHeading.Degrees, ac.MagneticHeading.Degrees);
-        var expected = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 250 * 5 / 3600.0);
+        LatLon expected = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 250 * 5 / 3600.0);
         Assert.InRange(GeoMath.DistanceNm(expected, ac.Position), 0, 0.005);
     }
 
     [Fact]
     public void CoastsAfterDeliverySilence_AndKeepsMoving()
     {
-        var ac = Shadow(AirborneSample(0));
-        var engine = EngineWith(null, ac);
+        AircraftState ac = Shadow(AirborneSample(0));
+        SimulationEngine engine = EngineWith(null, ac);
 
         TickSeconds(engine, 45);
         Assert.False(ac.LiveTraffic!.IsCoasting);
@@ -214,7 +214,7 @@ public class LiveTrafficKinematicsTests
         TickSeconds(engine, 1);
         Assert.True(ac.LiveTraffic.IsCoasting);
 
-        var before = ac.Position;
+        LatLon before = ac.Position;
         TickSeconds(engine, 1);
         Assert.True(GeoMath.DistanceNm(before, ac.Position) > 0.05);
     }
@@ -222,8 +222,8 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void SamplesDeliveredLate_DoNotCoast_WhileTheyKeepComing()
     {
-        var ac = Shadow(AirborneSample(0));
-        var engine = EngineWith(null, ac);
+        AircraftState ac = Shadow(AirborneSample(0));
+        SimulationEngine engine = EngineWith(null, ac);
         TickSeconds(engine, 15);
 
         // The feed delivers ~11 s behind real time (SCDS latency): observed at 4, applied at 15.
@@ -242,12 +242,12 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void FreshSample_ResetsCoastAndAdoptsPositionUnconditionally()
     {
-        var ac = Shadow(AirborneSample(0));
-        var engine = EngineWith(null, ac);
+        AircraftState ac = Shadow(AirborneSample(0));
+        SimulationEngine engine = EngineWith(null, ac);
         TickSeconds(engine, 46);
         Assert.True(ac.LiveTraffic!.IsCoasting);
 
-        var jumped = GeoMath.ProjectPoint(Origin, new TrueHeading(180), 1.0);
+        LatLon jumped = GeoMath.ProjectPoint(Origin, new TrueHeading(180), 1.0);
         Assert.True(LiveTrafficKinematics.Apply(ac, Sample(46, jumped, 9_000, 200, 180, -300, LiveTrafficSource.Stars)));
 
         Assert.False(ac.LiveTraffic.IsCoasting);
@@ -256,14 +256,14 @@ public class LiveTrafficKinematicsTests
         Assert.Equal(0, ac.LiveTraffic.SecondsSinceSample);
 
         TickSeconds(engine, 1);
-        var expected = GeoMath.ProjectPoint(jumped, new TrueHeading(180), 200 / 3600.0);
+        LatLon expected = GeoMath.ProjectPoint(jumped, new TrueHeading(180), 200 / 3600.0);
         Assert.InRange(GeoMath.DistanceNm(expected, ac.Position), 0, 0.005);
     }
 
     [Fact]
     public void SourceFlaggedCoast_IsCoastingFromTheSampleOn_AndClearsOnAFreshReturn()
     {
-        var ac = Shadow(AirborneSample(0) with { SourceCoasting = true });
+        AircraftState ac = Shadow(AirborneSample(0) with { SourceCoasting = true });
         Assert.True(ac.LiveTraffic!.IsCoasting);
 
         LiveTrafficKinematics.Advance(ac, 1.0, null, 1.0);
@@ -278,7 +278,7 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void DeadReckonedClimb_LevelsAtTheFeedAssignedAltitude()
     {
-        var ac = Shadow(AirborneSample(0, verticalSpeedFpm: 2000) with { AssignedAltitudeFt = 11_000 });
+        AircraftState ac = Shadow(AirborneSample(0, verticalSpeedFpm: 2000) with { AssignedAltitudeFt = 11_000 });
         LiveTrafficKinematics.Advance(ac, 120, null, 120);
         Assert.Equal(11_000, ac.Altitude);
     }
@@ -286,7 +286,7 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void DeadReckonedDescent_LevelsAtTheFeedInterimAltitude()
     {
-        var ac = Shadow(AirborneSample(0, verticalSpeedFpm: -2000) with { InterimAltitudeFt = 9_000, AssignedAltitudeFt = 5_000 });
+        AircraftState ac = Shadow(AirborneSample(0, verticalSpeedFpm: -2000) with { InterimAltitudeFt = 9_000, AssignedAltitudeFt = 5_000 });
         LiveTrafficKinematics.Advance(ac, 120, null, 120);
         Assert.Equal(9_000, ac.Altitude);
     }
@@ -294,7 +294,7 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void DeadReckonedClimb_IgnoresAStaleClearanceBelowTheObservedAltitude()
     {
-        var ac = Shadow(AirborneSample(0, verticalSpeedFpm: 2000) with { AssignedAltitudeFt = 5_000 });
+        AircraftState ac = Shadow(AirborneSample(0, verticalSpeedFpm: 2000) with { AssignedAltitudeFt = 5_000 });
         LiveTrafficKinematics.Advance(ac, 120, null, 120);
         Assert.Equal(10_000, ac.Altitude); // holds the observed altitude, never dragged toward the stale clearance
     }
@@ -302,7 +302,7 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void SurfaceSample_FreezesPastTheProjectionCap()
     {
-        var ac = Shadow(Sample(0, Origin, 0, 20, 90, 0, LiveTrafficSource.Asdex));
+        AircraftState ac = Shadow(Sample(0, Origin, 0, 20, 90, 0, LiveTrafficSource.Asdex));
         LiveTrafficKinematics.Advance(ac, 60, null, 60);
 
         double capped = 20 * LiveTrafficKinematics.AsdexProjectionCapSeconds / 3600.0;
@@ -312,13 +312,13 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void DeadReckonedDescent_FloorsAtTheFieldElevation_NotSeaLevel()
     {
-        var navDb = NavigationDatabase.Instance;
-        var den = navDb.FindNearestSizeableAirport(new LatLon(39.8617, -104.6731), 10_000, 5)!.Value;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        (string Id, double Lat, double Lon) den = navDb.FindNearestSizeableAirport(new LatLon(39.8617, -104.6731), 10_000, 5)!.Value;
         double field = navDb.GetAirportElevation(den.Id)!.Value;
         Assert.True(field > 5_000, $"{den.Id} elevation {field}");
 
         // Short final at DEN, sinking at 1 500 fpm, then the feed goes quiet for a minute.
-        var ac = Shadow(Sample(0, new LatLon(den.Lat, den.Lon), field + 200, 130, 170, -1500, LiveTrafficSource.Stars));
+        AircraftState ac = Shadow(Sample(0, new LatLon(den.Lat, den.Lon), field + 200, 130, 170, -1500, LiveTrafficSource.Stars));
         LiveTrafficKinematics.Advance(ac, 60, null, 60);
 
         Assert.Equal(field, ac.Altitude, 0);
@@ -327,9 +327,9 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void OutOfOrderSample_IsIgnored()
     {
-        var ac = Shadow(AirborneSample(5));
+        AircraftState ac = Shadow(AirborneSample(5));
 
-        var stale = Sample(3, GeoMath.ProjectPoint(Origin, new TrueHeading(0), 2), 8_000, 100, 0, 0, LiveTrafficSource.Eram);
+        LiveTrafficSample stale = Sample(3, GeoMath.ProjectPoint(Origin, new TrueHeading(0), 2), 8_000, 100, 0, 0, LiveTrafficSource.Eram);
         Assert.False(LiveTrafficKinematics.Apply(ac, stale));
 
         Assert.Equal(Origin, ac.Position);
@@ -340,7 +340,7 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void VerticalSpeed_DerivedFromAltitudeDeltaWhenTheFeedHasNone()
     {
-        var ac = Shadow(Sample(0, Origin, 10_000, 250, 90, null, LiveTrafficSource.Eram));
+        AircraftState ac = Shadow(Sample(0, Origin, 10_000, 250, 90, null, LiveTrafficSource.Eram));
         Assert.Equal(0, ac.VerticalSpeed);
 
         LiveTrafficKinematics.Apply(ac, Sample(10, Origin, 9_900, 250, 90, null, LiveTrafficSource.Eram));
@@ -351,8 +351,8 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void SurfaceSample_IsOnGroundWithWheelSpeed()
     {
-        var ac = Shadow(Sample(0, Origin, 10, 18, 45, null, LiveTrafficSource.Asdex));
-        var engine = EngineWith(null, ac);
+        AircraftState ac = Shadow(Sample(0, Origin, 10, 18, 45, null, LiveTrafficSource.Asdex));
+        SimulationEngine engine = EngineWith(null, ac);
 
         TickSeconds(engine, 2);
 
@@ -366,7 +366,7 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void Snapshot_RoundTripsLiveTrafficState()
     {
-        var ac = Shadow(AirborneSample(3));
+        AircraftState ac = Shadow(AirborneSample(3));
         ac.LiveTraffic!.SecondsSinceSample = 2.5;
         ac.LiveTraffic.IsCoasting = true;
         ac.LiveTraffic.ExternalId = "gufi-1";
@@ -374,7 +374,7 @@ public class LiveTrafficKinematicsTests
         var restored = AircraftState.FromSnapshot(ac.ToSnapshot(), null);
 
         Assert.True(restored.IsShadow);
-        var lt = restored.LiveTraffic!;
+        AircraftLiveTraffic lt = restored.LiveTraffic!;
         Assert.Equal(LiveTrafficSource.Stars, lt.Source);
         Assert.Equal(3, lt.ObservedAtSimSeconds);
         Assert.Equal(2.5, lt.SecondsSinceSample);
@@ -406,7 +406,7 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void StatusDescriber_ShowsLiveAndCoast()
     {
-        var ac = Shadow(AirborneSample(0));
+        AircraftState ac = Shadow(AirborneSample(0));
         Assert.Equal("LIVE", AircraftStatusDescriber.Describe(ac, AircraftStatusContext.None).Text);
 
         ac.LiveTraffic!.IsCoasting = true;
@@ -416,8 +416,8 @@ public class LiveTrafficKinematicsTests
     [Fact]
     public void PilotProactive_SkipsShadows()
     {
-        var ac = Shadow(AirborneSample(0));
-        var engine = EngineWith(null, ac);
+        AircraftState ac = Shadow(AirborneSample(0));
+        SimulationEngine engine = EngineWith(null, ac);
         engine.Scenario!.SoloTrainingMode = true;
 
         TickSeconds(engine, 5);

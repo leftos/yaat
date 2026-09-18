@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -46,19 +47,19 @@ public class SfoYankeePushTests
     [Fact]
     public void E75L_PushY_Plain_EndsOnY_NoseUnchanged()
     {
-        var built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
         if (built is null)
         {
             return;
         }
 
-        var ground = built.Value;
-        var stand = ground.Layout.FindParkingByName("B12");
+        SfoGround ground = built.Value;
+        GroundNode? stand = ground.Layout.FindParkingByName("B12");
         Assert.True(stand is not null, "the SFO layout has no parking named 'B12'");
         double standHeadingDeg = (stand!.TrueHeading ?? new TrueHeading(0)).Degrees;
 
-        var ac = SfoGroundHarness.SpawnParked(ground, "YKE3", "E75L", "B12");
-        var push = Push(ground, ac, "PUSH Y");
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "YKE3", "E75L", "B12");
+        PushRun push = Push(ground, ac, "PUSH Y");
         AssertRestingOnYankee(ground, ac, push, "PUSH Y");
 
         double noseDriftDeg = new TrueHeading(standHeadingDeg).AbsAngleTo(ac.TrueHeading);
@@ -77,15 +78,15 @@ public class SfoYankeePushTests
     [Fact]
     public void B752_PushA_Control()
     {
-        var built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
         if (built is null)
         {
             return;
         }
 
-        var ground = built.Value;
-        var ac = SfoGroundHarness.SpawnParked(ground, "YKE2", "B752", "B12");
-        var push = Push(ground, ac, "PUSH A");
+        SfoGround ground = built.Value;
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "YKE2", "B752", "B12");
+        PushRun push = Push(ground, ac, "PUSH A");
 
         double distAFt = SfoGroundHarness.DistanceToTaxiwayFt(ground.Layout, "A", ac.Position);
         _output.WriteLine($"PUSH A completed t={push.CompletedSecond}s: distA={distAFt:F0}ft phase={PhaseName(ac)}");
@@ -94,12 +95,12 @@ public class SfoYankeePushTests
             $"the push ended {distAFt:F0}ft off taxiway A, past the {OnTaxiwayToleranceFt:F0}ft on-taxiway tolerance"
         );
 
-        var route = SendTaxi(ground, ac, "TAXI A A1 1R");
-        var legs = NamedLegs(route);
+        TaxiRoute route = SendTaxi(ground, ac, "TAXI A A1 1R");
+        List<string> legs = NamedLegs(route);
         Assert.True(legs.Count > 0, "the route has no named-taxiway segments (only ramp lead-outs and junction arcs)");
         Assert.Equal("A", legs[0]);
 
-        var taxi = ObserveTaxiStart(ground, ac, "A");
+        TaxiStart taxi = ObserveTaxiStart(ground, ac, "A");
         AssertContinuousTurn(taxi.MaxAbsTurnDeg, "TAXI A A1 1R");
     }
 
@@ -115,7 +116,7 @@ public class SfoYankeePushTests
     /// </summary>
     private PushRun Push(SfoGround ground, AircraftState ac, string command)
     {
-        var result = ground.Engine.SendCommand(ac.Callsign, command);
+        CommandResult result = ground.Engine.SendCommand(ac.Callsign, command);
         Assert.True(result.Success, $"'{command}' from B12 failed: {result.Message}");
 
         bool everPushed = false;
@@ -163,10 +164,10 @@ public class SfoYankeePushTests
     /// <summary>Issues a taxi clearance, asserts it was accepted, and returns the route it resolved to.</summary>
     private TaxiRoute SendTaxi(SfoGround ground, AircraftState ac, string command)
     {
-        var result = ground.Engine.SendCommand(ac.Callsign, command);
+        CommandResult result = ground.Engine.SendCommand(ac.Callsign, command);
         Assert.True(result.Success, $"'{command}' after the pushback failed: {result.Message}");
 
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         SfoGroundHarness.DumpRoute(_output, route);
         return route;

@@ -27,7 +27,7 @@ public class SpeciCriteriaTests
     [InlineData(10, 12, 320, 12, true)] // wrap: 10 vs 320 = 50 deg
     public void WindShift(int lastDir, int lastSpd, int curDir, int curSpd, bool expected)
     {
-        var result = SpeciCriteria.IsSpeciWorthy(Cond(dir: lastDir, speed: lastSpd), Cond(dir: curDir, speed: curSpd), null, null, null);
+        bool result = SpeciCriteria.IsSpeciWorthy(Cond(dir: lastDir, speed: lastSpd), Cond(dir: curDir, speed: curSpd), null, null, null);
         Assert.Equal(expected, result);
     }
 
@@ -46,7 +46,7 @@ public class SpeciCriteriaTests
     [InlineData(0.75, 0.6, false)] // both between 1/2 and 1
     public void VisibilityCrossing(double last, double current, bool expected)
     {
-        var result = SpeciCriteria.IsSpeciWorthy(Cond(vis: last), Cond(vis: current), null, null, null);
+        bool result = SpeciCriteria.IsSpeciWorthy(Cond(vis: last), Cond(vis: current), null, null, null);
         Assert.Equal(expected, result);
     }
 
@@ -58,7 +58,7 @@ public class SpeciCriteriaTests
     [InlineData(600, 400, true)] // crosses 500
     public void CeilingCrossing(int? last, int? current, bool expected)
     {
-        var result = SpeciCriteria.IsSpeciWorthy(Cond(ceiling: last), Cond(ceiling: current), null, null, null);
+        bool result = SpeciCriteria.IsSpeciWorthy(Cond(ceiling: last), Cond(ceiling: current), null, null, null);
         Assert.Equal(expected, result);
     }
 
@@ -78,7 +78,7 @@ public class SpeciCriteriaTests
     public void Squall(int lastSpd, int curSpd, bool expected)
     {
         // Same direction so the wind-shift criterion stays out of the way.
-        var result = SpeciCriteria.IsSpeciWorthy(Cond(speed: lastSpd), Cond(speed: curSpd), null, null, null);
+        bool result = SpeciCriteria.IsSpeciWorthy(Cond(speed: lastSpd), Cond(speed: curSpd), null, null, null);
         Assert.Equal(expected, result);
     }
 

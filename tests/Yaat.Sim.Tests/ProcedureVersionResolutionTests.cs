@@ -111,9 +111,9 @@ public class ProcedureVersionResolutionTests
         );
 
         var navDb = NavigationDatabase.ForTesting(stars: [currentStar]);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = navDb.GetStar("SFO", "BDEGA3");
+        CifpStarProcedure? result = navDb.GetStar("SFO", "BDEGA3");
         Assert.NotNull(result);
         Assert.Equal("BDEGA4", result.ProcedureId);
     }
@@ -130,9 +130,9 @@ public class ProcedureVersionResolutionTests
         );
 
         var navDb = NavigationDatabase.ForTesting(sids: [currentSid]);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var result = navDb.GetSid("SFO", "CNDEL5");
+        CifpSidProcedure? result = navDb.GetSid("SFO", "CNDEL5");
         Assert.NotNull(result);
         Assert.Equal("CNDEL6", result.ProcedureId);
     }
@@ -145,13 +145,13 @@ public class ProcedureVersionResolutionTests
     [Fact]
     public void ResolveCommandStarId_VersionlessBaseName_ResolvesToCurrentVersion()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return; // navdata absent — silent skip
         }
 
-        var resolved = navDb.ResolveCommandStarId("KIAH", "TEJAS");
+        string resolved = navDb.ResolveCommandStarId("KIAH", "TEJAS");
 
         // Version-agnostic: real current version is TEJAS5 today but must not break on a cycle bump.
         Assert.Equal("TEJAS", NavigationDatabase.StripTrailingDigits(resolved));
@@ -161,7 +161,7 @@ public class ProcedureVersionResolutionTests
     [Fact]
     public void ResolveCommandStarId_ExactVersionedId_ReturnsUnchanged()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
@@ -173,7 +173,7 @@ public class ProcedureVersionResolutionTests
     [Fact]
     public void ResolveCommandStarId_UnknownStar_ReturnsInputUnchanged()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
@@ -185,7 +185,7 @@ public class ProcedureVersionResolutionTests
     [Fact]
     public void ResolveStarId_VersionlessBaseName_StaysNull_SoRouteExpanderDoesNotMisclassifyFix()
     {
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
@@ -228,10 +228,10 @@ public class ProcedureVersionResolutionTests
         );
 
         var navDb = NavigationDatabase.ForTesting(fixes, starBodies: starBodies, stars: [cifpStar]);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Scenario references BDEGA3 (outdated)
-        var scenarioJson = """
+        string scenarioJson = """
             {
                 "id": "test",
                 "name": "Test Scenario",
@@ -259,11 +259,11 @@ public class ProcedureVersionResolutionTests
             }
             """;
 
-        var result = ScenarioLoader.Load(scenarioJson, null, new SerializableRandom(42), MagneticDeclination.EvaluationDateUtc);
+        ScenarioLoadResult result = ScenarioLoader.Load(scenarioJson, null, new SerializableRandom(42), MagneticDeclination.EvaluationDateUtc);
 
         // Should have loaded the aircraft
         Assert.Single(result.ImmediateAircraft);
-        var aircraft = result.ImmediateAircraft[0];
+        LoadedAircraft aircraft = result.ImmediateAircraft[0];
 
         // Should have expanded the STAR body (BDEGA4's fixes)
         Assert.True(aircraft.State.Targets.NavigationRoute.Count >= 3, "STAR body should be expanded into navigation route");
@@ -286,7 +286,7 @@ public class ProcedureVersionResolutionTests
         var starBodies = new Dictionary<string, IReadOnlyList<string>> { ["BDEGA4"] = ["BDEGA", "CEDES"] };
 
         var navDb = NavigationDatabase.ForTesting(fixes, starBodies: starBodies);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var scenario = new Scenario
         {
@@ -304,7 +304,7 @@ public class ProcedureVersionResolutionTests
             ],
         };
 
-        var result = ScenarioValidator.Validate(scenario);
+        ScenarioValidationResult result = ScenarioValidator.Validate(scenario);
         Assert.Single(result.ProcedureIssues);
         Assert.Equal(ProcedureIssueKind.VersionChanged, result.ProcedureIssues[0].Kind);
         Assert.Equal("BDEGA3", result.ProcedureIssues[0].ProcedureId);
@@ -318,7 +318,7 @@ public class ProcedureVersionResolutionTests
         var fixes = new Dictionary<string, (double Lat, double Lon)> { ["XYZZY"] = (37.0, -122.0) };
 
         var navDb = NavigationDatabase.ForTesting(fixes);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var scenario = new Scenario
         {
@@ -336,7 +336,7 @@ public class ProcedureVersionResolutionTests
             ],
         };
 
-        var result = ScenarioValidator.Validate(scenario);
+        ScenarioValidationResult result = ScenarioValidator.Validate(scenario);
         Assert.Single(result.ProcedureIssues);
         Assert.Equal(ProcedureIssueKind.NotFound, result.ProcedureIssues[0].Kind);
         Assert.Equal("XYZZY1", result.ProcedureIssues[0].ProcedureId);
@@ -348,7 +348,7 @@ public class ProcedureVersionResolutionTests
         var starBodies = new Dictionary<string, IReadOnlyList<string>> { ["BDEGA4"] = ["BDEGA", "CEDES"] };
 
         var navDb = NavigationDatabase.ForTesting(starBodies: starBodies);
-        using var _ = NavigationDatabase.ScopedOverride(navDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         var scenario = new Scenario
         {
@@ -365,7 +365,7 @@ public class ProcedureVersionResolutionTests
             ],
         };
 
-        var result = ScenarioValidator.Validate(scenario);
+        ScenarioValidationResult result = ScenarioValidator.Validate(scenario);
         Assert.Empty(result.ProcedureIssues);
     }
 }

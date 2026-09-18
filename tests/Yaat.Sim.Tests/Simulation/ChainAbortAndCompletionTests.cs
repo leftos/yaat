@@ -101,15 +101,15 @@ public class ChainAbortAndCompletionTests
     [Fact]
     public void GroundedAltitudeCommand_DoesNotStallChain()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddGroundedPhaseless(engine, "CHN101");
-        var result = engine.SendCommand(ac.Callsign, "CM 5000; SQ");
+        AircraftState ac = AddGroundedPhaseless(engine, "CHN101");
+        CommandResult result = engine.SendCommand(ac.Callsign, "CM 5000; SQ");
         Assert.True(result.Success, result.Message);
 
         for (int t = 0; t < 5; t++)
@@ -129,15 +129,15 @@ public class ChainAbortAndCompletionTests
     [Fact]
     public void GroundedAltitudeCommand_StaysArmedForDeparture()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddGroundedPhaseless(engine, "CHN102");
-        var result = engine.SendCommand(ac.Callsign, "CM 5000; SQ");
+        AircraftState ac = AddGroundedPhaseless(engine, "CHN102");
+        CommandResult result = engine.SendCommand(ac.Callsign, "CM 5000; SQ");
         Assert.True(result.Success, result.Message);
 
         for (int t = 0; t < 5; t++)
@@ -205,16 +205,16 @@ public class ChainAbortAndCompletionTests
     [Fact]
     public void RegimeA_MidChainFailure_DiscardsRemainder()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddAirborne(engine, "CHN201");
+        AircraftState ac = AddAirborne(engine, "CHN201");
         // TAXI ZZ parses but fails at apply (airborne aircraft, bogus taxiway).
-        var result = engine.SendCommand(ac.Callsign, "CM 5000; TAXI ZZ; SQ");
+        CommandResult result = engine.SendCommand(ac.Callsign, "CM 5000; TAXI ZZ; SQ");
         Assert.True(result.Success, result.Message);
 
         TickUntil(engine, 10, () => _warnings.Count > 0);
@@ -230,15 +230,15 @@ public class ChainAbortAndCompletionTests
     [Fact]
     public void TriggeredFixFailure_DiscardsRemainder()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddAirborne(engine, "CHN202");
-        var result = engine.SendCommand(ac.Callsign, "DCT OAK; AT OAK TAXI ZZ; SQ");
+        AircraftState ac = AddAirborne(engine, "CHN202");
+        CommandResult result = engine.SendCommand(ac.Callsign, "DCT OAK; AT OAK TAXI ZZ; SQ");
         Assert.True(result.Success, result.Message);
 
         // ~5 nm to the OAK VOR at 250 kts — give it a generous window to sequence the fix.
@@ -255,15 +255,15 @@ public class ChainAbortAndCompletionTests
     [Fact]
     public void IdlePhaseFailure_DiscardsRemainder()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddParkedWithPhase(engine, "CHN203");
-        var result = engine.SendCommand(ac.Callsign, "PUSH; TAXI ZZ; SQ");
+        AircraftState ac = AddParkedWithPhase(engine, "CHN203");
+        CommandResult result = engine.SendCommand(ac.Callsign, "PUSH; TAXI ZZ; SQ");
         Assert.True(result.Success, result.Message);
 
         // Pushback runs ~25-30 s; the TAXI ZZ failure lands right after it settles idle.
@@ -279,15 +279,15 @@ public class ChainAbortAndCompletionTests
     [Fact]
     public void GroundEntityTriggerFailure_DiscardsRemainder()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddParkedWithPhase(engine, "CHN204");
-        var result = engine.SendCommand(ac.Callsign, "PUSH; TAXI B3 HS B; AT B3 TAXI ZZ; SQ");
+        AircraftState ac = AddParkedWithPhase(engine, "CHN204");
+        CommandResult result = engine.SendCommand(ac.Callsign, "PUSH; TAXI B3 HS B; AT B3 TAXI ZZ; SQ");
         Assert.True(result.Success, result.Message);
 
         TickUntil(engine, 180, () => _warnings.Any(w => w.Contains("ZZ", StringComparison.OrdinalIgnoreCase)));
@@ -309,24 +309,24 @@ public class ChainAbortAndCompletionTests
     [Fact]
     public void TrackDispatchFailure_DiscardsRemainder()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddAirborne(engine, "CHN205");
-        var compound = CommandParser.ParseCompound("DCT OAK; AT OAK HO ZZ9; SQ", ac.FlightPlan.Route);
+        AircraftState ac = AddAirborne(engine, "CHN205");
+        ParseResult<CompoundCommand> compound = CommandParser.ParseCompound("DCT OAK; AT OAK HO ZZ9; SQ", ac.FlightPlan.Route);
         Assert.True(compound.IsSuccess, compound.Reason);
-        var presetContext = TestDispatch.Context(
+        DispatchContext presetContext = TestDispatch.Context(
             engine.World.Rng,
             groundLayout: engine.World.GroundLayout,
             findAircraft: engine.FindAircraft,
             listAircraft: () => engine.World.GetSnapshot(),
             isScenarioScripted: true
         );
-        var result = CommandDispatcher.DispatchCompound(compound.Value!, ac, presetContext);
+        CommandResult result = CommandDispatcher.DispatchCompound(compound.Value!, ac, presetContext);
         Assert.True(result.Success, result.Message);
 
         TickUntil(engine, 240, () => _warnings.Count > 0);
@@ -345,15 +345,15 @@ public class ChainAbortAndCompletionTests
     [Fact]
     public void ParallelSiblingFailure_DiscardsRemainder_KeepsAppliedSibling()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddAirborne(engine, "CHN206");
-        var result = engine.SendCommand(ac.Callsign, "CM 5000; FH 090, TAXI ZZ; SQ");
+        AircraftState ac = AddAirborne(engine, "CHN206");
+        CommandResult result = engine.SendCommand(ac.Callsign, "CM 5000; FH 090, TAXI ZZ; SQ");
         Assert.True(result.Success, result.Message);
 
         TickUntil(engine, 10, () => _warnings.Count > 0);
@@ -370,22 +370,22 @@ public class ChainAbortAndCompletionTests
     [Fact]
     public void IndependentDispatch_SurvivesOtherChainAbort()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddAirborne(engine, "CHN207");
-        var r0 = engine.SendCommand(ac.Callsign, "DCT OAK");
+        AircraftState ac = AddAirborne(engine, "CHN207");
+        CommandResult r0 = engine.SendCommand(ac.Callsign, "DCT OAK");
         Assert.True(r0.Success, r0.Message);
         // Dispatch 1: an unreachable-level conditional (aircraft stays at 5000) — never fires,
         // must survive dispatch 2's abort. Conditional-led compounds queue additively.
-        var r1 = engine.SendCommand(ac.Callsign, "LV 100 SQ");
+        CommandResult r1 = engine.SendCommand(ac.Callsign, "LV 100 SQ");
         Assert.True(r1.Success, r1.Message);
         // Dispatch 2: also conditional-led (additive); fails at fire time and aborts its own remainder only.
-        var r2 = engine.SendCommand(ac.Callsign, "AT OAK TAXI ZZ; FH 270");
+        CommandResult r2 = engine.SendCommand(ac.Callsign, "AT OAK TAXI ZZ; FH 270");
         Assert.True(r2.Success, r2.Message);
 
         TickUntil(engine, 240, () => _warnings.Any(w => w.Contains("ZZ", StringComparison.OrdinalIgnoreCase)));

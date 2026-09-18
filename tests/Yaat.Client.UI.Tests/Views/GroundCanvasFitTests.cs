@@ -34,7 +34,7 @@ public class GroundCanvasFitTests
     {
         // Mimics the user's repro: empty preferences, scenario loads, layout
         // arrives. Once the canvas is sized the auto-fit must run with no RESET click.
-        var (canvas, _) = MakeCanvas();
+        (GroundCanvas? canvas, Window _) = MakeCanvas();
         canvas.HasSavedView = false;
         canvas.Layout = SfoLayout();
 
@@ -48,7 +48,7 @@ public class GroundCanvasFitTests
     {
         // Reverse ordering: canvas is sized while idle, then layout arrives.
         // OnPropertyChanged(LayoutProperty) → TryInitialView must fit immediately.
-        var (canvas, _) = MakeCanvas();
+        (GroundCanvas? canvas, Window _) = MakeCanvas();
         canvas.HasSavedView = false;
 
         AttachAndSize(canvas, 800, 600);
@@ -63,7 +63,7 @@ public class GroundCanvasFitTests
     {
         // Saved view exists for this scenario. The canvas must apply the saved
         // CenterLat/Lon/Zoom/Rotation and not run FitToLayout.
-        var (canvas, _) = MakeCanvas();
+        (GroundCanvas? canvas, Window _) = MakeCanvas();
         canvas.ViewCenterLat = 40.7;
         canvas.ViewCenterLon = -74.0;
         canvas.ViewZoom = 12.5;
@@ -84,7 +84,7 @@ public class GroundCanvasFitTests
         // Canvas not in a window yet — Viewport.PixelWidth=0. Layout is set,
         // TryInitialView returns early, viewport stays at default. Once attached
         // and sized, OnSizeChanged → TryInitialView completes the fit.
-        var (canvas, _) = MakeCanvas();
+        (GroundCanvas? canvas, Window _) = MakeCanvas();
         canvas.Layout = SfoLayout();
         Dispatcher.UIThread.RunJobs();
 
@@ -101,7 +101,7 @@ public class GroundCanvasFitTests
     {
         // Saved view restored, then user clicks RESET. Centroid fit must
         // overwrite the saved view (RESET is the user's explicit choice).
-        var (canvas, _) = MakeCanvas();
+        (GroundCanvas? canvas, Window _) = MakeCanvas();
         canvas.ViewCenterLat = 40.7;
         canvas.ViewCenterLon = -74.0;
         canvas.ViewZoom = 12.5;
@@ -130,7 +130,7 @@ public class GroundCanvasFitTests
         var prefs = new UserPreferences();
         var vm = new GroundViewModel(new ServerConnection(), (_, _, _) => Task.CompletedTask, preferences: prefs);
 
-        var (canvas, window) = BindCanvasToViewModel(vm);
+        (GroundCanvas? canvas, Window? window) = BindCanvasToViewModel(vm);
 
         vm.SetScenarioId(scenarioId);
         Assert.False(vm.HasSavedView);
@@ -141,7 +141,7 @@ public class GroundCanvasFitTests
         AssertCentroidFit(canvas);
         Assert.True(vm.HasSavedView, "auto-fit push-back should flip HasSavedView true via SaveSettings");
 
-        var saved = prefs.GetGroundSettings(scenarioId);
+        SavedGroundSettings? saved = prefs.GetGroundSettings(scenarioId);
         Assert.NotNull(saved);
         Assert.InRange(saved!.CenterLat, MinLat, MaxLat);
     }
@@ -171,7 +171,7 @@ public class GroundCanvasFitTests
         );
 
         var vm = new GroundViewModel(new ServerConnection(), (_, _, _) => Task.CompletedTask, preferences: prefs);
-        var (canvas, window) = BindCanvasToViewModel(vm);
+        (GroundCanvas? canvas, Window? window) = BindCanvasToViewModel(vm);
 
         vm.SetScenarioId("scenario-1");
         Assert.True(vm.HasSavedView);
@@ -204,7 +204,7 @@ public class GroundCanvasFitTests
         };
         window.Show();
         PumpLayout(window);
-        var canvas = view.FindControl<GroundCanvas>("Canvas");
+        GroundCanvas? canvas = view.FindControl<GroundCanvas>("Canvas");
         Assert.NotNull(canvas);
         return (canvas!, window);
     }
@@ -236,7 +236,7 @@ public class GroundCanvasFitTests
     {
         // Headless Avalonia needs a few measure/arrange + dispatcher cycles before
         // OnSizeChanged actually flows to nested controls; pump until stable.
-        for (var i = 0; i < 5; i++)
+        for (int i = 0; i < 5; i++)
         {
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();

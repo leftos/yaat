@@ -27,7 +27,7 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
     [InlineData("pushm $6a $6b", "$6A|$6B")]
     public void TargetsOnly_ParsesEveryTargetInOrderWithItsSigil(string input, string expectedTargets)
     {
-        var push = Parse(input);
+        PushbackMultiCommand push = Parse(input);
 
         Assert.Equal(expectedTargets.Split('|'), push.Targets);
         Assert.Null(push.FinalFacing);
@@ -41,7 +41,7 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
     [InlineData("PUSHM $6A $6B <N", 180.0)]
     public void TrailingOrientation_IsTheFinalRestFacing(string input, double expectedFacingDeg)
     {
-        var push = Parse(input);
+        PushbackMultiCommand push = Parse(input);
 
         Assert.NotNull(push.FinalFacing);
         Assert.Equal(expectedFacingDeg, push.FinalFacing.Value.Degrees, 3);
@@ -51,8 +51,8 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
     [Fact]
     public void SigilsAreNotStripped_SoASpotIsNeverReadAsAGateOfTheSameName()
     {
-        var spots = Parse("PUSHM $7 $8");
-        var gates = Parse("PUSHM @7 @8");
+        PushbackMultiCommand spots = Parse("PUSHM $7 $8");
+        PushbackMultiCommand gates = Parse("PUSHM @7 @8");
 
         Assert.Equal(new[] { "$7", "$8" }, spots.Targets);
         Assert.Equal(new[] { "@7", "@8" }, gates.Targets);
@@ -64,7 +64,7 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
     [InlineData("PUSHM $6A FACE E")]
     public void FewerThanTwoTargets_RefusedNamingPlainPush(string input)
     {
-        var reason = Refusal(input);
+        string reason = Refusal(input);
 
         Assert.Contains("needs at least two targets — use PUSH to move to a single one", reason, StringComparison.Ordinal);
     }
@@ -77,7 +77,7 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
     [InlineData("PUSHM #A1 $6B", "#A1")]
     public void TargetWithoutASigil_RefusedSayingWhereTheSigilGoes(string input, string offendingToken)
     {
-        var reason = Refusal(input);
+        string reason = Refusal(input);
 
         Assert.Contains(
             $"target '{offendingToken}' needs a sigil — $ for a spot ($6A), @ for a gate or helipad (@D15), # for a graph node (#1926)",
@@ -92,7 +92,7 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
     [InlineData("PUSHM $6A >E $6B")]
     public void OrientationBeforeTheLastTarget_Refused(string input)
     {
-        var reason = Refusal(input);
+        string reason = Refusal(input);
 
         Assert.Contains("takes the facing last — put FACE/TAIL or </> with a cardinal after the final target", reason, StringComparison.Ordinal);
     }
@@ -119,13 +119,13 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
     [InlineData("pushm $6a $6b FACE N", "PUSHM $6A $6B FACE N")]
     public void Canonical_RoundTrips(string input, string expectedCanonical)
     {
-        var first = Parse(input);
-        var canonical = CommandDescriber.DescribeCommand(first);
+        PushbackMultiCommand first = Parse(input);
+        string canonical = CommandDescriber.DescribeCommand(first);
         output.WriteLine($"{input} → {canonical} → {CommandDescriber.DescribeNatural(first)}");
 
         Assert.Equal(expectedCanonical, canonical);
 
-        var second = Parse(canonical);
+        PushbackMultiCommand second = Parse(canonical);
         Assert.Equal(first.Targets, second.Targets);
         Assert.Equal(first.FinalFacing, second.FinalFacing);
         Assert.Equal(canonical, CommandDescriber.DescribeCommand(second));
@@ -150,14 +150,14 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
 
     private static PushbackMultiCommand Parse(string input)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.True(result.IsSuccess, $"'{input}' was refused: {result.Reason}");
         return Assert.IsType<PushbackMultiCommand>(result.Value);
     }
 
     private string Refusal(string input)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.False(result.IsSuccess, $"'{input}' was expected to be refused but parsed");
         Assert.NotNull(result.Reason);
         output.WriteLine($"{input} → {result.Reason}");

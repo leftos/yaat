@@ -21,13 +21,13 @@ public class Issue360MinimizedWindowRestoreTests
     [AvaloniaFact]
     public void FlightPlanEditor_ReopenWhileMinimized_RestoresAndLoadsNewAircraft()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         try
         {
-            var first = FlightPlanEditorManager.Open(new AircraftModel { Callsign = "UAL1" }, vm);
+            FlightPlanEditorWindow first = FlightPlanEditorManager.Open(new AircraftModel { Callsign = "UAL1" }, vm);
             first.WindowState = WindowState.Minimized;
 
-            var reused = FlightPlanEditorManager.Open(new AircraftModel { Callsign = "DAL2" }, vm);
+            FlightPlanEditorWindow reused = FlightPlanEditorManager.Open(new AircraftModel { Callsign = "DAL2" }, vm);
 
             Assert.Same(first, reused);
             Assert.Equal(WindowState.Normal, reused.WindowState);
@@ -42,7 +42,7 @@ public class Issue360MinimizedWindowRestoreTests
     [AvaloniaFact]
     public void FavoritesPanel_ReopenWhileMinimized_Restores()
     {
-        var vm = NewVm();
+        MainViewModel vm = NewVm();
         var first = FavoritesPanelWindow.ShowOrActivate(vm);
         try
         {

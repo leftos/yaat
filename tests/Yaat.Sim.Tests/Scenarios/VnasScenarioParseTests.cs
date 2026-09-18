@@ -53,7 +53,7 @@ public class VnasScenarioParseTests
     [InlineData("ZTL")]
     public void AllScenarios_PresetCommandsParse(string artccId)
     {
-        var dir = Path.Combine(ScenariosRoot, artccId);
+        string dir = Path.Combine(ScenariosRoot, artccId);
         if (!Directory.Exists(dir))
         {
             _output.WriteLine($"No local scenarios for {artccId} — run in ../yaat-server: python tools/validate-all-scenarios.py --artcc {artccId}");
@@ -77,26 +77,26 @@ public class VnasScenarioParseTests
         // regressions are guarded separately by the generator/autotrack round-trip test.
         var loadFailures = new List<string>();
         var unparseablePresets = new List<string>();
-        var totalPresets = 0;
+        int totalPresets = 0;
 
-        foreach (var file in files)
+        foreach (string? file in files)
         {
-            var json = File.ReadAllText(file);
-            var fileName = Path.GetFileNameWithoutExtension(file);
+            string json = File.ReadAllText(file);
+            string fileName = Path.GetFileNameWithoutExtension(file);
 
-            var result = ScenarioValidator.Validate(json);
+            ScenarioValidationResult? result = ScenarioValidator.Validate(json);
             if (result is null)
             {
                 loadFailures.Add($"[{fileName}] JSON deserialize failed");
                 continue;
             }
 
-            var label = string.IsNullOrWhiteSpace(result.ScenarioName) ? fileName : result.ScenarioName;
+            string label = string.IsNullOrWhiteSpace(result.ScenarioName) ? fileName : result.ScenarioName;
             _output.WriteLine($"  {label} ({result.AircraftCount} aircraft)");
 
             totalPresets += result.TotalPresets;
 
-            foreach (var f in result.Failures)
+            foreach (PresetParseFailure f in result.Failures)
             {
                 unparseablePresets.Add($"[{label}] {f.AircraftId}: \"{f.Command}\" — parse failed");
             }
@@ -109,7 +109,7 @@ public class VnasScenarioParseTests
             _output.WriteLine(
                 $"\n=== WARNING: {unparseablePresets.Count} unparseable preset commands (likely scenario-author issues; not a test failure) ==="
             );
-            foreach (var w in unparseablePresets)
+            foreach (string w in unparseablePresets)
             {
                 _output.WriteLine(w);
             }

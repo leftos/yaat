@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -69,8 +71,8 @@ public class Issue186ZhuAusStarApproachTests
     [Fact]
     public void Skw5288_DescendVia_HoldsCrossingSpeeds_FiresAtJedyeCapp()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             _output.WriteLine("Recording or NavData not available, skipping");
@@ -84,18 +86,18 @@ public class Issue186ZhuAusStarApproachTests
         double maxIasDuringDescent = 0;
         bool cappFired = false;
         bool reachedFinal = false;
-        var prevRoute = RouteNames(engine.FindAircraft("SKW5288"));
+        HashSet<string> prevRoute = RouteNames(engine.FindAircraft("SKW5288"));
 
         for (int t = 1; t <= 640; t++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft("SKW5288");
+            AircraftState? ac = engine.FindAircraft("SKW5288");
             if (ac is null)
             {
                 break;
             }
 
-            var route = RouteNames(ac);
+            HashSet<string> route = RouteNames(ac);
             if (ac.Altitude > 4500)
             {
                 maxIasDuringDescent = Math.Max(maxIasDuringDescent, ac.IndicatedAirspeed);
@@ -163,18 +165,18 @@ public class Issue186ZhuAusStarApproachTests
     [Fact]
     public void Swa387_Jfac_HoldsAltitude_ThenCappUpgradesInPlace_NoCancelWarning()
     {
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             _output.WriteLine("Recording or NavData not available, skipping");
             return;
         }
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
 
-        var snap = archive.ReadSnapshotAt(461);
+        TimedSnapshot? snap = archive.ReadSnapshotAt(461);
         if (snap is null)
         {
             _output.WriteLine("No snapshot near t=461, skipping");
@@ -195,7 +197,7 @@ public class Issue186ZhuAusStarApproachTests
 
         // Apply JFAC I18L @463.
         engine.ReplayRange(start, 470, recording.Actions);
-        var ac = engine.FindAircraft("SWA387");
+        AircraftState? ac = engine.FindAircraft("SWA387");
         Assert.NotNull(ac);
         double altAtJfac = ac.Altitude;
         _output.WriteLine($"after JFAC: alt={altAtJfac:F0} phases={FormatPhases(ac)} lateralOnly={ac.Phases?.ActiveApproach?.LateralInterceptOnly}");
@@ -281,17 +283,17 @@ public class Issue186ZhuAusStarApproachTests
     [Fact]
     public void Swa1743_SteepJfac_CappWhileSturning_HoldsAltitudeUntilEstablished()
     {
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             _output.WriteLine("Recording or NavData not available, skipping");
             return;
         }
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
-        var snap = archive.ReadSnapshotAt(603);
+        TimedSnapshot? snap = archive.ReadSnapshotAt(603);
         if (snap is null)
         {
             _output.WriteLine("No snapshot near t=603, skipping");
@@ -302,7 +304,7 @@ public class Issue186ZhuAusStarApproachTests
         engine.ReplayRange((int)snap.ElapsedSeconds, 610, recording.Actions); // applies JFAC I18L @604
 
         // Tick until the steep join captures into FinalApproach (still off the localizer).
-        var ac = engine.FindAircraft("SWA1743");
+        AircraftState? ac = engine.FindAircraft("SWA1743");
         Assert.NotNull(ac);
         bool captured = false;
         for (int t = 1; t <= 60; t++)
@@ -326,7 +328,7 @@ public class Issue186ZhuAusStarApproachTests
         double xteAtCapp = CrossTrackNm(ac);
         _output.WriteLine($"CAPP issued: alt={cappAlt:F0} xte={xteAtCapp:F2} facErr={HeadingErrToFacDeg(ac):F0} phases={FormatPhases(ac)}");
 
-        var result = engine.SendCommand("SWA1743", "CAPP");
+        CommandResult result = engine.SendCommand("SWA1743", "CAPP");
         Assert.True(result.Success, $"CAPP failed: {result.Message}");
 
         bool busted = false;
@@ -380,18 +382,18 @@ public class Issue186ZhuAusStarApproachTests
     [Fact]
     public void Dal5534_JfacThenCapp_UpgradesInPlace_NoCancelWarning()
     {
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             _output.WriteLine("Recording or NavData not available, skipping");
             return;
         }
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
 
-        var snap = archive.ReadSnapshotAt(406);
+        TimedSnapshot? snap = archive.ReadSnapshotAt(406);
         if (snap is null)
         {
             _output.WriteLine("No snapshot near t=406, skipping");
@@ -412,7 +414,7 @@ public class Issue186ZhuAusStarApproachTests
 
         // Apply JFAC I18R @413 and CAPP @430.
         engine.ReplayRange(start, 435, recording.Actions);
-        var ac = engine.FindAircraft("DAL5534");
+        AircraftState? ac = engine.FindAircraft("DAL5534");
         Assert.NotNull(ac);
         double altAfterCapp = ac.Altitude;
         _output.WriteLine(
@@ -458,8 +460,8 @@ public class Issue186ZhuAusStarApproachTests
 
     private void RunJoinTest(string callsign, int snapshotBeforeJfac, int jfacWindowEnd, int watchSeconds)
     {
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             _output.WriteLine("Recording or NavData not available, skipping");
@@ -478,10 +480,10 @@ public class Issue186ZhuAusStarApproachTests
             }
         };
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
 
-        var snap = archive.ReadSnapshotAt(snapshotBeforeJfac);
+        TimedSnapshot? snap = archive.ReadSnapshotAt(snapshotBeforeJfac);
         if (snap is null)
         {
             _output.WriteLine($"No snapshot near t={snapshotBeforeJfac}, skipping");
@@ -492,9 +494,9 @@ public class Issue186ZhuAusStarApproachTests
         int start = (int)snap.ElapsedSeconds;
         engine.ReplayRange(start, jfacWindowEnd, recording.Actions);
 
-        var ac = engine.FindAircraft(callsign);
+        AircraftState? ac = engine.FindAircraft(callsign);
         Assert.NotNull(ac);
-        var intercept = ac.Phases?.Phases.OfType<InterceptCoursePhase>().FirstOrDefault();
+        InterceptCoursePhase? intercept = ac.Phases?.Phases.OfType<InterceptCoursePhase>().FirstOrDefault();
         _output.WriteLine(
             $"{callsign} after JFAC: hdg={ac.TrueHeading.Degrees:F0} ias={ac.IndicatedAirspeed:F0} alt={ac.Altitude:F0} approach={ac.Phases?.ActiveApproach?.ApproachId} interceptPhase={(intercept is not null)} xte={CrossTrackNm(ac):F2} facErr={HeadingErrToFacDeg(ac):F0}"
         );
@@ -545,8 +547,8 @@ public class Issue186ZhuAusStarApproachTests
 
     private static double CrossTrackNm(AircraftState ac)
     {
-        var clearance = ac.Phases?.ActiveApproach;
-        var runway = ac.Phases?.AssignedRunway;
+        ApproachClearance? clearance = ac.Phases?.ActiveApproach;
+        RunwayInfo? runway = ac.Phases?.AssignedRunway;
         if (clearance is null || runway is null)
         {
             return double.NaN;
@@ -563,7 +565,7 @@ public class Issue186ZhuAusStarApproachTests
 
     private static double HeadingErrToFacDeg(AircraftState ac)
     {
-        var clearance = ac.Phases?.ActiveApproach;
+        ApproachClearance? clearance = ac.Phases?.ActiveApproach;
         if (clearance is null)
         {
             return double.NaN;

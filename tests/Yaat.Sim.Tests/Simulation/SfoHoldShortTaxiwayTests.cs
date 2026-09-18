@@ -1,4 +1,6 @@
 ﻿using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -27,7 +29,7 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -42,8 +44,8 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void N346G_HoldShortOfE_HasOffsetPosition()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -52,15 +54,15 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         // Replay to t=32 — just after TAXI C E 28R HS E at t=31
         engine.Replay(recording, 32);
 
-        var aircraft = engine.FindAircraft("N346G");
+        AircraftState? aircraft = engine.FindAircraft("N346G");
         Assert.NotNull(aircraft);
 
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
 
         // Find the explicit hold-short for taxiway E
         HoldShortPoint? hsE = null;
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             if (hs.Reason == HoldShortReason.ExplicitHoldShort && string.Equals(hs.TargetName, "E", StringComparison.OrdinalIgnoreCase))
             {
@@ -76,10 +78,10 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         Assert.NotNull(hsE.Longitude);
 
         // The hold-short node should be the C/E intersection node (has an edge on taxiway E)
-        var layout = aircraft.Ground.Layout;
+        AirportGroundLayout? layout = aircraft.Ground.Layout;
         Assert.NotNull(layout);
 
-        Assert.True(layout.Nodes.TryGetValue(hsE.NodeId, out var intersectionNode), $"Node {hsE.NodeId} not found in layout");
+        Assert.True(layout.Nodes.TryGetValue(hsE.NodeId, out GroundNode? intersectionNode), $"Node {hsE.NodeId} not found in layout");
 
         // Verify this node has an edge on taxiway E (may be a junction arc after filleting)
         bool hasEdgeOnE = intersectionNode.Edges.Any(e => e.MatchesTaxiway("E"));
@@ -107,8 +109,8 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void N346G_LuawFromTaxiwayHoldShort_StoresClearanceAndResumes()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -117,7 +119,7 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         // Replay to t=32, then tick until N346G reaches the hold-short for E
         engine.Replay(recording, 32);
 
-        var aircraft = engine.FindAircraft("N346G");
+        AircraftState? aircraft = engine.FindAircraft("N346G");
         Assert.NotNull(aircraft);
 
         // Tick until N346G is in HoldingShortPhase for taxiway E
@@ -146,7 +148,7 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         Assert.NotNull(holdingPhase);
 
         // Issue LUAW while holding short of taxiway E
-        var result = engine.SendCommand("N346G", "LUAW");
+        CommandResult result = engine.SendCommand("N346G", "LUAW");
         output.WriteLine($"LUAW result: success={result.Success}, message={result.Message}");
 
         Assert.True(result.Success, $"LUAW from taxiway hold-short should succeed: {result.Message}");
@@ -168,8 +170,8 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void N346G_CtoFromSeparateHsCommand_ResolvesDestinationRunway()
     {
-        var recording = RecordingLoader.Load(SeparateHsRecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(SeparateHsRecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -178,7 +180,7 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         // Replay to t=34 — after TAXI C E RWY 28R (t=31) and separate HS E (t=33)
         engine.Replay(recording, 34);
 
-        var aircraft = engine.FindAircraft("N346G");
+        AircraftState? aircraft = engine.FindAircraft("N346G");
         Assert.NotNull(aircraft);
 
         // Tick until N346G is in HoldingShortPhase for taxiway E
@@ -208,15 +210,15 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
 
         // Verify the hold-short list has ExplicitHoldShort AFTER DestinationRunway
         // (this is the condition that triggers the bug)
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
-        foreach (var hs in route.HoldShortPoints)
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
             output.WriteLine($"  HS: node={hs.NodeId} target={hs.TargetName} reason={hs.Reason}");
         }
 
         // Issue CTO while holding short of taxiway E — should resolve runway 28R, not "E"
-        var result = engine.SendCommand("N346G", "CTO");
+        CommandResult result = engine.SendCommand("N346G", "CTO");
         output.WriteLine($"CTO result: success={result.Success}, message={result.Message}");
 
         Assert.True(result.Success, $"CTO from taxiway hold-short should succeed: {result.Message}");

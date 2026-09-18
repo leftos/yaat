@@ -105,8 +105,8 @@ public abstract class MapCanvasBase : Control
     {
         base.Render(context);
         // Capture property values on the UI thread
-        var snapshot = CreateRenderSnapshot();
-        var viewportCopy = _viewport.Clone();
+        object? snapshot = CreateRenderSnapshot();
+        MapViewport viewportCopy = _viewport.Clone();
         var op = new MapDrawOperation(this, new Rect(0, 0, Bounds.Width, Bounds.Height), snapshot, viewportCopy);
         context.Custom(op);
     }
@@ -128,7 +128,7 @@ public abstract class MapCanvasBase : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        var props = e.GetCurrentPoint(this).Properties;
+        PointerPointProperties props = e.GetCurrentPoint(this).Properties;
 
         if (props.IsRightButtonPressed && _isPanZoomEnabled)
         {
@@ -143,9 +143,9 @@ public abstract class MapCanvasBase : Control
 
         if (_isPanning)
         {
-            var pos = e.GetPosition(this);
-            var dx = (float)(pos.X - _lastPanPoint.X);
-            var dy = (float)(pos.Y - _lastPanPoint.Y);
+            Point pos = e.GetPosition(this);
+            float dx = (float)(pos.X - _lastPanPoint.X);
+            float dy = (float)(pos.Y - _lastPanPoint.Y);
             _viewport.Pan(dx, dy);
             _lastPanPoint = pos;
             OnViewportChanged();
@@ -174,11 +174,11 @@ public abstract class MapCanvasBase : Control
             return;
         }
 
-        var pos = e.GetPosition(this);
+        Point pos = e.GetPosition(this);
         bool fine = e.KeyModifiers.HasFlag(KeyModifiers.Control);
-        var step = fine ? 1.05 : 1.2;
-        var direction = e.Delta.Y > 0 ? 1.0 : -1.0;
-        var factor = Math.Pow(step, direction * ScrollSensitivity);
+        double step = fine ? 1.05 : 1.2;
+        double direction = e.Delta.Y > 0 ? 1.0 : -1.0;
+        double factor = Math.Pow(step, direction * ScrollSensitivity);
         _viewport.ZoomAt((float)pos.X, (float)pos.Y, factor);
         OnViewportChanged();
         InvalidateVisual();
@@ -223,8 +223,8 @@ public abstract class MapCanvasBase : Control
                 return;
             }
 
-            using var lease = feature.Lease();
-            var canvas = lease.SkCanvas;
+            using ISkiaSharpApiLease lease = feature.Lease();
+            SKCanvas canvas = lease.SkCanvas;
             _owner.RenderFromSnapshot(canvas, _viewport, _snapshot);
         }
     }

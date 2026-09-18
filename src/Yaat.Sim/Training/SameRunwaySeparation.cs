@@ -159,8 +159,8 @@ public static class SameRunwaySeparation
             return true;
         }
 
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        var profile = RunwayOccupancy.GroundAccelerationKtPerSec(aircraft) is { } measured
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        GroundRollProfile profile = RunwayOccupancy.GroundAccelerationKtPerSec(aircraft) is { } measured
             ? GroundRollProfile.Constant(measured)
             : GroundRollProfile.For(aircraft.AircraftType, category);
 
@@ -175,7 +175,7 @@ public static class SameRunwaySeparation
     /// </summary>
     public static SrsCategory ResolveSrsCategory(AircraftState aircraft)
     {
-        var record = FaaAircraftDatabase.Get(aircraft.AircraftType);
+        FaaAircraftRecord? record = FaaAircraftDatabase.Get(aircraft.AircraftType);
         if (record?.Srs is { Length: > 0 } srs)
         {
             if (srs.Equals("I", StringComparison.OrdinalIgnoreCase))

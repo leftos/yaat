@@ -118,9 +118,9 @@ public class ScriptedDepartureCheckInTests
 
     private static void LiveCto(AircraftState ac)
     {
-        var parsed = CommandParser.ParseCompound("CTO", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("CTO", ac.FlightPlan.Route);
         Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.Reason}");
-        var result = CommandDispatcher.DispatchCompound(
+        CommandResult result = CommandDispatcher.DispatchCompound(
             parsed.Value!,
             ac,
             TestDispatch.Context(new SerializableRandom(7), isScenarioScripted: false)
@@ -137,7 +137,7 @@ public class ScriptedDepartureCheckInTests
         }
 
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = MinimalScenario(0) };
-        var scripted = LinedUpIfrDeparture(Oak28R());
+        AircraftState scripted = LinedUpIfrDeparture(Oak28R());
 
         engine.DispatchPresetCommands(
             new LoadedAircraft { State = scripted, PresetCommands = [new PresetCommand { Command = "CTO", TimeOffset = 0 }] }
@@ -146,7 +146,7 @@ public class ScriptedDepartureCheckInTests
         Assert.False(scripted.HasMadeInitialContact, "A scripted CTO preset must not establish student contact.");
 
         // Control: same setup, live controller CTO — establishes contact (proves CTO succeeds on this setup).
-        var live = LinedUpIfrDeparture(Oak28R());
+        AircraftState live = LinedUpIfrDeparture(Oak28R());
         LiveCto(live);
         Assert.True(live.HasMadeInitialContact);
     }
@@ -161,7 +161,7 @@ public class ScriptedDepartureCheckInTests
 
         // Elapsed time well past the deterministic tower-readback jitter so the auto-CTO fires.
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = MinimalScenario(10_000) };
-        var scripted = HeldThenReleasedDeparture(Oak28R());
+        AircraftState scripted = HeldThenReleasedDeparture(Oak28R());
         engine.World.AddAircraft(scripted);
 
         engine.ProcessReleasedGroundDepartures();
@@ -173,7 +173,7 @@ public class ScriptedDepartureCheckInTests
         );
 
         // Control: same holding-short setup, live controller CTO — establishes contact (proves CTO succeeds).
-        var live = HeldThenReleasedDeparture(Oak28R());
+        AircraftState live = HeldThenReleasedDeparture(Oak28R());
         LiveCto(live);
         Assert.True(live.HasMadeInitialContact);
     }

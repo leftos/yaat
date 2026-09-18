@@ -1,6 +1,9 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Reflection;
 using Avalonia;
+using LMKit.Hardware.Gpu;
+using LMKit.Model;
 using Yaat.Client.Services;
 using Yaat.Sim.Speech;
 
@@ -139,8 +142,8 @@ public static class Program
             return 2;
         }
 
-        var anyFailed = false;
-        foreach (var path in wavPaths)
+        bool anyFailed = false;
+        foreach (string path in wavPaths)
         {
             if (!File.Exists(path))
             {
@@ -164,7 +167,7 @@ public static class Program
                 anyFailed = true;
                 continue;
             }
-            var durationSec = samples.Length / (double)AudioCaptureService.SampleRate;
+            double durationSec = samples.Length / (double)AudioCaptureService.SampleRate;
             Console.WriteLine($"  Duration:  {durationSec:F2}s ({samples.Length:N0} samples @ {AudioCaptureService.SampleRate} Hz)");
 
             // --- Stage 1: Whisper STT ---
@@ -191,29 +194,29 @@ public static class Program
             }
 
             // --- Stage 2: AtcNumberParser.NormalizeDigits (digit normalization + runway collapse + comma stripping + filler insulation) ---
-            var normalized = AtcNumberParser.NormalizeDigits(transcript);
+            string normalized = AtcNumberParser.NormalizeDigits(transcript);
             Console.WriteLine($"  Normalize:        \"{normalized}\"");
 
             // --- Stage 3: rule engine mapper ---
             var ruleSw = Stopwatch.StartNew();
-            var ruleResult = await ruleMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
+            MapResult? ruleResult = await ruleMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
             ruleSw.Stop();
-            var ruleCanonical = ruleResult?.CanonicalCommand ?? "<null>";
-            var ruleCallsign = ruleResult?.Callsign ?? "<none>";
+            string ruleCanonical = ruleResult?.CanonicalCommand ?? "<null>";
+            string ruleCallsign = ruleResult?.Callsign ?? "<none>";
             Console.WriteLine($"  Rule ({ruleSw.ElapsedMilliseconds, 5} ms): callsign={ruleCallsign} canonical={ruleCanonical}");
 
             // --- Stage 4: LLM mapper (always run, for side-by-side comparison) ---
             var llmSw = Stopwatch.StartNew();
-            var llmResult = await llmMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
+            MapResult? llmResult = await llmMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
             llmSw.Stop();
-            var llmCanonical = llmResult?.CanonicalCommand ?? "<null>";
+            string llmCanonical = llmResult?.CanonicalCommand ?? "<null>";
             Console.WriteLine($"  LLM  ({llmSw.ElapsedMilliseconds, 5} ms): canonical={llmCanonical}");
 
             // --- Verdict line ---
             // Mirrors the production decision: rule mapper wins if it produced anything, otherwise
             // the LLM is the fallback. This is the canonical command that would land in the YAAT
             // command input box for this PTT press.
-            var winner =
+            string winner =
                 ruleCanonical != "<null>" ? $"RULE → {ruleCanonical}"
                 : llmCanonical != "<null>" ? $"LLM  → {llmCanonical}"
                 : "BOTH FAILED";
@@ -232,23 +235,23 @@ public static class Program
     private static int RunYaatCatalogMode()
     {
         Console.WriteLine("=== YAAT Whisper catalog ===");
-        var whisper = LmKitModelCatalog.BuildWhisperCatalog();
+        ObservableCollection<LmKitModelEntry> whisper = LmKitModelCatalog.BuildWhisperCatalog();
         Console.WriteLine($"  {whisper.Count} entries");
-        foreach (var e in whisper)
+        foreach (LmKitModelEntry e in whisper)
         {
-            var cached = e.IsLocallyAvailable ? " [cached]" : "";
-            var tier = e.Tier == LmKitModelTier.Recommended ? " ★" : "";
+            string cached = e.IsLocallyAvailable ? " [cached]" : "";
+            string tier = e.Tier == LmKitModelTier.Recommended ? " ★" : "";
             Console.WriteLine($"    {e.ModelId, -30} {e.ApproxSizeMb, 6} MB  {e.DisplayName}{tier}{cached}");
         }
         Console.WriteLine();
         Console.WriteLine("=== YAAT LLM catalog ===");
-        var llm = LmKitModelCatalog.BuildLlmCatalog();
+        ObservableCollection<LmKitModelEntry> llm = LmKitModelCatalog.BuildLlmCatalog();
         Console.WriteLine($"  {llm.Count} entries");
-        foreach (var e in llm)
+        foreach (LmKitModelEntry e in llm)
         {
-            var cached = e.IsLocallyAvailable ? " [cached]" : "";
-            var tier = e.Tier == LmKitModelTier.Recommended ? " ★" : "";
-            var gpu = e.GpuRecommended ? " [GPU]" : "";
+            string cached = e.IsLocallyAvailable ? " [cached]" : "";
+            string tier = e.Tier == LmKitModelTier.Recommended ? " ★" : "";
+            string gpu = e.GpuRecommended ? " [GPU]" : "";
             Console.WriteLine($"    {e.ModelId, -30} {e.ApproxSizeMb, 6} MB  {e.DisplayName}{tier}{gpu}{cached}");
         }
         return 0;
@@ -263,11 +266,13 @@ public static class Program
     private static int RunLmKitModelsMode()
     {
         Console.WriteLine("=== LM-Kit predefined model catalog ===");
-        var cards = LMKit.Model.ModelCard.GetPredefinedModelCards();
+        List<ModelCard> cards = LMKit.Model.ModelCard.GetPredefinedModelCards();
         Console.WriteLine($"  Total: {cards.Count}");
         Console.WriteLine();
         foreach (
-            var c in cards.OrderBy(c => c.Capabilities.HasFlag(LMKit.Model.ModelCapabilities.SpeechToText) ? 0 : 1).ThenBy(c => c.ParameterCount)
+            ModelCard? c in cards
+                .OrderBy(c => c.Capabilities.HasFlag(LMKit.Model.ModelCapabilities.SpeechToText) ? 0 : 1)
+                .ThenBy(c => c.ParameterCount)
         )
         {
             Console.WriteLine($"  {c.ModelID}");
@@ -295,11 +300,11 @@ public static class Program
     private static int RunLmKitGpusMode()
     {
         Console.WriteLine("=== LM-Kit GPU enumeration ===");
-        var devices = LMKit.Hardware.Gpu.GpuDeviceInfo.Devices;
+        IReadOnlyList<GpuDeviceInfo> devices = LMKit.Hardware.Gpu.GpuDeviceInfo.Devices;
         Console.WriteLine($"  Detected device count: {devices.Count}");
-        for (var i = 0; i < devices.Count; i++)
+        for (int i = 0; i < devices.Count; i++)
         {
-            var d = devices[i];
+            GpuDeviceInfo d = devices[i];
             Console.WriteLine($"  [{i}] {d.DeviceName}");
             Console.WriteLine($"      Description: {d.DeviceDescription}");
             Console.WriteLine($"      DeviceType:  {d.DeviceType}");
@@ -324,10 +329,10 @@ public static class Program
     /// </remarks>
     private static async Task<int> RunLlmProbeMode(string[] args)
     {
-        var transcript = args.Length > 0 ? args[0] : "okay we'll enter right downwind for runway 28 right at november niner 225 lima";
-        var modelSource = Environment.GetEnvironmentVariable("LMKIT_TEST_MODEL") ?? LmKitModelCatalog.RecommendedLlmId;
+        string transcript = args.Length > 0 ? args[0] : "okay we'll enter right downwind for runway 28 right at november niner 225 lima";
+        string modelSource = Environment.GetEnvironmentVariable("LMKIT_TEST_MODEL") ?? LmKitModelCatalog.RecommendedLlmId;
 
-        var normalized = AtcNumberParser.NormalizeDigits(transcript);
+        string normalized = AtcNumberParser.NormalizeDigits(transcript);
         Console.WriteLine($"Transcript: \"{transcript}\"");
         Console.WriteLine($"Normalized: \"{normalized}\"");
         Console.WriteLine($"Loading model: {modelSource}");
@@ -336,7 +341,7 @@ public static class Program
         var probeMapper = new LocalLlmCommandMapper(probeService);
 
         var probeSw = Stopwatch.StartNew();
-        var probeResult = await probeMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
+        MapResult? probeResult = await probeMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
         probeSw.Stop();
 
         Console.WriteLine($"Time: {probeSw.ElapsedMilliseconds} ms");
@@ -368,14 +373,14 @@ public static class Program
             return 1;
         }
 
-        var wavPath = args[0];
+        string wavPath = args[0];
         if (!File.Exists(wavPath))
         {
             Console.Error.WriteLine($"WAV not found: {wavPath}");
             return 1;
         }
 
-        var modelIds = args.Length > 1 ? args[1..] : ["whisper-base", "whisper-medium"];
+        string[] modelIds = args.Length > 1 ? args[1..] : ["whisper-base", "whisper-medium"];
 
         // Reflect over SpeechToText once so we know what configuration knobs exist BEFORE we burn
         // download/load time on three models. The whole point of the probe is the biasing question:
@@ -383,7 +388,7 @@ public static class Program
         ReflectSpeechToTextSurface();
 
         // Run transcription on each model.
-        foreach (var modelId in modelIds)
+        foreach (string modelId in modelIds)
         {
             ProbeOneWhisperModel(modelId, wavPath);
         }
@@ -399,10 +404,10 @@ public static class Program
     private static void ReflectSpeechToTextSurface()
     {
         Console.WriteLine("=== Reflecting over LMKit.Speech.SpeechToText ===");
-        var sttType = typeof(LMKit.Speech.SpeechToText);
-        var props = sttType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        Type sttType = typeof(LMKit.Speech.SpeechToText);
+        PropertyInfo[] props = sttType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
         Console.WriteLine($"  {props.Length} public instance properties:");
-        foreach (var prop in props.OrderBy(p => p.Name, StringComparer.Ordinal))
+        foreach (PropertyInfo? prop in props.OrderBy(p => p.Name, StringComparer.Ordinal))
         {
             Console.WriteLine($"    {prop.PropertyType.Name} {prop.Name} (read={prop.CanRead} write={prop.CanWrite})");
         }
@@ -412,9 +417,9 @@ public static class Program
             .Where(m => !m.IsSpecialName)
             .ToList();
         Console.WriteLine($"  {methods.Count} declared public instance methods:");
-        foreach (var m in methods.OrderBy(m => m.Name, StringComparer.Ordinal))
+        foreach (MethodInfo? m in methods.OrderBy(m => m.Name, StringComparer.Ordinal))
         {
-            var sig = string.Join(", ", m.GetParameters().Select(p => $"{p.ParameterType.Name} {p.Name}"));
+            string sig = string.Join(", ", m.GetParameters().Select(p => $"{p.ParameterType.Name} {p.Name}"));
             Console.WriteLine($"    {m.ReturnType.Name} {m.Name}({sig})");
         }
         Console.WriteLine();
@@ -432,7 +437,7 @@ public static class Program
         if (biasCandidates.Count > 0)
         {
             Console.WriteLine("  ✓ Possible biasing-related properties:");
-            foreach (var p in biasCandidates)
+            foreach (PropertyInfo? p in biasCandidates)
             {
                 Console.WriteLine($"    {p.PropertyType.Name} {p.Name}");
             }
@@ -453,7 +458,7 @@ public static class Program
     private static void ProbeOneWhisperModel(string modelId, string wavPath)
     {
         Console.WriteLine($"=== Model: {modelId} ===");
-        var downloading = false;
+        bool downloading = false;
         var loadSw = Stopwatch.StartNew();
         LMKit.Model.LM model;
         try
@@ -506,7 +511,7 @@ public static class Program
             stt.Transcribe(wave);
             sttColdSw.Stop();
             Console.WriteLine($"  [no prompt] Cold transcribe: {sttColdSw.ElapsedMilliseconds} ms ({segments.Count} segments)");
-            foreach (var seg in segments)
+            foreach (string seg in segments)
             {
                 Console.WriteLine($"    \"{seg.Trim()}\"");
             }
@@ -526,7 +531,7 @@ public static class Program
             stt.Transcribe(wave);
             sttBiasedSw.Stop();
             Console.WriteLine($"  [WhisperBiasingPrompt] Transcribe: {sttBiasedSw.ElapsedMilliseconds} ms ({segments.Count} segments)");
-            foreach (var seg in segments)
+            foreach (string seg in segments)
             {
                 Console.WriteLine($"    \"{seg.Trim()}\"");
             }

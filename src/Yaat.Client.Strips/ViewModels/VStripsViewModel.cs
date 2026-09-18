@@ -215,9 +215,9 @@ public partial class VStripsViewModel : ObservableObject
         Dispatcher.UIThread.VerifyAccess();
         _items.Clear();
         SelectedStrip = null;
-        foreach (var bay in Bays)
+        foreach (StripBayViewModel bay in Bays)
         {
-            foreach (var rack in bay.Racks)
+            foreach (StripRackViewModel rack in bay.Racks)
             {
                 rack.Strips.Clear();
             }
@@ -344,7 +344,7 @@ public partial class VStripsViewModel : ObservableObject
             _facilityAirports = config.UnderlyingAirports ?? [];
             RebuildMetars();
 
-            foreach (var bayDto in config.Bays)
+            foreach (StripBayConfigDto bayDto in config.Bays)
             {
                 var bayVm = new StripBayViewModel(bayDto);
                 Bays.Add(bayVm);
@@ -353,7 +353,7 @@ public partial class VStripsViewModel : ObservableObject
 
             // Initial selection must be an own bay — external bays are
             // push-only drop-zones (see SelectBayAsync).
-            var firstOwnBay = Bays.FirstOrDefault(b => !b.IsExternal);
+            StripBayViewModel? firstOwnBay = Bays.FirstOrDefault(b => !b.IsExternal);
             if (firstOwnBay is not null)
             {
                 SelectedBay = firstOwnBay;
@@ -431,9 +431,9 @@ public partial class VStripsViewModel : ObservableObject
 
         var byStation = new Dictionary<string, StripMetarEntry>(StringComparer.OrdinalIgnoreCase);
         var ordered = new List<StripMetarEntry>();
-        foreach (var raw in _latestMetars)
+        foreach (string raw in _latestMetars)
         {
-            var parsed = MetarParser.Parse(raw);
+            MetarParser.ParsedMetar? parsed = MetarParser.Parse(raw);
             if (parsed is null)
             {
                 continue;
@@ -447,16 +447,16 @@ public partial class VStripsViewModel : ObservableObject
 
         if (_facilityAirports.Length == 0)
         {
-            foreach (var entry in ordered)
+            foreach (StripMetarEntry entry in ordered)
             {
                 Metars.Add(entry);
             }
         }
         else
         {
-            foreach (var airport in _facilityAirports)
+            foreach (string airport in _facilityAirports)
             {
-                if (byStation.TryGetValue(MetarParser.ToIcao(airport), out var entry))
+                if (byStation.TryGetValue(MetarParser.ToIcao(airport), out StripMetarEntry? entry))
                 {
                     Metars.Add(entry);
                 }
@@ -469,8 +469,8 @@ public partial class VStripsViewModel : ObservableObject
         // leaves the bar empty instead of fabricating a stale report.
         if (Metars.Count == 0 && IsConnected && _latestMetars.Count == 0 && _facilityAirports.Length > 0)
         {
-            var now = DateTime.UtcNow;
-            foreach (var airport in _facilityAirports)
+            DateTime now = DateTime.UtcNow;
+            foreach (string airport in _facilityAirports)
             {
                 Metars.Add(new StripMetarEntry(MetarParser.ToIcao(airport), DefaultMetar.Build(airport, now)));
             }
@@ -503,15 +503,15 @@ public partial class VStripsViewModel : ObservableObject
         // for every id we still see, and drop items that are no longer referenced
         // anywhere. Fresh items arrive via the incremental StripItemsChanged channel.
         var referenced = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var id in state.PrinterItems)
+        foreach (string id in state.PrinterItems)
         {
             referenced.Add(id);
         }
-        foreach (var bay in state.BayItems)
+        foreach (StripBayContentsDto bay in state.BayItems)
         {
-            foreach (var rack in bay.ItemIds)
+            foreach (string[] rack in bay.ItemIds)
             {
-                foreach (var id in rack)
+                foreach (string id in rack)
                 {
                     referenced.Add(id);
                 }
@@ -520,7 +520,7 @@ public partial class VStripsViewModel : ObservableObject
 
         // Drop items that no longer appear anywhere in the new state.
         var stale = _items.Keys.Where(id => !referenced.Contains(id)).ToList();
-        foreach (var id in stale)
+        foreach (string? id in stale)
         {
             _items.Remove(id);
             if (SelectedStrip?.Id == id)
@@ -532,27 +532,27 @@ public partial class VStripsViewModel : ObservableObject
         // Prune the DTO cache the same way — a deleted strip must not
         // resurrect when the cache is re-applied or seeded into a new VM.
         var staleCached = _receivedItemsById.Keys.Where(id => !referenced.Contains(id)).ToList();
-        foreach (var id in staleCached)
+        foreach (string? id in staleCached)
         {
             _receivedItemsById.Remove(id);
         }
 
         // Rebuild bay racks.
-        foreach (var bayVm in Bays)
+        foreach (StripBayViewModel bayVm in Bays)
         {
-            var contents = state.BayItems.FirstOrDefault(b => b.BayId == bayVm.BayId);
+            StripBayContentsDto? contents = state.BayItems.FirstOrDefault(b => b.BayId == bayVm.BayId);
             if (contents is null)
             {
-                foreach (var rack in bayVm.Racks)
+                foreach (StripRackViewModel rack in bayVm.Racks)
                 {
                     rack.Strips.Clear();
                 }
                 continue;
             }
 
-            for (var rackIdx = 0; rackIdx < bayVm.Racks.Count; rackIdx++)
+            for (int rackIdx = 0; rackIdx < bayVm.Racks.Count; rackIdx++)
             {
-                var rackVm = bayVm.Racks[rackIdx];
+                StripRackViewModel rackVm = bayVm.Racks[rackIdx];
                 if (rackIdx < contents.ItemIds.Length)
                 {
                     rackVm.ReplaceAll(contents.ItemIds[rackIdx], _items);
@@ -581,7 +581,7 @@ public partial class VStripsViewModel : ObservableObject
     /// </summary>
     public void ReconcileItems(IReadOnlyList<StripItemDto> items)
     {
-        foreach (var dto in items)
+        foreach (StripItemDto dto in items)
         {
             // Accumulate every DTO — even out-of-scope ones — so ApplyBayConfig
             // can re-apply them once bays exist and SeedFromPeer can hydrate a
@@ -592,7 +592,7 @@ public partial class VStripsViewModel : ObservableObject
             {
                 continue;
             }
-            if (_items.TryGetValue(dto.Id, out var existing))
+            if (_items.TryGetValue(dto.Id, out StripItemViewModel? existing))
             {
                 existing.UpdateFromDto(dto);
             }
@@ -654,8 +654,8 @@ public partial class VStripsViewModel : ObservableObject
         // whose FacilityId matches exactly. Items with no ownership metadata
         // (both fields empty) are accepted too — used by older tests and by
         // command broadcasts that don't thread the ownership through.
-        var hasBay = !string.IsNullOrEmpty(dto.BayId);
-        var hasFacility = !string.IsNullOrEmpty(dto.FacilityId);
+        bool hasBay = !string.IsNullOrEmpty(dto.BayId);
+        bool hasFacility = !string.IsNullOrEmpty(dto.FacilityId);
         if (!hasBay && !hasFacility)
         {
             return true;
@@ -683,7 +683,7 @@ public partial class VStripsViewModel : ObservableObject
     {
         try
         {
-            var config = await _transport.GetFlightStripsConfigForFacilityAsync(facilityId);
+            FlightStripsConfigDto? config = await _transport.GetFlightStripsConfigForFacilityAsync(facilityId);
             if (config is null)
             {
                 _log.LogWarning("SwitchFacilityAsync: server refused facility {FacilityId} (not in accessible set)", facilityId);
@@ -708,11 +708,11 @@ public partial class VStripsViewModel : ObservableObject
     {
         try
         {
-            var list = await _transport.GetAccessibleFacilitiesAsync();
+            List<AccessibleFacilityDto> list = await _transport.GetAccessibleFacilitiesAsync();
             Dispatcher.UIThread.Post(() =>
             {
                 AccessibleFacilities.Clear();
-                foreach (var f in list)
+                foreach (AccessibleFacilityDto f in list)
                 {
                     AccessibleFacilities.Add(f);
                 }
@@ -751,7 +751,7 @@ public partial class VStripsViewModel : ObservableObject
     [RelayCommand]
     public async Task NextBayAsync()
     {
-        var target = CycleBay(forward: true);
+        StripBayViewModel? target = CycleBay(forward: true);
         if (target is not null)
         {
             await SelectBayAsync(target);
@@ -761,7 +761,7 @@ public partial class VStripsViewModel : ObservableObject
     [RelayCommand]
     public async Task PreviousBayAsync()
     {
-        var target = CycleBay(forward: false);
+        StripBayViewModel? target = CycleBay(forward: false);
         if (target is not null)
         {
             await SelectBayAsync(target);
@@ -784,7 +784,7 @@ public partial class VStripsViewModel : ObservableObject
 
         if (SelectedStrip is null)
         {
-            for (var r = 0; r < SelectedBay.Racks.Count; r++)
+            for (int r = 0; r < SelectedBay.Racks.Count; r++)
             {
                 if (SelectedBay.Racks[r].Strips.Count > 0)
                 {
@@ -796,11 +796,11 @@ public partial class VStripsViewModel : ObservableObject
         }
 
         // Find the current strip's rack and index.
-        var curRack = -1;
-        var curIdx = -1;
-        for (var r = 0; r < SelectedBay.Racks.Count; r++)
+        int curRack = -1;
+        int curIdx = -1;
+        for (int r = 0; r < SelectedBay.Racks.Count; r++)
         {
-            var idx = SelectedBay.Racks[r].Strips.IndexOf(SelectedStrip);
+            int idx = SelectedBay.Racks[r].Strips.IndexOf(SelectedStrip);
             if (idx >= 0)
             {
                 curRack = r;
@@ -830,13 +830,13 @@ public partial class VStripsViewModel : ObservableObject
             case NavDirection.Left:
             case NavDirection.Right:
             {
-                var step = direction == NavDirection.Right ? 1 : -1;
-                var nextRack = curRack + step;
+                int step = direction == NavDirection.Right ? 1 : -1;
+                int nextRack = curRack + step;
                 if (nextRack < 0 || nextRack >= SelectedBay.Racks.Count)
                 {
                     return;
                 }
-                var nextStrips = SelectedBay.Racks[nextRack].Strips;
+                ObservableCollection<StripItemViewModel> nextStrips = SelectedBay.Racks[nextRack].Strips;
                 if (nextStrips.Count == 0)
                 {
                     return;
@@ -860,11 +860,11 @@ public partial class VStripsViewModel : ObservableObject
         }
 
         // Find current position.
-        var curRack = -1;
-        var curIdx = -1;
-        for (var r = 0; r < SelectedBay.Racks.Count; r++)
+        int curRack = -1;
+        int curIdx = -1;
+        for (int r = 0; r < SelectedBay.Racks.Count; r++)
         {
-            var idx = SelectedBay.Racks[r].Strips.IndexOf(SelectedStrip);
+            int idx = SelectedBay.Racks[r].Strips.IndexOf(SelectedStrip);
             if (idx >= 0)
             {
                 curRack = r;
@@ -913,11 +913,11 @@ public partial class VStripsViewModel : ObservableObject
         {
             return null;
         }
-        var step = forward ? 1 : -1;
-        var start = SelectedBay is null ? 0 : Bays.IndexOf(SelectedBay);
-        for (var i = 1; i <= Bays.Count; i++)
+        int step = forward ? 1 : -1;
+        int start = SelectedBay is null ? 0 : Bays.IndexOf(SelectedBay);
+        for (int i = 1; i <= Bays.Count; i++)
         {
-            var idx = ((start + step * i) % Bays.Count + Bays.Count) % Bays.Count;
+            int idx = ((start + step * i) % Bays.Count + Bays.Count) % Bays.Count;
             if (!Bays[idx].IsExternal)
             {
                 return Bays[idx];
@@ -948,8 +948,8 @@ public partial class VStripsViewModel : ObservableObject
 
         // HSM / SEP / BLANK all take an explicit index; the "append" affordance
         // is STRIP-only for now. Default null → 0 for the other builders.
-        var indexOrZero = index ?? 0;
-        var canonical = strip.Type switch
+        int indexOrZero = index ?? 0;
+        string? canonical = strip.Type switch
         {
             StripItemType.DepartureStrip or StripItemType.ArrivalStrip => VStripsCanonicalBuilder.BuildStripMoveById(
                 strip.Id,
@@ -1019,8 +1019,8 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        var canonical = VStripsCanonicalBuilder.BuildStripScan(destBay.FacilityId, destBay.Name, rack, index);
-        var callsign = strip.AircraftId ?? "";
+        string canonical = VStripsCanonicalBuilder.BuildStripScan(destBay.FacilityId, destBay.Name, rack, index);
+        string callsign = strip.AircraftId ?? "";
         await _sendCommand(callsign, canonical, _getUserInitials?.Invoke() ?? "");
     }
 
@@ -1028,7 +1028,7 @@ public partial class VStripsViewModel : ObservableObject
     {
         // Every emit form addresses the strip by id so duplicate first-line
         // text or duplicate callsign (scanned copies) round-trip correctly.
-        var canonical = strip.Type switch
+        string? canonical = strip.Type switch
         {
             StripItemType.DepartureStrip or StripItemType.ArrivalStrip => VStripsCanonicalBuilder.BuildStripDeleteById(strip.Id),
             StripItemType.HalfStripLeft or StripItemType.HalfStripRight => VStripsCanonicalBuilder.BuildHalfStripDelete(strip.Id),
@@ -1049,7 +1049,7 @@ public partial class VStripsViewModel : ObservableObject
 
     public async Task ToggleOffsetAsync(StripItemViewModel strip)
     {
-        var canonical = strip.Type switch
+        string? canonical = strip.Type switch
         {
             StripItemType.DepartureStrip or StripItemType.ArrivalStrip => VStripsCanonicalBuilder.BuildStripOffsetById(strip.Id),
             StripItemType.HalfStripLeft or StripItemType.HalfStripRight => VStripsCanonicalBuilder.BuildHalfStripOffset(strip.Id),
@@ -1077,7 +1077,7 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        var canonical = VStripsCanonicalBuilder.BuildAnnotateById(strip.Id, box, text);
+        string canonical = VStripsCanonicalBuilder.BuildAnnotateById(strip.Id, box, text);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
@@ -1094,7 +1094,7 @@ public partial class VStripsViewModel : ObservableObject
         {
             return;
         }
-        var canonical = VStripsCanonicalBuilder.BuildHalfStripAmend(strip.Id, lines);
+        string canonical = VStripsCanonicalBuilder.BuildHalfStripAmend(strip.Id, lines);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
@@ -1116,7 +1116,7 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        var canonical = VStripsCanonicalBuilder.BuildSeparatorEditById(strip.Id, newLabel);
+        string canonical = VStripsCanonicalBuilder.BuildSeparatorEditById(strip.Id, newLabel);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
@@ -1126,7 +1126,7 @@ public partial class VStripsViewModel : ObservableObject
         {
             return;
         }
-        var canonical = VStripsCanonicalBuilder.BuildHalfStripSlide(strip.Id);
+        string canonical = VStripsCanonicalBuilder.BuildHalfStripSlide(strip.Id);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
@@ -1136,7 +1136,7 @@ public partial class VStripsViewModel : ObservableObject
         // which runs on the dispatcher before this await resumes, so a flag set afterward
         // would be missed by that reconcile.
         _pendingFocusOnNewHalfStrip = true;
-        var canonical = VStripsCanonicalBuilder.BuildHalfStripCreate(bay.FacilityId, bay.Name, rack, lines);
+        string canonical = VStripsCanonicalBuilder.BuildHalfStripCreate(bay.FacilityId, bay.Name, rack, lines);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
@@ -1147,14 +1147,14 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
         _pendingFocusOnNewSeparator = true;
-        var canonical = VStripsCanonicalBuilder.BuildSeparatorCreate(style, bay.FacilityId, bay.Name, rack, index, label);
+        string canonical = VStripsCanonicalBuilder.BuildSeparatorCreate(style, bay.FacilityId, bay.Name, rack, index, label);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     public async Task CreateBlankAsync(StripBayViewModel? bay, int? rack, int? index)
     {
         _pendingFocusOnNewBlankField = true;
-        var canonical = VStripsCanonicalBuilder.BuildBlankCreate(bay?.FacilityId, bay?.Name, rack, index);
+        string canonical = VStripsCanonicalBuilder.BuildBlankCreate(bay?.FacilityId, bay?.Name, rack, index);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
@@ -1186,10 +1186,10 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        var trimmed = aircraftId.Trim();
+        string trimmed = aircraftId.Trim();
         try
         {
-            var result = await _transport.RequestFlightStripForAircraftAsync(trimmed);
+            CommandResultDto result = await _transport.RequestFlightStripForAircraftAsync(trimmed);
             if (result.Success)
             {
                 _log.LogInformation("RequestStripAsync({Aircraft}): {Message}", trimmed, result.Message);
@@ -1223,7 +1223,7 @@ public partial class VStripsViewModel : ObservableObject
         {
             return;
         }
-        var strip = kind switch
+        StripItemViewModel? strip = kind switch
         {
             PrinterQueueKind.Departure => Printer.VisibleDepartureStrip,
             PrinterQueueKind.Arrival => Printer.VisibleArrivalStrip,
@@ -1260,16 +1260,16 @@ public partial class VStripsViewModel : ObservableObject
         // Snapshot the section's queue so the dispatch loop sees a stable list
         // even as the server's broadcasts (and the optimistic moves below)
         // mutate the printer collections mid-flight.
-        var source = kind == PrinterQueueKind.Arrival ? Printer.ArrivalQueue : Printer.DepartureQueue;
+        ObservableCollection<StripItemViewModel> source = kind == PrinterQueueKind.Arrival ? Printer.ArrivalQueue : Printer.DepartureQueue;
         var pending = source.ToList();
         if (pending.Count == 0)
         {
             return;
         }
         var sorted = pending.OrderBy(s => s.AircraftId ?? "~", StringComparer.OrdinalIgnoreCase).ToList();
-        for (var i = sorted.Count - 1; i >= 0; i--)
+        for (int i = sorted.Count - 1; i >= 0; i--)
         {
-            var strip = sorted[i];
+            StripItemViewModel strip = sorted[i];
             if (!strip.IsFullStrip)
             {
                 continue; // half-strips and separators don't sit in the printer
@@ -1284,7 +1284,7 @@ public partial class VStripsViewModel : ObservableObject
     /// </summary>
     public async Task DeleteVisiblePrinterStripAsync(PrinterQueueKind kind)
     {
-        var strip = kind switch
+        StripItemViewModel? strip = kind switch
         {
             PrinterQueueKind.Departure => Printer.VisibleDepartureStrip,
             PrinterQueueKind.Arrival => Printer.VisibleArrivalStrip,
@@ -1325,7 +1325,7 @@ public partial class VStripsViewModel : ObservableObject
         {
             return false;
         }
-        var strips = destBay.Racks[rack].Strips;
+        ObservableCollection<StripItemViewModel> strips = destBay.Racks[rack].Strips;
         return index < strips.Count && ReferenceEquals(strips[index], strip);
     }
 
@@ -1347,10 +1347,10 @@ public partial class VStripsViewModel : ObservableObject
         }
 
         StripRackViewModel? sourceRack = null;
-        var sourceIdx = -1;
-        var fromPrinter = false;
+        int sourceIdx = -1;
+        bool fromPrinter = false;
 
-        var printerIdx = Printer.Queue.IndexOf(strip);
+        int printerIdx = Printer.Queue.IndexOf(strip);
         if (printerIdx >= 0)
         {
             fromPrinter = true;
@@ -1358,11 +1358,11 @@ public partial class VStripsViewModel : ObservableObject
         }
         else
         {
-            foreach (var bay in Bays)
+            foreach (StripBayViewModel bay in Bays)
             {
-                for (var r = 0; r < bay.Racks.Count; r++)
+                for (int r = 0; r < bay.Racks.Count; r++)
                 {
-                    var idx = bay.Racks[r].Strips.IndexOf(strip);
+                    int idx = bay.Racks[r].Strips.IndexOf(strip);
                     if (idx >= 0)
                     {
                         sourceRack = bay.Racks[r];
@@ -1382,12 +1382,12 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        var destRack = destBay.Racks[rack];
+        StripRackViewModel destRack = destBay.Racks[rack];
 
         if (fromPrinter)
         {
             Printer.Queue.RemoveAt(sourceIdx);
-            var insertIdx = Math.Clamp(index ?? destRack.Strips.Count, 0, destRack.Strips.Count);
+            int insertIdx = Math.Clamp(index ?? destRack.Strips.Count, 0, destRack.Strips.Count);
             destRack.Strips.Insert(insertIdx, strip);
             return;
         }
@@ -1397,7 +1397,7 @@ public partial class VStripsViewModel : ObservableObject
             // Same rack: Move (single CollectionChanged event, no presenter rebuild).
             // Removing-then-inserting in the same rack would clamp differently
             // than the server's remove-then-insert; clamp to within-current-bounds.
-            var moveTarget = Math.Clamp(index ?? destRack!.Strips.Count - 1, 0, destRack!.Strips.Count - 1);
+            int moveTarget = Math.Clamp(index ?? destRack!.Strips.Count - 1, 0, destRack!.Strips.Count - 1);
             if (sourceIdx != moveTarget)
             {
                 destRack.Strips.Move(sourceIdx, moveTarget);
@@ -1406,7 +1406,7 @@ public partial class VStripsViewModel : ObservableObject
         }
 
         sourceRack!.Strips.RemoveAt(sourceIdx);
-        var crossInsertIdx = Math.Clamp(index ?? destRack.Strips.Count, 0, destRack.Strips.Count);
+        int crossInsertIdx = Math.Clamp(index ?? destRack.Strips.Count, 0, destRack.Strips.Count);
         destRack.Strips.Insert(crossInsertIdx, strip);
     }
 

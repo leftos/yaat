@@ -46,17 +46,21 @@ public class AtFixLookaheadTests(ITestOutputHelper output)
     public void AtFix_LookaheadFiresDuringDct()
     {
         TestVnasData.EnsureInitialized();
-        using var _ = NavigationDatabase.ScopedOverride(NavDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavDb);
 
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
 
         // Parse the compound command: DCT through three fixes, AT middle fix descend
-        var parseResult = CommandParser.ParseCompound("DCT FIX_A FIX_B FIX_C; AT FIX_B CM 014", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound("DCT FIX_A FIX_B FIX_C; AT FIX_B CM 014", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
         Assert.Equal(2, parseResult.Value!.Blocks.Count);
 
         // Dispatch
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parseResult.Value,
+            ac,
+            TestDispatch.Context(Random.Shared, validateDctFixes: false)
+        );
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
 
         // Block 0 = DCT FIX_A FIX_B FIX_C (applied immediately)

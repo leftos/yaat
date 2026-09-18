@@ -27,7 +27,7 @@ public static class WakeDirectiveLoader
             return result;
         }
 
-        foreach (var artccDir in Directory.EnumerateDirectories(artccsBaseDir))
+        foreach (string artccDir in Directory.EnumerateDirectories(artccsBaseDir))
         {
             string categoryDir = Path.Combine(artccDir, "WakeDirectives");
             if (!Directory.Exists(categoryDir))
@@ -35,8 +35,8 @@ public static class WakeDirectiveLoader
                 continue;
             }
 
-            var artccId = Path.GetFileName(artccDir).Trim().ToUpperInvariant();
-            foreach (var file in Directory.GetFiles(categoryDir, "*.json"))
+            string artccId = Path.GetFileName(artccDir).Trim().ToUpperInvariant();
+            foreach (string file in Directory.GetFiles(categoryDir, "*.json"))
             {
                 LoadFile(file, artccId, result);
             }
@@ -50,7 +50,7 @@ public static class WakeDirectiveLoader
         List<WakeDirectiveRuleDto>? rules;
         try
         {
-            var json = File.ReadAllText(filePath);
+            string json = File.ReadAllText(filePath);
             rules = JsonSerializer.Deserialize<List<WakeDirectiveRuleDto>>(json, JsonOptions);
         }
         catch (Exception ex)
@@ -68,9 +68,9 @@ public static class WakeDirectiveLoader
         var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < rules.Count; i++)
         {
-            var dto = rules[i];
-            var location = $"{filePath}[{i}]";
-            if (!TryNormalizeRule(dto, artccId, location, result.Warnings, out var rule))
+            WakeDirectiveRuleDto dto = rules[i];
+            string location = $"{filePath}[{i}]";
+            if (!TryNormalizeRule(dto, artccId, location, result.Warnings, out WakeDirectiveRule? rule))
             {
                 continue;
             }
@@ -94,27 +94,27 @@ public static class WakeDirectiveLoader
             return false;
         }
 
-        if (!TryParseOperation(dto.Operation, location, warnings, out var operation))
+        if (!TryParseOperation(dto.Operation, location, warnings, out WakeDirectiveOperation operation))
         {
             return false;
         }
 
-        if (!TryParseRelation(dto.Relation, location, warnings, out var relation))
+        if (!TryParseRelation(dto.Relation, location, warnings, out WakeDirectiveRelation relation))
         {
             return false;
         }
 
-        if (!TryParseEffects(dto.Effects, location, warnings, out var effects))
+        if (!TryParseEffects(dto.Effects, location, warnings, out List<WakeDirectiveEffect>? effects))
         {
             return false;
         }
 
-        if (!TryParseCwt(dto.PrecedingCwt, "precedingCwt", location, warnings, out var precedingCwt))
+        if (!TryParseCwt(dto.PrecedingCwt, "precedingCwt", location, warnings, out List<char>? precedingCwt))
         {
             return false;
         }
 
-        if (!TryParseCwt(dto.SucceedingCwt, "succeedingCwt", location, warnings, out var succeedingCwt))
+        if (!TryParseCwt(dto.SucceedingCwt, "succeedingCwt", location, warnings, out List<char>? succeedingCwt))
         {
             return false;
         }
@@ -184,7 +184,7 @@ public static class WakeDirectiveLoader
             return false;
         }
 
-        foreach (var value in values)
+        foreach (string value in values)
         {
             if (!TryParseNormalizedEnum(value, out WakeDirectiveEffect effect))
             {
@@ -204,7 +204,7 @@ public static class WakeDirectiveLoader
     private static bool TryParseCwt(IReadOnlyList<string> values, string fieldName, string location, List<string> warnings, out List<char> categories)
     {
         categories = [];
-        foreach (var value in values)
+        foreach (string value in values)
         {
             string normalized = value.Trim().ToUpperInvariant();
             if (normalized.Length != 1 || normalized[0] is < 'A' or > 'I')
@@ -226,7 +226,7 @@ public static class WakeDirectiveLoader
         where TEnum : struct, Enum
     {
         string normalized = value.Trim().Replace("-", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal);
-        foreach (var name in Enum.GetNames<TEnum>())
+        foreach (string name in Enum.GetNames<TEnum>())
         {
             if (name.Equals(normalized, StringComparison.OrdinalIgnoreCase))
             {

@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -49,13 +50,13 @@ public class SquawkVfrFlashLatchTests(ITestOutputHelper output)
     [Fact]
     public void SquawkVfr_LatchesSuppression_WithoutTouchingAssignedCode()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         AddVfrAircraft(engine, "N427MX", assigned: 303, code: 303);
 
-        var result = engine.SendCommand("N427MX", "SQVFR");
+        CommandResult result = engine.SendCommand("N427MX", "SQVFR");
 
         Assert.True(result.Success);
-        var ac = engine.FindAircraft("N427MX");
+        AircraftState? ac = engine.FindAircraft("N427MX");
         Assert.NotNull(ac);
         Assert.True(ac.Transponder.CommandedSquawkVfr); // latch set
         Assert.Equal(1200u, ac.Transponder.Code); // pilot now squawks VFR
@@ -65,14 +66,14 @@ public class SquawkVfrFlashLatchTests(ITestOutputHelper output)
     [Fact]
     public void RequestNewBeaconCode_ReleasesLatch()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         AddVfrAircraft(engine, "N427MX", assigned: 303, code: 303);
         engine.SendCommand("N427MX", "SQVFR");
         Assert.True(engine.FindAircraft("N427MX")!.Transponder.CommandedSquawkVfr);
 
-        var newCode = engine.RequestNewBeaconCode("N427MX", assignedByFacilityId: null, assignedBySectorId: null);
+        uint newCode = engine.RequestNewBeaconCode("N427MX", assignedByFacilityId: null, assignedBySectorId: null);
 
-        var ac = engine.FindAircraft("N427MX");
+        AircraftState? ac = engine.FindAircraft("N427MX");
         Assert.NotNull(ac);
         Assert.NotEqual(0u, newCode);
         Assert.Equal(newCode, ac.Transponder.AssignedCode);
@@ -82,7 +83,7 @@ public class SquawkVfrFlashLatchTests(ITestOutputHelper output)
     [Fact]
     public void FlightPlanBeaconAmend_ReleasesLatch()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         AddVfrAircraft(engine, "N427MX", assigned: 303, code: 303);
         engine.SendCommand("N427MX", "SQVFR");
 
@@ -104,7 +105,7 @@ public class SquawkVfrFlashLatchTests(ITestOutputHelper output)
             )
         );
 
-        var ac = engine.FindAircraft("N427MX");
+        AircraftState? ac = engine.FindAircraft("N427MX");
         Assert.NotNull(ac);
         Assert.False(ac.Transponder.CommandedSquawkVfr); // latch released
         Assert.Equal(404u, ac.Transponder.AssignedCode);
@@ -119,16 +120,16 @@ public class SquawkVfrFlashLatchTests(ITestOutputHelper output)
     public void Replay_N427MX_LatchesOnRecordedSqvfr()
     {
         TestVnasData.EnsureInitialized();
-        var recording = RecordingLoader.Load(RecordingPath);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         if (recording is null || TestVnasData.NavigationDb is null)
         {
             return; // silent skip when test data is unavailable
         }
 
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         engine.Replay(recording, 1605);
 
-        var before = engine.FindAircraft("N427MX");
+        AircraftState? before = engine.FindAircraft("N427MX");
         Assert.NotNull(before);
         Assert.False(before.Transponder.CommandedSquawkVfr); // not yet told to squawk VFR
 
@@ -138,7 +139,7 @@ public class SquawkVfrFlashLatchTests(ITestOutputHelper output)
             engine.ReplayOneSecond();
         }
 
-        var after = engine.FindAircraft("N427MX");
+        AircraftState? after = engine.FindAircraft("N427MX");
         Assert.NotNull(after);
         Assert.True(after.Transponder.CommandedSquawkVfr); // latch set by the recorded SQVFR
         Assert.Equal(1200u, after.Transponder.Code); // squawking VFR

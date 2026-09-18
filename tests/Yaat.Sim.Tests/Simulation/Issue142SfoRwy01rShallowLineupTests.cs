@@ -50,7 +50,7 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
             return;
         }
 
-        var runway = TestVnasData.NavigationDb.GetRunway("KSFO", "01R");
+        RunwayInfo? runway = TestVnasData.NavigationDb.GetRunway("KSFO", "01R");
         if (runway is null)
         {
             output.WriteLine("SKIP: KSFO 01R not in navdata");
@@ -58,7 +58,7 @@ public class Issue142SfoRwy01rShallowLineupTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var sfoLayout = groundData.GetLayout("SFO");
+        AirportGroundLayout? sfoLayout = groundData.GetLayout("SFO");
         if (sfoLayout is null)
         {
             output.WriteLine("SKIP: SFO ground layout not available");

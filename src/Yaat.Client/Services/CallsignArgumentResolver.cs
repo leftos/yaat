@@ -50,10 +50,10 @@ internal static class CallsignArgumentResolver
         // Walk the input block by block, preserving separators (, and ;) verbatim so
         // the rewritten string has identical structure. We track the positions of
         // separators in the ORIGINAL string and rebuild with rewritten block content.
-        var blocks = SplitBlocks(input);
+        List<Block> blocks = SplitBlocks(input);
         var rebuilt = new System.Text.StringBuilder(input.Length);
 
-        foreach (var block in blocks)
+        foreach (Block block in blocks)
         {
             if (block.IsSeparator)
             {
@@ -61,7 +61,7 @@ internal static class CallsignArgumentResolver
                 continue;
             }
 
-            var rewrite = TryRewriteBlock(block.Text, scheme, aircraft);
+            Result rewrite = TryRewriteBlock(block.Text, scheme, aircraft);
             if (rewrite.Error is not null)
             {
                 return new Result(null, rewrite.Error);
@@ -111,8 +111,8 @@ internal static class CallsignArgumentResolver
             leadingWs++;
         }
 
-        var leading = block[..leadingWs];
-        var content = block[leadingWs..];
+        string leading = block[..leadingWs];
+        string content = block[leadingWs..];
         if (content.Length == 0)
         {
             return new Result(block, null);
@@ -123,14 +123,14 @@ internal static class CallsignArgumentResolver
         // ARE callsigns and the server's exact-match FindAircraft can't resolve
         // partial input — rewrite them here so typed shorthand like "BEHIND 152SP"
         // resolves to "BEHIND N152SP" before reaching the server.
-        var stripped = CommandInputController.StripConditionPrefix(content, out var conditionVerb);
-        var prefixLength = content.Length - stripped.Length;
-        var prefixText = content[..prefixLength];
-        var body = content[prefixLength..];
+        string stripped = CommandInputController.StripConditionPrefix(content, out string? conditionVerb);
+        int prefixLength = content.Length - stripped.Length;
+        string prefixText = content[..prefixLength];
+        string body = content[prefixLength..];
 
         if (conditionVerb is "GIVEWAY" or "BEHIND")
         {
-            var prefixRewrite = TryRewriteConditionCallsign(prefixText, aircraft);
+            Result prefixRewrite = TryRewriteConditionCallsign(prefixText, aircraft);
             if (prefixRewrite.Error is not null)
             {
                 return new Result(null, prefixRewrite.Error);
@@ -151,7 +151,7 @@ internal static class CallsignArgumentResolver
             return prefixOnlyResult;
         }
 
-        var tokens = Tokenize(body, out var tokenSpans);
+        List<string> tokens = Tokenize(body, out List<(int Start, int End)>? tokenSpans);
         if (tokens.Count == 0)
         {
             return prefixOnlyResult;
@@ -162,7 +162,7 @@ internal static class CallsignArgumentResolver
         CanonicalCommandType? verbType = null;
         for (int i = 0; i < tokens.Count; i++)
         {
-            var type = ResolveVerb(tokens[i], scheme);
+            CanonicalCommandType? type = ResolveVerb(tokens[i], scheme);
             if (type is not null)
             {
                 verbIndex = i;
@@ -176,7 +176,7 @@ internal static class CallsignArgumentResolver
             return prefixOnlyResult;
         }
 
-        var def = CommandRegistry.Get(verbType.Value);
+        CommandDefinition? def = CommandRegistry.Get(verbType.Value);
         if (def is null)
         {
             return prefixOnlyResult;
@@ -212,14 +212,14 @@ internal static class CallsignArgumentResolver
             for (int paramIdx = 0; paramIdx < argsAvailable; paramIdx++)
             {
                 bool isCallsign = false;
-                foreach (var overload in def.Overloads)
+                foreach (CommandOverload overload in def.Overloads)
                 {
                     if (paramIdx >= overload.Parameters.Length)
                     {
                         continue;
                     }
 
-                    var p = overload.Parameters[paramIdx];
+                    CommandParameter p = overload.Parameters[paramIdx];
                     if (!p.IsLiteral && p.TypeHint.Contains("callsign", StringComparison.OrdinalIgnoreCase))
                     {
                         isCallsign = true;
@@ -242,11 +242,14 @@ internal static class CallsignArgumentResolver
         // Resolve and build the rewritten body in-place by replacing specific token spans.
         var rewrittenBody = new System.Text.StringBuilder(body.Length);
         int cursor = 0;
-        foreach (var tokenIdx in callsignTokenIndices)
+        foreach (int tokenIdx in callsignTokenIndices)
         {
-            var (tokenStart, tokenEnd) = tokenSpans[tokenIdx];
-            var tokenText = tokens[tokenIdx];
-            var (match, outcome, candidates) = CallsignMatcher.Match(tokenText, aircraft);
+            (int tokenStart, int tokenEnd) = tokenSpans[tokenIdx];
+            string tokenText = tokens[tokenIdx];
+            (AircraftModel? match, CallsignMatcher.Outcome outcome, IReadOnlyList<AircraftModel>? candidates) = CallsignMatcher.Match(
+                tokenText,
+                aircraft
+            );
 
             if (outcome == CallsignMatcher.Outcome.Ambiguous)
             {
@@ -305,14 +308,14 @@ internal static class CallsignArgumentResolver
             return new Result(null, null);
         }
 
-        var afterVerb = prefixText[verbLen..];
+        string afterVerb = prefixText[verbLen..];
         int leadingWs = 0;
         while (leadingWs < afterVerb.Length && char.IsWhiteSpace(afterVerb[leadingWs]))
         {
             leadingWs++;
         }
 
-        var afterVerbTrimmed = afterVerb[leadingWs..];
+        string afterVerbTrimmed = afterVerb[leadingWs..];
         int callsignEnd = 0;
         while (callsignEnd < afterVerbTrimmed.Length && !char.IsWhiteSpace(afterVerbTrimmed[callsignEnd]))
         {
@@ -324,8 +327,11 @@ internal static class CallsignArgumentResolver
             return new Result(null, null);
         }
 
-        var callsignToken = afterVerbTrimmed[..callsignEnd];
-        var (match, outcome, candidates) = CallsignMatcher.Match(callsignToken, aircraft);
+        string callsignToken = afterVerbTrimmed[..callsignEnd];
+        (AircraftModel? match, CallsignMatcher.Outcome outcome, IReadOnlyList<AircraftModel>? candidates) = CallsignMatcher.Match(
+            callsignToken,
+            aircraft
+        );
 
         if (outcome == CallsignMatcher.Outcome.Ambiguous)
         {
@@ -338,16 +344,16 @@ internal static class CallsignArgumentResolver
             return new Result(null, null);
         }
 
-        var trailing = afterVerbTrimmed[callsignEnd..];
-        var rewritten = prefixText[..verbLen] + afterVerb[..leadingWs] + match.Callsign + trailing;
+        string trailing = afterVerbTrimmed[callsignEnd..];
+        string rewritten = prefixText[..verbLen] + afterVerb[..leadingWs] + match.Callsign + trailing;
         return new Result(rewritten, null);
     }
 
     private static CanonicalCommandType? ResolveVerb(string token, CommandScheme scheme)
     {
-        foreach (var (type, pattern) in scheme.Patterns)
+        foreach ((CanonicalCommandType type, CommandPattern? pattern) in scheme.Patterns)
         {
-            foreach (var alias in pattern.Aliases)
+            foreach (string alias in pattern.Aliases)
             {
                 if (string.Equals(alias, token, StringComparison.OrdinalIgnoreCase))
                 {

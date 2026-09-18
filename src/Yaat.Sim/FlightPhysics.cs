@@ -77,7 +77,7 @@ public static class FlightPhysics
     {
         bool soloTrainingMode = options.SoloTrainingMode;
         bool rpoShowPilotSpeech = options.RpoShowPilotSpeech;
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         RefreshDeclinationCache(aircraft, options.MagneticModelDateUtc);
 
@@ -148,7 +148,7 @@ public static class FlightPhysics
 
     private static void UpdateNavigation(AircraftState aircraft, WeatherProfile? weather, double simTimeSeconds, double windPhaseSeconds)
     {
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         if (route.Count == 0)
         {
             if (aircraft.Approach.PendingClearance is { } pendingEarly)
@@ -159,7 +159,7 @@ public static class FlightPhysics
             return;
         }
 
-        var nav = route[0];
+        NavigationTarget nav = route[0];
         double distNm = GeoMath.DistanceNm(aircraft.Position, nav.Position);
 
         // Determine sequencing threshold: fly-by waypoints with a following waypoint
@@ -198,7 +198,7 @@ public static class FlightPhysics
 
         if (shouldSequence)
         {
-            var sequenced = nav;
+            NavigationTarget sequenced = nav;
             route.RemoveAt(0);
 
             // Fire any AT fix triggers in the command queue for this fix
@@ -301,7 +301,7 @@ public static class FlightPhysics
         if (weather is not null && !aircraft.IsOnGround && aircraft.IndicatedAirspeed > 0)
         {
             double tas = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
-            var wind = WindInterpolator.GetWindAt(weather, aircraft.Altitude, simTimeSeconds, windPhaseSeconds);
+            WindAtAltitude wind = WindInterpolator.GetWindAt(weather, aircraft.Altitude, simTimeSeconds, windPhaseSeconds);
             wca = WindInterpolator.ComputeWindCorrectionAngle(bearing, tas, wind.DirectionDeg, wind.SpeedKts);
         }
 
@@ -334,7 +334,7 @@ public static class FlightPhysics
             return;
         }
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         if (route.Count == 0)
         {
             return;
@@ -443,7 +443,7 @@ public static class FlightPhysics
             return;
         }
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         if (route.Count == 0)
         {
             return;
@@ -549,7 +549,7 @@ public static class FlightPhysics
             return;
         }
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         if (route.Count == 0)
         {
             return;
@@ -691,7 +691,7 @@ public static class FlightPhysics
         double cosHalf = Math.Cos(halfAngleRad);
         double offsetNm = cosHalf > 0.01 ? radiusNm / cosHalf : radiusNm;
 
-        var center = GeoMath.ProjectPointRaw(waypointPos, perpBearing, offsetNm);
+        LatLon center = GeoMath.ProjectPointRaw(waypointPos, perpBearing, offsetNm);
 
         // Aircraft's bearing from turn center
         double radialFromCenter = GeoMath.BearingTo(center, aircraftPos);
@@ -879,7 +879,7 @@ public static class FlightPhysics
 
     private static void UpdateHeading(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
-        var target = aircraft.Targets.TargetTrueHeading;
+        TrueHeading? target = aircraft.Targets.TargetTrueHeading;
         if (target is null)
         {
             aircraft.BankAngle = 0;
@@ -1139,7 +1139,7 @@ public static class FlightPhysics
             }
         }
 
-        var target = aircraft.Targets.TargetSpeed;
+        double? target = aircraft.Targets.TargetSpeed;
         if (target is null)
         {
             return;
@@ -1224,7 +1224,7 @@ public static class FlightPhysics
         double windPhaseSeconds
     )
     {
-        var pos = aircraft.Position;
+        LatLon pos = aircraft.Position;
         double latRad = pos.Lat * DegToRad;
 
         // Cache wind on the ground too: motion there is wheel-driven (track = heading, no
@@ -1294,7 +1294,7 @@ public static class FlightPhysics
 
     private static void UpdateCommandQueue(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
     {
-        var queue = aircraft.Queue;
+        CommandQueue queue = aircraft.Queue;
         if (queue.IsComplete)
         {
             return;
@@ -1324,7 +1324,7 @@ public static class FlightPhysics
             return;
         }
 
-        var block = queue.CurrentBlock;
+        CommandBlock? block = queue.CurrentBlock;
         if (block is null)
         {
             return;
@@ -1404,7 +1404,7 @@ public static class FlightPhysics
     {
         for (int i = startIndex; i < queue.Blocks.Count; i++)
         {
-            var block = queue.Blocks[i];
+            CommandBlock block = queue.Blocks[i];
             if (block.IsApplied)
             {
                 continue;
@@ -1448,7 +1448,7 @@ public static class FlightPhysics
         bool holdApplies = false;
         for (int i = startIndex; i < queue.Blocks.Count; i++)
         {
-            var block = queue.Blocks[i];
+            CommandBlock block = queue.Blocks[i];
             if (block.IsApplied)
             {
                 continue;
@@ -1485,7 +1485,7 @@ public static class FlightPhysics
                 continue;
             }
 
-            var outcome = ApplyOrCountdownWait(aircraft, block, deltaSeconds);
+            BlockApplyOutcome outcome = ApplyOrCountdownWait(aircraft, block, deltaSeconds);
             if (outcome == BlockApplyOutcome.Failed)
             {
                 // Chain remainder already discarded; the queue list mutated under this loop —
@@ -1521,7 +1521,7 @@ public static class FlightPhysics
         bool frontierBroken = false;
         for (int i = startIndex; i < queue.Blocks.Count; i++)
         {
-            var block = queue.Blocks[i];
+            CommandBlock block = queue.Blocks[i];
             if (block.IsApplied)
             {
                 continue;
@@ -1553,7 +1553,7 @@ public static class FlightPhysics
                     continue;
                 }
 
-                var outcome = ApplyOrCountdownWait(aircraft, block, deltaSeconds);
+                BlockApplyOutcome outcome = ApplyOrCountdownWait(aircraft, block, deltaSeconds);
                 if (outcome == BlockApplyOutcome.Failed)
                 {
                     // Chain remainder already discarded; stop scanning the mutated queue this tick.
@@ -1606,14 +1606,14 @@ public static class FlightPhysics
         // always pass — every ground hold phase nominally "Rejects" them, yet they apply fine
         // through BuildApplyAction. A WAIT is queue mechanics (its countdown is handled below),
         // not a phase-interactive instruction — no phase accepts CanonicalCommandType.Wait.
-        foreach (var cmd in parsed)
+        foreach (ParsedCommand cmd in parsed)
         {
             if (cmd is UnsupportedCommand or WaitCommand)
             {
                 continue;
             }
 
-            var canonical = CommandDescriber.ToCanonicalType(cmd);
+            CanonicalCommandType canonical = CommandDescriber.ToCanonicalType(cmd);
             if (CommandDescriber.IsPhaseTransparent(canonical))
             {
                 continue;
@@ -1676,7 +1676,7 @@ public static class FlightPhysics
             return;
         }
 
-        var target = aircraftLookup(yieldTarget);
+        AircraftState? target = aircraftLookup(yieldTarget);
         if (target is null || !target.IsOnGround)
         {
             // Target is gone or airborne — resume
@@ -1760,7 +1760,7 @@ public static class FlightPhysics
 
     private static void UpdateBlockCompletion(AircraftState aircraft, CommandBlock block, double deltaSeconds)
     {
-        foreach (var cmd in block.Commands)
+        foreach (TrackedCommand cmd in block.Commands)
         {
             if (cmd.IsComplete)
             {
@@ -1819,7 +1819,7 @@ public static class FlightPhysics
 
     private static bool IsTriggerMet(AircraftState aircraft, CommandBlock block, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
     {
-        var trigger = block.Trigger!;
+        BlockTrigger trigger = block.Trigger!;
         return trigger.Type switch
         {
             BlockTriggerType.ReachAltitude => trigger.Altitude.HasValue
@@ -1870,7 +1870,7 @@ public static class FlightPhysics
     /// </summary>
     private static bool IsAfterRunwayCrossingMet(AircraftState aircraft, CommandBlock block)
     {
-        var phase = aircraft.Phases?.CurrentPhase;
+        Phase? phase = aircraft.Phases?.CurrentPhase;
         if (phase is Yaat.Sim.Phases.Ground.CrossingRunwayPhase)
         {
             block.TriggerCrossingObserved = true;
@@ -1891,7 +1891,7 @@ public static class FlightPhysics
     /// </summary>
     private static bool IsAfterCycleTerminatorMet(AircraftState aircraft, CommandBlock block)
     {
-        var phase = aircraft.Phases?.CurrentPhase;
+        Phase? phase = aircraft.Phases?.CurrentPhase;
         if (
             phase
             is Yaat.Sim.Phases.Tower.TouchAndGoPhase
@@ -1950,16 +1950,16 @@ public static class FlightPhysics
     /// </summary>
     private static void DiscardMissedCycleTerminatorBlocks(AircraftState aircraft)
     {
-        var queue = aircraft.Queue;
+        CommandQueue queue = aircraft.Queue;
         for (int i = queue.Blocks.Count - 1; i >= 0; i--)
         {
-            var block = queue.Blocks[i];
+            CommandBlock block = queue.Blocks[i];
             if (block.IsApplied || !block.TriggerMissed || (block.Trigger?.Type is not BlockTriggerType.AfterCycleTerminator))
             {
                 continue;
             }
 
-            var discarded = queue.DiscardChainRemainder(block);
+            List<string> discarded = queue.DiscardChainRemainder(block);
             int index = queue.Blocks.IndexOf(block);
             if (index >= 0)
             {
@@ -1970,10 +1970,10 @@ public static class FlightPhysics
                 }
             }
 
-            var src = !string.IsNullOrEmpty(block.SourceCommandText)
+            string src = !string.IsNullOrEmpty(block.SourceCommandText)
                 ? block.SourceCommandText
                 : (!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription);
-            var warning = $"{aircraft.Callsign} {src}: unable — landed full stop";
+            string warning = $"{aircraft.Callsign} {src}: unable — landed full stop";
             if (discarded.Count > 0)
             {
                 warning += $" — rest of transmission discarded ({discarded.Count}): {string.Join("; ", discarded)}";
@@ -2012,7 +2012,7 @@ public static class FlightPhysics
             return true;
         }
 
-        var target = aircraftLookup(trigger.TargetCallsign);
+        AircraftState? target = aircraftLookup(trigger.TargetCallsign);
         if (target is null || !target.IsOnGround)
         {
             // Target is gone or airborne — no conflict
@@ -2060,7 +2060,7 @@ public static class FlightPhysics
             return false;
         }
 
-        var runway = aircraft.Phases?.AssignedRunway;
+        RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
         if (runway is null)
         {
             return false;
@@ -2110,7 +2110,7 @@ public static class FlightPhysics
             return;
         }
 
-        var runway = aircraft.Phases?.AssignedRunway;
+        RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
         if (runway is null)
         {
             return;
@@ -2185,9 +2185,9 @@ public static class FlightPhysics
         else if (block.TriggerClosestApproach < FrdMissThresholdNm && dist > block.TriggerClosestApproach + FrdMissDepartureNm)
         {
             block.TriggerMissed = true;
-            var fixName = block.Trigger.FixName ?? "?";
-            var radial = block.Trigger.Radial?.ToString("D3") ?? "???";
-            var distNm = block.Trigger.DistanceNm?.ToString("D3") ?? "???";
+            string fixName = block.Trigger.FixName ?? "?";
+            string radial = block.Trigger.Radial?.ToString("D3") ?? "???";
+            string distNm = block.Trigger.DistanceNm?.ToString("D3") ?? "???";
             aircraft.PendingWarnings.Add($"Missed condition at {fixName} R{radial} D{distNm} " + $"(closest: {block.TriggerClosestApproach:F1} NM)");
         }
     }
@@ -2203,7 +2203,7 @@ public static class FlightPhysics
     private static bool ApplyBlock(AircraftState aircraft, CommandBlock block)
     {
         block.IsApplied = true;
-        var result = block.ApplyAction?.Invoke(aircraft);
+        CommandResult? result = block.ApplyAction?.Invoke(aircraft);
 
         if (result is not null && !result.Success)
         {
@@ -2216,12 +2216,12 @@ public static class FlightPhysics
             // is quoted verbatim: the runway de-padder strips the leading zero from
             // every 0-led token, and in an argument slot where a runway and an
             // altitude compete a de-padded "015" reads back as runway 15.
-            var src = !string.IsNullOrEmpty(block.SourceCommandText)
+            string src = !string.IsNullOrEmpty(block.SourceCommandText)
                 ? block.SourceCommandText
                 : (!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription);
-            var reason = !string.IsNullOrEmpty(result.Message) ? result.Message : "command failed";
-            var discarded = aircraft.Queue.DiscardChainRemainder(block);
-            var warning = $"{aircraft.Callsign} {src}: {reason}";
+            string reason = !string.IsNullOrEmpty(result.Message) ? result.Message : "command failed";
+            List<string> discarded = aircraft.Queue.DiscardChainRemainder(block);
+            string warning = $"{aircraft.Callsign} {src}: {reason}";
             if (discarded.Count > 0)
             {
                 warning += $" — rest of transmission discarded: {string.Join("; ", discarded)}";
@@ -2235,7 +2235,7 @@ public static class FlightPhysics
             block.NaturalDescription = result.Message;
         }
 
-        foreach (var cmd in block.Commands)
+        foreach (TrackedCommand cmd in block.Commands)
         {
             if (cmd.Type == TrackedCommandType.Immediate)
             {
@@ -2245,7 +2245,7 @@ public static class FlightPhysics
 
         if (block.Trigger is not null)
         {
-            var desc = RunwayIdentifier.ToDisplayDesignator(block.NaturalDescription.Length > 0 ? block.NaturalDescription : block.Description);
+            string desc = RunwayIdentifier.ToDisplayDesignator(block.NaturalDescription.Length > 0 ? block.NaturalDescription : block.Description);
             aircraft.PendingNotifications.Add($"[Executing] {desc}");
         }
 
@@ -2290,7 +2290,7 @@ public static class FlightPhysics
     /// </summary>
     public static void NotifyFixSequenced(AircraftState aircraft, string fixName)
     {
-        var queue = aircraft.Queue;
+        CommandQueue queue = aircraft.Queue;
         if (queue.IsComplete)
         {
             return;
@@ -2299,7 +2299,7 @@ public static class FlightPhysics
         bool pendingWaitAhead = false;
         for (int i = 0; i < queue.Blocks.Count; i++)
         {
-            var block = queue.Blocks[i];
+            CommandBlock block = queue.Blocks[i];
             if (block.IsApplied)
             {
                 continue;
@@ -2351,7 +2351,7 @@ public static class FlightPhysics
             return;
         }
 
-        var queue = aircraft.Queue;
+        CommandQueue queue = aircraft.Queue;
         if (queue.IsComplete)
         {
             return;
@@ -2360,7 +2360,7 @@ public static class FlightPhysics
         bool pendingWaitAhead = false;
         for (int i = 0; i < queue.Blocks.Count; i++)
         {
-            var block = queue.Blocks[i];
+            CommandBlock block = queue.Blocks[i];
             if (block.IsApplied)
             {
                 continue;
@@ -2432,7 +2432,7 @@ public static class FlightPhysics
     /// </summary>
     public static void NotifyPhaseAdvanced(AircraftState aircraft)
     {
-        var queue = aircraft.Queue;
+        CommandQueue queue = aircraft.Queue;
         if (queue.IsComplete)
         {
             return;
@@ -2450,7 +2450,7 @@ public static class FlightPhysics
         // "RES; CROSS 28L" clear 28L before arrival instead of installing a transient
         // HoldingShortPhase — and its spurious "holding short" warning — at the runway crossed.
         bool isWaitPhase = false;
-        foreach (var req in currentPhase.Requirements)
+        foreach (ClearanceRequirement req in currentPhase.Requirements)
         {
             if (!req.IsSatisfied)
             {
@@ -2469,7 +2469,7 @@ public static class FlightPhysics
         int startIndex = queue.CurrentBlock is { IsApplied: true } ? queue.CurrentBlockIndex + 1 : queue.CurrentBlockIndex;
         for (int i = startIndex; i < queue.Blocks.Count; i++)
         {
-            var block = queue.Blocks[i];
+            CommandBlock block = queue.Blocks[i];
             if (block.IsApplied)
             {
                 continue;
@@ -2496,10 +2496,10 @@ public static class FlightPhysics
                 return;
             }
 
-            foreach (var cmd in parsed)
+            foreach (ParsedCommand cmd in parsed)
             {
-                var canonical = CommandDescriber.ToCanonicalType(cmd);
-                var acceptance = currentPhase.CanAcceptCommand(canonical);
+                CanonicalCommandType canonical = CommandDescriber.ToCanonicalType(cmd);
+                CommandAcceptance acceptance = currentPhase.CanAcceptCommand(canonical);
                 if (acceptance.IsRejected)
                 {
                     return;
@@ -2564,7 +2564,7 @@ public static class FlightPhysics
     /// <summary>Display-format a raw bearing angle as 001..360. For headings, use TrueHeading/MagneticHeading.ToDisplayInt().</summary>
     internal static int BearingToDisplayInt(double bearing)
     {
-        var normalized = ((bearing % 360.0) + 360.0) % 360.0;
+        double normalized = ((bearing % 360.0) + 360.0) % 360.0;
         return normalized < 0.5 ? 360 : (int)Math.Round(normalized);
     }
 }

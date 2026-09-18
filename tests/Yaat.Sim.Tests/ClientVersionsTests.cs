@@ -18,7 +18,7 @@ public class ClientVersionsTests
     [InlineData("  0.10.3-alpha  ", 0, 10, 3)]
     public void TryParse_ReadsNumericCoreAndIgnoresSuffix(string input, int major, int minor, int patch)
     {
-        Assert.True(ClientVersions.TryParse(input, out var version));
+        Assert.True(ClientVersions.TryParse(input, out Version? version));
         Assert.Equal(new Version(major, minor, patch), version);
     }
 

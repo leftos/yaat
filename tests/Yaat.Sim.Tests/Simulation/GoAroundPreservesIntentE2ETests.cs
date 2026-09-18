@@ -1,8 +1,10 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Acceptance;
 using Yaat.Sim.Tests.Helpers;
 
@@ -53,17 +55,17 @@ public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
         // Hybrid replay: the issue #412 pattern-width floor changed circuit timing from t=0
         // (the recorded manual GA at t=869 no longer lands on the same leg in a full replay),
         // so restore the recorded snapshot just before the GA and apply it to that state.
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             return;
         }
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
 
-        var snapshot = archive.ReadSnapshotAt(868);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(868);
         if (snapshot is null)
         {
             return;
@@ -71,7 +73,7 @@ public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
         engine.RestoreFromSnapshot(snapshot.State);
         engine.ReplayRange((int)snapshot.ElapsedSeconds, 871, recording.Actions);
 
-        var ac = engine.FindAircraft("N342T");
+        AircraftState? ac = engine.FindAircraft("N342T");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
 
@@ -79,7 +81,7 @@ public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
         // altitude-gated (climb to the go-around target), and a pattern-altitude aircraft is
         // already there, so the phase can complete within a tick or two of triggering — find
         // the instance in the list rather than requiring it to still be the current phase.
-        var ga = ac.Phases.Phases.OfType<GoAroundPhase>().Last();
+        GoAroundPhase ga = ac.Phases.Phases.OfType<GoAroundPhase>().Last();
         output.WriteLine(
             $"t=871: GoAroundPhase {(ReferenceEquals(ga, ac.Phases.CurrentPhase) ? "active" : "triggered")}. "
                 + $"NextLandingFullStop={ga.NextLandingFullStop} ReenterPattern={ga.ReenterPattern} TargetAlt={ga.TargetAltitude}"
@@ -129,8 +131,8 @@ public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
     [Fact]
     public void N436MS_GoAroundFromVisualApproach_NextCircuitEndsWithLandingPhase()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -141,21 +143,21 @@ public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
         // now because the aircraft's departure taxi does.
         engine.Replay(recording, 830);
 
-        var ac = engine.FindAircraft("N436MS");
+        AircraftState? ac = engine.FindAircraft("N436MS");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
         Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
-        var preGaTerminator = ac.Phases.Phases.LastOrDefault(p =>
+        Phase? preGaTerminator = ac.Phases.Phases.LastOrDefault(p =>
             p is LandingPhase or HelicopterLandingPhase or TouchAndGoPhase or StopAndGoPhase or LowApproachPhase
         );
         Assert.IsType<LandingPhase>(preGaTerminator);
 
-        var result = engine.SendCommand("N436MS", "GA");
+        CommandResult result = engine.SendCommand("N436MS", "GA");
         Assert.True(result.Success, $"GA command should succeed: {result.Message}");
 
         ac = engine.FindAircraft("N436MS");
         Assert.NotNull(ac);
-        var ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
+        GoAroundPhase ga = Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
         output.WriteLine(
             $"GA injected at t=810. GoAroundPhase: NextLandingFullStop={ga.NextLandingFullStop} "
                 + $"ReenterPattern={ga.ReenterPattern} TargetAlt={ga.TargetAltitude}"

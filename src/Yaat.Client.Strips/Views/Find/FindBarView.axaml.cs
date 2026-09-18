@@ -62,7 +62,7 @@ public partial class FindBarView : UserControl
             return;
         }
 
-        var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         switch (e.Key)
         {
             case Key.Enter:

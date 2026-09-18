@@ -96,14 +96,14 @@ public class FollowPairTrajectoryTests
         IReadOnlyList<RunwayInfo> allRunways
     )
     {
-        var circuit = PatternBuilder.BuildCircuit(rwy, cat, "", 0, dir, entry, false, null, null, null, allRunways, authoredRunway: null);
+        List<Phase> circuit = PatternBuilder.BuildCircuit(rwy, cat, "", 0, dir, entry, false, null, null, null, allRunways, authoredRunway: null);
         ac.Phases = new PhaseList
         {
             AssignedRunway = rwy,
             TrafficDirection = dir,
             PatternRunway = rwy,
         };
-        foreach (var p in circuit)
+        foreach (Phase p in circuit)
         {
             ac.Phases.Add(p);
         }
@@ -122,7 +122,7 @@ public class FollowPairTrajectoryTests
             follower,
             TestDispatch.Context(Random.Shared, findAircraft: lookup)
         );
-        var result = CommandDispatcher.Dispatch(
+        CommandResult result = CommandDispatcher.Dispatch(
             new FollowCommand(leadCallsign, false),
             follower,
             TestDispatch.Context(Random.Shared, findAircraft: lookup)
@@ -133,7 +133,7 @@ public class FollowPairTrajectoryTests
 
     private static CommandResult DispatchCommand(string command, AircraftState ac, Func<string, AircraftState?> lookup)
     {
-        var parsed = CommandParser.ParseCompound(command, ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(command, ac.FlightPlan.Route);
         Assert.True(parsed.IsSuccess, $"Parse of '{command}' failed: {parsed.Reason}");
         return CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(Random.Shared, findAircraft: lookup));
     }
@@ -159,9 +159,9 @@ public class FollowPairTrajectoryTests
         for (int t = 1; t <= maxTicks; t++)
         {
             onTick?.Invoke(t);
-            foreach (var ac in new[] { lead, follower })
+            foreach (AircraftState? ac in new[] { lead, follower })
             {
-                var ctx = Ctx(ac, rwy, lookup);
+                PhaseContext ctx = Ctx(ac, rwy, lookup);
                 FlightPhysics.Update(ac, ctx.DeltaSeconds);
                 PhaseRunner.Tick(ac, ctx);
             }
@@ -214,7 +214,7 @@ public class FollowPairTrajectoryTests
         var threshold = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
         double patternSign = dir == PatternDirection.Right ? 1.0 : -1.0;
         int consecutive = 0;
-        foreach (var s in follower)
+        foreach (Sample s in follower)
         {
             bool phaseExcluded = s.OnGround || RunwayAlignedPhases.Contains(s.Phase);
             double sideDistNm = GeoMath.SignedCrossTrackDistanceNm(s.Position, threshold, rwy.TrueHeading) * patternSign;
@@ -241,8 +241,8 @@ public class FollowPairTrajectoryTests
         int compared = 0;
         for (int i = 0; i < run.Follower.Count; i++)
         {
-            var f = run.Follower[i];
-            var l = run.Lead[i];
+            Sample f = run.Follower[i];
+            Sample l = run.Lead[i];
             if (f.OnGround || l.OnGround || !committed.Contains(f.Phase) || !committed.Contains(l.Phase))
             {
                 continue;
@@ -285,7 +285,7 @@ public class FollowPairTrajectoryTests
             target.TrueHeading
         );
         string[] lowPhases = [nameof(BasePhase), nameof(FinalApproachPhase)];
-        foreach (var s in follower)
+        foreach (Sample s in follower)
         {
             if (s.OnGround || !lowPhases.Contains(s.Phase) || (s.AltitudeFt >= tpaFt))
             {
@@ -314,8 +314,8 @@ public class FollowPairTrajectoryTests
 
     private (RunwayInfo rwy, IReadOnlyList<RunwayInfo> all)? ResolveRunway(string designator)
     {
-        var navDb = TestVnasData.NavigationDb;
-        var rwy = navDb?.GetRunway("KOAK", designator);
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? rwy = navDb?.GetRunway("KOAK", designator);
         if (navDb is null || rwy is null)
         {
             _output.WriteLine($"KOAK {designator} not in navdata — skipping.");
@@ -335,9 +335,9 @@ public class FollowPairTrajectoryTests
     )
     {
         var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
-        var pos = GeoMath.ProjectPoint(threshold, wp.FinalHeading.ToReciprocal(), finalNm);
-        var lead = MakeVfr(LeadCallsign, "C172", pos, wp.FinalHeading, altitude: rwy.ElevationFt + (finalNm * 318.0), ias: ias);
-        var circuit = PatternBuilder.BuildCircuit(
+        LatLon pos = GeoMath.ProjectPoint(threshold, wp.FinalHeading.ToReciprocal(), finalNm);
+        AircraftState lead = MakeVfr(LeadCallsign, "C172", pos, wp.FinalHeading, altitude: rwy.ElevationFt + (finalNm * 318.0), ias: ias);
+        List<Phase> circuit = PatternBuilder.BuildCircuit(
             rwy,
             AircraftCategory.Piston,
             "",
@@ -357,7 +357,7 @@ public class FollowPairTrajectoryTests
             TrafficDirection = PatternDirection.Right,
             PatternRunway = rwy,
         };
-        foreach (var p in circuit)
+        foreach (Phase p in circuit)
         {
             lead.Phases.Add(p);
         }
@@ -384,7 +384,7 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
         // Follower: established on the downwind track (0.15 nm outside it), 1.1 nm PAST the
@@ -392,25 +392,25 @@ public class FollowPairTrajectoryTests
         // pilot reports it. distToEntry to the fixed entry point is > 1.0 nm, which (pre-fix)
         // installs a PatternEntryPhase, and BOTH lead-in candidates project behind the
         // aircraft — the commanded U-turn of issue #352.
-        var alongPast = GeoMath.ProjectPoint(abeam, wp.DownwindHeading, 1.1);
-        var patternOutward = Dir == PatternDirection.Right ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
-        var followerPos = GeoMath.ProjectPoint(alongPast, patternOutward, 0.15);
+        LatLon alongPast = GeoMath.ProjectPoint(abeam, wp.DownwindHeading, 1.1);
+        TrueHeading patternOutward = Dir == PatternDirection.Right ? rwy.TrueHeading + 90.0 : rwy.TrueHeading - 90.0;
+        LatLon followerPos = GeoMath.ProjectPoint(alongPast, patternOutward, 0.15);
         double distToEntry = GeoMath.DistanceNm(followerPos, abeam);
         Assert.True(distToEntry > 1.0, $"Test setup: expected the fixed entry point > 1.0 nm away, got {distToEntry:F2} nm.");
 
-        var follower = MakeVfr(FollowerCallsign, "C172", followerPos, wp.DownwindHeading, wp.PatternAltitude, ias: 95);
-        var lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 2.0, ias: 75);
-        var lookup = Lookup(lead, follower);
+        AircraftState follower = MakeVfr(FollowerCallsign, "C172", followerPos, wp.DownwindHeading, wp.PatternAltitude, ias: 95);
+        AircraftState lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 2.0, ias: 75);
+        Func<string, AircraftState?> lookup = Lookup(lead, follower);
         lead.Phases!.Start(Ctx(lead, rwy, lookup));
         lead.Phases.LandingClearance = ClearanceType.ClearedToLand;
 
-        var erd = DispatchCommand("ERD 28R", follower, lookup);
+        CommandResult erd = DispatchCommand("ERD 28R", follower, lookup);
         Assert.True(erd.Success, $"ERD failed: {erd.Message}");
         follower.Approach.HasReportedTrafficInSight = true;
         DispatchFollow(follower, LeadCallsign, lookup);
         follower.Phases!.LandingClearance = ClearanceType.ClearedToLand;
 
-        var run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-352-repro.json", onTick: null);
+        PairRun run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-352-repro.json", onTick: null);
 
         AssertNoAboutFace(run.Follower, rwy, Dir);
         AssertNoOvertake(run, wp);
@@ -429,10 +429,10 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
-        var follower = MakeVfr(
+        AircraftState follower = MakeVfr(
             FollowerCallsign,
             "C172",
             GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 0.2),
@@ -443,8 +443,8 @@ public class FollowPairTrajectoryTests
         follower.Approach.HasReportedTrafficInSight = true;
         AttachCircuit(follower, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
 
-        var lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 2.0, ias: 75);
-        var lookup = Lookup(lead, follower);
+        AircraftState lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 2.0, ias: 75);
+        Func<string, AircraftState?> lookup = Lookup(lead, follower);
         lead.Phases!.Start(Ctx(lead, rwy, lookup));
         follower.Phases!.Start(Ctx(follower, rwy, lookup));
         lead.Phases.LandingClearance = ClearanceType.ClearedToLand;
@@ -452,7 +452,7 @@ public class FollowPairTrajectoryTests
 
         DispatchFollow(follower, LeadCallsign, lookup);
 
-        var run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-downwind-straightin.json", onTick: null);
+        PairRun run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-downwind-straightin.json", onTick: null);
 
         AssertNoAboutFace(run.Follower, rwy, Dir);
         AssertNoOvertake(run, wp);
@@ -471,11 +471,11 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
         // Lead 0.2 nm short of its base turn; follower 1.5 nm behind it on the same downwind.
-        var lead = MakeVfr(
+        AircraftState lead = MakeVfr(
             LeadCallsign,
             "C172",
             GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 0.2),
@@ -485,7 +485,7 @@ public class FollowPairTrajectoryTests
         );
         AttachCircuit(lead, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
 
-        var follower = MakeVfr(
+        AircraftState follower = MakeVfr(
             FollowerCallsign,
             "C172",
             GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 1.7),
@@ -496,7 +496,7 @@ public class FollowPairTrajectoryTests
         follower.Approach.HasReportedTrafficInSight = true;
         AttachCircuit(follower, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
 
-        var lookup = Lookup(lead, follower);
+        Func<string, AircraftState?> lookup = Lookup(lead, follower);
         lead.Phases!.Start(Ctx(lead, rwy, lookup));
         follower.Phases!.Start(Ctx(follower, rwy, lookup));
         lead.Phases.LandingClearance = ClearanceType.ClearedToLand;
@@ -504,7 +504,7 @@ public class FollowPairTrajectoryTests
 
         DispatchFollow(follower, LeadCallsign, lookup);
 
-        var run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-lead-progresses.json", onTick: null);
+        PairRun run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-lead-progresses.json", onTick: null);
 
         AssertNoAboutFace(run.Follower, rwy, Dir);
         AssertNoOvertake(run, wp);
@@ -529,23 +529,23 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
         // On the downwind line at the abeam point, tracking the downwind heading, no phases.
-        var follower = MakeVfr(FollowerCallsign, "C172", abeam, wp.DownwindHeading, wp.PatternAltitude, ias: 95);
+        AircraftState follower = MakeVfr(FollowerCallsign, "C172", abeam, wp.DownwindHeading, wp.PatternAltitude, ias: 95);
         follower.Approach.HasReportedTrafficInSight = true;
         Assert.Null(follower.Phases);
 
-        var lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 2.0, ias: 75);
-        var lookup = Lookup(lead, follower);
+        AircraftState lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 2.0, ias: 75);
+        Func<string, AircraftState?> lookup = Lookup(lead, follower);
         lead.Phases!.Start(Ctx(lead, rwy, lookup));
         lead.Phases.LandingClearance = ClearanceType.ClearedToLand;
 
         DispatchFollow(follower, LeadCallsign, lookup);
         follower.Phases!.LandingClearance = ClearanceType.ClearedToLand;
 
-        var run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-nophase.json", onTick: null);
+        PairRun run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-nophase.json", onTick: null);
 
         AssertNoAboutFace(run.Follower, rwy, Dir);
         AssertNoOvertake(run, wp);
@@ -564,22 +564,22 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
         // Follower 3.5 nm out on the pattern side, positioned on the reciprocal of the standard
         // 45° entry course so its inbound track IS the 45° entry (AIM 4-3-3) — a normal far
         // entry whose lead-in lies ahead of the aircraft.
-        var entry45 = Dir == PatternDirection.Right ? wp.DownwindHeading + 45.0 : wp.DownwindHeading - 45.0;
-        var followerPos = GeoMath.ProjectPoint(abeam, entry45.ToReciprocal(), 3.5);
-        var follower = MakeVfr(FollowerCallsign, "C172", followerPos, entry45, wp.PatternAltitude + 300, ias: 100);
+        TrueHeading entry45 = Dir == PatternDirection.Right ? wp.DownwindHeading + 45.0 : wp.DownwindHeading - 45.0;
+        LatLon followerPos = GeoMath.ProjectPoint(abeam, entry45.ToReciprocal(), 3.5);
+        AircraftState follower = MakeVfr(FollowerCallsign, "C172", followerPos, entry45, wp.PatternAltitude + 300, ias: 100);
 
-        var lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 2.0, ias: 75);
-        var lookup = Lookup(lead, follower);
+        AircraftState lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 2.0, ias: 75);
+        Func<string, AircraftState?> lookup = Lookup(lead, follower);
         lead.Phases!.Start(Ctx(lead, rwy, lookup));
         lead.Phases.LandingClearance = ClearanceType.ClearedToLand;
 
-        var erd = DispatchCommand("ERD 28R", follower, lookup);
+        CommandResult erd = DispatchCommand("ERD 28R", follower, lookup);
         Assert.True(erd.Success, $"ERD failed: {erd.Message}");
         Assert.IsType<PatternEntryPhase>(follower.Phases!.CurrentPhase);
 
@@ -591,7 +591,7 @@ public class FollowPairTrajectoryTests
         );
         follower.Phases.LandingClearance = ClearanceType.ClearedToLand;
 
-        var run = RunPair(lead, follower, rwy, lookup, maxTicks: 900, dumpName: "follow-pair-mid-entry.json", onTick: null);
+        PairRun run = RunPair(lead, follower, rwy, lookup, maxTicks: 900, dumpName: "follow-pair-mid-entry.json", onTick: null);
 
         AssertNoAboutFace(run.Follower, rwy, Dir);
         AssertNoOvertake(run, wp);
@@ -610,20 +610,20 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
 
         // Follower on the WRONG side for right traffic (south of the runway), abeam midfield.
         var midpoint = new LatLon((rwy.ThresholdLatitude + rwy.EndLatitude) / 2.0, (rwy.ThresholdLongitude + rwy.EndLongitude) / 2.0);
-        var wrongSide = Dir == PatternDirection.Right ? rwy.TrueHeading - 90.0 : rwy.TrueHeading + 90.0;
-        var followerPos = GeoMath.ProjectPoint(midpoint, wrongSide, 1.5);
-        var follower = MakeVfr(FollowerCallsign, "C172", followerPos, rwy.TrueHeading.ToReciprocal(), wp.PatternAltitude, ias: 95);
+        TrueHeading wrongSide = Dir == PatternDirection.Right ? rwy.TrueHeading - 90.0 : rwy.TrueHeading + 90.0;
+        LatLon followerPos = GeoMath.ProjectPoint(midpoint, wrongSide, 1.5);
+        AircraftState follower = MakeVfr(FollowerCallsign, "C172", followerPos, rwy.TrueHeading.ToReciprocal(), wp.PatternAltitude, ias: 95);
 
-        var lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 2.5, ias: 75);
-        var lookup = Lookup(lead, follower);
+        AircraftState lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 2.5, ias: 75);
+        Func<string, AircraftState?> lookup = Lookup(lead, follower);
         lead.Phases!.Start(Ctx(lead, rwy, lookup));
         lead.Phases.LandingClearance = ClearanceType.ClearedToLand;
 
-        var erd = DispatchCommand("ERD 28R", follower, lookup);
+        CommandResult erd = DispatchCommand("ERD 28R", follower, lookup);
         Assert.True(erd.Success, $"ERD failed: {erd.Message}");
         Assert.IsType<MidfieldCrossingPhase>(follower.Phases!.CurrentPhase);
 
@@ -635,7 +635,7 @@ public class FollowPairTrajectoryTests
         );
         follower.Phases.LandingClearance = ClearanceType.ClearedToLand;
 
-        var run = RunPair(lead, follower, rwy, lookup, maxTicks: 900, dumpName: "follow-pair-wrongside.json", onTick: null);
+        PairRun run = RunPair(lead, follower, rwy, lookup, maxTicks: 900, dumpName: "follow-pair-wrongside.json", onTick: null);
 
         AssertNoOvertake(run, wp);
         AssertLandingOrder(run);
@@ -653,10 +653,10 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
-        var lead = MakeVfr(
+        AircraftState lead = MakeVfr(
             LeadCallsign,
             "C172",
             GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 1.0),
@@ -666,7 +666,7 @@ public class FollowPairTrajectoryTests
         );
         AttachCircuit(lead, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
 
-        var follower = MakeVfr(
+        AircraftState follower = MakeVfr(
             FollowerCallsign,
             "C172",
             GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 2.0),
@@ -677,7 +677,7 @@ public class FollowPairTrajectoryTests
         follower.Approach.HasReportedTrafficInSight = true;
         AttachCircuit(follower, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
 
-        var lookup = Lookup(lead, follower);
+        Func<string, AircraftState?> lookup = Lookup(lead, follower);
         lead.Phases!.Start(Ctx(lead, rwy, lookup));
         follower.Phases!.Start(Ctx(follower, rwy, lookup));
         lead.Phases.LandingClearance = ClearanceType.ClearedToLand;
@@ -685,7 +685,7 @@ public class FollowPairTrajectoryTests
 
         DispatchFollow(follower, LeadCallsign, lookup);
 
-        var run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-sameleg.json", onTick: null);
+        PairRun run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-sameleg.json", onTick: null);
 
         AssertNoAboutFace(run.Follower, rwy, Dir);
         AssertNoOvertake(run, wp);
@@ -704,11 +704,11 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
         // Lead mid-base (0.3 nm past the base turn along the base heading), slightly below TPA.
-        var lead = MakeVfr(
+        AircraftState lead = MakeVfr(
             LeadCallsign,
             "C172",
             GeoMath.ProjectPoint(baseTurn, wp.BaseHeading, 0.3),
@@ -718,7 +718,7 @@ public class FollowPairTrajectoryTests
         );
         AttachCircuit(lead, rwy, Cat, Dir, PatternEntryLeg.Base, allRunways);
 
-        var follower = MakeVfr(
+        AircraftState follower = MakeVfr(
             FollowerCallsign,
             "C172",
             GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 0.5),
@@ -729,7 +729,7 @@ public class FollowPairTrajectoryTests
         follower.Approach.HasReportedTrafficInSight = true;
         AttachCircuit(follower, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
 
-        var lookup = Lookup(lead, follower);
+        Func<string, AircraftState?> lookup = Lookup(lead, follower);
         lead.Phases!.Start(Ctx(lead, rwy, lookup));
         follower.Phases!.Start(Ctx(follower, rwy, lookup));
         lead.Phases.LandingClearance = ClearanceType.ClearedToLand;
@@ -737,7 +737,7 @@ public class FollowPairTrajectoryTests
 
         DispatchFollow(follower, LeadCallsign, lookup);
 
-        var run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-lead-on-base.json", onTick: null);
+        PairRun run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-lead-on-base.json", onTick: null);
 
         AssertNoAboutFace(run.Follower, rwy, Dir);
         AssertNoOvertake(run, wp);
@@ -761,11 +761,11 @@ public class FollowPairTrajectoryTests
         const AircraftCategory Cat = AircraftCategory.Piston;
         // 28L flies LEFT traffic (south side), 28R flies RIGHT traffic (north side) — the
         // standard split for close parallels so the patterns don't overlap.
-        var wpL = PatternGeometry.Compute(rwy28L, Cat, "", 0, PatternDirection.Left, null, null, allRunways, authoredRunway: null);
-        var wpR = PatternGeometry.Compute(rwy28R, Cat, "", 0, PatternDirection.Right, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wpL = PatternGeometry.Compute(rwy28L, Cat, "", 0, PatternDirection.Left, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wpR = PatternGeometry.Compute(rwy28R, Cat, "", 0, PatternDirection.Right, null, null, allRunways, authoredRunway: null);
         var baseTurnL = new LatLon(wpL.BaseTurnLat, wpL.BaseTurnLon);
 
-        var follower = MakeVfr(
+        AircraftState follower = MakeVfr(
             FollowerCallsign,
             "C172",
             GeoMath.ProjectPoint(baseTurnL, wpL.DownwindHeading.ToReciprocal(), 1.0),
@@ -776,8 +776,8 @@ public class FollowPairTrajectoryTests
         follower.Approach.HasReportedTrafficInSight = true;
         AttachCircuit(follower, rwy28L, Cat, PatternDirection.Left, PatternEntryLeg.Downwind, allRunways);
 
-        var lead = MakeLeadOnStraightInFinal(rwy28R, wpR, allRunways, finalNm: 3.0, ias: 75);
-        var lookup = Lookup(lead, follower);
+        AircraftState lead = MakeLeadOnStraightInFinal(rwy28R, wpR, allRunways, finalNm: 3.0, ias: 75);
+        Func<string, AircraftState?> lookup = Lookup(lead, follower);
         lead.Phases!.Start(Ctx(lead, rwy28R, lookup));
         follower.Phases!.Start(Ctx(follower, rwy28L, lookup));
         lead.Phases.LandingClearance = ClearanceType.ClearedToLand;
@@ -785,7 +785,7 @@ public class FollowPairTrajectoryTests
         DispatchFollow(follower, LeadCallsign, lookup);
         follower.Phases!.LandingClearance = ClearanceType.ClearedToLand;
 
-        var run = RunPair(lead, follower, rwy28R, lookup, maxTicks: 900, dumpName: "follow-pair-crossrunway.json", onTick: null);
+        PairRun run = RunPair(lead, follower, rwy28R, lookup, maxTicks: 900, dumpName: "follow-pair-crossrunway.json", onTick: null);
 
         AssertNoOvertake(run, wpR);
         AssertLandingOrder(run);
@@ -795,7 +795,7 @@ public class FollowPairTrajectoryTests
         // The follower must end up on the LEAD's runway: its touchdown point must be within
         // 0.25 nm of the 28R centerline (28L's centerline is ~0.09 nm away from 28R's, so
         // assert against both: closer to 28R than to 28L).
-        var touchdown = run.Follower.First(s => s.OnGround).Position;
+        LatLon touchdown = run.Follower.First(s => s.OnGround).Position;
         double dist28R = Math.Abs(
             GeoMath.SignedCrossTrackDistanceNm(touchdown, new LatLon(rwy28R.ThresholdLatitude, rwy28R.ThresholdLongitude), rwy28R.TrueHeading)
         );
@@ -817,11 +817,11 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory FollowerCat = AircraftCategory.Jet;
-        var wp = PatternGeometry.Compute(rwy, FollowerCat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, FollowerCat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
         // Fast follower (Citation-class jet) on ITS downwind, 0.5 nm before its base turn.
-        var follower = MakeVfr(
+        AircraftState follower = MakeVfr(
             FollowerCallsign,
             "C56X",
             GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 0.5),
@@ -833,8 +833,8 @@ public class FollowPairTrajectoryTests
         AttachCircuit(follower, rwy, FollowerCat, Dir, PatternEntryLeg.Downwind, allRunways);
 
         // Slow C172 lead on a 3 nm straight-in final.
-        var lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 3.0, ias: 70);
-        var lookup = Lookup(lead, follower);
+        AircraftState lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 3.0, ias: 70);
+        Func<string, AircraftState?> lookup = Lookup(lead, follower);
         lead.Phases!.Start(Ctx(lead, rwy, lookup));
         follower.Phases!.Start(Ctx(follower, rwy, lookup));
         lead.Phases.LandingClearance = ClearanceType.ClearedToLand;
@@ -842,7 +842,7 @@ public class FollowPairTrajectoryTests
 
         DispatchFollow(follower, LeadCallsign, lookup);
 
-        var run = RunPair(lead, follower, rwy, lookup, maxTicks: 900, dumpName: "follow-pair-fast-follower.json", onTick: null);
+        PairRun run = RunPair(lead, follower, rwy, lookup, maxTicks: 900, dumpName: "follow-pair-fast-follower.json", onTick: null);
 
         AssertNoAboutFace(run.Follower, rwy, Dir);
         AssertNoOvertake(run, wp);
@@ -870,10 +870,10 @@ public class FollowPairTrajectoryTests
 
         const PatternDirection Dir = PatternDirection.Right;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        var wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
 
-        var follower = MakeVfr(
+        AircraftState follower = MakeVfr(
             FollowerCallsign,
             "C172",
             GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 0.8),
@@ -885,8 +885,8 @@ public class FollowPairTrajectoryTests
         AttachCircuit(follower, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
 
         // Lead on a short 0.8 nm final — lands within ~40 s of the FOLLOW.
-        var lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 0.8, ias: 65);
-        var lookup = Lookup(lead, follower);
+        AircraftState lead = MakeLeadOnStraightInFinal(rwy, wp, allRunways, finalNm: 0.8, ias: 65);
+        Func<string, AircraftState?> lookup = Lookup(lead, follower);
         lead.Phases!.Start(Ctx(lead, rwy, lookup));
         follower.Phases!.Start(Ctx(follower, rwy, lookup));
         lead.Phases.LandingClearance = ClearanceType.ClearedToLand;
@@ -894,7 +894,7 @@ public class FollowPairTrajectoryTests
 
         DispatchFollow(follower, LeadCallsign, lookup);
 
-        var run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-lead-lands.json", onTick: null);
+        PairRun run = RunPair(lead, follower, rwy, lookup, maxTicks: 700, dumpName: "follow-pair-lead-lands.json", onTick: null);
 
         AssertNoAboutFace(run.Follower, rwy, Dir);
         AssertLandingOrder(run);

@@ -29,7 +29,7 @@ public class FinalApproachSoloGoAroundTests : IDisposable
     private static AircraftState MakeAircraftOnFinal(RunwayInfo rwy)
     {
         var threshold = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
-        var startPos = GeoMath.ProjectPoint(threshold, rwy.TrueHeading.ToReciprocal(), 3.0);
+        LatLon startPos = GeoMath.ProjectPoint(threshold, rwy.TrueHeading.ToReciprocal(), 3.0);
         return new AircraftState
         {
             Callsign = "TEST",
@@ -63,8 +63,8 @@ public class FinalApproachSoloGoAroundTests : IDisposable
     [Fact]
     public void SoloGoAround_AtFullProbability_TriggersOnStart()
     {
-        var rwy = DefaultRunway();
-        var ac = MakeAircraftOnFinal(rwy);
+        RunwayInfo rwy = DefaultRunway();
+        AircraftState ac = MakeAircraftOnFinal(rwy);
         ac.Phases = new PhaseList { AssignedRunway = rwy };
         ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
 
@@ -76,8 +76,8 @@ public class FinalApproachSoloGoAroundTests : IDisposable
     [Fact]
     public void SoloGoAround_AtZeroProbability_DoesNotTrigger()
     {
-        var rwy = DefaultRunway();
-        var ac = MakeAircraftOnFinal(rwy);
+        RunwayInfo rwy = DefaultRunway();
+        AircraftState ac = MakeAircraftOnFinal(rwy);
         ac.Phases = new PhaseList { AssignedRunway = rwy };
         ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
 
@@ -89,8 +89,8 @@ public class FinalApproachSoloGoAroundTests : IDisposable
     [Fact]
     public void SoloGoAround_NotInSoloMode_DoesNotTrigger()
     {
-        var rwy = DefaultRunway();
-        var ac = MakeAircraftOnFinal(rwy);
+        RunwayInfo rwy = DefaultRunway();
+        AircraftState ac = MakeAircraftOnFinal(rwy);
         ac.Phases = new PhaseList { AssignedRunway = rwy };
         ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
 
@@ -105,8 +105,8 @@ public class FinalApproachSoloGoAroundTests : IDisposable
     {
         // Defensive: tests without RNG (rare) must not crash; the OnStart guard
         // also protects against null Rng in case a future PhaseContext caller forgets it.
-        var rwy = DefaultRunway();
-        var ac = MakeAircraftOnFinal(rwy);
+        RunwayInfo rwy = DefaultRunway();
+        AircraftState ac = MakeAircraftOnFinal(rwy);
         ac.Phases = new PhaseList { AssignedRunway = rwy };
         ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
 
@@ -120,15 +120,15 @@ public class FinalApproachSoloGoAroundTests : IDisposable
     {
         // Determinism guarantee: snapshot/replay restores RNG state from
         // StateSnapshotDto.Rng, so the roll fires (or doesn't) at the same tick.
-        var firstOutcome = RunRoll(probability: 50, seed: 4242);
-        var secondOutcome = RunRoll(probability: 50, seed: 4242);
+        bool firstOutcome = RunRoll(probability: 50, seed: 4242);
+        bool secondOutcome = RunRoll(probability: 50, seed: 4242);
 
         Assert.Equal(firstOutcome, secondOutcome);
 
         static bool RunRoll(int probability, int seed)
         {
-            var rwy = DefaultRunway();
-            var ac = MakeAircraftOnFinal(rwy);
+            RunwayInfo rwy = DefaultRunway();
+            AircraftState ac = MakeAircraftOnFinal(rwy);
             ac.Phases = new PhaseList { AssignedRunway = rwy };
             ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
             ac.Phases.Start(BuildCtx(ac, rwy, soloMode: true, probability: probability, rng: new SerializableRandom(seed)));
@@ -145,8 +145,8 @@ public class FinalApproachSoloGoAroundTests : IDisposable
         bool sawSkip = false;
         for (int seed = 0; seed < 100 && !(sawTrigger && sawSkip); seed++)
         {
-            var rwy = DefaultRunway();
-            var ac = MakeAircraftOnFinal(rwy);
+            RunwayInfo rwy = DefaultRunway();
+            AircraftState ac = MakeAircraftOnFinal(rwy);
             ac.Phases = new PhaseList { AssignedRunway = rwy };
             ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
             ac.Phases.Start(BuildCtx(ac, rwy, soloMode: true, probability: 50, rng: new SerializableRandom(seed)));

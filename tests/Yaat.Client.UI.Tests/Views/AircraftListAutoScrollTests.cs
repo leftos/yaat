@@ -57,7 +57,7 @@ public class AircraftListAutoScrollTests
         };
         window.ShowAndRunLayout();
 
-        var grid = view.GetDataGrid()!;
+        DataGrid grid = view.GetDataGrid()!;
         Assert.NotNull(grid);
         return (window, vm, grid);
     }
@@ -79,10 +79,10 @@ public class AircraftListAutoScrollTests
     [AvaloniaFact]
     public void SelectingAircraftBelowViewport_ScrollsRowIntoView()
     {
-        var (window, vm, grid) = HostGrid(Enumerable.Range(1, 60).Select(i => MakeAircraft($"UAL{i:D3}")));
+        (Window? window, MainViewModel? vm, DataGrid? grid) = HostGrid(Enumerable.Range(1, 60).Select(i => MakeAircraft($"UAL{i:D3}")));
         PumpLayout(window);
 
-        var last = vm.Aircraft.First(a => a.Callsign == "UAL060");
+        AircraftModel last = vm.Aircraft.First(a => a.Callsign == "UAL060");
         Assert.False(RowIsRealized(grid, last));
 
         vm.SelectedAircraft = last;
@@ -100,16 +100,16 @@ public class AircraftListAutoScrollTests
     {
         var aircraft = Enumerable.Range(1, 60).Select(i => MakeAircraft($"UAL{i:D3}")).ToList();
         aircraft.Add(MakeAircraft("DEL999", "Delayed (60s)"));
-        var (window, vm, grid) = HostGrid(aircraft);
+        (Window? window, MainViewModel? vm, DataGrid? grid) = HostGrid(aircraft);
 
         vm.ShowOnlyActiveAircraft = true;
         vm.AircraftView.Refresh();
         PumpLayout(window);
 
-        var hidden = vm.Aircraft.First(a => a.Callsign == "DEL999");
+        AircraftModel hidden = vm.Aircraft.First(a => a.Callsign == "DEL999");
         Assert.DoesNotContain(hidden, vm.AircraftView.Cast<AircraftModel>());
 
-        var firstVisible = vm.AircraftView.Cast<AircraftModel>().First();
+        AircraftModel firstVisible = vm.AircraftView.Cast<AircraftModel>().First();
         vm.SelectedAircraft = hidden;
         PumpLayout(window);
 

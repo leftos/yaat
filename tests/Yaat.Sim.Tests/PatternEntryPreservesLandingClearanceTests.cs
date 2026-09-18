@@ -60,9 +60,9 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
     private static AircraftState MakeOnRightBase(RunwayInfo runway)
     {
         var reciprocal = new TrueHeading((runway.TrueHeading.Degrees + 180) % 360);
-        var centerline = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 2.0);
+        (double Lat, double Lon) centerline = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, 2.0);
         var nneHeading = new TrueHeading((runway.TrueHeading.Degrees + 90) % 360);
-        var pos = GeoMath.ProjectPoint(centerline.Lat, centerline.Lon, nneHeading, 3.0);
+        (double Lat, double Lon) pos = GeoMath.ProjectPoint(centerline.Lat, centerline.Lon, nneHeading, 3.0);
 
         var ac = new AircraftState
         {
@@ -90,27 +90,31 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
     [Fact]
     public void ClandThenTwoPatternEntries_KeepsLandingTerminal()
     {
-        var runway = MakeOak28R();
-        var ac = MakeOnRightBase(runway);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState ac = MakeOnRightBase(runway);
 
-        var cland = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac, TestDispatch.Context(Random.Shared));
+        CommandResult cland = PatternCommandHandler.TryClearedToLand(
+            new ClearedToLandCommand { RunwayId = "28R" },
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
         Assert.True(cland.Success, cland.Message);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases!.LandingClearance);
 
         // First pattern entry after CLAND is correct (Landing), but it stamps a
         // pattern turn-direction onto the chain — the precondition for the bug.
-        var erb1 = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Right, PatternEntryLeg.Base, "28R", null);
+        CommandResult erb1 = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Right, PatternEntryLeg.Base, "28R", null);
         Assert.True(erb1.Success, erb1.Message);
         Assert.IsType<LandingPhase>(Terminator(ac));
         Assert.NotNull(ac.Phases.TrafficDirection);
 
         // Second pattern entry must NOT downgrade the standing landing clearance
         // to a touch-and-go. (Fails before the fix: terminal is TouchAndGoPhase.)
-        var erb2 = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Right, PatternEntryLeg.Base, "28R", null);
+        CommandResult erb2 = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Right, PatternEntryLeg.Base, "28R", null);
         Assert.True(erb2.Success, erb2.Message);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases.LandingClearance);
 
-        var terminator = Terminator(ac);
+        Phase? terminator = Terminator(ac);
         _output.WriteLine($"Final terminator after second ERB: {terminator?.Name ?? "(none)"}");
         Assert.IsType<LandingPhase>(terminator);
     }
@@ -120,10 +124,10 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
     {
         // Guard against over-correction: an explicit TG clearance must survive a
         // subsequent pattern entry as a TouchAndGoPhase.
-        var runway = MakeOak28R();
-        var ac = MakeOnRightBase(runway);
+        RunwayInfo runway = MakeOak28R();
+        AircraftState ac = MakeOnRightBase(runway);
 
-        var tg = PatternCommandHandler.TrySetupTouchAndGo(
+        CommandResult tg = PatternCommandHandler.TrySetupTouchAndGo(
             ac,
             new OptionPatternModifier(PatternDirection.Right, null, null),
             TestDispatch.Context(Random.Shared)
@@ -131,10 +135,10 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
         Assert.True(tg.Success, tg.Message);
         Assert.Equal(ClearanceType.ClearedTouchAndGo, ac.Phases!.LandingClearance);
 
-        var erb = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Right, PatternEntryLeg.Base, "28R", null);
+        CommandResult erb = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Right, PatternEntryLeg.Base, "28R", null);
         Assert.True(erb.Success, erb.Message);
 
-        var terminator = Terminator(ac);
+        Phase? terminator = Terminator(ac);
         _output.WriteLine($"Terminator after TG then ERB: {terminator?.Name ?? "(none)"}");
         Assert.IsType<TouchAndGoPhase>(terminator);
     }

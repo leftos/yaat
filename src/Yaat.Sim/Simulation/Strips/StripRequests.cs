@@ -1,6 +1,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation.Actions;
 
 namespace Yaat.Sim.Simulation.Strips;
@@ -39,49 +40,49 @@ public static class StripRequests
         {
             return new CommandResult(false, "Aircraft callsign required");
         }
-        var ac = engine.FindAircraft(callsign);
+        AircraftState? ac = engine.FindAircraft(callsign);
         if (ac is null)
         {
             return ActionRefusals.AircraftNotFound(callsign);
         }
-        var scenario = engine.Scenario;
+        SimScenarioState? scenario = engine.Scenario;
         if (scenario is null)
         {
             return new CommandResult(false, "No active scenario");
         }
 
-        var config = scenario.ArtccConfig;
+        ArtccConfigRoot? config = scenario.ArtccConfig;
         if (facilityId is not null)
         {
-            var crcShowDest = config?.FindFacility(facilityId)?.FlightStripsConfiguration?.DisplayDestinationAirportIds ?? false;
+            bool crcShowDest = config?.FindFacility(facilityId)?.FlightStripsConfiguration?.DisplayDestinationAirportIds ?? false;
             plan = new StripRequestPlan(ac, scenario, facilityId, crcShowDest, IsArrival: false, EtaMinutes: 0);
             return new CommandResult(true);
         }
 
-        var positionCallsign = scenario.StudentPosition?.Callsign ?? "";
+        string positionCallsign = scenario.StudentPosition?.Callsign ?? "";
         if (config is null || string.IsNullOrEmpty(positionCallsign))
         {
             return new CommandResult(false, "No active student position");
         }
-        var accessible = config.GetAllAccessibleStripBays(positionCallsign);
-        var ownBay = accessible.FirstOrDefault(b => !b.IsExternal);
+        IReadOnlyList<AccessibleBay> accessible = config.GetAllAccessibleStripBays(positionCallsign);
+        AccessibleBay? ownBay = accessible.FirstOrDefault(b => !b.IsExternal);
         if (ownBay is null)
         {
             return new CommandResult(false, "No own strip bay for current position");
         }
 
-        var showDest = ownBay.Owner.FlightStripsConfiguration?.DisplayDestinationAirportIds ?? false;
+        bool showDest = ownBay.Owner.FlightStripsConfiguration?.DisplayDestinationAirportIds ?? false;
         if (!IsArrivalCandidate(ac, scenario) || scenario.PrimaryAirportId is not { } primaryAirportId)
         {
             plan = new StripRequestPlan(ac, scenario, ownBay.Owner.Id, showDest, IsArrival: false, EtaMinutes: 0);
             return new CommandResult(true);
         }
 
-        var airportPos = ResolveAirportPosition(primaryAirportId);
+        (double Lat, double Lon)? airportPos = ResolveAirportPosition(primaryAirportId);
         double etaMinutes = 0.0;
         if (airportPos is not null && ac.GroundSpeed >= 30.0)
         {
-            var distanceNm = GeoMath.DistanceNm(ac.Position, new LatLon(airportPos.Value.Lat, airportPos.Value.Lon));
+            double distanceNm = GeoMath.DistanceNm(ac.Position, new LatLon(airportPos.Value.Lat, airportPos.Value.Lon));
             etaMinutes = (distanceNm / ac.GroundSpeed) * 60.0;
         }
         plan = new StripRequestPlan(ac, scenario, ownBay.Owner.Id, showDest, IsArrival: true, EtaMinutes: etaMinutes);
@@ -101,14 +102,14 @@ public static class StripRequests
     /// </summary>
     public static CommandResult PrintRequestedStrip(SimulationEngine engine, RecordedStripRequest request)
     {
-        var resolved = ResolveStripRequest(engine, request.Callsign, request.FacilityId, out var plan);
+        CommandResult resolved = ResolveStripRequest(engine, request.Callsign, request.FacilityId, out StripRequestPlan plan);
         if (!resolved.Success)
         {
             return resolved;
         }
 
-        var isArrival = request.StripId.StartsWith(StripMutations.ArrivalStripIdPrefix, StringComparison.Ordinal);
-        var printed = $"Flight strip printed for {request.Callsign}";
+        bool isArrival = request.StripId.StartsWith(StripMutations.ArrivalStripIdPrefix, StringComparison.Ordinal);
+        string printed = $"Flight strip printed for {request.Callsign}";
         if (!isArrival && engine.Strips.Items.ContainsKey(request.StripId))
         {
             return new CommandResult(true, printed);
@@ -164,8 +165,8 @@ public static class StripRequests
     /// <summary>The airport reference point an arrival's ETA is measured to, or null when the navdata carries no runway for it.</summary>
     public static (double Lat, double Lon)? ResolveAirportPosition(string airportCode)
     {
-        var navDb = NavigationDatabase.Instance;
-        var runways = navDb.GetRunways(airportCode);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        IReadOnlyList<RunwayInfo> runways = navDb.GetRunways(airportCode);
         if (runways.Count == 0)
         {
             return null;
@@ -173,7 +174,7 @@ public static class StripRequests
 
         // Use the first runway's near-end coords as the airport reference. Good enough
         // for ETA estimation at 20-minute scale where runway-level precision is noise.
-        var runway = runways[0];
+        RunwayInfo runway = runways[0];
         return (runway.Lat1, runway.Lon1);
     }
 }

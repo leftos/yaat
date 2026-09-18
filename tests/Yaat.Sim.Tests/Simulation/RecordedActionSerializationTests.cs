@@ -24,7 +24,7 @@ public class RecordedActionSerializationTests
     [Fact]
     public void EverySubtypeIsRegisteredAsDerivedType()
     {
-        var registrations = DerivedTypeRegistrations();
+        IReadOnlyList<JsonDerivedTypeAttribute> registrations = DerivedTypeRegistrations();
         var registeredTypes = registrations.Select(r => r.DerivedType).ToHashSet();
 
         var unregistered = ConcreteSubtypes()
@@ -61,7 +61,7 @@ public class RecordedActionSerializationTests
     [Fact]
     public void EverySubtypeRoundTripsThroughTheActionLogSerializer()
     {
-        var samples = BuildSamples();
+        Dictionary<Type, RecordedAction> samples = BuildSamples();
 
         var uncovered = ConcreteSubtypes().Where(t => !samples.ContainsKey(t)).Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
         Assert.True(
@@ -71,16 +71,16 @@ public class RecordedActionSerializationTests
 
         var discriminators = DerivedTypeRegistrations().ToDictionary(r => r.DerivedType, r => r.TypeDiscriminator!.ToString()!);
 
-        foreach (var (type, sample) in samples)
+        foreach ((Type? type, RecordedAction? sample) in samples)
         {
             Assert.Equal(type, sample.GetType());
 
             // Serialized as the base type, exactly as RecordingArchiveWriter.WriteActions does with its List<RecordedAction>,
             // so System.Text.Json emits the discriminator.
-            var json = JsonSerializer.Serialize<RecordedAction>(sample, RecordingJsonOptions.Default);
+            string json = JsonSerializer.Serialize<RecordedAction>(sample, RecordingJsonOptions.Default);
             Assert.Contains($"\"{DiscriminatorProperty}\":\"{discriminators[type]}\"", json);
 
-            var roundTripped = JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default);
+            RecordedAction? roundTripped = JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default);
             Assert.NotNull(roundTripped);
             Assert.Equal(type, roundTripped.GetType());
             Assert.Equal(sample.ElapsedSeconds, roundTripped.ElapsedSeconds);

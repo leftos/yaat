@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -24,7 +25,7 @@ public class OakVfrParallelFinalsCaTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -37,7 +38,7 @@ public class OakVfrParallelFinalsCaTests(ITestOutputHelper output)
     [Fact]
     public void ParallelFinalsToOakInsideCorridor_NoConflictAlert()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -45,8 +46,8 @@ public class OakVfrParallelFinalsCaTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -54,7 +55,7 @@ public class OakVfrParallelFinalsCaTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
             if (snapshot is null)
             {
                 output.WriteLine($"No snapshot near t={RestoreAtSeconds} — skipping");
@@ -64,21 +65,21 @@ public class OakVfrParallelFinalsCaTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             output.WriteLine($"Restored snapshot at t={snapshot.ElapsedSeconds}");
 
-            var aircraft = engine.World.GetSnapshot();
-            var n805fm = aircraft.SingleOrDefault(a => a.Callsign == "N805FM");
-            var n70cs = aircraft.SingleOrDefault(a => a.Callsign == "N70CS");
+            List<AircraftState> aircraft = engine.World.GetSnapshot();
+            AircraftState? n805fm = aircraft.SingleOrDefault(a => a.Callsign == "N805FM");
+            AircraftState? n70cs = aircraft.SingleOrDefault(a => a.Callsign == "N70CS");
             Assert.NotNull(n805fm);
             Assert.NotNull(n70cs);
             Assert.False(n805fm.IsOnGround);
             Assert.False(n70cs.IsOnGround);
 
-            var corridors = ConflictAlertDetector.BuildCorridors(["OAK"], NavigationDatabase.Instance);
+            IReadOnlyList<RunwayCorridor> corridors = ConflictAlertDetector.BuildCorridors(["OAK"], NavigationDatabase.Instance);
             Assert.NotEmpty(corridors);
 
             // Sanity check: without the corridors (empty list), CA WOULD fire — proves the
             // scenario is in the conflict envelope. This documents that the test exercises
             // the suppression path, not just an absence-of-conflict.
-            var fireResult = ConflictAlertDetector.Detect(aircraft, new ConflictAlertContext([], []));
+            List<ConflictAlertDetector.ConflictPair> fireResult = ConflictAlertDetector.Detect(aircraft, new ConflictAlertContext([], []));
             output.WriteLine($"Without corridors: {fireResult.Count} conflicts");
             Assert.Contains(
                 fireResult,
@@ -87,7 +88,7 @@ public class OakVfrParallelFinalsCaTests(ITestOutputHelper output)
 
             // With OAK corridors built, both tracks land inside the volumes →
             // suppression engages and the pair must NOT appear in the result.
-            var suppressed = ConflictAlertDetector.Detect(aircraft, new ConflictAlertContext([], corridors));
+            List<ConflictAlertDetector.ConflictPair> suppressed = ConflictAlertDetector.Detect(aircraft, new ConflictAlertContext([], corridors));
             output.WriteLine($"With OAK corridors: {suppressed.Count} conflicts");
             Assert.DoesNotContain(
                 suppressed,

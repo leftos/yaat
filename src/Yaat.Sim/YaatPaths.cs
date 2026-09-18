@@ -29,7 +29,7 @@ public static class YaatPaths
                 return _appDataRoot;
             }
 
-            var envOverride = Environment.GetEnvironmentVariable("YAAT_APPDATA_DIR");
+            string? envOverride = Environment.GetEnvironmentVariable("YAAT_APPDATA_DIR");
             _appDataRoot = envOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), _appDirName);
             return _appDataRoot;
         }
@@ -37,7 +37,7 @@ public static class YaatPaths
 
     public static string Combine(params string[] parts)
     {
-        var all = new string[parts.Length + 1];
+        string[] all = new string[parts.Length + 1];
         all[0] = AppDataRoot;
         Array.Copy(parts, 0, all, 1, parts.Length);
         return Path.Combine(all);

@@ -100,8 +100,8 @@ public static class StripMutations
             RemoveFromAllBaysLocked(state, stripId);
             RemoveFromPrinterQueuesLocked(state, stripId);
 
-            var row = EnsureRack(state, destBayId, destRack);
-            var clamped = destIndex < 0 ? 0 : (destIndex > row.Count ? row.Count : destIndex);
+            List<string> row = EnsureRack(state, destBayId, destRack);
+            int clamped = destIndex < 0 ? 0 : (destIndex > row.Count ? row.Count : destIndex);
             row.Insert(clamped, stripId);
             state.Changes.MarkChanged(stripId);
             state.Changes.MarkFullState();
@@ -166,12 +166,12 @@ public static class StripMutations
     {
         lock (state.Gate)
         {
-            if (!state.Items.TryGetValue(stripId, out var existing))
+            if (!state.Items.TryGetValue(stripId, out StripItemRecord? existing))
             {
                 return null;
             }
 
-            var updated = existing with { IsOffset = !existing.IsOffset };
+            StripItemRecord updated = existing with { IsOffset = !existing.IsOffset };
             state.Items[stripId] = updated;
             state.Changes.MarkChanged(stripId);
             return updated.IsOffset;
@@ -183,12 +183,12 @@ public static class StripMutations
     {
         lock (state.Gate)
         {
-            if (!state.Items.TryGetValue(stripId, out var existing))
+            if (!state.Items.TryGetValue(stripId, out StripItemRecord? existing))
             {
                 return null;
             }
 
-            var updated = existing with { Type = newType };
+            StripItemRecord updated = existing with { Type = newType };
             state.Items[stripId] = updated;
             state.Changes.MarkChanged(stripId);
             return updated;
@@ -200,12 +200,12 @@ public static class StripMutations
     {
         lock (state.Gate)
         {
-            if (!state.Items.TryGetValue(stripId, out var existing))
+            if (!state.Items.TryGetValue(stripId, out StripItemRecord? existing))
             {
                 return null;
             }
 
-            var updated = existing with { FieldValues = newFields };
+            StripItemRecord updated = existing with { FieldValues = newFields };
             state.Items[stripId] = updated;
             state.Changes.MarkChanged(stripId);
             return updated;
@@ -225,24 +225,24 @@ public static class StripMutations
     /// </summary>
     public static StripItemRecord? SetAnnotationBox(FlightStripState state, string stripId, string box, string? text)
     {
-        if (!TryResolveAnnotationFieldIndex(box, out var fieldIndex))
+        if (!TryResolveAnnotationFieldIndex(box, out int fieldIndex))
         {
             return null;
         }
 
         lock (state.Gate)
         {
-            if (!state.Items.TryGetValue(stripId, out var existing))
+            if (!state.Items.TryGetValue(stripId, out StripItemRecord? existing))
             {
                 return null;
             }
 
-            var fields = existing.FieldValues;
+            string[] fields = existing.FieldValues;
             if (fields.Length <= fieldIndex)
             {
-                var grown = new string[fieldIndex + 1];
+                string[] grown = new string[fieldIndex + 1];
                 Array.Copy(fields, grown, fields.Length);
-                for (var i = fields.Length; i < grown.Length; i++)
+                for (int i = fields.Length; i < grown.Length; i++)
                 {
                     grown[i] = "";
                 }
@@ -254,7 +254,7 @@ public static class StripMutations
             }
 
             fields[fieldIndex] = text ?? "";
-            var updated = existing with { FieldValues = fields };
+            StripItemRecord updated = existing with { FieldValues = fields };
             state.Items[stripId] = updated;
             state.Changes.MarkChanged(stripId);
             return updated;
@@ -277,7 +277,7 @@ public static class StripMutations
                 fieldIndex = 20;
                 return true;
         }
-        if (int.TryParse(box, out var n) && n is >= 1 and <= 9)
+        if (int.TryParse(box, out int n) && n is >= 1 and <= 9)
         {
             fieldIndex = n + 9;
             return true;
@@ -307,8 +307,8 @@ public static class StripMutations
     /// </summary>
     public static string[] BuildDepartureStripFields(AircraftState ac, SimScenarioState scenario, bool displayDestinationAirportIds = false)
     {
-        var fields = new string[DepartureFieldCount];
-        for (var i = 0; i < DepartureFieldCount; i++)
+        string[] fields = new string[DepartureFieldCount];
+        for (int i = 0; i < DepartureFieldCount; i++)
         {
             fields[i] = "";
         }
@@ -326,8 +326,8 @@ public static class StripMutations
         // the destination appended ("KOAK KSTS") when the owning facility sets
         // displayDestinationAirportIds=true in its flightStripConfiguration.
         // Tower ATCTs typically enable this; Centers leave it off.
-        var dep = ac.FlightPlan.Departure ?? "";
-        var dest = ac.FlightPlan.Destination ?? "";
+        string dep = ac.FlightPlan.Departure ?? "";
+        string dest = ac.FlightPlan.Destination ?? "";
         fields[FieldIdx8A] = !displayDestinationAirportIds || string.IsNullOrEmpty(dest) ? dep : (string.IsNullOrEmpty(dep) ? dest : $"{dep} {dest}");
         fields[FieldIdxRouteRemarks] = FormatRouteField(ac);
         return fields;
@@ -349,14 +349,14 @@ public static class StripMutations
     {
         lock (state.Gate)
         {
-            var stripId = $"{DepartureStripIdPrefix}{ac.Callsign}";
-            if (state.Items.TryGetValue(stripId, out var existing))
+            string stripId = $"{DepartureStripIdPrefix}{ac.Callsign}";
+            if (state.Items.TryGetValue(stripId, out StripItemRecord? existing))
             {
                 MarkPrinted(state, stripId);
                 return existing;
             }
 
-            var fields = BuildDepartureStripFields(ac, scenario, displayDestinationAirportIds);
+            string[] fields = BuildDepartureStripFields(ac, scenario, displayDestinationAirportIds);
             var record = new StripItemRecord(stripId, ac.Callsign, DepartureStripType, false, fields, facilityId, "", 0, 0);
 
             state.Items[stripId] = record;
@@ -390,7 +390,7 @@ public static class StripMutations
 
         lock (state.Gate)
         {
-            var fields = BuildDepartureStripFields(ac, scenario, displayDestinationAirportIds);
+            string[] fields = BuildDepartureStripFields(ac, scenario, displayDestinationAirportIds);
             var record = new StripItemRecord(stripId, ac.Callsign, DepartureStripType, false, fields, facilityId, "", 0, 0);
 
             state.Items[stripId] = record;
@@ -428,14 +428,14 @@ public static class StripMutations
     /// </summary>
     private static string NewDepartureStripId(FlightStripState state, string callsign)
     {
-        var canonical = $"{DepartureStripIdPrefix}{callsign}";
+        string canonical = $"{DepartureStripIdPrefix}{callsign}";
         if (!state.Items.ContainsKey(canonical))
         {
             return canonical;
         }
-        for (var attempt = 0; attempt < 6; attempt++)
+        for (int attempt = 0; attempt < 6; attempt++)
         {
-            var candidate = $"{DepartureStripIdPrefix}{callsign}_{Guid.NewGuid().ToString("N")[..8]}";
+            string candidate = $"{DepartureStripIdPrefix}{callsign}_{Guid.NewGuid().ToString("N")[..8]}";
             if (!state.Items.ContainsKey(candidate))
             {
                 return candidate;
@@ -457,12 +457,12 @@ public static class StripMutations
         {
             var stale = state
                 .DeparturePrinterQueue.Where(id =>
-                    state.Items.TryGetValue(id, out var r)
+                    state.Items.TryGetValue(id, out StripItemRecord? r)
                     && r.Type == DepartureStripType
                     && string.Equals(r.AircraftId, callsign, StringComparison.Ordinal)
                 )
                 .ToList();
-            foreach (var id in stale)
+            foreach (string? id in stale)
             {
                 DeleteStrip(state, id);
             }
@@ -493,16 +493,16 @@ public static class StripMutations
 
         lock (state.Gate)
         {
-            var stripId = $"{DepartureStripIdPrefix}{ac.Callsign}";
-            if (state.Items.TryGetValue(stripId, out var existing))
+            string stripId = $"{DepartureStripIdPrefix}{ac.Callsign}";
+            if (state.Items.TryGetValue(stripId, out StripItemRecord? existing))
             {
                 MarkPrinted(state, stripId);
                 return existing;
             }
 
-            var fields = BuildDepartureStripFields(ac, scenario, displayDestinationAirportIds);
-            var row = EnsureRack(state, bayId, rack);
-            var index = row.Count;
+            string[] fields = BuildDepartureStripFields(ac, scenario, displayDestinationAirportIds);
+            List<string> row = EnsureRack(state, bayId, rack);
+            int index = row.Count;
             var record = new StripItemRecord(stripId, ac.Callsign, DepartureStripType, false, fields, facilityId, bayId, rack, index);
 
             state.Items[stripId] = record;
@@ -519,8 +519,8 @@ public static class StripMutations
     /// </summary>
     public static string[] BuildArrivalStripFields(AircraftState ac, SimScenarioState scenario, double etaMinutes)
     {
-        var fields = new string[DepartureFieldCount];
-        for (var i = 0; i < DepartureFieldCount; i++)
+        string[] fields = new string[DepartureFieldCount];
+        for (int i = 0; i < DepartureFieldCount; i++)
         {
             fields[i] = "";
         }
@@ -561,13 +561,13 @@ public static class StripMutations
 
         lock (state.Gate)
         {
-            if (state.Items.TryGetValue(stripId, out var existing))
+            if (state.Items.TryGetValue(stripId, out StripItemRecord? existing))
             {
                 MarkPrinted(state, stripId);
                 return existing;
             }
 
-            var fields = BuildArrivalStripFields(ac, scenario, etaMinutes);
+            string[] fields = BuildArrivalStripFields(ac, scenario, etaMinutes);
             var record = new StripItemRecord(stripId, ac.Callsign, ArrivalStripType, false, fields, facilityId, "", 0, 0);
 
             state.Items[stripId] = record;
@@ -599,7 +599,7 @@ public static class StripMutations
     {
         lock (state.Gate)
         {
-            var id = state.NextBlankId++;
+            int id = state.NextBlankId++;
             return $"BLANK_{id}";
         }
     }
@@ -620,9 +620,9 @@ public static class StripMutations
         // room, even one collision is an outlier; six chained collisions are
         // essentially impossible. If it ever happens we fall back to the
         // full GUID so we never block the caller.
-        for (var attempt = 0; attempt < 6; attempt++)
+        for (int attempt = 0; attempt < 6; attempt++)
         {
-            var candidate = prefix + Guid.NewGuid().ToString("N")[..8];
+            string candidate = prefix + Guid.NewGuid().ToString("N")[..8];
             if (state is null || !state.Items.ContainsKey(candidate))
             {
                 return candidate;
@@ -660,16 +660,16 @@ public static class StripMutations
         }
 
         AccessibleBay? bestMatch = null;
-        var bestTokenCount = 0;
+        int bestTokenCount = 0;
 
-        for (var len = Math.Min(tokens.Count, 6); len >= 1; len--)
+        for (int len = Math.Min(tokens.Count, 6); len >= 1; len--)
         {
-            var candidate = string.Join(' ', tokens.Take(len));
-            var normalized = candidate.Replace(" ", "", StringComparison.Ordinal);
+            string candidate = string.Join(' ', tokens.Take(len));
+            string normalized = candidate.Replace(" ", "", StringComparison.Ordinal);
 
-            foreach (var entry in accessibleBays)
+            foreach (AccessibleBay entry in accessibleBays)
             {
-                var bayNameNorm = entry.Bay.Name.Replace(" ", "", StringComparison.Ordinal);
+                string bayNameNorm = entry.Bay.Name.Replace(" ", "", StringComparison.Ordinal);
                 if (bayNameNorm.Equals(normalized, StringComparison.OrdinalIgnoreCase))
                 {
                     if (len > bestTokenCount)
@@ -692,15 +692,15 @@ public static class StripMutations
             return null;
         }
 
-        var remaining = tokens.Count - bestTokenCount;
-        var rack = 0;
+        int remaining = tokens.Count - bestTokenCount;
+        int rack = 0;
         int? index = null;
 
         if (remaining >= 1)
         {
             // 1-based rack on the wire → 0-based internal. "Rack 0" is not a
             // thing users can type; reject it so off-by-one bugs surface loudly.
-            if (!int.TryParse(tokens[bestTokenCount], out var rackOneBased) || rackOneBased < 1)
+            if (!int.TryParse(tokens[bestTokenCount], out int rackOneBased) || rackOneBased < 1)
             {
                 return null;
             }
@@ -711,7 +711,7 @@ public static class StripMutations
         {
             // 1-based index on the wire → 0-based internal. Omitting the token
             // entirely keeps Index null (→ HandleStripMoveAsync appends).
-            if (!int.TryParse(tokens[bestTokenCount + 1], out var indexOneBased) || indexOneBased < 1)
+            if (!int.TryParse(tokens[bestTokenCount + 1], out int indexOneBased) || indexOneBased < 1)
             {
                 return null;
             }
@@ -757,28 +757,28 @@ public static class StripMutations
         // off the raw string rather than the token list because a bay name may
         // contain spaces: "O90/BAY Sutro/1/1" tokenizes as ["O90/BAY", "Sutro/1/1"],
         // so the qualifier and the first word of the bay share a token.
-        var qualifierSlash = tokens[0].IndexOf('/');
+        int qualifierSlash = tokens[0].IndexOf('/');
         if (qualifierSlash <= 0)
         {
             return null;
         }
-        var facilityId = tokens[0][..qualifierSlash];
+        string facilityId = tokens[0][..qualifierSlash];
         var facilityBays = accessibleBays.Where(b => b.Owner.Id.Equals(facilityId, StringComparison.OrdinalIgnoreCase)).ToList();
         if (facilityBays.Count == 0)
         {
             return null;
         }
 
-        var remainderHead = tokens[0][(qualifierSlash + 1)..];
-        var droppedLeadingToken = remainderHead.Length == 0;
-        var inner = droppedLeadingToken ? tokens.Skip(1).ToList() : [remainderHead, .. tokens.Skip(1)];
-        var resolved = ResolveBayWithinFacility(inner, facilityBays);
+        string remainderHead = tokens[0][(qualifierSlash + 1)..];
+        bool droppedLeadingToken = remainderHead.Length == 0;
+        List<string> inner = droppedLeadingToken ? tokens.Skip(1).ToList() : [remainderHead, .. tokens.Skip(1)];
+        (AccessibleBay Bay, int Rack, int? Index, int TokensConsumed)? resolved = ResolveBayWithinFacility(inner, facilityBays);
         if (resolved is null)
         {
             return null;
         }
 
-        var consumed = resolved.Value.TokensConsumed + (droppedLeadingToken ? 1 : 0);
+        int consumed = resolved.Value.TokensConsumed + (droppedLeadingToken ? 1 : 0);
         return (resolved.Value.Bay.Bay, resolved.Value.Bay.Owner.Id, resolved.Value.Rack, resolved.Value.Index, consumed);
     }
 
@@ -802,11 +802,11 @@ public static class StripMutations
         // Find the first token containing '/'. Tokens before it (plus any part
         // of that token before the slash) form the bay name; the slash tail
         // goes on to parse as rack/index.
-        var slashTokIdx = -1;
-        var slashCharIdx = -1;
-        for (var i = 0; i < tokens.Count; i++)
+        int slashTokIdx = -1;
+        int slashCharIdx = -1;
+        for (int i = 0; i < tokens.Count; i++)
         {
-            var idx = tokens[i].IndexOf('/');
+            int idx = tokens[i].IndexOf('/');
             if (idx >= 0)
             {
                 slashTokIdx = i;
@@ -827,7 +827,7 @@ public static class StripMutations
         else
         {
             var sb = new System.Text.StringBuilder();
-            for (var i = 0; i < slashTokIdx; i++)
+            for (int i = 0; i < slashTokIdx; i++)
             {
                 if (i > 0)
                 {
@@ -853,11 +853,11 @@ public static class StripMutations
             return null;
         }
 
-        var bayNorm = bayPart.Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant();
+        string bayNorm = bayPart.Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant();
         AccessibleBay? match = null;
-        foreach (var entry in accessibleBays)
+        foreach (AccessibleBay entry in accessibleBays)
         {
-            var entryNorm = entry.Bay.Name.Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant();
+            string entryNorm = entry.Bay.Name.Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant();
             if (entryNorm == bayNorm)
             {
                 match = entry;
@@ -869,24 +869,24 @@ public static class StripMutations
             return null;
         }
 
-        var rack = 0;
+        int rack = 0;
         int? index = null;
         if (tail.Length > 0)
         {
-            var parts = tail.Split('/');
+            string[] parts = tail.Split('/');
             // tail starts with "/", so parts[0] is empty; parts[1] = rack, parts[2] = index.
             if (parts.Length is < 2 or > 3)
             {
                 return null;
             }
-            if (!int.TryParse(parts[1], out var rWire) || rWire < 1)
+            if (!int.TryParse(parts[1], out int rWire) || rWire < 1)
             {
                 return null;
             }
             rack = rWire - 1;
             if (parts.Length >= 3)
             {
-                if (!int.TryParse(parts[2], out var iWire) || iWire < 1)
+                if (!int.TryParse(parts[2], out int iWire) || iWire < 1)
                 {
                     return null;
                 }
@@ -909,10 +909,10 @@ public static class StripMutations
     /// </summary>
     internal static string FormatEquipment(AircraftState ac)
     {
-        var baseType = ac.FlightPlan.BaseAircraftType;
-        var suffix = ac.FlightPlan.EquipmentSuffix ?? "";
-        var cwt = WakeTurbulenceData.GetCwt(baseType);
-        var withSuffix = string.IsNullOrEmpty(suffix) ? baseType : $"{baseType}/{suffix}";
+        string baseType = ac.FlightPlan.BaseAircraftType;
+        string suffix = ac.FlightPlan.EquipmentSuffix ?? "";
+        string? cwt = WakeTurbulenceData.GetCwt(baseType);
+        string withSuffix = string.IsNullOrEmpty(suffix) ? baseType : $"{baseType}/{suffix}";
         return string.IsNullOrEmpty(cwt) ? withSuffix : $"{cwt}/{withSuffix}";
     }
 
@@ -959,7 +959,7 @@ public static class StripMutations
         {
             minutesUntilArrival = 0;
         }
-        var eta = scenario.SimTimeUtc.AddMinutes(minutesUntilArrival);
+        DateTime eta = scenario.SimTimeUtc.AddMinutes(minutesUntilArrival);
         return eta.ToString("HHmm", System.Globalization.CultureInfo.InvariantCulture);
     }
 
@@ -971,8 +971,8 @@ public static class StripMutations
     /// </summary>
     internal static string FormatDestRemarks(AircraftState ac)
     {
-        var head = ac.FlightPlan.Destination ?? "";
-        var remarks = ac.FlightPlan.Remarks ?? "";
+        string head = ac.FlightPlan.Destination ?? "";
+        string remarks = ac.FlightPlan.Remarks ?? "";
         if (string.IsNullOrEmpty(remarks))
         {
             return head;
@@ -999,11 +999,11 @@ public static class StripMutations
     /// </summary>
     internal static string FormatRouteField(AircraftState ac)
     {
-        var route = (ac.FlightPlan.Route ?? "").Trim();
-        var departure = (ac.FlightPlan.Departure ?? "").Trim();
-        var destination = (ac.FlightPlan.Destination ?? "").Trim();
+        string route = (ac.FlightPlan.Route ?? "").Trim();
+        string departure = (ac.FlightPlan.Departure ?? "").Trim();
+        string destination = (ac.FlightPlan.Destination ?? "").Trim();
 
-        var head = route;
+        string head = route;
         if (!string.IsNullOrEmpty(departure) && !StartsWithToken(head, departure))
         {
             head = string.IsNullOrEmpty(head) ? departure : departure + " " + head;
@@ -1013,7 +1013,7 @@ public static class StripMutations
             head = string.IsNullOrEmpty(head) ? destination : head + " " + destination;
         }
 
-        var remarks = ac.FlightPlan.Remarks ?? "";
+        string remarks = ac.FlightPlan.Remarks ?? "";
         if (string.IsNullOrEmpty(remarks))
         {
             return head;
@@ -1050,7 +1050,7 @@ public static class StripMutations
         {
             return false;
         }
-        var before = text.Length - token.Length;
+        int before = text.Length - token.Length;
         return before == 0 || char.IsWhiteSpace(text[before - 1]);
     }
 
@@ -1069,14 +1069,14 @@ public static class StripMutations
 
     private static List<string> EnsureRack(FlightStripState state, string bayId, int rack)
     {
-        if (!state.Bays.TryGetValue(bayId, out var racks))
+        if (!state.Bays.TryGetValue(bayId, out Dictionary<string, List<string>[]>? racks))
         {
             racks = new Dictionary<string, List<string>[]>();
             state.Bays[bayId] = racks;
         }
 
-        var key = rack.ToString();
-        if (!racks.TryGetValue(key, out var rackRows))
+        string key = rack.ToString();
+        if (!racks.TryGetValue(key, out List<string>[]? rackRows))
         {
             rackRows = [new List<string>()];
             racks[key] = rackRows;
@@ -1093,11 +1093,11 @@ public static class StripMutations
 
     private static void RemoveFromAllBaysLocked(FlightStripState state, string stripId)
     {
-        foreach (var racks in state.Bays.Values)
+        foreach (Dictionary<string, List<string>[]> racks in state.Bays.Values)
         {
-            foreach (var rackRows in racks.Values)
+            foreach (List<string>[] rackRows in racks.Values)
             {
-                foreach (var row in rackRows)
+                foreach (List<string> row in rackRows)
                 {
                     row.Remove(stripId);
                 }

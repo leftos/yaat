@@ -44,7 +44,7 @@ public class HoldingShortCrossingNearestEndVoiceTests
 
     private static string? VoicedCrossingReport(LatLon position)
     {
-        var ac = MakeAircraft(position);
+        AircraftState ac = MakeAircraft(position);
         var phase = new HoldingShortPhase(
             new HoldShortPoint
             {
@@ -61,23 +61,23 @@ public class HoldingShortCrossingNearestEndVoiceTests
     public void RpoCrossingReport_NamesNearestThresholdEnd()
     {
         TestVnasData.EnsureInitialized();
-        var db = NavigationDatabase.InstanceOrNull;
-        var end15 = db?.GetRunway("OAK", "15");
-        var end33 = db?.GetRunway("OAK", "33");
+        NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
+        RunwayInfo? end15 = db?.GetRunway("OAK", "15");
+        RunwayInfo? end33 = db?.GetRunway("OAK", "33");
         if (end15 is null || end33 is null)
         {
             return; // nav-data absent on this machine — skip
         }
 
         // Holding short near the 15 threshold → voice "runway one five", not the combined slash form.
-        var near15 = VoicedCrossingReport(new LatLon(end15.ThresholdLatitude, end15.ThresholdLongitude));
+        string? near15 = VoicedCrossingReport(new LatLon(end15.ThresholdLatitude, end15.ThresholdLongitude));
         Assert.NotNull(near15);
         Assert.Contains("holding short runway one five", near15, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("three three", near15, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("slash", near15, StringComparison.OrdinalIgnoreCase);
 
         // Holding short near the 33 threshold → voice "runway three three".
-        var near33 = VoicedCrossingReport(new LatLon(end33.ThresholdLatitude, end33.ThresholdLongitude));
+        string? near33 = VoicedCrossingReport(new LatLon(end33.ThresholdLatitude, end33.ThresholdLongitude));
         Assert.NotNull(near33);
         Assert.Contains("holding short runway three three", near33, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("one five", near33, StringComparison.OrdinalIgnoreCase);

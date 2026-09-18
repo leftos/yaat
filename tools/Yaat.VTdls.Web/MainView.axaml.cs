@@ -36,7 +36,7 @@ public partial class MainView : UserControl
         // Restore the dark-mode preference before the VTdlsView's AttachedToVisualTree
         // fires its ApplyTheme(), so the editor opens in the right palette on the very
         // first render rather than flashing light-then-dark.
-        var savedDarkMode = LoadSavedDarkMode();
+        bool savedDarkMode = LoadSavedDarkMode();
 
         var vm = new VTdlsViewModel(_connection, sendCommand: SendCommandAsync, getUserInitials: () => _queryParams.GetValueOrDefault("initials", ""))
         {
@@ -69,7 +69,7 @@ public partial class MainView : UserControl
         // new clearance requests land.
         vm.DclItems.CollectionChanged += (_, _) => RefreshPageTitle(vm);
 
-        var tdlsView = this.FindControl<UserControl>("TdlsView");
+        UserControl? tdlsView = this.FindControl<UserControl>("TdlsView");
         if (tdlsView is not null)
         {
             tdlsView.DataContext = vm;
@@ -140,7 +140,7 @@ public partial class MainView : UserControl
 
     private void SetStatus(string text)
     {
-        var bar = this.FindControl<TextBlock>("StatusBar");
+        TextBlock? bar = this.FindControl<TextBlock>("StatusBar");
         if (bar is not null)
         {
             bar.Text = text;
@@ -154,16 +154,16 @@ public partial class MainView : UserControl
         {
             return dict;
         }
-        var trimmed = search.StartsWith('?') ? search[1..] : search;
-        foreach (var pair in trimmed.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        string trimmed = search.StartsWith('?') ? search[1..] : search;
+        foreach (string pair in trimmed.Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
-            var eq = pair.IndexOf('=');
+            int eq = pair.IndexOf('=');
             if (eq < 0)
             {
                 continue;
             }
-            var key = Uri.UnescapeDataString(pair[..eq]);
-            var val = Uri.UnescapeDataString(pair[(eq + 1)..]);
+            string key = Uri.UnescapeDataString(pair[..eq]);
+            string val = Uri.UnescapeDataString(pair[(eq + 1)..]);
             dict[key] = val;
         }
         return dict;
@@ -178,7 +178,7 @@ public partial class MainView : UserControl
         {
             return;
         }
-        var resolvedInitials = !string.IsNullOrWhiteSpace(initials) ? initials : _queryParams.GetValueOrDefault("initials", "");
+        string resolvedInitials = !string.IsNullOrWhiteSpace(initials) ? initials : _queryParams.GetValueOrDefault("initials", "");
         try
         {
             await _connection.SendCommandAsync(callsign, command, resolvedInitials);
@@ -197,14 +197,14 @@ public partial class MainView : UserControl
     /// </summary>
     private async Task ConnectAndAutoJoinAsync(VTdlsViewModel vm)
     {
-        var serverUrl = _queryParams.GetValueOrDefault("server", App.LocationOrigin);
-        var initials = _queryParams.GetValueOrDefault("initials", "");
-        var artcc = _queryParams.GetValueOrDefault("artcc", "");
-        var explicitRoomId = _queryParams.GetValueOrDefault("room", "");
+        string serverUrl = _queryParams.GetValueOrDefault("server", App.LocationOrigin);
+        string initials = _queryParams.GetValueOrDefault("initials", "");
+        string artcc = _queryParams.GetValueOrDefault("artcc", "");
+        string explicitRoomId = _queryParams.GetValueOrDefault("room", "");
 
         try
         {
-            var what = string.IsNullOrEmpty(serverUrl) ? "(same-origin)" : serverUrl;
+            string what = string.IsNullOrEmpty(serverUrl) ? "(same-origin)" : serverUrl;
             Log.LogInformation("Connecting to {Server}", what);
             SetStatus($"Connecting to {what}...");
             await _connection.ConnectAsync(serverUrl);
@@ -226,7 +226,7 @@ public partial class MainView : UserControl
 
         try
         {
-            var room = await _connection.FindRoomForMyCidAsync();
+            BrowserTdlsRoomInfoDto? room = await _connection.FindRoomForMyCidAsync();
             if (room is null)
             {
                 Log.LogInformation("No active room found yet; will auto-join when one becomes available");
@@ -254,7 +254,7 @@ public partial class MainView : UserControl
     {
         try
         {
-            var state = await _connection.JoinRoomAsync(roomId, initials, artcc, ClientKind.VTdls);
+            BrowserTdlsJoinRoomResultDto? state = await _connection.JoinRoomAsync(roomId, initials, artcc, ClientKind.VTdls);
             if (state is null)
             {
                 Log.LogWarning("JoinRoom {RoomId} returned null state", roomId);
@@ -269,7 +269,8 @@ public partial class MainView : UserControl
             // SwitchFacilityAsync. A consolidated parent is never the default —
             // its merged page is an explicit choice, same as on the desktop.
             await vm.RefreshAccessibleFacilitiesAsync();
-            var firstFacility = vm.AccessibleFacilities.FirstOrDefault(f => !f.IsConsolidated) ?? vm.AccessibleFacilities.FirstOrDefault();
+            AccessibleFacilityDto? firstFacility =
+                vm.AccessibleFacilities.FirstOrDefault(f => !f.IsConsolidated) ?? vm.AccessibleFacilities.FirstOrDefault();
             if (firstFacility is not null)
             {
                 await vm.SwitchFacilityAsync(firstFacility.FacilityId);

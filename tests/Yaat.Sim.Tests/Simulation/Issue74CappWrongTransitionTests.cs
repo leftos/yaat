@@ -1,6 +1,9 @@
 ﻿using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -27,14 +30,14 @@ public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -54,39 +57,39 @@ public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
     [Fact]
     public void SelectBestTransition_UAL238_DoesNotMatchCcrViaBerks()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
             return;
         }
 
-        var navDb = TestVnasData.NavigationDb!;
+        NavigationDatabase navDb = TestVnasData.NavigationDb!;
 
         engine.Replay(recording, 400);
 
-        var aircraft = engine.FindAircraft("UAL238");
+        AircraftState? aircraft = engine.FindAircraft("UAL238");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"Route: {aircraft.FlightPlan.Route}");
         output.WriteLine($"NavRoute: {string.Join(" → ", aircraft.Targets.NavigationRoute.Select(n => n.Name))}");
 
-        var resolved = ApproachCommandHandler.ResolveApproach(null, null, aircraft);
+        ApproachCommandHandler.ResolvedApproach resolved = ApproachCommandHandler.ResolveApproach(null, null, aircraft);
         Assert.True(resolved.Success, $"Should resolve approach. Got: {resolved.Error}");
 
-        var procedure = resolved.Procedure!;
+        CifpApproachProcedure procedure = resolved.Procedure!;
         output.WriteLine($"Approach: {procedure.ApproachId} transitions: {string.Join(", ", procedure.Transitions.Keys)}");
-        foreach (var (name, transition) in procedure.Transitions)
+        foreach ((string? name, CifpTransition? transition) in procedure.Transitions)
         {
-            var legNames = transition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier);
+            IEnumerable<string> legNames = transition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier);
             output.WriteLine($"  Transition {name}: {string.Join(" → ", legNames)}");
         }
 
-        var commonFixNames = procedure.CommonLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier);
+        IEnumerable<string> commonFixNames = procedure.CommonLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier);
         output.WriteLine($"  Common legs: {string.Join(" → ", commonFixNames)}");
 
-        var selected = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
+        CifpTransition? selected = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
         output.WriteLine($"Selected transition: {selected?.Name ?? "(none)"}");
 
         // BERKS is a common leg fix — matching on it is a false positive.
@@ -102,8 +105,8 @@ public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
     [Fact]
     public void Capp_UAL238_CorrectApproachWithoutCcrTransition()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -112,24 +115,24 @@ public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
 
         engine.Replay(recording, 688);
 
-        var aircraft = engine.FindAircraft("UAL238");
+        AircraftState? aircraft = engine.FindAircraft("UAL238");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"Before CAPP: lat={aircraft.Position.Lat:F4} lon={aircraft.Position.Lon:F4} hdg={aircraft.TrueHeading.Degrees:F1}");
 
-        var result = engine.SendCommand("UAL238", "CAPP");
+        CommandResult result = engine.SendCommand("UAL238", "CAPP");
         output.WriteLine($"CAPP result: Success={result.Success} Message={result.Message}");
 
         Assert.True(result.Success, $"CAPP should succeed. Got: {result.Message}");
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.Equal("19L", aircraft.Phases.ActiveApproach.RunwayId);
 
-        foreach (var phase in aircraft.Phases.Phases)
+        foreach (Phase phase in aircraft.Phases.Phases)
         {
             output.WriteLine($"Phase: {phase.Name} ({phase.GetType().Name})");
         }
 
-        var navPhase = aircraft.Phases.Phases.OfType<ApproachNavigationPhase>().FirstOrDefault();
+        ApproachNavigationPhase? navPhase = aircraft.Phases.Phases.OfType<ApproachNavigationPhase>().FirstOrDefault();
         if (navPhase is not null)
         {
             var fixNames = navPhase.Fixes.Select(f => f.Name).ToList();

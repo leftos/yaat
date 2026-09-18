@@ -11,8 +11,8 @@ public class GroundParserTests
     [Fact]
     public void TaxiAtParking_DirectRoute()
     {
-        var cmd = CommandParser.Parse("TAXI @29");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI @29");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Empty(taxi.Path);
         Assert.Equal("29", taxi.DestinationParking);
         Assert.Null(taxi.DestinationRunway);
@@ -21,8 +21,8 @@ public class GroundParserTests
     [Fact]
     public void TaxiPathPlusParking()
     {
-        var cmd = CommandParser.Parse("TAXI TE T @29");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI TE T @29");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["TE", "T"], taxi.Path);
         Assert.Equal("29", taxi.DestinationParking);
     }
@@ -30,8 +30,8 @@ public class GroundParserTests
     [Fact]
     public void TaxiParkingWithHoldShort()
     {
-        var cmd = CommandParser.Parse("TAXI TE @B3 HS 30");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI TE @B3 HS 30");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["TE"], taxi.Path);
         Assert.Equal("B3", taxi.DestinationParking);
         Assert.Equal(["30"], taxi.HoldShorts.Select(h => h.ToCanonical()));
@@ -40,8 +40,8 @@ public class GroundParserTests
     [Fact]
     public void TaxiNormalPath_NoParkingSet()
     {
-        var cmd = CommandParser.Parse("TAXI TE T U W");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI TE T U W");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["TE", "T", "U", "W"], taxi.Path);
         Assert.Null(taxi.DestinationParking);
     }
@@ -51,8 +51,8 @@ public class GroundParserTests
     [Fact]
     public void LandAtSpot_HasAtPrefix()
     {
-        var cmd = CommandParser.Parse("LAND @H1");
-        var land = Assert.IsType<LandCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("LAND @H1");
+        LandCommand land = Assert.IsType<LandCommand>(cmd.Value);
         Assert.Equal("H1", land.SpotName);
         Assert.False(land.IsTaxiway);
     }
@@ -60,8 +60,8 @@ public class GroundParserTests
     [Fact]
     public void LandOnTaxiway_NoAtPrefix()
     {
-        var cmd = CommandParser.Parse("LAND TE");
-        var land = Assert.IsType<LandCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("LAND TE");
+        LandCommand land = Assert.IsType<LandCommand>(cmd.Value);
         Assert.Equal("TE", land.SpotName);
         Assert.True(land.IsTaxiway);
     }
@@ -69,8 +69,8 @@ public class GroundParserTests
     [Fact]
     public void LandAtSpot_WithNoDel()
     {
-        var cmd = CommandParser.Parse("LAND @H1 NODEL");
-        var land = Assert.IsType<LandCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("LAND @H1 NODEL");
+        LandCommand land = Assert.IsType<LandCommand>(cmd.Value);
         Assert.Equal("H1", land.SpotName);
         Assert.False(land.IsTaxiway);
         Assert.True(land.NoDelete);
@@ -79,8 +79,8 @@ public class GroundParserTests
     [Fact]
     public void LandOnTaxiway_WithNoDel()
     {
-        var cmd = CommandParser.Parse("LAND TE NODEL");
-        var land = Assert.IsType<LandCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("LAND TE NODEL");
+        LandCommand land = Assert.IsType<LandCommand>(cmd.Value);
         Assert.Equal("TE", land.SpotName);
         Assert.True(land.IsTaxiway);
         Assert.True(land.NoDelete);
@@ -93,22 +93,22 @@ public class GroundParserTests
     [Fact]
     public void Land_BadSecondToken_Fails()
     {
-        var cmd = CommandParser.Parse("LAND TE FOO");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("LAND TE FOO");
         Assert.False(cmd.IsSuccess);
     }
 
     [Fact]
     public void Land_ExtraTokens_Fails()
     {
-        var cmd = CommandParser.Parse("LAND TE NODEL EXTRA");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("LAND TE NODEL EXTRA");
         Assert.False(cmd.IsSuccess);
     }
 
     [Fact]
     public void Exit_WithNoDel_SetsNoDelete()
     {
-        var cmd = CommandParser.Parse("EXIT B NODEL");
-        var exit = Assert.IsType<ExitTaxiwayCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("EXIT B NODEL");
+        ExitTaxiwayCommand exit = Assert.IsType<ExitTaxiwayCommand>(cmd.Value);
         Assert.Equal("B", exit.Taxiway);
         Assert.True(exit.NoDelete);
     }
@@ -116,14 +116,14 @@ public class GroundParserTests
     [Fact]
     public void Exit_BadSecondToken_Fails()
     {
-        var cmd = CommandParser.Parse("EXIT B FOO");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("EXIT B FOO");
         Assert.False(cmd.IsSuccess);
     }
 
     [Fact]
     public void Exit_ExtraTokens_Fails()
     {
-        var cmd = CommandParser.Parse("EXIT B NODEL EXTRA");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("EXIT B NODEL EXTRA");
         Assert.False(cmd.IsSuccess);
     }
 
@@ -132,32 +132,32 @@ public class GroundParserTests
     [Fact]
     public void RwyStandalone_ReturnsAssignRunway()
     {
-        var cmd = CommandParser.Parse("RWY 30");
-        var assign = Assert.IsType<AssignRunwayCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("RWY 30");
+        AssignRunwayCommand assign = Assert.IsType<AssignRunwayCommand>(cmd.Value);
         Assert.Equal("30", assign.RunwayId);
     }
 
     [Fact]
     public void RwyStandalone_WithSuffix_ReturnsAssignRunway()
     {
-        var cmd = CommandParser.Parse("RWY 28L");
-        var assign = Assert.IsType<AssignRunwayCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("RWY 28L");
+        AssignRunwayCommand assign = Assert.IsType<AssignRunwayCommand>(cmd.Value);
         Assert.Equal("28L", assign.RunwayId);
     }
 
     [Fact]
     public void RwyWithTaxiKeyword_NoPath_ReturnsAssignRunway()
     {
-        var cmd = CommandParser.Parse("RWY 30 TAXI");
-        var assign = Assert.IsType<AssignRunwayCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("RWY 30 TAXI");
+        AssignRunwayCommand assign = Assert.IsType<AssignRunwayCommand>(cmd.Value);
         Assert.Equal("30", assign.RunwayId);
     }
 
     [Fact]
     public void RwyWithPath_ReturnsTaxiCommand()
     {
-        var cmd = CommandParser.Parse("RWY 30 T U W");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("RWY 30 T U W");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["T", "U", "W"], taxi.Path);
         Assert.Equal("30", taxi.DestinationRunway);
     }
@@ -165,8 +165,8 @@ public class GroundParserTests
     [Fact]
     public void RwyWithTaxiKeywordAndPath_ReturnsTaxiCommand()
     {
-        var cmd = CommandParser.Parse("RWY 30 TAXI D C B");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("RWY 30 TAXI D C B");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["D", "C", "B"], taxi.Path);
         Assert.Equal("30", taxi.DestinationRunway);
     }
@@ -176,8 +176,8 @@ public class GroundParserTests
     [Fact]
     public void TaxiWithCross_SingleRunway()
     {
-        var cmd = CommandParser.Parse("TAXI C B T U W CROSS 28R");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI C B T U W CROSS 28R");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["C", "B", "T", "U", "W"], taxi.Path);
         Assert.Null(taxi.DestinationRunway);
         Assert.Equal(["28R"], taxi.CrossRunways);
@@ -186,8 +186,8 @@ public class GroundParserTests
     [Fact]
     public void TaxiWithCross_TwoRunways()
     {
-        var cmd = CommandParser.Parse("TAXI C B T U W CROSS 28R 28L");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI C B T U W CROSS 28R 28L");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["C", "B", "T", "U", "W"], taxi.Path);
         Assert.Null(taxi.DestinationRunway);
         Assert.Equal(["28R", "28L"], taxi.CrossRunways);
@@ -196,8 +196,8 @@ public class GroundParserTests
     [Fact]
     public void TaxiWithCrossAndHoldShort()
     {
-        var cmd = CommandParser.Parse("TAXI C B T U W CROSS 28R HS 28L");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI C B T U W CROSS 28R HS 28L");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["C", "B", "T", "U", "W"], taxi.Path);
         Assert.Equal(["28R"], taxi.CrossRunways);
         Assert.Equal(["28L"], taxi.HoldShorts.Select(h => h.ToCanonical()));
@@ -206,16 +206,16 @@ public class GroundParserTests
     [Fact]
     public void TaxiWithCross_NoCrossRunways_WhenKeywordAbsent()
     {
-        var cmd = CommandParser.Parse("TAXI C B T U W");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI C B T U W");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Null(taxi.CrossRunways);
     }
 
     [Fact]
     public void RwyTaxiWithCross()
     {
-        var cmd = CommandParser.Parse("RWY 30 TAXI C B T U W CROSS 28R");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("RWY 30 TAXI C B T U W CROSS 28R");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["C", "B", "T", "U", "W"], taxi.Path);
         Assert.Equal("30", taxi.DestinationRunway);
         Assert.Equal(["28R"], taxi.CrossRunways);
@@ -231,8 +231,8 @@ public class GroundParserTests
     [Fact]
     public void TaxiWithCross_MultipleRunways_ThenExplicitDestinationRunway()
     {
-        var cmd = CommandParser.Parse("TAXI T6A A F CROSS 1L 1R RWY 28L");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI T6A A F CROSS 1L 1R RWY 28L");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["T6A", "A", "F"], taxi.Path);
         Assert.Equal(["1L", "1R"], taxi.CrossRunways);
         Assert.Equal("28L", taxi.DestinationRunway);
@@ -243,24 +243,24 @@ public class GroundParserTests
     [Fact]
     public void TaxiNodeRef_InPath()
     {
-        var cmd = CommandParser.Parse("TAXI #42");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI #42");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["#42"], taxi.Path);
     }
 
     [Fact]
     public void TaxiNodeRef_MultipleMixed()
     {
-        var cmd = CommandParser.Parse("TAXI A #42 B");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI A #42 B");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["A", "#42", "B"], taxi.Path);
     }
 
     [Fact]
     public void TaxiNodeRef_WithHoldShort()
     {
-        var cmd = CommandParser.Parse("TAXI #42 #18 HS 28L");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI #42 #18 HS 28L");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["#42", "#18"], taxi.Path);
         Assert.Equal(["28L"], taxi.HoldShorts.Select(h => h.ToCanonical()));
     }
@@ -268,8 +268,8 @@ public class GroundParserTests
     [Fact]
     public void TaxiNodeRef_TrailingNotMistakenForRunway()
     {
-        var cmd = CommandParser.Parse("TAXI #42 #30");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI #42 #30");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["#42", "#30"], taxi.Path);
         Assert.Null(taxi.DestinationRunway);
     }
@@ -277,8 +277,8 @@ public class GroundParserTests
     [Fact]
     public void TaxiNodeRef_WithCross()
     {
-        var cmd = CommandParser.Parse("TAXI #42 #18 CROSS 28R");
-        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI #42 #18 CROSS 28R");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
         Assert.Equal(["#42", "#18"], taxi.Path);
         Assert.Equal(["28R"], taxi.CrossRunways);
     }
@@ -288,8 +288,8 @@ public class GroundParserTests
     [Fact]
     public void Push_Bare()
     {
-        var cmd = CommandParser.Parse("PUSH");
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("PUSH");
+        PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
         Assert.Null(push.MagneticHeading);
         Assert.Null(push.Taxiway);
         Assert.Null(push.FacingTaxiway);
@@ -300,8 +300,8 @@ public class GroundParserTests
     [Fact]
     public void Push_TaxiwayOnly()
     {
-        var cmd = CommandParser.Parse("PUSH TE");
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("PUSH TE");
+        PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
         Assert.Equal("TE", push.Taxiway);
         Assert.Null(push.MagneticHeading);
         Assert.Null(push.FacingTaxiway);
@@ -310,8 +310,8 @@ public class GroundParserTests
     [Fact]
     public void Push_TaxiwayFacingTaxiway_KeepsLegacyForm()
     {
-        var cmd = CommandParser.Parse("PUSH TE T");
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("PUSH TE T");
+        PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
         Assert.Equal("TE", push.Taxiway);
         Assert.Equal("T", push.FacingTaxiway);
         Assert.Null(push.MagneticHeading);
@@ -328,8 +328,8 @@ public class GroundParserTests
     [InlineData("PUSH FACE NW", 315)]
     public void Push_FaceCardinal(string input, int expectedDeg)
     {
-        var cmd = CommandParser.Parse(input);
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+        PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
         Assert.NotNull(push.MagneticHeading);
         Assert.Equal(expectedDeg, push.MagneticHeading!.Value.ToDisplayInt());
         Assert.Null(push.Taxiway);
@@ -344,8 +344,8 @@ public class GroundParserTests
     [InlineData("PUSH TAIL SW", 45)]
     public void Push_TailCardinal_StoresReciprocalAsFacing(string input, int expectedDeg)
     {
-        var cmd = CommandParser.Parse(input);
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+        PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
         Assert.NotNull(push.MagneticHeading);
         Assert.Equal(expectedDeg, push.MagneticHeading!.Value.ToDisplayInt());
     }
@@ -360,8 +360,8 @@ public class GroundParserTests
     [InlineData("PUSH <NE", 225)]
     public void Push_ArrowCardinal(string input, int expectedDeg)
     {
-        var cmd = CommandParser.Parse(input);
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+        PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
         Assert.NotNull(push.MagneticHeading);
         Assert.Equal(expectedDeg, push.MagneticHeading!.Value.ToDisplayInt());
     }
@@ -369,8 +369,8 @@ public class GroundParserTests
     [Fact]
     public void Push_TaxiwayPlusFaceCardinal()
     {
-        var cmd = CommandParser.Parse("PUSH TE FACE E");
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("PUSH TE FACE E");
+        PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
         Assert.Equal("TE", push.Taxiway);
         Assert.Equal(90, push.MagneticHeading!.Value.ToDisplayInt());
         Assert.Null(push.FacingTaxiway);
@@ -379,8 +379,8 @@ public class GroundParserTests
     [Fact]
     public void Push_TaxiwayPlusTailCardinal()
     {
-        var cmd = CommandParser.Parse("PUSH TE TAIL W");
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("PUSH TE TAIL W");
+        PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
         Assert.Equal("TE", push.Taxiway);
         Assert.Equal(90, push.MagneticHeading!.Value.ToDisplayInt());
     }
@@ -388,8 +388,8 @@ public class GroundParserTests
     [Fact]
     public void Push_TaxiwayPlusArrow()
     {
-        var cmd = CommandParser.Parse("PUSH TE <E");
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("PUSH TE <E");
+        PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
         Assert.Equal("TE", push.Taxiway);
         Assert.Equal(270, push.MagneticHeading!.Value.ToDisplayInt());
     }
@@ -400,7 +400,7 @@ public class GroundParserTests
     [InlineData("PUSH @A10 >W")]
     public void Push_ParkingPlusFacing_Refused(string input)
     {
-        var cmd = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
 
         Assert.False(cmd.IsSuccess, $"'{input}' parsed as {cmd.Value}");
         Assert.Contains("PUSH @A10 does not take a facing — the aircraft parks on the stand's own heading", cmd.Reason, StringComparison.Ordinal);
@@ -409,8 +409,8 @@ public class GroundParserTests
     [Fact]
     public void Push_SpotPlusTail()
     {
-        var cmd = CommandParser.Parse("PUSH $7A TAIL W");
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("PUSH $7A TAIL W");
+        PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
         Assert.Equal("7A", push.DestinationSpot);
         Assert.Equal(90, push.MagneticHeading!.Value.ToDisplayInt());
     }
@@ -419,8 +419,8 @@ public class GroundParserTests
     public void Push_BareTaxiwayN_StillParsesAsTaxiway()
     {
         // 'N' without a marker is treated as a taxiway name (regression guard).
-        var cmd = CommandParser.Parse("PUSH N");
-        var push = Assert.IsType<PushbackCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("PUSH N");
+        PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
         Assert.Equal("N", push.Taxiway);
         Assert.Null(push.MagneticHeading);
     }
@@ -428,7 +428,7 @@ public class GroundParserTests
     [Fact]
     public void Push_NumericHeading_Rejected()
     {
-        var cmd = CommandParser.Parse("PUSH 180");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("PUSH 180");
         Assert.False(cmd.IsSuccess);
     }
 
@@ -436,7 +436,7 @@ public class GroundParserTests
     public void Push_TaxiwayPlusNumeric_Rejected()
     {
         // After the cardinal rewrite, two-token form with numeric second token is not valid.
-        var cmd = CommandParser.Parse("PUSH TE 180");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("PUSH TE 180");
         Assert.False(cmd.IsSuccess);
     }
 
@@ -449,7 +449,7 @@ public class GroundParserTests
     [InlineData("PUSH TE FACE XY")]
     public void Push_MalformedOrientation_Fails(string input)
     {
-        var cmd = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
         Assert.False(cmd.IsSuccess);
     }
 
@@ -458,8 +458,8 @@ public class GroundParserTests
     [Fact]
     public void Cross_BareNoArgument()
     {
-        var cmd = CommandParser.Parse("CROSS");
-        var cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CROSS");
+        CrossRunwayCommand cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
         Assert.Empty(cross.RunwayIds);
         Assert.Empty(cross.HoldShorts);
     }
@@ -467,8 +467,8 @@ public class GroundParserTests
     [Fact]
     public void Cross_NamedRunway()
     {
-        var cmd = CommandParser.Parse("CROSS 28R");
-        var cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CROSS 28R");
+        CrossRunwayCommand cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
         Assert.Equal("28R", Assert.Single(cross.RunwayIds));
         Assert.Empty(cross.HoldShorts);
     }
@@ -476,16 +476,16 @@ public class GroundParserTests
     [Fact]
     public void Cross_NamedRunwayLowercase_UppercasesArgument()
     {
-        var cmd = CommandParser.Parse("CROSS 28r");
-        var cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CROSS 28r");
+        CrossRunwayCommand cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
         Assert.Equal("28R", Assert.Single(cross.RunwayIds));
     }
 
     [Fact]
     public void Cross_TwoRunways_ParsesBothInOrder()
     {
-        var cmd = CommandParser.Parse("CROSS 28R 28L");
-        var cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CROSS 28R 28L");
+        CrossRunwayCommand cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
         Assert.Equal(["28R", "28L"], cross.RunwayIds);
         Assert.Empty(cross.HoldShorts);
     }
@@ -493,8 +493,8 @@ public class GroundParserTests
     [Fact]
     public void Cross_RunwayWithHoldShort_SplitsAtHsKeyword()
     {
-        var cmd = CommandParser.Parse("CROSS 28R HS 20");
-        var cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CROSS 28R HS 20");
+        CrossRunwayCommand cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
         Assert.Equal(["28R"], cross.RunwayIds);
         Assert.Equal(["20"], cross.HoldShorts.Select(h => h.ToCanonical()));
     }
@@ -502,8 +502,8 @@ public class GroundParserTests
     [Fact]
     public void Cross_MultipleRunwaysAndHoldShorts()
     {
-        var cmd = CommandParser.Parse("CROSS 28R 28L HS 20 B");
-        var cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CROSS 28R 28L HS 20 B");
+        CrossRunwayCommand cross = Assert.IsType<CrossRunwayCommand>(cmd.Value);
         Assert.Equal(["28R", "28L"], cross.RunwayIds);
         Assert.Equal(["20", "B"], cross.HoldShorts.Select(h => h.ToCanonical()));
     }
@@ -511,7 +511,7 @@ public class GroundParserTests
     [Fact]
     public void Cross_HsKeywordWithNoTarget_Fails()
     {
-        var cmd = CommandParser.Parse("CROSS 28R HS");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CROSS 28R HS");
         Assert.False(cmd.IsSuccess);
     }
 
@@ -521,7 +521,7 @@ public class GroundParserTests
         var cmd = new CrossRunwayCommand(["28R", "28L"], [HoldShortTarget.Parse("20")]);
         Assert.Equal("CROSS 28R 28L HS 20", CommandDescriber.DescribeCommand(cmd));
 
-        var reparsed = Assert.IsType<CrossRunwayCommand>(CommandParser.Parse("CROSS 28R 28L HS 20").Value);
+        CrossRunwayCommand reparsed = Assert.IsType<CrossRunwayCommand>(CommandParser.Parse("CROSS 28R 28L HS 20").Value);
         Assert.Equal(["28R", "28L"], reparsed.RunwayIds);
         Assert.Equal(["20"], reparsed.HoldShorts.Select(h => h.ToCanonical()));
     }

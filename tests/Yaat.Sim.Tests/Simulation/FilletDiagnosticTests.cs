@@ -74,8 +74,8 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
     [Fact]
     public void SKW3078_TaxiAtoB10_AdvancesPastFormerStallSegment()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -87,7 +87,7 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
         for (int t = 1; t <= 180; t++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft("SKW3078");
+            AircraftState? ac = engine.FindAircraft("SKW3078");
             if (ac?.Ground.AssignedTaxiRoute is { } route)
             {
                 if (route.CurrentSegmentIndex > maxSegReached)
@@ -116,7 +116,7 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
     [Fact]
     public void SFO_FilletArcs_TTerminalStubs_EachHaveTwoNonDegenerateArcs()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
         {
             return;
@@ -127,7 +127,7 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
             var arcs = layout.AllEdges.OfType<GroundArc>().Where(a => a.MatchesTaxiway("A") && a.MatchesTaxiway(stubTaxiway)).ToList();
 
             output.WriteLine($"A/{stubTaxiway}: {arcs.Count} junction arcs");
-            foreach (var arc in arcs)
+            foreach (GroundArc? arc in arcs)
             {
                 output.WriteLine(
                     $"  #{arc.Nodes[0].Id}->{arc.Nodes[1].Id} "
@@ -137,7 +137,7 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
             }
 
             Assert.True(arcs.Count >= 2, $"A/{stubTaxiway}: expected ≥2 arcs, got {arcs.Count}");
-            foreach (var arc in arcs)
+            foreach (GroundArc? arc in arcs)
             {
                 Assert.True(
                     arc.MinRadiusOfCurvatureFt > 1.0,
@@ -157,20 +157,20 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
     [Fact]
     public void OAK_GDJunction_AllArcsHaveNonDegenerateRadius()
     {
-        var layout = LoadOak();
+        AirportGroundLayout? layout = LoadOak();
         if (layout is null)
         {
             return;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(1208, out var node), "OAK node 1208 not found");
+        Assert.True(layout.Nodes.TryGetValue(1208, out GroundNode? node), "OAK node 1208 not found");
 
         var arcs = node!.Edges.OfType<GroundArc>().ToList();
         output.WriteLine($"OAK #1208: {arcs.Count} arcs");
 
-        foreach (var arc in arcs)
+        foreach (GroundArc? arc in arcs)
         {
-            var other = arc.Nodes[0].Id == node.Id ? arc.Nodes[1] : arc.Nodes[0];
+            GroundNode other = arc.Nodes[0].Id == node.Id ? arc.Nodes[1] : arc.Nodes[0];
             double maxSafe = arc.MaxSafeSpeedKts(AircraftCategory.Jet);
             output.WriteLine($"  -> #{other.Id} {arc.TaxiwayName} radius={arc.MinRadiusOfCurvatureFt:F1}ft maxSafe={maxSafe:F1}kt");
 
@@ -199,12 +199,12 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
                 continue;
             }
 
-            var layout = GeoJsonParser.Parse(airport, File.ReadAllText(path), null);
+            AirportGroundLayout layout = GeoJsonParser.Parse(airport, File.ReadAllText(path), null);
             int badCount = 0;
             int genuineTurnCount = 0;
             int collinearExemptCount = 0;
 
-            foreach (var arc in layout.Arcs)
+            foreach (GroundArc arc in layout.Arcs)
             {
                 double maxSafe = arc.MaxSafeSpeedKts(AircraftCategory.Jet);
 

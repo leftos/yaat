@@ -20,9 +20,9 @@ internal static class HeadlessWindowExtensions
     {
         window.MouseDown(from, MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
-        for (var i = 1; i <= steps; i++)
+        for (int i = 1; i <= steps; i++)
         {
-            var t = (double)i / steps;
+            double t = (double)i / steps;
             // LeftMouseButton modifier is load-bearing: the drag handlers
             // read IsLeftButtonPressed from the point properties, and the
             // headless device does not infer held buttons on plain moves.

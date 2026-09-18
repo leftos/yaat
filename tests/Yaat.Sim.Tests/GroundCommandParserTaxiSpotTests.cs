@@ -18,10 +18,10 @@ public class GroundCommandParserTaxiSpotTests
     [Fact]
     public void ParseTaxi_DollarSpotBeforeHs_Sets_DestinationSpot()
     {
-        var result = GroundCommandParser.ParseTaxi("T9 A F $I8L HS 01L");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("T9 A F $I8L HS 01L");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
 
         Assert.Equal("I8L", taxi.DestinationSpot);
         Assert.Null(taxi.DestinationParking);
@@ -32,10 +32,10 @@ public class GroundCommandParserTaxiSpotTests
     [Fact]
     public void ParseTaxi_AtParkingBeforeHs_Sets_DestinationParking()
     {
-        var result = GroundCommandParser.ParseTaxi("T9 A F @A12 HS 01L");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("T9 A F @A12 HS 01L");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
 
         Assert.Equal("A12", taxi.DestinationParking);
         Assert.Null(taxi.DestinationSpot);
@@ -49,10 +49,10 @@ public class GroundCommandParserTaxiSpotTests
     [Fact]
     public void ParseTaxiAuto_DollarSpot_Sets_DestinationSpot()
     {
-        var result = GroundCommandParser.ParseTaxiAuto("$I8L");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxiAuto("$I8L");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var taxiAuto = Assert.IsType<TaxiAutoCommand>(result.Value);
+        TaxiAutoCommand taxiAuto = Assert.IsType<TaxiAutoCommand>(result.Value);
 
         Assert.Equal("I8L", taxiAuto.DestinationSpot);
         Assert.Null(taxiAuto.DestinationParking);
@@ -65,7 +65,7 @@ public class GroundCommandParserTaxiSpotTests
     [InlineData("TAXIAUTO 28R", "TAXIAUTO 28R")]
     public void TaxiAutoCanonical_RoundTripsEveryDestination(string input, string expected)
     {
-        var parsed = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         Assert.Equal(expected, CommandDescriber.DescribeCommand(parsed.Value!));
     }
@@ -75,14 +75,14 @@ public class GroundCommandParserTaxiSpotTests
     public void TryTaxiAuto_DollarSpot_RoutesToTheSpot()
     {
         TestVnasData.EnsureInitialized();
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
         }
 
-        var spot = layout.Nodes.Values.OrderBy(n => n.Id).First(n => (n.Type == GroundNodeType.Spot) && (n.Name is { Length: > 0 }));
-        var parking = layout.Nodes.Values.First(n =>
+        GroundNode spot = layout.Nodes.Values.OrderBy(n => n.Id).First(n => (n.Type == GroundNodeType.Spot) && (n.Name is { Length: > 0 }));
+        GroundNode parking = layout.Nodes.Values.First(n =>
             (n.Type == GroundNodeType.Parking) && string.Equals(n.Name, "NEW7", StringComparison.OrdinalIgnoreCase)
         );
 
@@ -99,7 +99,7 @@ public class GroundCommandParserTaxiSpotTests
         ac.Ground.Layout = layout;
         ac.Phases = new PhaseList();
 
-        var result = GroundCommandHandler.TryTaxiAuto(ac, new TaxiAutoCommand(null, null, spot.Name), layout);
+        CommandResult result = GroundCommandHandler.TryTaxiAuto(ac, new TaxiAutoCommand(null, null, spot.Name), layout);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(spot.Name, ac.Ground.AssignedTaxiRoute?.DestinationSpot);
@@ -108,10 +108,10 @@ public class GroundCommandParserTaxiSpotTests
     [Fact]
     public void ParseTaxi_BareDollarSpot_Sets_DestinationSpot()
     {
-        var result = GroundCommandParser.ParseTaxi("$I8L");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("$I8L");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
 
         Assert.Equal("I8L", taxi.DestinationSpot);
         Assert.Null(taxi.DestinationParking);
@@ -122,17 +122,17 @@ public class GroundCommandParserTaxiSpotTests
     [Fact]
     public void ParseTaxi_DollarSpotInsideHs_IsSpotHoldShort()
     {
-        var result = GroundCommandParser.ParseTaxi("T421 C Z B M1 1L HS $17");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("T421 C Z B M1 1L HS $17");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
 
         Assert.Equal(["T421", "C", "Z", "B", "M1"], taxi.Path);
         Assert.Equal("1L", taxi.DestinationRunway);
         Assert.Null(taxi.DestinationSpot);
         Assert.Null(taxi.DestinationParking);
 
-        var hs = Assert.Single(taxi.HoldShorts);
+        HoldShortTarget hs = Assert.Single(taxi.HoldShorts);
         Assert.True(hs.IsSpot);
         Assert.Equal("17", hs.Target);
         Assert.Null(hs.OnTaxiway);
@@ -144,10 +144,10 @@ public class GroundCommandParserTaxiSpotTests
     [Fact]
     public void ParseTaxi_DestinationSpotThenHsSameSpot_KeepsBoth()
     {
-        var result = GroundCommandParser.ParseTaxi("K $8 HS $8");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("K $8 HS $8");
 
         Assert.True(result.IsSuccess, result.Reason);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
 
         Assert.Equal(["K"], taxi.Path);
         Assert.Equal("8", taxi.DestinationSpot);
@@ -157,7 +157,7 @@ public class GroundCommandParserTaxiSpotTests
     [Fact]
     public void ParseTaxi_ParkingInsideHs_Fails()
     {
-        var result = GroundCommandParser.ParseTaxi("T9 A F HS 01L @A12");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("T9 A F HS 01L @A12");
 
         Assert.False(result.IsSuccess);
         Assert.Contains("cannot be a hold-short target", result.Reason);
@@ -169,7 +169,7 @@ public class GroundCommandParserTaxiSpotTests
     [InlineData("HS $17")]
     public void Parse_SpotHoldShort_InEveryHsClause(string input)
     {
-        var parsed = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
         Assert.True(parsed.IsSuccess, $"'{input}' failed to parse: {parsed.Reason}");
 
         IReadOnlyList<HoldShortTarget> holdShorts = parsed.Value switch
@@ -180,7 +180,7 @@ public class GroundCommandParserTaxiSpotTests
             _ => throw new Xunit.Sdk.XunitException($"unexpected command type {parsed.Value?.GetType().Name}"),
         };
 
-        var target = Assert.Single(holdShorts);
+        HoldShortTarget target = Assert.Single(holdShorts);
         Assert.True(target.IsSpot);
         Assert.Equal("17", target.Target);
         Assert.Equal(input, CommandDescriber.DescribeCommand(parsed.Value!));

@@ -34,12 +34,12 @@ public static class FilletGraphNormalizer
 
     private static void RecomputeDistances(AirportGroundLayout layout)
     {
-        foreach (var edge in layout.Edges)
+        foreach (GroundEdge edge in layout.Edges)
         {
             edge.DistanceNm = GeoMath.DistanceNm(edge.Nodes[0].Position, edge.Nodes[1].Position);
         }
 
-        foreach (var arc in layout.Arcs)
+        foreach (GroundArc arc in layout.Arcs)
         {
             var bezier = new CubicBezier(
                 arc.Nodes[0].Position.Lat,

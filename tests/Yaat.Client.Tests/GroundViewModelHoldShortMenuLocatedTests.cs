@@ -39,17 +39,17 @@ public class GroundViewModelHoldShortMenuLocatedTests
 
     private static (GroundViewModel Vm, AircraftModel Ac, AirportGroundLayout Layout) MakeDoubleCrossingFixture()
     {
-        var n0 = Node(0, 37.700, -122.200);
-        var n1 = Node(1, 37.702, -122.200);
-        var n2 = Node(2, 37.704, -122.200);
-        var n3 = Node(3, 37.704, -122.203);
-        var n4 = Node(4, 37.704, -122.206);
-        var x1 = Node(5, 37.702, -122.198);
-        var x2 = Node(6, 37.706, -122.203);
-        var c1 = Node(7, 37.702, -122.206);
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.702, -122.200);
+        GroundNode n2 = Node(2, 37.704, -122.200);
+        GroundNode n3 = Node(3, 37.704, -122.203);
+        GroundNode n4 = Node(4, 37.704, -122.206);
+        GroundNode x1 = Node(5, 37.702, -122.198);
+        GroundNode x2 = Node(6, 37.706, -122.203);
+        GroundNode c1 = Node(7, 37.702, -122.206);
 
         var layout = new AirportGroundLayout { AirportId = "TEST" };
-        foreach (var n in new[] { n0, n1, n2, n3, n4, x1, x2, c1 })
+        foreach (GroundNode? n in new[] { n0, n1, n2, n3, n4, x1, x2, c1 })
         {
             layout.Nodes[n.Id] = n;
         }
@@ -81,8 +81,8 @@ public class GroundViewModelHoldShortMenuLocatedTests
     [Fact]
     public void Fixture_RouteReconstructionResolves()
     {
-        var (vm, ac, layout) = MakeDoubleCrossingFixture();
-        var direct = Yaat.Sim.Data.Airport.TaxiPathfinder.ResolveExplicitPath(
+        (GroundViewModel? vm, AircraftModel? ac, AirportGroundLayout? layout) = MakeDoubleCrossingFixture();
+        TaxiRoute? direct = Yaat.Sim.Data.Airport.TaxiPathfinder.ResolveExplicitPath(
             layout,
             0,
             ["A", "B", "C"],
@@ -92,7 +92,7 @@ public class GroundViewModelHoldShortMenuLocatedTests
         );
         Assert.True(direct is not null, $"direct resolve failed: {failReason}");
 
-        var route = vm.ResolveRemainingRoute(ac);
+        TaxiRoute? route = vm.ResolveRemainingRoute(ac);
         Assert.NotNull(route);
         Assert.NotEmpty(route.Segments);
     }
@@ -100,25 +100,25 @@ public class GroundViewModelHoldShortMenuLocatedTests
     [Fact]
     public void DoubleCrossedTaxiway_OffersOneLocatedEntryPerCrossing()
     {
-        var (vm, ac, _) = MakeDoubleCrossingFixture();
+        (GroundViewModel? vm, AircraftModel? ac, AirportGroundLayout _) = MakeDoubleCrossingFixture();
 
-        var targets = vm.GetHoldShortTargets(ac);
+        List<(string DisplayName, string Target)> targets = vm.GetHoldShortTargets(ac);
 
         Assert.Contains(targets, t => t.Target == "X@A");
         Assert.Contains(targets, t => t.Target == "X@B");
         Assert.DoesNotContain(targets, t => t.Target == "X");
 
-        var atA = targets.Single(t => t.Target == "X@A");
+        (string DisplayName, string Target) atA = targets.Single(t => t.Target == "X@A");
         Assert.Equal("Taxiway X at A", atA.DisplayName);
     }
 
     [Fact]
     public void SingleCrossedTaxiway_KeepsBareEntry()
     {
-        var (vm, ac, _) = MakeDoubleCrossingFixture();
+        (GroundViewModel? vm, AircraftModel? ac, AirportGroundLayout _) = MakeDoubleCrossingFixture();
         ac.TaxiRoute = "A";
 
-        var targets = vm.GetHoldShortTargets(ac);
+        List<(string DisplayName, string Target)> targets = vm.GetHoldShortTargets(ac);
 
         // Route A only: X is crossed once (at n1) and B is an adjacent turn-off — both bare.
         Assert.Contains(targets, t => (t.Target == "X") && (t.DisplayName == "Taxiway X"));
@@ -128,18 +128,18 @@ public class GroundViewModelHoldShortMenuLocatedTests
     [Fact]
     public void LocatedPreview_EndsAtTheNamedCrossing()
     {
-        var (vm, ac, layout) = MakeDoubleCrossingFixture();
+        (GroundViewModel? vm, AircraftModel? ac, AirportGroundLayout? layout) = MakeDoubleCrossingFixture();
 
-        var previewAtB = vm.FindHoldShortPreviewRoute(ac, "X@B");
+        TaxiRoute? previewAtB = vm.FindHoldShortPreviewRoute(ac, "X@B");
         Assert.NotNull(previewAtB);
         Assert.Equal(3, previewAtB.Segments[^1].ToNodeId);
 
-        var previewAtA = vm.FindHoldShortPreviewRoute(ac, "X@A");
+        TaxiRoute? previewAtA = vm.FindHoldShortPreviewRoute(ac, "X@A");
         Assert.NotNull(previewAtA);
         Assert.Equal(1, previewAtA.Segments[^1].ToNodeId);
 
         // Bare form keeps today's first-crossing preview.
-        var bare = vm.FindHoldShortPreviewRoute(ac, "X");
+        TaxiRoute? bare = vm.FindHoldShortPreviewRoute(ac, "X");
         Assert.NotNull(bare);
         Assert.Equal(1, bare.Segments[^1].ToNodeId);
         Assert.NotNull(layout);

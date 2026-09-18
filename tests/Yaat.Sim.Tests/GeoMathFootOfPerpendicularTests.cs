@@ -20,10 +20,10 @@ public class GeoMathFootOfPerpendicularTests
         // exactly on the segment, 500 ft from A.
         double aLat = 37.0;
         double aLon = -122.0;
-        var (bLat, bLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
-        var (pLat, pLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
+        (double bLat, double bLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
+        (double pLat, double pLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
 
-        var foot = GeoMath.FootOfPerpendicular(pLat, pLon, aLat, aLon, bLat, bLon);
+        (double FootLat, double FootLon, double AlongNm, bool Clamped) foot = GeoMath.FootOfPerpendicular(pLat, pLon, aLat, aLon, bLat, bLon);
 
         Assert.False(foot.Clamped);
         Assert.InRange(foot.AlongNm * GeoMath.FeetPerNm, 499.0, 501.0);
@@ -38,11 +38,11 @@ public class GeoMathFootOfPerpendicularTests
         // Segment east, point 200 ft north of its midpoint.
         double aLat = 37.0;
         double aLon = -122.0;
-        var (bLat, bLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
-        var (midLat, midLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
-        var (pLat, pLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(0.0), 200.0 / GeoMath.FeetPerNm);
+        (double bLat, double bLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
+        (double midLat, double midLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
+        (double pLat, double pLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(0.0), 200.0 / GeoMath.FeetPerNm);
 
-        var foot = GeoMath.FootOfPerpendicular(pLat, pLon, aLat, aLon, bLat, bLon);
+        (double FootLat, double FootLon, double AlongNm, bool Clamped) foot = GeoMath.FootOfPerpendicular(pLat, pLon, aLat, aLon, bLat, bLon);
 
         Assert.False(foot.Clamped);
         Assert.InRange(foot.AlongNm * GeoMath.FeetPerNm, 499.0, 501.0);
@@ -56,10 +56,10 @@ public class GeoMathFootOfPerpendicularTests
         // Segment east, point 500 ft beyond B.
         double aLat = 37.0;
         double aLon = -122.0;
-        var (bLat, bLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
-        var (pLat, pLon) = GeoMath.ProjectPoint(bLat, bLon, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
+        (double bLat, double bLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
+        (double pLat, double pLon) = GeoMath.ProjectPoint(bLat, bLon, new TrueHeading(90.0), 500.0 / GeoMath.FeetPerNm);
 
-        var foot = GeoMath.FootOfPerpendicular(pLat, pLon, aLat, aLon, bLat, bLon);
+        (double FootLat, double FootLon, double AlongNm, bool Clamped) foot = GeoMath.FootOfPerpendicular(pLat, pLon, aLat, aLon, bLat, bLon);
 
         Assert.True(foot.Clamped);
         Assert.Equal(bLat, foot.FootLat, 10);
@@ -71,10 +71,10 @@ public class GeoMathFootOfPerpendicularTests
     {
         double aLat = 37.0;
         double aLon = -122.0;
-        var (bLat, bLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
-        var (pLat, pLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(270.0), 500.0 / GeoMath.FeetPerNm);
+        (double bLat, double bLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(90.0), 1000.0 / GeoMath.FeetPerNm);
+        (double pLat, double pLon) = GeoMath.ProjectPoint(aLat, aLon, new TrueHeading(270.0), 500.0 / GeoMath.FeetPerNm);
 
-        var foot = GeoMath.FootOfPerpendicular(pLat, pLon, aLat, aLon, bLat, bLon);
+        (double FootLat, double FootLon, double AlongNm, bool Clamped) foot = GeoMath.FootOfPerpendicular(pLat, pLon, aLat, aLon, bLat, bLon);
 
         Assert.True(foot.Clamped);
         Assert.Equal(aLat, foot.FootLat, 10);
@@ -90,7 +90,7 @@ public class GeoMathFootOfPerpendicularTests
         double pLat = 37.001;
         double pLon = -122.001;
 
-        var foot = GeoMath.FootOfPerpendicular(pLat, pLon, aLat, aLon, aLat, aLon);
+        (double FootLat, double FootLon, double AlongNm, bool Clamped) foot = GeoMath.FootOfPerpendicular(pLat, pLon, aLat, aLon, aLat, aLon);
 
         Assert.True(foot.Clamped);
         Assert.Equal(aLat, foot.FootLat, 10);
@@ -104,7 +104,7 @@ public class GeoMathFootOfPerpendicularTests
     {
         // East-west segment from (37.0, -122.001) to (37.0, -121.999) crosses
         // north-south segment from (36.999, -122.0) to (37.001, -122.0).
-        var result = GeoMath.SegmentsIntersect(
+        (double Lat, double Lon, double T, double U)? result = GeoMath.SegmentsIntersect(
             ax1: 37.0,
             ay1: -122.001,
             ax2: 37.0,
@@ -125,7 +125,7 @@ public class GeoMathFootOfPerpendicularTests
     [Fact]
     public void SegmentsIntersect_ParallelSegments_ReturnsNull()
     {
-        var result = GeoMath.SegmentsIntersect(
+        (double Lat, double Lon, double T, double U)? result = GeoMath.SegmentsIntersect(
             ax1: 37.0,
             ay1: -122.0,
             ax2: 37.0,
@@ -142,7 +142,7 @@ public class GeoMathFootOfPerpendicularTests
     [Fact]
     public void SegmentsIntersect_NonOverlappingSegments_ReturnsNull()
     {
-        var result = GeoMath.SegmentsIntersect(
+        (double Lat, double Lon, double T, double U)? result = GeoMath.SegmentsIntersect(
             ax1: 37.0,
             ay1: -122.001,
             ax2: 37.0,
@@ -160,7 +160,7 @@ public class GeoMathFootOfPerpendicularTests
     public void SegmentsIntersect_TouchingEndpoint_WithoutExclude_ReturnsIntersection()
     {
         // Segments share endpoint at (37.0, -122.0).
-        var result = GeoMath.SegmentsIntersect(
+        (double Lat, double Lon, double T, double U)? result = GeoMath.SegmentsIntersect(
             ax1: 37.0,
             ay1: -122.001,
             ax2: 37.0,
@@ -184,7 +184,7 @@ public class GeoMathFootOfPerpendicularTests
         // Segment A east from (37.0,-122.001) to (37.0,-122.0).
         // Segment B north from (37.0,-122.0) to (37.001,-122.0).
         // Intersection is at A's endpoint 2 / B's endpoint 1 — excluded.
-        var result = GeoMath.SegmentsIntersect(
+        (double Lat, double Lon, double T, double U)? result = GeoMath.SegmentsIntersect(
             ax1: 37.0,
             ay1: -122.001,
             ax2: 37.0,
@@ -203,7 +203,7 @@ public class GeoMathFootOfPerpendicularTests
     public void SegmentsIntersect_TrueCrossing_WithExclude_StillReturnsIntersection()
     {
         // Interior X crossing — should still fire under excludeEndpoints.
-        var result = GeoMath.SegmentsIntersect(
+        (double Lat, double Lon, double T, double U)? result = GeoMath.SegmentsIntersect(
             ax1: 37.0,
             ay1: -122.001,
             ax2: 37.0,

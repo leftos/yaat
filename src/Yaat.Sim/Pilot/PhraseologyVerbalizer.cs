@@ -48,7 +48,7 @@ public static class PhraseologyVerbalizer
     private static Dictionary<CanonicalCommandType, PhraseologyRule[]> BuildRulesByType()
     {
         var dict = new Dictionary<CanonicalCommandType, PhraseologyRule[]>();
-        foreach (var group in PhraseologyRules.All.Where(r => !r.SttOnly).GroupBy(r => r.Type))
+        foreach (IGrouping<CanonicalCommandType, PhraseologyRule> group in PhraseologyRules.All.Where(r => !r.SttOnly).GroupBy(r => r.Type))
         {
             dict[group.Key] = group.ToArray();
         }
@@ -66,19 +66,19 @@ public static class PhraseologyVerbalizer
     {
         PhraseologyRule? best = null;
         int bestCaptures = -1;
-        foreach (var rule in rules)
+        foreach (PhraseologyRule rule in rules)
         {
             int captureCount = 0;
             bool allSatisfied = true;
-            foreach (var token in rule.Pattern)
+            foreach (string token in rule.Pattern)
             {
-                var t = token.EndsWith('?') ? token[..^1] : token;
+                string t = token.EndsWith('?') ? token[..^1] : token;
                 if (!IsCapture(t))
                 {
                     continue;
                 }
                 captureCount++;
-                var name = t[1..^1];
+                string name = t[1..^1];
                 if (name.EndsWith("..."))
                 {
                     name = name[..^3];
@@ -214,20 +214,20 @@ public static class PhraseologyVerbalizer
             return RenderCross(crossCmd, fmt);
         }
 
-        var canonicalType = CommandDescriber.ToCanonicalType(cmd);
-        if (!RulesByType.TryGetValue(canonicalType, out var rules))
+        CanonicalCommandType canonicalType = CommandDescriber.ToCanonicalType(cmd);
+        if (!RulesByType.TryGetValue(canonicalType, out PhraseologyRule[]? rules))
         {
             return null;
         }
 
-        var args = ExtractArgs(cmd, fmt);
-        var rule = PickPreferredRule(rules, args);
+        IReadOnlyDictionary<string, string> args = ExtractArgs(cmd, fmt);
+        PhraseologyRule? rule = PickPreferredRule(rules, args);
         if (rule is null)
         {
             return null;
         }
 
-        if (ShouldUseShortcut(personality, activityLevel) && TryRenderShortestShortcut(rule, args, out var shortcut))
+        if (ShouldUseShortcut(personality, activityLevel) && TryRenderShortestShortcut(rule, args, out string? shortcut))
         {
             return shortcut;
         }
@@ -426,7 +426,7 @@ public static class PhraseologyVerbalizer
     /// </summary>
     private static string RenderTaxiPath(TaxiCommand taxi, CaptureFormatter fmt, string separator)
     {
-        var hints = taxi.PathTurnHints;
+        List<TurnDirection?>? hints = taxi.PathTurnHints;
         var parts = new List<string>(taxi.Path.Count);
         for (int i = 0; i < taxi.Path.Count; i++)
         {
@@ -436,7 +436,7 @@ public static class PhraseologyVerbalizer
                 continue;
             }
 
-            var hint = (hints is not null && i < hints.Count) ? hints[i] : null;
+            TurnDirection? hint = (hints is not null && i < hints.Count) ? hints[i] : null;
             parts.Add(fmt.TaxiTurn(name, hint));
         }
 
@@ -455,7 +455,7 @@ public static class PhraseologyVerbalizer
     /// </summary>
     private static string RenderTaxiAlongRunway(TaxiCommand taxi, CaptureFormatter fmt)
     {
-        var hints = taxi.PathTurnHints;
+        List<TurnDirection?>? hints = taxi.PathTurnHints;
         var parts = new List<string>(taxi.Path.Count);
         bool firstSegment = true;
         for (int i = 0; i < taxi.Path.Count; i++)
@@ -472,7 +472,7 @@ public static class PhraseologyVerbalizer
             }
             else
             {
-                var hint = (hints is not null && i < hints.Count) ? hints[i] : null;
+                TurnDirection? hint = (hints is not null && i < hints.Count) ? hints[i] : null;
                 string twy = fmt.TaxiTurn(name, hint);
                 parts.Add(firstSegment ? $"via {twy}" : twy);
             }
@@ -648,19 +648,19 @@ public static class PhraseologyVerbalizer
     public static string RenderPattern(string[] pattern, IReadOnlyDictionary<string, string> args)
     {
         var sb = new StringBuilder();
-        foreach (var rawToken in pattern)
+        foreach (string rawToken in pattern)
         {
-            var t = rawToken.EndsWith('?') ? rawToken[..^1] : rawToken;
+            string t = rawToken.EndsWith('?') ? rawToken[..^1] : rawToken;
 
             if (t.StartsWith('{') && t.EndsWith('}'))
             {
-                var name = t[1..^1];
+                string name = t[1..^1];
                 if (name.EndsWith("..."))
                 {
                     name = name[..^3];
                 }
 
-                var value = args.TryGetValue(name, out var v) ? v : t;
+                string value = args.TryGetValue(name, out string? v) ? v : t;
                 Append(sb, value);
             }
             else
@@ -706,9 +706,9 @@ public static class PhraseologyVerbalizer
 
         if (degrees is >= 100 and <= 360)
         {
-            var hundreds = degrees / 100;
-            var remainder = degrees % 100;
-            var leading = SpellDigit((char)('0' + hundreds));
+            int hundreds = degrees / 100;
+            int remainder = degrees % 100;
+            string leading = SpellDigit((char)('0' + hundreds));
             return remainder switch
             {
                 0 => $"{leading} hundred",
@@ -767,7 +767,7 @@ public static class PhraseologyVerbalizer
             return value.ToString();
         }
 
-        var s = minWidth > 0 ? value.ToString($"D{minWidth}") : value.ToString();
+        string s = minWidth > 0 ? value.ToString($"D{minWidth}") : value.ToString();
         return string.Join(' ', s.Select(SpellDigit));
     }
 
@@ -791,18 +791,18 @@ public static class PhraseologyVerbalizer
         {
             return DigitsWords(speedKnots);
         }
-        var hundreds = speedKnots / 100;
-        var remainder = speedKnots % 100;
-        var leading = SpellDigit((char)('0' + hundreds));
+        int hundreds = speedKnots / 100;
+        int remainder = speedKnots % 100;
+        string leading = SpellDigit((char)('0' + hundreds));
         return remainder == 0 ? $"{leading} hundred" : $"{leading} {TwoDigitWords(remainder)}";
     }
 
     public static string MachWords(double mach)
     {
         // 0.78 → "point seven eight"; 1.5 → "one point five".
-        var integerPart = (int)Math.Floor(mach);
-        var fractional = mach - integerPart;
-        var fractionalDigits = ((int)Math.Round(fractional * 100)).ToString("D2");
+        int integerPart = (int)Math.Floor(mach);
+        double fractional = mach - integerPart;
+        string fractionalDigits = ((int)Math.Round(fractional * 100)).ToString("D2");
         var sb = new StringBuilder();
         if (integerPart > 0)
         {
@@ -826,12 +826,12 @@ public static class PhraseologyVerbalizer
     /// </summary>
     public static string FrequencyToWords(double mhz)
     {
-        var integerPart = (int)Math.Floor(mhz);
-        var fractional = mhz - integerPart;
+        int integerPart = (int)Math.Floor(mhz);
+        double fractional = mhz - integerPart;
         // 7110.65 §2-4-16: omit digits after the second decimal — truncate, don't round.
         // The 1e-9 nudge absorbs binary-fp drift (e.g. 119.6 → 119.60000000000001) so
         // 119.6 reads "point six" instead of "point five nine".
-        var hundredths = (int)Math.Floor(fractional * 100 + 1e-9);
+        int hundredths = (int)Math.Floor(fractional * 100 + 1e-9);
         var sb = new StringBuilder();
         sb.Append(string.Join(' ', integerPart.ToString().Select(SpellDigit)));
         sb.Append(" point ");
@@ -892,13 +892,13 @@ public static class PhraseologyVerbalizer
             return "";
         }
 
-        var trimmed = fix.Trim();
+        string trimmed = fix.Trim();
         if (TryGetNavigationDatabase() is { } navDb)
         {
             // Custom pronunciations win over auto-derived navaid/airport names: authors register
             // them precisely to override the default speech for visual reporting points and
             // hard-to-pronounce intersections (e.g. "VPCOL" → "Oakland Colliseum").
-            var pronunciations = navDb.GetFixPronunciations(trimmed);
+            IReadOnlyList<string> pronunciations = navDb.GetFixPronunciations(trimmed);
             if (pronunciations.Count > 0 && !string.IsNullOrWhiteSpace(pronunciations[0]))
             {
                 return pronunciations[0];
@@ -907,19 +907,19 @@ public static class PhraseologyVerbalizer
             // Authored display name — a custom-fix friendly name (e.g. "OAK30NUM" → "Oakland Runway
             // 30 Numbers") or a visual point defined for display only. Authors who name the fix have
             // already supplied the natural form pilots speak; no duplicate pronunciation entry needed.
-            var displayName = navDb.GetFixDisplayName(trimmed);
+            string? displayName = navDb.GetFixDisplayName(trimmed);
             if (!string.IsNullOrWhiteSpace(displayName))
             {
                 return displayName;
             }
 
-            var navaidName = navDb.GetNavaidName(trimmed);
+            string? navaidName = navDb.GetNavaidName(trimmed);
             if (!string.IsNullOrWhiteSpace(navaidName))
             {
                 return $"{TitleCase(navaidName)} {navDb.GetNavaidType(trimmed) ?? "VOR"}";
             }
 
-            var airportName = navDb.GetAirportName(trimmed);
+            string? airportName = navDb.GetAirportName(trimmed);
             if (!string.IsNullOrWhiteSpace(airportName))
             {
                 return PilotSayBuilder.FriendlyAirportName(airportName);
@@ -950,8 +950,8 @@ public static class PhraseologyVerbalizer
             return "";
         }
 
-        var id = fix.Trim().ToUpperInvariant();
-        var displayName = TryGetNavigationDatabase()?.GetFixDisplayName(id);
+        string id = fix.Trim().ToUpperInvariant();
+        string? displayName = TryGetNavigationDatabase()?.GetFixDisplayName(id);
         if (string.IsNullOrWhiteSpace(displayName))
         {
             return id;
@@ -968,32 +968,32 @@ public static class PhraseologyVerbalizer
     /// </summary>
     public static (string Terminal, string Tts) ProcedureName(string procedureId)
     {
-        var id = (procedureId ?? "").Trim();
+        string id = (procedureId ?? "").Trim();
         if (id.Length == 0)
         {
             return ("", "");
         }
 
-        var terminal = id.ToUpperInvariant();
+        string terminal = id.ToUpperInvariant();
 
         int split = id.Length;
         while (split > 0 && char.IsDigit(id[split - 1]))
         {
             split--;
         }
-        var name = id[..split];
-        var version = id[split..];
+        string name = id[..split];
+        string version = id[split..];
         if (name.Length == 0 || version.Length == 0)
         {
             // No alpha+digit split (all digits or all letters) — spell the whole id like a fix.
             return (terminal, SpellFix(id));
         }
 
-        var versionWords = int.TryParse(
+        string versionWords = int.TryParse(
             version,
             System.Globalization.NumberStyles.Integer,
             System.Globalization.CultureInfo.InvariantCulture,
-            out var v
+            out int v
         )
             ? AtcNumberParser.CardinalWord(v)
             : version.ToLowerInvariant();
@@ -1015,11 +1015,11 @@ public static class PhraseologyVerbalizer
             return "";
         }
 
-        var trimmed = airportIdent.Trim();
+        string trimmed = airportIdent.Trim();
         if (TryGetNavigationDatabase() is { } navDb)
         {
             // GetAirportName handles ICAO ↔ FAA key reconciliation (KOAK → OAK and back).
-            var airportName = navDb.GetAirportName(trimmed);
+            string? airportName = navDb.GetAirportName(trimmed);
             if (!string.IsNullOrWhiteSpace(airportName))
             {
                 return PilotSayBuilder.FriendlyAirportName(airportName);
@@ -1061,7 +1061,7 @@ public static class PhraseologyVerbalizer
         }
 
         var sb = new StringBuilder();
-        foreach (var c in runway)
+        foreach (char c in runway)
         {
             if (sb.Length > 0)
             {
@@ -1107,18 +1107,18 @@ public static class PhraseologyVerbalizer
             return "";
         }
 
-        var text = designator.Trim().Replace("-", string.Empty).ToUpperInvariant();
+        string text = designator.Trim().Replace("-", string.Empty).ToUpperInvariant();
         if (text.Length < 3 || !char.IsLetter(text[0]) || !char.IsLetter(text[1]))
         {
             return designator;
         }
 
-        var prefix = $"{char.ToLowerInvariant(text[0])}-{char.ToLowerInvariant(text[1])}";
-        var rest = text[2..];
-        var digits = new string([.. rest.TakeWhile(char.IsDigit)]);
-        var suffix = rest[digits.Length..];
+        string prefix = $"{char.ToLowerInvariant(text[0])}-{char.ToLowerInvariant(text[1])}";
+        string rest = text[2..];
+        string digits = new string([.. rest.TakeWhile(char.IsDigit)]);
+        string suffix = rest[digits.Length..];
 
-        if (digits.Length == 0 || !int.TryParse(digits, out var number))
+        if (digits.Length == 0 || !int.TryParse(digits, out int number))
         {
             return designator;
         }
@@ -1127,12 +1127,12 @@ public static class PhraseologyVerbalizer
         // "Alfa Seven Hundred". The shared flight-number speller pairs digits instead ("nine zero
         // zero"), which is right for a callsign but not for a route number, so the hundreds case is
         // handled here rather than by changing a helper every callsign readback depends on.
-        var groupForm =
+        string groupForm =
             number >= 100 && number % 100 == 0
                 ? $"{AtcNumberParser.FlightNumberToPairedWords(number / 100)} hundred"
                 : AtcNumberParser.FlightNumberToPairedWords(number);
-        var spoken = $"{prefix} {groupForm}";
-        foreach (var c in suffix)
+        string spoken = $"{prefix} {groupForm}";
+        foreach (char c in suffix)
         {
             spoken += " " + NatoPhoneticAlphabet.SpellChar(c);
         }
@@ -1157,25 +1157,25 @@ public static class PhraseologyVerbalizer
             return "";
         }
 
-        var text = designator.Trim().Replace("-", string.Empty).ToUpperInvariant();
+        string text = designator.Trim().Replace("-", string.Empty).ToUpperInvariant();
         if (!text.StartsWith("AR", StringComparison.Ordinal))
         {
             return designator;
         }
 
-        var rest = text[2..];
-        var digits = new string([.. rest.TakeWhile(char.IsDigit)]);
-        var suffix = rest[digits.Length..];
-        if (digits.Length == 0 || !int.TryParse(digits, out var number))
+        string rest = text[2..];
+        string digits = new string([.. rest.TakeWhile(char.IsDigit)]);
+        string suffix = rest[digits.Length..];
+        if (digits.Length == 0 || !int.TryParse(digits, out int number))
         {
             return designator;
         }
 
-        var spoken =
+        string spoken =
             number >= 100 && number % 100 == 0
                 ? $"{AtcNumberParser.FlightNumberToPairedWords(number / 100)} hundred"
                 : AtcNumberParser.FlightNumberToPairedWords(number);
-        foreach (var c in suffix)
+        foreach (char c in suffix)
         {
             spoken += " " + NatoPhoneticAlphabet.SpellChar(c);
         }
@@ -1199,7 +1199,7 @@ public static class PhraseologyVerbalizer
             return "";
         }
 
-        var spoken = route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries).Select(SpellRouteElement);
+        IEnumerable<string> spoken = route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries).Select(SpellRouteElement);
         return string.Join(", ", spoken);
     }
 
@@ -1209,20 +1209,20 @@ public static class PhraseologyVerbalizer
     /// </summary>
     private static string SpellRouteElement(string element)
     {
-        var text = element.Trim().ToUpperInvariant();
+        string text = element.Trim().ToUpperInvariant();
         if (text.Length < 2 || !char.IsLetter(text[0]) || !text[1..].All(char.IsDigit))
         {
             return SpellFix(text);
         }
 
-        if (!int.TryParse(text[1..], out var number))
+        if (!int.TryParse(text[1..], out int number))
         {
             return SpellFix(text);
         }
 
         // §2-5-1.e's own example is "Alfa Seven Hundred", so a round hundred says "hundred" rather
         // than pairing the trailing zeros the way a flight number would.
-        var groupForm =
+        string groupForm =
             number >= 100 && number % 100 == 0
                 ? $"{AtcNumberParser.FlightNumberToPairedWords(number / 100)} hundred"
                 : AtcNumberParser.FlightNumberToPairedWords(number);
@@ -1238,7 +1238,7 @@ public static class PhraseologyVerbalizer
         }
 
         var sb = new StringBuilder();
-        foreach (var c in tw)
+        foreach (char c in tw)
         {
             if (sb.Length > 0)
             {
@@ -1261,7 +1261,7 @@ public static class PhraseologyVerbalizer
     public static string SpellDestinationName(string name, string noun)
     {
         var runs = new List<string>();
-        var trimmed = name.Trim();
+        string trimmed = name.Trim();
         int i = 0;
         while (i < trimmed.Length)
         {
@@ -1274,7 +1274,7 @@ public static class PhraseologyVerbalizer
                     i++;
                 }
 
-                var letters = trimmed[start..i];
+                string letters = trimmed[start..i];
                 if (runs.Count == 0 && string.Equals(letters, noun, StringComparison.OrdinalIgnoreCase) && i < trimmed.Length)
                 {
                     continue;
@@ -1312,7 +1312,7 @@ public static class PhraseologyVerbalizer
         }
 
         var sb = new StringBuilder();
-        foreach (var c in approachId)
+        foreach (char c in approachId)
         {
             if (sb.Length > 0)
             {
@@ -1352,7 +1352,7 @@ public static class PhraseologyVerbalizer
             return "";
         }
 
-        var s = id.Trim().ToUpperInvariant();
+        string s = id.Trim().ToUpperInvariant();
         if (s.Length > 1 && s[0] == '0')
         {
             s = s[1..];

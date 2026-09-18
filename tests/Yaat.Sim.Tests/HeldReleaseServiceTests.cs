@@ -71,12 +71,12 @@ public class HeldReleaseServiceTests
     [Fact]
     public void Arm_HoldsOnGroundIfrDeparture()
     {
-        var scenario = NewScenario();
+        SimScenarioState scenario = NewScenario();
         var world = new SimulationWorld();
-        var ac = ParkedDeparture("N1", "KSJC");
+        AircraftState ac = ParkedDeparture("N1", "KSJC");
         world.AddAircraft(ac);
 
-        var result = HeldReleaseService.Arm(scenario, world, "SJC");
+        HeldReleaseResult result = HeldReleaseService.Arm(scenario, world, "SJC");
 
         Assert.True(result.Success);
         // FAA/ICAO prefix tolerance: armed "SJC" matches flight-plan "KSJC".
@@ -87,9 +87,9 @@ public class HeldReleaseServiceTests
     [Fact]
     public void Arm_DoesNotHoldVfrDeparture()
     {
-        var scenario = NewScenario();
+        SimScenarioState scenario = NewScenario();
         var world = new SimulationWorld();
-        var ac = ParkedDeparture("N2", "KSJC", vfr: true);
+        AircraftState ac = ParkedDeparture("N2", "KSJC", vfr: true);
         world.AddAircraft(ac);
 
         HeldReleaseService.Arm(scenario, world, "SJC");
@@ -100,9 +100,9 @@ public class HeldReleaseServiceTests
     [Fact]
     public void Arm_DoesNotHoldDepartureFromOtherAirport()
     {
-        var scenario = NewScenario();
+        SimScenarioState scenario = NewScenario();
         var world = new SimulationWorld();
-        var ac = ParkedDeparture("N9", "KPAO");
+        AircraftState ac = ParkedDeparture("N9", "KPAO");
         world.AddAircraft(ac);
 
         HeldReleaseService.Arm(scenario, world, "SJC");
@@ -113,13 +113,13 @@ public class HeldReleaseServiceTests
     [Fact]
     public void Release_ClearsGroundHold_AndMarksReleased()
     {
-        var scenario = NewScenario(elapsed: 50);
+        SimScenarioState scenario = NewScenario(elapsed: 50);
         var world = new SimulationWorld();
-        var ac = ParkedDeparture("N3", "KSJC");
+        AircraftState ac = ParkedDeparture("N3", "KSJC");
         world.AddAircraft(ac);
         HeldReleaseService.Arm(scenario, world, "SJC");
 
-        var result = HeldReleaseService.Release(scenario, world, new SerializableRandom(0), "N3", null);
+        HeldReleaseResult result = HeldReleaseService.Release(scenario, world, new SerializableRandom(0), "N3", null);
 
         Assert.True(result.Success);
         Assert.False(ac.Ground.HeldForRelease);
@@ -130,10 +130,10 @@ public class HeldReleaseServiceTests
     [Fact]
     public void Release_ByAirport_ReleasesNextPending()
     {
-        var scenario = NewScenario(elapsed: 10);
+        SimScenarioState scenario = NewScenario(elapsed: 10);
         var world = new SimulationWorld();
-        var first = ParkedDeparture("N1", "KSJC", spawnedAt: 1);
-        var second = ParkedDeparture("N2", "KSJC", spawnedAt: 2);
+        AircraftState first = ParkedDeparture("N1", "KSJC", spawnedAt: 1);
+        AircraftState second = ParkedDeparture("N2", "KSJC", spawnedAt: 2);
         world.AddAircraft(first);
         world.AddAircraft(second);
         HeldReleaseService.Arm(scenario, world, "SJC");
@@ -149,13 +149,13 @@ public class HeldReleaseServiceTests
     [Fact]
     public void Disarm_AutoReleasesHeldGroundDepartures()
     {
-        var scenario = NewScenario();
+        SimScenarioState scenario = NewScenario();
         var world = new SimulationWorld();
-        var ac = ParkedDeparture("N4", "KSJC");
+        AircraftState ac = ParkedDeparture("N4", "KSJC");
         world.AddAircraft(ac);
         HeldReleaseService.Arm(scenario, world, "SJC");
 
-        var result = HeldReleaseService.Disarm(scenario, world, "SJC");
+        HeldReleaseResult result = HeldReleaseService.Disarm(scenario, world, "SJC");
 
         Assert.True(result.Success);
         Assert.False(HeldReleaseService.IsAirportArmed(scenario, "SJC"));
@@ -166,9 +166,9 @@ public class HeldReleaseServiceTests
     [Fact]
     public void HeldRunwaySpawn_IsHeld_AndAppearsInRundown()
     {
-        var scenario = NewScenario(elapsed: 200);
+        SimScenarioState scenario = NewScenario(elapsed: 200);
         var world = new SimulationWorld();
-        var spawn = RunwaySpawn("N5", "KSJC");
+        LoadedAircraft spawn = RunwaySpawn("N5", "KSJC");
         scenario.DelayedQueue.Add(
             new DelayedSpawn
             {
@@ -180,16 +180,16 @@ public class HeldReleaseServiceTests
         HeldReleaseService.Arm(scenario, world, "SJC");
 
         Assert.True(HeldReleaseService.IsSpawnHeld(scenario, scenario.DelayedQueue[0]));
-        var rundown = HeldReleaseService.BuildRundown(scenario, world);
+        List<HeldDeparture> rundown = HeldReleaseService.BuildRundown(scenario, world);
         Assert.Contains(rundown, h => h.Callsign == "N5" && !h.IsGroundDeparture);
     }
 
     [Fact]
     public void Release_HeldRunwaySpawn_ReschedulesSpawnWithAirborneJitter()
     {
-        var scenario = NewScenario(elapsed: 200);
+        SimScenarioState scenario = NewScenario(elapsed: 200);
         var world = new SimulationWorld();
-        var spawn = RunwaySpawn("N5", "KSJC");
+        LoadedAircraft spawn = RunwaySpawn("N5", "KSJC");
         scenario.DelayedQueue.Add(
             new DelayedSpawn
             {
@@ -200,10 +200,10 @@ public class HeldReleaseServiceTests
         );
         HeldReleaseService.Arm(scenario, world, "SJC");
 
-        var result = HeldReleaseService.Release(scenario, world, new SerializableRandom(0), "N5", null);
+        HeldReleaseResult result = HeldReleaseService.Release(scenario, world, new SerializableRandom(0), "N5", null);
 
         Assert.True(result.Success);
-        var entry = scenario.DelayedQueue.Single();
+        DelayedSpawn entry = scenario.DelayedQueue.Single();
         Assert.False(entry.HeldForRelease);
         Assert.InRange(
             entry.SpawnAtSeconds,
@@ -215,14 +215,14 @@ public class HeldReleaseServiceTests
     [Fact]
     public void Release_WholeQueueWithInterval_EnqueuesSpacedReleases()
     {
-        var scenario = NewScenario(elapsed: 0);
+        SimScenarioState scenario = NewScenario(elapsed: 0);
         var world = new SimulationWorld();
         world.AddAircraft(ParkedDeparture("N1", "KSJC", spawnedAt: 1));
         world.AddAircraft(ParkedDeparture("N2", "KSJC", spawnedAt: 2));
         world.AddAircraft(ParkedDeparture("N3", "KSJC", spawnedAt: 3));
         HeldReleaseService.Arm(scenario, world, "SJC");
 
-        var result = HeldReleaseService.Release(scenario, world, new SerializableRandom(0), "SJC", 120);
+        HeldReleaseResult result = HeldReleaseService.Release(scenario, world, new SerializableRandom(0), "SJC", 120);
 
         Assert.True(result.Success);
         Assert.Equal(3, scenario.ReleaseQueue.Count);
@@ -233,7 +233,7 @@ public class HeldReleaseServiceTests
     /// <summary>Arms SJC over a single held ground departure in <paramref name="phase"/> and returns its rundown status.</summary>
     private static string RundownStatusFor(Phase phase)
     {
-        var scenario = NewScenario();
+        SimScenarioState scenario = NewScenario();
         var world = new SimulationWorld();
         world.AddAircraft(GroundDeparture("N7", "KSJC", phase, vfr: false, spawnedAt: 0));
         HeldReleaseService.Arm(scenario, world, "SJC");
@@ -275,10 +275,10 @@ public class HeldReleaseServiceTests
     [Fact]
     public void Release_UnknownAirport_Fails()
     {
-        var scenario = NewScenario();
+        SimScenarioState scenario = NewScenario();
         var world = new SimulationWorld();
 
-        var result = HeldReleaseService.Release(scenario, world, new SerializableRandom(0), "SJC", null);
+        HeldReleaseResult result = HeldReleaseService.Release(scenario, world, new SerializableRandom(0), "SJC", null);
 
         Assert.False(result.Success);
     }

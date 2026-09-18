@@ -43,7 +43,7 @@ public class HalfStripEditCanonicalRewriterTests
     [Fact]
     public void Rewrite_IsIdempotent()
     {
-        var once = HalfStripEditCanonicalRewriter.Rewrite(@"HSE HSTRIP_x a\b; HSE HSTRIP_y c");
+        string once = HalfStripEditCanonicalRewriter.Rewrite(@"HSE HSTRIP_x a\b; HSE HSTRIP_y c");
         Assert.Same(once, HalfStripEditCanonicalRewriter.Rewrite(once));
     }
 }

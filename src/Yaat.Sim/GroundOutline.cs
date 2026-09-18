@@ -118,8 +118,8 @@ internal readonly record struct GroundOutline(OutlineSegment Fuselage, OutlineSe
         var forward = new OutlinePoint(Math.Sin(noseRad), Math.Cos(noseRad));
         var right = new OutlinePoint(Math.Cos(noseRad), -Math.Sin(noseRad));
         double halfLengthFt = size.LengthFt / 2.0;
-        var tail = reference - (halfLengthFt * forward);
-        var nose = reference + ((halfLengthFt + size.NoseLeadFt) * forward);
+        OutlinePoint tail = reference - (halfLengthFt * forward);
+        OutlinePoint nose = reference + ((halfLengthFt + size.NoseLeadFt) * forward);
         double halfSpanFt = size.WingspanFt / 2.0;
         double halfTailplaneFt = TailplaneSpanFraction * size.WingspanFt;
         return new GroundOutline(
@@ -139,9 +139,9 @@ internal readonly record struct GroundOutline(OutlineSegment Fuselage, OutlineSe
     public static double Clearance(GroundOutline a, GroundOutline b)
     {
         double closestFt = double.MaxValue;
-        foreach (var segmentA in a.Segments())
+        foreach (OutlineSegment segmentA in a.Segments())
         {
-            foreach (var segmentB in b.Segments())
+            foreach (OutlineSegment segmentB in b.Segments())
             {
                 closestFt = Math.Min(closestFt, SegmentDistanceFt(segmentA, segmentB));
                 if (closestFt <= 0.0)
@@ -204,7 +204,7 @@ internal readonly record struct GroundOutline(OutlineSegment Fuselage, OutlineSe
 
     private static double PointToSegmentFt(OutlinePoint p, OutlineSegment segment)
     {
-        var along = segment.B - segment.A;
+        OutlinePoint along = segment.B - segment.A;
         double lengthSq = (along.EastFt * along.EastFt) + (along.NorthFt * along.NorthFt);
         double t =
             lengthSq <= Epsilon

@@ -12,6 +12,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
 using MsBox.Avalonia;
+using MsBox.Avalonia.Base;
 using MsBox.Avalonia.Enums;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
@@ -79,7 +80,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         _timelineMarkerTimer.Start();
         Closed += (_, _) => _timelineMarkerTimer?.Stop();
 
-        var markerOverlay = this.FindControl<ItemsControl>("TimelineMarkerOverlay");
+        ItemsControl? markerOverlay = this.FindControl<ItemsControl>("TimelineMarkerOverlay");
         if (markerOverlay is not null)
         {
             // Bubble (not Tunnel): the marker template's Border is the deepest visual; we
@@ -89,7 +90,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             markerOverlay.AddHandler(PointerPressedEvent, OnTimelineMarkerPressed, RoutingStrategies.Bubble);
         }
 
-        var bookmarkOverlay = this.FindControl<ItemsControl>("BookmarkMarkerOverlay");
+        ItemsControl? bookmarkOverlay = this.FindControl<ItemsControl>("BookmarkMarkerOverlay");
         if (bookmarkOverlay is not null)
         {
             // Left-click seeks to the bookmark; right-click is handled by the tick's
@@ -109,31 +110,31 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         _windowProfileService = new WindowProfileService(vm.Preferences);
 
-        var settingsItem = this.FindControl<MenuItem>("SettingsMenuItem");
+        MenuItem? settingsItem = this.FindControl<MenuItem>("SettingsMenuItem");
         if (settingsItem is not null)
         {
             settingsItem.Click += OnSettingsClick;
         }
 
-        var connectItem = this.FindControl<MenuItem>("ConnectMenuItem");
+        MenuItem? connectItem = this.FindControl<MenuItem>("ConnectMenuItem");
         if (connectItem is not null)
         {
             connectItem.Click += OnConnectClick;
         }
 
-        var disconnectItem = this.FindControl<MenuItem>("DisconnectMenuItem");
+        MenuItem? disconnectItem = this.FindControl<MenuItem>("DisconnectMenuItem");
         if (disconnectItem is not null)
         {
             disconnectItem.Click += OnDisconnectClick;
         }
 
-        var loadItem = this.FindControl<MenuItem>("LoadScenarioMenuItem");
+        MenuItem? loadItem = this.FindControl<MenuItem>("LoadScenarioMenuItem");
         if (loadItem is not null)
         {
             loadItem.Click += OnLoadScenarioClick;
         }
 
-        var startLiveItem = this.FindControl<MenuItem>("StartLiveSessionMenuItem");
+        MenuItem? startLiveItem = this.FindControl<MenuItem>("StartLiveSessionMenuItem");
         if (startLiveItem is not null)
         {
             startLiveItem.Click += OnStartLiveSessionClick;
@@ -141,25 +142,25 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         WireLiveSessionBadge();
 
-        var loadWeatherItem = this.FindControl<MenuItem>("LoadWeatherMenuItem");
+        MenuItem? loadWeatherItem = this.FindControl<MenuItem>("LoadWeatherMenuItem");
         if (loadWeatherItem is not null)
         {
             loadWeatherItem.Click += OnLoadWeatherClick;
         }
 
-        var sessionReportItem = this.FindControl<MenuItem>("SessionReportMenuItem");
+        MenuItem? sessionReportItem = this.FindControl<MenuItem>("SessionReportMenuItem");
         if (sessionReportItem is not null)
         {
             sessionReportItem.Click += OnSessionReportClick;
         }
 
-        var newWeatherItem = this.FindControl<MenuItem>("NewWeatherMenuItem");
+        MenuItem? newWeatherItem = this.FindControl<MenuItem>("NewWeatherMenuItem");
         if (newWeatherItem is not null)
         {
             newWeatherItem.Click += OnNewWeatherClick;
         }
 
-        var editWeatherItem = this.FindControl<MenuItem>("EditWeatherMenuItem");
+        MenuItem? editWeatherItem = this.FindControl<MenuItem>("EditWeatherMenuItem");
         if (editWeatherItem is not null)
         {
             editWeatherItem.Click += OnEditWeatherClick;
@@ -173,7 +174,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             };
         }
 
-        var editArrivalGeneratorsItem = this.FindControl<MenuItem>("EditArrivalGeneratorsMenuItem");
+        MenuItem? editArrivalGeneratorsItem = this.FindControl<MenuItem>("EditArrivalGeneratorsMenuItem");
         if (editArrivalGeneratorsItem is not null)
         {
             editArrivalGeneratorsItem.Click += OnEditArrivalGeneratorsClick;
@@ -187,7 +188,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             };
         }
 
-        var recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
+        MenuItem? recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
         if (recentItem is not null)
         {
             recentItem.IsEnabled = vm.IsInRoom && vm.Preferences.RecentScenarios.Count > 0;
@@ -195,7 +196,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             recentItem.SubmenuOpened += OnRecentScenariosSubmenuOpened;
         }
 
-        var recentWeatherItem = this.FindControl<MenuItem>("RecentWeatherMenuItem");
+        MenuItem? recentWeatherItem = this.FindControl<MenuItem>("RecentWeatherMenuItem");
         if (recentWeatherItem is not null)
         {
             recentWeatherItem.IsEnabled = vm.IsInRoom && vm.Preferences.RecentWeatherFiles.Count > 0;
@@ -203,56 +204,56 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             recentWeatherItem.SubmenuOpened += OnRecentWeatherSubmenuOpened;
         }
 
-        var copyViewItem = this.FindControl<MenuItem>("CopyViewSettingsMenuItem");
+        MenuItem? copyViewItem = this.FindControl<MenuItem>("CopyViewSettingsMenuItem");
         if (copyViewItem is not null)
         {
             copyViewItem.Click += OnCopyViewSettingsClick;
         }
 
-        var newRadarWindowItem = this.FindControl<MenuItem>("NewRadarWindowMenuItem");
+        MenuItem? newRadarWindowItem = this.FindControl<MenuItem>("NewRadarWindowMenuItem");
         if (newRadarWindowItem is not null)
         {
             newRadarWindowItem.Click += OnNewRadarWindowClick;
         }
 
-        var newGroundWindowItem = this.FindControl<MenuItem>("NewGroundWindowMenuItem");
+        MenuItem? newGroundWindowItem = this.FindControl<MenuItem>("NewGroundWindowMenuItem");
         if (newGroundWindowItem is not null)
         {
             newGroundWindowItem.Click += OnNewGroundWindowClick;
         }
 
-        var windowProfilesItem = this.FindControl<MenuItem>("WindowProfilesMenuItem");
+        MenuItem? windowProfilesItem = this.FindControl<MenuItem>("WindowProfilesMenuItem");
         if (windowProfilesItem is not null)
         {
             PopulateWindowProfilesMenu(windowProfilesItem, vm);
             vm.Preferences.WindowProfilesChanged += () => PopulateWindowProfilesMenu(windowProfilesItem, vm);
         }
 
-        var favoritesPanelItem = this.FindControl<MenuItem>("FavoritesPanelMenuItem");
+        MenuItem? favoritesPanelItem = this.FindControl<MenuItem>("FavoritesPanelMenuItem");
         if (favoritesPanelItem is not null)
         {
             favoritesPanelItem.Click += OnFavoritesPanelClick;
         }
 
-        var crcItem = this.FindControl<MenuItem>("ConfigureCrcMenuItem");
+        MenuItem? crcItem = this.FindControl<MenuItem>("ConfigureCrcMenuItem");
         if (crcItem is not null)
         {
             crcItem.Click += OnConfigureCrcClick;
         }
 
-        var aboutItem = this.FindControl<MenuItem>("AboutMenuItem");
+        MenuItem? aboutItem = this.FindControl<MenuItem>("AboutMenuItem");
         if (aboutItem is not null)
         {
             aboutItem.Click += OnAboutClick;
         }
 
-        var cheatsheetItem = this.FindControl<MenuItem>("HelpCheatsheetMenuItem");
+        MenuItem? cheatsheetItem = this.FindControl<MenuItem>("HelpCheatsheetMenuItem");
         if (cheatsheetItem is not null)
         {
             cheatsheetItem.Click += OnCommandCheatsheetClick;
         }
 
-        var checkUpdatesItem = this.FindControl<MenuItem>("HelpCheckUpdatesMenuItem");
+        MenuItem? checkUpdatesItem = this.FindControl<MenuItem>("HelpCheckUpdatesMenuItem");
         if (checkUpdatesItem is not null)
         {
             checkUpdatesItem.Click += OnCheckForUpdatesClick;
@@ -265,8 +266,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         WireUrlMenuItem("HelpReportBugMenuItem", DocLinks.Issues);
         WireUrlMenuItem("HelpOpenRepoMenuItem", DocLinks.Repo);
 
-        var embeddedView = this.FindControl<DataGridView>("EmbeddedDataGridView");
-        var dataGrid = embeddedView?.GetDataGrid();
+        DataGridView? embeddedView = this.FindControl<DataGridView>("EmbeddedDataGridView");
+        DataGrid? dataGrid = embeddedView?.GetDataGrid();
         if (dataGrid is not null)
         {
             SetupDataGrid(dataGrid, vm);
@@ -345,13 +346,13 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // Symptom without this: Aircraft List content rendered in the docked
         // tab area even though the DataGrid tab is popped out and the only
         // docked tabs are Strips/TDLS.
-        var tabControl = this.FindControl<TabControl>("MainTabControl");
+        TabControl? tabControl = this.FindControl<TabControl>("MainTabControl");
         if (tabControl is not null && tabControl.SelectedIndex != vm.SelectedTabIndex)
         {
             tabControl.SelectedIndex = vm.SelectedTabIndex;
         }
 
-        var slider = this.FindControl<Slider>("TimelineSlider");
+        Slider? slider = this.FindControl<Slider>("TimelineSlider");
         if (slider is not null)
         {
             SetupTimelineSlider(slider, vm);
@@ -372,9 +373,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         // Wire the "Show speech recognition debugging..." items on both mic-status menus (one for
         // the active indicator, one for the "mic: off" stub). Both open the same SpeechDebugWindow.
-        foreach (var debugItemName in new[] { "MicMenuDebugItem", "MicOffMenuDebugItem" })
+        foreach (string? debugItemName in new[] { "MicMenuDebugItem", "MicOffMenuDebugItem" })
         {
-            var item = this.FindControl<MenuItem>(debugItemName);
+            MenuItem? item = this.FindControl<MenuItem>(debugItemName);
             if (item is not null)
             {
                 item.Click += OnShowSpeechDebugClick;
@@ -421,7 +422,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private static void SetupTimelineSlider(Slider slider, MainViewModel vm)
     {
-        var isInteracting = false;
+        bool isInteracting = false;
 
         // Sync VM → slider when user is not interacting
         slider.Value = vm.ScenarioElapsedSeconds;
@@ -449,7 +450,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             {
                 if (isInteracting)
                 {
-                    var target = slider.Value;
+                    double target = slider.Value;
                     isInteracting = false;
                     _ = vm.RewindToSeconds(target);
                 }
@@ -464,7 +465,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             {
                 if (isInteracting)
                 {
-                    var target = slider.Value;
+                    double target = slider.Value;
                     isInteracting = false;
                     _ = vm.RewindToSeconds(target);
                 }
@@ -475,10 +476,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private static async Task AutoConnectAsync(MainViewModel vm, string target, CancellationToken ct)
     {
-        var log = AppLog.CreateLogger("AutoConnect");
+        ILogger log = AppLog.CreateLogger("AutoConnect");
 
         string url;
-        var match = vm.Preferences.SavedServers.FirstOrDefault(s => s.Name.Equals(target, StringComparison.OrdinalIgnoreCase));
+        SavedServer? match = vm.Preferences.SavedServers.FirstOrDefault(s => s.Name.Equals(target, StringComparison.OrdinalIgnoreCase));
         if (match is not null)
         {
             url = match.Url;
@@ -503,7 +504,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 return;
             }
 
-            var error = await vm.AttemptConnectAsync(url, ct);
+            string? error = await vm.AttemptConnectAsync(url, ct);
 
             // User opened the Connect dialog (or otherwise took over) while we
             // were retrying — bail silently so we don't clobber their status
@@ -570,7 +571,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             log.LogInformation("Fetching scenario {ScenarioId} from vNAS API", scenarioId);
             vm.StatusText = $"Fetching scenario {scenarioId}...";
             var dataService = new TrainingDataService();
-            var json = await dataService.GetScenarioJsonAsync(scenarioId);
+            string? json = await dataService.GetScenarioJsonAsync(scenarioId);
 
             if (json is null)
             {
@@ -591,9 +592,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void SetupDataGrid(DataGrid dataGrid, MainViewModel vm)
     {
-        foreach (var col in dataGrid.Columns)
+        foreach (DataGridColumn? col in dataGrid.Columns)
         {
-            var inner = GetColumnSortComparer(col);
+            IComparer inner = GetColumnSortComparer(col);
             col.CustomSortComparer = new GroupStableSortComparer(inner);
         }
 
@@ -609,7 +610,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 return;
             }
 
-            var clickedKey = GetColumnKey(e.Column);
+            string clickedKey = GetColumnKey(e.Column);
             if (clickedKey == _sortColumnKey)
             {
                 _sortDirection = _sortDirection switch
@@ -692,7 +693,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void RestoreGridLayout(DataGrid dataGrid, UserPreferences prefs)
     {
-        var layout = prefs.GridLayout;
+        SavedGridLayout? layout = prefs.GridLayout;
         if (layout is null)
         {
             return;
@@ -704,15 +705,15 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             if (layout.ColumnOrder is { Count: > 0 })
             {
                 var keyToColumn = new Dictionary<string, DataGridColumn>();
-                foreach (var col in dataGrid.Columns)
+                foreach (DataGridColumn? col in dataGrid.Columns)
                 {
                     keyToColumn[GetColumnKey(col)] = col;
                 }
 
                 int displayIndex = 0;
-                foreach (var key in layout.ColumnOrder)
+                foreach (string key in layout.ColumnOrder)
                 {
-                    if (keyToColumn.Remove(key, out var col))
+                    if (keyToColumn.Remove(key, out DataGridColumn? col))
                     {
                         col.DisplayIndex = displayIndex;
                         displayIndex++;
@@ -722,7 +723,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
             if (layout.SortColumn is not null && layout.SortDirection is not null)
             {
-                foreach (var col in dataGrid.Columns)
+                foreach (DataGridColumn? col in dataGrid.Columns)
                 {
                     if (GetColumnKey(col) == layout.SortColumn)
                     {
@@ -736,9 +737,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
             if (layout.ColumnWidths is { Count: > 0 })
             {
-                foreach (var col in dataGrid.Columns)
+                foreach (DataGridColumn? col in dataGrid.Columns)
                 {
-                    if (layout.ColumnWidths.TryGetValue(GetColumnKey(col), out var width))
+                    if (layout.ColumnWidths.TryGetValue(GetColumnKey(col), out double width))
                     {
                         col.Width = new DataGridLength(width);
                     }
@@ -748,7 +749,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             if (layout.HiddenColumns is { Count: > 0 })
             {
                 var hidden = new HashSet<string>(layout.HiddenColumns);
-                foreach (var col in dataGrid.Columns)
+                foreach (DataGridColumn? col in dataGrid.Columns)
                 {
                     if (hidden.Contains(GetColumnKey(col)))
                     {
@@ -774,7 +775,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         Dictionary<string, double>? columnWidths = null;
         List<string>? hiddenColumns = null;
-        foreach (var col in dataGrid.Columns)
+        foreach (DataGridColumn? col in dataGrid.Columns)
         {
             if (!col.Width.IsAuto)
             {
@@ -810,7 +811,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
             for (int i = 0; i < dataGrid.Columns.Count; i++)
             {
-                var col = dataGrid.Columns[i];
+                DataGridColumn col = dataGrid.Columns[i];
                 col.DisplayIndex = i;
                 col.Width = DataGridLength.Auto;
                 col.IsVisible = true;
@@ -828,7 +829,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         dataGrid.Loaded += (_, _) =>
         {
             // Find the column headers presenter and attach right-click
-            var headersPresenter = dataGrid.GetVisualDescendants().OfType<DataGridColumnHeadersPresenter>().FirstOrDefault();
+            DataGridColumnHeadersPresenter? headersPresenter = dataGrid
+                .GetVisualDescendants()
+                .OfType<DataGridColumnHeadersPresenter>()
+                .FirstOrDefault();
             if (headersPresenter is null)
             {
                 return;
@@ -844,7 +848,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 e.Handled = true;
 
                 var entries = new List<ColumnEntry>();
-                foreach (var col in dataGrid.Columns.OrderBy(c => c.DisplayIndex))
+                foreach (DataGridColumn? col in dataGrid.Columns.OrderBy(c => c.DisplayIndex))
                 {
                     entries.Add(
                         new ColumnEntry
@@ -857,7 +861,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 }
 
                 Dictionary<string, double>? currentWidths = null;
-                foreach (var col in dataGrid.Columns)
+                foreach (DataGridColumn? col in dataGrid.Columns)
                 {
                     if (!col.Width.IsAuto)
                     {
@@ -876,7 +880,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                     _sortDirection,
                     defaultOrder
                 );
-                var ownerWindow = TopLevel.GetTopLevel(dataGrid) as Window ?? this;
+                Window ownerWindow = TopLevel.GetTopLevel(dataGrid) as Window ?? this;
                 await chooser.ShowDialog(ownerWindow);
 
                 if (!chooser.Confirmed)
@@ -889,14 +893,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 {
                     int displayIndex = 0;
                     var keyToColumn = new Dictionary<string, DataGridColumn>();
-                    foreach (var col in dataGrid.Columns)
+                    foreach (DataGridColumn? col in dataGrid.Columns)
                     {
                         keyToColumn[GetColumnKey(col)] = col;
                     }
 
-                    foreach (var entry in chooser.Entries)
+                    foreach (ColumnEntry entry in chooser.Entries)
                     {
-                        if (keyToColumn.TryGetValue(entry.Key, out var col))
+                        if (keyToColumn.TryGetValue(entry.Key, out DataGridColumn? col))
                         {
                             col.IsVisible = entry.IsVisible;
                             col.DisplayIndex = displayIndex;
@@ -913,9 +917,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 {
                     if (imported.ColumnWidths is { Count: > 0 })
                     {
-                        foreach (var col in dataGrid.Columns)
+                        foreach (DataGridColumn? col in dataGrid.Columns)
                         {
-                            if (imported.ColumnWidths.TryGetValue(GetColumnKey(col), out var width))
+                            if (imported.ColumnWidths.TryGetValue(GetColumnKey(col), out double width))
                             {
                                 col.Width = new DataGridLength(width);
                             }
@@ -924,7 +928,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
                     if (imported.SortColumn is not null && imported.SortDirection is not null)
                     {
-                        foreach (var col in dataGrid.Columns)
+                        foreach (DataGridColumn? col in dataGrid.Columns)
                         {
                             if (GetColumnKey(col) == imported.SortColumn)
                             {
@@ -949,7 +953,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         dataGrid.Loaded += (_, _) =>
         {
             TextBlock? header = null;
-            foreach (var col in dataGrid.Columns)
+            foreach (DataGridColumn? col in dataGrid.Columns)
             {
                 if (col.SortMemberPath == "DistanceFromFix" && col.Header is TextBlock tb)
                 {
@@ -994,10 +998,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             var flyout = new Flyout { Content = panel, Placement = PlacementMode.BottomEdgeAlignedLeft };
 
             // Open on middle-click or Ctrl/Cmd+click on the Distance column header
-            var columnHeader = header.GetVisualAncestors().OfType<DataGridColumnHeader>().FirstOrDefault() ?? (Control)header;
+            Control columnHeader = header.GetVisualAncestors().OfType<DataGridColumnHeader>().FirstOrDefault() ?? (Control)header;
             columnHeader.PointerPressed += (_, e) =>
             {
-                var props = e.GetCurrentPoint(columnHeader).Properties;
+                PointerPointProperties props = e.GetCurrentPoint(columnHeader).Properties;
                 if (props.IsMiddleButtonPressed || (props.IsLeftButtonPressed && PlatformHelper.HasActionModifier(e.KeyModifiers)))
                 {
                     e.Handled = true;
@@ -1064,7 +1068,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private static void UpdateDistFixSuggestions(MainViewModel vm, TextBox input, ListBox listBox)
     {
-        var text = input.Text?.Trim().ToUpperInvariant() ?? "";
+        string text = input.Text?.Trim().ToUpperInvariant() ?? "";
         listBox.Items.Clear();
 
         if (!vm.CommandInput.NavDbReady || text.Length == 0)
@@ -1073,7 +1077,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        var allNames = NavigationDatabase.Instance.AllFixNames;
+        string[] allNames = NavigationDatabase.Instance.AllFixNames;
         int lo = 0,
             hi = allNames.Length - 1;
         while (lo <= hi)
@@ -1186,7 +1190,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// </summary>
     private void UpdateContentGridLayout(MainViewModel vm)
     {
-        var grid = this.FindControl<Grid>("ContentGrid");
+        Grid? grid = this.FindControl<Grid>("ContentGrid");
         if (grid is not { RowDefinitions.Count: >= 3 })
         {
             return;
@@ -1269,7 +1273,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void WireStripsEntryWindows(MainViewModel vm)
     {
-        foreach (var entry in vm.StripsEntries)
+        foreach (VStripsDockEntryViewModel entry in vm.StripsEntries)
         {
             AttachStripsEntry(vm, entry);
         }
@@ -1302,7 +1306,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // carries the split actions (the TabItem visual is only the header —
         // the content area is presented by the TabControl, so the flyout
         // can't shadow strip right-click menus).
-        var tabControl = this.FindControl<TabControl>("MainTabControl");
+        TabControl? tabControl = this.FindControl<TabControl>("MainTabControl");
         if (tabControl is not null)
         {
             var tab = new TabItem
@@ -1315,7 +1319,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             headerFlyout.Opening += (_, _) =>
             {
                 headerFlyout.Items.Clear();
-                foreach (var item in BuildStripsSplitMenuItems(vm, entry))
+                foreach (MenuItem item in BuildStripsSplitMenuItems(vm, entry))
                 {
                     headerFlyout.Items.Add(item);
                 }
@@ -1338,18 +1342,18 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                     {
                         CloseStripsEntryWindow(entry);
                     }
-                    if (_stripsTabItems.TryGetValue(entry, out var t))
+                    if (_stripsTabItems.TryGetValue(entry, out TabItem? t))
                     {
                         t.IsVisible = !entry.IsPoppedOut;
                     }
                     RebuildStripsSubmenu(vm);
                     break;
                 case nameof(VStripsDockEntryViewModel.TabTitle):
-                    if (_stripsTabItems.TryGetValue(entry, out var titleTab))
+                    if (_stripsTabItems.TryGetValue(entry, out TabItem? titleTab))
                     {
                         titleTab.Header = entry.TabTitle;
                     }
-                    if (_stripsWindows.TryGetValue(entry, out var titleWindow))
+                    if (_stripsWindows.TryGetValue(entry, out VStripsViewWindow? titleWindow))
                     {
                         titleWindow.SetWindowTitle(entry.TabTitle);
                     }
@@ -1370,9 +1374,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private void DetachStripsEntry(VStripsDockEntryViewModel entry)
     {
         CloseStripsEntryWindow(entry);
-        if (_stripsTabItems.Remove(entry, out var tab))
+        if (_stripsTabItems.Remove(entry, out TabItem? tab))
         {
-            var tabControl = this.FindControl<TabControl>("MainTabControl");
+            TabControl? tabControl = this.FindControl<TabControl>("MainTabControl");
             tabControl?.Items.Remove(tab);
         }
     }
@@ -1404,7 +1408,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void CloseStripsEntryWindow(VStripsDockEntryViewModel entry)
     {
-        if (_stripsWindows.TryGetValue(entry, out var window))
+        if (_stripsWindows.TryGetValue(entry, out VStripsViewWindow? window))
         {
             _stripsWindows.Remove(entry);
             window.Close();
@@ -1421,14 +1425,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// </summary>
     private void RebuildStripsSubmenu(MainViewModel vm)
     {
-        var submenu = this.FindControl<MenuItem>("StripsSubmenu");
+        MenuItem? submenu = this.FindControl<MenuItem>("StripsSubmenu");
         if (submenu is null)
         {
             return;
         }
 
         var items = new List<object>();
-        foreach (var entry in vm.StripsEntries)
+        foreach (VStripsDockEntryViewModel entry in vm.StripsEntries)
         {
             var popOut = new MenuItem
             {
@@ -1447,7 +1451,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             items.Add(popOut);
 
             var split = new MenuItem { Header = $"Split {entry.TabTitle}" };
-            foreach (var splitItem in BuildStripsSplitMenuItems(vm, entry))
+            foreach (MenuItem splitItem in BuildStripsSplitMenuItems(vm, entry))
             {
                 split.Items.Add(splitItem);
             }
@@ -1535,7 +1539,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
         submenu.Items.Clear();
 
-        var studentVm = vm.StripsEntries.FirstOrDefault()?.Vm;
+        VStripsViewModel? studentVm = vm.StripsEntries.FirstOrDefault()?.Vm;
         if (studentVm is null || studentVm.AccessibleFacilities.Count == 0)
         {
             submenu.Items.Add(new MenuItem { Header = "(No accessible facilities)", IsEnabled = false });
@@ -1546,7 +1550,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // opens a second independent view of that facility (each view keeps
         // its own selected bay), matching the browser client's ability to
         // open the same facility in two windows.
-        foreach (var facility in studentVm.AccessibleFacilities)
+        foreach (AccessibleFacilityDto facility in studentVm.AccessibleFacilities)
         {
             var item = new MenuItem { Header = FacilityMenuHeader(facility), Tag = facility };
             item.Click += async (_, _) =>
@@ -1572,7 +1576,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void WireTdlsEntryWindows(MainViewModel vm)
     {
-        foreach (var entry in vm.TdlsEntries)
+        foreach (VTdlsDockEntryViewModel entry in vm.TdlsEntries)
         {
             AttachTdlsEntry(vm, entry);
         }
@@ -1599,7 +1603,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void AttachTdlsEntry(MainViewModel vm, VTdlsDockEntryViewModel entry)
     {
-        var tabControl = this.FindControl<TabControl>("MainTabControl");
+        TabControl? tabControl = this.FindControl<TabControl>("MainTabControl");
         if (tabControl is not null)
         {
             var tab = new TabItem
@@ -1625,18 +1629,18 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                     {
                         CloseTdlsEntryWindow(entry);
                     }
-                    if (_tdlsTabItems.TryGetValue(entry, out var t))
+                    if (_tdlsTabItems.TryGetValue(entry, out TabItem? t))
                     {
                         t.IsVisible = !entry.IsPoppedOut;
                     }
                     RebuildTdlsSubmenu(vm);
                     break;
                 case nameof(VTdlsDockEntryViewModel.TabTitle):
-                    if (_tdlsTabItems.TryGetValue(entry, out var titleTab))
+                    if (_tdlsTabItems.TryGetValue(entry, out TabItem? titleTab))
                     {
                         titleTab.Header = entry.TabTitle;
                     }
-                    if (_tdlsWindows.TryGetValue(entry, out var titleWindow))
+                    if (_tdlsWindows.TryGetValue(entry, out VTdlsViewWindow? titleWindow))
                     {
                         titleWindow.SetWindowTitle(entry.TabTitle);
                     }
@@ -1654,9 +1658,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private void DetachTdlsEntry(VTdlsDockEntryViewModel entry)
     {
         CloseTdlsEntryWindow(entry);
-        if (_tdlsTabItems.Remove(entry, out var tab))
+        if (_tdlsTabItems.Remove(entry, out TabItem? tab))
         {
-            var tabControl = this.FindControl<TabControl>("MainTabControl");
+            TabControl? tabControl = this.FindControl<TabControl>("MainTabControl");
             tabControl?.Items.Remove(tab);
         }
     }
@@ -1685,7 +1689,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void CloseTdlsEntryWindow(VTdlsDockEntryViewModel entry)
     {
-        if (_tdlsWindows.TryGetValue(entry, out var window))
+        if (_tdlsWindows.TryGetValue(entry, out VTdlsViewWindow? window))
         {
             _tdlsWindows.Remove(entry);
             window.Close();
@@ -1694,14 +1698,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void RebuildTdlsSubmenu(MainViewModel vm)
     {
-        var submenu = this.FindControl<MenuItem>("TdlsSubmenu");
+        MenuItem? submenu = this.FindControl<MenuItem>("TdlsSubmenu");
         if (submenu is null)
         {
             return;
         }
 
         var items = new List<object>();
-        foreach (var entry in vm.TdlsEntries)
+        foreach (VTdlsDockEntryViewModel entry in vm.TdlsEntries)
         {
             var popOut = new MenuItem
             {
@@ -1749,7 +1753,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
         submenu.Items.Clear();
 
-        var studentVm = vm.TdlsEntries.FirstOrDefault()?.Vm;
+        VTdlsViewModel? studentVm = vm.TdlsEntries.FirstOrDefault()?.Vm;
         if (studentVm is null || studentVm.AccessibleFacilities.Count == 0)
         {
             submenu.Items.Add(new MenuItem { Header = "(No accessible TDLS facilities)", IsEnabled = false });
@@ -1757,8 +1761,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         var existingIds = vm.TdlsEntries.Select(x => x.Vm.FacilityId).Where(id => !string.IsNullOrEmpty(id)).ToHashSet(System.StringComparer.Ordinal);
-        var added = 0;
-        foreach (var facility in studentVm.AccessibleFacilities)
+        int added = 0;
+        foreach (AccessibleFacilityDto facility in studentVm.AccessibleFacilities)
         {
             if (existingIds.Contains(facility.FacilityId))
             {
@@ -1788,8 +1792,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         _dataGridWindow.Closing += OnDataGridWindowClosing;
         _dataGridWindow.Show();
 
-        var popOutView = _dataGridWindow.FindControl<DataGridView>("PopOutDataGridView");
-        var popOutGrid = popOutView?.GetDataGrid();
+        DataGridView? popOutView = _dataGridWindow.FindControl<DataGridView>("PopOutDataGridView");
+        DataGrid? popOutGrid = popOutView?.GetDataGrid();
         if (popOutGrid is not null)
         {
             SetupDataGrid(popOutGrid, vm);
@@ -1864,12 +1868,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// </summary>
     private void WireViewInstanceWindows(MainViewModel vm)
     {
-        foreach (var instance in vm.ExtraRadarViews)
+        foreach (RadarViewInstance instance in vm.ExtraRadarViews)
         {
             OpenExtraRadarWindow(vm, instance);
         }
 
-        foreach (var instance in vm.ExtraGroundViews)
+        foreach (GroundViewInstance instance in vm.ExtraGroundViews)
         {
             OpenExtraGroundWindow(vm, instance);
         }
@@ -1882,7 +1886,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         if (e.Action == NotifyCollectionChangedAction.Reset)
         {
-            foreach (var instance in _extraRadarWindows.Keys.ToList())
+            foreach (RadarViewInstance? instance in _extraRadarWindows.Keys.ToList())
             {
                 CloseExtraRadarWindow(instance);
             }
@@ -1911,7 +1915,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         if (e.Action == NotifyCollectionChangedAction.Reset)
         {
-            foreach (var instance in _extraGroundWindows.Keys.ToList())
+            foreach (GroundViewInstance? instance in _extraGroundWindows.Keys.ToList())
             {
                 CloseExtraGroundWindow(instance);
             }
@@ -1967,12 +1971,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void CloseExtraRadarWindow(RadarViewInstance instance)
     {
-        if (!_extraRadarWindows.Remove(instance, out var window))
+        if (!_extraRadarWindows.Remove(instance, out RadarViewWindow? window))
         {
             return;
         }
 
-        if (_extraRadarClosingHandlers.Remove(instance, out var handler))
+        if (_extraRadarClosingHandlers.Remove(instance, out EventHandler<WindowClosingEventArgs>? handler))
         {
             window.Closing -= handler;
         }
@@ -2007,12 +2011,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void CloseExtraGroundWindow(GroundViewInstance instance)
     {
-        if (!_extraGroundWindows.Remove(instance, out var window))
+        if (!_extraGroundWindows.Remove(instance, out GroundViewWindow? window))
         {
             return;
         }
 
-        if (_extraGroundClosingHandlers.Remove(instance, out var handler))
+        if (_extraGroundClosingHandlers.Remove(instance, out EventHandler<WindowClosingEventArgs>? handler))
         {
             window.Closing -= handler;
         }
@@ -2125,7 +2129,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void RefreshRecentScenariosEnabled(MainViewModel vm)
     {
-        var recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
+        MenuItem? recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
         if (recentItem is not null)
         {
             recentItem.IsEnabled = vm.IsInRoom && vm.Preferences.RecentScenarios.Count > 0;
@@ -2134,13 +2138,13 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void RefreshRecentMenusEnabled(MainViewModel vm)
     {
-        var recentScenarios = this.FindControl<MenuItem>("RecentScenariosMenuItem");
+        MenuItem? recentScenarios = this.FindControl<MenuItem>("RecentScenariosMenuItem");
         if (recentScenarios is not null)
         {
             recentScenarios.IsEnabled = vm.IsInRoom && vm.Preferences.RecentScenarios.Count > 0;
         }
 
-        var recentWeather = this.FindControl<MenuItem>("RecentWeatherMenuItem");
+        MenuItem? recentWeather = this.FindControl<MenuItem>("RecentWeatherMenuItem");
         if (recentWeather is not null)
         {
             recentWeather.IsEnabled = vm.IsInRoom && vm.Preferences.RecentWeatherFiles.Count > 0;
@@ -2155,7 +2159,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         var window = new LoadScenarioWindow(vm.Preferences, vm.Connection);
-        var result = await window.ShowDialog<ScenarioLoadResult?>(this);
+        ScenarioLoadResult? result = await window.ShowDialog<ScenarioLoadResult?>(this);
         if (result is null)
         {
             return;
@@ -2174,7 +2178,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void WireLiveSessionBadge()
     {
-        var badge = this.FindControl<Border>("LiveSessionBadge");
+        Border? badge = this.FindControl<Border>("LiveSessionBadge");
         if (badge is null)
         {
             return;
@@ -2201,7 +2205,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         var window = new LiveSessionWindow(vm.Preferences, vm.Connection);
-        var choice = await window.ShowDialog<LiveSessionChoice?>(this);
+        LiveSessionChoice? choice = await window.ShowDialog<LiveSessionChoice?>(this);
         if (choice is null)
         {
             return;
@@ -2232,7 +2236,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         manageItem.Click += async (_, _) => await OnManageWindowProfilesAsync(vm);
         menu.Items.Add(manageItem);
 
-        var profiles = vm.Preferences.WindowProfiles;
+        IReadOnlyList<SavedWindowProfile> profiles = vm.Preferences.WindowProfiles;
         if (profiles.Count == 0)
         {
             menu.Items.Add(new Separator());
@@ -2241,7 +2245,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         menu.Items.Add(new Separator());
-        foreach (var profile in profiles)
+        foreach (SavedWindowProfile profile in profiles)
         {
             var item = new MenuItem { Header = profile.Name, Tag = profile.Name };
             item.Click += async (_, e) =>
@@ -2257,7 +2261,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private async System.Threading.Tasks.Task OnSaveCurrentWindowProfileAsync(MainViewModel vm)
     {
-        var existing = vm.Preferences.WindowProfiles.Select(p => p.Name);
+        IEnumerable<string> existing = vm.Preferences.WindowProfiles.Select(p => p.Name);
         var dlg = new SaveWindowProfileDialog(existing, null);
         await dlg.ShowDialog(this);
 
@@ -2266,7 +2270,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        var profile = _windowProfileService.CaptureCurrent(dlg.ProfileName, vm);
+        SavedWindowProfile profile = _windowProfileService.CaptureCurrent(dlg.ProfileName, vm);
         vm.Preferences.SaveWindowProfile(profile);
         vm.StatusText = $"Saved window profile \"{profile.Name}\"";
     }
@@ -2282,7 +2286,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 await ApplyWindowProfileByNameAsync(vm, name);
                 break;
             case ManageWindowProfilesAction.UpdateFromCurrent when dlg.SelectedProfileName is { } name:
-                var refreshed = _windowProfileService.CaptureCurrent(name, vm);
+                SavedWindowProfile refreshed = _windowProfileService.CaptureCurrent(name, vm);
                 vm.Preferences.SaveWindowProfile(refreshed);
                 vm.StatusText = $"Updated window profile \"{name}\" from current arrangement";
                 break;
@@ -2317,7 +2321,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private async System.Threading.Tasks.Task ApplyWindowProfileByNameAsync(MainViewModel vm, string name)
     {
-        var profile = vm.Preferences.GetWindowProfile(name);
+        SavedWindowProfile? profile = vm.Preferences.GetWindowProfile(name);
         if (profile is null)
         {
             vm.StatusText = $"Window profile \"{name}\" not found";
@@ -2333,7 +2337,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         if (profile.LoadedFavoriteSetIds is { } setIds)
         {
             vm.Preferences.SetLoadedFavoriteSets(setIds.ToList());
-            var missingCount = setIds.Count(id => vm.FavoriteStore.GetSet(id) is null);
+            int missingCount = setIds.Count(id => vm.FavoriteStore.GetSet(id) is null);
             if (missingCount > 0)
             {
                 missingSetsNote = $" ({missingCount} favorite set(s) no longer exist)";
@@ -2367,9 +2371,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             // reflects pre-flip state.
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
-                foreach (var helper in WindowGeometryHelper.GetActiveHelpers())
+                foreach (WindowGeometryHelper helper in WindowGeometryHelper.GetActiveHelpers())
                 {
-                    if (profile.WindowGeometries.TryGetValue(helper.WindowName, out var geo))
+                    if (profile.WindowGeometries.TryGetValue(helper.WindowName, out SavedWindowGeometry? geo))
                     {
                         helper.ApplyGeometry(geo);
                     }
@@ -2414,14 +2418,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// </summary>
     private void ApplyGridLayoutToLiveGrids(MainViewModel vm)
     {
-        var embedded = this.FindControl<DataGridView>("EmbeddedDataGridView")?.GetDataGrid();
+        DataGrid? embedded = this.FindControl<DataGridView>("EmbeddedDataGridView")?.GetDataGrid();
         if (embedded is not null)
         {
             ResetGridVisibility(embedded);
             RestoreGridLayout(embedded, vm.Preferences);
         }
 
-        var popOut = _dataGridWindow?.FindControl<DataGridView>("PopOutDataGridView")?.GetDataGrid();
+        DataGrid? popOut = _dataGridWindow?.FindControl<DataGridView>("PopOutDataGridView")?.GetDataGrid();
         if (popOut is not null)
         {
             ResetGridVisibility(popOut);
@@ -2434,7 +2438,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         _restoringGrid = true;
         try
         {
-            foreach (var col in grid.Columns)
+            foreach (DataGridColumn? col in grid.Columns)
             {
                 col.IsVisible = true;
                 col.Width = DataGridLength.Auto;
@@ -2449,7 +2453,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private void PopulateRecentScenarios(MenuItem menu, MainViewModel vm)
     {
         menu.Items.Clear();
-        var recent = vm.Preferences.RecentScenarios;
+        IReadOnlyList<RecentScenario> recent = vm.Preferences.RecentScenarios;
         if (recent.Count == 0 || !vm.IsInRoom)
         {
             menu.IsEnabled = false;
@@ -2458,9 +2462,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         menu.IsEnabled = true;
-        foreach (var entry in recent)
+        foreach (RecentScenario entry in recent)
         {
-            var header = entry.IsApi ? entry.Name : $"(Local) {entry.Name}";
+            string header = entry.IsApi ? entry.Name : $"(Local) {entry.Name}";
             var item = new MenuItem { Header = header, Tag = entry };
             item.Click += OnRecentScenarioClick;
             ToolTip.SetTip(item, entry.IsApi ? $"API: {entry.ApiId}" : entry.FilePath);
@@ -2492,7 +2496,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         try
         {
-            var airports = await vm.GetArtccAirportIdsAsync();
+            IReadOnlyList<string> airports = await vm.GetArtccAirportIdsAsync();
             var dialog = new ExtraViewAirportDialog(title, airports, vm.DefaultExtraViewAirportId, vm.IsKnownAirport);
             await dialog.ShowDialog(this);
             if (dialog.AirportId is { } airportId)
@@ -2547,7 +2551,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
         else
         {
-            var profile = vm.Preferences.GetWindowProfile(dlg.SourceId);
+            SavedWindowProfile? profile = vm.Preferences.GetWindowProfile(dlg.SourceId);
             if (profile is not null)
             {
                 await ApplyWindowProfilePartialAsync(vm, profile, dlg.SelectedKeys);
@@ -2558,13 +2562,13 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private static void ApplyScenarioViewCopy(MainViewModel vm, string sourceScenarioId, IReadOnlyList<string> selectedKeys)
     {
         var selected = new HashSet<string>(selectedKeys);
-        var prefs = vm.Preferences;
+        UserPreferences prefs = vm.Preferences;
 
-        var sourceGround = prefs.GetGroundSettings(sourceScenarioId);
+        SavedGroundSettings? sourceGround = prefs.GetGroundSettings(sourceScenarioId);
         if (sourceGround is not null && ViewSettingsCopyCatalog.GroundGroups.Any(g => selected.Contains(g.Key)))
         {
-            var merged = vm.Ground.CaptureSettings();
-            foreach (var group in ViewSettingsCopyCatalog.GroundGroups)
+            SavedGroundSettings merged = vm.Ground.CaptureSettings();
+            foreach (GroundCopyGroup group in ViewSettingsCopyCatalog.GroundGroups)
             {
                 if (selected.Contains(group.Key))
                 {
@@ -2575,11 +2579,11 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             vm.Ground.ApplyCopiedSettings(merged);
         }
 
-        var sourceRadar = prefs.GetRadarSettings(sourceScenarioId);
+        SavedRadarSettings? sourceRadar = prefs.GetRadarSettings(sourceScenarioId);
         if (sourceRadar is not null && ViewSettingsCopyCatalog.RadarGroups.Any(g => selected.Contains(g.Key)))
         {
-            var merged = vm.Radar.CaptureSettings();
-            foreach (var group in ViewSettingsCopyCatalog.RadarGroups)
+            SavedRadarSettings merged = vm.Radar.CaptureSettings();
+            foreach (RadarCopyGroup group in ViewSettingsCopyCatalog.RadarGroups)
             {
                 if (selected.Contains(group.Key))
                 {
@@ -2601,8 +2605,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         var selected = new HashSet<string>(selectedKeys);
         var geometryKeys = new HashSet<string>(selected.Where(k => k.StartsWith("geo:", StringComparison.Ordinal)).Select(k => k["geo:".Length..]));
-        var includeGrid = selected.Contains("columns");
-        var includePopouts = selected.Contains("popouts");
+        bool includeGrid = selected.Contains("columns");
+        bool includePopouts = selected.Contains("popouts");
 
         _windowProfileService.StagePreferencesPartial(profile, geometryKeys, includeGrid);
 
@@ -2623,9 +2627,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
-                foreach (var helper in WindowGeometryHelper.GetActiveHelpers())
+                foreach (WindowGeometryHelper helper in WindowGeometryHelper.GetActiveHelpers())
                 {
-                    if (geometryKeys.Contains(helper.WindowName) && profile.WindowGeometries.TryGetValue(helper.WindowName, out var geo))
+                    if (
+                        geometryKeys.Contains(helper.WindowName)
+                        && profile.WindowGeometries.TryGetValue(helper.WindowName, out SavedWindowGeometry? geo)
+                    )
                     {
                         helper.ApplyGeometry(geo);
                     }
@@ -2681,7 +2688,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         vm.StatusText = "Fetching weather…";
         var trainingData = new TrainingDataService();
-        var json = await trainingData.GetWeatherJsonAsync(apiWeatherId);
+        string? json = await trainingData.GetWeatherJsonAsync(apiWeatherId);
         if (json is not null)
         {
             await vm.LoadWeatherFromJsonAsync(json, displayName ?? apiWeatherId, apiWeatherId);
@@ -2705,7 +2712,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private void PopulateRecentWeather(MenuItem menu, MainViewModel vm)
     {
         menu.Items.Clear();
-        var recent = vm.Preferences.RecentWeatherFiles;
+        IReadOnlyList<RecentWeather> recent = vm.Preferences.RecentWeatherFiles;
         if (recent.Count == 0 || !vm.IsInRoom)
         {
             menu.IsEnabled = false;
@@ -2714,7 +2721,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         menu.IsEnabled = true;
-        foreach (var entry in recent)
+        foreach (RecentWeather entry in recent)
         {
             var item = new MenuItem { Header = entry.Name, Tag = entry };
             item.Click += OnRecentWeatherClick;
@@ -2753,7 +2760,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         var window = new LoadWeatherWindow(vm.Preferences);
-        var result = await window.ShowDialog<WeatherLoadResult?>(this);
+        WeatherLoadResult? result = await window.ShowDialog<WeatherLoadResult?>(this);
         if (result is null)
         {
             return;
@@ -2780,7 +2787,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        var control = visual as Control ?? visual.GetVisualAncestors().OfType<Control>().FirstOrDefault();
+        Control? control = visual as Control ?? visual.GetVisualAncestors().OfType<Control>().FirstOrDefault();
         while (control is not null)
         {
             if (control.DataContext is TimelineMarkerVm marker)
@@ -2811,7 +2818,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        var control = visual as Control ?? visual.GetVisualAncestors().OfType<Control>().FirstOrDefault();
+        Control? control = visual as Control ?? visual.GetVisualAncestors().OfType<Control>().FirstOrDefault();
         while (control is not null)
         {
             if (control.DataContext is TimelineBookmarkVm bookmark)
@@ -2830,8 +2837,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private void OnBookmarkNamePromptRequested(BookmarkNamePrompt prompt)
     {
         _bookmarkPrompt = prompt;
-        var popup = this.FindControl<Popup>("BookmarkNamePopup");
-        var textBox = this.FindControl<TextBox>("BookmarkNameText");
+        Popup? popup = this.FindControl<Popup>("BookmarkNamePopup");
+        TextBox? textBox = this.FindControl<TextBox>("BookmarkNameText");
         if (popup is null || textBox is null)
         {
             return;
@@ -2871,27 +2878,27 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     // Add prompt still drops the (unnamed) bookmark, matching the pre-sync "Add always creates" behavior.
     private void OnBookmarkNamePopupClosed(object? sender, EventArgs e)
     {
-        var prompt = _bookmarkPrompt;
+        BookmarkNamePrompt? prompt = _bookmarkPrompt;
         _bookmarkPrompt = null;
         prompt?.OnCancel();
     }
 
     private void CommitBookmarkName()
     {
-        var prompt = _bookmarkPrompt;
+        BookmarkNamePrompt? prompt = _bookmarkPrompt;
         _bookmarkPrompt = null;
-        var textBox = this.FindControl<TextBox>("BookmarkNameText");
+        TextBox? textBox = this.FindControl<TextBox>("BookmarkNameText");
         HideBookmarkNamePopup();
         if (prompt is not null)
         {
-            var text = textBox?.Text?.Trim();
+            string? text = textBox?.Text?.Trim();
             prompt.OnSave(string.IsNullOrEmpty(text) ? null : text);
         }
     }
 
     private void CancelBookmarkName()
     {
-        var prompt = _bookmarkPrompt;
+        BookmarkNamePrompt? prompt = _bookmarkPrompt;
         _bookmarkPrompt = null;
         HideBookmarkNamePopup();
         prompt?.OnCancel();
@@ -2899,7 +2906,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void HideBookmarkNamePopup()
     {
-        var popup = this.FindControl<Popup>("BookmarkNamePopup");
+        Popup? popup = this.FindControl<Popup>("BookmarkNamePopup");
         if (popup is not null)
         {
             popup.IsOpen = false;
@@ -2921,7 +2928,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         try
         {
-            var report = await vm.Connection.GetSessionReportAsync();
+            SessionReportDto? report = await vm.Connection.GetSessionReportAsync();
             if (report is null)
             {
                 vm.StatusText = "No session report available";
@@ -3011,7 +3018,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        var result = await vm.RunUpdateCheckAsync();
+        UpdateCheckResult result = await vm.RunUpdateCheckAsync();
         switch (result.Outcome)
         {
             case UpdateCheckOutcome.UpdateAvailable:
@@ -3034,7 +3041,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private async Task OfferUpdateAsync(MainViewModel vm)
     {
-        var accepted = await AskYesNoAsync($"YAAT {vm.UpdateVersion} is available. Download and install it now?");
+        bool accepted = await AskYesNoAsync($"YAAT {vm.UpdateVersion} is available. Download and install it now?");
         if (accepted)
         {
             await vm.UpdateNowCommand.ExecuteAsync(null);
@@ -3043,7 +3050,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private async Task OfferReleasesPageAsync()
     {
-        var accepted = await AskYesNoAsync(
+        bool accepted = await AskYesNoAsync(
             "This build doesn't update itself — it's portable or running from source. Open the releases page to download the latest version?"
         );
         if (accepted)
@@ -3054,19 +3061,19 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private async Task<bool> AskYesNoAsync(string message)
     {
-        var box = MessageBoxManager.GetMessageBoxStandard("YAAT", message, ButtonEnum.YesNo);
+        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard("YAAT", message, ButtonEnum.YesNo);
         return await box.ShowWindowDialogAsync(this) == ButtonResult.Yes;
     }
 
     private void OnCommandCheatsheetClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var local = Path.Combine(AppContext.BaseDirectory, "command-cheatsheet.html");
+        string local = Path.Combine(AppContext.BaseDirectory, "command-cheatsheet.html");
         UrlLauncher.OpenInBrowser(File.Exists(local) ? local : DocLinks.CommandCheatsheet);
     }
 
     private void WireUrlMenuItem(string name, string url)
     {
-        var item = this.FindControl<MenuItem>(name);
+        MenuItem? item = this.FindControl<MenuItem>(name);
         if (item is not null)
         {
             item.Click += (_, _) => UrlLauncher.OpenInBrowser(url);
@@ -3075,7 +3082,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private async Task ShowMessageAsync(string message)
     {
-        var box = MessageBoxManager.GetMessageBoxStandard("YAAT", message, ButtonEnum.Ok);
+        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard("YAAT", message, ButtonEnum.Ok);
         await box.ShowWindowDialogAsync(this);
     }
 
@@ -3087,20 +3094,20 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         // Snapshot current visual state for rollback on cancel
-        var snapshotGroundColors = vm.Ground.ColorScheme;
-        var snapshotSatBrightness = vm.Ground.SatelliteImageBrightness;
-        var snapshotMapBrightness = vm.Ground.VideoMapOverlayBrightness;
-        var snapshotGndBrightness = vm.Ground.YaatLayoutBrightness;
-        var snapshotDataGridScale = vm.DataGridScale;
-        var snapshotAssignmentTintEnabled = vm.Preferences.AssignmentTintEnabled;
-        var snapshotAssignmentTintColor = vm.Preferences.AssignmentTintColor;
-        var snapshotUnassignedTintEnabled = vm.Preferences.UnassignedTintEnabled;
-        var snapshotUnassignedTintColor = vm.Preferences.UnassignedTintColor;
-        var snapshotSelectedColor = vm.Preferences.SelectedColor;
-        var snapshotTerminalFontSize = vm.TerminalFontSize;
-        var snapshotInterfaceFontSize = vm.Preferences.InterfaceFontSize;
-        var snapshotStripsZoomPercent = vm.Preferences.StripsZoomPercent;
-        var snapshotTdlsZoomPercent = vm.Preferences.TdlsZoomPercent;
+        GroundColorScheme snapshotGroundColors = vm.Ground.ColorScheme;
+        int snapshotSatBrightness = vm.Ground.SatelliteImageBrightness;
+        int snapshotMapBrightness = vm.Ground.VideoMapOverlayBrightness;
+        int snapshotGndBrightness = vm.Ground.YaatLayoutBrightness;
+        double snapshotDataGridScale = vm.DataGridScale;
+        bool snapshotAssignmentTintEnabled = vm.Preferences.AssignmentTintEnabled;
+        string snapshotAssignmentTintColor = vm.Preferences.AssignmentTintColor;
+        bool snapshotUnassignedTintEnabled = vm.Preferences.UnassignedTintEnabled;
+        string snapshotUnassignedTintColor = vm.Preferences.UnassignedTintColor;
+        string snapshotSelectedColor = vm.Preferences.SelectedColor;
+        double snapshotTerminalFontSize = vm.TerminalFontSize;
+        int snapshotInterfaceFontSize = vm.Preferences.InterfaceFontSize;
+        int snapshotStripsZoomPercent = vm.Preferences.StripsZoomPercent;
+        int snapshotTdlsZoomPercent = vm.Preferences.TdlsZoomPercent;
 
         // Suppress the strips on-panel zoom-persist path while the dialog is open so
         // transient preview values aren't written to preferences (final value is
@@ -3140,7 +3147,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             // Visual settings already applied via preview — just ensure final state is consistent
             SyncAllRadarViewTint();
             SyncAllGroundViewSpeechBubbles();
-            foreach (var ground in vm.AllGroundViews)
+            foreach (GroundViewModel ground in vm.AllGroundViews)
             {
                 ground.ColorScheme = vm.Preferences.GroundColors;
                 ground.SatelliteImageBrightness = vm.Preferences.GroundSatelliteImageBrightness;
@@ -3153,7 +3160,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         else
         {
             // Cancel — rollback to snapshot
-            foreach (var ground in vm.AllGroundViews)
+            foreach (GroundViewModel ground in vm.AllGroundViews)
             {
                 ground.ColorScheme = snapshotGroundColors;
                 ground.SatelliteImageBrightness = snapshotSatBrightness;
@@ -3186,7 +3193,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                foreach (var ground in vm.AllGroundViews)
+                foreach (GroundViewModel ground in vm.AllGroundViews)
                 {
                     ground.ColorScheme = settingsVm.GetCurrentGroundColors();
                     ground.SatelliteImageBrightness = settingsVm.GroundSatelliteImageBrightness;
@@ -3308,7 +3315,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private void SyncAllRadarViewTint()
     {
         // Embedded RadarView
-        foreach (var rv in this.GetVisualDescendants().OfType<RadarView>())
+        foreach (RadarView rv in this.GetVisualDescendants().OfType<RadarView>())
         {
             rv.SyncAssignmentTint();
         }
@@ -3316,14 +3323,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // Pop-out RadarView
         if (_radarViewWindow is not null)
         {
-            var poppedRadar = _radarViewWindow.GetVisualDescendants().OfType<RadarView>().FirstOrDefault();
+            RadarView? poppedRadar = _radarViewWindow.GetVisualDescendants().OfType<RadarView>().FirstOrDefault();
             poppedRadar?.SyncAssignmentTint();
         }
 
         // Extra Radar View windows (#2, #3, …) — same preferences, own canvases.
-        foreach (var extra in _extraRadarWindows.Values)
+        foreach (RadarViewWindow extra in _extraRadarWindows.Values)
         {
-            var extraRadar = extra.GetVisualDescendants().OfType<RadarView>().FirstOrDefault();
+            RadarView? extraRadar = extra.GetVisualDescendants().OfType<RadarView>().FirstOrDefault();
             extraRadar?.SyncAssignmentTint();
         }
     }
@@ -3331,7 +3338,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private void SyncAllGroundViewSpeechBubbles()
     {
         // Embedded GroundView
-        foreach (var gv in this.GetVisualDescendants().OfType<GroundView>())
+        foreach (GroundView gv in this.GetVisualDescendants().OfType<GroundView>())
         {
             gv.SyncSpeechBubblePreferences();
         }
@@ -3339,39 +3346,39 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // Pop-out GroundView
         if (_groundViewWindow is not null)
         {
-            var poppedGround = _groundViewWindow.GetVisualDescendants().OfType<GroundView>().FirstOrDefault();
+            GroundView? poppedGround = _groundViewWindow.GetVisualDescendants().OfType<GroundView>().FirstOrDefault();
             poppedGround?.SyncSpeechBubblePreferences();
         }
 
         // Extra Ground View windows (#2, #3, …) — same preferences, own canvases.
-        foreach (var extra in _extraGroundWindows.Values)
+        foreach (GroundViewWindow extra in _extraGroundWindows.Values)
         {
-            var extraGround = extra.GetVisualDescendants().OfType<GroundView>().FirstOrDefault();
+            GroundView? extraGround = extra.GetVisualDescendants().OfType<GroundView>().FirstOrDefault();
             extraGround?.SyncSpeechBubblePreferences();
         }
     }
 
     private void ApplyKeybinds(UserPreferences prefs)
     {
-        var cmdView = this.FindControl<CommandInputView>("CommandInputView");
-        if (cmdView is not null && SettingsViewModel.ParseKeybind(prefs.AircraftSelectKey, out var selKey, out var selMods))
+        CommandInputView? cmdView = this.FindControl<CommandInputView>("CommandInputView");
+        if (cmdView is not null && SettingsViewModel.ParseKeybind(prefs.AircraftSelectKey, out Key selKey, out KeyModifiers selMods))
         {
             cmdView.SetAircraftSelectKeybind(selKey, selMods);
         }
 
-        if (SettingsViewModel.ParseKeybind(prefs.TakeControlKey, out var takeKey, out var takeMods))
+        if (SettingsViewModel.ParseKeybind(prefs.TakeControlKey, out Key takeKey, out KeyModifiers takeMods))
         {
             _takeControlKey = takeKey;
             _takeControlModifiers = takeMods;
         }
 
-        if (SettingsViewModel.ParseKeybind(prefs.QuickBookmarkKey, out var bmKey, out var bmMods))
+        if (SettingsViewModel.ParseKeybind(prefs.QuickBookmarkKey, out Key bmKey, out KeyModifiers bmMods))
         {
             _quickBookmarkKey = bmKey;
             _quickBookmarkModifiers = bmMods;
         }
 
-        if (SettingsViewModel.ParseKeybind(prefs.PttKey, out var pttKey, out var pttMods))
+        if (SettingsViewModel.ParseKeybind(prefs.PttKey, out Key pttKey, out KeyModifiers pttMods))
         {
             _pttKey = pttKey;
             _pttModifiers = pttMods;
@@ -3430,7 +3437,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             IsCancel = true,
         };
 
-        var confirmed = false;
+        bool confirmed = false;
         confirmButton.Click += (_, _) =>
         {
             confirmed = true;
@@ -3524,7 +3531,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
             };
 
-            var confirmed = false;
+            bool confirmed = false;
             yesButton.Click += (_, _) =>
             {
                 confirmed = true;

@@ -39,10 +39,10 @@ public class Issue223TaxiwayRunwaySuffixTests
     [Fact]
     public void ParseTaxi_KeepsTaxiwayEndingInC_InPath()
     {
-        var result = GroundCommandParser.ParseTaxi("W B T TC @10");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("W B T TC @10");
 
         Assert.True(result.IsSuccess);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
 
         // TC must remain a path taxiway, not be peeled off as a destination runway.
         Assert.Equal(["W", "B", "T", "TC"], taxi.Path);
@@ -54,10 +54,10 @@ public class Issue223TaxiwayRunwaySuffixTests
     public void ParseTaxi_StillDetectsTrailingRealRunway()
     {
         // The trailing-runway convenience must keep working for genuine runways.
-        var result = GroundCommandParser.ParseTaxi("C B 28R");
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("C B 28R");
 
         Assert.True(result.IsSuccess);
-        var taxi = Assert.IsType<TaxiCommand>(result.Value);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
 
         Assert.Equal(["C", "B"], taxi.Path);
         Assert.Equal("28R", taxi.DestinationRunway);

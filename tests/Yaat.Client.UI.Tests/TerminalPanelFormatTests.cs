@@ -22,7 +22,7 @@ public class TerminalPanelFormatTests
     [Fact]
     public void WallClock_ShowsClockTimeOnly()
     {
-        var line = TerminalPanelView.FormatEntry(Entry(312), TerminalTimestampMode.WallClock);
+        string line = TerminalPanelView.FormatEntry(Entry(312), TerminalTimestampMode.WallClock);
         Assert.StartsWith("14:32:07", line);
         Assert.DoesNotContain("[", line);
         Assert.Contains("H270", line);
@@ -31,7 +31,7 @@ public class TerminalPanelFormatTests
     [Fact]
     public void SimElapsed_ShowsElapsedTime()
     {
-        var line = TerminalPanelView.FormatEntry(Entry(312), TerminalTimestampMode.SimElapsed); // 312s = 5:12
+        string line = TerminalPanelView.FormatEntry(Entry(312), TerminalTimestampMode.SimElapsed); // 312s = 5:12
         Assert.StartsWith("5:12", line);
         Assert.DoesNotContain("14:32:07", line);
     }
@@ -39,14 +39,14 @@ public class TerminalPanelFormatTests
     [Fact]
     public void SimElapsed_NullElapsed_ShowsDashes()
     {
-        var line = TerminalPanelView.FormatEntry(Entry(null), TerminalTimestampMode.SimElapsed);
+        string line = TerminalPanelView.FormatEntry(Entry(null), TerminalTimestampMode.SimElapsed);
         Assert.StartsWith("--:--", line);
     }
 
     [Fact]
     public void Both_ShowsClockAndElapsed()
     {
-        var line = TerminalPanelView.FormatEntry(Entry(312), TerminalTimestampMode.Both);
+        string line = TerminalPanelView.FormatEntry(Entry(312), TerminalTimestampMode.Both);
         Assert.StartsWith("14:32:07", line);
         Assert.Contains("[5:12]", line);
     }

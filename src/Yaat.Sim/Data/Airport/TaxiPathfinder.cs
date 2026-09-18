@@ -50,7 +50,7 @@ public static class TaxiPathfinder
         // resolves to null, leaving ctx.Destination.TargetNodeId null and defeating the
         // destination-aware terminus routing in SegmentExpander (the route then walks to the
         // taxiway terminus and U-turns back to the spot).
-        var hint = options.DestinationHintNode;
+        GroundNode? hint = options.DestinationHintNode;
         string? destParking = null;
         string? destSpot = null;
         int? destNodeId = null;
@@ -83,7 +83,7 @@ public static class TaxiPathfinder
             startHeadingTrue: options.StartHeadingTrue
         );
 
-        (var route, failure) = SegmentExpander.Run(ctx);
+        (TaxiRoute? route, failure) = SegmentExpander.Run(ctx);
         return failure is null ? route : null;
     }
 
@@ -100,7 +100,7 @@ public static class TaxiPathfinder
         AircraftCategory category
     )
     {
-        var route = ResolveExplicitPathDetailed(layout, fromNodeId, taxiwayNames, out PathfindingFailure? failure, options, category);
+        TaxiRoute? route = ResolveExplicitPathDetailed(layout, fromNodeId, taxiwayNames, out PathfindingFailure? failure, options, category);
         failReason = failure?.HumanMessage;
         return route;
     }
@@ -127,7 +127,7 @@ public static class TaxiPathfinder
             startHeadingTrue: null
         );
 
-        var (route, _) = RunWithAvoidance(ctx);
+        (TaxiRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx);
         return route;
     }
 
@@ -138,27 +138,27 @@ public static class TaxiPathfinder
     /// </summary>
     public static TaxiRoute? FindRunwayRoute(AirportGroundLayout layout, GroundNode startNode, string runwayId, AircraftCategory category)
     {
-        var holdShortNodes = layout.GetRunwayHoldShortNodes(runwayId);
+        List<GroundNode> holdShortNodes = layout.GetRunwayHoldShortNodes(runwayId);
         if (holdShortNodes.Count == 0)
         {
             return null;
         }
 
-        var runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category);
+        SearchContext runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category);
 
-        var reference = RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, runwayId) ?? startNode.Position;
+        LatLon reference = RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, runwayId) ?? startNode.Position;
         var candidates = holdShortNodes.OrderBy(n => GeoMath.DistanceNm(reference, n.Position)).ToList();
         TaxiRoute? fallbackRoute = null;
 
-        foreach (var targetHs in candidates)
+        foreach (GroundNode? targetHs in candidates)
         {
-            var routeToTarget = FindRoute(layout, startNode.Id, targetHs.Id, category);
+            TaxiRoute? routeToTarget = FindRoute(layout, startNode.Id, targetHs.Id, category);
             if (routeToTarget is null)
             {
                 continue;
             }
 
-            var route = RouteMaterialiser.Materialise(routeToTarget.Segments.Select(static s => s.Edge).ToList(), runwayContext, []);
+            TaxiRoute route = RouteMaterialiser.Materialise(routeToTarget.Segments.Select(static s => s.Edge).ToList(), runwayContext, []);
             fallbackRoute ??= route;
             if ((EndsAtDestinationRunwayHoldShort(route, layout, runwayId)) && (!TraversesDestinationRunwaySurface(route, runwayId)))
             {
@@ -177,7 +177,7 @@ public static class TaxiPathfinder
         }
 
         int finalNodeId = route.Segments[^1].ToNodeId;
-        return (layout.Nodes.TryGetValue(finalNodeId, out var node))
+        return (layout.Nodes.TryGetValue(finalNodeId, out GroundNode? node))
             && (node.Type == GroundNodeType.RunwayHoldShort)
             && (node.RunwayId is { } nodeRunwayId)
             && (nodeRunwayId.Contains(runwayId))
@@ -210,10 +210,10 @@ public static class TaxiPathfinder
         AircraftCategory category
     )
     {
-        var (position, heading) = aircraft;
-        var holdShortNodes = layout.GetRunwayHoldShortNodes(runwayId);
+        (LatLon position, TrueHeading heading) = aircraft;
+        List<GroundNode> holdShortNodes = layout.GetRunwayHoldShortNodes(runwayId);
         double atBarNm = AtRunwayHoldShortRadiusFt / GeoMath.FeetPerNm;
-        var atBar = holdShortNodes
+        GroundNode? atBar = holdShortNodes
             .Where(n => GeoMath.DistanceNm(position, n.Position) <= atBarNm)
             .Where(n => IsAhead(position, heading, n) || !IsOnRunwayPavement(layout, position, runwayId))
             .MinBy(n => GeoMath.DistanceNm(position, n.Position));
@@ -243,14 +243,14 @@ public static class TaxiPathfinder
             return route;
         }
 
-        var runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category);
+        SearchContext runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category);
 
         // The start node is the bar itself (the heading-aligned endpoint of the edge the aircraft is on)
         // while the aircraft is still short of it: route from the node behind the aircraft so the
         // navigator drives it up to the bar instead of a degenerate bar-to-bar route.
         if (holdShortNodes.Any(n => n.Id == startNode.Id))
         {
-            var behind = startNode
+            GroundNode? behind = startNode
                 .Edges.Where(e => !e.IsRunwayCenterline)
                 .Select(e => e.OtherNode(startNode))
                 .Where(n => !IsAhead(position, heading, n))
@@ -259,14 +259,14 @@ public static class TaxiPathfinder
         }
 
         double maxNm = AdjacentRunwayHoldShortMaxFt / GeoMath.FeetPerNm;
-        var candidates = holdShortNodes
+        IOrderedEnumerable<GroundNode> candidates = holdShortNodes
             .Where(n => GeoMath.DistanceNm(startNode.Position, n.Position) <= maxNm)
             .Where(n => IsAhead(startNode.Position, heading, n))
             .OrderBy(n => GeoMath.DistanceNm(startNode.Position, n.Position));
 
-        foreach (var bar in candidates)
+        foreach (GroundNode? bar in candidates)
         {
-            var route = TryAdjacentRoute(layout, runwayContext, startNode.Id, bar, runwayId, category);
+            TaxiRoute? route = TryAdjacentRoute(layout, runwayContext, startNode.Id, bar, runwayId, category);
             if (route is not null)
             {
                 return route;
@@ -285,13 +285,13 @@ public static class TaxiPathfinder
         AircraftCategory category
     )
     {
-        var routeToBar = FindRoute(layout, fromNodeId, bar.Id, category);
+        TaxiRoute? routeToBar = FindRoute(layout, fromNodeId, bar.Id, category);
         if (routeToBar is null)
         {
             return null;
         }
 
-        var route = RouteMaterialiser.Materialise(routeToBar.Segments.Select(static s => s.Edge).ToList(), runwayContext, []);
+        TaxiRoute route = RouteMaterialiser.Materialise(routeToBar.Segments.Select(static s => s.Edge).ToList(), runwayContext, []);
         return IsAdjacentRunwayApproach(route, layout, runwayId) ? route : null;
     }
 
@@ -305,14 +305,14 @@ public static class TaxiPathfinder
     /// </summary>
     private static bool IsOnRunwayPavement(AirportGroundLayout layout, LatLon position, string runwayId)
     {
-        var runway = layout.FindRunway(runwayId);
+        GroundRunway? runway = layout.FindRunway(runwayId);
         if (runway is null || runway.Coordinates.Count < 2)
         {
             return false;
         }
 
-        var start = runway.Coordinates[0];
-        var end = runway.Coordinates[^1];
+        (double Lat, double Lon) start = runway.Coordinates[0];
+        (double Lat, double Lon) end = runway.Coordinates[^1];
         var centerline = new TrueHeading(GeoMath.BearingTo(start.Lat, start.Lon, end.Lat, end.Lon));
         double crossTrackFt =
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(position.Lat, position.Lon, start.Lat, start.Lon, centerline)) * GeoMath.FeetPerNm;
@@ -391,24 +391,24 @@ public static class TaxiPathfinder
     {
         if (preference is not null)
         {
-            var ctx = BuildNodeContext(layout, fromNodeId, toNodeId, preference.Value, authorizedTaxiways, category);
-            var (route, _) = RunWithAvoidance(ctx);
+            SearchContext ctx = BuildNodeContext(layout, fromNodeId, toNodeId, preference.Value, authorizedTaxiways, category);
+            (TaxiRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx);
             return route is not null ? [route] : [];
         }
 
         // No preference — run all three strategies and return unique routes capped at maxRoutes.
-        var preferences = new[] { RoutePreference.FewestTurns, RoutePreference.Shortest, RoutePreference.Fastest };
+        RoutePreference[] preferences = new[] { RoutePreference.FewestTurns, RoutePreference.Shortest, RoutePreference.Fastest };
         var results = new List<TaxiRoute>(preferences.Length);
 
-        foreach (var pref in preferences)
+        foreach (RoutePreference pref in preferences)
         {
             if (results.Count >= maxRoutes)
             {
                 break;
             }
 
-            var ctx = BuildNodeContext(layout, fromNodeId, toNodeId, pref, authorizedTaxiways, category);
-            var (route, _) = RunWithAvoidance(ctx);
+            SearchContext ctx = BuildNodeContext(layout, fromNodeId, toNodeId, pref, authorizedTaxiways, category);
+            (TaxiRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx);
 
             if (route is null)
             {
@@ -457,14 +457,14 @@ public static class TaxiPathfinder
             return AutoRouter.Run(ctx);
         }
 
-        var pass1 = AutoRouter.Run(ctx);
+        (TaxiRoute? Route, PathfindingFailure? Failure) pass1 = AutoRouter.Run(ctx);
         if (pass1.Route is not null)
         {
             return pass1;
         }
 
         ctx.DiagnosticLog?.Invoke("[avoid/one-way] pass 1 (hard-exclude) found no route; retrying with gates relaxed");
-        var relaxed = ctx;
+        SearchContext relaxed = ctx;
         if (hardAvoid)
         {
             relaxed = relaxed with { AvoidMode = AvoidTaxiwayMode.SoftPenalty };
@@ -520,7 +520,7 @@ public static class TaxiPathfinder
     /// </summary>
     private static bool IsDuplicateRoute(TaxiRoute candidate, List<TaxiRoute> existing)
     {
-        foreach (var other in existing)
+        foreach (TaxiRoute other in existing)
         {
             if (SegmentsIdentical(candidate, other))
             {

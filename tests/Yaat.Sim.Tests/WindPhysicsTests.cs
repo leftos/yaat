@@ -49,7 +49,7 @@ public class WindPhysicsTests
     public void ZeroWind_AtSealevel_GsEqualsIas()
     {
         // At sea level TAS factor = 1.0, so GS should equal IAS with no wind.
-        var ac = MakeAircraft(200, 090, 0);
+        AircraftState ac = MakeAircraft(200, 090, 0);
         FlightPhysics.Update(ac, 1.0);
         Assert.Equal(ac.IndicatedAirspeed, ac.GroundSpeed, Tolerance);
     }
@@ -58,7 +58,7 @@ public class WindPhysicsTests
     public void ZeroWind_AtAltitude_GsEqualsExpectedTas()
     {
         // At FL100, TAS factor ≈ 1.165. GS = IAS * 1.165 with no wind.
-        var ac = MakeAircraft(200, 090, 10_000);
+        AircraftState ac = MakeAircraft(200, 090, 10_000);
         FlightPhysics.Update(ac, 1.0);
         double expectedTas = WindInterpolator.IasToTas(200, 10_000);
         Assert.Equal(expectedTas, ac.GroundSpeed, 1.0);
@@ -67,7 +67,7 @@ public class WindPhysicsTests
     [Fact]
     public void ZeroWind_EmptyLayers_TrackEqualsHeading()
     {
-        var ac = MakeAircraft(200, 090, 10_000);
+        AircraftState ac = MakeAircraft(200, 090, 10_000);
         var weather = new WeatherProfile(); // no wind layers
         FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
         Assert.Equal(ac.TrueHeading.Degrees, ac.TrueTrack.Degrees, Tolerance);
@@ -81,8 +81,8 @@ public class WindPhysicsTests
     public void Headwind_GroundSpeedLessThanIas()
     {
         // Flying east (090), headwind FROM east (090) at 30 kts
-        var ac = MakeAircraft(200, 090, 5_000);
-        var weather = MakeWind(fromDeg: 090, speedKts: 30, altitude: 5_000);
+        AircraftState ac = MakeAircraft(200, 090, 5_000);
+        WeatherProfile weather = MakeWind(fromDeg: 090, speedKts: 30, altitude: 5_000);
         FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
 
         // GS should be less than IAS (headwind reduces GS)
@@ -99,8 +99,8 @@ public class WindPhysicsTests
     public void Tailwind_GroundSpeedGreaterThanIas()
     {
         // Flying east (090), tailwind FROM west (270) at 30 kts
-        var ac = MakeAircraft(200, 090, 5_000);
-        var weather = MakeWind(fromDeg: 270, speedKts: 30, altitude: 5_000);
+        AircraftState ac = MakeAircraft(200, 090, 5_000);
+        WeatherProfile weather = MakeWind(fromDeg: 270, speedKts: 30, altitude: 5_000);
         FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
 
         // GS should be greater than IAS (tailwind adds to GS)
@@ -117,8 +117,8 @@ public class WindPhysicsTests
     public void Crosswind_TrackDiffersFromHeading()
     {
         // Flying north (000), crosswind FROM east (090) at 30 kts
-        var ac = MakeAircraft(200, 000, 5_000);
-        var weather = MakeWind(fromDeg: 090, speedKts: 30, altitude: 5_000);
+        AircraftState ac = MakeAircraft(200, 000, 5_000);
+        WeatherProfile weather = MakeWind(fromDeg: 090, speedKts: 30, altitude: 5_000);
         FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
 
         // Track should differ from heading due to wind drift
@@ -134,8 +134,8 @@ public class WindPhysicsTests
     [Fact]
     public void Crosswind_GroundSpeedReasonable()
     {
-        var ac = MakeAircraft(200, 000, 5_000);
-        var weather = MakeWind(fromDeg: 090, speedKts: 30, altitude: 5_000);
+        AircraftState ac = MakeAircraft(200, 000, 5_000);
+        WeatherProfile weather = MakeWind(fromDeg: 090, speedKts: 30, altitude: 5_000);
         FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
 
         // At 5000ft, TAS = 200 * 1.077 ≈ 215.4. GS = sqrt(215.4² + 30²) ≈ 217.5
@@ -151,11 +151,11 @@ public class WindPhysicsTests
     [Fact]
     public void GroundAircraft_WindHasNoEffect()
     {
-        var ac = MakeAircraft(20, 090, 0, onGround: true);
+        AircraftState ac = MakeAircraft(20, 090, 0, onGround: true);
         ac.IndicatedAirspeed = 20;
         ac.IsOnGround = true;
 
-        var weather = MakeWind(fromDeg: 270, speedKts: 50, altitude: 0);
+        WeatherProfile weather = MakeWind(fromDeg: 270, speedKts: 50, altitude: 0);
         FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: 0);
 
         // On ground: GS and IAS stay equal; Track follows Heading
@@ -171,7 +171,7 @@ public class WindPhysicsTests
     public void TasCorrection_AtFL350_GroundSpeedHigherThanIas()
     {
         // At FL350 with no wind, GS ≈ TAS ≈ 473 kts for IAS 280 (ISA compressible flow)
-        var ac = MakeAircraft(280, 090, 35_000);
+        AircraftState ac = MakeAircraft(280, 090, 35_000);
         FlightPhysics.Update(ac, 1.0);
 
         Assert.True(ac.GroundSpeed > 450, $"Expected GS > 450 at FL350 IAS 280, got {ac.GroundSpeed}");
@@ -184,7 +184,7 @@ public class WindPhysicsTests
     [Fact]
     public void NullWeather_BackwardCompat_TrackEqualsHeading()
     {
-        var ac = MakeAircraft(200, 135, 10_000);
+        AircraftState ac = MakeAircraft(200, 135, 10_000);
         FlightPhysics.Update(ac, 1.0);
         Assert.Equal(ac.TrueHeading.Degrees, ac.TrueTrack.Degrees, Tolerance);
     }
@@ -198,7 +198,7 @@ public class WindPhysicsTests
     {
         // Aircraft heading east, strong crosswind from south
         // With WCA, aircraft heading should crab slightly right, but track should be east
-        var ac = MakeAircraft(200, 090, 5_000);
+        AircraftState ac = MakeAircraft(200, 090, 5_000);
         ac.Targets.NavigationRoute.Add(
             new NavigationTarget
             {
@@ -207,7 +207,7 @@ public class WindPhysicsTests
             }
         );
 
-        var weather = MakeWind(fromDeg: 180, speedKts: 40, altitude: 5_000); // wind from south, pushes north
+        WeatherProfile weather = MakeWind(fromDeg: 180, speedKts: 40, altitude: 5_000); // wind from south, pushes north
 
         // Run a few ticks so navigation and WCA are applied
         for (int i = 0; i < 5; i++)
@@ -251,11 +251,11 @@ public class WindPhysicsTests
     public void VariableWind_GroundSpeedWobblesOverTime()
     {
         // 21015G25 180V240 on final at 500 ft: the GS readout should move around.
-        var weather = MakeGustyWind(fromDeg: 210, speedKts: 15, gustKts: 25, halfSpreadDeg: 30);
+        WeatherProfile weather = MakeGustyWind(fromDeg: 210, speedKts: 15, gustKts: 25, halfSpreadDeg: 30);
         var speeds = new HashSet<double>();
         for (int t = 0; t < 120; t += 10)
         {
-            var ac = MakeAircraft(140, 210, 500);
+            AircraftState ac = MakeAircraft(140, 210, 500);
             FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: t);
             speeds.Add(Math.Round(ac.GroundSpeed, 1));
         }
@@ -266,11 +266,11 @@ public class WindPhysicsTests
     [Fact]
     public void SteadyWind_NoVariabilityAuthored_GroundSpeedConstantOverTime()
     {
-        var weather = MakeWind(fromDeg: 210, speedKts: 15, altitude: 0);
+        WeatherProfile weather = MakeWind(fromDeg: 210, speedKts: 15, altitude: 0);
         double? first = null;
         for (int t = 0; t < 120; t += 10)
         {
-            var ac = MakeAircraft(140, 210, 500);
+            AircraftState ac = MakeAircraft(140, 210, 500);
             FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: t);
             first ??= ac.GroundSpeed;
             Assert.Equal(first.Value, ac.GroundSpeed);
@@ -282,11 +282,11 @@ public class WindPhysicsTests
     {
         // Same gusty surface layer: at 10,000 ft AGL the perturbation is fully tapered,
         // so GS is identical at every sample time.
-        var weather = MakeGustyWind(fromDeg: 210, speedKts: 15, gustKts: 25, halfSpreadDeg: 30);
+        WeatherProfile weather = MakeGustyWind(fromDeg: 210, speedKts: 15, gustKts: 25, halfSpreadDeg: 30);
         double? first = null;
         for (int t = 0; t < 120; t += 10)
         {
-            var ac = MakeAircraft(250, 210, 10_000);
+            AircraftState ac = MakeAircraft(250, 210, 10_000);
             FlightPhysics.Update(ac, 1.0, null, weather, simTimeSeconds: t);
             first ??= ac.GroundSpeed;
             Assert.Equal(first.Value, ac.GroundSpeed);
@@ -298,12 +298,12 @@ public class WindPhysicsTests
     {
         // Two aircraft in identical states see different instantaneous winds (callsign
         // phase offset) while a steady wind would give them identical GS.
-        var weather = MakeGustyWind(fromDeg: 210, speedKts: 15, gustKts: 25, halfSpreadDeg: 30);
+        WeatherProfile weather = MakeGustyWind(fromDeg: 210, speedKts: 15, gustKts: 25, halfSpreadDeg: 30);
         int differing = 0;
         for (int t = 0; t < 300; t += 20)
         {
-            var a = MakeAircraft(140, 210, 500);
-            var b = MakeAircraft(140, 210, 500);
+            AircraftState a = MakeAircraft(140, 210, 500);
+            AircraftState b = MakeAircraft(140, 210, 500);
             b.Callsign = "OTHER99";
             FlightPhysics.Update(a, 1.0, null, weather, simTimeSeconds: t);
             FlightPhysics.Update(b, 1.0, null, weather, simTimeSeconds: t);
@@ -352,8 +352,8 @@ public class WindPhysicsTests
             return world;
         }
 
-        var world1 = BuildWorld();
-        var world2 = BuildWorld();
+        SimulationWorld world1 = BuildWorld();
+        SimulationWorld world2 = BuildWorld();
         for (int second = 0; second < 60; second++)
         {
             for (int sub = 0; sub < 4; sub++)
@@ -363,8 +363,8 @@ public class WindPhysicsTests
             }
         }
 
-        var a = world1.GetSnapshot()[0];
-        var b = world2.GetSnapshot()[0];
+        AircraftState a = world1.GetSnapshot()[0];
+        AircraftState b = world2.GetSnapshot()[0];
         Assert.Equal(a.Position.Lat, b.Position.Lat);
         Assert.Equal(a.Position.Lon, b.Position.Lon);
         Assert.Equal(a.GroundSpeed, b.GroundSpeed);

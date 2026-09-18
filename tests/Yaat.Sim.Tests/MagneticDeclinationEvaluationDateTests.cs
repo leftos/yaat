@@ -11,7 +11,7 @@ public class MagneticDeclinationEvaluationDateTests
     [Fact]
     public void EvaluationDate_IsAWholeUtcDay()
     {
-        var date = MagneticDeclination.EvaluationDateUtc;
+        DateTime date = MagneticDeclination.EvaluationDateUtc;
 
         Assert.Equal(TimeSpan.Zero, date.TimeOfDay);
         Assert.Equal(DateTimeKind.Utc, date.Kind);

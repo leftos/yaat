@@ -13,7 +13,7 @@ public class BankAngleTests
     public void BankAngle_Jet250Kias_RightTurn_PositiveBank()
     {
         // 250 KIAS at 10,000ft → TAS ~291kts; 2.5°/sec → bank ~33.7°
-        var ac = MakeAircraft(heading: 90, ias: 250, altitude: 10000);
+        AircraftState ac = MakeAircraft(heading: 90, ias: 250, altitude: 10000);
         ac.Targets.TargetTrueHeading = new TrueHeading(180); // Right turn
 
         FlightPhysics.Update(ac, 1.0);
@@ -25,7 +25,7 @@ public class BankAngleTests
     [Fact]
     public void BankAngle_Piston90Kias_Moderate()
     {
-        var ac = MakeAircraft(heading: 90, ias: 90, altitude: 2000);
+        AircraftState ac = MakeAircraft(heading: 90, ias: 90, altitude: 2000);
         ac.AircraftType = "C172";
 
         ac.Targets.TargetTrueHeading = new TrueHeading(180); // Right turn
@@ -40,7 +40,7 @@ public class BankAngleTests
     [Fact]
     public void BankAngle_NoTargetHeading_Zero()
     {
-        var ac = MakeAircraft(heading: 90, ias: 250, altitude: 10000);
+        AircraftState ac = MakeAircraft(heading: 90, ias: 250, altitude: 10000);
         // No target heading set
 
         FlightPhysics.Update(ac, 1.0);
@@ -51,7 +51,7 @@ public class BankAngleTests
     [Fact]
     public void BankAngle_HeadingReached_Zero()
     {
-        var ac = MakeAircraft(heading: 90, ias: 250, altitude: 10000);
+        AircraftState ac = MakeAircraft(heading: 90, ias: 250, altitude: 10000);
         ac.Targets.TargetTrueHeading = new TrueHeading(90.1); // Almost there
 
         FlightPhysics.Update(ac, 1.0);
@@ -63,7 +63,7 @@ public class BankAngleTests
     [Fact]
     public void BankAngle_LeftTurn_NegativeBank()
     {
-        var ac = MakeAircraft(heading: 180, ias: 250, altitude: 10000);
+        AircraftState ac = MakeAircraft(heading: 180, ias: 250, altitude: 10000);
         ac.Targets.TargetTrueHeading = new TrueHeading(90); // Left turn
 
         FlightPhysics.Update(ac, 1.0);
@@ -75,7 +75,7 @@ public class BankAngleTests
     [Fact]
     public void BankAngle_RightTurn_PositiveBank()
     {
-        var ac = MakeAircraft(heading: 90, ias: 250, altitude: 10000);
+        AircraftState ac = MakeAircraft(heading: 90, ias: 250, altitude: 10000);
         ac.Targets.TargetTrueHeading = new TrueHeading(180); // Right turn
 
         FlightPhysics.Update(ac, 1.0);

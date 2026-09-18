@@ -109,7 +109,7 @@ public sealed partial class CudaBackendInstaller : ObservableObject
             {
                 return false;
             }
-            var content = File.ReadAllText(SentinelPath).Trim();
+            string content = File.ReadAllText(SentinelPath).Trim();
             return string.Equals(content, ExpectedSentinelContent, StringComparison.Ordinal);
         }
         catch (Exception ex)
@@ -221,8 +221,8 @@ public sealed partial class CudaBackendInstaller : ObservableObject
         // download knowing the size.
         SafeDeletePartial();
 
-        var partialRoot = Path.Combine(InstallRoot, PartialDirName);
-        var nativeDirInPartial = Path.Combine(partialRoot, NativeSubPath.Replace('/', Path.DirectorySeparatorChar));
+        string partialRoot = Path.Combine(InstallRoot, PartialDirName);
+        string nativeDirInPartial = Path.Combine(partialRoot, NativeSubPath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(nativeDirInPartial);
 
         // Phase 1/4: main backend nupkg (~148 MB). Contains 5 LM-Kit DLLs under
@@ -244,7 +244,7 @@ public sealed partial class CudaBackendInstaller : ObservableObject
         // trees — the runtimes bits drop in alongside the LM-Kit DLLs, the .part0 lands in a
         // scratch dir until we stitch it with Part1.
         StatusMessage = "Downloading CUDA runtime (2 of 3)…";
-        var stitchDir = Path.Combine(partialRoot, ".stitch");
+        string stitchDir = Path.Combine(partialRoot, ".stitch");
         Directory.CreateDirectory(stitchDir);
         await DownloadAndExtractAsync(
                 packageId: DepsPart0PackageId,
@@ -309,27 +309,27 @@ public sealed partial class CudaBackendInstaller : ObservableObject
         CancellationToken ct
     )
     {
-        var url = $"https://www.nuget.org/api/v2/package/{packageId}/{version}";
+        string url = $"https://www.nuget.org/api/v2/package/{packageId}/{version}";
         Log.LogInformation("Downloading {PackageId} {Version} from {Url}", packageId, version, url);
 
-        using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        using HttpResponseMessage response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var total = response.Content.Headers.ContentLength;
-        using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        long? total = response.Content.Headers.ContentLength;
+        using Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 
         // ZipArchive needs a seekable stream, so stream the nupkg to a temp file first. The
         // halfway point of each phase is reserved for the download; the other half for the
         // extract.
-        var nupkgPath = Path.Combine(destRoot, $"_{packageId}.nupkg.part");
+        string nupkgPath = Path.Combine(destRoot, $"_{packageId}.nupkg.part");
         long bytesRead = 0;
-        var mid = (phaseStart + phaseEnd) / 2.0;
-        using (var file = File.Create(nupkgPath))
+        double mid = (phaseStart + phaseEnd) / 2.0;
+        using (FileStream file = File.Create(nupkgPath))
         {
-            var buffer = new byte[64 * 1024];
+            byte[] buffer = new byte[64 * 1024];
             while (true)
             {
-                var read = await stream.ReadAsync(buffer, ct).ConfigureAwait(false);
+                int read = await stream.ReadAsync(buffer, ct).ConfigureAwait(false);
                 if (read == 0)
                 {
                     break;
@@ -338,33 +338,33 @@ public sealed partial class CudaBackendInstaller : ObservableObject
                 bytesRead += read;
                 if (total.HasValue && total.Value > 0)
                 {
-                    var fraction = (double)bytesRead / total.Value;
+                    double fraction = (double)bytesRead / total.Value;
                     SetProgress(phaseStart + ((mid - phaseStart) * fraction));
                 }
             }
         }
 
-        using (var zip = ZipFile.OpenRead(nupkgPath))
+        using (ZipArchive zip = ZipFile.OpenRead(nupkgPath))
         {
             var matching = zip.Entries.Where(filter).ToList();
-            var totalExtractBytes = matching.Sum(e => e.Length);
+            long totalExtractBytes = matching.Sum(e => e.Length);
             long extractedBytes = 0;
-            foreach (var entry in matching)
+            foreach (ZipArchiveEntry? entry in matching)
             {
                 ct.ThrowIfCancellationRequested();
                 // Normalize the zip path to local separators before Path.Combine — otherwise we
                 // build `<root>\runtimes/win-x64/…`, which Avalonia later rejects with a
                 // platform mismatch when it tries to open it.
-                var normalized = entry.FullName.Replace('/', Path.DirectorySeparatorChar);
-                var destPath = Path.Combine(destRoot, normalized);
+                string normalized = entry.FullName.Replace('/', Path.DirectorySeparatorChar);
+                string destPath = Path.Combine(destRoot, normalized);
                 Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
-                using var src = entry.Open();
-                using var dst = File.Create(destPath);
+                using Stream src = entry.Open();
+                using FileStream dst = File.Create(destPath);
                 await src.CopyToAsync(dst, ct).ConfigureAwait(false);
                 extractedBytes += entry.Length;
                 if (totalExtractBytes > 0)
                 {
-                    var fraction = (double)extractedBytes / totalExtractBytes;
+                    double fraction = (double)extractedBytes / totalExtractBytes;
                     SetProgress(mid + ((phaseEnd - mid) * fraction));
                 }
             }
@@ -378,18 +378,18 @@ public sealed partial class CudaBackendInstaller : ObservableObject
         // Find the two .part files under whatever subpath ZipArchive wrote them. Part0's path
         // inside the nupkg is part/win-x64/native/cuda13/cublasLt64_13.part0.dll; Part1 is the
         // same with .part1.
-        var part0 =
+        string part0 =
             Directory.EnumerateFiles(stitchDir, CublasLtPart0Name, SearchOption.AllDirectories).FirstOrDefault()
             ?? throw new FileNotFoundException($"{CublasLtPart0Name} missing after download");
-        var part1 =
+        string part1 =
             Directory.EnumerateFiles(stitchDir, CublasLtPart1Name, SearchOption.AllDirectories).FirstOrDefault()
             ?? throw new FileNotFoundException($"{CublasLtPart1Name} missing after download");
 
-        var output = Path.Combine(nativeDir, StitchedCublasLtName);
-        using var outStream = File.Create(output);
-        foreach (var partPath in new[] { part0, part1 })
+        string output = Path.Combine(nativeDir, StitchedCublasLtName);
+        using FileStream outStream = File.Create(output);
+        foreach (string? partPath in new[] { part0, part1 })
         {
-            using var inStream = File.OpenRead(partPath);
+            using FileStream inStream = File.OpenRead(partPath);
             inStream.CopyTo(outStream);
         }
     }
@@ -400,10 +400,10 @@ public sealed partial class CudaBackendInstaller : ObservableObject
         // do NOT use Directory.Move on the partial tree as a whole because InstallRoot might
         // already exist from a prior partial install. Instead, walk the tree and move each file,
         // overwriting any stale file at the destination.
-        foreach (var src in Directory.EnumerateFiles(partialRoot, "*", SearchOption.AllDirectories))
+        foreach (string src in Directory.EnumerateFiles(partialRoot, "*", SearchOption.AllDirectories))
         {
-            var rel = Path.GetRelativePath(partialRoot, src);
-            var dst = Path.Combine(InstallRoot, rel);
+            string rel = Path.GetRelativePath(partialRoot, src);
+            string dst = Path.Combine(InstallRoot, rel);
             Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
             if (File.Exists(dst))
             {
@@ -416,7 +416,7 @@ public sealed partial class CudaBackendInstaller : ObservableObject
 
     private void SafeDeletePartial()
     {
-        var partialRoot = Path.Combine(InstallRoot, PartialDirName);
+        string partialRoot = Path.Combine(InstallRoot, PartialDirName);
         if (!Directory.Exists(partialRoot))
         {
             return;

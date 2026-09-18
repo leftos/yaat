@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -58,11 +59,11 @@ public class IssueAmxFollowAtSpotTests(ITestOutputHelper output)
     {
         var swTotal = Stopwatch.StartNew();
         var sw = Stopwatch.StartNew();
-        var recording = LoadRecording();
+        SessionRecording? recording = LoadRecording();
         output.WriteLine($"[TIMING] LoadRecording: {sw.Elapsed.TotalMilliseconds:F0}ms");
 
         sw.Restart();
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         output.WriteLine($"[TIMING] BuildEngine: {sw.Elapsed.TotalMilliseconds:F0}ms");
         if (recording is null || engine is null)
         {
@@ -74,7 +75,7 @@ public class IssueAmxFollowAtSpotTests(ITestOutputHelper output)
         output.WriteLine($"[TIMING] Replay({ReplayTime}s): {sw.Elapsed.TotalMilliseconds:F0}ms");
         output.WriteLine(engine.DumpTickTimings());
 
-        var amx = engine.FindAircraft("AMX669");
+        AircraftState? amx = engine.FindAircraft("AMX669");
         Assert.NotNull(amx);
 
         output.WriteLine(
@@ -88,7 +89,7 @@ public class IssueAmxFollowAtSpotTests(ITestOutputHelper output)
         Assert.IsType<HoldingInPositionPhase>(amx.Phases.CurrentPhase);
 
         // FOLLOWG JAL57 should succeed.
-        var result = engine.SendCommand("AMX669", "FOLLOWG JAL57");
+        CommandResult result = engine.SendCommand("AMX669", "FOLLOWG JAL57");
         output.WriteLine($"FOLLOWG JAL57 result: success={result.Success} msg={result.Message}");
         Assert.True(result.Success, $"FOLLOWG should succeed but got: {result.Message}");
 

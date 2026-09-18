@@ -35,7 +35,7 @@ public class WindCalibrationTests
         var observations = new List<ObservedWind>(15);
         for (int minute = 10; minute < 40; minute += 2)
         {
-            var obs = WindObservation.Observe(weather, minute * 60);
+            ObservedWind? obs = WindObservation.Observe(weather, minute * 60);
             Assert.NotNull(obs);
             observations.Add(obs);
         }
@@ -54,8 +54,8 @@ public class WindCalibrationTests
     {
         // 21015KT 180V240 (mean 210, half-spread 30): observed 2-min mean direction
         // stays near the authored mean and mean speed near the authored speed.
-        var weather = Profile(210, 15, gusts: null, halfSpread: 30);
-        var observations = ObserveHalfHour(weather);
+        WeatherProfile weather = Profile(210, 15, gusts: null, halfSpread: 30);
+        List<ObservedWind> observations = ObserveHalfHour(weather);
 
         double medianDir = Median(observations.Select(o => o.MeanDirectionMagDeg));
         double medianSpeed = Median(observations.Select(o => o.MeanSpeedKts));
@@ -70,8 +70,8 @@ public class WindCalibrationTests
         // 18G28KT: the 10-minute observed peak must approach the authored gust (it can
         // never exceed it — the gust is a hard ceiling), the observed mean must stay near
         // 18, and the lull must respect the asymmetric floor (18 − 0.65·10 = 11.5).
-        var weather = Profile(210, 18, gusts: 28, halfSpread: null);
-        var observations = ObserveHalfHour(weather);
+        WeatherProfile weather = Profile(210, 18, gusts: 28, halfSpread: null);
+        List<ObservedWind> observations = ObserveHalfHour(weather);
 
         double medianPeak = Median(observations.Select(o => o.PeakSpeedKts));
         double medianMean = Median(observations.Select(o => o.MeanSpeedKts));
@@ -87,16 +87,16 @@ public class WindCalibrationTests
     {
         // VRB04KT: scalar mean 4 ± 0.6 kt; direction distribution covers more than 270°
         // of the circle across 30 minutes.
-        var weather = Profile(270, 4, gusts: null, halfSpread: null, variable: true);
-        var observations = ObserveHalfHour(weather);
+        WeatherProfile weather = Profile(270, 4, gusts: null, halfSpread: null, variable: true);
+        List<ObservedWind> observations = ObserveHalfHour(weather);
 
         double medianSpeed = Median(observations.Select(o => o.MeanSpeedKts));
         Assert.InRange(medianSpeed, 3.4, 4.6);
 
-        var buckets = new bool[8];
+        bool[] buckets = new bool[8];
         for (int t = 10 * 60; t < 40 * 60; t += 5)
         {
-            var wind = WindInterpolator.GetWindAt(weather, 0, t, 0);
+            WindAtAltitude wind = WindInterpolator.GetWindAt(weather, 0, t, 0);
             buckets[(int)(wind.DirectionDeg / 45.0) % 8] = true;
         }
 
@@ -143,8 +143,8 @@ public class WindCalibrationTests
     [Fact]
     public void RoundTrip_SteadyWind_ObservationIsExact()
     {
-        var weather = Profile(270, 12, gusts: null, halfSpread: null);
-        var observations = ObserveHalfHour(weather);
+        WeatherProfile weather = Profile(270, 12, gusts: null, halfSpread: null);
+        List<ObservedWind> observations = ObserveHalfHour(weather);
 
         Assert.All(
             observations,

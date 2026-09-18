@@ -14,7 +14,7 @@ public sealed class AirspaceRespectTests
     [Fact]
     public void FaaTrainingPrimaryFixture_LoadsSfoBravoAndOakCharlie()
     {
-        var db = AirspaceDatabase.Default;
+        AirspaceDatabase db = AirspaceDatabase.Default;
 
         Assert.Contains(db.Volumes, v => v.Ident == "SFO" && v.Class == AirspaceClass.Bravo);
         Assert.Contains(db.Volumes, v => v.Ident == "OAK" && v.Class == AirspaceClass.Charlie);
@@ -25,9 +25,9 @@ public sealed class AirspaceRespectTests
     [Fact]
     public void ProjectedEntry_FindsOakCharlieForInboundVfrAircraft()
     {
-        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 600);
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 600);
 
-        var crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 180);
+        AirspaceBoundaryCrossing? crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 180);
 
         Assert.NotNull(crossing);
         Assert.Equal(AirspaceClass.Charlie, crossing.Volume.Class);
@@ -37,9 +37,9 @@ public sealed class AirspaceRespectTests
     [Fact]
     public void ProjectedEntry_FindsOakCharlieShelfAtShelfAltitude()
     {
-        var ac = CreateAirborneVfr(new LatLon(37.83, -122.42), heading: 90, altitude: 2000, speed: 120);
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.83, -122.42), heading: 90, altitude: 2000, speed: 120);
 
-        var crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 60);
+        AirspaceBoundaryCrossing? crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 60);
 
         Assert.NotNull(crossing);
         Assert.Equal(AirspaceClass.Charlie, crossing.Volume.Class);
@@ -51,10 +51,10 @@ public sealed class AirspaceRespectTests
     [Fact]
     public void ProjectedEntry_SkipsOakCharlieShelfWhenProjectedBelowShelf()
     {
-        var ac = CreateAirborneVfr(new LatLon(37.83, -122.42), heading: 90, altitude: 1000, speed: 120);
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.83, -122.42), heading: 90, altitude: 1000, speed: 120);
         ac.VerticalSpeed = -500;
 
-        var crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 60);
+        AirspaceBoundaryCrossing? crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 60);
 
         Assert.Null(crossing);
     }
@@ -62,10 +62,10 @@ public sealed class AirspaceRespectTests
     [Fact]
     public void ProjectedEntry_FindsVerticalEntryWhenClimbingInsideOakCharlieShelf()
     {
-        var ac = CreateAirborneVfr(new LatLon(37.84, -122.30), heading: 90, altitude: 1000, speed: 0);
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.84, -122.30), heading: 90, altitude: 1000, speed: 0);
         ac.VerticalSpeed = 600;
 
-        var crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 60);
+        AirspaceBoundaryCrossing? crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 60);
 
         Assert.NotNull(crossing);
         Assert.Equal(AirspaceClass.Charlie, crossing.Volume.Class);
@@ -77,7 +77,7 @@ public sealed class AirspaceRespectTests
     [Fact]
     public void PilotProactive_InsertsCharlieHoldUntilControllerAcknowledges()
     {
-        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 600);
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 600);
         ac.HasMadeInitialContact = true;
         var scenario = new SimScenarioState
         {
@@ -92,14 +92,14 @@ public sealed class AirspaceRespectTests
 
         PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
 
-        var phase = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(ac.Phases!.Phases));
+        AirspaceBoundaryHoldPhase phase = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(ac.Phases!.Phases));
         Assert.Equal(AirspaceClass.Charlie, phase.AirspaceClass);
     }
 
     [Fact]
     public void PilotProactive_DoesNotHoldCharlieWhenProjectedBelowShelf()
     {
-        var ac = CreateAirborneVfr(new LatLon(37.83, -122.42), heading: 90, altitude: 1000, speed: 120);
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.83, -122.42), heading: 90, altitude: 1000, speed: 120);
         ac.VerticalSpeed = -500;
         ac.HasMadeInitialContact = true;
         var scenario = new SimScenarioState
@@ -121,7 +121,7 @@ public sealed class AirspaceRespectTests
     [Fact]
     public void PilotProactive_DoesNotHoldCharlieAfterTwoWayCommsGate()
     {
-        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 180);
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 180);
         ac.HasMadeInitialContact = true;
         ac.HasControllerAcknowledgedInitialContact = true;
         var scenario = new SimScenarioState
@@ -151,8 +151,8 @@ public sealed class AirspaceRespectTests
         {
             return;
         }
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
-        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 160);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 160);
         var phase = new AirspaceBoundaryHoldPhase
         {
             AirspaceClass = AirspaceClass.Charlie,
@@ -183,7 +183,7 @@ public sealed class AirspaceRespectTests
     [Fact]
     public void AirspaceBoundaryHoldPhase_CompletesWhenHeldShelfNoLongerVerticallyRelevant()
     {
-        var ac = CreateAirborneVfr(new LatLon(37.84, -122.4300), heading: 90, altitude: 1000, speed: 120);
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.84, -122.4300), heading: 90, altitude: 1000, speed: 120);
         ac.VerticalSpeed = -500;
         ac.HasMadeInitialContact = true;
         var phase = new AirspaceBoundaryHoldPhase
@@ -214,11 +214,11 @@ public sealed class AirspaceRespectTests
     [Fact]
     public void ClearedBravoCommand_SetsBravoGate()
     {
-        var ac = CreateAirborneVfr(new LatLon(37.60, -122.55), heading: 90, altitude: 3500, speed: 160);
-        var parsed = CommandParser.Parse("CLBRV");
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.60, -122.55), heading: 90, altitude: 3500, speed: 160);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("CLBRV");
         var compound = new CompoundCommand([new ParsedBlock(null, [parsed.Value!])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared, soloTrainingMode: true));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared, soloTrainingMode: true));
 
         Assert.True(result.Success);
         Assert.True(ac.IsClearedIntoBravo);
@@ -229,11 +229,11 @@ public sealed class AirspaceRespectTests
     [InlineData("ROGER")]
     public void PilotContactAckCommand_SetsTwoWayCommsGate(string command)
     {
-        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 160);
-        var parsed = CommandParser.Parse(command);
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 160);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
         var compound = new CompoundCommand([new ParsedBlock(null, [parsed.Value!])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared, soloTrainingMode: true));
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared, soloTrainingMode: true));
 
         Assert.True(result.Success);
         Assert.True(ac.HasControllerAcknowledgedInitialContact);
@@ -242,7 +242,7 @@ public sealed class AirspaceRespectTests
     [Fact]
     public void AirspaceBoundaryHoldPhase_OnEnd_PreservesDirectIssuedDuringHold()
     {
-        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 120);
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 120);
         ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "OAK", Position = new LatLon(37.7213, -122.2208) });
         var phase = new AirspaceBoundaryHoldPhase
         {
@@ -251,7 +251,7 @@ public sealed class AirspaceRespectTests
             ReferencePosition = new LatLon(37.7213, -122.2208),
             OrbitDirection = TurnDirection.Right,
         };
-        var ctx = BoundaryHoldContext(ac);
+        PhaseContext ctx = BoundaryHoldContext(ac);
 
         phase.OnStart(ctx);
 
@@ -261,14 +261,14 @@ public sealed class AirspaceRespectTests
 
         phase.OnEnd(ctx, PhaseStatus.Completed);
 
-        var target = Assert.Single(ac.Targets.NavigationRoute);
+        NavigationTarget target = Assert.Single(ac.Targets.NavigationRoute);
         Assert.Equal("VPCBT", target.Name);
     }
 
     [Fact]
     public void AirspaceBoundaryHoldPhase_OnEnd_RestoresOriginalRouteWhenControllerGaveNoLateralCommand()
     {
-        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 120);
+        AircraftState ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 120);
         ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "OAK", Position = new LatLon(37.7213, -122.2208) });
         var phase = new AirspaceBoundaryHoldPhase
         {
@@ -277,7 +277,7 @@ public sealed class AirspaceRespectTests
             ReferencePosition = new LatLon(37.7213, -122.2208),
             OrbitDirection = TurnDirection.Right,
         };
-        var ctx = BoundaryHoldContext(ac);
+        PhaseContext ctx = BoundaryHoldContext(ac);
 
         phase.OnStart(ctx);
         // No controller lateral command during the hold.
@@ -285,7 +285,7 @@ public sealed class AirspaceRespectTests
 
         phase.OnEnd(ctx, PhaseStatus.Completed);
 
-        var target = Assert.Single(ac.Targets.NavigationRoute);
+        NavigationTarget target = Assert.Single(ac.Targets.NavigationRoute);
         Assert.Equal("OAK", target.Name);
     }
 

@@ -13,18 +13,18 @@ public class OffsetPatternParserTests
     [Fact]
     public void Bare_OFL_ParsesWithNullOffset()
     {
-        var result = CommandParser.Parse("OFL");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("OFL");
         Assert.True(result.IsSuccess, result.Reason);
-        var cmd = Assert.IsType<OffsetLeftPatternCommand>(result.Value);
+        OffsetLeftPatternCommand cmd = Assert.IsType<OffsetLeftPatternCommand>(result.Value);
         Assert.Null(cmd.OffsetNm);
     }
 
     [Fact]
     public void Bare_OFR_ParsesWithNullOffset()
     {
-        var result = CommandParser.Parse("OFR");
+        ParseResult<ParsedCommand> result = CommandParser.Parse("OFR");
         Assert.True(result.IsSuccess, result.Reason);
-        var cmd = Assert.IsType<OffsetRightPatternCommand>(result.Value);
+        OffsetRightPatternCommand cmd = Assert.IsType<OffsetRightPatternCommand>(result.Value);
         Assert.Null(cmd.OffsetNm);
     }
 
@@ -34,9 +34,9 @@ public class OffsetPatternParserTests
     [InlineData("OFL 0.25", 0.25)]
     public void OFL_WithDistance_ParsesToOffsetNm(string input, double expected)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.True(result.IsSuccess, result.Reason);
-        var cmd = Assert.IsType<OffsetLeftPatternCommand>(result.Value);
+        OffsetLeftPatternCommand cmd = Assert.IsType<OffsetLeftPatternCommand>(result.Value);
         Assert.Equal(expected, cmd.OffsetNm);
     }
 
@@ -46,9 +46,9 @@ public class OffsetPatternParserTests
     [InlineData("OFR 0.3", 0.3)]
     public void OFR_WithDistance_ParsesToOffsetNm(string input, double expected)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.True(result.IsSuccess, result.Reason);
-        var cmd = Assert.IsType<OffsetRightPatternCommand>(result.Value);
+        OffsetRightPatternCommand cmd = Assert.IsType<OffsetRightPatternCommand>(result.Value);
         Assert.Equal(expected, cmd.OffsetNm);
     }
 
@@ -57,9 +57,9 @@ public class OffsetPatternParserTests
     [InlineData("OFFSETL 0.7", 0.7)]
     public void OFFSETL_AliasParsesIdenticallyToOFL(string input, double? expected)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.True(result.IsSuccess, result.Reason);
-        var cmd = Assert.IsType<OffsetLeftPatternCommand>(result.Value);
+        OffsetLeftPatternCommand cmd = Assert.IsType<OffsetLeftPatternCommand>(result.Value);
         Assert.Equal(expected, cmd.OffsetNm);
     }
 
@@ -68,9 +68,9 @@ public class OffsetPatternParserTests
     [InlineData("OFFSETR 0.6", 0.6)]
     public void OFFSETR_AliasParsesIdenticallyToOFR(string input, double? expected)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.True(result.IsSuccess, result.Reason);
-        var cmd = Assert.IsType<OffsetRightPatternCommand>(result.Value);
+        OffsetRightPatternCommand cmd = Assert.IsType<OffsetRightPatternCommand>(result.Value);
         Assert.Equal(expected, cmd.OffsetNm);
     }
 
@@ -80,7 +80,7 @@ public class OffsetPatternParserTests
     [InlineData("OFFSETL 0.4")]
     public void Offset_IsCaseInsensitive(string input)
     {
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         Assert.True(result.IsSuccess, result.Reason);
     }
 
@@ -92,7 +92,7 @@ public class OffsetPatternParserTests
     {
         // Non-numeric arg should not produce a typed Offset command.
         // Either parse fails outright OR yields UnsupportedCommand.
-        var result = CommandParser.Parse(input);
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
         if (result.IsSuccess)
         {
             Assert.IsType<UnsupportedCommand>(result.Value);

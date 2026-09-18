@@ -4,6 +4,7 @@ using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Client.Views.Radar.Flyouts;
 
@@ -50,7 +51,7 @@ internal static class RunwayFlyout
         string airport = !string.IsNullOrEmpty(primary) ? primary : fallback;
         if (!string.IsNullOrEmpty(airport))
         {
-            var ends = CollectRunwayEnds(airport);
+            List<string> ends = CollectRunwayEnds(airport);
             if (ends.Count > 0)
             {
                 menu.Items.Add(new Separator());
@@ -62,10 +63,10 @@ internal static class RunwayFlyout
                         FontStyle = FontStyle.Italic,
                     }
                 );
-                foreach (var end in ends)
+                foreach (string end in ends)
                 {
-                    var designator = end;
-                    var display = RunwayIdentifier.ToDisplayDesignator(designator);
+                    string designator = end;
+                    string display = RunwayIdentifier.ToDisplayDesignator(designator);
                     string label = string.Equals(aircraft.AssignedRunway, designator, System.StringComparison.OrdinalIgnoreCase)
                         ? $"▶ {display}"
                         : display;
@@ -95,9 +96,9 @@ internal static class RunwayFlyout
     /// </summary>
     private static List<string> CollectRunwayEnds(string airport)
     {
-        var runways = NavigationDatabase.Instance.GetRunways(airport);
+        IReadOnlyList<RunwayInfo> runways = NavigationDatabase.Instance.GetRunways(airport);
         var unique = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
-        foreach (var r in runways)
+        foreach (RunwayInfo r in runways)
         {
             if (!string.IsNullOrEmpty(r.Id.End1))
             {
@@ -122,8 +123,8 @@ internal sealed class RunwayDesignatorComparer : IComparer<string>
         {
             return string.Compare(x, y, System.StringComparison.OrdinalIgnoreCase);
         }
-        var (xn, xs) = Split(x);
-        var (yn, ys) = Split(y);
+        (int xn, string? xs) = Split(x);
+        (int yn, string? ys) = Split(y);
         int byNum = xn.CompareTo(yn);
         return byNum != 0 ? byNum : string.Compare(xs, ys, System.StringComparison.OrdinalIgnoreCase);
     }

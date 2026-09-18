@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -24,14 +25,14 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -51,8 +52,8 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
     [Fact]
     public void OutdatedStar_ResolvesToCurrentVersion_WithStarViaMode()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -61,15 +62,15 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
 
         engine.Replay(recording, 2);
 
-        var aircraft = engine.FindAircraft("DAL1352");
+        AircraftState? aircraft = engine.FindAircraft("DAL1352");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"DAL1352: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");
         output.WriteLine($"  Altitude: {aircraft.Altitude:F0}, TargetAlt: {aircraft.Targets.TargetAltitude:F0}");
 
-        var route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         output.WriteLine($"  Route ({route.Count} fixes):");
-        foreach (var fix in route)
+        foreach (NavigationTarget fix in route)
         {
             string constraint = fix.AltitudeRestriction is not null ? $" [alt: {fix.AltitudeRestriction}]" : "";
             output.WriteLine($"    {fix.Name}{constraint}");
@@ -98,8 +99,8 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
     [Fact]
     public void OutdatedStar_AircraftDescendsViaStar()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -108,7 +109,7 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
 
         engine.Replay(recording, 2);
 
-        var aircraft = engine.FindAircraft("DAL1352");
+        AircraftState? aircraft = engine.FindAircraft("DAL1352");
         Assert.NotNull(aircraft);
 
         double initialAlt = aircraft.Altitude;
@@ -140,8 +141,8 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
     [Fact]
     public void OutdatedStar_GeneratesWarning()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -154,7 +155,7 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
         // We can verify by checking the aircraft state — if StarViaMode is true,
         // the resolution worked. The warning is tested in unit tests;
         // here we just confirm the E2E outcome.
-        var aircraft = engine.FindAircraft("DAL1352");
+        AircraftState? aircraft = engine.FindAircraft("DAL1352");
         Assert.NotNull(aircraft);
         Assert.True(aircraft.Procedure.StarViaMode, "StarViaMode confirms version resolution worked end-to-end");
     }
@@ -166,8 +167,8 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
     [Fact]
     public void DelayedAircraft_AlsoGetsVersionResolution()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Skipped: recording or NavData not available");
@@ -177,7 +178,7 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
         // SKW3388 spawns at t=240
         engine.Replay(recording, 242);
 
-        var aircraft = engine.FindAircraft("SKW3388");
+        AircraftState? aircraft = engine.FindAircraft("SKW3388");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"SKW3388: StarViaMode={aircraft.Procedure.StarViaMode}, ActiveStarId={aircraft.Procedure.ActiveStarId}");

@@ -58,8 +58,13 @@ public sealed class TeardropReentryPhase : Phase
             _ => 2.0,
         };
 
-        var outbound = GeoMath.ProjectPoint(Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon, Waypoints.CrosswindHeading, outboundNm);
-        var leadIn = GeoMath.ProjectPoint(Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon, reverseEntryHdg, leadInNm);
+        (double Lat, double Lon) outbound = GeoMath.ProjectPoint(
+            Waypoints.DownwindAbeamLat,
+            Waypoints.DownwindAbeamLon,
+            Waypoints.CrosswindHeading,
+            outboundNm
+        );
+        (double Lat, double Lon) leadIn = GeoMath.ProjectPoint(Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon, reverseEntryHdg, leadInNm);
 
         _outboundLat = outbound.Lat;
         _outboundLon = outbound.Lon;
@@ -135,7 +140,7 @@ public sealed class TeardropReentryPhase : Phase
         {
             double normalSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-            var adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
+            double? adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
             if (adjusted is not null)
             {
                 ctx.Targets.TargetSpeed = Math.Min(adjusted.Value, normalSpeed);

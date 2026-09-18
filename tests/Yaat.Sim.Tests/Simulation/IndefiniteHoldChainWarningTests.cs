@@ -68,15 +68,15 @@ public class IndefiniteHoldChainWarningTests
     [Fact]
     public void HpChain_UntriggeredTail_WarnsAtDispatch_AndStillQueues()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddAirborne(engine, "IHW101", 37.65, -122.30);
-        var result = engine.SendCommand(ac.Callsign, "HOLDP OAK 180 1M R; FH 090");
+        AircraftState ac = AddAirborne(engine, "IHW101", 37.65, -122.30);
+        CommandResult result = engine.SendCommand(ac.Callsign, "HOLDP OAK 180 1M R; FH 090");
         Assert.True(result.Success, result.Message);
         _output.WriteLine($"warnings=[{string.Join(" | ", ac.PendingWarnings)}]");
 
@@ -88,15 +88,15 @@ public class IndefiniteHoldChainWarningTests
     [Fact]
     public void HpChain_TriggeredTail_NoWarning()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var ac = AddAirborne(engine, "IHW102", 37.65, -122.30);
-        var result = engine.SendCommand(ac.Callsign, "HOLDP OAK 180 1M R; LV 40 FH 090");
+        AircraftState ac = AddAirborne(engine, "IHW102", 37.65, -122.30);
+        CommandResult result = engine.SendCommand(ac.Callsign, "HOLDP OAK 180 1M R; LV 40 FH 090");
         Assert.True(result.Success, result.Message);
         _output.WriteLine($"warnings=[{string.Join(" | ", ac.PendingWarnings)}]");
 
@@ -106,16 +106,16 @@ public class IndefiniteHoldChainWarningTests
     [Fact]
     public void FollowChain_UntriggeredTail_WarnsAtDispatch()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("Skipped: OAK layout not available");
             return;
         }
 
-        var lead = AddAirborne(engine, "IHW103", 37.66, -122.29);
-        var ac = AddAirborne(engine, "IHW104", 37.64, -122.31);
-        var result = engine.SendCommand(ac.Callsign, $"FOLLOWF {lead.Callsign}; CM 3000");
+        AircraftState lead = AddAirborne(engine, "IHW103", 37.66, -122.29);
+        AircraftState ac = AddAirborne(engine, "IHW104", 37.64, -122.31);
+        CommandResult result = engine.SendCommand(ac.Callsign, $"FOLLOWF {lead.Callsign}; CM 3000");
         _output.WriteLine($"dispatch: success={result.Success} msg={result.Message}");
         _output.WriteLine($"warnings=[{string.Join(" | ", ac.PendingWarnings)}]");
         Assert.True(result.Success, result.Message);

@@ -54,7 +54,7 @@ public sealed class AtParkingPhase : Phase
         {
             // Nobody answering (instructor room, no AI) or the SOP says this aircraft does not call the student yet:
             // retry next tick, exactly as before the roster.
-            var atAirportId = PilotContactRoster.SurfaceAirportOf(ctx.Aircraft);
+            string? atAirportId = PilotContactRoster.SurfaceAirportOf(ctx.Aircraft);
             if (ctx.PilotContacts.ResolveFor(ctx.Aircraft, "GND", atAirportId, ctx.ToEligibilityContext(), true) is not { } answering)
             {
                 return false;
@@ -62,8 +62,8 @@ public sealed class AtParkingPhase : Phase
 
             if (TryReserveInitialCallupSlot(ctx))
             {
-                var facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "GND", "ground");
-                var line = PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName, ctx.AtisLetter);
+                string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "GND", "ground");
+                PilotSpeechText line = PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName, ctx.AtisLetter);
                 PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
                 PilotRequestTracker.RecordRequest(
                     ctx.Aircraft,

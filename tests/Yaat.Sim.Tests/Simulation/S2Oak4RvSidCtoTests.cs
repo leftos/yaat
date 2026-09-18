@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -38,8 +39,8 @@ public class S2Oak4RvSidCtoTests(ITestOutputHelper output)
     [Fact]
     public void N436MS_CtoDuringTaxi_Nimi6_Stores315OnClearanceAndInitialClimb()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -50,17 +51,17 @@ public class S2Oak4RvSidCtoTests(ITestOutputHelper output)
         // cleared-for-takeoff chain is built - at t=16 under the physics taxi rates (measured), so the
         // pending phase is sampled at t=20 instead of at the amend second itself.
         engine.Replay(recording, 20);
-        var ac = engine.FindAircraft("N436MS");
+        AircraftState? ac = engine.FindAircraft("N436MS");
         Assert.NotNull(ac);
 
-        var pendingClimb = ac.Phases?.Phases.OfType<InitialClimbPhase>().FirstOrDefault(p => p.Status == PhaseStatus.Pending);
+        InitialClimbPhase? pendingClimb = ac.Phases?.Phases.OfType<InitialClimbPhase>().FirstOrDefault(p => p.Status == PhaseStatus.Pending);
         Assert.NotNull(pendingClimb);
         Assert.Equal(NimiRvHeadingMag, pendingClimb.SidDepartureHeadingMagnetic);
 
         engine.Replay(recording, 75);
         ac = engine.FindAircraft("N436MS");
         Assert.NotNull(ac);
-        var climb = ac.Phases?.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
+        InitialClimbPhase? climb = ac.Phases?.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
         Assert.NotNull(climb);
         Assert.Equal(NimiRvHeadingMag, climb.SidDepartureHeadingMagnetic);
         Assert.False(ac.HasLeftStudentFrequency);
@@ -74,25 +75,25 @@ public class S2Oak4RvSidCtoTests(ITestOutputHelper output)
     [Fact]
     public void N346G_CtoFromHoldShort_Nimi6_Stores315OnClearanceAndInitialClimb()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 130);
-        var ac = engine.FindAircraft("N346G");
+        AircraftState? ac = engine.FindAircraft("N346G");
         Assert.NotNull(ac);
 
-        var pendingClimb = ac.Phases?.Phases.OfType<InitialClimbPhase>().FirstOrDefault(p => p.Status == PhaseStatus.Pending);
+        InitialClimbPhase? pendingClimb = ac.Phases?.Phases.OfType<InitialClimbPhase>().FirstOrDefault(p => p.Status == PhaseStatus.Pending);
         Assert.NotNull(pendingClimb);
         Assert.Equal(NimiRvHeadingMag, pendingClimb.SidDepartureHeadingMagnetic);
 
         engine.Replay(recording, 195);
         ac = engine.FindAircraft("N346G");
         Assert.NotNull(ac);
-        var climb = ac.Phases?.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
+        InitialClimbPhase? climb = ac.Phases?.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
         Assert.NotNull(climb);
         Assert.Equal(NimiRvHeadingMag, climb.SidDepartureHeadingMagnetic);
         Assert.Empty(ac.Targets.NavigationRoute);
@@ -110,21 +111,21 @@ public class S2Oak4RvSidCtoTests(ITestOutputHelper output)
             return;
         }
 
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
         }
 
         engine.Replay(recording, 0);
-        var ac = engine.FindAircraft("N436MS");
+        AircraftState? ac = engine.FindAircraft("N436MS");
         Assert.NotNull(ac);
 
         ac.FlightPlan.Route = "OAK6 OAK SYRAH";
         ac.Phases!.DepartureClearance = null;
 
-        var result = engine.SendCommand("N436MS", "CTO");
+        CommandResult result = engine.SendCommand("N436MS", "CTO");
         Assert.True(result.Success, result.Message);
 
         Assert.NotNull(ac.Phases.DepartureClearance);

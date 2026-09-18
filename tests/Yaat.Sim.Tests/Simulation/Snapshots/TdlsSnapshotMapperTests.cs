@@ -65,7 +65,7 @@ public class TdlsSnapshotMapperTests
     [Fact]
     public void RoundTrip_PreservesItemsDumpedLockoutAndOpsConfig()
     {
-        var dto = TdlsSnapshotMapper.Capture(Seeded());
+        TdlsSnapshotDto dto = TdlsSnapshotMapper.Capture(Seeded());
 
         Assert.Equal(2, dto.Items.Count);
         Assert.Single(dto.Dumped);
@@ -82,7 +82,7 @@ public class TdlsSnapshotMapperTests
             Assert.Contains(new DumpedKey("OAK", "N999XX"), restored.Dumped);
             Assert.Equal("cfg-north", restored.ActiveOpConfigIds["OAK"]);
 
-            var sent = restored.Items["TDLS_2"];
+            TdlsItemRecord sent = restored.Items["TDLS_2"];
             Assert.Equal(TdlsItemStatus.Sent, sent.Status);
             Assert.Equal(SentPayload, sent.SentPayload);
             Assert.Equal(Created.AddMinutes(2), sent.SentUtc);
@@ -93,8 +93,8 @@ public class TdlsSnapshotMapperTests
     [Fact]
     public void RoundTrip_PreservesTheScheduledWilcoInstant()
     {
-        var dto = TdlsSnapshotMapper.Capture(Seeded());
-        var scheduled = Assert.Single(dto.ScheduledWilco);
+        TdlsSnapshotDto dto = TdlsSnapshotMapper.Capture(Seeded());
+        TdlsScheduledWilcoDto scheduled = Assert.Single(dto.ScheduledWilco);
         Assert.Equal("TDLS_2", scheduled.ItemId);
 
         var restored = new TdlsState();
@@ -106,9 +106,9 @@ public class TdlsSnapshotMapperTests
     [Fact]
     public void Restore_FromAnEmptySnapshot_ClearsThePopulatedSession()
     {
-        var empty = TdlsSnapshotMapper.Capture(new TdlsState());
+        TdlsSnapshotDto empty = TdlsSnapshotMapper.Capture(new TdlsState());
 
-        var populated = Seeded();
+        TdlsState populated = Seeded();
         TdlsSnapshotMapper.Restore(populated, empty);
 
         lock (populated.Gate)
@@ -128,7 +128,7 @@ public class TdlsSnapshotMapperTests
     [Fact]
     public void ClearSession_KeepsTheFacilityConfigs_ResetDoesNot()
     {
-        var tdls = Seeded();
+        TdlsState tdls = Seeded();
         tdls.Configs["OAK"] = new TdlsConfig { MandatoryExpect = true };
 
         tdls.ClearSession();

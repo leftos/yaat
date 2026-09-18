@@ -198,7 +198,7 @@ public static class ViewSettingsCopyCatalog
 
     private static string FormatGroundPosition(SavedGroundSettings s)
     {
-        var zoom = $"{s.Zoom.ToString("0.##", CultureInfo.InvariantCulture)}x";
+        string zoom = $"{s.Zoom.ToString("0.##", CultureInfo.InvariantCulture)}x";
         return DEq(s.Rotation, 0) ? zoom : $"{zoom} · {Num(s.Rotation)}°";
     }
 
@@ -213,8 +213,8 @@ public static class ViewSettingsCopyCatalog
 
     private static bool BrightnessEqual(Dictionary<string, int>? a, Dictionary<string, int>? b)
     {
-        var countA = a?.Count ?? 0;
-        var countB = b?.Count ?? 0;
+        int countA = a?.Count ?? 0;
+        int countB = b?.Count ?? 0;
         if (countA != countB)
         {
             return false;
@@ -225,9 +225,9 @@ public static class ViewSettingsCopyCatalog
             return true;
         }
 
-        foreach (var (key, value) in a)
+        foreach ((string? key, int value) in a)
         {
-            if (!b.TryGetValue(key, out var other) || other != value)
+            if (!b.TryGetValue(key, out int other) || other != value)
             {
                 return false;
             }

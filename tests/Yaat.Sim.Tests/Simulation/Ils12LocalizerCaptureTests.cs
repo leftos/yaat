@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
@@ -30,14 +31,14 @@ public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -57,8 +58,8 @@ public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
     [Fact]
     public void Swa1850_PtacIls12_CapturesLocalizer()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -67,7 +68,7 @@ public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
 
         engine.Replay(recording, 1232);
 
-        var aircraft = engine.FindAircraft("SWA1850");
+        AircraftState? aircraft = engine.FindAircraft("SWA1850");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"State at t=1232 (after PTAC 150 030):");
@@ -76,7 +77,7 @@ public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
         output.WriteLine($"  Phases:         {FormatPhases(aircraft)}");
 
         Assert.NotNull(aircraft.Phases);
-        var interceptPhase = aircraft.Phases.Phases.OfType<InterceptCoursePhase>().FirstOrDefault();
+        InterceptCoursePhase? interceptPhase = aircraft.Phases.Phases.OfType<InterceptCoursePhase>().FirstOrDefault();
         Assert.NotNull(interceptPhase);
 
         bool captured = false;
@@ -93,7 +94,7 @@ public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
                 );
             }
 
-            var finalPhase = aircraft.Phases?.Phases.OfType<FinalApproachPhase>().FirstOrDefault();
+            FinalApproachPhase? finalPhase = aircraft.Phases?.Phases.OfType<FinalApproachPhase>().FirstOrDefault();
             if (finalPhase is { Status: PhaseStatus.Active })
             {
                 output.WriteLine($"  >>> Captured at t+{t}! FinalApproachPhase is active <<<");

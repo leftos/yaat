@@ -1,4 +1,6 @@
 ﻿using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -24,7 +26,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
     private static SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -47,8 +49,8 @@ public class SfoPushbackTests(ITestOutputHelper output)
     [Fact]
     public void Sfo_PushToSpot_SWA1360_B12_ToB13_CompletesToAtParking()
     {
-        var scenarioJson = LoadScenarioJson();
-        var engine = BuildEngine();
+        string? scenarioJson = LoadScenarioJson();
+        SimulationEngine? engine = BuildEngine();
         if (scenarioJson is null || engine is null)
         {
             return;
@@ -56,8 +58,8 @@ public class SfoPushbackTests(ITestOutputHelper output)
 
         TestVnasData.EnsureInitialized();
 
-        var warnings = engine.LoadScenario(scenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
-        foreach (var w in warnings)
+        List<string> warnings = engine.LoadScenario(scenarioJson, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        foreach (string w in warnings)
         {
             _output.WriteLine($"[WARN] {w}");
         }
@@ -68,16 +70,16 @@ public class SfoPushbackTests(ITestOutputHelper output)
             engine.TickOneSecond();
         }
 
-        var ac = engine.FindAircraft("SWA1360");
+        AircraftState? ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
         _output.WriteLine(
             $"SWA1360 spawned: phase={ac.Phases?.CurrentPhase?.Name ?? "null"} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F0}"
         );
 
         // Get B13 parking position for distance checks
-        var layout = engine.World.GroundLayout;
+        AirportGroundLayout? layout = engine.World.GroundLayout;
         Assert.NotNull(layout);
-        var b13 = layout.FindSpotByName("B13");
+        GroundNode? b13 = layout.FindSpotByName("B13");
         Assert.NotNull(b13);
         _output.WriteLine($"B13 target: ({b13.Position.Lat:F6},{b13.Position.Lon:F6}) hdg={b13.TrueHeading?.Degrees}");
 
@@ -85,7 +87,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
         _output.WriteLine($"Start distance to B13: {startDist:F0}ft");
 
         // Send PUSH @B13
-        var result = engine.SendCommand("SWA1360", "PUSH @B13");
+        CommandResult result = engine.SendCommand("SWA1360", "PUSH @B13");
         Assert.True(result.Success, $"PUSH @B13 failed: {result.Message}");
         _output.WriteLine($"Command result: {result.Message}");
         _output.WriteLine($"Phase after command: {ac.Phases?.CurrentPhase?.Name ?? "null"}");
@@ -137,8 +139,8 @@ public class SfoPushbackTests(ITestOutputHelper output)
     [Fact]
     public void Sfo_PushToStand_SWA1360_B12_ToB13_FaceS_Refused()
     {
-        var scenarioJson = LoadScenarioJson();
-        var engine = BuildEngine();
+        string? scenarioJson = LoadScenarioJson();
+        SimulationEngine? engine = BuildEngine();
         if (scenarioJson is null || engine is null)
         {
             return;
@@ -154,12 +156,12 @@ public class SfoPushbackTests(ITestOutputHelper output)
             engine.TickOneSecond();
         }
 
-        var ac = engine.FindAircraft("SWA1360");
+        AircraftState? ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
 
-        var start = ac.Position;
+        LatLon start = ac.Position;
 
-        var result = engine.SendCommand("SWA1360", "PUSH @B13 FACE S");
+        CommandResult result = engine.SendCommand("SWA1360", "PUSH @B13 FACE S");
         _output.WriteLine($"Command result: success={result.Success} \"{result.Message}\"");
 
         Assert.False(result.Success, "PUSH @B13 FACE S was accepted");
@@ -175,8 +177,8 @@ public class SfoPushbackTests(ITestOutputHelper output)
     [Fact]
     public void Diag_Sfo_PushToSpot_B12_ToB13_Trace()
     {
-        var scenarioJson = LoadScenarioJson();
-        var engine = BuildEngine();
+        string? scenarioJson = LoadScenarioJson();
+        SimulationEngine? engine = BuildEngine();
         if (scenarioJson is null || engine is null)
         {
             return;
@@ -191,13 +193,13 @@ public class SfoPushbackTests(ITestOutputHelper output)
             engine.TickOneSecond();
         }
 
-        var ac = engine.FindAircraft("SWA1360");
+        AircraftState? ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
 
-        var layout = engine.World.GroundLayout;
+        AirportGroundLayout? layout = engine.World.GroundLayout;
         Assert.NotNull(layout);
-        var b12 = layout.FindSpotByName("B12");
-        var b13 = layout.FindSpotByName("B13");
+        GroundNode? b12 = layout.FindSpotByName("B12");
+        GroundNode? b13 = layout.FindSpotByName("B13");
         Assert.NotNull(b12);
         Assert.NotNull(b13);
 
@@ -213,20 +215,20 @@ public class SfoPushbackTests(ITestOutputHelper output)
             $"Aircraft before command: pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F0} gs={ac.GroundSpeed:F1} phase={ac.Phases?.CurrentPhase?.Name ?? "null"}"
         );
 
-        var result = engine.SendCommand("SWA1360", "PUSH @B13");
+        CommandResult result = engine.SendCommand("SWA1360", "PUSH @B13");
         Assert.True(result.Success, $"PUSH @B13 failed: {result.Message}");
         _output.WriteLine($"Command: PUSH @B13 → {result.Message}");
 
         // Log route info
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         if (route is not null)
         {
             _output.WriteLine($"Route: {route.Segments.Count} segments");
             for (int i = 0; i < route.Segments.Count; i++)
             {
-                var seg = route.Segments[i];
-                var fromNode = layout.Nodes.GetValueOrDefault(seg.FromNodeId);
-                var toNode = layout.Nodes.GetValueOrDefault(seg.ToNodeId);
+                TaxiRouteSegment seg = route.Segments[i];
+                GroundNode? fromNode = layout.Nodes.GetValueOrDefault(seg.FromNodeId);
+                GroundNode? toNode = layout.Nodes.GetValueOrDefault(seg.ToNodeId);
                 double segDist =
                     fromNode is not null && toNode is not null
                         ? GeoMath.DistanceNm(fromNode.Position.Lat, fromNode.Position.Lon, toNode.Position.Lat, toNode.Position.Lon)

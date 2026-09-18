@@ -39,7 +39,7 @@ public class CustomFixCollapseTests
     [InlineData("direct three zero numbers", "DCT OAK30NUM")]
     public void DirectTo_CustomFixPhrase_MapsToCanonical(string transcript, string expected)
     {
-        var result = PhraseologyMapper.Map(transcript, ContextWithPatterns);
+        MapResult? result = PhraseologyMapper.Map(transcript, ContextWithPatterns);
         Assert.NotNull(result);
         Assert.Equal(expected, result!.CanonicalCommand);
     }
@@ -50,7 +50,7 @@ public class CustomFixCollapseTests
         // "the runway 30 numbers" should match the 4-token pattern, not two separate matches of
         // the shorter "runway 30 numbers" + stray "the".
         var tokens = new List<string> { "the", "runway", "30", "numbers" };
-        var collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, Patterns);
+        List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, Patterns);
         Assert.Equal(new[] { "OAK30NUM" }, collapsed);
     }
 
@@ -58,7 +58,7 @@ public class CustomFixCollapseTests
     public void CustomFixCollapse_NoMatch_PassesThrough()
     {
         var tokens = new List<string> { "climb", "and", "maintain", "5000" };
-        var collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, Patterns);
+        List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, Patterns);
         Assert.Equal(new[] { "climb", "and", "maintain", "5000" }, collapsed);
     }
 
@@ -66,7 +66,7 @@ public class CustomFixCollapseTests
     public void CustomFixCollapse_EmptyPatterns_IsNoop()
     {
         var tokens = new List<string> { "direct", "to", "cepin" };
-        var collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, []);
+        List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, []);
         Assert.Equal(new[] { "direct", "to", "cepin" }, collapsed);
     }
 
@@ -75,7 +75,7 @@ public class CustomFixCollapseTests
     {
         // Compound command: "direct to the runway 30 numbers, then direct to the toll plaza"
         var tokens = new List<string> { "direct", "to", "the", "runway", "30", "numbers", "then", "direct", "to", "the", "toll", "plaza" };
-        var collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, Patterns);
+        List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, Patterns);
         Assert.Equal(new[] { "direct", "to", "OAK30NUM", "then", "direct", "to", "TOLLPLAZA" }, collapsed);
     }
 
@@ -84,14 +84,14 @@ public class CustomFixCollapseTests
     {
         // Real compound: "climb and maintain 5000 direct to the runway 30 numbers"
         var tokens = new List<string> { "climb", "and", "maintain", "5000", "direct", "to", "the", "runway", "30", "numbers" };
-        var collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, Patterns);
+        List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(tokens, Patterns);
         Assert.Equal(new[] { "climb", "and", "maintain", "5000", "direct", "to", "OAK30NUM" }, collapsed);
     }
 
     [Fact]
     public void DirectTo_CustomFixCompoundWithAltitude_MapsBothClauses()
     {
-        var result = PhraseologyMapper.Map("climb and maintain five thousand direct to the runway three zero numbers", ContextWithPatterns);
+        MapResult? result = PhraseologyMapper.Map("climb and maintain five thousand direct to the runway three zero numbers", ContextWithPatterns);
         Assert.NotNull(result);
         Assert.Equal("CM 5000, DCT OAK30NUM", result!.CanonicalCommand);
     }
@@ -102,7 +102,7 @@ public class CustomFixCollapseTests
         // When custom fix patterns aren't provided, "direct to the runway 30 numbers" should
         // NOT collapse — the rule engine instead sees "direct to runway" as "DCT runway" (since
         // {fix} captures one token). This sanity-checks that custom fix handling is purely additive.
-        var result = PhraseologyMapper.Map("direct to runway three zero numbers", MapContext.Empty);
+        MapResult? result = PhraseologyMapper.Map("direct to runway three zero numbers", MapContext.Empty);
         Assert.NotNull(result);
         Assert.NotEqual("DCT OAK30NUM", result!.CanonicalCommand);
     }

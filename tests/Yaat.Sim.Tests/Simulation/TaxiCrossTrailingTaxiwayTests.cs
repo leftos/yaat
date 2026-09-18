@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -50,8 +51,8 @@ public class TaxiCrossTrailingTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiCBCross33_WithoutDestination_RoutesOntoBAndHoldsShortOf28R()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -68,17 +69,17 @@ public class TaxiCrossTrailingTaxiwayTests(ITestOutputHelper output)
         // airborne. The CROSS-33 routing under test is independent of when the
         // departure rolls.
         engine.Replay(recording, 2052);
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.True(ac.IsOnGround, "N629PU should be on the ground (holding short of 33) before the TAXI command");
 
-        var result = engine.SendCommand(Callsign, "TAXI C B CROSS 33");
+        CommandResult result = engine.SendCommand(Callsign, "TAXI C B CROSS 33");
 
-        var route = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         if (route is not null)
         {
             output.WriteLine($"Route: {route.ToSummary()} ({route.Segments.Count} segments)");
-            foreach (var hs in route.HoldShortPoints)
+            foreach (HoldShortPoint hs in route.HoldShortPoints)
             {
                 output.WriteLine($"  HS: node={hs.NodeId} reason={hs.Reason} target={hs.TargetName} cleared={hs.IsCleared}");
             }
@@ -91,9 +92,9 @@ public class TaxiCrossTrailingTaxiwayTests(ITestOutputHelper output)
         // The route must reach taxiway B (the clearance's last leg), not truncate at 33. B has no
         // onward direction or destination, so the route holds at the C/B junction rather than
         // walking B toward 28R — the controller continues it with a follow-up taxi or RWY clearance.
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
-        var lastNode = layout.Nodes[route.Segments[^1].ToNodeId];
+        GroundNode lastNode = layout.Nodes[route.Segments[^1].ToNodeId];
         Assert.True(lastNode.Edges.Any(e => e.MatchesTaxiway("B")), $"expected the route to hold at a C/B junction, ended at #{lastNode.Id}");
 
         // Holding at C/B never approaches 28R, and 33 lies the other way along C — the route must

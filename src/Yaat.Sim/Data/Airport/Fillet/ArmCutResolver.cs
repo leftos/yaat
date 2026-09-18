@@ -24,7 +24,7 @@ internal static class ArmCutResolver
         var distortedArms = new HashSet<int>();
         var candidateFt = new Dictionary<int, double>();
 
-        foreach (var arm in junction.Arms)
+        foreach (TaxiwayArm arm in junction.Arms)
         {
             var ideals = activeCorners.Where(c => (c.ArmIdA == arm.Id) || (c.ArmIdB == arm.Id)).Select(c => c.IdealTangentFt).ToList();
 
@@ -41,15 +41,15 @@ internal static class ArmCutResolver
             candidateFt[arm.Id] = candidate;
         }
 
-        foreach (var corner in activeCorners.ToList())
+        foreach (CornerSpec? corner in activeCorners.ToList())
         {
-            var armA = armsById[corner.ArmIdA];
-            var armB = armsById[corner.ArmIdB];
+            TaxiwayArm armA = armsById[corner.ArmIdA];
+            TaxiwayArm armB = armsById[corner.ArmIdB];
             double ta = candidateFt[corner.ArmIdA];
             double tb = candidateFt[corner.ArmIdB];
 
-            var (posA, _) = TaxiwayWalk.InterpolateAtDistanceFt(armA.Walk, junction.JunctionNode, ta);
-            var (posB, _) = TaxiwayWalk.InterpolateAtDistanceFt(armB.Walk, junction.JunctionNode, tb);
+            (LatLon posA, double _) = TaxiwayWalk.InterpolateAtDistanceFt(armA.Walk, junction.JunctionNode, ta);
+            (LatLon posB, double _) = TaxiwayWalk.InterpolateAtDistanceFt(armB.Walk, junction.JunctionNode, tb);
 
             double r = FilletGeometry.EffectiveMinRadiusFt(ta, tb, corner.BearingAToJunctionDeg, corner.BearingBToJunctionDeg, posA, posB);
 
@@ -69,7 +69,7 @@ internal static class ArmCutResolver
         var cornerToCutA = new Dictionary<int, CutId>();
         var cornerToCutB = new Dictionary<int, CutId>();
 
-        foreach (var arm in junction.Arms)
+        foreach (TaxiwayArm arm in junction.Arms)
         {
             var involved = activeCorners.Where(c => (c.ArmIdA == arm.Id) || (c.ArmIdB == arm.Id)).ToList();
             if (involved.Count == 0)
@@ -93,12 +93,12 @@ internal static class ArmCutResolver
                     );
                 }
 
-                var cutId = nextCutId;
+                CutId cutId = nextCutId;
                 nextCutId = new CutId(nextCutId.Value + 1);
-                var (pos, brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, dist);
+                (LatLon pos, double brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, dist);
                 var cut = new ResolvedArmCut(cutId, junction.JunctionNodeId, arm.Id, dist, pos, brg, involved.Select(c => c.CornerId).ToList());
                 cuts[cutId] = cut;
-                foreach (var c in involved)
+                foreach (CornerSpec? c in involved)
                 {
                     if (c.ArmIdA == arm.Id)
                     {
@@ -136,9 +136,9 @@ internal static class ArmCutResolver
                     continue;
                 }
 
-                var cutId = nextCutId;
+                CutId cutId = nextCutId;
                 nextCutId = new CutId(nextCutId.Value + 1);
-                var (pos, brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, capped);
+                (LatLon pos, double brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, capped);
                 var owners = involved
                     .Where(c => Math.Abs(c.IdealTangentFt - dist) <= FilletConstants.CoincidentNodeThresholdFt)
                     .Select(c => c.CornerId)
@@ -147,7 +147,7 @@ internal static class ArmCutResolver
                 var cut = new ResolvedArmCut(cutId, junction.JunctionNodeId, arm.Id, capped, pos, brg, owners);
                 cuts[cutId] = cut;
 
-                foreach (var c in involved.Where(c => owners.Contains(c.CornerId)))
+                foreach (CornerSpec? c in involved.Where(c => owners.Contains(c.CornerId)))
                 {
                     if (c.ArmIdA == arm.Id)
                     {
@@ -164,9 +164,9 @@ internal static class ArmCutResolver
 
         var surviving = new List<CornerSpec>();
         var cornerArcs = new List<CornerArcOp>();
-        foreach (var corner in activeCorners)
+        foreach (CornerSpec? corner in activeCorners)
         {
-            if (!cornerToCutA.TryGetValue(corner.CornerId, out var cutA) || !cornerToCutB.TryGetValue(corner.CornerId, out var cutB))
+            if (!cornerToCutA.TryGetValue(corner.CornerId, out CutId cutA) || !cornerToCutB.TryGetValue(corner.CornerId, out CutId cutB))
             {
                 warnings.Add(
                     new PlanWarning(junction.JunctionNodeId, corner.CornerId, PlanWarning.NoOwningCut, "Corner has no owning cut after resolve")
@@ -174,8 +174,8 @@ internal static class ArmCutResolver
                 continue;
             }
 
-            var cA = cuts[cutA];
-            var cB = cuts[cutB];
+            ResolvedArmCut cA = cuts[cutA];
+            ResolvedArmCut cB = cuts[cutB];
             double r = FilletGeometry.EffectiveMinRadiusFt(
                 cA.DistanceAlongArmFt,
                 cB.DistanceAlongArmFt,
@@ -209,14 +209,14 @@ internal static class ArmCutResolver
 
         var arcCornerIds = cornerArcs.Select(a => a.CornerId).ToHashSet();
         var straightConnectors = new List<StraightConnectorOp>();
-        foreach (var corner in activeCorners)
+        foreach (CornerSpec? corner in activeCorners)
         {
             if (arcCornerIds.Contains(corner.CornerId))
             {
                 continue;
             }
 
-            if (!cornerToCutA.TryGetValue(corner.CornerId, out var cutA) || !cornerToCutB.TryGetValue(corner.CornerId, out var cutB))
+            if (!cornerToCutA.TryGetValue(corner.CornerId, out CutId cutA) || !cornerToCutB.TryGetValue(corner.CornerId, out CutId cutB))
             {
                 continue;
             }

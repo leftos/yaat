@@ -1,5 +1,8 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -35,14 +38,14 @@ public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
             return null;
         }
 
-        var json = File.ReadAllText(RecordingPath);
+        string json = File.ReadAllText(RecordingPath);
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -63,8 +66,8 @@ public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
     [Fact]
     public void Capp_WhileNavigating_UsesFixNavigation()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -73,7 +76,7 @@ public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
 
         engine.Replay(recording, 688);
 
-        var aircraft = engine.FindAircraft("UAL238");
+        AircraftState? aircraft = engine.FindAircraft("UAL238");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"TargetHeading: {aircraft.Targets.TargetTrueHeading}");
@@ -84,13 +87,13 @@ public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
         Assert.NotNull(aircraft.Targets.TargetTrueHeading);
         Assert.Null(aircraft.Targets.AssignedMagneticHeading);
 
-        var result = engine.SendCommand("UAL238", "CAPP");
+        CommandResult result = engine.SendCommand("UAL238", "CAPP");
         output.WriteLine($"CAPP result: Success={result.Success} Message={result.Message}");
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
 
-        foreach (var phase in aircraft.Phases.Phases)
+        foreach (Phase phase in aircraft.Phases.Phases)
         {
             output.WriteLine($"Phase: {phase.Name} ({phase.GetType().Name})");
         }
@@ -108,8 +111,8 @@ public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
     [Fact]
     public void Capp_AfterExplicitHeading_UsesInterceptPhase()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -119,7 +122,7 @@ public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
         // Replay to t=928 — the recording includes FH 240 at t=928
         engine.Replay(recording, 928);
 
-        var aircraft = engine.FindAircraft("UAL238");
+        AircraftState? aircraft = engine.FindAircraft("UAL238");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"TargetHeading: {aircraft.Targets.TargetTrueHeading}");
@@ -130,13 +133,13 @@ public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
         Assert.Equal(240.0, aircraft.Targets.AssignedMagneticHeading.Value.Degrees);
 
         // Issue CAPP — should use intercept since aircraft was explicitly vectored
-        var cappResult = engine.SendCommand("UAL238", "CAPP");
+        CommandResult cappResult = engine.SendCommand("UAL238", "CAPP");
         output.WriteLine($"CAPP result: Success={cappResult.Success} Message={cappResult.Message}");
 
         Assert.True(cappResult.Success);
         Assert.NotNull(aircraft.Phases);
 
-        foreach (var phase in aircraft.Phases.Phases)
+        foreach (Phase phase in aircraft.Phases.Phases)
         {
             output.WriteLine($"Phase: {phase.Name} ({phase.GetType().Name})");
         }

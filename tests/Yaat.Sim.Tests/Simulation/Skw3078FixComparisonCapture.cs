@@ -92,14 +92,14 @@ public class Skw3078FixComparisonCapture(ITestOutputHelper output)
         try
         {
             var engine = new SimulationEngine(groundData);
-            var recording = RecordingLoader.Load(RecordingPath);
+            SessionRecording? recording = RecordingLoader.Load(RecordingPath);
             if (recording is null)
             {
                 return;
             }
 
             string outputPath = Path.Combine(TickRecorder.FindRepoRoot(), outputRelPath);
-            using var _ = TickRecorder.Attach(engine, outputPath, CapturedCallsigns);
+            using IDisposable _ = TickRecorder.Attach(engine, outputPath, CapturedCallsigns);
 
             engine.Replay(recording, 816);
             for (int t = 1; t <= 240; t++)

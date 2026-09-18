@@ -61,12 +61,12 @@ public class EfParallelSidestepTests : IDisposable
 
     private static AircraftState MakeAircraftOnFinal28R(double altAgl, double distFromThresholdNm)
     {
-        var rwy28R = MakeOak28R();
+        RunwayInfo rwy28R = MakeOak28R();
         // Project the aircraft along the reciprocal of 28R FAC (heading 112°) at the
         // requested distance from the 28R threshold. Aircraft is on the 28R extended
         // centerline, on FAC heading.
         var reciprocal = new TrueHeading((rwy28R.TrueHeading.Degrees + 180) % 360);
-        var pos = GeoMath.ProjectPoint(rwy28R.ThresholdLatitude, rwy28R.ThresholdLongitude, reciprocal, distFromThresholdNm);
+        (double Lat, double Lon) pos = GeoMath.ProjectPoint(rwy28R.ThresholdLatitude, rwy28R.ThresholdLongitude, reciprocal, distFromThresholdNm);
 
         return new AircraftState
         {
@@ -98,11 +98,11 @@ public class EfParallelSidestepTests : IDisposable
     [Fact]
     public void EfOnParallel_OnFinal_SidestepsWithoutRebuilding()
     {
-        var ac = MakeAircraftOnFinal28R(altAgl: 640, distFromThresholdNm: 1.5);
+        AircraftState ac = MakeAircraftOnFinal28R(altAgl: 640, distFromThresholdNm: 1.5);
 
         // Install an active FinalApproachPhase + LandingPhase chain for 28R, mirroring
         // what an aircraft already on 28R short-final would have.
-        var rwy28R = ac.Phases!.AssignedRunway!;
+        RunwayInfo rwy28R = ac.Phases!.AssignedRunway!;
         var finalApproach = new FinalApproachPhase();
         var landing = new LandingPhase();
         ac.Phases.Add(finalApproach);
@@ -112,7 +112,13 @@ public class EfParallelSidestepTests : IDisposable
         ac.Phases.Start(BuildCtx(ac, rwy28R));
 
         // Now issue EF 28L — parallel runway sidestep.
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, runwayId: "28L", finalDistanceNm: null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            runwayId: "28L",
+            finalDistanceNm: null
+        );
 
         Assert.True(result.Success, $"sidestep should succeed but got: {result.Message}");
         _output.WriteLine($"message: {result.Message}");
@@ -136,9 +142,15 @@ public class EfParallelSidestepTests : IDisposable
     {
         // Aircraft cruising at 5 nm out, no active FinalApproachPhase. EF should
         // build the standard pattern entry, not sidestep.
-        var ac = MakeAircraftOnFinal28R(altAgl: 2500, distFromThresholdNm: 8);
+        AircraftState ac = MakeAircraftOnFinal28R(altAgl: 2500, distFromThresholdNm: 8);
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, runwayId: "28L", finalDistanceNm: null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            runwayId: "28L",
+            finalDistanceNm: null
+        );
 
         Assert.True(result.Success);
         Assert.DoesNotContain("Sidestep", result.Message ?? "", StringComparison.OrdinalIgnoreCase);
@@ -152,13 +164,19 @@ public class EfParallelSidestepTests : IDisposable
         // Aircraft on 28R short final at 200 ft AGL — below the 500 ft sidestep floor.
         // Per AC 120-71, the aircraft is committed; sidestep would force an unstabilized
         // approach on the parallel centerline. Reject.
-        var ac = MakeAircraftOnFinal28R(altAgl: 200, distFromThresholdNm: 0.5);
-        var rwy28R = ac.Phases!.AssignedRunway!;
+        AircraftState ac = MakeAircraftOnFinal28R(altAgl: 200, distFromThresholdNm: 0.5);
+        RunwayInfo rwy28R = ac.Phases!.AssignedRunway!;
         var finalApproach = new FinalApproachPhase();
         ac.Phases.Add(finalApproach);
         ac.Phases.Start(BuildCtx(ac, rwy28R));
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, runwayId: "28L", finalDistanceNm: null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            runwayId: "28L",
+            finalDistanceNm: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("too low", result.Message ?? "", StringComparison.OrdinalIgnoreCase);
@@ -171,13 +189,19 @@ public class EfParallelSidestepTests : IDisposable
     {
         // EF for the runway already assigned. Should fall through to standard logic
         // (no sidestep because we're not switching runways).
-        var ac = MakeAircraftOnFinal28R(altAgl: 640, distFromThresholdNm: 1.5);
-        var rwy28R = ac.Phases!.AssignedRunway!;
+        AircraftState ac = MakeAircraftOnFinal28R(altAgl: 640, distFromThresholdNm: 1.5);
+        RunwayInfo rwy28R = ac.Phases!.AssignedRunway!;
         var finalApproach = new FinalApproachPhase();
         ac.Phases.Add(finalApproach);
         ac.Phases.Start(BuildCtx(ac, rwy28R));
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, runwayId: "28R", finalDistanceNm: null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            runwayId: "28R",
+            finalDistanceNm: null
+        );
 
         Assert.DoesNotContain("Sidestep", result.Message ?? "", StringComparison.OrdinalIgnoreCase);
     }

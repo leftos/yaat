@@ -21,7 +21,7 @@ internal sealed class InProcessServer : IAsyncDisposable
 
     public async Task StartAsync()
     {
-        var port = PickFreeLoopbackPort();
+        int port = PickFreeLoopbackPort();
         Url = $"http://127.0.0.1:{port}";
 
         // Development + RequireVatsimAuth=false so the in-process host uses the dev JWT signing key and
@@ -30,7 +30,17 @@ internal sealed class InProcessServer : IAsyncDisposable
         // output dir, not the capture tool's, so it's passed explicitly here.)
         // LiveTraffic:Enabled marks the feed as configured so the Live Traffic session toggle is offered; the store
         // itself is fed by LiveTrafficScene (there is no SWIM ingest in the capture tool).
-        var args = new[] { "--urls", Url, "--environment", "Development", "--Yaat:Auth:RequireVatsimAuth", "false", "--LiveTraffic:Enabled", "true" };
+        string[] args = new[]
+        {
+            "--urls",
+            Url,
+            "--environment",
+            "Development",
+            "--Yaat:Auth:RequireVatsimAuth",
+            "false",
+            "--LiveTraffic:Enabled",
+            "true",
+        };
         _app = await ServerApp.BuildAsync(args);
         await _app.StartAsync();
     }

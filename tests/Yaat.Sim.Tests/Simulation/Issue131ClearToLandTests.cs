@@ -1,4 +1,6 @@
 ﻿using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -21,7 +23,7 @@ public class Issue131ClearToLandTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -42,8 +44,8 @@ public class Issue131ClearToLandTests(ITestOutputHelper output)
     [Fact]
     public void PatternEntry_ClandOnDownwind_AircraftLands()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -53,7 +55,7 @@ public class Issue131ClearToLandTests(ITestOutputHelper output)
         // By t=610 N775JW is on PatternEntry heading toward downwind.
         engine.Replay(recording, 610);
 
-        var ac = engine.FindAircraft("N775JW");
+        AircraftState? ac = engine.FindAircraft("N775JW");
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
         output.WriteLine($"t=610: phase={ac.Phases.CurrentPhase?.GetType().Name} alt={ac.Altitude:F0}");
@@ -71,7 +73,7 @@ public class Issue131ClearToLandTests(ITestOutputHelper output)
             if (ac.Phases?.CurrentPhase is Yaat.Sim.Phases.Pattern.DownwindPhase)
             {
                 output.WriteLine($"t+{t}: reached downwind, issuing CLAND");
-                var result = engine.SendCommand("N775JW", "CLAND");
+                CommandResult result = engine.SendCommand("N775JW", "CLAND");
                 output.WriteLine($"  CLAND result: {result.Success} — {result.Message}");
                 Assert.True(result.Success);
                 break;
@@ -103,7 +105,7 @@ public class Issue131ClearToLandTests(ITestOutputHelper output)
                 break;
             }
 
-            foreach (var w in ac.PendingWarnings)
+            foreach (string w in ac.PendingWarnings)
             {
                 if (w.Contains("going around", StringComparison.OrdinalIgnoreCase))
                 {

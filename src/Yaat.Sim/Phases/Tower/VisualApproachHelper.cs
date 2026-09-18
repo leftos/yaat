@@ -1,5 +1,6 @@
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -54,7 +55,7 @@ internal static class VisualApproachHelper
     /// </summary>
     public static void HandleTrafficContactLost(PhaseContext ctx, string targetCallsign, bool fieldAlsoLostThisTick)
     {
-        var follower = ctx.Aircraft;
+        AircraftState follower = ctx.Aircraft;
 
         // The pilot just reported losing sight — the in-sight report is consumed with
         // the loss, unlike a command-driven follow cancel (where the pilot still sees
@@ -103,7 +104,7 @@ internal static class VisualApproachHelper
     /// </summary>
     public static void EndVisualLostReference(PhaseContext ctx, bool lostField, bool lostTraffic, string? leadCallsign)
     {
-        var aircraft = ctx.Aircraft;
+        AircraftState aircraft = ctx.Aircraft;
         if (aircraft.Phases is not { } phases || aircraft.IsOnGround || phases.CurrentPhase is GoAroundPhase)
         {
             return;
@@ -124,7 +125,7 @@ internal static class VisualApproachHelper
             return;
         }
 
-        var request = Pilot.PilotResponder.BuildUnableVisualRequestVectors(aircraft, lostField, lostTraffic, leadCallsign);
+        PilotSpeechText request = Pilot.PilotResponder.BuildUnableVisualRequestVectors(aircraft, lostField, lostTraffic, leadCallsign);
         Pilot.PilotResponder.RouteSoloOrRpoTransmission(
             aircraft,
             ctx.SoloTrainingMode,

@@ -62,19 +62,19 @@ public partial class SpeechDebugWindow : Window
         // (Play / Stop / Export this sample) are inside a DataTemplate and aren't present in the
         // visual tree at ctor time. Those are wired via Click="…" attributes in the XAML, which
         // Avalonia resolves against this class each time the template inflates.
-        var closeBtn = this.FindControl<Button>("CloseButton");
+        Button? closeBtn = this.FindControl<Button>("CloseButton");
         if (closeBtn is not null)
         {
             closeBtn.Click += (_, _) => Close();
         }
 
-        var settingsBtn = this.FindControl<Button>("SettingsButton");
+        Button? settingsBtn = this.FindControl<Button>("SettingsButton");
         if (settingsBtn is not null)
         {
             settingsBtn.Click += OnSettingsClick;
         }
 
-        var exportSelectedBtn = this.FindControl<Button>("ExportSelectedButton");
+        Button? exportSelectedBtn = this.FindControl<Button>("ExportSelectedButton");
         if (exportSelectedBtn is not null)
         {
             exportSelectedBtn.Click += OnExportSelectedClick;
@@ -93,7 +93,7 @@ public partial class SpeechDebugWindow : Window
 
     public void OnPlayClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var path = _viewModel?.SelectedRow?.Sample?.AudioPath;
+        string? path = _viewModel?.SelectedRow?.Sample?.AudioPath;
         if (string.IsNullOrEmpty(path) || !File.Exists(path))
         {
             return;
@@ -138,14 +138,14 @@ public partial class SpeechDebugWindow : Window
             return;
         }
 
-        var sample = _viewModel.SelectedRow.Sample;
-        var path = await PromptForBundlePath($"{sample.Id}.yaat-speech-sample.zip");
+        SpeechSampleEntry sample = _viewModel.SelectedRow.Sample;
+        string? path = await PromptForBundlePath($"{sample.Id}.yaat-speech-sample.zip");
         if (path is null)
         {
             return;
         }
 
-        var ok = _viewModel.ExportSingle(path);
+        bool ok = _viewModel.ExportSingle(path);
         if (!ok)
         {
             Log.LogWarning("Single-sample export to {Path} returned false", path);
@@ -159,20 +159,20 @@ public partial class SpeechDebugWindow : Window
             return;
         }
 
-        var defaultName = $"yaat-speech-samples-{DateTime.UtcNow:yyyyMMdd-HHmmss}.yaat-speech-sample.zip";
-        var path = await PromptForBundlePath(defaultName);
+        string defaultName = $"yaat-speech-samples-{DateTime.UtcNow:yyyyMMdd-HHmmss}.yaat-speech-sample.zip";
+        string? path = await PromptForBundlePath(defaultName);
         if (path is null)
         {
             return;
         }
 
-        var written = _viewModel.ExportSelectedBundle(path);
+        int written = _viewModel.ExportSelectedBundle(path);
         Log.LogInformation("Exported {Count} speech samples to {Path}", written, path);
     }
 
     private async Task<string?> PromptForBundlePath(string suggestedName)
     {
-        var file = await StorageProvider.SaveFilePickerAsync(
+        IStorageFile? file = await StorageProvider.SaveFilePickerAsync(
             new FilePickerSaveOptions
             {
                 Title = "Save speech sample bundle",
@@ -182,7 +182,7 @@ public partial class SpeechDebugWindow : Window
             }
         );
 
-        var path = file?.TryGetLocalPath();
+        string? path = file?.TryGetLocalPath();
         return string.IsNullOrEmpty(path) ? null : path;
     }
 

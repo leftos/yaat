@@ -94,7 +94,7 @@ public static class AircraftInitializer
             distNm = 5.0;
         }
 
-        var (position, alt) = FinalApproachPoint(runway, category, distNm);
+        (LatLon position, double alt) = FinalApproachPoint(runway, category, distNm);
         double speed;
         if (requestedSpeed.HasValue)
         {

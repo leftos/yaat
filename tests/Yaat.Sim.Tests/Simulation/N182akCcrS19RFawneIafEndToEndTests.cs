@@ -45,8 +45,8 @@ public class N182akCcrS19RFawneIafEndToEndTests(ITestOutputHelper output)
     [Fact]
     public void N182ak_CappS19RFromFawne_DoesNotFlyEastBackToRejoy()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("Recording or NavData not available, skipping");
@@ -58,7 +58,7 @@ public class N182akCcrS19RFawneIafEndToEndTests(ITestOutputHelper output)
         // SWA5131 E2E test pattern). DCT FAWNE only resolves cleanly when validation is off.
         engine.ReplayWithScenarioOverride(recording, 1494, scenario => scenario.ValidateDctFixes = false);
 
-        var aircraft = engine.FindAircraft("N182AK");
+        AircraftState? aircraft = engine.FindAircraft("N182AK");
         Assert.NotNull(aircraft);
 
         output.WriteLine(
@@ -66,7 +66,7 @@ public class N182akCcrS19RFawneIafEndToEndTests(ITestOutputHelper output)
                 + $"hdg={aircraft.TrueHeading.Degrees:F1} alt={aircraft.Altitude:F0}"
         );
 
-        var navPhase = aircraft.Phases?.Phases.OfType<ApproachNavigationPhase>().FirstOrDefault();
+        ApproachNavigationPhase? navPhase = aircraft.Phases?.Phases.OfType<ApproachNavigationPhase>().FirstOrDefault();
         if (navPhase is not null)
         {
             output.WriteLine($"Approach fixes after CAPP: {string.Join(" → ", navPhase.Fixes.Select(f => f.Name))}");

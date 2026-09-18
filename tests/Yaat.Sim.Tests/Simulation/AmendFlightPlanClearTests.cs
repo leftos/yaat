@@ -48,7 +48,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
     [Fact]
     public void EmptyDeparture_ClearsField()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         AddAircraftWithFlightPlan(engine, "N342T");
 
         engine.AmendFlightPlan(
@@ -69,7 +69,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
             )
         );
 
-        var ac = engine.FindAircraft("N342T");
+        AircraftState? ac = engine.FindAircraft("N342T");
         Assert.NotNull(ac);
         Assert.Equal("", ac.FlightPlan.Departure);
         Assert.Equal("KOAK", ac.FlightPlan.Destination);
@@ -80,7 +80,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
     {
         // Documents the load-bearing partial-update semantic that targeted single-field
         // amendments from RoomEngine (RD/APT/DEST handlers) depend on.
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         AddAircraftWithFlightPlan(engine, "N342T");
 
         engine.AmendFlightPlan(
@@ -101,7 +101,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
             )
         );
 
-        var ac = engine.FindAircraft("N342T");
+        AircraftState? ac = engine.FindAircraft("N342T");
         Assert.NotNull(ac);
         Assert.Equal("KOAK", ac.FlightPlan.Departure);
         Assert.Equal("KSFO", ac.FlightPlan.Destination);
@@ -110,7 +110,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
     [Fact]
     public void EmptyDestinationAndRoute_ClearsBothFields()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         AddAircraftWithFlightPlan(engine, "N342T");
 
         engine.AmendFlightPlan(
@@ -131,7 +131,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
             )
         );
 
-        var ac = engine.FindAircraft("N342T");
+        AircraftState? ac = engine.FindAircraft("N342T");
         Assert.NotNull(ac);
         Assert.Equal("", ac.FlightPlan.Destination);
         Assert.Equal("", ac.FlightPlan.Route);
@@ -140,7 +140,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
     [Fact]
     public void ZeroCruiseSpeedAndAltitude_ClearsValues()
     {
-        var engine = BuildEngine();
+        SimulationEngine engine = BuildEngine();
         AddAircraftWithFlightPlan(engine, "N342T");
 
         engine.AmendFlightPlan(
@@ -161,7 +161,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
             )
         );
 
-        var ac = engine.FindAircraft("N342T");
+        AircraftState? ac = engine.FindAircraft("N342T");
         Assert.NotNull(ac);
         Assert.Equal(0, ac.FlightPlan.CruiseSpeed);
         Assert.Null(ac.FlightPlan.Altitude.CruiseFeet);

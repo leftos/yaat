@@ -14,8 +14,8 @@ public static class LiveSessionAirportDefaults
 
     public static Choice Resolve(FacilityTreeDto root, string positionId)
     {
-        var facility = FindFacilityOfPosition(root, positionId) ?? root;
-        var airports = CollectAirports(facility);
+        FacilityTreeDto facility = FindFacilityOfPosition(root, positionId) ?? root;
+        List<string> airports = CollectAirports(facility);
         if (airports.Count == 0)
         {
             facility = root;
@@ -27,7 +27,7 @@ public static class LiveSessionAirportDefaults
             return new Choice(airports, named);
         }
 
-        var preferred = PreferredAirport(facility);
+        string? preferred = PreferredAirport(facility);
         return new Choice(airports, preferred is not null && airports.Contains(preferred) ? preferred : airports.FirstOrDefault());
     }
 
@@ -39,14 +39,14 @@ public static class LiveSessionAirportDefaults
             return null;
         }
 
-        var prefix = CallsignPrefix(position.Callsign);
+        string prefix = CallsignPrefix(position.Callsign);
         return airports.FirstOrDefault(a => string.Equals(a, prefix, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>The token before the first underscore of a position callsign — its airport whenever it names one.</summary>
     public static string CallsignPrefix(string callsign)
     {
-        var underscore = callsign.IndexOf('_');
+        int underscore = callsign.IndexOf('_');
         return underscore < 0 ? callsign : callsign[..underscore];
     }
 
@@ -58,7 +58,7 @@ public static class LiveSessionAirportDefaults
             return position;
         }
 
-        foreach (var child in node.Children)
+        foreach (FacilityTreeDto child in node.Children)
         {
             if (FindPositionSummary(child, positionId) is { } found)
             {
@@ -77,7 +77,7 @@ public static class LiveSessionAirportDefaults
             return node;
         }
 
-        foreach (var child in node.Children)
+        foreach (FacilityTreeDto child in node.Children)
         {
             if (FindFacilityOfPosition(child, positionId) is { } found)
             {
@@ -118,12 +118,12 @@ public static class LiveSessionAirportDefaults
     private static void Collect(FacilityTreeDto node, List<string> airports)
     {
         Add(airports, node.AirportId);
-        foreach (var airport in node.Airports)
+        foreach (string airport in node.Airports)
         {
             Add(airports, airport);
         }
 
-        foreach (var child in node.Children)
+        foreach (FacilityTreeDto child in node.Children)
         {
             Collect(child, airports);
         }

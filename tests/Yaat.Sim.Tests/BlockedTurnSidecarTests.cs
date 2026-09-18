@@ -29,7 +29,7 @@ public class BlockedTurnSidecarTests
             return;
         }
 
-        var turns = NavigationDatabase.Instance.AirportSidecars.GetBlockedTurns("SFO");
+        IReadOnlyList<BlockedTurn> turns = NavigationDatabase.Instance.AirportSidecars.GetBlockedTurns("SFO");
         Assert.NotEmpty(turns);
         // Same data resolves via the ICAO form.
         Assert.NotEmpty(NavigationDatabase.Instance.AirportSidecars.GetBlockedTurns("KSFO"));
@@ -38,22 +38,24 @@ public class BlockedTurnSidecarTests
     [Fact]
     public void Sfo_ShippingSidecar_ResolvesToTheLFApexCornerArc()
     {
-        var layout = LoadSfo();
+        AirportGroundLayout? layout = LoadSfo();
         if (layout is null || TestVnasData.NavigationDb is null)
         {
             return;
         }
 
-        var turns = NavigationDatabase.Instance.AirportSidecars.GetBlockedTurns("SFO");
-        var result = BlockedTurnResolver.Resolve(layout, turns);
+        IReadOnlyList<BlockedTurn> turns = NavigationDatabase.Instance.AirportSidecars.GetBlockedTurns("SFO");
+        BlockedTurnResult result = BlockedTurnResolver.Resolve(layout, turns);
 
         Assert.NotEmpty(result.HiddenArcPairs);
         Assert.NotEmpty(result.ForbiddenTurns);
 
         // Every hidden corner arc bridges L and F (the blocked apex), and only a few arcs are hidden.
-        foreach (var (a, b) in result.HiddenArcPairs)
+        foreach ((int a, int b) in result.HiddenArcPairs)
         {
-            var arc = layout.Arcs.FirstOrDefault(x => (x.Nodes[0].Id == a && x.Nodes[1].Id == b) || (x.Nodes[0].Id == b && x.Nodes[1].Id == a));
+            GroundArc? arc = layout.Arcs.FirstOrDefault(x =>
+                (x.Nodes[0].Id == a && x.Nodes[1].Id == b) || (x.Nodes[0].Id == b && x.Nodes[1].Id == a)
+            );
             Assert.NotNull(arc);
             Assert.True(arc!.MatchesTaxiway("L") && arc.MatchesTaxiway("F"));
         }

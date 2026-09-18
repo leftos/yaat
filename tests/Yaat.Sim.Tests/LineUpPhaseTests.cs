@@ -51,8 +51,8 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     {
         const double threshLat = 37.0;
         const double threshLon = -122.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(threshLat, threshLon, new TrueHeading(rwyHeadingDeg), 2.0);
-        var runway = TestRunwayFactory.Make(
+        (double endLat, double endLon) = GeoMath.ProjectPoint(threshLat, threshLon, new TrueHeading(rwyHeadingDeg), 2.0);
+        RunwayInfo runway = TestRunwayFactory.Make(
             designator: "TST",
             thresholdLat: threshLat,
             thresholdLon: threshLon,
@@ -105,7 +105,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
             if (phase.OnTick(ctx))
             {
-                var cross =
+                double cross =
                     Math.Abs(
                         GeoMath.SignedCrossTrackDistanceNm(
                             aircraft.Position,
@@ -118,7 +118,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
             }
         }
 
-        var crossX =
+        double crossX =
             Math.Abs(
                 GeoMath.SignedCrossTrackDistanceNm(
                     aircraft.Position,
@@ -159,7 +159,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     [Fact]
     public void OnStart_NullRunway_EntersFaulted()
     {
-        var (aircraft, ctx) = MakeFixture(90.0, 36.9965, -121.995, 0.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(90.0, 36.9965, -121.995, 0.0);
         var ctxNoRwy = new PhaseContext
         {
             Aircraft = aircraft,
@@ -182,7 +182,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     [Fact]
     public void OnStart_NullGroundLayout_EntersFaulted()
     {
-        var (aircraft, ctx) = MakeFixture(90.0, 36.9965, -121.995, 0.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(90.0, 36.9965, -121.995, 0.0);
         var ctxNoLayout = new PhaseContext
         {
             Aircraft = aircraft,
@@ -213,7 +213,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         // adequate cross-track is recoverable).
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
         double acLon = -121.995;
-        var (aircraft, ctx) = MakeFixture(90.0, acLat, acLon, 135.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(90.0, acLat, acLon, 135.0);
 
         var phase = new LineUpPhase();
         phase.OnStart(ctx);
@@ -231,7 +231,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         // Regression for issue #142: Faulted tick must return false so the
         // aircraft does not auto-advance to TakeoffPhase with a bad pose.
         // User recovers via TAXI / CANCEL CLEARANCE instead.
-        var (aircraft, ctx) = MakeFixture(90.0, 36.9965, -121.995, 0.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(90.0, 36.9965, -121.995, 0.0);
         var ctxNoRwy = new PhaseContext
         {
             Aircraft = aircraft,
@@ -268,9 +268,9 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
         double acLon = -121.995;
 
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
         var phase = new LineUpPhase();
-        var result = RunToCompletion(phase, aircraft, ctx);
+        (bool Completed, double CrossFt, double HdgDiffDeg, double GsKts, int Ticks) result = RunToCompletion(phase, aircraft, ctx);
 
         output.WriteLine(
             $"PerpRight: completed={result.Completed} ticks={result.Ticks} "
@@ -292,9 +292,9 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         double acLat = 37.0 + 200.0 / (GeoMath.FeetPerNm * 60.0);
         double acLon = -121.995;
 
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
         var phase = new LineUpPhase();
-        var result = RunToCompletion(phase, aircraft, ctx);
+        (bool Completed, double CrossFt, double HdgDiffDeg, double GsKts, int Ticks) result = RunToCompletion(phase, aircraft, ctx);
 
         output.WriteLine(
             $"PerpLeft: completed={result.Completed} ticks={result.Ticks} "
@@ -314,7 +314,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         Assert.Null(phase.PathPlan);
 
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        var (_, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
+        (AircraftState _, PhaseContext? ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
         phase.OnStart(ctx);
 
         Assert.NotNull(phase.PathPlan);
@@ -329,7 +329,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     public void OnStart_NextPhaseIsLuaw_RollingModeIsFalse()
     {
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        var (aircraft, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
 
         var phase = new LineUpPhase();
         InstallPhaseListWithNext(aircraft, phase, new LinedUpAndWaitingPhase());
@@ -342,7 +342,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     public void OnStart_NextPhaseIsTakeoff_RollingModeIsTrue()
     {
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        var (aircraft, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
 
         var phase = new LineUpPhase();
         InstallPhaseListWithNext(aircraft, phase, new TakeoffPhase());
@@ -355,7 +355,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     public void OnStart_NextPhaseIsHelicopterTakeoff_RollingModeIsTrue()
     {
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        var (aircraft, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
 
         var phase = new LineUpPhase();
         InstallPhaseListWithNext(aircraft, phase, new HelicopterTakeoffPhase());
@@ -368,7 +368,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     public void OnStart_NoPhaseList_RollingModeIsFalse()
     {
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        var (_, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
+        (AircraftState _, PhaseContext? ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
 
         var phase = new LineUpPhase();
         phase.OnStart(ctx);
@@ -386,7 +386,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
         double acLon = -121.995;
 
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
         var phase = new LineUpPhase();
         InstallPhaseListWithNext(aircraft, phase, new TakeoffPhase());
 
@@ -426,14 +426,14 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
         double acLon = -121.995;
 
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
         var phase = new LineUpPhase();
         InstallPhaseListWithNext(aircraft, phase, new LinedUpAndWaitingPhase());
 
         phase.OnStart(ctx);
         Assert.False(phase.RollingMode);
 
-        var result = RunToCompletion(phase, aircraft, ctx);
+        (bool Completed, double CrossFt, double HdgDiffDeg, double GsKts, int Ticks) result = RunToCompletion(phase, aircraft, ctx);
         Assert.True(result.Completed);
         Assert.True(result.GsKts < 0.5, $"LUAW mode should still brake to 0, got {result.GsKts:F2}kt");
         Assert.Equal(LineUpPhase.State.Stop, phase.CurrentState);
@@ -445,7 +445,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     public void TryUpgradeToRolling_BeforeOnStart_ReturnsFalse()
     {
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        var (_, ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
+        (AircraftState _, PhaseContext? ctx) = MakeFixture(90.0, acLat, -121.995, 0.0);
 
         var phase = new LineUpPhase();
         Assert.False(phase.TryUpgradeToRolling(ctx));
@@ -457,7 +457,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     {
         double rwyHdg = 90.0;
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
 
         var phase = new LineUpPhase();
         InstallPhaseListWithNext(aircraft, phase, new LinedUpAndWaitingPhase());
@@ -500,7 +500,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     {
         double rwyHdg = 90.0;
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
 
         var phase = new LineUpPhase();
         InstallPhaseListWithNext(aircraft, phase, new LinedUpAndWaitingPhase());
@@ -536,7 +536,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     {
         double rwyHdg = 90.0;
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
         aircraft.AircraftType = "B744";
 
         var phase = new LineUpPhase();
@@ -561,9 +561,9 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     {
         double rwyHdg = 90.0;
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
 
-        using var navScope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(ctx.Runway!));
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(ctx.Runway!));
 
         var phase = new LineUpPhase();
         var luaw = new LinedUpAndWaitingPhase();
@@ -585,7 +585,12 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         Assert.Equal(LineUpPhase.State.Arc, phase.CurrentState);
         Assert.True(aircraft.IndicatedAirspeed > 5.0);
 
-        var result = DepartureClearanceHandler.SatisfyUpcomingTakeoffClearance(aircraft, new RunwayHeadingDeparture(), null, NullLogger.Instance);
+        CommandResult result = DepartureClearanceHandler.SatisfyUpcomingTakeoffClearance(
+            aircraft,
+            new RunwayHeadingDeparture(),
+            null,
+            NullLogger.Instance
+        );
 
         Assert.True(result.Success);
         Assert.True(phase.RollingMode, "Active LineUpPhase should flip to rolling mode");
@@ -597,7 +602,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     {
         double rwyHdg = 90.0;
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
-        var (aircraft, ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
+        (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(rwyHdg, acLat, -121.995, 0.0);
 
         var phase = new LineUpPhase();
         InstallPhaseListWithNext(aircraft, phase, new TakeoffPhase());
@@ -620,13 +625,13 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         const double acLon = -121.995;
 
         // Baseline LUAW lineup (no expedite).
-        var (normalAc, normalCtx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
-        var normal = RunToCompletion(new LineUpPhase(), normalAc, normalCtx);
+        (AircraftState? normalAc, PhaseContext? normalCtx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        (bool Completed, double CrossFt, double HdgDiffDeg, double GsKts, int Ticks) normal = RunToCompletion(new LineUpPhase(), normalAc, normalCtx);
 
         // Identical geometry, but expedited ("without delay" / "immediate").
-        var (expAc, expCtx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        (AircraftState? expAc, PhaseContext? expCtx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
         expAc.Ground.IsExpeditingLineup = true;
-        var expedited = RunToCompletion(new LineUpPhase(), expAc, expCtx);
+        (bool Completed, double CrossFt, double HdgDiffDeg, double GsKts, int Ticks) expedited = RunToCompletion(new LineUpPhase(), expAc, expCtx);
 
         output.WriteLine($"normal ticks={normal.Ticks}, expedited ticks={expedited.Ticks}");
 

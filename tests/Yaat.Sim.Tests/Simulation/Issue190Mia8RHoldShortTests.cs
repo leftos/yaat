@@ -27,7 +27,7 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
     [Fact]
     public void Taxiauto8R_StopsAtDestinationHoldShortBeforeRunwaySurface()
     {
-        var data = LoadIssueRecording();
+        Issue190Recording? data = LoadIssueRecording();
         if (data is null)
         {
             return;
@@ -35,8 +35,8 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var aircraft = MakeGroundAircraftAtNode(data.MiaLayout, TaxiAutoStartNodeId);
-        var result = GroundCommandHandler.TryTaxiAuto(
+        AircraftState aircraft = MakeGroundAircraftAtNode(data.MiaLayout, TaxiAutoStartNodeId);
+        CommandResult result = GroundCommandHandler.TryTaxiAuto(
             aircraft,
             new TaxiAutoCommand(DestinationRunway, DestinationParking: null, DestinationSpot: null),
             data.MiaLayout
@@ -49,7 +49,7 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
     [Fact]
     public void ExplicitTaxiTo8R_StopsAtDestinationHoldShortBeforeRunwaySurface()
     {
-        var data = LoadIssueRecording();
+        Issue190Recording? data = LoadIssueRecording();
         if (data is null)
         {
             return;
@@ -57,8 +57,8 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        var aircraft = MakeGroundAircraftAtNode(data.MiaLayout, TaxiAutoStartNodeId);
-        var result = GroundCommandHandler.TryTaxi(
+        AircraftState aircraft = MakeGroundAircraftAtNode(data.MiaLayout, TaxiAutoStartNodeId);
+        CommandResult result = GroundCommandHandler.TryTaxi(
             aircraft,
             new TaxiCommand(["N", "P", "M1"], [], DestinationRunway: DestinationRunway),
             data.MiaLayout
@@ -73,8 +73,8 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
     [InlineData("CTO")]
     public void DepartureClearanceFromCorrect8RHoldShortRoute_IsAccepted(string command)
     {
-        var data = LoadIssueRecording();
-        var engine = BuildEngine(data);
+        Issue190Recording? data = LoadIssueRecording();
+        SimulationEngine? engine = BuildEngine(data);
         if (data is null || engine is null || data.BeforeTaxiAutoSnapshot is null)
         {
             return;
@@ -85,18 +85,18 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
 
         engine.Scenario!.CommandRunDelayMaxSeconds = 0;
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         MoveAircraftToNode(aircraft, data.MiaLayout, TaxiAutoStartNodeId);
 
-        var taxiResult = GroundCommandHandler.TryTaxiAuto(
+        CommandResult taxiResult = GroundCommandHandler.TryTaxiAuto(
             aircraft,
             new TaxiAutoCommand(DestinationRunway, DestinationParking: null, DestinationSpot: null),
             data.MiaLayout
         );
         Assert.True(taxiResult.Success, $"TAXIAUTO 08R failed: {taxiResult.Message}");
 
-        var result = engine.SendCommand(Callsign, command);
+        CommandResult result = engine.SendCommand(Callsign, command);
         output.WriteLine($"{command}: success={result.Success} message={result.Message}");
 
         Assert.True(result.Success, $"{command} should be accepted from the assigned 8R destination hold-short route: {result.Message}");
@@ -121,26 +121,26 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
 
     private static Issue190Recording? LoadIssueRecording()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         if (recording is null || !File.Exists(RecordingPath))
         {
             return null;
         }
 
-        using var outerZip = ZipFile.OpenRead(RecordingPath);
+        using ZipArchive outerZip = ZipFile.OpenRead(RecordingPath);
         if (outerZip.GetEntry("manifest.json") is not null)
         {
             using var directArchive = RecordingArchive.Open(RecordingPath);
             return LoadIssueRecording(recording, directArchive);
         }
 
-        var nestedRecording = outerZip.GetEntry("recording.yaat-recording.zip");
+        ZipArchiveEntry? nestedRecording = outerZip.GetEntry("recording.yaat-recording.zip");
         if (nestedRecording is null)
         {
             return null;
         }
 
-        using var entryStream = nestedRecording.Open();
+        using Stream entryStream = nestedRecording.Open();
         using var archiveStream = new MemoryStream();
         entryStream.CopyTo(archiveStream);
         archiveStream.Position = 0;
@@ -151,19 +151,19 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
 
     private static Issue190Recording? LoadIssueRecording(SessionRecording recording, RecordingArchive archive)
     {
-        var layouts = archive.ReadAllLayouts();
-        if (!layouts.TryGetValue("mia", out var miaLayout))
+        Dictionary<string, AirportGroundLayout> layouts = archive.ReadAllLayouts();
+        if (!layouts.TryGetValue("mia", out AirportGroundLayout? miaLayout))
         {
             return null;
         }
 
-        var beforeTaxiAuto = archive.ReadSnapshotAt(BeforeTaxiAutoCommand);
+        TimedSnapshot? beforeTaxiAuto = archive.ReadSnapshotAt(BeforeTaxiAutoCommand);
         return new Issue190Recording(recording, layouts, miaLayout, beforeTaxiAuto);
     }
 
     private static void AssertRouteStopsAtDestinationHoldShortBeforeRunwaySurface(AircraftState aircraft, AirportGroundLayout layout, string runwayId)
     {
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
         Assert.True(route.Segments.Count > 0, "Expected a non-empty taxi route.");
 
@@ -178,7 +178,7 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
         int destinationNodeId = destinations[0].NodeId;
         Assert.Equal(destinationNodeId, route.Segments[^1].ToNodeId);
         Assert.True(
-            layout.Nodes.TryGetValue(destinationNodeId, out var destinationNode),
+            layout.Nodes.TryGetValue(destinationNodeId, out GroundNode? destinationNode),
             $"Destination hold-short node #{destinationNodeId} missing from MIA layout."
         );
         Assert.Equal(GroundNodeType.RunwayHoldShort, destinationNode.Type);
@@ -225,8 +225,8 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
 
     private static double ResolveNodeHeading(AirportGroundLayout layout, int nodeId)
     {
-        var node = layout.Nodes[nodeId];
-        foreach (var edge in node.Edges)
+        GroundNode node = layout.Nodes[nodeId];
+        foreach (IGroundEdge edge in node.Edges)
         {
             if (edge.IsRunwayCenterline || edge.IsRamp)
             {
@@ -253,7 +253,7 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
         public AirportGroundLayout? GetLayout(string airportId)
         {
             string shortId = airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
-            return layouts.TryGetValue(shortId, out var layout) ? layout : _fallback.GetLayout(airportId);
+            return layouts.TryGetValue(shortId, out AirportGroundLayout? layout) ? layout : _fallback.GetLayout(airportId);
         }
 
         public string? GetSourceGeoJson(string airportId)

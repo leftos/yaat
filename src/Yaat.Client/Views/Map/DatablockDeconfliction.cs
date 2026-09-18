@@ -166,7 +166,7 @@ public static class DatablockDeconfliction
         // panned outside the viewport is dropped here (it emits no offset and is not an obstacle) so the
         // view falls back to its default placement, which clips off-screen with the symbol rather than
         // clamping a stranded block to the viewport edge.
-        var visible = OnScreenItems(items, options.ScreenBounds);
+        List<Item> visible = OnScreenItems(items, options.ScreenBounds);
         if (visible.Count == 0)
         {
             return;
@@ -174,7 +174,7 @@ public static class DatablockDeconfliction
 
         var pinnedRects = new List<SKRect>();
         var movable = new List<Item>(visible.Count);
-        foreach (var item in visible)
+        foreach (Item item in visible)
         {
             if (item.IsPinned)
             {
@@ -201,7 +201,7 @@ public static class DatablockDeconfliction
                 ResolveFreeForm(movable, visible, pinnedRects, options, previousResolved, resolvedOffsets);
                 break;
             default:
-                foreach (var item in movable)
+                foreach (Item item in movable)
                 {
                     resolvedOffsets[item.Callsign] = item.PreferredOffset;
                 }
@@ -222,7 +222,7 @@ public static class DatablockDeconfliction
         var placed = new List<Placed>(movable.Count);
         var candidates = new List<Candidate>(((o.MaxExtraRings + 1) * CompassDirs.Length) + 1);
 
-        foreach (var item in movable)
+        foreach (Item item in movable)
         {
             BuildCandidates(item, o, candidates);
             int bestIdx = 0;
@@ -239,7 +239,7 @@ public static class DatablockDeconfliction
 
             bestIdx = ApplyHysteresis(item, candidates, bestIdx, bestCost, placed, pinnedRects, allItems, o, previousResolved);
 
-            var chosen = candidates[bestIdx];
+            Candidate chosen = candidates[bestIdx];
             placed.Add(new Placed(Translate(item.RectAtOrigin, Add(item.Anchor, chosen.Offset)), item.Anchor));
             resolvedOffsets[item.Callsign] = chosen.Offset;
         }
@@ -254,7 +254,7 @@ public static class DatablockDeconfliction
         in Options o
     )
     {
-        var rect = Translate(item.RectAtOrigin, Add(item.Anchor, candidate.Offset));
+        SKRect rect = Translate(item.RectAtOrigin, Add(item.Anchor, candidate.Offset));
         float c = Cost(rect, item.Anchor, item.Callsign, candidate.Preference, placed, pinned, allItems, o);
         if (item.IsPriority && candidate.IsPreferred)
         {
@@ -275,7 +275,7 @@ public static class DatablockDeconfliction
         IReadOnlyDictionary<string, SKPoint> previousResolved
     )
     {
-        if (!previousResolved.TryGetValue(item.Callsign, out var prev))
+        if (!previousResolved.TryGetValue(item.Callsign, out SKPoint prev))
         {
             return bestIdx;
         }
@@ -304,7 +304,7 @@ public static class DatablockDeconfliction
         var offsets = new SKPoint[n];
         for (int i = 0; i < n; i++)
         {
-            offsets[i] = previousResolved.TryGetValue(movable[i].Callsign, out var prev) ? prev : movable[i].PreferredOffset;
+            offsets[i] = previousResolved.TryGetValue(movable[i].Callsign, out SKPoint prev) ? prev : movable[i].PreferredOffset;
         }
 
         var targets = new SKPoint[n];
@@ -312,10 +312,10 @@ public static class DatablockDeconfliction
 
         // An assigned slot on an extended ring sits past the normal leader cap; each block's leader
         // clamp must allow at least its own target's leader so the clamp never drags it off the slot.
-        var maxLeaders = new float[n];
+        float[] maxLeaders = new float[n];
         for (int i = 0; i < n; i++)
         {
-            var item = movable[i];
+            Item item = movable[i];
             float targetLeader = LeaderLength(item.Anchor, Translate(item.RectAtOrigin, Add(item.Anchor, targets[i])));
             maxLeaders[i] = MathF.Max(MaxLeaderLength(o), targetLeader + 0.5f);
         }
@@ -356,9 +356,9 @@ public static class DatablockDeconfliction
 
         for (int i = 0; i < movable.Count; i++)
         {
-            var item = movable[i];
+            Item item = movable[i];
             BuildCandidates(item, o, candidates);
-            int incumbent = previousResolved.TryGetValue(item.Callsign, out var prev) ? MatchCandidate(candidates, prev) : -1;
+            int incumbent = previousResolved.TryGetValue(item.Callsign, out SKPoint prev) ? MatchCandidate(candidates, prev) : -1;
             AddSlideCandidates(item, placed, pinnedRects, o, candidates);
 
             int bestIdx = 0;
@@ -382,7 +382,7 @@ public static class DatablockDeconfliction
                 }
             }
 
-            var chosen = candidates[bestIdx];
+            Candidate chosen = candidates[bestIdx];
             placed.Add(new Placed(Translate(item.RectAtOrigin, Add(item.Anchor, chosen.Offset)), item.Anchor));
             targets[i] = chosen.Offset;
         }
@@ -403,7 +403,7 @@ public static class DatablockDeconfliction
     /// </summary>
     private static void AddSlideCandidates(in Item item, List<Placed> placed, List<SKRect> pinned, in Options o, List<Candidate> dest)
     {
-        var prefRect = Translate(item.RectAtOrigin, Add(item.Anchor, item.PreferredOffset));
+        SKRect prefRect = Translate(item.RectAtOrigin, Add(item.Anchor, item.PreferredOffset));
         if (DeepestObstacleRef(prefRect, placed, pinned) is not { } obstacleRef)
         {
             return;
@@ -411,8 +411,8 @@ public static class DatablockDeconfliction
 
         bool rowNeighbor = MathF.Abs(item.Anchor.X - obstacleRef.X) >= MathF.Abs(item.Anchor.Y - obstacleRef.Y);
         float maxTravel = MaxLeaderLength(o);
-        var dirs = rowNeighbor ? VerticalSlideDirs : HorizontalSlideDirs;
-        foreach (var (dx, dy) in dirs)
+        (float X, float Y)[] dirs = rowNeighbor ? VerticalSlideDirs : HorizontalSlideDirs;
+        foreach ((float dx, float dy) in dirs)
         {
             if (SlideEscape(item, placed, pinned, dx, dy, maxTravel) is { } offset)
             {
@@ -432,11 +432,11 @@ public static class DatablockDeconfliction
     {
         SKPoint? reference = null;
         float deepest = 0f;
-        foreach (var p in placed)
+        foreach (Placed p in placed)
         {
             Consider(p.Rect, p.Anchor);
         }
-        foreach (var r in pinned)
+        foreach (SKRect r in pinned)
         {
             Consider(r, Center(r));
         }
@@ -460,17 +460,17 @@ public static class DatablockDeconfliction
     /// </summary>
     private static SKPoint? SlideEscape(in Item item, List<Placed> placed, List<SKRect> pinned, float dx, float dy, float maxTravel)
     {
-        var offset = item.PreferredOffset;
+        SKPoint offset = item.PreferredOffset;
         bool moved = false;
         for (int guard = 0; guard < 8; guard++)
         {
-            var rect = Translate(item.RectAtOrigin, Add(item.Anchor, offset));
+            SKRect rect = Translate(item.RectAtOrigin, Add(item.Anchor, offset));
             float push = 0f;
-            foreach (var p in placed)
+            foreach (Placed p in placed)
             {
                 push = MathF.Max(push, ClearanceAlong(rect, p.Rect, dx, dy));
             }
-            foreach (var r in pinned)
+            foreach (SKRect r in pinned)
             {
                 push = MathF.Max(push, ClearanceAlong(rect, r, dx, dy));
             }
@@ -553,7 +553,7 @@ public static class DatablockDeconfliction
     {
         for (int i = 0; i < blocks.Length; i++)
         {
-            foreach (var p in pinned)
+            foreach (SKRect p in pinned)
             {
                 if (Separation(blocks[i], p, o) is { } v)
                 {
@@ -577,8 +577,8 @@ public static class DatablockDeconfliction
             return null;
         }
 
-        var perp = PerpendicularTranslation(self.Rect, other, mtv);
-        var hop = HopVector(self.Target, self.Offset, perp);
+        SKPoint perp = PerpendicularTranslation(self.Rect, other, mtv);
+        SKPoint hop = HopVector(self.Target, self.Offset, perp);
         float afterMtv = MoveCost(self.Item, self.Target, Add(self.Offset, mtv), o);
         float afterHop = MoveCost(self.Item, self.Target, Add(self.Offset, hop), o);
         return afterHop + 1f < afterMtv ? hop : mtv;
@@ -605,9 +605,9 @@ public static class DatablockDeconfliction
             return null;
         }
 
-        var perp = PerpendicularTranslation(a.Rect, b.Rect, mtv);
-        var hopA = HopVector(a.Target, a.Offset, Scale(perp, 0.5f));
-        var hopB = HopVector(b.Target, b.Offset, Scale(perp, -0.5f));
+        SKPoint perp = PerpendicularTranslation(a.Rect, b.Rect, mtv);
+        SKPoint hopA = HopVector(a.Target, a.Offset, Scale(perp, 0.5f));
+        SKPoint hopB = HopVector(b.Target, b.Offset, Scale(perp, -0.5f));
         float costMtv =
             MoveCost(a.Item, a.Target, Add(a.Offset, Scale(mtv, 0.5f)), o) + MoveCost(b.Item, b.Target, Add(b.Offset, Scale(mtv, -0.5f)), o);
         float costHop = MoveCost(a.Item, a.Target, Add(a.Offset, hopA), o) + MoveCost(b.Item, b.Target, Add(b.Offset, hopB), o);
@@ -622,7 +622,7 @@ public static class DatablockDeconfliction
     private static float MoveCost(in Item item, SKPoint target, SKPoint candidate, in Options o)
     {
         float cost = Dist(candidate, target);
-        var rect = Inflate(Translate(item.RectAtOrigin, Add(item.Anchor, candidate)), o.SymbolPad);
+        SKRect rect = Inflate(Translate(item.RectAtOrigin, Add(item.Anchor, candidate)), o.SymbolPad);
         if (Contains(rect, item.Anchor))
         {
             cost += SelfCoverPenalty;
@@ -650,7 +650,7 @@ public static class DatablockDeconfliction
     /// </summary>
     private static SKPoint ClampLeader(in Item item, SKPoint offset, float maxLeader)
     {
-        var rect = Translate(item.RectAtOrigin, Add(item.Anchor, offset));
+        SKRect rect = Translate(item.RectAtOrigin, Add(item.Anchor, offset));
         float cx = Math.Clamp(item.Anchor.X, rect.Left, rect.Right);
         float cy = Math.Clamp(item.Anchor.Y, rect.Top, rect.Bottom);
         float dx = item.Anchor.X - cx;
@@ -695,11 +695,11 @@ public static class DatablockDeconfliction
     {
         for (int i = 0; i < blocks.Length; i++)
         {
-            var item = blocks[i].Item;
-            var push = Add(delta[i], SymbolPush(blocks[i].Rect, allItems, o));
-            var spring = Scale(Sub(blocks[i].Target, blocks[i].Offset), SpringStiffness);
+            Item item = blocks[i].Item;
+            SKPoint push = Add(delta[i], SymbolPush(blocks[i].Rect, allItems, o));
+            SKPoint spring = Scale(Sub(blocks[i].Target, blocks[i].Offset), SpringStiffness);
             push = Add(push, spring);
-            var next = Add(blocks[i].Offset, Scale(push, Damping));
+            SKPoint next = Add(blocks[i].Offset, Scale(push, Damping));
             next = ClampOffset(item, next, o.ScreenBounds);
             offsets[i] = ClampLeader(item, next, maxLeaders[i]);
         }
@@ -707,9 +707,9 @@ public static class DatablockDeconfliction
 
     private static SKPoint SymbolPush(SKRect rect, IReadOnlyList<Item> items, in Options o)
     {
-        var inflated = Inflate(rect, o.SymbolPad);
+        SKRect inflated = Inflate(rect, o.SymbolPad);
         var push = new SKPoint(0, 0);
-        foreach (var it in items)
+        foreach (Item it in items)
         {
             if (Contains(inflated, it.Anchor))
             {
@@ -731,13 +731,13 @@ public static class DatablockDeconfliction
     )
     {
         float cost = preference;
-        var center = Center(rect);
-        foreach (var p in placed)
+        SKPoint center = Center(rect);
+        foreach (Placed p in placed)
         {
             cost += o.WOverlap * IntersectArea(rect, p.Rect);
             cost += o.WOrder * OrderInversion(anchor, center, p.Anchor, Center(p.Rect));
         }
-        foreach (var r in pinned)
+        foreach (SKRect r in pinned)
         {
             cost += o.WPinned * IntersectArea(rect, r);
         }
@@ -753,9 +753,9 @@ public static class DatablockDeconfliction
 
     private static float ForeignSymbolPenalty(SKRect rect, string ownCallsign, IReadOnlyList<Item> items, in Options o)
     {
-        var inflated = Inflate(rect, o.SymbolPad);
+        SKRect inflated = Inflate(rect, o.SymbolPad);
         float penalty = 0f;
-        foreach (var it in items)
+        foreach (Item it in items)
         {
             if (!string.Equals(it.Callsign, ownCallsign, StringComparison.Ordinal) && Contains(inflated, it.Anchor))
             {
@@ -782,8 +782,8 @@ public static class DatablockDeconfliction
             float ringPenalty = ring * o.LeaderRingPenalty;
             for (int d = 0; d < CompassDirs.Length; d++)
             {
-                var (hx, hy) = CompassDirs[d];
-                var offset = CompassOffset(hx, hy, item.RectAtOrigin, gap);
+                (int hx, int hy) = CompassDirs[d];
+                SKPoint offset = CompassOffset(hx, hy, item.RectAtOrigin, gap);
                 float preference = o.WDefault + (d * o.DirTiebreak) + ringPenalty;
                 dest.Add(new Candidate(offset, preference, false));
             }
@@ -814,7 +814,7 @@ public static class DatablockDeconfliction
         float maxX = float.MinValue;
         float minY = float.MaxValue;
         float maxY = float.MinValue;
-        foreach (var it in movable)
+        foreach (Item it in movable)
         {
             minX = MathF.Min(minX, it.Anchor.X);
             maxX = MathF.Max(maxX, it.Anchor.X);
@@ -948,7 +948,7 @@ public static class DatablockDeconfliction
 
     private static SKPoint ClampOffset(in Item item, SKPoint offset, SKRect bounds)
     {
-        var rect = Translate(item.RectAtOrigin, Add(item.Anchor, offset));
+        SKRect rect = Translate(item.RectAtOrigin, Add(item.Anchor, offset));
         float dx = 0f;
         float dy = 0f;
         if (rect.Left < bounds.Left)
@@ -980,7 +980,7 @@ public static class DatablockDeconfliction
     private static List<Item> OnScreenItems(IReadOnlyList<Item> items, SKRect bounds)
     {
         var result = new List<Item>(items.Count);
-        foreach (var item in items)
+        foreach (Item item in items)
         {
             if (AnchorVisible(item.Anchor, bounds))
             {

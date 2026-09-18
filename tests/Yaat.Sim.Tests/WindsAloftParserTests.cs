@@ -18,7 +18,7 @@ public class WindsAloftParserTests
     [Fact]
     public void Parse_RealFdText_ReturnsStations()
     {
-        var result = WindsAloftParser.Parse(SampleFd);
+        List<StationWinds> result = WindsAloftParser.Parse(SampleFd);
 
         Assert.Equal(3, result.Count);
         Assert.Equal("SFO", result[0].StationId);
@@ -29,17 +29,17 @@ public class WindsAloftParserTests
     [Fact]
     public void Parse_SfoStation_HasCorrectWinds()
     {
-        var result = WindsAloftParser.Parse(SampleFd);
-        var sfo = result[0];
+        List<StationWinds> result = WindsAloftParser.Parse(SampleFd);
+        StationWinds sfo = result[0];
 
         // 3000: 2708 → direction 270, speed 8
-        var w3000 = sfo.Winds.First(w => w.AltitudeFt == 3000);
+        WindAtLevel w3000 = sfo.Winds.First(w => w.AltitudeFt == 3000);
         Assert.Equal(270, w3000.DirectionTrue);
         Assert.Equal(8, w3000.SpeedKts);
         Assert.False(w3000.IsLightVariable);
 
         // 6000: 2620 → direction 260, speed 20
-        var w6000 = sfo.Winds.First(w => w.AltitudeFt == 6000);
+        WindAtLevel w6000 = sfo.Winds.First(w => w.AltitudeFt == 6000);
         Assert.Equal(260, w6000.DirectionTrue);
         Assert.Equal(20, w6000.SpeedKts);
     }
@@ -47,10 +47,10 @@ public class WindsAloftParserTests
     [Fact]
     public void Parse_LightVariable_FlaggedCorrectly()
     {
-        var result = WindsAloftParser.Parse(SampleFd);
-        var sac = result[2];
+        List<StationWinds> result = WindsAloftParser.Parse(SampleFd);
+        StationWinds sac = result[2];
 
-        var w3000 = sac.Winds.First(w => w.AltitudeFt == 3000);
+        WindAtLevel w3000 = sac.Winds.First(w => w.AltitudeFt == 3000);
         Assert.True(w3000.IsLightVariable);
         Assert.Equal(0, w3000.DirectionTrue);
         Assert.Equal(0, w3000.SpeedKts);
@@ -60,7 +60,7 @@ public class WindsAloftParserTests
     public void DecodeWind_Over100Kts()
     {
         // DD >= 50: 7320 → direction = (73-50)*10 = 230°, speed = 20+100 = 120 kts
-        var wind = WindsAloftParser.DecodeWind(30000, "7320");
+        WindAtLevel? wind = WindsAloftParser.DecodeWind(30000, "7320");
         Assert.NotNull(wind);
         Assert.Equal(230, wind.Value.DirectionTrue);
         Assert.Equal(120, wind.Value.SpeedKts);
@@ -70,7 +70,7 @@ public class WindsAloftParserTests
     [Fact]
     public void DecodeWind_LightVariable()
     {
-        var wind = WindsAloftParser.DecodeWind(3000, "9900");
+        WindAtLevel? wind = WindsAloftParser.DecodeWind(3000, "9900");
         Assert.NotNull(wind);
         Assert.True(wind.Value.IsLightVariable);
     }
@@ -79,7 +79,7 @@ public class WindsAloftParserTests
     public void DecodeWind_WithTemperatureSuffix()
     {
         // "2620+11" → strip temp, decode 2620 → 260° at 20 kts
-        var wind = WindsAloftParser.DecodeWind(6000, "2620+11");
+        WindAtLevel? wind = WindsAloftParser.DecodeWind(6000, "2620+11");
         Assert.NotNull(wind);
         Assert.Equal(260, wind.Value.DirectionTrue);
         Assert.Equal(20, wind.Value.SpeedKts);
@@ -88,7 +88,7 @@ public class WindsAloftParserTests
     [Fact]
     public void DecodeWind_NegativeTemperatureSuffix()
     {
-        var wind = WindsAloftParser.DecodeWind(12000, "2542-06");
+        WindAtLevel? wind = WindsAloftParser.DecodeWind(12000, "2542-06");
         Assert.NotNull(wind);
         Assert.Equal(250, wind.Value.DirectionTrue);
         Assert.Equal(42, wind.Value.SpeedKts);
@@ -119,7 +119,7 @@ public class WindsAloftParserTests
     public void DecodeWind_NorthWind()
     {
         // 3610 → direction 360°, speed 10
-        var wind = WindsAloftParser.DecodeWind(6000, "3610");
+        WindAtLevel? wind = WindsAloftParser.DecodeWind(6000, "3610");
         Assert.NotNull(wind);
         Assert.Equal(360, wind.Value.DirectionTrue);
         Assert.Equal(10, wind.Value.SpeedKts);
@@ -131,7 +131,7 @@ public class WindsAloftParserTests
         // At FL300 and above the FD bulletin omits the (always-negative) temperature sign,
         // producing a 6-char "DDSSTT" group. "521463" → DD=52 ≥ 50 → direction (52-50)*10 = 020°,
         // speed 14+100 = 114 kt; the trailing "63" (= -63 °C) must be stripped, not rejected.
-        var wind = WindsAloftParser.DecodeWind(39000, "521463");
+        WindAtLevel? wind = WindsAloftParser.DecodeWind(39000, "521463");
         Assert.NotNull(wind);
         Assert.Equal(20, wind.Value.DirectionTrue);
         Assert.Equal(114, wind.Value.SpeedKts);
@@ -143,14 +143,14 @@ public class WindsAloftParserTests
     {
         // The 30000/34000/39000 columns in SampleFd use 6-char unsigned-temperature groups
         // (header note "TEMPS NEG ABV 24000"). They must still decode into wind layers.
-        var sfo = WindsAloftParser.Parse(SampleFd)[0];
+        StationWinds sfo = WindsAloftParser.Parse(SampleFd)[0];
 
         Assert.Contains(sfo.Winds, w => w.AltitudeFt == 30000);
         Assert.Contains(sfo.Winds, w => w.AltitudeFt == 34000);
         Assert.Contains(sfo.Winds, w => w.AltitudeFt == 39000);
 
         // SFO 30000 = "257840" → 250° at 78 kt.
-        var w30000 = sfo.Winds.First(w => w.AltitudeFt == 30000);
+        WindAtLevel w30000 = sfo.Winds.First(w => w.AltitudeFt == 30000);
         Assert.Equal(250, w30000.DirectionTrue);
         Assert.Equal(78, w30000.SpeedKts);
     }

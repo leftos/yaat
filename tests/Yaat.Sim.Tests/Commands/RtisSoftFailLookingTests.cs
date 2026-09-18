@@ -38,30 +38,30 @@ public class RtisSoftFailLookingTests
     public void Rtis_TargetBehind_ReturnsSuccess_PilotSaysLooking_ObservationStored()
     {
         // Ownship heading north, target south → out of forward hemisphere.
-        var ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
-        var lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success, $"Expected soft-fail success but got: {result.Message}");
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
         Assert.Null(ownship.Approach.LastReportedTrafficCallsign);
         Assert.Contains("looking", ownship.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
 
-        var obs = Assert.Single(ownship.PendingObservations);
-        var traffic = Assert.IsType<TrafficAcquisitionObservation>(obs);
+        PilotObservation obs = Assert.Single(ownship.PendingObservations);
+        TrafficAcquisitionObservation traffic = Assert.IsType<TrafficAcquisitionObservation>(obs);
         Assert.Equal("LEAD", traffic.TargetCallsign);
     }
 
     [Fact]
     public void Rtis_TargetOutOfRange_ReturnsSuccess_PilotSaysLooking_ObservationStored()
     {
-        var ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 3000, callsign: "OWN1");
-        var lead = MakeAircraft(37.60, AptLon, heading: 180, altitude: 3000, callsign: "LEAD", aircraftType: "C172");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 3000, callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.60, AptLon, heading: 180, altitude: 3000, callsign: "LEAD", aircraftType: "C172");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
@@ -77,11 +77,11 @@ public class RtisSoftFailLookingTests
     [Fact]
     public void Rtis_SoftFail_Behind_CommandMessageHintsHemisphere()
     {
-        var ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
-        var lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
         Assert.Contains("Looking for traffic", result.Message);
@@ -93,11 +93,11 @@ public class RtisSoftFailLookingTests
     [Fact]
     public void Rtis_SoftFail_OutOfRange_CommandMessageHintsDistanceAndType()
     {
-        var ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 3000, callsign: "OWN1");
-        var lead = MakeAircraft(37.60, AptLon, heading: 180, altitude: 3000, callsign: "LEAD", aircraftType: "C172");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 3000, callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.60, AptLon, heading: 180, altitude: 3000, callsign: "LEAD", aircraftType: "C172");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
         Assert.Contains("Looking for traffic", result.Message);
@@ -108,12 +108,12 @@ public class RtisSoftFailLookingTests
     [Fact]
     public void Rtis_SoftFail_MixedCeiling_CommandMessageNamesLayer()
     {
-        var ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 2000, callsign: "OWN1");
-        var lead = MakeAircraft(37.73, AptLon, heading: 180, altitude: 5000, callsign: "LEAD");
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 2000, callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.73, AptLon, heading: 180, altitude: 5000, callsign: "LEAD");
         var weather = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 10SM OVC030 20/12 A2992"] };
-        var ctx = TestDispatch.Context(Random.Shared, weather: weather, findAircraft: cs => cs == "LEAD" ? lead : null);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, weather: weather, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
         Assert.Contains("Looking for traffic", result.Message);
@@ -127,10 +127,10 @@ public class RtisSoftFailLookingTests
     [Fact]
     public void Rtis_NoCallsign_StillHardFails_NoObservation()
     {
-        var ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 3000, callsign: "OWN1");
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 3000, callsign: "OWN1");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand(null), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand(null), ownship, ctx);
 
         Assert.False(result.Success);
         Assert.Empty(ownship.PendingObservations);
@@ -139,10 +139,10 @@ public class RtisSoftFailLookingTests
     [Fact]
     public void Rtis_TargetNotOnFrequency_StillHardFails_NoObservation()
     {
-        var ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 3000, callsign: "OWN1");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: _ => null);
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 3000, callsign: "OWN1");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: _ => null);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("GHOST"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("GHOST"), ownship, ctx);
 
         Assert.False(result.Success);
         Assert.Contains("not on this frequency", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -160,9 +160,9 @@ public class RtisSoftFailLookingTests
         // Start with target behind (out of forward hemisphere). Soft-fail and add
         // observation. Then flip ownship heading so target is in front; one tick of
         // PilotObservationUpdater should resolve it.
-        var ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
-        var lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
         CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
         Assert.Single(ownship.PendingObservations);
@@ -184,9 +184,9 @@ public class RtisSoftFailLookingTests
     [Fact]
     public void LookingObservation_StaysPending_WhenTargetStillNotAcquirable()
     {
-        var ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
-        var lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
         CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
         ownship.PendingPilotReadbacks.Clear();
@@ -206,9 +206,9 @@ public class RtisSoftFailLookingTests
     [Fact]
     public void NewRtis_WithDifferentCallsign_ReplacesPriorObservation()
     {
-        var ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
-        var lead1 = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD1");
-        var lead2 = MakeAircraft(37.70, -122.25, heading: 0, altitude: 3000, callsign: "LEAD2");
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
+        AircraftState lead1 = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD1");
+        AircraftState lead2 = MakeAircraft(37.70, -122.25, heading: 0, altitude: 3000, callsign: "LEAD2");
         AircraftState? Lookup(string cs) =>
             cs switch
             {
@@ -216,22 +216,22 @@ public class RtisSoftFailLookingTests
                 "LEAD2" => lead2,
                 _ => null,
             };
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: Lookup);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: Lookup);
 
         CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD1"), ownship, ctx);
         CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD2"), ownship, ctx);
 
-        var obs = Assert.Single(ownship.PendingObservations);
-        var traffic = Assert.IsType<TrafficAcquisitionObservation>(obs);
+        PilotObservation obs = Assert.Single(ownship.PendingObservations);
+        TrafficAcquisitionObservation traffic = Assert.IsType<TrafficAcquisitionObservation>(obs);
         Assert.Equal("LEAD2", traffic.TargetCallsign);
     }
 
     [Fact]
     public void Observation_SilentlyClears_WhenTargetAircraftGone()
     {
-        var ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
-        var lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
         CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
         Assert.Single(ownship.PendingObservations);
@@ -252,10 +252,10 @@ public class RtisSoftFailLookingTests
     [Fact]
     public void Rtisf_SetsFlagImmediately_NoObservation()
     {
-        var ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
-        var ctx = TestDispatch.Context(Random.Shared);
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ownship, ctx);
 
         Assert.True(result.Success);
         Assert.True(ownship.Approach.HasReportedTrafficInSight);
@@ -269,17 +269,17 @@ public class RtisSoftFailLookingTests
         // RTIS soft-fails (target behind) → pending observation, no stored callsign. A
         // bare RTISF must fold in that pending target and supersede the observation, so a
         // subsequent bare FOLLOW/FOLLOWF has a callsign to resolve.
-        var ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
-        var lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
-        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+        AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
+        AircraftState lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
 
-        var rtis = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        CommandResult rtis = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
         Assert.True(rtis.Success);
         Assert.Null(ownship.Approach.LastReportedTrafficCallsign);
         Assert.Single(ownship.PendingObservations);
 
         // Bare RTISF — no explicit callsign.
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand(null), ownship, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand(null), ownship, ctx);
 
         Assert.True(result.Success);
         Assert.True(ownship.Approach.HasReportedTrafficInSight);

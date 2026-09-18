@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -46,30 +48,30 @@ public class FinalNotAlignedGoAroundTests(ITestOutputHelper output)
     [Fact]
     public void ClearedToLand_FarOffAssignedCenterline_GoesAroundWithAltitudeToSpare()
     {
-        using var archive = RecordingLoader.OpenArchive(RecordingPath);
-        var engine = BuildEngine();
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (archive is null || engine is null)
         {
             return;
         }
 
-        var recording = archive.ToBaseSessionRecording();
+        SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
 
-        var snapshot = archive.ReadSnapshotAt(SnapshotTime);
+        TimedSnapshot? snapshot = archive.ReadSnapshotAt(SnapshotTime);
         if (snapshot is null)
         {
             return;
         }
         engine.RestoreFromSnapshot(snapshot.State);
 
-        var aircraft = engine.FindAircraft(Callsign);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         Assert.IsType<FinalApproachPhase>(aircraft.Phases?.CurrentPhase);
 
         // Clear it to land so the no-clearance gates stay quiet — only the lateral
         // check (or, without it, the very late LandingPhase gate) can object.
-        var cland = engine.SendCommand(Callsign, "CLAND");
+        CommandResult cland = engine.SendCommand(Callsign, "CLAND");
         Assert.True(cland.Success, $"CLAND rejected: {cland.Message}");
 
         double goAroundAltitude = double.NaN;

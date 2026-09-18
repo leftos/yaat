@@ -79,13 +79,13 @@ public class WindowHotkeysTests
         try
         {
             vm.OpenExtraRadarView("KOAK");
-            var instance = vm.ExtraRadarViews.Single();
+            RadarViewInstance instance = vm.ExtraRadarViews.Single();
             var window = new RadarViewWindow(vm.Preferences, instance.GeometryKey, instance.Title) { DataContext = vm };
             window.SetViewModel(instance.Vm);
             window.ShowAndRunLayout();
 
-            var dockedBefore = vm.Radar.IsDcbVisible;
-            var extraBefore = instance.Vm.IsDcbVisible;
+            bool dockedBefore = vm.Radar.IsDcbVisible;
+            bool extraBefore = instance.Vm.IsDcbVisible;
 
             window.DispatchKey(Key.F8, RawInputModifiers.Control);
 
@@ -102,14 +102,14 @@ public class WindowHotkeysTests
     [AvaloniaFact]
     public void DockedTerminal_FocusRequest_FocusesEmbeddedCommandInput()
     {
-        var (main, vm) = BootMainWindow();
+        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
         vm.IsTerminalPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
 
         vm.FocusCommandInput();
         Dispatcher.UIThread.RunJobs();
 
-        var box = FindCommandInput(main);
+        TextBox? box = FindCommandInput(main);
         Assert.NotNull(box);
         Assert.True(box!.IsFocused);
     }
@@ -117,7 +117,7 @@ public class WindowHotkeysTests
     [AvaloniaFact]
     public void PoppedTerminal_FocusRequest_FocusesTerminalWindowCommandInput()
     {
-        var (main, vm) = BootMainWindow();
+        (MainWindow? main, MainViewModel? vm) = BootMainWindow();
         vm.IsTerminalPoppedOut = true;
         Dispatcher.UIThread.RunJobs();
 
@@ -128,12 +128,12 @@ public class WindowHotkeysTests
         vm.FocusCommandInput();
         Dispatcher.UIThread.RunJobs();
 
-        var termBox = FindCommandInput(main.TerminalWindow!);
+        TextBox? termBox = FindCommandInput(main.TerminalWindow!);
         Assert.NotNull(termBox);
         Assert.True(termBox!.IsFocused);
 
         // The hidden embedded input must not have stolen focus.
-        var embedded = FindCommandInput(main);
+        TextBox? embedded = FindCommandInput(main);
         Assert.False(embedded?.IsFocused ?? false);
     }
 

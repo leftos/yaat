@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -44,8 +45,8 @@ public class Issue184VectorsStarAppSpeedsTests(ITestOutputHelper output)
         // Bug #3: UAL4525 got `JFAC I08R` at t=911 and was never cleared for the approach.
         // It must hold its assigned 5000ft and track the localizer laterally — never descend
         // on the glideslope or land without CAPP.
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -53,7 +54,7 @@ public class Issue184VectorsStarAppSpeedsTests(ITestOutputHelper output)
 
         engine.Replay(recording, 1150);
 
-        var aircraft = engine.FindAircraft("UAL4525");
+        AircraftState? aircraft = engine.FindAircraft("UAL4525");
         Assert.NotNull(aircraft);
 
         output.WriteLine(
@@ -72,8 +73,8 @@ public class Issue184VectorsStarAppSpeedsTests(ITestOutputHelper output)
         );
 
         // Tracking the localizer laterally: cross-track from the I08R centerline stays small.
-        var clearance = aircraft.Phases?.ActiveApproach;
-        var runway = aircraft.Phases?.AssignedRunway;
+        ApproachClearance? clearance = aircraft.Phases?.ActiveApproach;
+        RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
         if (clearance is not null && runway is not null)
         {
             double xte = Math.Abs(
@@ -93,8 +94,8 @@ public class Issue184VectorsStarAppSpeedsTests(ITestOutputHelper output)
     {
         // Bug #5: after sequencing GUSHR (t~610) the aircraft must maintain the 210kt crossing
         // restriction down the approach, not re-accelerate to 250 default cruise.
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -102,7 +103,7 @@ public class Issue184VectorsStarAppSpeedsTests(ITestOutputHelper output)
 
         engine.Replay(recording, 720);
 
-        var aircraft = engine.FindAircraft("UAL1127");
+        AircraftState? aircraft = engine.FindAircraft("UAL1127");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"UAL1127 @720: ias={aircraft.IndicatedAirspeed:F0} ceiling={aircraft.Targets.SpeedCeiling}");
@@ -121,8 +122,8 @@ public class Issue184VectorsStarAppSpeedsTests(ITestOutputHelper output)
         // which a bare vector does not cancel; it persists until an approach/via clearance.
         // (Two underlying fixes: `DEPART` preserves the CFIX restriction it lands on, and the
         // crossed speed is published as a ceiling.)
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -130,7 +131,7 @@ public class Issue184VectorsStarAppSpeedsTests(ITestOutputHelper output)
 
         engine.Replay(recording, 1000);
 
-        var aircraft = engine.FindAircraft("UCA8898");
+        AircraftState? aircraft = engine.FindAircraft("UCA8898");
         Assert.NotNull(aircraft);
 
         output.WriteLine(
@@ -147,8 +148,8 @@ public class Issue184VectorsStarAppSpeedsTests(ITestOutputHelper output)
     {
         // Bug #2: the MATON FAF carried a phantom 2kt restriction (CIFP continuation record),
         // driving the target speed to 2kt and nearly stopping the aircraft at ~3400ft.
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -156,7 +157,7 @@ public class Issue184VectorsStarAppSpeedsTests(ITestOutputHelper output)
 
         engine.Replay(recording, 510);
 
-        var aircraft = engine.FindAircraft("UCA1538");
+        AircraftState? aircraft = engine.FindAircraft("UCA1538");
         Assert.NotNull(aircraft);
 
         output.WriteLine($"UCA1538 @510: ias={aircraft.IndicatedAirspeed:F0} alt={aircraft.Altitude:F0} tgt={aircraft.Targets.TargetSpeed}");

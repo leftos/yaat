@@ -58,7 +58,7 @@ public partial class VTdlsDockEntryViewModel : ObservableObject
     {
         get
         {
-            var facility = !string.IsNullOrEmpty(Vm.FacilityId) ? Vm.FacilityId : Vm.FacilityName;
+            string? facility = !string.IsNullOrEmpty(Vm.FacilityId) ? Vm.FacilityId : Vm.FacilityName;
             return ClientProductTitle.Build(Vm.DclItems.Count, facility, "vTDLS", includeYaatSuffix: false);
         }
     }

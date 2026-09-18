@@ -36,8 +36,8 @@ public sealed class GoAroundEnergyGateDispatchTests
 
     private static (AircraftState Aircraft, LandingPhase Phase) RollingOut(double ias)
     {
-        var rwy = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
-        var ac = MakeRollingOutAircraft(ias);
+        RunwayInfo rwy = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
+        AircraftState ac = MakeRollingOutAircraft(ias);
         ac.Phases!.AssignedRunway = rwy;
 
         var phase = new LandingPhase();
@@ -65,14 +65,14 @@ public sealed class GoAroundEnergyGateDispatchTests
     [Fact]
     public void GoAroundBelowEnergyGate_IsRejectedThroughTheDispatcher_AndAircraftStaysOnGround()
     {
-        var (aircraft, phase) = RollingOut(ias: 30);
+        (AircraftState? aircraft, LandingPhase? phase) = RollingOut(ias: 30);
 
         // Precondition: the phase really is refusing GA, so this cannot pass vacuously.
         Assert.True(phase.CanAcceptCommand(CanonicalCommandType.GoAround).IsRejected);
 
-        var parsed = CommandParser.ParseCompound("GA");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("GA");
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("go-around speed gate", result.Message);
@@ -89,14 +89,14 @@ public sealed class GoAroundEnergyGateDispatchTests
     [Fact]
     public void GoAroundFromRollout_ClearsTheRolloutBrakingRate()
     {
-        var (aircraft, _) = RollingOut(ias: 80);
+        (AircraftState? aircraft, LandingPhase _) = RollingOut(ias: 80);
 
         // Precondition: the rollout tick really did write a braking rate, so this cannot pass vacuously.
         Assert.NotNull(aircraft.Targets.DesiredDecelRate);
 
-        var parsed = CommandParser.ParseCompound("GA");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("GA");
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success, result.Message);
 
         Assert.Null(aircraft.Targets.DesiredDecelRate);
@@ -105,13 +105,13 @@ public sealed class GoAroundEnergyGateDispatchTests
     [Fact]
     public void GoAroundAboveEnergyGate_StillWorksThroughTheDispatcher()
     {
-        var (aircraft, phase) = RollingOut(ias: 80);
+        (AircraftState? aircraft, LandingPhase? phase) = RollingOut(ias: 80);
 
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.GoAround));
 
-        var parsed = CommandParser.ParseCompound("GA");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("GA");
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
     }

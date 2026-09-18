@@ -29,16 +29,16 @@ public class HelpMenuCheckForUpdatesTests
 
     private static MenuItem HelpMenuItem(MainWindow window, string header)
     {
-        var help = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_Help");
+        MenuItem help = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_Help");
         return help.Items.OfType<MenuItem>().Single(m => m.Header is string s && s == header);
     }
 
     [AvaloniaFact]
     public void HelpMenu_HasACheckForUpdatesItemAboveAbout()
     {
-        var (window, _) = BootMainWindow();
+        (MainWindow? window, MainViewModel _) = BootMainWindow();
 
-        var help = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_Help");
+        MenuItem help = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header is "_Help");
         var headers = help.Items.OfType<MenuItem>().Select(m => m.Header as string).ToList();
 
         Assert.Contains(CheckForUpdatesHeader, headers);
@@ -48,8 +48,8 @@ public class HelpMenuCheckForUpdatesTests
     [AvaloniaFact]
     public void CheckForUpdatesItem_IsDisabledWhileACheckIsInFlight()
     {
-        var (window, vm) = BootMainWindow();
-        var item = HelpMenuItem(window, CheckForUpdatesHeader);
+        (MainWindow? window, MainViewModel? vm) = BootMainWindow();
+        MenuItem item = HelpMenuItem(window, CheckForUpdatesHeader);
 
         Assert.False(vm.IsCheckingForUpdate);
         Assert.True(item.IsEnabled);

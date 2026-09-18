@@ -36,8 +36,8 @@ public class Issue154PatternEntryLeadInTests(ITestOutputHelper output)
     [Fact]
     public void N775JW_ErdDispatch_LeadInIsSouthOfAircraft()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -47,11 +47,11 @@ public class Issue154PatternEntryLeadInTests(ITestOutputHelper output)
         // the installed pattern-entry route.
         engine.Replay(recording, 555);
 
-        var ac = engine.FindAircraft("N775JW");
+        AircraftState? ac = engine.FindAircraft("N775JW");
         Assert.NotNull(ac);
         Assert.NotEmpty(ac.Targets.NavigationRoute);
 
-        var leadIn = ac.Targets.NavigationRoute[0];
+        NavigationTarget leadIn = ac.Targets.NavigationRoute[0];
         Assert.Equal("PTN-LEADIN", leadIn.Name);
 
         // Aircraft was at 37.7820, -122.2491 heading 155° (SSE) at t=555.
@@ -88,8 +88,8 @@ public class Issue154PatternEntryLeadInTests(ITestOutputHelper output)
     [Fact]
     public void N775JW_GoAroundUpwind_TurnsCrosswindWithinReasonableTime()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -97,7 +97,7 @@ public class Issue154PatternEntryLeadInTests(ITestOutputHelper output)
 
         // Replay to end of recording (t=856), aircraft 1 s into Upwind on 28R.
         engine.Replay(recording, 856);
-        var ac = engine.FindAircraft("N775JW");
+        AircraftState? ac = engine.FindAircraft("N775JW");
         Assert.NotNull(ac);
         Assert.IsType<UpwindPhase>(ac.Phases?.CurrentPhase);
         output.WriteLine($"start: t=856 alt={ac.Altitude:F0} hdg={ac.TrueHeading.Degrees:F0} pos={ac.Position.Lat:F4},{ac.Position.Lon:F4}");

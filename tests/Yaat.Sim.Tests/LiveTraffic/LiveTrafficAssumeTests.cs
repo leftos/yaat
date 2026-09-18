@@ -59,7 +59,7 @@ public class LiveTrafficAssumeTests
 
     private static CommandResult Send(AircraftState ac, string input)
     {
-        var parsed = CommandParser.ParseCompound(input);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(input);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         return CommandDispatcher.DispatchCompound(parsed.Value!, ac, Ctx(ac));
     }
@@ -67,9 +67,9 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void Assume_ClearsShadowState_AndCommandsWorkAfterwards()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.False(ac.IsShadow);
@@ -82,10 +82,10 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void Assume_OnNonShadow_IsRejected()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
         Assume(ac);
 
-        var again = Assume(ac);
+        CommandResult again = Assume(ac);
 
         Assert.False(again.Success);
         Assert.Contains("not live traffic", again.Message, StringComparison.Ordinal);
@@ -114,11 +114,11 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void Unassume_OnNeverAssumed_IsRejected()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
         ac.LiveTraffic = null;
-        var engine = EngineWith(ac);
+        SimulationEngine engine = EngineWith(ac);
 
-        var result = Route(engine, "UNASSUME");
+        CommandResult result = Route(engine, "UNASSUME");
 
         Assert.False(result.Success);
         Assert.Equal($"{Callsign} was not assumed from live traffic", result.Message);
@@ -128,10 +128,10 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void Unassume_OnStillShadow_IsRejected()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
-        var engine = EngineWith(ac);
+        AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        SimulationEngine engine = EngineWith(ac);
 
-        var result = Route(engine, "UNASSUME");
+        CommandResult result = Route(engine, "UNASSUME");
 
         Assert.False(result.Success);
         Assert.Equal($"{Callsign} is live traffic already", result.Message);
@@ -147,18 +147,18 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void Unassume_AfterAssume_RemovesTheAircraft_AndRecordsNoLiveTrafficRemoval()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
         Assert.Null(ac.LiveTraffic!.ExternalId);
-        var engine = EngineWith(ac);
+        SimulationEngine engine = EngineWith(ac);
         Assert.True(Route(engine, "ASSUME").Success);
         Assert.True(ac.AssumedFromLiveTraffic);
 
-        var result = Route(engine, "UNASSUME");
+        CommandResult result = Route(engine, "UNASSUME");
 
         Assert.True(result.Success, result.Message);
         Assert.Null(engine.World.FindAircraft(Callsign));
         Assert.Empty(engine.Scenario!.ActionLog.OfType<RecordedLiveTrafficRemoval>());
-        var record = Assert.Single(engine.Scenario.ActionLog.OfType<RecordedCommand>(), r => r.Command == "UNASSUME");
+        RecordedCommand record = Assert.Single(engine.Scenario.ActionLog.OfType<RecordedCommand>(), r => r.Command == "UNASSUME");
         Assert.True(record.Accepted);
         Assert.Equal("UNASSUME", Assert.Single(engine.World.GetCompletedAircraft()).Detail);
     }
@@ -177,17 +177,17 @@ public class LiveTrafficAssumeTests
     [InlineData("SPAWN ; H 180", "SPAWN")]
     public void AChainedNonCompoundable_IsRefused_BeforeTheAircraftIsTaken(string command, string verb)
     {
-        var viaDispatcher = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        AircraftState viaDispatcher = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
 
-        var dispatched = Send(viaDispatcher, command);
+        CommandResult dispatched = Send(viaDispatcher, command);
 
         Assert.False(dispatched.Success);
         Assert.Equal($"{verb} cannot be part of a chained command", dispatched.Message);
         Assert.True(viaDispatcher.IsShadow);
         Assert.Null(viaDispatcher.Targets.AssignedMagneticHeading);
 
-        var viaRouter = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
-        var routed = Route(EngineWith(viaRouter), command);
+        AircraftState viaRouter = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        CommandResult routed = Route(EngineWith(viaRouter), command);
 
         Assert.False(routed.Success);
         Assert.Equal(dispatched.Message, routed.Message);
@@ -198,11 +198,11 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void UnassumeInsideACompound_IsRefused()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
-        var engine = EngineWith(ac);
+        AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        SimulationEngine engine = EngineWith(ac);
         Assert.True(Route(engine, "ASSUME").Success);
 
-        var result = Route(engine, "H 070; UNASSUME");
+        CommandResult result = Route(engine, "H 070; UNASSUME");
 
         Assert.False(result.Success);
         Assert.Equal("UNASSUME cannot be part of a chained command", result.Message);
@@ -220,15 +220,15 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void AutoAssume_RefusedCommand_RollsBackToShadow()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
-        var satellite = ac.LiveTraffic;
+        AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        AircraftLiveTraffic? satellite = ac.LiveTraffic;
         string targets = Json(ac.Targets.ToSnapshot());
         string procedure = Json(ac.Procedure.ToSnapshot());
         string approach = Json(ac.Approach.ToSnapshot());
         int warnings = ac.PendingWarnings.Count;
 
         // A ground verb on an airborne aircraft: refused by the seeded state, deterministically.
-        var result = Send(ac, "TAXI A");
+        CommandResult result = Send(ac, "TAXI A");
 
         Assert.False(result.Success);
         Assert.Contains("requires the aircraft to be on the ground", result.Message, StringComparison.Ordinal);
@@ -251,18 +251,18 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void AutoAssume_RefusedCommand_OnTheFinal_RollsBackTheApproachSeed()
     {
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "28R");
         Assert.NotNull(runway);
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        var pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), 3.0);
+        LatLon pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), 3.0);
         var plan = new AircraftFlightPlan
         {
             HasFlightPlan = true,
             Departure = "KLAX",
             Destination = "KOAK",
         };
-        var ac = Shadow(Sample(0, pos, runway.ElevationFt + 950, 140, runway.TrueHeading.Degrees, -700), plan);
-        var satellite = ac.LiveTraffic;
+        AircraftState ac = Shadow(Sample(0, pos, runway.ElevationFt + 950, 140, runway.TrueHeading.Degrees, -700), plan);
+        AircraftLiveTraffic? satellite = ac.LiveTraffic;
         string targets = Json(ac.Targets.ToSnapshot());
         string procedure = Json(ac.Procedure.ToSnapshot());
         string approach = Json(ac.Approach.ToSnapshot());
@@ -271,7 +271,7 @@ public class LiveTrafficAssumeTests
         int transmissions = ac.PendingPilotTransmissions.Count;
         int speech = ac.PendingPilotSpeech.Count;
 
-        var result = Send(ac, "TAXI A");
+        CommandResult result = Send(ac, "TAXI A");
 
         Assert.False(result.Success);
         Assert.DoesNotContain("assumed", result.Message, StringComparison.Ordinal);
@@ -288,7 +288,7 @@ public class LiveTrafficAssumeTests
         Assert.Equal(speech, ac.PendingPilotSpeech.Count);
 
         // The seed really does install an approach on this fixture, so the rollback above undid something.
-        var assumed = Assume(ac);
+        CommandResult assumed = Assume(ac);
         Assert.True(assumed.Success, assumed.Message);
         Assert.NotNull(ac.Phases?.ActiveApproach);
     }
@@ -297,9 +297,9 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void AutoAssume_AcceptedCommand_StaysAssumed()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
 
-        var result = Send(ac, "FH 070");
+        CommandResult result = Send(ac, "FH 070");
 
         Assert.True(result.Success, result.Message);
         Assert.StartsWith($"{Callsign} assumed — ", result.Message, StringComparison.Ordinal);
@@ -312,7 +312,7 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void LevelAircraft_KeepsItsAltitudeToTheHundred_NotAHemisphericSnap()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 270, 0));
+        AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 270, 0));
         LiveTrafficKinematics.Apply(ac, Sample(5, EnRoute, 11_100, 300, 270, null));
         LiveTrafficKinematics.Apply(ac, Sample(10, EnRoute, 11_000, 300, 270, null));
 
@@ -326,9 +326,9 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void Descending_TargetsTheFeedsAssignedAltitude_AndKeepsTheRate()
     {
-        var ac = Shadow(Sample(0, EnRoute, 12_000, 280, 90, -1_800) with { AssignedAltitudeFt = 6_000 });
+        AircraftState ac = Shadow(Sample(0, EnRoute, 12_000, 280, 90, -1_800) with { AssignedAltitudeFt = 6_000 });
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(6_000, ac.Targets.TargetAltitude);
@@ -339,7 +339,7 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void Descending_InterimAltitudeBeatsAssigned()
     {
-        var ac = Shadow(Sample(0, EnRoute, 12_000, 280, 90, -1_500) with { AssignedAltitudeFt = 4_000, InterimAltitudeFt = 8_000 });
+        AircraftState ac = Shadow(Sample(0, EnRoute, 12_000, 280, 90, -1_500) with { AssignedAltitudeFt = 4_000, InterimAltitudeFt = 8_000 });
 
         Assume(ac);
 
@@ -349,11 +349,11 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void Descending_WithoutAClearance_HoldsTheDescentToAFloor_NotTheNextThousand()
     {
-        var ac = Shadow(Sample(0, EnRoute, 12_000, 280, 90, -2_000));
+        AircraftState ac = Shadow(Sample(0, EnRoute, 12_000, 280, 90, -2_000));
 
         Assume(ac);
 
-        var target = ac.Targets.TargetAltitude!.Value;
+        double target = ac.Targets.TargetAltitude!.Value;
         Assert.True(target < 12_000, $"target {target} should be below the aircraft");
         Assert.True(target <= 5_000, $"floor {target} should be near the destination, not the next hemispheric altitude");
         Assert.Equal(2_000, ac.Targets.DesiredVerticalRate);
@@ -369,7 +369,7 @@ public class LiveTrafficAssumeTests
             Destination = "KSMF",
             Altitude = new PlannedAltitude(17_000, null, false, false, false),
         };
-        var ac = Shadow(Sample(0, EnRoute, 9_000, 280, 90, 2_200), plan);
+        AircraftState ac = Shadow(Sample(0, EnRoute, 9_000, 280, 90, 2_200), plan);
 
         Assume(ac);
 
@@ -380,7 +380,7 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void HighAltitude_SeedsMachFromTheAirVector()
     {
-        var ac = Shadow(Sample(0, EnRoute, 35_000, 450, 90, 0, LiveTrafficSource.Eram));
+        AircraftState ac = Shadow(Sample(0, EnRoute, 35_000, 450, 90, 0, LiveTrafficSource.Eram));
 
         Assume(ac);
 
@@ -391,9 +391,15 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void ClearedHeadingFromTheFeed_SeedsTheHeadingHold()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0) with { ClearedHeadingDeg = 120 }, new AircraftFlightPlan { HasFlightPlan = true });
+        AircraftState ac = Shadow(
+            Sample(0, EnRoute, 11_000, 300, 90, 0) with
+            {
+                ClearedHeadingDeg = 120,
+            },
+            new AircraftFlightPlan { HasFlightPlan = true }
+        );
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(ac.Targets.TargetTrueHeading);
@@ -403,9 +409,9 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void NoRoute_HoldsThePresentHeading_WithAVectorsNote()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0), new AircraftFlightPlan { HasFlightPlan = true });
+        AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0), new AircraftFlightPlan { HasFlightPlan = true });
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Empty(ac.Targets.NavigationRoute);
@@ -416,10 +422,10 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void FiledRoute_RejoinsAtTheNextFixAhead_NotOneBehind()
     {
-        var navDb = NavigationDatabase.Instance;
-        var oak = navDb.ResolveFixOrFrd("OAK");
-        var sac = navDb.ResolveFixOrFrd("SAC");
-        var rbl = navDb.ResolveFixOrFrd("RBL");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        (double Lat, double Lon)? oak = navDb.ResolveFixOrFrd("OAK");
+        (double Lat, double Lon)? sac = navDb.ResolveFixOrFrd("SAC");
+        (double Lat, double Lon)? rbl = navDb.ResolveFixOrFrd("RBL");
         Assert.NotNull(oak);
         Assert.NotNull(sac);
         Assert.NotNull(rbl);
@@ -428,7 +434,7 @@ public class LiveTrafficAssumeTests
         var b = new LatLon(sac.Value.Lat, sac.Value.Lon);
         double legNm = GeoMath.DistanceNm(a, b);
         var bearing = new TrueHeading(GeoMath.BearingTo(a, b));
-        var pos = GeoMath.ProjectPoint(a, bearing, legNm * 0.4);
+        LatLon pos = GeoMath.ProjectPoint(a, bearing, legNm * 0.4);
         var plan = new AircraftFlightPlan
         {
             HasFlightPlan = true,
@@ -436,9 +442,9 @@ public class LiveTrafficAssumeTests
             Destination = "KRDD",
             Route = "OAK SAC RBL",
         };
-        var ac = Shadow(Sample(0, pos, 11_000, 300, bearing.Degrees, 0), plan);
+        AircraftState ac = Shadow(Sample(0, pos, 11_000, 300, bearing.Degrees, 0), plan);
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(["SAC", "RBL"], ac.Targets.NavigationRoute.Select(t => t.Name).ToList());
@@ -449,11 +455,11 @@ public class LiveTrafficAssumeTests
     public void NextFixAhead_SkipsAFixAbeam_ButNeverTwo()
     {
         var a = new LatLon(37.0, -122.0);
-        var b = GeoMath.ProjectPoint(a, new TrueHeading(90), 10);
-        var c = GeoMath.ProjectPoint(a, new TrueHeading(90), 20);
-        var d = GeoMath.ProjectPoint(a, new TrueHeading(90), 30);
+        LatLon b = GeoMath.ProjectPoint(a, new TrueHeading(90), 10);
+        LatLon c = GeoMath.ProjectPoint(a, new TrueHeading(90), 20);
+        LatLon d = GeoMath.ProjectPoint(a, new TrueHeading(90), 30);
         List<ResolvedFix> route = [new("A", a.Lat, a.Lon), new("B", b.Lat, b.Lon), new("C", c.Lat, c.Lon), new("D", d.Lat, d.Lon)];
-        var abeamB = GeoMath.ProjectPoint(b, new TrueHeading(0), 0.6);
+        LatLon abeamB = GeoMath.ProjectPoint(b, new TrueHeading(0), 0.6);
         var ac = new AircraftState
         {
             Callsign = "N1",
@@ -476,13 +482,13 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void FiledRoute_OutsideTheRejoinCone_FallsBackToVectors()
     {
-        var navDb = NavigationDatabase.Instance;
-        var oak = navDb.ResolveFixOrFrd("OAK")!.Value;
-        var sac = navDb.ResolveFixOrFrd("SAC")!.Value;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        (double Lat, double Lon) oak = navDb.ResolveFixOrFrd("OAK")!.Value;
+        (double Lat, double Lon) sac = navDb.ResolveFixOrFrd("SAC")!.Value;
         var a = new LatLon(oak.Lat, oak.Lon);
         var b = new LatLon(sac.Lat, sac.Lon);
         var bearing = new TrueHeading(GeoMath.BearingTo(a, b));
-        var pos = GeoMath.ProjectPoint(a, bearing, 20);
+        LatLon pos = GeoMath.ProjectPoint(a, bearing, 20);
         var plan = new AircraftFlightPlan
         {
             HasFlightPlan = true,
@@ -491,7 +497,7 @@ public class LiveTrafficAssumeTests
             Route = "OAK SAC RBL",
         };
         // Tracking 90° off the leg: no fix inside the ±45° cone.
-        var ac = Shadow(Sample(0, pos, 11_000, 300, bearing.Degrees + 90, 0), plan);
+        AircraftState ac = Shadow(Sample(0, pos, 11_000, 300, bearing.Degrees + 90, 0), plan);
 
         Assume(ac);
 
@@ -503,9 +509,9 @@ public class LiveTrafficAssumeTests
     public void VfrShadow_MaintainsVfr_NoRouteNoSnap()
     {
         var plan = new AircraftFlightPlan { HasFlightPlan = false, FlightRules = "VFR" };
-        var ac = Shadow(Sample(0, EnRoute, 4_500, 110, 90, 0) with { BeaconCode = 1200 }, plan);
+        AircraftState ac = Shadow(Sample(0, EnRoute, 4_500, 110, 90, 0) with { BeaconCode = 1200 }, plan);
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Contains("VFR", result.Message, StringComparison.Ordinal);
@@ -524,10 +530,17 @@ public class LiveTrafficAssumeTests
             Destination = "KRDD",
             Route = "OAK SAC RBL",
         };
-        var sac = NavigationDatabase.Instance.ResolveFixOrFrd("SAC")!.Value;
-        var ac = Shadow(Sample(0, new LatLon(sac.Lat + 0.05, sac.Lon), 8_000, 210, 180, 0) with { AirborneHold = true, HoldFix = "SAC" }, plan);
+        (double Lat, double Lon) sac = NavigationDatabase.Instance.ResolveFixOrFrd("SAC")!.Value;
+        AircraftState ac = Shadow(
+            Sample(0, new LatLon(sac.Lat + 0.05, sac.Lon), 8_000, 210, 180, 0) with
+            {
+                AirborneHold = true,
+                HoldFix = "SAC",
+            },
+            plan
+        );
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Empty(ac.Targets.NavigationRoute);
@@ -545,9 +558,9 @@ public class LiveTrafficAssumeTests
             Destination = "KRDD",
             Route = "OAK SAC RBL",
         };
-        var navDb = NavigationDatabase.Instance;
-        var sac = navDb.ResolveFixOrFrd("SAC")!.Value;
-        var ac = Shadow(
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        (double Lat, double Lon) sac = navDb.ResolveFixOrFrd("SAC")!.Value;
+        AircraftState ac = Shadow(
             Sample(0, new LatLon(sac.Lat + 0.05, sac.Lon), 8_000, 210, 180, 0) with
             {
                 ClearanceText = "HOLD SAC AS PUBLISHED EFC 1230",
@@ -555,7 +568,7 @@ public class LiveTrafficAssumeTests
             plan
         );
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Empty(ac.Targets.NavigationRoute);
@@ -573,15 +586,15 @@ public class LiveTrafficAssumeTests
             Destination = "KRDD",
             Route = "OAK SAC RBL",
         };
-        var navDb = NavigationDatabase.Instance;
-        var sac = navDb.ResolveFixOrFrd("SAC")!.Value;
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        (double Lat, double Lon) sac = navDb.ResolveFixOrFrd("SAC")!.Value;
         var center = new LatLon(sac.Lat, sac.Lon);
-        var ac = Shadow(Sample(0, center, 8_000, 210, 0, 0), plan);
+        AircraftState ac = Shadow(Sample(0, center, 8_000, 210, 0, 0), plan);
         // Standard-rate turn (3°/s, AIM 5-3-8) for 72 s within a mile of the fix.
         for (int i = 1; i <= 16; i++)
         {
             double track = (i * 13.5) % 360;
-            var pos = GeoMath.ProjectPoint(center, new TrueHeading(track + 90), 0.8);
+            LatLon pos = GeoMath.ProjectPoint(center, new TrueHeading(track + 90), 0.8);
             LiveTrafficKinematics.Apply(ac, Sample(i * 4.5, pos, 8_000, 210, track, null));
         }
 
@@ -594,19 +607,19 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void EstablishedOnFinal_ContinuesTheApproach_AndGoAroundWorks()
     {
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "28R");
         Assert.NotNull(runway);
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        var pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), 3.0);
+        LatLon pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), 3.0);
         var plan = new AircraftFlightPlan
         {
             HasFlightPlan = true,
             Departure = "KLAX",
             Destination = "KOAK",
         };
-        var ac = Shadow(Sample(0, pos, runway.ElevationFt + 950, 140, runway.TrueHeading.Degrees, -700), plan);
+        AircraftState ac = Shadow(Sample(0, pos, runway.ElevationFt + 950, 140, runway.TrueHeading.Degrees, -700), plan);
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(ac.Phases);
@@ -615,25 +628,25 @@ public class LiveTrafficAssumeTests
         Assert.Null(ac.Phases.LandingClearance);
         Assert.Contains(ac.PendingWarnings, w => w.Contains("no landing clearance", StringComparison.Ordinal));
 
-        var ga = Send(ac, "GA");
+        CommandResult ga = Send(ac, "GA");
         Assert.True(ga.Success, ga.Message);
     }
 
     [Fact]
     public void AlignedButOutsideTheGate_IsOnVectorsTowardTheRunway()
     {
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        var pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), 9.0);
+        LatLon pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), 9.0);
         var plan = new AircraftFlightPlan
         {
             HasFlightPlan = true,
             Departure = "KLAX",
             Destination = "KOAK",
         };
-        var ac = Shadow(Sample(0, pos, 3_000, 180, runway.TrueHeading.Degrees, -500), plan);
+        AircraftState ac = Shadow(Sample(0, pos, 3_000, 180, runway.TrueHeading.Degrees, -500), plan);
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Null(ac.Phases?.ActiveApproach);
@@ -644,23 +657,23 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void HelicopterDescendingOntoTheRunway_LandsUnderHelicopterLandingPhase()
     {
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        var pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading, 0.2);
+        LatLon pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading, 0.2);
         var plan = new AircraftFlightPlan
         {
             HasFlightPlan = true,
             Departure = "KLAX",
             Destination = "KOAK",
         };
-        var ac = LiveTrafficKinematics.CreateShadow(
+        AircraftState ac = LiveTrafficKinematics.CreateShadow(
             Callsign,
             "EC35",
             Sample(0, pos, runway.ElevationFt + 40, 15, runway.TrueHeading.Degrees, -200),
             plan
         );
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<HelicopterLandingPhase>(ac.Phases?.CurrentPhase);
@@ -670,18 +683,18 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void AirborneOverTheRunwayBelow50Ft_LandsUnderLandingPhase_ClearanceImplied()
     {
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        var pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading, 0.2);
+        LatLon pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading, 0.2);
         var plan = new AircraftFlightPlan
         {
             HasFlightPlan = true,
             Departure = "KLAX",
             Destination = "KOAK",
         };
-        var ac = Shadow(Sample(0, pos, runway.ElevationFt + 30, 130, runway.TrueHeading.Degrees, -300), plan);
+        AircraftState ac = Shadow(Sample(0, pos, runway.ElevationFt + 30, 130, runway.TrueHeading.Degrees, -300), plan);
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<LandingPhase>(ac.Phases?.CurrentPhase);
@@ -691,18 +704,18 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void RollingDeparture_KeepsRollingUnderTakeoffPhase()
     {
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        var pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading, 0.3);
+        LatLon pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading, 0.3);
         var plan = new AircraftFlightPlan
         {
             HasFlightPlan = true,
             Departure = "KOAK",
             Destination = "KLAX",
         };
-        var ac = Shadow(Sample(0, pos, runway.ElevationFt, 80, runway.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex), plan);
+        AircraftState ac = Shadow(Sample(0, pos, runway.ElevationFt, 80, runway.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex), plan);
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<TakeoffPhase>(ac.Phases?.CurrentPhase);
@@ -712,16 +725,16 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void RolloutAbove30Kt_ExitsUnderRunwayExitPhase()
     {
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        var pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading, 0.7);
+        LatLon pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading, 0.7);
         var plan = new AircraftFlightPlan
         {
             HasFlightPlan = true,
             Departure = "KLAX",
             Destination = "KOAK",
         };
-        var ac = Shadow(Sample(0, pos, runway.ElevationFt, 20, runway.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex), plan);
+        AircraftState ac = Shadow(Sample(0, pos, runway.ElevationFt, 20, runway.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex), plan);
         LiveTrafficKinematics.Apply(ac, Sample(1, pos, runway.ElevationFt, 34, runway.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex));
 
         Assume(ac);
@@ -732,18 +745,18 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void SlowSurfaceTarget_BecomesAPhaselessGroundAircraft()
     {
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        var pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading, 0.7);
+        LatLon pos = GeoMath.ProjectPoint(threshold, runway.TrueHeading, 0.7);
         var plan = new AircraftFlightPlan
         {
             HasFlightPlan = true,
             Departure = "KLAX",
             Destination = "KOAK",
         };
-        var ac = Shadow(Sample(0, pos, runway.ElevationFt, 12, runway.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex), plan);
+        AircraftState ac = Shadow(Sample(0, pos, runway.ElevationFt, 12, runway.TrueHeading.Degrees, 0, LiveTrafficSource.Asdex), plan);
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.True(ac.IsOnGround);
@@ -756,7 +769,7 @@ public class LiveTrafficAssumeTests
     public void Descending_NothingToDescendTo_LevelsOffWithANote()
     {
         // Mid-Pacific: no MVA coverage, no resolvable destination.
-        var ac = Shadow(
+        AircraftState ac = Shadow(
             Sample(0, new LatLon(30.0, -150.0), 12_000, 280, 90, -2_000),
             new AircraftFlightPlan { HasFlightPlan = true, Destination = "ZZZZ" }
         );
@@ -771,7 +784,7 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void Descending_JustAboveAHundred_NeverTargetsAboveItself()
     {
-        var ac = Shadow(Sample(0, EnRoute, 956, 120, 90, -500) with { AssignedAltitudeFt = 3_000 });
+        AircraftState ac = Shadow(Sample(0, EnRoute, 956, 120, 90, -500) with { AssignedAltitudeFt = 3_000 });
 
         Assume(ac);
 
@@ -781,7 +794,7 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void SlowArrivalBelow10k_IsNotSpedBackUp()
     {
-        var ac = Shadow(Sample(0, EnRoute, 2_000, 150, 90, -700));
+        AircraftState ac = Shadow(Sample(0, EnRoute, 2_000, 150, 90, -700));
 
         Assume(ac);
 
@@ -792,7 +805,7 @@ public class LiveTrafficAssumeTests
     public void ClimbingVfr_KeepsClimbingToTheNextVfrCruisingAltitude()
     {
         var plan = new AircraftFlightPlan { HasFlightPlan = false, FlightRules = "VFR" };
-        var ac = Shadow(Sample(0, EnRoute, 4_200, 110, 90, 700) with { BeaconCode = 1200 }, plan);
+        AircraftState ac = Shadow(Sample(0, EnRoute, 4_200, 110, 90, 700) with { BeaconCode = 1200 }, plan);
 
         Assume(ac);
 
@@ -813,9 +826,9 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void InitialClimb_HoldsRunwayHeading_NotDirectToTheFirstFix()
     {
-        var runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
         var der = new LatLon(runway.EndLatitude, runway.EndLongitude);
-        var pos = GeoMath.ProjectPoint(der, runway.TrueHeading, 1.5);
+        LatLon pos = GeoMath.ProjectPoint(der, runway.TrueHeading, 1.5);
         var plan = new AircraftFlightPlan
         {
             HasFlightPlan = true,
@@ -823,9 +836,9 @@ public class LiveTrafficAssumeTests
             Destination = "KRDD",
             Route = "SAC RBL",
         };
-        var ac = Shadow(Sample(0, pos, runway.ElevationFt + 900, 160, runway.TrueHeading.Degrees, 2_500), plan);
+        AircraftState ac = Shadow(Sample(0, pos, runway.ElevationFt + 900, 160, runway.TrueHeading.Degrees, 2_500), plan);
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Contains("initial climb runway 28R", result.Message, StringComparison.Ordinal);
@@ -836,7 +849,7 @@ public class LiveTrafficAssumeTests
     [Fact]
     public void EmergencySquawk_IsPreservedAndNoted()
     {
-        var ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0) with { BeaconCode = 7600 }, new AircraftFlightPlan { HasFlightPlan = true });
+        AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0) with { BeaconCode = 7600 }, new AircraftFlightPlan { HasFlightPlan = true });
 
         Assume(ac);
 
@@ -848,12 +861,12 @@ public class LiveTrafficAssumeTests
     public void Coasting_AssumesFromTheDeadReckonedPose_WithANote()
     {
         // The feed went quiet 50 s before "now" (elapsed 0, where the dispatch context clock sits).
-        var ac = Shadow(Sample(-50, EnRoute, 11_000, 300, 90, 0), new AircraftFlightPlan { HasFlightPlan = true });
+        AircraftState ac = Shadow(Sample(-50, EnRoute, 11_000, 300, 90, 0), new AircraftFlightPlan { HasFlightPlan = true });
         LiveTrafficKinematics.Advance(ac, 50, null, 0);
         Assert.True(ac.LiveTraffic!.IsCoasting);
-        var pose = ac.Position;
+        LatLon pose = ac.Position;
 
-        var result = Assume(ac);
+        CommandResult result = Assume(ac);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(pose, ac.Position);

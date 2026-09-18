@@ -78,14 +78,14 @@ public class AddAndTaxiAllArmTests
             return;
         }
 
-        var outcome = engine.Actions.Issue(Fresh(Add));
+        ActionOutcome outcome = engine.Actions.Issue(Fresh(Add));
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal(new ActionTrace(RecordedCommandKind.AddAircraft, ActionScope.Global), outcome.Trace);
-        var spawned = Assert.Single(engine.World.GetSnapshot(), ac => ac.Callsign != AiTestFixture.Callsign);
+        AircraftState spawned = Assert.Single(engine.World.GetSnapshot(), ac => ac.Callsign != AiTestFixture.Callsign);
         Assert.IsType<AtParkingPhase>(spawned.Phases?.CurrentPhase);
         Assert.Contains(spawned.Callsign, outcome.Result.Message);
-        var record = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
+        RecordedCommand record = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
         Assert.NotNull(record.SpawnedAircraft);
         Assert.Equal(Json(spawned.ToSnapshot()), Json(record.SpawnedAircraft));
     }
@@ -98,13 +98,13 @@ public class AddAndTaxiAllArmTests
             return;
         }
 
-        var record = live.Actions.Issue(Fresh(Add)).ToRecord!;
-        var callsign = record.SpawnedAircraft!.Callsign;
+        RecordedCommand record = live.Actions.Issue(Fresh(Add)).ToRecord!;
+        string callsign = record.SpawnedAircraft!.Callsign;
 
-        var outcome = replay.Actions.Apply(record with { SpawnedAircraft = null });
+        ActionOutcome outcome = replay.Actions.Apply(record with { SpawnedAircraft = null });
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        var replayed = replay.FindAircraft(callsign);
+        AircraftState? replayed = replay.FindAircraft(callsign);
         Assert.NotNull(replayed);
         Assert.Equal(Json(live.FindAircraft(callsign)!.ToSnapshot()), Json(replayed.ToSnapshot()));
         Assert.Equal(live.World.Rng.GetState(), replay.World.Rng.GetState());
@@ -116,7 +116,7 @@ public class AddAndTaxiAllArmTests
     public void Apply_TheBakedSnapshotWins_WhenTheDerivationDisagrees_AndReservesItsBeacon()
     {
         using var tap = new CapturingSimLogProvider(LogLevel.Warning, 100);
-        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
         SimLog.InitializeForTest(factory);
 
         if (Engine() is not { } live || Engine() is not { } replay)
@@ -124,15 +124,15 @@ public class AddAndTaxiAllArmTests
             return;
         }
 
-        var record = live.Actions.Issue(Fresh(Add)).ToRecord!;
-        var derived = record.SpawnedAircraft!;
+        RecordedCommand record = live.Actions.Issue(Fresh(Add)).ToRecord!;
+        AircraftSnapshotDto derived = record.SpawnedAircraft!;
         // What the live session would have banked had its world differed: another callsign and beacon code.
         var recordedAircraft = AircraftState.FromSnapshot(derived, live.World.GroundLayout);
         recordedAircraft.Callsign = "REC1";
         recordedAircraft.Transponder.AssignCode(4321, null, null);
-        var recorded = recordedAircraft.ToSnapshot();
+        AircraftSnapshotDto recorded = recordedAircraft.ToSnapshot();
 
-        var outcome = replay.Actions.Apply(record with { SpawnedAircraft = recorded });
+        ActionOutcome outcome = replay.Actions.Apply(record with { SpawnedAircraft = recorded });
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal(Json(recorded), Json(replay.FindAircraft("REC1")!.ToSnapshot()));
@@ -141,7 +141,7 @@ public class AddAndTaxiAllArmTests
         Assert.False(replay.BeaconCodePool.IsAssigned(derived.Transponder.AssignedCode));
         // The derivation still ran, so the shared RNG stands where live's did.
         Assert.Equal(live.World.Rng.GetState(), replay.World.Rng.GetState());
-        var warning = Assert.Single(tap.Drain(), r => r.Message.Contains("replay-fidelity", StringComparison.Ordinal));
+        CapturedLogRecord warning = Assert.Single(tap.Drain(), r => r.Message.Contains("replay-fidelity", StringComparison.Ordinal));
         Assert.Contains("REC1", warning.Message);
     }
 
@@ -149,7 +149,7 @@ public class AddAndTaxiAllArmTests
     public void Apply_TheBakedSnapshotWins_WhenTheDerivationProducesNothing()
     {
         using var tap = new CapturingSimLogProvider(LogLevel.Warning, 100);
-        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
         SimLog.InitializeForTest(factory);
 
         if (Engine() is not { } live || Engine() is not { } replay)
@@ -157,16 +157,16 @@ public class AddAndTaxiAllArmTests
             return;
         }
 
-        var record = live.Actions.Issue(Fresh(Add)).ToRecord!;
-        var recorded = record.SpawnedAircraft!;
+        RecordedCommand record = live.Actions.Issue(Fresh(Add)).ToRecord!;
+        AircraftSnapshotDto recorded = record.SpawnedAircraft!;
 
         // The same record against a layout where its parking no longer resolves: the generator refuses, the recording still holds the aircraft.
-        var outcome = replay.Actions.Apply(record with { Command = "ADD V S P @NOSUCHSPOT" });
+        ActionOutcome outcome = replay.Actions.Apply(record with { Command = "ADD V S P @NOSUCHSPOT" });
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        var spawned = Assert.Single(replay.World.GetSnapshot(), ac => ac.Callsign != AiTestFixture.Callsign);
+        AircraftState spawned = Assert.Single(replay.World.GetSnapshot(), ac => ac.Callsign != AiTestFixture.Callsign);
         Assert.Equal(Json(recorded), Json(spawned.ToSnapshot()));
-        var warning = Assert.Single(tap.Drain(), r => r.Message.Contains("replay-fidelity", StringComparison.Ordinal));
+        CapturedLogRecord warning = Assert.Single(tap.Drain(), r => r.Message.Contains("replay-fidelity", StringComparison.Ordinal));
         Assert.Contains("derived no aircraft", warning.Message);
     }
 
@@ -183,20 +183,20 @@ public class AddAndTaxiAllArmTests
             return;
         }
 
-        var engine = AiTestFixture.Load(ParkedPairAtOak, _zoa, 7, []);
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        SimulationEngine engine = AiTestFixture.Load(ParkedPairAtOak, _zoa, 7, []);
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
         AddParkedAtTheBar(engine, layout, "N789AB", "28R");
 
-        var outcome = engine.Actions.Apply(Recorded("TAXIALL 28R"));
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("TAXIALL 28R"));
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("TAXIALL: 3 aircraft taxied", outcome.Result.Message);
         // The two parked across the field are routed to the runway; the one already at the bar keeps the
         // route-less "you are there" resolution it always had — both end at a 28R destination hold short.
-        foreach (var callsign in new[] { "N152SP", "N456TS" })
+        foreach (string? callsign in new[] { "N152SP", "N456TS" })
         {
-            var route = AssertTaxiingToRunway(engine, callsign, "28R");
+            TaxiRoute route = AssertTaxiingToRunway(engine, callsign, "28R");
             Assert.True(route.Segments.Count > 0, $"{callsign} was cleared to 28R with no route");
         }
 
@@ -206,10 +206,10 @@ public class AddAndTaxiAllArmTests
     /// <summary>The aircraft's taxi route, asserting it is taxiing and its route ends at a <paramref name="runway"/> hold short.</summary>
     private static TaxiRoute AssertTaxiingToRunway(SimulationEngine engine, string callsign, string runway)
     {
-        var aircraft = engine.FindAircraft(callsign);
+        AircraftState? aircraft = engine.FindAircraft(callsign);
         Assert.NotNull(aircraft);
         Assert.IsType<TaxiingPhase>(aircraft.Phases?.CurrentPhase);
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.True(route is not null, $"{callsign} got no taxi route");
         Assert.Contains(
             route!.HoldShortPoints,
@@ -226,13 +226,13 @@ public class AddAndTaxiAllArmTests
     /// </summary>
     private static void AddParkedAtTheBar(SimulationEngine engine, AirportGroundLayout layout, string callsign, string runway)
     {
-        var pavement = layout.FindRunway(runway);
+        GroundRunway? pavement = layout.FindRunway(runway);
         Assert.NotNull(pavement);
         var centerline = pavement.Coordinates.Select(c => new LatLon(c.Lat, c.Lon)).ToList();
         double ToCenterlineNm(LatLon p) => centerline.Min(c => GeoMath.DistanceNm(p, c));
 
-        var bar = layout.GetRunwayHoldShortNodes(runway).First();
-        var behind = bar.Edges.Where(e => !e.IsRunwayCenterline).Select(e => e.OtherNode(bar)).MaxBy(n => ToCenterlineNm(n.Position));
+        GroundNode bar = layout.GetRunwayHoldShortNodes(runway).First();
+        GroundNode? behind = bar.Edges.Where(e => !e.IsRunwayCenterline).Select(e => e.OtherNode(bar)).MaxBy(n => ToCenterlineNm(n.Position));
         Assert.NotNull(behind);
 
         var aircraft = new AircraftState
@@ -260,12 +260,12 @@ public class AddAndTaxiAllArmTests
             return;
         }
 
-        var parked = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AircraftState parked = engine.FindAircraft(AiTestFixture.Callsign)!;
         Assert.IsType<AtParkingPhase>(parked.Phases?.CurrentPhase);
 
         // A parking destination: the empty-path TAXI a TAXIALL issues routes to a parking from anywhere, while a bare
         // runway destination is adjacent-only (issue #393) and SIG1 is not adjacent to any OAK runway.
-        var outcome = engine.Actions.Apply(Recorded("TAXIALL @NEW1"));
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("TAXIALL @NEW1"));
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.Equal("TAXIALL: 1 aircraft taxied", outcome.Result.Message);

@@ -93,13 +93,13 @@ public partial class MainViewModel
 
         if (entry.SecondaryVm is null)
         {
-            var vm = CreateSecondaryStripsVm();
+            VStripsViewModel vm = CreateSecondaryStripsVm();
             AttachSecondaryStripsVm(entry, vm);
             // Broadcast-only state: copy the pane's primary VM's latest
             // broadcasts so the new pane renders the same strips and METAR
             // bar immediately instead of waiting for the next server change.
             vm.SeedFromPeer(entry.Vm);
-            var facilityId = entry.Vm.FacilityId;
+            string? facilityId = entry.Vm.FacilityId;
             if (!string.IsNullOrEmpty(facilityId))
             {
                 await vm.SwitchFacilityAsync(facilityId);
@@ -138,7 +138,7 @@ public partial class MainViewModel
     public void ApplyStripsZoomPercent(int percent)
     {
         double scale = percent / 100.0;
-        foreach (var entry in StripsEntries)
+        foreach (VStripsDockEntryViewModel entry in StripsEntries)
         {
             entry.Vm.ZoomScale = scale;
             if (entry.SecondaryVm is { } secondary)
@@ -178,15 +178,15 @@ public partial class MainViewModel
     private void RecomputeStripsDuplicateOrdinals()
     {
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var entry in StripsEntries)
+        foreach (VStripsDockEntryViewModel entry in StripsEntries)
         {
-            var id = entry.Vm.FacilityId;
+            string? id = entry.Vm.FacilityId;
             if (string.IsNullOrEmpty(id))
             {
                 entry.DuplicateOrdinal = 0;
                 continue;
             }
-            counts[id] = counts.TryGetValue(id, out var n) ? n + 1 : 1;
+            counts[id] = counts.TryGetValue(id, out int n) ? n + 1 : 1;
             entry.DuplicateOrdinal = counts[id];
         }
     }

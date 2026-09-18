@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -74,8 +76,8 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         string label
     )
     {
-        var cat = AircraftCategory.Piston;
-        var waypoints = PatternGeometry.Compute(
+        AircraftCategory cat = AircraftCategory.Piston;
+        PatternWaypoints waypoints = PatternGeometry.Compute(
             rwy,
             cat,
             "",
@@ -93,8 +95,8 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
             rwy.TrueHeading
         );
 
-        var ac = MakeDepartingPiston(rwy);
-        var circuit = PatternBuilder.BuildCircuit(
+        AircraftState ac = MakeDepartingPiston(rwy);
+        List<Phase> circuit = PatternBuilder.BuildCircuit(
             rwy,
             cat,
             "",
@@ -108,7 +110,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
             allRunways,
             authoredRunway: null
         );
-        foreach (var p in circuit)
+        foreach (Phase p in circuit)
         {
             ac.Phases!.Add(p);
         }
@@ -118,7 +120,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         double altAtTurnAgl = double.NaN;
         for (int t = 1; t <= 600; t++)
         {
-            var ctx = Ctx(ac, cat, rwy);
+            PhaseContext ctx = Ctx(ac, cat, rwy);
             FlightPhysics.Update(ac, ctx.DeltaSeconds);
             PhaseRunner.Tick(ac, ctx);
 
@@ -148,26 +150,26 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
     public void Diagnostic_Oak28L_UpwindLength_AuthoredVsDefault()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
         Assert.NotNull(rwy28L);
-        var allRunways = navDb.GetRunways("KOAK");
+        IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
 
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
         }
 
-        var authored = layout.FindRunway("28L");
+        GroundRunway? authored = layout.FindRunway("28L");
         output.WriteLine($"authored 28L: PatternAltitudeAglFt={authored?.PatternAltitudeAglFt} PatternSizeNm={authored?.PatternSizeNm}");
 
-        var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+        (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(
             rwy28L,
             authored,
             AircraftCategory.Piston,
@@ -177,10 +179,22 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         output.WriteLine($"resolved override: sizeOv={sizeOv} altOv={altOv}");
 
         output.WriteLine("--- WITH authored override (size 0.5, alt 609 MSL) ---");
-        var authoredRun = MeasureUpwind(rwy28L, allRunways, sizeOv, altOv, "authored");
+        (double upwindEndNm, double patternAltMsl, double crosswindPointNm, double altAtTurnAgl) authoredRun = MeasureUpwind(
+            rwy28L,
+            allRunways,
+            sizeOv,
+            altOv,
+            "authored"
+        );
 
         output.WriteLine("--- WITHOUT override (category default TPA/size) ---");
-        var defaultRun = MeasureUpwind(rwy28L, allRunways, null, null, "default");
+        (double upwindEndNm, double patternAltMsl, double crosswindPointNm, double altAtTurnAgl) defaultRun = MeasureUpwind(
+            rwy28L,
+            allRunways,
+            null,
+            null,
+            "default"
+        );
 
         double runwayLenNm = RunwayLengthNm(rwy28L);
         // Authored low TPA → at-the-DER upwind. Category-default high TPA → the 300-below-TPA gate isn't
@@ -197,20 +211,20 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
     public void Compute_CrosswindTurn_AtDepartureEnd_IndependentOfPatternSize()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
         Assert.NotNull(rwy28L);
-        var allRunways = navDb.GetRunways("KOAK");
+        IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
         double runwayLenNm = RunwayLengthNm(rwy28L);
 
         double CrosswindTurnAlongTrack(double? sizeNm)
         {
-            var wp = PatternGeometry.Compute(
+            PatternWaypoints wp = PatternGeometry.Compute(
                 rwy28L,
                 AircraftCategory.Piston,
                 "",
@@ -243,18 +257,24 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
     public void Oak28L_AuthoredPattern_TurnsCrosswindAtDepartureEnd()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
         Assert.NotNull(rwy28L);
-        var allRunways = navDb.GetRunways("KOAK");
+        IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
         double runwayLenNm = RunwayLengthNm(rwy28L);
 
-        var (upwindEndNm, _, _, _) = MeasureUpwind(rwy28L, allRunways, sizeOverrideNm: 0.5, altitudeOverrideFt: 609, "authored");
+        (double upwindEndNm, double _, double _, double _) = MeasureUpwind(
+            rwy28L,
+            allRunways,
+            sizeOverrideNm: 0.5,
+            altitudeOverrideFt: 609,
+            "authored"
+        );
 
         // Aircraft must fly over the DER before turning crosswind (AIM 4-3-2), and must not be carried
         // far past it toward the runway-30 corridor.
@@ -274,15 +294,15 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
     public void Diagnostic_ApplyClosedTraffic_AuthoredAltitudeReachesUpwind()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
         Assert.NotNull(rwy28L);
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
@@ -314,7 +334,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
                 removeInitialClimb: false
             );
 
-            var upwind = ac.Phases.Phases.OfType<UpwindPhase>().FirstOrDefault();
+            UpwindPhase? upwind = ac.Phases.Phases.OfType<UpwindPhase>().FirstOrDefault();
             return upwind?.Waypoints?.PatternAltitude;
         }
 
@@ -337,24 +357,24 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
     public void AutoCycle_WithoutAircraftGroundLayout_AppliesAuthoredAltitudeFromContext()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
         Assert.NotNull(rwy28L);
-        var allRunways = navDb.GetRunways("KOAK");
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
         }
 
-        var cat = AircraftCategory.Piston;
+        AircraftCategory cat = AircraftCategory.Piston;
         // First circuit built with the authored override so the entry leg is flyable; alt 609.
-        var wp = PatternGeometry.Compute(rwy28L, cat, "", 0, PatternDirection.Right, 0.5, 609, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(rwy28L, cat, "", 0, PatternDirection.Right, 0.5, 609, allRunways, authoredRunway: null);
         var ac = new AircraftState
         {
             Callsign = "N12345",
@@ -371,7 +391,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         // Key: the aircraft has NO cached ground layout — resolution must come from ctx.GroundLayout.
         ac.Ground.Layout = null;
 
-        var circuit = PatternBuilder.BuildCircuit(
+        List<Phase> circuit = PatternBuilder.BuildCircuit(
             rwy28L,
             cat,
             "",
@@ -385,7 +405,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
             allRunways,
             authoredRunway: null
         );
-        foreach (var p in circuit)
+        foreach (Phase p in circuit)
         {
             ac.Phases.Add(p);
         }
@@ -396,11 +416,11 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         bool sawTouchAndGo = false;
         for (int i = 0; i < 4000 && secondUpwind is null; i++)
         {
-            var ctx = Ctx(ac, cat, rwy28L, groundLayout: layout);
+            PhaseContext ctx = Ctx(ac, cat, rwy28L, groundLayout: layout);
             FlightPhysics.Update(ac, ctx.DeltaSeconds);
             PhaseRunner.Tick(ac, ctx);
 
-            var current = ac.Phases.CurrentPhase;
+            Phase? current = ac.Phases.CurrentPhase;
             if (current is TouchAndGoPhase)
             {
                 sawTouchAndGo = true;
@@ -426,15 +446,15 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
     public void EnterPattern_WithoutAircraftGroundLayout_AppliesAuthoredAltitudeFromPassedLayout()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy28L = navDb.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = navDb.GetRunway("KOAK", "28L");
         Assert.NotNull(rwy28L);
-        var layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
         {
             return;
@@ -453,7 +473,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         ac.Phases = new PhaseList { AssignedRunway = rwy28L };
         ac.Ground.Layout = null; // airborne aircraft with no cached layout
 
-        var result = PatternCommandHandler.TryEnterPattern(
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
             ac,
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
@@ -463,7 +483,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         );
         Assert.True(result.Success, result.Message);
 
-        var downwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
+        DownwindPhase? downwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
         Assert.NotNull(downwind);
         Assert.Equal(609, downwind!.Waypoints!.PatternAltitude, 0);
     }

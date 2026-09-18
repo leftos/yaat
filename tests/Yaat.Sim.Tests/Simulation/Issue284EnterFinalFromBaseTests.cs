@@ -5,7 +5,9 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -66,7 +68,7 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
     [Fact]
     public void N346G_EfToParallelFromBase_TurnsFinalInsteadOfFlyingOutbound()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -74,7 +76,7 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -82,7 +84,7 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
             engine.Replay(archive.ToBaseSessionRecording(), 0);
 
-            var snapshot = archive.ReadSnapshotAt(SnapshotSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(SnapshotSeconds);
             if (snapshot is null)
             {
                 output.WriteLine($"No snapshot near t={SnapshotSeconds} — skipping");
@@ -90,10 +92,10 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
             }
             engine.RestoreFromSnapshot(snapshot.State);
 
-            var aircraft = engine.FindAircraft("N346G");
+            AircraftState? aircraft = engine.FindAircraft("N346G");
             Assert.NotNull(aircraft);
 
-            var rwy28L = NavigationDatabase.Instance.GetRunway("KOAK", "28L");
+            RunwayInfo? rwy28L = NavigationDatabase.Instance.GetRunway("KOAK", "28L");
             Assert.NotNull(rwy28L);
 
             double alongBefore = AlongTrackToThresholdNm(aircraft, rwy28L);
@@ -103,7 +105,7 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
             );
 
             // Mirror what the user typed. EF carries no L/R, so the dispatcher passes null.
-            var result = PatternCommandHandler.TryEnterPattern(aircraft, requestedDirection: null, PatternEntryLeg.Final, "28L", null);
+            CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, requestedDirection: null, PatternEntryLeg.Final, "28L", null);
             output.WriteLine($"TryEnterPattern(28L) -> Success={result.Success} Message='{result.Message}'");
 
             Assert.True(result.Success, $"EF 28L from a 0.9 nm base must be accepted. Got: '{result.Message}'");
@@ -112,7 +114,7 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
             // navigate to a waypoint 3.14 nm out on the final.
             Assert.DoesNotContain(aircraft.Phases!.Phases, p => p is PatternEntryPhase);
 
-            var phases = aircraft.Phases.Phases;
+            List<Phase> phases = aircraft.Phases.Phases;
             Assert.Collection(
                 phases,
                 p => Assert.IsType<BasePhase>(p),
@@ -136,7 +138,7 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
     [Fact]
     public void N346G_AfterEf_NeverFliesAwayFromTheThreshold()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -144,26 +146,26 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
             engine.Replay(archive.ToBaseSessionRecording(), 0);
-            var snapshot = archive.ReadSnapshotAt(SnapshotSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(SnapshotSeconds);
             if (snapshot is null)
             {
                 return;
             }
             engine.RestoreFromSnapshot(snapshot.State);
 
-            var aircraft = engine.FindAircraft("N346G");
+            AircraftState? aircraft = engine.FindAircraft("N346G");
             Assert.NotNull(aircraft);
-            var rwy28L = NavigationDatabase.Instance.GetRunway("KOAK", "28L");
+            RunwayInfo? rwy28L = NavigationDatabase.Instance.GetRunway("KOAK", "28L");
             Assert.NotNull(rwy28L);
 
-            var result = PatternCommandHandler.TryEnterPattern(aircraft, requestedDirection: null, PatternEntryLeg.Final, "28L", null);
+            CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, requestedDirection: null, PatternEntryLeg.Final, "28L", null);
             Assert.True(result.Success, result.Message);
 
             double startAltitude = aircraft.Altitude;
@@ -173,7 +175,7 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
             for (int t = 1; t <= 60; t++)
             {
                 engine.TickOneSecond();
-                var ac = engine.FindAircraft("N346G");
+                AircraftState? ac = engine.FindAircraft("N346G");
                 if (ac is null)
                 {
                     break;
@@ -220,15 +222,15 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
     [Fact]
     public void Piston_EfSameRunwayFromBase_TurnsFinalFromPresentPosition()
     {
-        var runway = RealOakRunway("28R");
+        RunwayInfo? runway = RealOakRunway("28R");
         if (runway is null)
         {
             return;
         }
 
-        var aircraft = MakeBaseLegAircraft(runway, "C150", alongTrackNm: 0.9, crossTrackRightNm: 0.4, altAgl: 500);
+        AircraftState aircraft = MakeBaseLegAircraft(runway, "C150", alongTrackNm: 0.9, crossTrackRightNm: 0.4, altAgl: 500);
 
-        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
 
         Assert.True(result.Success, $"Piston on a 0.9 nm base must turn final. Got: '{result.Message}'");
@@ -247,22 +249,22 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
     [Fact]
     public void Piston_EfFromDownwindAbeam_StillUsesStandardFarEntry()
     {
-        var runway = RealOakRunway("28R");
+        RunwayInfo? runway = RealOakRunway("28R");
         if (runway is null)
         {
             return;
         }
 
         // Abeam the threshold, 0.7 nm right of centerline, tracking the runway reciprocal.
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 0.3, crossTrackRightNm: 0.7);
-        var aircraft = MakeAircraft("N1DW", "C150", lat, lon, runway.ElevationFt + 1000, runway.TrueHeading.ToReciprocal().Degrees);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackOutboundNm: 0.3, crossTrackRightNm: 0.7);
+        AircraftState aircraft = MakeAircraft("N1DW", "C150", lat, lon, runway.ElevationFt + 1000, runway.TrueHeading.ToReciprocal().Degrees);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
 
         Assert.True(result.Success, $"EF from downwind abeam must still be accepted. Got: '{result.Message}'");
-        var entry = Assert.Single(aircraft.Phases!.Phases.OfType<PatternEntryPhase>());
+        PatternEntryPhase entry = Assert.Single(aircraft.Phases!.Phases.OfType<PatternEntryPhase>());
         double entryDist = GeoMath.DistanceNm(
             new LatLon(entry.EntryLat, entry.EntryLon),
             new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude)
@@ -278,16 +280,16 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
     [Fact]
     public void Jet_EfFromBaseInsideStraightInFloor_Rejects()
     {
-        var runway = RealOakRunway("28R");
+        RunwayInfo? runway = RealOakRunway("28R");
         if (runway is null)
         {
             return;
         }
 
         // 1.5 nm along-track is inside the jet 2.0 nm straight-in floor.
-        var aircraft = MakeBaseLegAircraft(runway, "B738", alongTrackNm: 1.5, crossTrackRightNm: 0.8, altAgl: 700);
+        AircraftState aircraft = MakeBaseLegAircraft(runway, "B738", alongTrackNm: 1.5, crossTrackRightNm: 0.8, altAgl: 700);
 
-        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
 
         Assert.False(result.Success);
@@ -302,7 +304,7 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
     [Fact]
     public void Piston_EfFromBaseAfterOvershootingCenterline_Rejects()
     {
-        var runway = RealOakRunway("28R");
+        RunwayInfo? runway = RealOakRunway("28R");
         if (runway is null)
         {
             return;
@@ -310,9 +312,9 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
         // Same base heading (turning right-to-left across the centerline) but already 0.4 nm
         // through it, on the LEFT side — the centerline is behind, not ahead.
-        var aircraft = MakeBaseLegAircraft(runway, "C150", alongTrackNm: 0.9, crossTrackRightNm: -0.4, altAgl: 500);
+        AircraftState aircraft = MakeBaseLegAircraft(runway, "C150", alongTrackNm: 0.9, crossTrackRightNm: -0.4, altAgl: 500);
 
-        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
 
         Assert.False(result.Success);
@@ -327,7 +329,7 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
     [Fact]
     public void Piston_EfFromBaseJustOutsideFloor_UsesDiagonalJoinAheadOfAircraft()
     {
-        var runway = RealOakRunway("28R");
+        RunwayInfo? runway = RealOakRunway("28R");
         if (runway is null)
         {
             return;
@@ -335,15 +337,15 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
         // 1.5 nm of cross-track keeps the join point more than 1 nm away, so a PatternEntryPhase is
         // actually inserted (inside 1 nm the aircraft simply joins final with no entry waypoint).
-        var aircraft = MakeBaseLegAircraft(runway, "C150", alongTrackNm: 1.05, crossTrackRightNm: 1.5, altAgl: 500);
+        AircraftState aircraft = MakeBaseLegAircraft(runway, "C150", alongTrackNm: 1.05, crossTrackRightNm: 1.5, altAgl: 500);
 
-        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
         Assert.True(result.Success, result.Message);
 
         // Just outside the floor the diagonal join owns the geometry: the entry point is capped at the
         // aircraft's along-track (never outbound of it) and respects the piston 1.0 nm minimum final.
-        var entry = Assert.Single(aircraft.Phases!.Phases.OfType<PatternEntryPhase>());
+        PatternEntryPhase entry = Assert.Single(aircraft.Phases!.Phases.OfType<PatternEntryPhase>());
         double entryDist = GeoMath.DistanceNm(
             new LatLon(entry.EntryLat, entry.EntryLon),
             new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude)
@@ -362,7 +364,7 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
     [Fact]
     public void RejectedEf_InSoloTraining_QueuesPilotUnableTransmission()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -370,14 +372,14 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var engine = BuildEngine();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
             }
 
             engine.Replay(archive.ToBaseSessionRecording(), 0);
-            var snapshot = archive.ReadSnapshotAt(SnapshotSeconds);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(SnapshotSeconds);
             if (snapshot is null || engine.Scenario is null)
             {
                 return;
@@ -385,23 +387,23 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             engine.Scenario.SoloTrainingMode = true;
 
-            var rwy28R = NavigationDatabase.Instance.GetRunway("KOAK", "28R");
+            RunwayInfo? rwy28R = NavigationDatabase.Instance.GetRunway("KOAK", "28R");
             Assert.NotNull(rwy28R);
 
-            var aircraft = engine.FindAircraft("N346G");
+            AircraftState? aircraft = engine.FindAircraft("N346G");
             Assert.NotNull(aircraft);
 
             // Nudge N346G past the 28R centerline so the runway it is asked to join is behind
             // it — the overshoot guardrail rejects rather than looping it outbound. Set the
             // position directly: a ground warp would clear the phase chain this test relies on.
-            var (lat, lon) = PositionFromThreshold(rwy28R, alongTrackOutboundNm: 0.9, crossTrackRightNm: -0.4);
+            (double lat, double lon) = PositionFromThreshold(rwy28R, alongTrackOutboundNm: 0.9, crossTrackRightNm: -0.4);
             aircraft.Position = new LatLon(lat, lon);
             aircraft.TrueHeading = new TrueHeading((rwy28R.TrueHeading.Degrees - 90 + 360) % 360);
             aircraft.PendingPilotTransmissions.Clear();
 
-            var result = engine.SendCommand("N346G", "EF 28R");
+            CommandResult result = engine.SendCommand("N346G", "EF 28R");
             output.WriteLine($"SendCommand(EF 28R) -> Success={result.Success} Message='{result.Message}'");
-            foreach (var tx in aircraft.PendingPilotTransmissions)
+            foreach (PilotTransmission tx in aircraft.PendingPilotTransmissions)
             {
                 output.WriteLine($"  pilot: terminal='{tx.Text}' speech='{tx.SpeechText}'");
             }
@@ -447,9 +449,9 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
     /// </summary>
     private static AircraftState MakeBaseLegAircraft(RunwayInfo runway, string type, double alongTrackNm, double crossTrackRightNm, double altAgl)
     {
-        var (lat, lon) = PositionFromThreshold(runway, alongTrackNm, crossTrackRightNm);
+        (double lat, double lon) = PositionFromThreshold(runway, alongTrackNm, crossTrackRightNm);
         double baseHeading = (runway.TrueHeading.Degrees - 90 + 360) % 360;
-        var aircraft = MakeAircraft("N346G", type, lat, lon, runway.ElevationFt + altAgl, baseHeading);
+        AircraftState aircraft = MakeAircraft("N346G", type, lat, lon, runway.ElevationFt + altAgl, baseHeading);
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Phases.Add(new BasePhase());
         return aircraft;
@@ -457,14 +459,19 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
     private static (double Lat, double Lon) PositionFromThreshold(RunwayInfo runway, double alongTrackOutboundNm, double crossTrackRightNm)
     {
-        var centerline = GeoMath.ProjectPoint(
+        (double Lat, double Lon) centerline = GeoMath.ProjectPoint(
             runway.ThresholdLatitude,
             runway.ThresholdLongitude,
             runway.TrueHeading.ToReciprocal(),
             alongTrackOutboundNm
         );
         double crossHdg = crossTrackRightNm >= 0 ? (runway.TrueHeading.Degrees + 90) % 360 : (runway.TrueHeading.Degrees + 270) % 360;
-        var result = GeoMath.ProjectPoint(centerline.Lat, centerline.Lon, new TrueHeading(crossHdg), Math.Abs(crossTrackRightNm));
+        (double Lat, double Lon) result = GeoMath.ProjectPoint(
+            centerline.Lat,
+            centerline.Lon,
+            new TrueHeading(crossHdg),
+            Math.Abs(crossTrackRightNm)
+        );
         return (result.Lat, result.Lon);
     }
 

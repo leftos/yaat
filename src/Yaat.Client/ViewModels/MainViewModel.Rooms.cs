@@ -29,7 +29,7 @@ public partial class MainViewModel
             // trip to find out, and the answer has to come from plain HTTP because the hub payloads
             // are exactly what an outdated client fails to read.
             StatusText = "Checking server requirements...";
-            var verdict = await _versionGate.EvaluateAsync(url, Yaat.Client.Services.BuildInfo.Version, ct);
+            ClientVersionVerdict verdict = await _versionGate.EvaluateAsync(url, Yaat.Client.Services.BuildInfo.Version, ct);
             if (verdict.IsBlocked)
             {
                 IsConnecting = false;
@@ -40,7 +40,7 @@ public partial class MainViewModel
             ServerUpdateNotice = verdict.IsUpdateRecommended ? verdict.Message : null;
 
             StatusText = "Signing in with VATSIM...";
-            var identity = await _auth.EnsureSignedInAsync(url, _preferences.ArtccId, ct);
+            VatsimIdentity? identity = await _auth.EnsureSignedInAsync(url, _preferences.ArtccId, ct);
             if (identity is null)
             {
                 IsConnecting = false;
@@ -59,7 +59,7 @@ public partial class MainViewModel
 
             if (_preferences.UserInitials.Length != 2)
             {
-                var derived = DeriveInitials(identity.Name);
+                string derived = DeriveInitials(identity.Name);
                 if (derived.Length == 2)
                 {
                     _preferences.SetUserInitials(derived);
@@ -173,7 +173,7 @@ public partial class MainViewModel
         }
 
         PermittedArtccs.Clear();
-        foreach (var artcc in permitted)
+        foreach (string artcc in permitted)
         {
             PermittedArtccs.Add(artcc);
         }
@@ -184,7 +184,7 @@ public partial class MainViewModel
 
     private static string DeriveInitials(string name)
     {
-        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
         {
             return "";
@@ -220,7 +220,7 @@ public partial class MainViewModel
             }
         }
 
-        var url = _connectedServerUrl;
+        string url = _connectedServerUrl;
         await _connection.DisconnectAsync();
         IsConnected = false;
         StatusText = "Disconnected";
@@ -253,7 +253,7 @@ public partial class MainViewModel
             return Task.CompletedTask;
         }
 
-        var baseUrl = _connectedServerUrl.TrimEnd('/');
+        string baseUrl = _connectedServerUrl.TrimEnd('/');
         var qs = new List<string>();
         if (!string.IsNullOrWhiteSpace(_preferences.UserInitials))
         {
@@ -267,8 +267,8 @@ public partial class MainViewModel
         {
             qs.Add($"room={Uri.EscapeDataString(ActiveRoomId)}");
         }
-        var query = qs.Count > 0 ? "?" + string.Join("&", qs) : "";
-        var url = $"{baseUrl}/vstrips/{query}";
+        string query = qs.Count > 0 ? "?" + string.Join("&", qs) : "";
+        string url = $"{baseUrl}/vstrips/{query}";
 
         try
         {
@@ -296,7 +296,7 @@ public partial class MainViewModel
             return Task.CompletedTask;
         }
 
-        var baseUrl = _connectedServerUrl.TrimEnd('/');
+        string baseUrl = _connectedServerUrl.TrimEnd('/');
         var qs = new List<string>();
         if (!string.IsNullOrWhiteSpace(_preferences.UserInitials))
         {
@@ -310,8 +310,8 @@ public partial class MainViewModel
         {
             qs.Add($"room={Uri.EscapeDataString(ActiveRoomId)}");
         }
-        var query = qs.Count > 0 ? "?" + string.Join("&", qs) : "";
-        var url = $"{baseUrl}/vtdls/{query}";
+        string query = qs.Count > 0 ? "?" + string.Join("&", qs) : "";
+        string url = $"{baseUrl}/vtdls/{query}";
 
         try
         {
@@ -333,13 +333,13 @@ public partial class MainViewModel
         // The room's ARTCC selects its scenario catalog (the server validates it against the home ARTCC plus
         // operator grants); the member row keeps the home ARTCC so Room Members shows where a visiting
         // mentor is from.
-        var roomArtccId = SelectedCreateArtccId ?? _preferences.ArtccId;
-        var memberArtccId = HomeArtccId ?? roomArtccId;
+        string roomArtccId = SelectedCreateArtccId ?? _preferences.ArtccId;
+        string memberArtccId = HomeArtccId ?? roomArtccId;
         try
         {
-            var roomId = await _connection.CreateRoomAsync(_preferences.UserInitials, roomArtccId, Yaat.Sim.ClientKind.Main);
+            string roomId = await _connection.CreateRoomAsync(_preferences.UserInitials, roomArtccId, Yaat.Sim.ClientKind.Main);
 
-            var state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, memberArtccId, Yaat.Sim.ClientKind.Main);
+            RoomStateDto? state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, memberArtccId, Yaat.Sim.ClientKind.Main);
 
             if (state is null)
             {
@@ -368,7 +368,7 @@ public partial class MainViewModel
     {
         try
         {
-            var state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, _preferences.ArtccId, Yaat.Sim.ClientKind.Main);
+            RoomStateDto? state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, _preferences.ArtccId, Yaat.Sim.ClientKind.Main);
 
             if (state is null)
             {
@@ -416,9 +416,9 @@ public partial class MainViewModel
     {
         try
         {
-            var rooms = await _connection.GetActiveRoomsAsync();
+            List<TrainingRoomInfoDto> rooms = await _connection.GetActiveRoomsAsync();
             ActiveRooms.Clear();
-            foreach (var r in rooms)
+            foreach (TrainingRoomInfoDto r in rooms)
             {
                 ActiveRooms.Add(r);
             }
@@ -481,7 +481,7 @@ public partial class MainViewModel
 
         try
         {
-            var ok = await _connection.KickMemberAsync(cid);
+            bool ok = await _connection.KickMemberAsync(cid);
             if (!ok)
             {
                 StatusText = "Failed to kick member";
@@ -501,21 +501,21 @@ public partial class MainViewModel
     {
         try
         {
-            var lobby = await _connection.GetCrcLobbyClientsAsync();
+            List<CrcLobbyClientDto> lobby = await _connection.GetCrcLobbyClientsAsync();
             _log.LogInformation(
                 "[CrcLobby] Pull returned: {Count} clients ({Details})",
                 lobby.Count,
                 string.Join(", ", lobby.Select(c => $"{c.ClientId}({c.DisplayName ?? "no-name"})"))
             );
             CrcLobbyClients.Clear();
-            foreach (var c in lobby)
+            foreach (CrcLobbyClientDto c in lobby)
             {
                 CrcLobbyClients.Add(c);
             }
 
-            var members = await _connection.GetCrcRoomMembersAsync();
+            List<CrcRoomMemberDto> members = await _connection.GetCrcRoomMembersAsync();
             CrcRoomMembers.Clear();
-            foreach (var c in members)
+            foreach (CrcRoomMemberDto c in members)
             {
                 CrcRoomMembers.Add(c);
             }
@@ -531,7 +531,7 @@ public partial class MainViewModel
     {
         try
         {
-            var ok = await _connection.PullCrcClientAsync(clientId);
+            bool ok = await _connection.PullCrcClientAsync(clientId);
             if (!ok)
             {
                 StatusText = "Failed to pull CRC client — may already be in a room";
@@ -555,9 +555,9 @@ public partial class MainViewModel
 
         try
         {
-            var lobby = await _connection.GetRpoLobbyClientsAsync();
+            List<RpoLobbyClientDto> lobby = await _connection.GetRpoLobbyClientsAsync();
             RpoLobbyClients.Clear();
-            foreach (var c in lobby)
+            foreach (RpoLobbyClientDto c in lobby)
             {
                 RpoLobbyClients.Add(c);
             }
@@ -573,7 +573,7 @@ public partial class MainViewModel
     {
         try
         {
-            var ok = await _connection.PullRpoAsync(connectionId);
+            bool ok = await _connection.PullRpoAsync(connectionId);
             if (!ok)
             {
                 StatusText = "Failed to pull RPO — they may already be in a room";
@@ -591,7 +591,7 @@ public partial class MainViewModel
     {
         try
         {
-            var ok = await _connection.KickCrcClientAsync(clientId);
+            bool ok = await _connection.KickCrcClientAsync(clientId);
             if (!ok)
             {
                 StatusText = "Failed to kick CRC client";
@@ -628,12 +628,12 @@ public partial class MainViewModel
 
     private async Task TryRejoinRoomAfterReconnectAsync()
     {
-        var roomId = ActiveRoomId ?? _preferences.LastActiveRoomId;
+        string? roomId = ActiveRoomId ?? _preferences.LastActiveRoomId;
         if (string.IsNullOrWhiteSpace(roomId) && _identity is not null)
         {
             try
             {
-                var found = await _connection.FindRoomForMyCidAsync();
+                TrainingRoomInfoDto? found = await _connection.FindRoomForMyCidAsync();
                 roomId = found?.RoomId;
             }
             catch (Exception ex)
@@ -654,18 +654,18 @@ public partial class MainViewModel
 
         try
         {
-            var state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, _preferences.ArtccId, Yaat.Sim.ClientKind.Main);
+            RoomStateDto? state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, _preferences.ArtccId, Yaat.Sim.ClientKind.Main);
 
             if (state is not null)
             {
-                var wasRestart = IsServerRestarting;
+                bool wasRestart = IsServerRestarting;
                 ApplyRoomState(state);
                 IsServerRestarting = false;
                 StatusText = "Reconnected to room";
                 AddSystemEntry($"Reconnected to {_connectedServerUrl}");
                 if (wasRestart)
                 {
-                    var elapsed = (int)Math.Round(state.ElapsedSeconds);
+                    int elapsed = (int)Math.Round(state.ElapsedSeconds);
                     ShowRestartBannerThenAutoDismiss(
                         RestartBanner.Restored,
                         $"Reconnected to your room — session resumed at T+{elapsed}s",
@@ -703,7 +703,7 @@ public partial class MainViewModel
                 return;
             }
 
-            var reason = error is not null
+            string reason = error is not null
                 ? $"Connection to {_connectedServerUrl} lost — {error.Message}"
                 : $"Connection to {_connectedServerUrl} closed";
             _log.LogWarning(error, "Connection closed permanently");
@@ -768,7 +768,12 @@ public partial class MainViewModel
 
             try
             {
-                var state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, _preferences.ArtccId, Yaat.Sim.ClientKind.Main);
+                RoomStateDto? state = await _connection.JoinRoomAsync(
+                    roomId,
+                    _preferences.UserInitials,
+                    _preferences.ArtccId,
+                    Yaat.Sim.ClientKind.Main
+                );
 
                 if (state is not null)
                 {
@@ -802,7 +807,7 @@ public partial class MainViewModel
         // is assigned above and get dropped by OnRoomMemberChanged's room guard. Nothing re-fetches
         // afterwards, which left the Room Members panel empty until some *other* member joined or left.
         RoomMembers.Clear();
-        foreach (var member in state.Members)
+        foreach (RoomMemberDto member in state.Members)
         {
             RoomMembers.Add(member);
         }
@@ -825,7 +830,7 @@ public partial class MainViewModel
             // MVA tint is a user-local display default (unlike room-shared auto-cleared-to-land, which
             // arrives as its own field): a joining RPO seeds it from their own per-position-type default.
             SetStudentPositionType(state.StudentPositionType);
-            foreach (var radar in AllRadarViews)
+            foreach (RadarViewModel radar in AllRadarViews)
             {
                 radar.ShowMvaHints = _preferences.GetMvaHintDefault(state.StudentPositionType);
             }
@@ -838,7 +843,7 @@ public partial class MainViewModel
             IsLiveSession = false;
             Aircraft.Clear();
             ClearBookmarks();
-            foreach (var dto in state.AllAircraft)
+            foreach (AircraftDto dto in state.AllAircraft)
             {
                 var model = AircraftModel.FromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(model);
@@ -870,7 +875,7 @@ public partial class MainViewModel
     {
         // Out of a room the home ARTCC is back in effect (a grants-only controller falls back to their
         // first grant), and the next Create Room defaults to it again.
-        var homeArtcc = HomeArtccId ?? PermittedArtccs.FirstOrDefault();
+        string? homeArtcc = HomeArtccId ?? PermittedArtccs.FirstOrDefault();
         SetActiveArtcc(homeArtcc);
         SelectedCreateArtccId = homeArtcc ?? SelectedCreateArtccId;
 
@@ -890,7 +895,7 @@ public partial class MainViewModel
         // Out of the room the strip views lose their facility scope too, not just their content: the bays came
         // from the room's ARTCC config, and the next room re-bootstraps them from its own. ApplyBayConfig(null)
         // is the drop — it takes the bays, the printer layout and the facility with it.
-        foreach (var entry in StripsEntries)
+        foreach (VStripsDockEntryViewModel entry in StripsEntries)
         {
             entry.Vm.ApplyBayConfig(null);
             entry.SecondaryVm?.ApplyBayConfig(null);
@@ -912,7 +917,7 @@ public partial class MainViewModel
             }
 
             RoomMembers.Clear();
-            foreach (var m in dto.Members)
+            foreach (RoomMemberDto m in dto.Members)
             {
                 RoomMembers.Add(m);
             }
@@ -953,7 +958,7 @@ public partial class MainViewModel
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             CrcLobbyClients.Clear();
-            foreach (var c in dto.Clients)
+            foreach (CrcLobbyClientDto c in dto.Clients)
             {
                 CrcLobbyClients.Add(c);
             }
@@ -971,7 +976,7 @@ public partial class MainViewModel
             }
 
             RpoLobbyClients.Clear();
-            foreach (var c in dto.Clients)
+            foreach (RpoLobbyClientDto c in dto.Clients)
             {
                 RpoLobbyClients.Add(c);
             }
@@ -988,7 +993,7 @@ public partial class MainViewModel
             }
 
             CrcRoomMembers.Clear();
-            foreach (var c in dto.Members)
+            foreach (CrcRoomMemberDto c in dto.Members)
             {
                 CrcRoomMembers.Add(c);
             }
@@ -1006,7 +1011,7 @@ public partial class MainViewModel
             SetActiveTcpFromServer(config.TcpCode);
             // Stashed so a Radar View window opened later starts on the same position's display config.
             _lastPositionDisplayConfig = config;
-            foreach (var radar in AllRadarViews)
+            foreach (RadarViewModel radar in AllRadarViews)
             {
                 radar.ApplyPositionDisplayConfig(config);
             }
@@ -1042,12 +1047,12 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(HasAnyAssignments));
 
             AssignableMembers.Clear();
-            foreach (var m in dto.Members)
+            foreach (AssignableMemberDto m in dto.Members)
             {
                 AssignableMembers.Add(m);
             }
 
-            foreach (var ac in Aircraft)
+            foreach (AircraftModel ac in Aircraft)
             {
                 ac.AssignedTo = _aircraftAssignments.GetValueOrDefault(ac.Callsign);
             }
@@ -1084,7 +1089,7 @@ public partial class MainViewModel
     {
         try
         {
-            var dto = await _connection.GetAircraftAssignmentsAsync();
+            AircraftAssignmentsDto? dto = await _connection.GetAircraftAssignmentsAsync();
             if (dto is not null)
             {
                 OnAircraftAssignmentsChanged(dto);
@@ -1102,7 +1107,7 @@ public partial class MainViewModel
 
     public async Task TakeControlAsync(string callsign)
     {
-        var selfId = SelfConnectionId;
+        string? selfId = SelfConnectionId;
         if (selfId is null)
         {
             StatusText = "Cannot take control — not in a multi-user room";
@@ -1114,7 +1119,7 @@ public partial class MainViewModel
 
     public async Task GiveControlAsync(string callsign, string targetInitials)
     {
-        var member = AssignableMembers.FirstOrDefault(m => m.Initials == targetInitials.ToUpperInvariant());
+        AssignableMemberDto? member = AssignableMembers.FirstOrDefault(m => m.Initials == targetInitials.ToUpperInvariant());
         if (member is null)
         {
             StatusText = $"No room member with initials '{targetInitials}'";
@@ -1138,12 +1143,12 @@ public partial class MainViewModel
 
         menu.Items.Add(new Separator());
 
-        var selfInitials = _preferences.UserInitials;
-        var singleCallsign = callsigns.Count == 1 ? callsigns[0] : null;
+        string selfInitials = _preferences.UserInitials;
+        string? singleCallsign = callsigns.Count == 1 ? callsigns[0] : null;
 
         // Determine assignment state for contextual display
-        var assignedToSelf = singleCallsign is not null && GetAssignedInitials(singleCallsign) == selfInitials;
-        var selfId = SelfConnectionId;
+        bool assignedToSelf = singleCallsign is not null && GetAssignedInitials(singleCallsign) == selfInitials;
+        string? selfId = SelfConnectionId;
 
         // "Take control" — assign to self (shown unless already assigned to self)
         if (!assignedToSelf && selfId is not null)
@@ -1166,10 +1171,10 @@ public partial class MainViewModel
         if (otherMembers.Count > 0)
         {
             var giveSubmenu = new MenuItem { Header = callsigns.Count > 1 ? $"Give control ({callsigns.Count})" : "Give control" };
-            foreach (var member in otherMembers)
+            foreach (AssignableMemberDto? member in otherMembers)
             {
                 var memberItem = new MenuItem { Header = member.Initials };
-                var connId = member.ConnectionId;
+                string connId = member.ConnectionId;
                 memberItem.Click += async (_, _) => await AssignAircraftAsync(callsigns, connId);
                 giveSubmenu.Items.Add(memberItem);
             }
@@ -1236,7 +1241,7 @@ public partial class MainViewModel
     {
         if (RestartBannerKind == RestartBanner.Draining)
         {
-            var remaining = (int)Math.Max(0, Math.Ceiling((_restartTargetUtc - DateTime.UtcNow).TotalSeconds));
+            int remaining = (int)Math.Max(0, Math.Ceiling((_restartTargetUtc - DateTime.UtcNow).TotalSeconds));
             RestartBannerText = FormatDrainText(remaining);
             return;
         }

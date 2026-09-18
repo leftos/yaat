@@ -49,7 +49,7 @@ public class AtFixSayTests(ITestOutputHelper output)
     private (List<TerminalEntry> Captured, DispatchContext Ctx) MakeContext()
     {
         var captured = new List<TerminalEntry>();
-        var ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false, terminalEmitter: captured.Add);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false, terminalEmitter: captured.Add);
         return (captured, ctx);
     }
 
@@ -75,15 +75,15 @@ public class AtFixSayTests(ITestOutputHelper output)
     public void AtFixSay_FreeformBroadcastsAfterOverflight()
     {
         TestVnasData.EnsureInitialized();
-        using var _ = NavigationDatabase.ScopedOverride(NavDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavDb);
 
-        var ac = MakeAircraft();
-        var (captured, ctx) = MakeContext();
+        AircraftState ac = MakeAircraft();
+        (List<TerminalEntry>? captured, DispatchContext? ctx) = MakeContext();
 
-        var parsed = CommandParser.ParseCompound("AT FIX_B SAY altitude five thousand", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("AT FIX_B SAY altitude five thousand", ac.FlightPlan.Route);
         Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.Reason}");
 
-        var dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        CommandResult dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
         Assert.True(dispatchResult.Success, $"Dispatch failed: {dispatchResult.Message}");
 
         Assert.Empty(captured); // not yet — must overfly first
@@ -91,7 +91,7 @@ public class AtFixSayTests(ITestOutputHelper output)
         bool fired = TickUntil(ac, () => ac.Queue.Blocks[0].IsApplied, logTag: "AT/SAY");
         Assert.True(fired, "AT FIX_B block should have fired within 600 ticks");
 
-        var sayEntry = Assert.Single(captured, e => e.Kind == "Say");
+        TerminalEntry sayEntry = Assert.Single(captured, e => e.Kind == "Say");
         Assert.Equal("TST01", sayEntry.Callsign);
         Assert.Contains("altitude five thousand", sayEntry.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -100,21 +100,21 @@ public class AtFixSayTests(ITestOutputHelper output)
     public void AtFixSalt_BroadcastsAltitude()
     {
         TestVnasData.EnsureInitialized();
-        using var _ = NavigationDatabase.ScopedOverride(NavDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavDb);
 
-        var ac = MakeAircraft();
-        var (captured, ctx) = MakeContext();
+        AircraftState ac = MakeAircraft();
+        (List<TerminalEntry>? captured, DispatchContext? ctx) = MakeContext();
 
-        var parsed = CommandParser.ParseCompound("AT FIX_B SALT", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("AT FIX_B SALT", ac.FlightPlan.Route);
         Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.Reason}");
 
-        var dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        CommandResult dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
         Assert.True(dispatchResult.Success, $"Dispatch failed: {dispatchResult.Message}");
 
         bool fired = TickUntil(ac, () => ac.Queue.Blocks[0].IsApplied, logTag: "AT/SALT");
         Assert.True(fired, "AT FIX_B SALT block should have fired");
 
-        var entry = Assert.Single(captured, e => e.Kind == "SayAltitude");
+        TerminalEntry entry = Assert.Single(captured, e => e.Kind == "SayAltitude");
         Assert.Equal("TST01", entry.Callsign);
         // Aircraft cruising near 5000 ft level, no assigned altitude → bare plain altitude.
         Assert.Equal("5,000", entry.Message);
@@ -124,21 +124,21 @@ public class AtFixSayTests(ITestOutputHelper output)
     public void AtFixShdg_BroadcastsHeading()
     {
         TestVnasData.EnsureInitialized();
-        using var _ = NavigationDatabase.ScopedOverride(NavDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavDb);
 
-        var ac = MakeAircraft();
-        var (captured, ctx) = MakeContext();
+        AircraftState ac = MakeAircraft();
+        (List<TerminalEntry>? captured, DispatchContext? ctx) = MakeContext();
 
-        var parsed = CommandParser.ParseCompound("AT FIX_B SHDG", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("AT FIX_B SHDG", ac.FlightPlan.Route);
         Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.Reason}");
 
-        var dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        CommandResult dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
         Assert.True(dispatchResult.Success, $"Dispatch failed: {dispatchResult.Message}");
 
         bool fired = TickUntil(ac, () => ac.Queue.Blocks[0].IsApplied, logTag: "AT/SHDG");
         Assert.True(fired, "AT FIX_B SHDG block should have fired");
 
-        var entry = Assert.Single(captured, e => e.Kind == "SayHeading");
+        TerminalEntry entry = Assert.Single(captured, e => e.Kind == "SayHeading");
         Assert.Equal("TST01", entry.Callsign);
         // A pilot reports MAGNETIC heading: true 360 north converts to magnetic at the
         // aircraft's position (ZOA, ~13°E declination), rounded to the nearest 5°.
@@ -152,24 +152,24 @@ public class AtFixSayTests(ITestOutputHelper output)
     public void AtFixSpos_BroadcastsPosition()
     {
         TestVnasData.EnsureInitialized();
-        using var _ = NavigationDatabase.ScopedOverride(NavDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavDb);
 
-        var ac = MakeAircraft();
+        AircraftState ac = MakeAircraft();
         // BuildPosition restricts candidates to the aircraft's filed route + DCT queue
         // + dep/dest, so FIX_B must be on the route for SPOS to anchor on it.
         ac.FlightPlan.Route = "FIX_B";
-        var (captured, ctx) = MakeContext();
+        (List<TerminalEntry>? captured, DispatchContext? ctx) = MakeContext();
 
-        var parsed = CommandParser.ParseCompound("AT FIX_B SPOS", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("AT FIX_B SPOS", ac.FlightPlan.Route);
         Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.Reason}");
 
-        var dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        CommandResult dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
         Assert.True(dispatchResult.Success, $"Dispatch failed: {dispatchResult.Message}");
 
         bool fired = TickUntil(ac, () => ac.Queue.Blocks[0].IsApplied, logTag: "AT/SPOS");
         Assert.True(fired, "AT FIX_B SPOS block should have fired");
 
-        var entry = Assert.Single(captured, e => e.Kind == "SayPosition");
+        TerminalEntry entry = Assert.Single(captured, e => e.Kind == "SayPosition");
         Assert.Equal("TST01", entry.Callsign);
         // At trigger fire time the aircraft is within 0.5 NM of FIX_B → expect "Over FIX_B".
         Assert.Contains("FIX_B", entry.Message);
@@ -179,21 +179,21 @@ public class AtFixSayTests(ITestOutputHelper output)
     public void AtFixSspd_BroadcastsSpeed()
     {
         TestVnasData.EnsureInitialized();
-        using var _ = NavigationDatabase.ScopedOverride(NavDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavDb);
 
-        var ac = MakeAircraft();
-        var (captured, ctx) = MakeContext();
+        AircraftState ac = MakeAircraft();
+        (List<TerminalEntry>? captured, DispatchContext? ctx) = MakeContext();
 
-        var parsed = CommandParser.ParseCompound("AT FIX_B SSPD", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("AT FIX_B SSPD", ac.FlightPlan.Route);
         Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.Reason}");
 
-        var dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        CommandResult dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
         Assert.True(dispatchResult.Success, $"Dispatch failed: {dispatchResult.Message}");
 
         bool fired = TickUntil(ac, () => ac.Queue.Blocks[0].IsApplied, logTag: "AT/SSPD");
         Assert.True(fired, "AT FIX_B SSPD block should have fired");
 
-        var entry = Assert.Single(captured, e => e.Kind == "SaySpeed");
+        TerminalEntry entry = Assert.Single(captured, e => e.Kind == "SaySpeed");
         Assert.Equal("TST01", entry.Callsign);
         // 250 KIAS at 5000 ft → "250 knots" (no Mach below FL240)
         Assert.Equal("250 knots", entry.Message);
@@ -203,15 +203,15 @@ public class AtFixSayTests(ITestOutputHelper output)
     public void AtFixSay_DoesNotFireBeforeOverflight()
     {
         TestVnasData.EnsureInitialized();
-        using var _ = NavigationDatabase.ScopedOverride(NavDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavDb);
 
-        var ac = MakeAircraft();
-        var (captured, ctx) = MakeContext();
+        AircraftState ac = MakeAircraft();
+        (List<TerminalEntry>? captured, DispatchContext? ctx) = MakeContext();
 
-        var parsed = CommandParser.ParseCompound("AT FIX_B SAY ready for descent", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("AT FIX_B SAY ready for descent", ac.FlightPlan.Route);
         Assert.True(parsed.IsSuccess);
 
-        var dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        CommandResult dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
         Assert.True(dispatchResult.Success);
 
         // Tick a short while — aircraft moves north but doesn't reach FIX_B (~2.4 NM away)
@@ -228,24 +228,24 @@ public class AtFixSayTests(ITestOutputHelper output)
     public void AtFixSay_FiresViaDctLookaheadPath()
     {
         TestVnasData.EnsureInitialized();
-        using var _ = NavigationDatabase.ScopedOverride(NavDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(NavDb);
 
-        var ac = MakeAircraft();
-        var (captured, ctx) = MakeContext();
+        AircraftState ac = MakeAircraft();
+        (List<TerminalEntry>? captured, DispatchContext? ctx) = MakeContext();
 
         // DCT routes the aircraft through FIX_B (sequenced via lookahead at turn-anticipation
         // distance), then continues to FIX_C. AT FIX_B SAY should fire when FIX_B is sequenced.
-        var parsed = CommandParser.ParseCompound("DCT FIX_A FIX_B FIX_C; AT FIX_B SAY position report", ac.FlightPlan.Route);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("DCT FIX_A FIX_B FIX_C; AT FIX_B SAY position report", ac.FlightPlan.Route);
         Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.Reason}");
         Assert.Equal(2, parsed.Value!.Blocks.Count);
 
-        var dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value, ac, ctx);
+        CommandResult dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value, ac, ctx);
         Assert.True(dispatchResult.Success, $"Dispatch failed: {dispatchResult.Message}");
 
         bool fired = TickUntil(ac, () => ac.Queue.Blocks[1].IsApplied, logTag: "DCT-AT/SAY");
         Assert.True(fired, "AT FIX_B SAY block should have fired via lookahead while DCT was in progress");
 
-        var sayEntry = Assert.Single(captured, e => e.Kind == "Say");
+        TerminalEntry sayEntry = Assert.Single(captured, e => e.Kind == "Say");
         Assert.Equal("TST01", sayEntry.Callsign);
         Assert.Contains("position report", sayEntry.Message, StringComparison.OrdinalIgnoreCase);
 

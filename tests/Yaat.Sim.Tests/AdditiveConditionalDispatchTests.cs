@@ -53,19 +53,19 @@ public class AdditiveConditionalDispatchTests
     [Fact]
     public void ConditionalPresets_DoNotClearDeferredTaxi()
     {
-        var ac = MakeGroundAircraft();
-        var ctx = TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false);
+        AircraftState ac = MakeGroundAircraft();
+        DispatchContext ctx = TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false);
 
-        var taxiResult = CommandDispatcher.DispatchCompound(WaitThenTaxi(120), ac, ctx);
+        CommandResult taxiResult = CommandDispatcher.DispatchCompound(WaitThenTaxi(120), ac, ctx);
         Assert.True(taxiResult.Success, $"WAIT-taxi: {taxiResult.Message}");
         Assert.Single(ac.DeferredDispatches);
 
-        var onhoResult = CommandDispatcher.DispatchCompound(OnHandoffClimb(12000), ac, ctx);
+        CommandResult onhoResult = CommandDispatcher.DispatchCompound(OnHandoffClimb(12000), ac, ctx);
         Assert.True(onhoResult.Success, $"ONHO CM: {onhoResult.Message}");
         Assert.Single(ac.DeferredDispatches); // taxi survives ONHO
         Assert.Single(ac.Queue.Blocks); // ONHO conditional queued
 
-        var atResult = CommandDispatcher.DispatchCompound(AtAltitudeClimb(6000, 16000), ac, ctx);
+        CommandResult atResult = CommandDispatcher.DispatchCompound(AtAltitudeClimb(6000, 16000), ac, ctx);
         Assert.True(atResult.Success, $"AT CM: {atResult.Message}");
         Assert.Single(ac.DeferredDispatches); // taxi still survives AT
         Assert.Equal(2, ac.Queue.Blocks.Count); // both conditionals queued
@@ -84,15 +84,15 @@ public class AdditiveConditionalDispatchTests
     [Fact]
     public void ImmediateCommand_SupersedesPendingConditional()
     {
-        var ac = MakeAirborneAircraft();
-        var ctx = TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false);
+        AircraftState ac = MakeAirborneAircraft();
+        DispatchContext ctx = TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false);
 
         CommandDispatcher.DispatchCompound(AtAltitudeClimb(6000, 16000), ac, ctx);
         Assert.Single(ac.Queue.Blocks);
 
         // Fresh immediate CM 5000 — same (vertical) dimension — supersedes the pending AT block.
         var cm = new CompoundCommand([new ParsedBlock(null, [new DescendMaintainCommand(5000)])]);
-        var result = CommandDispatcher.DispatchCompound(cm, ac, ctx);
+        CommandResult result = CommandDispatcher.DispatchCompound(cm, ac, ctx);
         Assert.True(result.Success, $"CM: {result.Message}");
         Assert.DoesNotContain(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachAltitude });
     }
@@ -105,9 +105,9 @@ public class AdditiveConditionalDispatchTests
     [Fact]
     public void DeferredFiring_PreservesPendingConditional()
     {
-        var ac = MakeAirborneAircraft();
-        var liveCtx = TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false);
-        var firingCtx = TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false, preserveConditionals: true);
+        AircraftState ac = MakeAirborneAircraft();
+        DispatchContext liveCtx = TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false);
+        DispatchContext firingCtx = TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false, preserveConditionals: true);
 
         CommandDispatcher.DispatchCompound(AtAltitudeClimb(6000, 16000), ac, liveCtx);
         Assert.Single(ac.Queue.Blocks);
@@ -115,7 +115,7 @@ public class AdditiveConditionalDispatchTests
         // Same-dimension immediate payload, but dispatched as a firing deferral — the
         // pending AT conditional must survive.
         var payload = new CompoundCommand([new ParsedBlock(null, [new DescendMaintainCommand(5000)])]);
-        var result = CommandDispatcher.DispatchCompound(payload, ac, firingCtx);
+        CommandResult result = CommandDispatcher.DispatchCompound(payload, ac, firingCtx);
         Assert.True(result.Success, $"payload: {result.Message}");
         Assert.Contains(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachAltitude });
     }

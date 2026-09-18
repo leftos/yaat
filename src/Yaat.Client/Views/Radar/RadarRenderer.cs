@@ -123,7 +123,7 @@ public sealed class RadarRenderer : IDisposable
 
     public RadarRenderer()
     {
-        var colors = new[]
+        SKColor[] colors = new[]
         {
             SKColor.Parse("#FF6B6B"),
             SKColor.Parse("#4ECDC4"),
@@ -388,8 +388,8 @@ public sealed class RadarRenderer : IDisposable
         if (showRangeRings)
         {
             // Range ring at dedicated center + size
-            var rrLat = rangeRingCenterLat != 0 ? rangeRingCenterLat : centerLat;
-            var rrLon = rangeRingCenterLon != 0 ? rangeRingCenterLon : centerLon;
+            double rrLat = rangeRingCenterLat != 0 ? rangeRingCenterLat : centerLat;
+            double rrLon = rangeRingCenterLon != 0 ? rangeRingCenterLon : centerLon;
             DrawRangeRing(canvas, vp, rrLat, rrLon, rangeRingSizeNm);
         }
 
@@ -437,7 +437,7 @@ public sealed class RadarRenderer : IDisposable
         // EuroScope heading-mode preview overlay (above aircraft, below drawn route).
         if (HeadingPreview is { } headingState)
         {
-            var ac = aircraft.FirstOrDefault(a => string.Equals(a.Callsign, headingState.Callsign, StringComparison.OrdinalIgnoreCase));
+            AircraftModel? ac = aircraft.FirstOrDefault(a => string.Equals(a.Callsign, headingState.Callsign, StringComparison.OrdinalIgnoreCase));
             if (ac is not null)
             {
                 Flyouts.HeadingPreviewRenderer.Render(canvas, vp, ac, headingState);
@@ -470,7 +470,7 @@ public sealed class RadarRenderer : IDisposable
     private static void DrawMvaHoverLabel(SKCanvas canvas, string text, SKPoint cursor)
     {
         using var textPaint = new SKPaint { Color = SKColors.White, IsAntialias = true };
-        using var textFont = PlatformHelper.MonospaceFont(13);
+        using SKFont textFont = PlatformHelper.MonospaceFont(13);
         using var bgPaint = new SKPaint { Color = new SKColor(0, 0, 0, 200), IsAntialias = true };
 
         const float padX = 5f;
@@ -488,7 +488,7 @@ public sealed class RadarRenderer : IDisposable
     {
         const float diamondSize = 5f;
 
-        foreach (var entry in entries)
+        foreach (ShownPathEntry entry in entries)
         {
             if (entry.Waypoints.Count == 0 && entry.Tail is null)
             {
@@ -497,41 +497,41 @@ public sealed class RadarRenderer : IDisposable
 
             int paintIdx = PaintIndexForColor(entry.Color);
 
-            var linePaint = _pathLinePaints[paintIdx];
-            var wpPaint = _pathWaypointPaints[paintIdx];
-            var labelPaint = _pathLabelPaints[paintIdx];
-            var restrictionPaint = _pathRestrictionPaints[paintIdx];
-            var leaderPaint = _pathLeaderPaints[paintIdx];
-            var tailPaint = _pathTailPaints[paintIdx];
+            SKPaint linePaint = _pathLinePaints[paintIdx];
+            SKPaint wpPaint = _pathWaypointPaints[paintIdx];
+            SKPaint labelPaint = _pathLabelPaints[paintIdx];
+            SKPaint restrictionPaint = _pathRestrictionPaints[paintIdx];
+            SKPaint leaderPaint = _pathLeaderPaints[paintIdx];
+            SKPaint tailPaint = _pathTailPaints[paintIdx];
 
             // Dashed leader from aircraft to first waypoint — only for the segment that
             // represents what the aircraft is currently flying (ancillary segments like the
             // expected approach are deliberately disconnected from the aircraft target).
             if (entry.DrawLeader && entry.Waypoints.Count > 0)
             {
-                var (ax, ay) = vp.LatLonToScreen(entry.AircraftLat, entry.AircraftLon);
-                var (fx, fy) = vp.LatLonToScreen(entry.Waypoints[0].Lat, entry.Waypoints[0].Lon);
+                (float ax, float ay) = vp.LatLonToScreen(entry.AircraftLat, entry.AircraftLon);
+                (float fx, float fy) = vp.LatLonToScreen(entry.Waypoints[0].Lat, entry.Waypoints[0].Lon);
                 canvas.DrawLine(ax, ay, fx, fy, leaderPaint);
             }
 
             // Solid polyline connecting waypoints
             for (int i = 1; i < entry.Waypoints.Count; i++)
             {
-                var (x1, y1) = vp.LatLonToScreen(entry.Waypoints[i - 1].Lat, entry.Waypoints[i - 1].Lon);
-                var (x2, y2) = vp.LatLonToScreen(entry.Waypoints[i].Lat, entry.Waypoints[i].Lon);
+                (float x1, float y1) = vp.LatLonToScreen(entry.Waypoints[i - 1].Lat, entry.Waypoints[i - 1].Lon);
+                (float x2, float y2) = vp.LatLonToScreen(entry.Waypoints[i].Lat, entry.Waypoints[i].Lon);
                 canvas.DrawLine(x1, y1, x2, y2, linePaint);
             }
 
             // Diamond markers + fix name labels + crossing-restriction labels. Synthetic arc vertices
             // (empty name) are polyline points only — no diamond, label, or restriction hangs off them.
-            foreach (var wp in entry.Waypoints)
+            foreach (DrawnWaypoint wp in entry.Waypoints)
             {
                 if (string.IsNullOrEmpty(wp.ResolvedName))
                 {
                     continue;
                 }
 
-                var (wx, wy) = vp.LatLonToScreen(wp.Lat, wp.Lon);
+                (float wx, float wy) = vp.LatLonToScreen(wp.Lat, wp.Lon);
                 canvas.DrawLine(wx, wy - diamondSize, wx + diamondSize, wy, wpPaint);
                 canvas.DrawLine(wx + diamondSize, wy, wx, wy + diamondSize, wpPaint);
                 canvas.DrawLine(wx, wy + diamondSize, wx - diamondSize, wy, wpPaint);
@@ -543,7 +543,7 @@ public sealed class RadarRenderer : IDisposable
                 if (wp.RestrictionLines is { Count: > 0 } lines)
                 {
                     float ly = wy + 8;
-                    foreach (var line in lines)
+                    foreach (string line in lines)
                     {
                         canvas.DrawText(line, wx + 8, ly, SKTextAlign.Left, _pathRestrictionFont, restrictionPaint);
                         ly += 11;
@@ -574,31 +574,31 @@ public sealed class RadarRenderer : IDisposable
 
     private void DrawShownShapes(SKCanvas canvas, MapViewport vp, IReadOnlyList<ShownShapeEntry> entries)
     {
-        foreach (var entry in entries)
+        foreach (ShownShapeEntry entry in entries)
         {
-            var shape = entry.Shape;
+            NavRouteShapeDto shape = entry.Shape;
             int paintIdx = PaintIndexForColor(entry.Color);
 
             // Coded-leg vectors are open-ended (a heading flown until an altitude/distance/radial), so
             // they draw dashed like a vector tail. Holds and procedure turns are definite flown paths,
             // so they draw solid. A military route corridor is a boundary rather than a path — it is
             // where other traffic must not be (7110.65 §9-2-6.d) — so it draws dashed too.
-            var linePaint = shape.Kind is NavRouteShapeKind.CodedLegVector or NavRouteShapeKind.MilitaryRouteCorridor
+            SKPaint linePaint = shape.Kind is NavRouteShapeKind.CodedLegVector or NavRouteShapeKind.MilitaryRouteCorridor
                 ? _pathTailPaints[paintIdx]
                 : _pathLinePaints[paintIdx];
 
             for (int i = 1; i < shape.Points.Count; i++)
             {
-                var (x1, y1) = vp.LatLonToScreen(shape.Points[i - 1][0], shape.Points[i - 1][1]);
-                var (x2, y2) = vp.LatLonToScreen(shape.Points[i][0], shape.Points[i][1]);
+                (float x1, float y1) = vp.LatLonToScreen(shape.Points[i - 1][0], shape.Points[i - 1][1]);
+                (float x2, float y2) = vp.LatLonToScreen(shape.Points[i][0], shape.Points[i][1]);
                 canvas.DrawLine(x1, y1, x2, y2, linePaint);
             }
 
             if (shape.Labels is { Count: > 0 } labels && shape.LabelLat is { } labelLat && shape.LabelLon is { } labelLon)
             {
-                var (lx, ly) = vp.LatLonToScreen(labelLat, labelLon);
+                (float lx, float ly) = vp.LatLonToScreen(labelLat, labelLon);
                 float ty = ly - 4;
-                foreach (var line in labels)
+                foreach (string line in labels)
                 {
                     canvas.DrawText(line, lx + 8, ty, SKTextAlign.Left, _pathRestrictionFont, _pathRestrictionPaints[paintIdx]);
                     ty += 11;
@@ -612,10 +612,10 @@ public sealed class RadarRenderer : IDisposable
         // Tail headings come in magnetic — convert to true so the projected endpoint matches
         // the published radar vector regardless of local declination.
         double trueHeadingDeg = MagneticDeclination.MagneticToTrue(tail.HeadingMag, tail.FromLat, tail.FromLon);
-        var (endLat, endLon) = GeoMath.ProjectPoint(tail.FromLat, tail.FromLon, new TrueHeading(trueHeadingDeg), tail.LengthNm);
+        (double endLat, double endLon) = GeoMath.ProjectPoint(tail.FromLat, tail.FromLon, new TrueHeading(trueHeadingDeg), tail.LengthNm);
 
-        var (sx, sy) = vp.LatLonToScreen(tail.FromLat, tail.FromLon);
-        var (ex, ey) = vp.LatLonToScreen(endLat, endLon);
+        (float sx, float sy) = vp.LatLonToScreen(tail.FromLat, tail.FromLon);
+        (float ex, float ey) = vp.LatLonToScreen(endLat, endLon);
         canvas.DrawLine(sx, sy, ex, ey, linePaint);
 
         // Arrowhead at the tip — isoceles triangle rotated to the line's screen-space
@@ -661,11 +661,11 @@ public sealed class RadarRenderer : IDisposable
             Color = new SKColor(0x00, 0xC8, 0x00), // STARS green
             IsAntialias = true,
         };
-        using var font = PlatformHelper.MonospaceFont(14);
+        using SKFont font = PlatformHelper.MonospaceFont(14);
 
         float y = 20;
         const float lineHeight = 18;
-        foreach (var station in stations)
+        foreach (WeatherDisplayInfo station in stations)
         {
             canvas.DrawText(station.ToDisplayString(), 10, y, SKTextAlign.Left, font, paint);
             y += lineHeight;
@@ -679,11 +679,11 @@ public sealed class RadarRenderer : IDisposable
             return;
         }
 
-        var (cx, cy) = vp.LatLonToScreen(centerLat, centerLon);
+        (float cx, float cy) = vp.LatLonToScreen(centerLat, centerLon);
 
         // Pixels-per-nm: convert one step to screen pixels
-        var stepDeg = rangeRingSizeNm / 60.0;
-        var (_, edgeY) = vp.LatLonToScreen(centerLat + stepDeg, centerLon);
+        double stepDeg = rangeRingSizeNm / 60.0;
+        (float _, float edgeY) = vp.LatLonToScreen(centerLat + stepDeg, centerLon);
         float stepPx = MathF.Abs(cy - edgeY);
 
         if (stepPx < 1)
@@ -714,9 +714,9 @@ public sealed class RadarRenderer : IDisposable
         const float programmedCrossSize = 6f;
         const float margin = 50f;
 
-        foreach (var fix in fixes)
+        foreach ((string Name, double Lat, double Lon) fix in fixes)
         {
-            var (sx, sy) = vp.LatLonToScreen(fix.Lat, fix.Lon);
+            (float sx, float sy) = vp.LatLonToScreen(fix.Lat, fix.Lon);
 
             if (sx < -margin || sx > vp.PixelWidth + margin || sy < -margin || sy > vp.PixelHeight + margin)
             {
@@ -724,7 +724,7 @@ public sealed class RadarRenderer : IDisposable
             }
 
             bool isProgrammed = programmedFixNames is not null && programmedFixNames.Contains(fix.Name);
-            var paint = isProgrammed ? _programmedFixPaint : _fixPaint;
+            SKPaint paint = isProgrammed ? _programmedFixPaint : _fixPaint;
             float size = isProgrammed ? programmedCrossSize : crossSize;
 
             canvas.DrawLine(sx - size, sy, sx + size, sy, paint);
@@ -732,8 +732,8 @@ public sealed class RadarRenderer : IDisposable
 
             if (isProgrammed || fix.Name == hoveredFixName)
             {
-                var labelPaint = isProgrammed ? _programmedFixLabelPaint : _fixLabelPaint;
-                var labelFont = isProgrammed ? _programmedFixLabelFont : _fixLabelFont;
+                SKPaint labelPaint = isProgrammed ? _programmedFixLabelPaint : _fixLabelPaint;
+                SKFont labelFont = isProgrammed ? _programmedFixLabelFont : _fixLabelFont;
                 canvas.DrawText(fix.Name, sx + 6, sy - 2, SKTextAlign.Left, labelFont, labelPaint);
             }
         }
@@ -744,9 +744,9 @@ public sealed class RadarRenderer : IDisposable
         const float size = 6f;
         const float margin = 50f;
 
-        foreach (var marker in markers)
+        foreach ((string Name, double Lat, double Lon) marker in markers)
         {
-            var (sx, sy) = vp.LatLonToScreen(marker.Lat, marker.Lon);
+            (float sx, float sy) = vp.LatLonToScreen(marker.Lat, marker.Lon);
 
             if (sx < -margin || sx > vp.PixelWidth + margin || sy < -margin || sy > vp.PixelHeight + margin)
             {
@@ -781,25 +781,25 @@ public sealed class RadarRenderer : IDisposable
         // Dashed line from aircraft position to first waypoint
         if (originLatLon is { } origin)
         {
-            var (ox, oy) = vp.LatLonToScreen(origin.Lat, origin.Lon);
-            var (fx, fy) = vp.LatLonToScreen(waypoints[0].Lat, waypoints[0].Lon);
+            (float ox, float oy) = vp.LatLonToScreen(origin.Lat, origin.Lon);
+            (float fx, float fy) = vp.LatLonToScreen(waypoints[0].Lat, waypoints[0].Lon);
             canvas.DrawLine(ox, oy, fx, fy, _rubberBandPaint);
         }
 
         // Solid lines connecting consecutive waypoints
         for (int i = 1; i < waypoints.Count; i++)
         {
-            var (x1, y1) = vp.LatLonToScreen(waypoints[i - 1].Lat, waypoints[i - 1].Lon);
-            var (x2, y2) = vp.LatLonToScreen(waypoints[i].Lat, waypoints[i].Lon);
+            (float x1, float y1) = vp.LatLonToScreen(waypoints[i - 1].Lat, waypoints[i - 1].Lon);
+            (float x2, float y2) = vp.LatLonToScreen(waypoints[i].Lat, waypoints[i].Lon);
             canvas.DrawLine(x1, y1, x2, y2, _routeLinePaint);
         }
 
         // Rubber-band dashed line from last waypoint to cursor
         if (rubberBandTarget is { } target)
         {
-            var last = waypoints[^1];
-            var (lx, ly) = vp.LatLonToScreen(last.Lat, last.Lon);
-            var (cx, cy) = vp.LatLonToScreen(target.Lat, target.Lon);
+            DrawnWaypoint last = waypoints[^1];
+            (float lx, float ly) = vp.LatLonToScreen(last.Lat, last.Lon);
+            (float cx, float cy) = vp.LatLonToScreen(target.Lat, target.Lon);
             canvas.DrawLine(lx, ly, cx, cy, _rubberBandPaint);
 
             if (rubberBandLabel is not null)
@@ -811,8 +811,8 @@ public sealed class RadarRenderer : IDisposable
         // Diamond markers + labels at each waypoint
         for (int i = 0; i < waypoints.Count; i++)
         {
-            var wp = waypoints[i];
-            var (sx, sy) = vp.LatLonToScreen(wp.Lat, wp.Lon);
+            DrawnWaypoint wp = waypoints[i];
+            (float sx, float sy) = vp.LatLonToScreen(wp.Lat, wp.Lon);
 
             using var path = new SKPath();
             path.MoveTo(sx, sy - waypointSize);
@@ -825,9 +825,9 @@ public sealed class RadarRenderer : IDisposable
             canvas.DrawText(wp.ResolvedName, sx + 8, sy - 2, SKTextAlign.Left, _routeLabelFont, _routeLabelPaint);
 
             // Show condition summary below the fix name
-            if (waypointConditions is not null && waypointConditions.TryGetValue(i, out var cond))
+            if (waypointConditions is not null && waypointConditions.TryGetValue(i, out WaypointCondition? cond))
             {
-                var summary = cond.ToSummary();
+                string summary = cond.ToSummary();
                 if (summary.Length > 0)
                 {
                     canvas.DrawText(summary, sx + 8, sy + 11, SKTextAlign.Left, _routeConditionLabelFont, _routeConditionLabelPaint);
@@ -844,8 +844,8 @@ public sealed class RadarRenderer : IDisposable
         string? label
     )
     {
-        var (ox, oy) = vp.LatLonToScreen(origin.Lat, origin.Lon);
-        var (cx, cy) = vp.LatLonToScreen(target.Lat, target.Lon);
+        (float ox, float oy) = vp.LatLonToScreen(origin.Lat, origin.Lon);
+        (float cx, float cy) = vp.LatLonToScreen(target.Lat, target.Lon);
         canvas.DrawLine(ox, oy, cx, cy, _rubberBandPaint);
 
         if (label is not null)

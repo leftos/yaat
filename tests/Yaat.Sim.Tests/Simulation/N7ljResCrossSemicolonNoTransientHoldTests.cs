@@ -1,4 +1,6 @@
 using Xunit;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -33,7 +35,7 @@ public class N7ljResCrossSemicolonNoTransientHoldTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
@@ -51,8 +53,8 @@ public class N7ljResCrossSemicolonNoTransientHoldTests(ITestOutputHelper output)
     [Fact]
     public void ResSemicolonCross28L_DoesNotInstallTransientHoldShortAt28L()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -61,13 +63,13 @@ public class N7ljResCrossSemicolonNoTransientHoldTests(ITestOutputHelper output)
         // t=1300s — N7LJ is holding short of 28R/10L on B.
         engine.Replay(recording, 1300);
 
-        var ac = engine.FindAircraft("N7LJ");
+        AircraftState? ac = engine.FindAircraft("N7LJ");
         Assert.NotNull(ac);
         var holdPhase = ac.Phases?.CurrentPhase as HoldingShortPhase;
         Assert.NotNull(holdPhase);
         Assert.Equal("28R/10L", holdPhase.HoldShort.TargetName);
 
-        var result = engine.SendCommand("N7LJ", "RES; CROSS 28L");
+        CommandResult result = engine.SendCommand("N7LJ", "RES; CROSS 28L");
         Assert.True(result.Success, $"RES; CROSS 28L should succeed, got: {result.Message}");
 
         // Tick through both crossings. At no point should a HoldingShortPhase for

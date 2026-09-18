@@ -30,15 +30,15 @@ internal static class StickyScroll
             return null;
         }
 
-        var prevOffsetY = offsetY - offsetDeltaY;
-        var prevMax = Math.Max(0, (extentHeight - extentDeltaY) - (viewportHeight - viewportDeltaY));
-        var wasAtBottom = prevOffsetY >= (prevMax - epsilon);
+        double prevOffsetY = offsetY - offsetDeltaY;
+        double prevMax = Math.Max(0, (extentHeight - extentDeltaY) - (viewportHeight - viewportDeltaY));
+        bool wasAtBottom = prevOffsetY >= (prevMax - epsilon);
         if (!wasAtBottom)
         {
             return null;
         }
 
-        var newMax = Math.Max(0, extentHeight - viewportHeight);
+        double newMax = Math.Max(0, extentHeight - viewportHeight);
         return offsetY < (newMax - epsilon) ? newMax : null;
     }
 }

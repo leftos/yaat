@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -52,8 +53,8 @@ public class Issue177HelicopterAirTaxiTests(ITestOutputHelper output)
 
     private static LatLon? Ron1Position()
     {
-        var layout = new TestAirportGroundData().GetLayout("OAK");
-        var node = layout?.FindSpotByName("RON1");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        GroundNode? node = layout?.FindSpotByName("RON1");
         return node is null ? null : node.Position;
     }
 
@@ -64,9 +65,9 @@ public class Issue177HelicopterAirTaxiTests(ITestOutputHelper output)
     [Fact]
     public void N101H_AirTaxi_ClosesOnRon1AndDescends()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        var ron1 = Ron1Position();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
+        LatLon? ron1 = Ron1Position();
         if (recording is null || engine is null || ron1 is null)
         {
             return;
@@ -74,7 +75,7 @@ public class Issue177HelicopterAirTaxiTests(ITestOutputHelper output)
 
         engine.Replay(recording, 25);
 
-        var ac = engine.FindAircraft(Callsign);
+        AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.IsType<AirTaxiPhase>(ac.Phases?.CurrentPhase);
 
@@ -131,8 +132,8 @@ public class Issue177HelicopterAirTaxiTests(ITestOutputHelper output)
     [Fact]
     public void N101H_AirTaxi_HppHoversInPlace()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -141,7 +142,7 @@ public class Issue177HelicopterAirTaxiTests(ITestOutputHelper output)
         engine.Replay(recording, 25);
         Assert.IsType<AirTaxiPhase>(engine.FindAircraft(Callsign)?.Phases?.CurrentPhase);
 
-        var result = engine.SendCommand(Callsign, "HPP");
+        CommandResult result = engine.SendCommand(Callsign, "HPP");
         Assert.True(result.Success, $"HPP should hover the air-taxiing heli: {result.Message}");
         Assert.IsType<VfrHoldPhase>(engine.FindAircraft(Callsign)?.Phases?.CurrentPhase);
     }
@@ -149,8 +150,8 @@ public class Issue177HelicopterAirTaxiTests(ITestOutputHelper output)
     [Fact]
     public void N101H_AirTaxi_HoldRejectedAirborne()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -159,7 +160,7 @@ public class Issue177HelicopterAirTaxiTests(ITestOutputHelper output)
         engine.Replay(recording, 25);
         Assert.IsType<AirTaxiPhase>(engine.FindAircraft(Callsign)?.Phases?.CurrentPhase);
 
-        var result = engine.SendCommand(Callsign, "HOLD");
+        CommandResult result = engine.SendCommand(Callsign, "HOLD");
         Assert.False(result.Success, "Ground HOLD should not apply to an airborne air-taxiing heli");
         Assert.Contains("on the ground", result.Message!);
         Assert.IsType<AirTaxiPhase>(engine.FindAircraft(Callsign)?.Phases?.CurrentPhase);

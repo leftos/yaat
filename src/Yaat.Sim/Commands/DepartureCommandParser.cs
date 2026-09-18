@@ -20,8 +20,8 @@ internal static class DepartureCommandParser
             return PR.Ok(new ClearedForTakeoffCommand(new DefaultDeparture()));
         }
 
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var (cautionWakeTurbulence, immediate) = StripTowerModifiers(ref tokens);
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        (bool cautionWakeTurbulence, bool immediate) = StripTowerModifiers(ref tokens);
         if (tokens.Length == 0)
         {
             return PR.Ok(
@@ -29,12 +29,12 @@ internal static class DepartureCommandParser
             );
         }
 
-        var mod = tokens[0].ToUpperInvariant();
+        string mod = tokens[0].ToUpperInvariant();
 
         // Special case: TLDCT/TRDCT/DCT require a fix name (and optional altitude after)
         if (mod is "TLDCT" or "TRDCT" or "DCT")
         {
-            var direction = mod switch
+            TurnDirection? direction = mod switch
             {
                 "TLDCT" => (TurnDirection?)TurnDirection.Left,
                 "TRDCT" => TurnDirection.Right,
@@ -44,7 +44,7 @@ internal static class DepartureCommandParser
         }
 
         // Try to parse as a named modifier (MRC, MRD, RH, OC, H270, etc.)
-        var departure = ParseCtoModifier(mod);
+        DepartureInstruction? departure = ParseCtoModifier(mod);
 
         // For closed traffic: CTO MLT [runway] [altitude]
         if (departure is ClosedTrafficDeparture ct)
@@ -54,7 +54,7 @@ internal static class DepartureCommandParser
 
         if (departure is not null)
         {
-            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTO", out var alt, out var error))
+            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTO", out int? alt, out string? error))
             {
                 return PR.Fail(error);
             }
@@ -63,9 +63,9 @@ internal static class DepartureCommandParser
         }
 
         // Bare number: first number is heading (1-360), second is altitude
-        if (int.TryParse(mod, out var bareNum) && bareNum >= 1 && bareNum <= 360)
+        if (int.TryParse(mod, out int bareNum) && bareNum >= 1 && bareNum <= 360)
         {
-            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTO", out var alt, out var error))
+            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTO", out int? alt, out string? error))
             {
                 return PR.Fail(error);
             }
@@ -93,7 +93,7 @@ internal static class DepartureCommandParser
             return PR.Ok(new LineUpAndWaitCommand());
         }
 
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         bool withoutDelay = TryStripImmediate(ref tokens);
         if (tokens.Length > 0)
         {
@@ -151,7 +151,7 @@ internal static class DepartureCommandParser
             return false;
         }
 
-        var last = tokens[^1];
+        string last = tokens[^1];
         bool match =
             last.Equals("IMM", StringComparison.OrdinalIgnoreCase)
             || last.Equals("WD", StringComparison.OrdinalIgnoreCase)
@@ -208,8 +208,8 @@ internal static class DepartureCommandParser
             return false;
         }
 
-        var altToken = tokens[consumed];
-        var resolved = AltitudeResolver.Resolve(altToken);
+        string altToken = tokens[consumed];
+        int? resolved = AltitudeResolver.Resolve(altToken);
         if (resolved is null)
         {
             error = $"{verb} does not understand '{altToken}' — expected an altitude";
@@ -229,27 +229,27 @@ internal static class DepartureCommandParser
         // Relative turns: MRC (90R), MRD (180R), MR{N}, MLC, MLD, ML{N}
         if (mod.StartsWith("MR", StringComparison.Ordinal) && mod.Length > 2)
         {
-            var suffix = mod[2..];
+            string suffix = mod[2..];
             return suffix switch
             {
                 "C" => new PatternExitDeparture(PatternEntryLeg.Crosswind, PatternDirection.Right),
                 "D" => new PatternExitDeparture(PatternEntryLeg.Downwind, PatternDirection.Right),
                 "H" => new RunwayHeadingDeparture(),
                 "T" => new ClosedTrafficDeparture(PatternDirection.Right, null, null),
-                _ when int.TryParse(suffix, out var deg) && deg >= 1 && deg <= 359 => new RelativeTurnDeparture(deg, TurnDirection.Right),
+                _ when int.TryParse(suffix, out int deg) && deg >= 1 && deg <= 359 => new RelativeTurnDeparture(deg, TurnDirection.Right),
                 _ => null,
             };
         }
 
         if (mod.StartsWith("ML", StringComparison.Ordinal) && mod.Length > 2)
         {
-            var suffix = mod[2..];
+            string suffix = mod[2..];
             return suffix switch
             {
                 "C" => new PatternExitDeparture(PatternEntryLeg.Crosswind, PatternDirection.Left),
                 "D" => new PatternExitDeparture(PatternEntryLeg.Downwind, PatternDirection.Left),
                 "T" => new ClosedTrafficDeparture(PatternDirection.Left, null, null),
-                _ when int.TryParse(suffix, out var deg) && deg >= 1 && deg <= 359 => new RelativeTurnDeparture(deg, TurnDirection.Left),
+                _ when int.TryParse(suffix, out int deg) && deg >= 1 && deg <= 359 => new RelativeTurnDeparture(deg, TurnDirection.Left),
                 _ => null,
             };
         }
@@ -277,28 +277,28 @@ internal static class DepartureCommandParser
         }
 
         // Fly heading: H{N}, RH{N}, LH{N}, RT{N}, LT{N}
-        if (mod.StartsWith("H", StringComparison.Ordinal) && mod.Length > 1 && int.TryParse(mod[1..], out var hHdg) && hHdg >= 1 && hHdg <= 360)
+        if (mod.StartsWith("H", StringComparison.Ordinal) && mod.Length > 1 && int.TryParse(mod[1..], out int hHdg) && hHdg >= 1 && hHdg <= 360)
         {
             return new FlyHeadingDeparture(new MagneticHeading(hHdg), null);
         }
 
         // RH{digits} — must have digits to distinguish from bare RH (runway heading)
-        if (mod.StartsWith("RH", StringComparison.Ordinal) && mod.Length > 2 && int.TryParse(mod[2..], out var rhHdg) && rhHdg >= 1 && rhHdg <= 360)
+        if (mod.StartsWith("RH", StringComparison.Ordinal) && mod.Length > 2 && int.TryParse(mod[2..], out int rhHdg) && rhHdg >= 1 && rhHdg <= 360)
         {
             return new FlyHeadingDeparture(new MagneticHeading(rhHdg), TurnDirection.Right);
         }
 
-        if (mod.StartsWith("LH", StringComparison.Ordinal) && mod.Length > 2 && int.TryParse(mod[2..], out var lhHdg) && lhHdg >= 1 && lhHdg <= 360)
+        if (mod.StartsWith("LH", StringComparison.Ordinal) && mod.Length > 2 && int.TryParse(mod[2..], out int lhHdg) && lhHdg >= 1 && lhHdg <= 360)
         {
             return new FlyHeadingDeparture(new MagneticHeading(lhHdg), TurnDirection.Left);
         }
 
-        if (mod.StartsWith("RT", StringComparison.Ordinal) && mod.Length > 2 && int.TryParse(mod[2..], out var rtHdg) && rtHdg >= 1 && rtHdg <= 360)
+        if (mod.StartsWith("RT", StringComparison.Ordinal) && mod.Length > 2 && int.TryParse(mod[2..], out int rtHdg) && rtHdg >= 1 && rtHdg <= 360)
         {
             return new FlyHeadingDeparture(new MagneticHeading(rtHdg), TurnDirection.Right);
         }
 
-        if (mod.StartsWith("LT", StringComparison.Ordinal) && mod.Length > 2 && int.TryParse(mod[2..], out var ltHdg) && ltHdg >= 1 && ltHdg <= 360)
+        if (mod.StartsWith("LT", StringComparison.Ordinal) && mod.Length > 2 && int.TryParse(mod[2..], out int ltHdg) && ltHdg >= 1 && ltHdg <= 360)
         {
             return new FlyHeadingDeparture(new MagneticHeading(ltHdg), TurnDirection.Left);
         }
@@ -339,7 +339,7 @@ internal static class DepartureCommandParser
     /// </summary>
     internal static PatternModifierArgs ParsePatternModifierArgs(string[] tokens, int start)
     {
-        var resolution = CommandArgumentResolver.Resolve(tokens[start..], PatternModifierShapes);
+        CommandArgumentResolution resolution = CommandArgumentResolver.Resolve(tokens[start..], PatternModifierShapes);
         if (resolution.Failure is { } failure)
         {
             return new PatternModifierArgs(null, null, null, failure);
@@ -360,7 +360,7 @@ internal static class DepartureCommandParser
     private static PR ParseCtoClosedTraffic(ClosedTrafficDeparture ct, string[] tokens)
     {
         // tokens[0] = "MLT"/"MRT", rest are runway and/or altitude
-        var args = ParsePatternModifierArgs(tokens, 1);
+        PatternModifierArgs args = ParsePatternModifierArgs(tokens, 1);
         if (args.Failure is { } failure)
         {
             return PR.Fail($"CTO {tokens[0].ToUpperInvariant()} {failure}");
@@ -384,18 +384,18 @@ internal static class DepartureCommandParser
     internal static PR ParseCtoDct(string[] tokens, TurnDirection? direction)
     {
         // tokens[0] = "DCT"/"TLDCT"/"TRDCT", tokens[1] = fix name, tokens[2] = optional altitude
-        var keyword = tokens[0].ToUpperInvariant();
+        string keyword = tokens[0].ToUpperInvariant();
         if (tokens.Length < 2)
         {
             return PR.Fail($"{keyword} requires a fix name");
         }
 
-        var navDb = NavigationDatabase.Instance;
-        var fixName = tokens[1].ToUpperInvariant();
-        var pos = navDb.GetFixPosition(fixName);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string fixName = tokens[1].ToUpperInvariant();
+        (double Lat, double Lon)? pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
-            var frd = FrdResolver.Resolve(fixName, navDb);
+            LatLon? frd = FrdResolver.Resolve(fixName, navDb);
             if (frd is null)
             {
                 return PR.Fail($"{keyword} does not understand '{fixName}' — unknown fix");
@@ -403,7 +403,7 @@ internal static class DepartureCommandParser
             pos = (frd.Value.Lat, frd.Value.Lon);
         }
 
-        if (!TryResolveTrailingAltitude(tokens, consumed: 2, keyword, out var alt, out var error))
+        if (!TryResolveTrailingAltitude(tokens, consumed: 2, keyword, out int? alt, out string? error))
         {
             return PR.Fail(error);
         }
@@ -424,18 +424,18 @@ internal static class DepartureCommandParser
             return PR.Ok(new ClearedTakeoffPresentCommand(new PresentPositionHoverDeparture()));
         }
 
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return PR.Ok(new ClearedTakeoffPresentCommand(new PresentPositionHoverDeparture()));
         }
 
-        var mod = tokens[0].ToUpperInvariant();
+        string mod = tokens[0].ToUpperInvariant();
 
         // Present-position AGL hover: CTOPP +001 / +002 (no airport — relative to present position).
         if (mod.StartsWith('+'))
         {
-            var hoverAgl = ParsePresentPositionAgl(mod);
+            int? hoverAgl = ParsePresentPositionAgl(mod);
             if (hoverAgl is null)
             {
                 return PR.Fail($"CTOPP does not understand altitude '{mod}' — use +0XX feet AGL (e.g. +001 = 100 ft)");
@@ -462,7 +462,7 @@ internal static class DepartureCommandParser
             return ToCtopp(ParseCtoDct(tokens, null));
         }
 
-        var departure = ParseCtoModifier(mod);
+        DepartureInstruction? departure = ParseCtoModifier(mod);
 
         if (departure is RunwayHeadingDeparture or ClosedTrafficDeparture or RelativeTurnDeparture or PatternExitDeparture)
         {
@@ -471,7 +471,7 @@ internal static class DepartureCommandParser
 
         if (departure is OnCourseDeparture)
         {
-            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTOPP", out var alt, out var error))
+            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTOPP", out int? alt, out string? error))
             {
                 return PR.Fail(error);
             }
@@ -481,7 +481,7 @@ internal static class DepartureCommandParser
 
         if (departure is FlyHeadingDeparture fh)
         {
-            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTOPP", out var alt, out var error))
+            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTOPP", out int? alt, out string? error))
             {
                 return PR.Fail(error);
             }
@@ -489,9 +489,9 @@ internal static class DepartureCommandParser
             return PR.Ok(new ClearedTakeoffPresentCommand(fh, alt));
         }
 
-        if (int.TryParse(mod, out var bareNum) && bareNum >= 1 && bareNum <= 360)
+        if (int.TryParse(mod, out int bareNum) && bareNum >= 1 && bareNum <= 360)
         {
-            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTOPP", out var alt, out var error))
+            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTOPP", out int? alt, out string? error))
             {
                 return PR.Fail(error);
             }
@@ -524,7 +524,7 @@ internal static class DepartureCommandParser
             return null;
         }
 
-        if (!int.TryParse(token[1..], out var digits) || digits <= 0)
+        if (!int.TryParse(token[1..], out int digits) || digits <= 0)
         {
             return null;
         }
@@ -542,7 +542,7 @@ internal static class DepartureCommandParser
             return PR.Ok(factory(null));
         }
 
-        var token = arg.Trim();
+        string token = arg.Trim();
         if (token.Length == 0)
         {
             return PR.Ok(factory(null));
@@ -564,17 +564,17 @@ internal static class DepartureCommandParser
             return PR.Ok(right ? new EnterRightBaseCommand() : new EnterLeftBaseCommand());
         }
 
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         if (tokens.Length == 1)
         {
-            var token = tokens[0].Trim();
+            string token = tokens[0].Trim();
             if (CommandParser.IsRunwayArg(token))
             {
                 return PR.Ok(right ? new EnterRightBaseCommand(token.ToUpperInvariant()) : new EnterLeftBaseCommand(token.ToUpperInvariant()));
             }
 
-            if (double.TryParse(token, out var dist) && dist > 0)
+            if (double.TryParse(token, out double dist) && dist > 0)
             {
                 return PR.Ok(right ? new EnterRightBaseCommand(FinalDistanceNm: dist) : new EnterLeftBaseCommand(FinalDistanceNm: dist));
             }
@@ -584,8 +584,8 @@ internal static class DepartureCommandParser
 
         if (tokens.Length == 2)
         {
-            var rwy = tokens[0].Trim().ToUpperInvariant();
-            if (!double.TryParse(tokens[1].Trim(), out var dist2) || dist2 <= 0)
+            string rwy = tokens[0].Trim().ToUpperInvariant();
+            if (!double.TryParse(tokens[1].Trim(), out double dist2) || dist2 <= 0)
             {
                 return PR.Fail($"invalid base entry distance '{tokens[1]}'");
             }

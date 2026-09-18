@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
+using Yaat.Client.Views.Radar;
 using Yaat.GuideCapture.Capture;
 
 namespace Yaat.GuideCapture.Scenes;
@@ -30,7 +31,7 @@ internal sealed class RadarViewPopoutScene : ScenarioSceneBase
         Dispatcher.UIThread.RunJobs();
 
         var main = (MainWindow)window;
-        var radar = main.RadarViewWindow ?? throw new InvalidOperationException("RadarViewWindow was not created by MainWindow.");
+        RadarViewWindow radar = main.RadarViewWindow ?? throw new InvalidOperationException("RadarViewWindow was not created by MainWindow.");
         radar.Width = 1400;
         radar.Height = 900;
         Dispatcher.UIThread.RunJobs();

@@ -20,7 +20,7 @@ public class Issue172TaxiReadbackTests
     [Fact]
     public void Taxi_PathOnly_VoicesRoute()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["B", "C"], []));
+        string? result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["B", "C"], []));
         Assert.Equal("taxi via bravo, charlie", result);
     }
 
@@ -28,7 +28,7 @@ public class Issue172TaxiReadbackTests
     public void Taxi_WithTurnHints_VoicesTurns()
     {
         var taxi = new TaxiCommand(["B", "C"], [], PathTurnHints: [TurnDirection.Right, null]);
-        var result = PhraseologyVerbalizer.Verbalize(taxi);
+        string? result = PhraseologyVerbalizer.Verbalize(taxi);
         Assert.Equal("taxi via right on bravo, charlie", result);
     }
 
@@ -36,14 +36,14 @@ public class Issue172TaxiReadbackTests
     public void Taxi_LeftTurnMidRoute_VoicesLeftTurn()
     {
         var taxi = new TaxiCommand(["A", "B", "C"], [], PathTurnHints: [null, null, TurnDirection.Left]);
-        var result = PhraseologyVerbalizer.Verbalize(taxi);
+        string? result = PhraseologyVerbalizer.Verbalize(taxi);
         Assert.Equal("taxi via alpha, bravo, left on charlie", result);
     }
 
     [Fact]
     public void Taxi_WithHoldShort_VoicesHoldShort()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["B", "C"], [HoldShortTarget.Parse("28R")]));
+        string? result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["B", "C"], [HoldShortTarget.Parse("28R")]));
         Assert.Equal("taxi via bravo, charlie, hold short of runway two eight right", result);
     }
 
@@ -51,7 +51,7 @@ public class Issue172TaxiReadbackTests
     public void Taxi_NodeRefOnly_ProducesNoReadback()
     {
         // A draw-route debug taxi (node refs only) has no spoken form.
-        var result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["#42", "#18"], []));
+        string? result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["#42", "#18"], []));
         Assert.Null(result);
     }
 }

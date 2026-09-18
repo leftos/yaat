@@ -31,7 +31,8 @@ public static class CabStaffing
             return [];
         }
 
-        var overrides = scope.Tick.Scenario.ControllerAi?.RoleOverrides ?? new Dictionary<string, ControlRole>(StringComparer.Ordinal);
+        IReadOnlyDictionary<string, ControlRole> overrides =
+            scope.Tick.Scenario.ControllerAi?.RoleOverrides ?? new Dictionary<string, ControlRole>(StringComparer.Ordinal);
         return AiPositionResolver.Catalog(config, airport, overrides).Where(p => (p.Role == ControlRole.Local) && Covers(p, airport)).ToList();
     }
 

@@ -25,9 +25,9 @@ public class HelicopterSpeedFloorTests
     public void Spd_BelowMinimum_FlooredForAirborneHeli()
     {
         TestVnasData.EnsureInitialized();
-        var heli = Heli();
+        AircraftState heli = Heli();
 
-        var result = FlightCommandHandler.ApplySpeed(new SpeedCommand(30), heli, TestDispatch.Context(Random.Shared));
+        CommandResult result = FlightCommandHandler.ApplySpeed(new SpeedCommand(30), heli, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(60, heli.Targets.TargetSpeed);
@@ -39,9 +39,9 @@ public class HelicopterSpeedFloorTests
     public void Spd_AboveMinimum_UnchangedForHeli()
     {
         TestVnasData.EnsureInitialized();
-        var heli = Heli();
+        AircraftState heli = Heli();
 
-        var result = FlightCommandHandler.ApplySpeed(new SpeedCommand(80), heli, TestDispatch.Context(Random.Shared));
+        CommandResult result = FlightCommandHandler.ApplySpeed(new SpeedCommand(80), heli, TestDispatch.Context(Random.Shared));
 
         Assert.Equal(80, heli.Targets.TargetSpeed);
         Assert.Contains("Speed 80", result.Message!);
@@ -51,9 +51,9 @@ public class HelicopterSpeedFloorTests
     public void ForceSpeed_BypassesHeliFloor()
     {
         TestVnasData.EnsureInitialized();
-        var heli = Heli();
+        AircraftState heli = Heli();
 
-        var result = FlightCommandHandler.ApplyForceSpeed(new ForceSpeedCommand(30), heli, TestDispatch.Context(Random.Shared));
+        CommandResult result = FlightCommandHandler.ApplyForceSpeed(new ForceSpeedCommand(30), heli, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(30, heli.Targets.TargetSpeed);
@@ -72,7 +72,7 @@ public class HelicopterSpeedFloorTests
             Altitude = 3000,
         };
 
-        var result = FlightCommandHandler.ApplySpeed(new SpeedCommand(30), jet, TestDispatch.Context(Random.Shared));
+        CommandResult result = FlightCommandHandler.ApplySpeed(new SpeedCommand(30), jet, TestDispatch.Context(Random.Shared));
 
         Assert.Equal(30, jet.Targets.TargetSpeed);
     }

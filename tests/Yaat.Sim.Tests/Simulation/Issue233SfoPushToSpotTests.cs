@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
@@ -46,8 +47,8 @@ public class Issue233SfoPushToSpotTests(ITestOutputHelper output)
     [Fact]
     public void SKW3396_PushToSpot5A_ReversesDirectly_NeverOntoTaxiwayA()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -56,14 +57,14 @@ public class Issue233SfoPushToSpotTests(ITestOutputHelper output)
         // SKW3396 spawns at t=400 (spawnDelay 400) at gate D2 and sits AtParking.
         engine.Replay(recording, 420);
 
-        var ac = engine.FindAircraft("SKW3396");
+        AircraftState? ac = engine.FindAircraft("SKW3396");
         Assert.NotNull(ac);
         Assert.IsType<AtParkingPhase>(ac.Phases?.CurrentPhase);
 
         // Isolate SKW3396: the routing fix is under test, not ground-conflict handling. The recorded
         // session has traffic packed around gate D2 (another aircraft stacked on the same stand) that
         // would stall any pushback via conflict detection, masking the trajectory.
-        foreach (var other in engine.World.GetSnapshot())
+        foreach (AircraftState other in engine.World.GetSnapshot())
         {
             if (!string.Equals(other.Callsign, "SKW3396", StringComparison.Ordinal))
             {
@@ -71,26 +72,26 @@ public class Issue233SfoPushToSpotTests(ITestOutputHelper output)
             }
         }
 
-        var layout = engine.World.GroundLayout;
+        AirportGroundLayout? layout = engine.World.GroundLayout;
         Assert.NotNull(layout);
 
-        var spot5A = layout.FindSpotNodeByName("5A");
+        GroundNode? spot5A = layout.FindSpotNodeByName("5A");
         Assert.NotNull(spot5A);
 
         // The taxiway-A junction the buggy route drives onto: nearest taxiway-A node to spot 5A.
-        var junctionA = layout
+        GroundNode? junctionA = layout
             .GetNodesOnTaxiway("A")
             .OrderBy(n => GeoMath.DistanceNm(n.Position.Lat, n.Position.Lon, spot5A.Position.Lat, spot5A.Position.Lon))
             .FirstOrDefault();
         Assert.NotNull(junctionA);
 
-        var startPos = ac.Position;
+        LatLon startPos = ac.Position;
         double startToSpotFt = GeoMath.DistanceNm(startPos.Lat, startPos.Lon, spot5A.Position.Lat, spot5A.Position.Lon) * GeoMath.FeetPerNm;
         double spotToJunctionFt =
             GeoMath.DistanceNm(spot5A.Position.Lat, spot5A.Position.Lon, junctionA.Position.Lat, junctionA.Position.Lon) * GeoMath.FeetPerNm;
         output.WriteLine($"start->spot5A = {startToSpotFt:F0}ft; spot5A->junctionA(#{junctionA.Id}) = {spotToJunctionFt:F0}ft");
 
-        var result = engine.SendCommand("SKW3396", "PUSH $5A");
+        CommandResult result = engine.SendCommand("SKW3396", "PUSH $5A");
         Assert.True(result.Success, $"PUSH $5A failed: {result.Message}");
         output.WriteLine($"Command: PUSH $5A -> {result.Message}; phase={ac.Phases?.CurrentPhase?.Name}");
 
@@ -99,7 +100,7 @@ public class Issue233SfoPushToSpotTests(ITestOutputHelper output)
         // traversed taxiway-A nodes (e.g. the junction). If a route is assigned, none of its nodes
         // may lie on taxiway A.
         var aNodeIds = layout.GetNodesOnTaxiway("A").Select(n => n.Id).ToHashSet();
-        var pushRoute = ac.Ground.AssignedTaxiRoute;
+        TaxiRoute? pushRoute = ac.Ground.AssignedTaxiRoute;
         if (pushRoute is not null)
         {
             bool routesOntoA = pushRoute.Segments.Any(s => aNodeIds.Contains(s.FromNodeId) || aNodeIds.Contains(s.ToNodeId));

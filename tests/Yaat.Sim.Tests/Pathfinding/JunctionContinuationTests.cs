@@ -40,7 +40,7 @@ public class JunctionContinuationTests
     [Fact]
     public void Fll_ResolveExplicitPath_TT4BB1_HasNoBacktrack()
     {
-        var layout = Layout("FLL");
+        AirportGroundLayout? layout = Layout("FLL");
         if (layout is null)
         {
             _output.WriteLine("fll.geojson not found — skipping");
@@ -50,9 +50,9 @@ public class JunctionContinuationTests
         // DAL880's actual parking position at t=230 (from the bundle snapshot).
         const double ParkLat = 26.073763899148627;
         const double ParkLon = -80.14425458893693;
-        var startNode = layout.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(ParkLat, ParkLon, n.Position.Lat, n.Position.Lon)).First();
+        GroundNode startNode = layout.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(ParkLat, ParkLon, n.Position.Lat, n.Position.Lon)).First();
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode.Id,
             ["T", "T4", "B", "B1"],
@@ -71,7 +71,7 @@ public class JunctionContinuationTests
         Assert.Null(failReason);
 
         _output.WriteLine($"Route: {route.Segments.Count} segments");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             _output.WriteLine($"  {seg.TaxiwayName, -8} #{seg.FromNodeId} → #{seg.ToNodeId}");
         }
@@ -89,7 +89,7 @@ public class JunctionContinuationTests
     [Fact]
     public void Sfo_WalkA_ThroughCollapsedJunction_StaysOnSingleNameA()
     {
-        var layout = Layout("SFO");
+        AirportGroundLayout? layout = Layout("SFO");
         if (layout is null)
         {
             _output.WriteLine("sfo.geojson not found — skipping");
@@ -100,13 +100,13 @@ public class JunctionContinuationTests
         // so the natural-terminus walk on A passes eastward through the 1160 collapse.
         const double WestOf1160Lat = 37.622400;
         const double WestOf1160Lon = -122.390500;
-        var startNode = layout
+        GroundNode startNode = layout
             .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("A")))
             .OrderBy(n => GeoMath.DistanceNm(WestOf1160Lat, WestOf1160Lon, n.Position.Lat, n.Position.Lon))
             .First();
         _output.WriteLine($"Start: #{startNode.Id} at ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})");
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode.Id,
             ["A"],
@@ -119,14 +119,14 @@ public class JunctionContinuationTests
         Assert.Null(failReason);
 
         _output.WriteLine($"Route: {route.Segments.Count} segments");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             _output.WriteLine($"  {seg.TaxiwayName, -10} #{seg.FromNodeId} → #{seg.ToNodeId}");
         }
 
         // No segment may be a membership-only junction arc (a multi-name "X - Y" edge):
         // walking A must not silently divert onto Q1/RAMP via an A-membership arc.
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             Assert.False(
                 seg.Edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 },
@@ -153,14 +153,14 @@ public class JunctionContinuationTests
     [Fact]
     public void Sfo_Skw3404_TaxiAEBB3AB1ZS_HonorsOrderNoSpin()
     {
-        var layout = Layout("SFO");
+        AirportGroundLayout? layout = Layout("SFO");
         if (layout is null)
         {
             _output.WriteLine("sfo.geojson not found — skipping");
             return;
         }
 
-        var d8 = layout.FindParkingByName("D8");
+        GroundNode? d8 = layout.FindParkingByName("D8");
         if (d8 is null)
         {
             _output.WriteLine("parking D8 not found — skipping");
@@ -170,7 +170,7 @@ public class JunctionContinuationTests
         _output.WriteLine($"Start: D8 = #{d8.Id} at ({d8.Position.Lat:F6}, {d8.Position.Lon:F6})");
 
         List<string> instructed = ["A", "E", "B", "B3", "A", "B1", "Z", "S"];
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             d8.Id,
             instructed,
@@ -182,9 +182,9 @@ public class JunctionContinuationTests
         Assert.NotNull(route);
         Assert.Null(failReason);
 
-        var runs = ExtractSingleNameRuns(route);
+        List<string> runs = ExtractSingleNameRuns(route);
         _output.WriteLine($"Route: {route.Segments.Count} segments; single-name runs: {string.Join(" ", runs)}");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             _output.WriteLine($"  {seg.TaxiwayName, -10} #{seg.FromNodeId} → #{seg.ToNodeId}");
         }
@@ -200,7 +200,7 @@ public class JunctionContinuationTests
         // The bare final taxiway S is not walked — the route holds at the Z/S junction — so it is
         // excluded from the subsequence and asserted as the terminus instead.
         AssertOrderedSubsequence(instructed[..^1], runs);
-        var lastNode = layout.Nodes[route.Segments[^1].ToNodeId];
+        GroundNode lastNode = layout.Nodes[route.Segments[^1].ToNodeId];
         Assert.True(lastNode.Edges.Any(e => e.MatchesTaxiway("S")), $"expected the route to hold at a Z/S junction, ended at #{lastNode.Id}");
 
         // On the current SFO layout (vNAS data-api), taxiway A and B1 share a direct junction
@@ -225,7 +225,7 @@ public class JunctionContinuationTests
     private static List<string> ExtractSingleNameRuns(TaxiRoute route)
     {
         var runs = new List<string>();
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             if (seg.Edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 })
             {
@@ -283,8 +283,8 @@ public class JunctionContinuationTests
     {
         for (int i = 1; i < route.Segments.Count; i++)
         {
-            var prev = route.Segments[i - 1];
-            var curr = route.Segments[i];
+            TaxiRouteSegment prev = route.Segments[i - 1];
+            TaxiRouteSegment curr = route.Segments[i];
 
             if ((curr.FromNodeId == prev.ToNodeId) && (curr.ToNodeId == prev.FromNodeId))
             {
@@ -292,10 +292,10 @@ public class JunctionContinuationTests
             }
 
             if (
-                !layout.Nodes.TryGetValue(prev.FromNodeId, out var pFrom)
-                || !layout.Nodes.TryGetValue(prev.ToNodeId, out var pTo)
-                || !layout.Nodes.TryGetValue(curr.FromNodeId, out var cFrom)
-                || !layout.Nodes.TryGetValue(curr.ToNodeId, out var cTo)
+                !layout.Nodes.TryGetValue(prev.FromNodeId, out GroundNode? pFrom)
+                || !layout.Nodes.TryGetValue(prev.ToNodeId, out GroundNode? pTo)
+                || !layout.Nodes.TryGetValue(curr.FromNodeId, out GroundNode? cFrom)
+                || !layout.Nodes.TryGetValue(curr.ToNodeId, out GroundNode? cTo)
             )
             {
                 continue;
@@ -342,7 +342,7 @@ public class JunctionContinuationTests
     [InlineData("FLL", "A", "B")]
     public void IntermediateWalk_StaysOnTaxiway_NoMembershipArcDiversion(string airport, string x, string y)
     {
-        var layout = Layout(airport);
+        AirportGroundLayout? layout = Layout(airport);
         if (layout is null)
         {
             _output.WriteLine($"{airport} layout unavailable — skipping");
@@ -351,7 +351,7 @@ public class JunctionContinuationTests
 
         int startId = FarthestNodeOnTaxiwayFromJunction(layout, x, y);
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startId,
             [x, y],
@@ -364,7 +364,7 @@ public class JunctionContinuationTests
         Assert.Null(failReason);
 
         _output.WriteLine($"{airport} [{x},{y}] from #{startId}: {route.Segments.Count} segs");
-        foreach (var seg in route.Segments)
+        foreach (TaxiRouteSegment seg in route.Segments)
         {
             _output.WriteLine($"  {seg.TaxiwayName, -10} #{seg.FromNodeId} → #{seg.ToNodeId}");
         }
@@ -375,7 +375,7 @@ public class JunctionContinuationTests
 
     private static int FarthestNodeOnTaxiwayFromJunction(AirportGroundLayout layout, string x, string y)
     {
-        var xNodes = NodesTouching(layout, x);
+        HashSet<int> xNodes = NodesTouching(layout, x);
         var junctions = xNodes.Intersect(NodesTouching(layout, y)).ToList();
         Assert.NotEmpty(junctions);
         return xNodes.OrderByDescending(nid => junctions.Min(j => GeoMath.DistanceNm(layout.Nodes[nid].Position, layout.Nodes[j].Position))).First();
@@ -384,9 +384,9 @@ public class JunctionContinuationTests
     private static HashSet<int> NodesTouching(AirportGroundLayout layout, string taxiway)
     {
         var set = new HashSet<int>();
-        foreach (var node in layout.Nodes.Values)
+        foreach (GroundNode node in layout.Nodes.Values)
         {
-            foreach (var edge in node.Edges)
+            foreach (IGroundEdge edge in node.Edges)
             {
                 string[] names = edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName];
                 if (names.Any(n => n.Equals(taxiway, StringComparison.OrdinalIgnoreCase)))
@@ -413,7 +413,7 @@ public class JunctionContinuationTests
     /// </summary>
     private static string? FindInteriorMembershipArcDiversion(TaxiRoute route, AirportGroundLayout layout)
     {
-        var segs = route.Segments;
+        List<TaxiRouteSegment> segs = route.Segments;
         for (int i = 0; i < segs.Count; i++)
         {
             if (segs[i].Edge.Edge is not GroundArc arc || arc.TaxiwayNames.Length < 2 || arc.IsRunwayJunction)
@@ -441,12 +441,12 @@ public class JunctionContinuationTests
 
     private static bool HasSingleNameTwin(AirportGroundLayout layout, int fromId, int toId, string taxiway)
     {
-        if (!layout.Nodes.TryGetValue(fromId, out var fromNode))
+        if (!layout.Nodes.TryGetValue(fromId, out GroundNode? fromNode))
         {
             return false;
         }
 
-        foreach (var edge in fromNode.Edges)
+        foreach (IGroundEdge edge in fromNode.Edges)
         {
             bool single = edge is not GroundArc arc || arc.TaxiwayNames.Length == 1;
             if (single && (edge.OtherNode(fromNode).Id == toId) && edge.TaxiwayName.Equals(taxiway, StringComparison.OrdinalIgnoreCase))

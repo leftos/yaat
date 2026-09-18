@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -201,18 +202,18 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
     /// </summary>
     private Funnel? StageAll()
     {
-        var built = SfoGroundHarness.Build(output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCross: false);
         if (built is null)
         {
             output.WriteLine("SKIP: SFO layout or navdata unavailable");
             return null;
         }
 
-        var ground = built.Value;
-        var fun1 = SfoGroundHarness.SpawnAtSpot(ground, "FUN1", Type, "2");
-        var fun3 = SfoGroundHarness.SpawnAtSpot(ground, "FUN3", Type, "1");
-        var fun4 = SfoGroundHarness.SpawnAtSpot(ground, "FUN4", Type, "3");
-        var fun2 = SfoGroundHarness.SpawnAtSpot(ground, "FUN2", Type, "4");
+        SfoGround ground = built.Value;
+        AircraftState fun1 = SfoGroundHarness.SpawnAtSpot(ground, "FUN1", Type, "2");
+        AircraftState fun3 = SfoGroundHarness.SpawnAtSpot(ground, "FUN3", Type, "1");
+        AircraftState fun4 = SfoGroundHarness.SpawnAtSpot(ground, "FUN4", Type, "3");
+        AircraftState fun2 = SfoGroundHarness.SpawnAtSpot(ground, "FUN2", Type, "4");
         var guard = new DeadlockGuard(fun1, fun2, fun3, fun4);
 
         (AircraftState Aircraft, string Command)[] clearances =
@@ -224,21 +225,21 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
         ];
 
         int second = 0;
-        foreach (var (aircraft, command) in clearances)
+        foreach ((AircraftState? aircraft, string? command) in clearances)
         {
-            var result = ground.Engine.SendCommand(aircraft.Callsign, command);
+            CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
             Assert.True(result.Success, $"'{aircraft.Callsign}: {command}' was rejected: {result.Message}");
             second++;
             ground.Engine.TickOneSecond();
             guard.Tick(second);
         }
 
-        var destination = DestinationHoldOf(fun1);
+        HoldShortPoint destination = DestinationHoldOf(fun1);
         Assert.True(
-            ground.Layout.Nodes.TryGetValue(destination.NodeId, out var destinationNode),
+            ground.Layout.Nodes.TryGetValue(destination.NodeId, out GroundNode? destinationNode),
             $"FUN1's 28L destination hold-short node {destination.NodeId} is not in the layout"
         );
-        var junction =
+        GroundNode junction =
             ground.Layout.FindIntersectionNode("F", "L") ?? throw new InvalidOperationException("SFO layout has no junction of taxiways 'F' and 'L'");
 
         return new Funnel
@@ -308,7 +309,7 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
         Assert.True(RunwayOccupancy.IsOnPavement(funnel.Fun1, funnel.Runway1R), "FUN1 staged short of F1 but is not on 1R pavement");
         Assert.True(RunwayOccupancy.IsOnPavement(funnel.Fun2, funnel.Runway1R), "FUN2 staged behind FUN1 but is not on 1R pavement");
 
-        var f1Node = FollowingHoldNode(funnel, funnel.Fun1);
+        LatLon f1Node = FollowingHoldNode(funnel, funnel.Fun1);
         double fun1ToBarNm = GeoMath.DistanceNm(funnel.Fun1.Position, f1Node);
         double fun2ToBarNm = GeoMath.DistanceNm(funnel.Fun2.Position, f1Node);
         Assert.True(
@@ -335,8 +336,8 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
 
     private static void AssertQueueOrdinals(Funnel funnel)
     {
-        var expected = new[] { (funnel.Fun3, 1), (funnel.Fun1, 2), (funnel.Fun4, 3), (funnel.Fun2, 4) };
-        foreach (var (aircraft, position) in expected)
+        (AircraftState, int)[] expected = new[] { (funnel.Fun3, 1), (funnel.Fun1, 2), (funnel.Fun4, 3), (funnel.Fun2, 4) };
+        foreach ((AircraftState? aircraft, int position) in expected)
         {
             Assert.Equal(position, aircraft.Ground.RunwayQueuePosition);
             Assert.Equal("28L", aircraft.Ground.RunwayQueueRunway);
@@ -373,19 +374,19 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
     /// </summary>
     private void AssertRunsDown1RToItsF1Bar(Funnel funnel, AircraftState aircraft)
     {
-        var route = RouteOf(aircraft);
+        TaxiRoute route = RouteOf(aircraft);
         Assert.True(
             route.Segments.Any(s => s.Edge.Edge.IsRunwayCenterline && s.Edge.Edge.MatchesRunway("1R")),
             $"{aircraft.Callsign}'s route has no 1R runway-centerline segment "
                 + $"(taxiways: {string.Join(" ", route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase))})"
         );
 
-        var hold = Assert.Single(
+        HoldShortPoint hold = Assert.Single(
             route.HoldShortPoints,
             h => (h.Reason == HoldShortReason.ExplicitHoldShort) && SfoGroundHarness.HoldShortMatches(h, "F1")
         );
         Assert.True(
-            funnel.Ground.Layout.Nodes.TryGetValue(hold.NodeId, out var node),
+            funnel.Ground.Layout.Nodes.TryGetValue(hold.NodeId, out GroundNode? node),
             $"{aircraft.Callsign}'s F1 hold node {hold.NodeId} is not in the layout"
         );
         Assert.True(
@@ -434,7 +435,7 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
             return;
         }
 
-        foreach (var aircraft in funnel.All)
+        foreach (AircraftState aircraft in funnel.All)
         {
             if (RunwayOccupancy.IsOnPavement(aircraft, funnel.Runway28L))
             {
@@ -467,14 +468,14 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
 
     private static TaxiRoute RouteOf(AircraftState aircraft)
     {
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.True(route is not null, $"{aircraft.Callsign} has no assigned taxi route");
         return route!;
     }
 
     private static HoldShortPoint DestinationHoldOf(AircraftState aircraft)
     {
-        var hold = RouteOf(aircraft).HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
+        HoldShortPoint? hold = RouteOf(aircraft).HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
         Assert.True(hold is not null, $"{aircraft.Callsign}'s route has no destination-runway hold-short");
         return hold!;
     }
@@ -486,8 +487,8 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
     private static LatLon FollowingHoldNode(Funnel funnel, AircraftState aircraft)
     {
         Assert.True(aircraft.Phases?.CurrentPhase is HoldingShortPhase, $"{aircraft.Callsign} is not holding short");
-        var hold = ((HoldingShortPhase)aircraft.Phases!.CurrentPhase!).HoldShort;
-        Assert.True(funnel.Ground.Layout.Nodes.TryGetValue(hold.NodeId, out var node), $"hold-short node {hold.NodeId} is not in the layout");
+        HoldShortPoint hold = ((HoldingShortPhase)aircraft.Phases!.CurrentPhase!).HoldShort;
+        Assert.True(funnel.Ground.Layout.Nodes.TryGetValue(hold.NodeId, out GroundNode? node), $"hold-short node {hold.NodeId} is not in the layout");
         return node!.Position;
     }
 
@@ -582,7 +583,7 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
         /// </summary>
         private void AssertNoFollowerStuckAt1R(int second)
         {
-            foreach (var aircraft in new[] { funnel.Fun1, funnel.Fun2 })
+            foreach (AircraftState? aircraft in new[] { funnel.Fun1, funnel.Fun2 })
             {
                 if (aircraft.Phases?.CurrentPhase is not HoldingShortPhase hold)
                 {
@@ -655,7 +656,7 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
 
         private void Send(int second, string callsign, string command)
         {
-            var result = funnel.Ground.Engine.SendCommand(callsign, command);
+            CommandResult result = funnel.Ground.Engine.SendCommand(callsign, command);
             _log.Add($"t={second}s: {callsign} <- '{command}' => {(result.Success ? "ok" : $"REJECTED: {result.Message}")}");
             Assert.True(result.Success, $"t={second}s: '{callsign}: {command}' was rejected: {result.Message}");
         }

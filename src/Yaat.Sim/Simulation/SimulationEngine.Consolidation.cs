@@ -22,13 +22,13 @@ public sealed partial class SimulationEngine
             return ActionRefusals.NoScenario();
         }
 
-        var receivingTcp = TrackResolver.FindTcpByCode(scenario, con.ReceivingTcpCode);
+        Tcp? receivingTcp = TrackResolver.FindTcpByCode(scenario, con.ReceivingTcpCode);
         if (receivingTcp is null)
         {
             return new CommandResult(false, $"Unknown position: {con.ReceivingTcpCode}");
         }
 
-        var sendingTcp = TrackResolver.FindTcpByCode(scenario, con.SendingTcpCode);
+        Tcp? sendingTcp = TrackResolver.FindTcpByCode(scenario, con.SendingTcpCode);
         if (sendingTcp is null)
         {
             return new CommandResult(false, $"Unknown position: {con.SendingTcpCode}");
@@ -44,8 +44,8 @@ public sealed partial class SimulationEngine
             return new CommandResult(true, $"Basic consolidation: {con.SendingTcpCode} → {con.ReceivingTcpCode}");
         }
 
-        var (transferred, redirected) = TransferTracksForConsolidation(scenario, sendingTcp, con.ReceivingTcpCode);
-        var message = $"Full consolidation: {con.SendingTcpCode} → {con.ReceivingTcpCode}";
+        (int transferred, int redirected) = TransferTracksForConsolidation(scenario, sendingTcp, con.ReceivingTcpCode);
+        string message = $"Full consolidation: {con.SendingTcpCode} → {con.ReceivingTcpCode}";
         if ((transferred > 0) || (redirected > 0))
         {
             message += $" ({transferred} track(s) transferred, {redirected} handoff(s) redirected)";
@@ -62,7 +62,7 @@ public sealed partial class SimulationEngine
             return ActionRefusals.NoScenario();
         }
 
-        var tcp = TrackResolver.FindTcpByCode(scenario, decon.TcpCode);
+        Tcp? tcp = TrackResolver.FindTcpByCode(scenario, decon.TcpCode);
         if (tcp is null)
         {
             return new CommandResult(false, $"Unknown position: {decon.TcpCode}");
@@ -81,25 +81,25 @@ public sealed partial class SimulationEngine
     /// </summary>
     private (int Transferred, int Redirected) TransferTracksForConsolidation(SimScenarioState scenario, Tcp sendingTcp, string receivingTcpCode)
     {
-        var receivingOwner = TrackResolver.ResolveTcpToOwner(scenario, receivingTcpCode);
+        TrackOwner? receivingOwner = TrackResolver.ResolveTcpToOwner(scenario, receivingTcpCode);
         if (receivingOwner is null)
         {
             return (0, 0);
         }
 
-        var movedTcps =
+        List<Tcp> movedTcps =
             scenario.ArtccConfig?.GetConsolidatedDescendants(
                 scenario.StudentPosition?.FacilityId ?? "",
                 sendingTcp,
                 Attendance.IsTcpAttended,
                 ConsolidationState
             ) ?? [];
-        var moved = movedTcps.Count > 0 ? movedTcps : [sendingTcp];
+        List<Tcp> moved = movedTcps.Count > 0 ? movedTcps : [sendingTcp];
         bool MatchesMoved(TrackOwner owner) => moved.Any(t => (owner.Subset == t.Subset) && (owner.SectorId == t.SectorId));
 
         int transferred = 0;
         int redirected = 0;
-        foreach (var ac in World.GetSnapshot())
+        foreach (AircraftState ac in World.GetSnapshot())
         {
             if ((ac.Track.Owner is not null) && MatchesMoved(ac.Track.Owner))
             {

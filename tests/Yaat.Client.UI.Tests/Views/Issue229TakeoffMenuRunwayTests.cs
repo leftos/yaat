@@ -45,11 +45,11 @@ public class Issue229TakeoffMenuRunwayTests
     [AvaloniaFact]
     public void ClearedForTakeoffDefault_SendsBareCto_NotRunwayArgument()
     {
-        var (vm, lastCommand) = BuildVm();
-        var menu = BuildHoldShortMenu(vm);
+        (GroundViewModel? vm, Func<string?>? lastCommand) = BuildVm();
+        ContextMenu menu = BuildHoldShortMenu(vm);
 
-        var ctoParent = FindItem(menu.Items, "Cleared for takeoff 28R");
-        var defaultItem = FindItem(ctoParent.Items, "Default (SID/on course)");
+        MenuItem ctoParent = FindItem(menu.Items, "Cleared for takeoff 28R");
+        MenuItem defaultItem = FindItem(ctoParent.Items, "Default (SID/on course)");
         defaultItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
         Assert.Equal("CTO", lastCommand());
@@ -58,10 +58,10 @@ public class Issue229TakeoffMenuRunwayTests
     [AvaloniaFact]
     public void LineUpAndWait_SendsBareLuaw_NotRunwayArgument()
     {
-        var (vm, lastCommand) = BuildVm();
-        var menu = BuildHoldShortMenu(vm);
+        (GroundViewModel? vm, Func<string?>? lastCommand) = BuildVm();
+        ContextMenu menu = BuildHoldShortMenu(vm);
 
-        var luawItem = FindItem(menu.Items, "Line up and wait 28R");
+        MenuItem luawItem = FindItem(menu.Items, "Line up and wait 28R");
         luawItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
         Assert.Equal("LUAW", lastCommand());

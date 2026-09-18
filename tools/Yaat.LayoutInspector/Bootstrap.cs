@@ -48,7 +48,7 @@ public static class Bootstrap
         {
             if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
             {
-                var testData = Path.Combine(dir.FullName, "tests", "Yaat.Sim.Tests", "TestData");
+                string testData = Path.Combine(dir.FullName, "tests", "Yaat.Sim.Tests", "TestData");
                 return Directory.Exists(testData) ? testData : null;
             }
 
@@ -70,7 +70,7 @@ public static class Bootstrap
             return;
         }
 
-        var loggerFactory = LoggerFactory.Create(builder =>
+        ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
         {
             builder.AddSimpleConsole(options =>
             {

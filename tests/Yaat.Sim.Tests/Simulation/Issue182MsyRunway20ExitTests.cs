@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -41,13 +42,13 @@ public class Issue182MsyRunway20ExitTests(ITestOutputHelper output)
     public void GetRunway_SingleDigitDesignator_SelectsAssignedEnd()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return;
         }
 
-        var rwy = navDb.GetRunway("MSY", "2");
+        RunwayInfo? rwy = navDb.GetRunway("MSY", "2");
         Assert.NotNull(rwy);
 
         // The designator must normalize to one of the runway's ends so end-selection works.
@@ -63,8 +64,8 @@ public class Issue182MsyRunway20ExitTests(ITestOutputHelper output)
     [Fact]
     public void Runway2Arrival_ExitsRunway_NotStuckOnRunway()
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -76,7 +77,7 @@ public class Issue182MsyRunway20ExitTests(ITestOutputHelper output)
         for (int t = 1; t <= ObserveSeconds; t++)
         {
             engine.ReplayOneSecond();
-            var ac = engine.FindAircraft(Callsign);
+            AircraftState? ac = engine.FindAircraft(Callsign);
             if (ac is null)
             {
                 continue;

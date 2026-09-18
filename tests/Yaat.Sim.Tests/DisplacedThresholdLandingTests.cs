@@ -38,15 +38,15 @@ public class DisplacedThresholdLandingTests
     /// </summary>
     private Touchdown FlyApproach(string airportId, string designator, string aircraftType, double approachSpeedKt, AirportGroundLayout? layout)
     {
-        var rwy = NavigationDatabase.Instance.GetRunway(airportId, designator);
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway(airportId, designator);
         Assert.NotNull(rwy);
 
         var pavement = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
-        var landing = LandingThreshold.Resolve(rwy, layout);
-        var course = rwy.TrueHeading;
+        LatLon landing = LandingThreshold.Resolve(rwy, layout);
+        TrueHeading course = rwy.TrueHeading;
 
         const double startDistNm = 8.0;
-        var start = GeoMath.ProjectPoint(pavement, course.ToReciprocal(), startDistNm);
+        LatLon start = GeoMath.ProjectPoint(pavement, course.ToReciprocal(), startDistNm);
 
         var ac = new AircraftState
         {
@@ -114,7 +114,7 @@ public class DisplacedThresholdLandingTests
         {
             world.Tick(dt, tick * dt, PreTick);
 
-            foreach (var (callsign, warning) in world.DrainAllWarnings())
+            foreach ((string? callsign, string? warning) in world.DrainAllWarnings())
             {
                 _output.WriteLine($"# tick {tick} {callsign}: {warning}");
                 Assert.DoesNotContain("going around", warning, StringComparison.OrdinalIgnoreCase);
@@ -146,7 +146,7 @@ public class DisplacedThresholdLandingTests
     [InlineData("C172", 70.0)]
     public void Landing_OnADisplacedThreshold_TouchesDownPastTheLandingThreshold(string aircraftType, double approachSpeedKt)
     {
-        var touchdown = FlyApproach("KSJC", "30L", aircraftType, approachSpeedKt, SjcLayout());
+        Touchdown touchdown = FlyApproach("KSJC", "30L", aircraftType, approachSpeedKt, SjcLayout());
 
         Assert.Equal(2537, touchdown.DisplacementFt);
         Assert.InRange(touchdown.PastLandingThresholdFt, 100, 3000);
@@ -159,7 +159,7 @@ public class DisplacedThresholdLandingTests
     [Fact]
     public void Landing_WithoutALayout_StillFliesToThePavementThreshold()
     {
-        var touchdown = FlyApproach("KSJC", "30L", "B738", 140.0, layout: null);
+        Touchdown touchdown = FlyApproach("KSJC", "30L", "B738", 140.0, layout: null);
 
         Assert.Equal(0, touchdown.DisplacementFt);
         Assert.InRange(touchdown.PastPavementFt, 100, 3000);
@@ -172,10 +172,10 @@ public class DisplacedThresholdLandingTests
     [Fact]
     public void Landing_OnAnUndisplacedThreshold_IsUnaffectedByTheLayout()
     {
-        var oak = GeoJsonParser.Parse("OAK", File.ReadAllText(Path.Combine("TestData", "oak.geojson")), "OAK");
+        AirportGroundLayout oak = GeoJsonParser.Parse("OAK", File.ReadAllText(Path.Combine("TestData", "oak.geojson")), "OAK");
 
-        var withLayout = FlyApproach("KOAK", "28R", "B738", 140.0, oak);
-        var withoutLayout = FlyApproach("KOAK", "28R", "B738", 140.0, layout: null);
+        Touchdown withLayout = FlyApproach("KOAK", "28R", "B738", 140.0, oak);
+        Touchdown withoutLayout = FlyApproach("KOAK", "28R", "B738", 140.0, layout: null);
 
         Assert.Equal(0, withLayout.DisplacementFt);
         Assert.InRange(withLayout.PastPavementFt, withoutLayout.PastPavementFt - 1, withoutLayout.PastPavementFt + 1);
@@ -190,13 +190,13 @@ public class DisplacedThresholdLandingTests
     [Fact]
     public void PatternGeometry_DisplacedThreshold_MovesTheArrivalLegsOnly()
     {
-        var layout = SjcLayout();
-        var rwy = NavigationDatabase.Instance.GetRunway("KSJC", "30L");
+        AirportGroundLayout layout = SjcLayout();
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("KSJC", "30L");
         Assert.NotNull(rwy);
-        var authored = layout.FindRunway("30L");
+        GroundRunway? authored = layout.FindRunway("30L");
         Assert.NotNull(authored);
 
-        var pavementPattern = PatternGeometry.Compute(
+        PatternWaypoints pavementPattern = PatternGeometry.Compute(
             rwy,
             AircraftCategory.Jet,
             "",
@@ -207,7 +207,17 @@ public class DisplacedThresholdLandingTests
             null,
             authoredRunway: null
         );
-        var landingPattern = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, null, null, null, authored);
+        PatternWaypoints landingPattern = PatternGeometry.Compute(
+            rwy,
+            AircraftCategory.Jet,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            null,
+            null,
+            authored
+        );
 
         double thresholdMovedFt =
             GeoMath.DistanceNm(pavementPattern.ThresholdLat, pavementPattern.ThresholdLon, landingPattern.ThresholdLat, landingPattern.ThresholdLon)

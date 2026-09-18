@@ -56,7 +56,7 @@ public static class TaxiRouteProgress
     /// </summary>
     private static PendingHoldShort? WalkAhead(AircraftState aircraft, AirportGroundLayout? layout, Func<HoldShortPoint, bool> wanted)
     {
-        var route = aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         if (route is null || layout is null)
         {
             return null;
@@ -65,7 +65,7 @@ public static class TaxiRouteProgress
         double distanceNm = 0;
         for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
         {
-            var segment = route.Segments[i];
+            TaxiRouteSegment segment = route.Segments[i];
             distanceNm +=
                 i == route.CurrentSegmentIndex ? GeoMath.DistanceNm(aircraft.Position, segment.Edge.ToNode.Position) : segment.Edge.DistanceNm;
             if (route.GetHoldShortAt(segment.ToNodeId) is { IsCleared: false } bar)

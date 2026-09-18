@@ -63,7 +63,7 @@ public class LiveTrafficConflictAlertTests
     [Fact]
     public void IfrShadowAndSimulated_Alert()
     {
-        var pair = Assert.Single(Detect(Shadow("LIVE1", B, ifr: true), Simulated("SIM1", A)));
+        ConflictAlertDetector.ConflictPair pair = Assert.Single(Detect(Shadow("LIVE1", B, ifr: true), Simulated("SIM1", A)));
         Assert.Equal("LIVE1", pair.CallsignA);
     }
 
@@ -76,7 +76,7 @@ public class LiveTrafficConflictAlertTests
     [Fact]
     public void CoastingShadow_DoesNotAlert()
     {
-        var shadow = Shadow("LIVE1", B, ifr: true);
+        AircraftState shadow = Shadow("LIVE1", B, ifr: true);
         shadow.LiveTraffic!.IsCoasting = true;
 
         Assert.Empty(Detect(shadow, Simulated("SIM1", A)));
@@ -86,7 +86,7 @@ public class LiveTrafficConflictAlertTests
     public void ShadowWithAnOldObservation_DoesNotAlert()
     {
         // An en-route observation delivered ~50 s behind: the projection error rivals the separation standard.
-        var shadow = Shadow("LIVE1", B, ifr: true);
+        AircraftState shadow = Shadow("LIVE1", B, ifr: true);
         shadow.LiveTraffic!.SecondsSinceSample = ConflictAlertDetector.ShadowCaMaxSampleAgeSeconds + 1;
 
         Assert.Empty(Detect(shadow, Simulated("SIM1", A)));
@@ -95,8 +95,8 @@ public class LiveTrafficConflictAlertTests
     [Fact]
     public void Casup_SuppressesThePair_FromEitherSide_AndToggles()
     {
-        var shadow = Shadow("LIVE1", B, ifr: true);
-        var sim = Simulated("SIM1", A);
+        AircraftState shadow = Shadow("LIVE1", B, ifr: true);
+        AircraftState sim = Simulated("SIM1", A);
         var scenario = new SimScenarioState
         {
             ScenarioId = "t",
@@ -105,9 +105,9 @@ public class LiveTrafficConflictAlertTests
             OriginalScenarioJson = "{}",
         };
 
-        var parsed = CommandParser.Parse("CASUP LIVE1");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("CASUP LIVE1");
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        var result = TrackEngine.Dispatch(
+        CommandResult? result = TrackEngine.Dispatch(
             parsed.Value!,
             sim,
             new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())
@@ -134,7 +134,7 @@ public class LiveTrafficConflictAlertTests
     [Fact]
     public void Casup_OnItself_IsRejected()
     {
-        var sim = Simulated("SIM1", B);
+        AircraftState sim = Simulated("SIM1", B);
         var scenario = new SimScenarioState
         {
             ScenarioId = "t",
@@ -143,7 +143,7 @@ public class LiveTrafficConflictAlertTests
             OriginalScenarioJson = "{}",
         };
 
-        var result = TrackEngine.Dispatch(
+        CommandResult? result = TrackEngine.Dispatch(
             new SuppressConflictAlertCommand("SIM1"),
             sim,
             new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())

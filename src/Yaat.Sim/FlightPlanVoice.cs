@@ -33,7 +33,7 @@ public static class FlightPlanVoice
             return Full;
         }
 
-        var match = MarkerRegex.Match(remarks);
+        Match match = MarkerRegex.Match(remarks);
         if (!match.Success)
         {
             return Full;
@@ -54,8 +54,8 @@ public static class FlightPlanVoice
     /// </summary>
     public static string ApplyVoiceMarker(string? remarks, int voiceType)
     {
-        var stripped = StripMarkers(remarks ?? "");
-        var marker = voiceType switch
+        string stripped = StripMarkers(remarks ?? "");
+        string marker = voiceType switch
         {
             ReceiveOnly => "/r/",
             TextOnly => "/t/",

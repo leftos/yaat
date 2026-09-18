@@ -59,12 +59,12 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
     [Fact]
     public void AmendFlightPlan_BlanksFiledType_DoesNotChangeActualType()
     {
-        var engine = NewEngine();
+        SimulationEngine engine = NewEngine();
         SpawnAircraft(engine, "UAL238", actualType: "B738", filedType: "B738");
 
         engine.AmendFlightPlan("UAL238", new FlightPlanAmendment(AircraftType: ""));
 
-        var ac = engine.FindAircraft("UAL238");
+        AircraftState? ac = engine.FindAircraft("UAL238");
         Assert.NotNull(ac);
         Assert.Equal("B738", ac.AircraftType);
         Assert.Equal("", ac.FlightPlan.AircraftType);
@@ -74,12 +74,12 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
     [Fact]
     public void AmendFlightPlan_ChangesFiledType_DoesNotChangeActualType()
     {
-        var engine = NewEngine();
+        SimulationEngine engine = NewEngine();
         SpawnAircraft(engine, "UAL238", actualType: "B738", filedType: "B738");
 
         engine.AmendFlightPlan("UAL238", new FlightPlanAmendment(AircraftType: "A320"));
 
-        var ac = engine.FindAircraft("UAL238");
+        AircraftState? ac = engine.FindAircraft("UAL238");
         Assert.NotNull(ac);
         Assert.Equal("B738", ac.AircraftType);
         Assert.Equal("A320", ac.FlightPlan.AircraftType);
@@ -95,7 +95,7 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
             FlightPlan = new ScenarioFlightPlan { Departure = "KOAK" },
         };
 
-        var ac = ScenarioLoader.CreateBaseState(scenarioAircraft, primaryAirportId: null, primaryApproach: null);
+        AircraftState ac = ScenarioLoader.CreateBaseState(scenarioAircraft, primaryAirportId: null, primaryApproach: null);
 
         Assert.Equal("B738", ac.AircraftType);
         Assert.Equal("", ac.FlightPlan.AircraftType);
@@ -111,7 +111,7 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
             FlightPlan = new ScenarioFlightPlan { AircraftType = "A320", Departure = "KOAK" },
         };
 
-        var ac = ScenarioLoader.CreateBaseState(scenarioAircraft, primaryAirportId: null, primaryApproach: null);
+        AircraftState ac = ScenarioLoader.CreateBaseState(scenarioAircraft, primaryAirportId: null, primaryApproach: null);
 
         Assert.Equal("B738", ac.AircraftType);
         Assert.Equal("A320", ac.FlightPlan.AircraftType);
@@ -126,7 +126,7 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
             HasFlightPlan = true,
             EquipmentSuffix = "L",
         };
-        var dto = original.ToSnapshot();
+        AircraftFlightPlanDto dto = original.ToSnapshot();
         var restored = AircraftFlightPlan.FromSnapshot(dto);
 
         Assert.Equal("A320", dto.AircraftType);
@@ -148,7 +148,7 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
             AircraftType = "B738",
             FlightPlan = new AircraftFlightPlan { AircraftType = "", HasFlightPlan = true },
         };
-        var aircraftDto = live.ToSnapshot();
+        AircraftSnapshotDto aircraftDto = live.ToSnapshot();
 
         var snapshot = new StateSnapshotDto
         {
@@ -189,7 +189,7 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
     [Fact]
     public void BundleReplay_AmendmentWithNullAircraftType_DoesNotBlankLiveAircraft()
     {
-        var recording = RecordingLoader.Load(BundlePath);
+        SessionRecording? recording = RecordingLoader.Load(BundlePath);
         if (recording is null)
         {
             output.WriteLine($"Skipped: bundle missing at {BundlePath}");
@@ -210,18 +210,18 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
             .Where(a => (a.ElapsedSeconds <= 800) && a.Amendment.AircraftType is null)
             .ToList();
         Assert.NotEmpty(nullTypeAmendments);
-        foreach (var amendment in nullTypeAmendments)
+        foreach (RecordedAmendFlightPlan? amendment in nullTypeAmendments)
         {
             output.WriteLine($"t={amendment.ElapsedSeconds:F0}s AmendFlightPlan({amendment.Callsign}) with null AircraftType");
         }
 
-        var engine = NewEngine();
+        SimulationEngine engine = NewEngine();
         // The null-AircraftType amendment in this bundle fires at t≈796s; replay a bit past it.
         engine.Replay(recording, 800);
 
         int liveAircraft = 0;
         int blankActualType = 0;
-        foreach (var ac in engine.World.GetSnapshot())
+        foreach (AircraftState ac in engine.World.GetSnapshot())
         {
             liveAircraft++;
             if (string.IsNullOrEmpty(ac.AircraftType))

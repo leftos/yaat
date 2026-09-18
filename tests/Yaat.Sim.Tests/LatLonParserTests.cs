@@ -13,7 +13,7 @@ public class LatLonParserTests
     [Fact]
     public void Parse_DdmmWithSlash_ReturnsDecimalDegrees()
     {
-        var result = LatLonParser.Parse("4220N/7110W");
+        LatLon? result = LatLonParser.Parse("4220N/7110W");
 
         Assert.NotNull(result);
         Assert.Equal(42.0 + (20.0 / 60.0), result!.Value.Lat, 6);
@@ -23,7 +23,7 @@ public class LatLonParserTests
     [Fact]
     public void Parse_DdmmNoSlash_ReturnsDecimalDegrees()
     {
-        var result = LatLonParser.Parse("3730N12200W");
+        LatLon? result = LatLonParser.Parse("3730N12200W");
 
         Assert.NotNull(result);
         Assert.Equal(37.5, result!.Value.Lat, 6);
@@ -33,7 +33,7 @@ public class LatLonParserTests
     [Fact]
     public void Parse_SouthEastHemispheres_AreNegatedAndPositive()
     {
-        var result = LatLonParser.Parse("3345S15112E");
+        LatLon? result = LatLonParser.Parse("3345S15112E");
 
         Assert.NotNull(result);
         Assert.Equal(-(33.0 + (45.0 / 60.0)), result!.Value.Lat, 6);
@@ -43,7 +43,7 @@ public class LatLonParserTests
     [Fact]
     public void Parse_ThreeDigitLongitudeDegrees_Parses()
     {
-        var result = LatLonParser.Parse("4220N/12210W");
+        LatLon? result = LatLonParser.Parse("4220N/12210W");
 
         Assert.NotNull(result);
         Assert.Equal(42.0 + (20.0 / 60.0), result!.Value.Lat, 6);

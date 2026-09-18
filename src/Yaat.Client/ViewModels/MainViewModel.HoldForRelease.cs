@@ -52,9 +52,9 @@ public partial class MainViewModel
 
         // One group per armed airport (in armed order), so the controller still sees a field that is
         // armed but currently has nothing held.
-        foreach (var airport in rundown.ArmedAirports)
+        foreach (string airport in rundown.ArmedAirports)
         {
-            grouped.TryGetValue(airport, out var held);
+            grouped.TryGetValue(airport, out List<HeldDepartureDto>? held);
             var items = (held ?? [])
                 .Select(h => new HeldDepartureItem(h.Callsign, h.AircraftType, h.Destination, h.Status, h.IsGroundDeparture))
                 .ToList();

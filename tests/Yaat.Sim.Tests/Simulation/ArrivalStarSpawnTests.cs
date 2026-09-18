@@ -34,28 +34,28 @@ public class ArrivalStarSpawnTests
     private static Fixture? TryBuildFixture()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = NavigationDatabase.Instance;
-        var star = navDb.GetStar(Airport, StarId);
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        CifpStarProcedure? star = navDb.GetStar(Airport, StarId);
         if (star is null || star.CommonLegs.Count == 0 || star.RunwayTransitions.Count == 0)
         {
             return null;
         }
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(new List<CifpLeg>(star.CommonLegs));
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(new List<CifpLeg>(star.CommonLegs));
         if (targets.Count == 0)
         {
             return null;
         }
 
-        var entryFix = targets[0].Name;
-        var entryPos = navDb.GetFixPosition(entryFix);
+        string entryFix = targets[0].Name;
+        (double Lat, double Lon)? entryPos = navDb.GetFixPosition(entryFix);
         if (entryPos is null)
         {
             return null;
         }
 
-        var rwKey = star.RunwayTransitions.Keys.First();
-        var runway = rwKey.StartsWith("RW", StringComparison.Ordinal) ? rwKey[2..] : rwKey;
+        string rwKey = star.RunwayTransitions.Keys.First();
+        string runway = rwKey.StartsWith("RW", StringComparison.Ordinal) ? rwKey[2..] : rwKey;
 
         return new Fixture(entryFix, runway, new LatLon(entryPos.Value.Lat, entryPos.Value.Lon));
     }
@@ -81,13 +81,13 @@ public class ArrivalStarSpawnTests
     [Fact]
     public void DescendVia_SpawnsEstablishedOnStar_WithConstraints()
     {
-        var f = TryBuildFixture();
+        Fixture? f = TryBuildFixture();
         if (f is null)
         {
             return;
         }
 
-        var (state, error) = Generate(OnStarRequest(f, descendVia: true, altitude: 16000));
+        (AircraftState? state, string? error) = Generate(OnStarRequest(f, descendVia: true, altitude: 16000));
 
         Assert.Null(error);
         Assert.NotNull(state);
@@ -105,13 +105,13 @@ public class ArrivalStarSpawnTests
     [Fact]
     public void Level_BuildsLateralRouteOnly_NoConstraints_NoStarViaMode()
     {
-        var f = TryBuildFixture();
+        Fixture? f = TryBuildFixture();
         if (f is null)
         {
             return;
         }
 
-        var (state, error) = Generate(OnStarRequest(f, descendVia: false, altitude: 12000));
+        (AircraftState? state, string? error) = Generate(OnStarRequest(f, descendVia: false, altitude: 12000));
 
         Assert.Null(error);
         Assert.NotNull(state);
@@ -128,13 +128,13 @@ public class ArrivalStarSpawnTests
     [Fact]
     public void AltitudeOmitted_ComputesDefaultWithinBand()
     {
-        var f = TryBuildFixture();
+        Fixture? f = TryBuildFixture();
         if (f is null)
         {
             return;
         }
 
-        var (state, error) = Generate(OnStarRequest(f, descendVia: true, altitude: null));
+        (AircraftState? state, string? error) = Generate(OnStarRequest(f, descendVia: true, altitude: null));
 
         Assert.Null(error);
         Assert.NotNull(state);
@@ -148,14 +148,14 @@ public class ArrivalStarSpawnTests
     [Fact]
     public void DescendVia_TicksDownTowardConstraints()
     {
-        var f = TryBuildFixture();
+        Fixture? f = TryBuildFixture();
         if (f is null)
         {
             return;
         }
 
         // FL240 is well above any OAKES3 crossing restriction, so descent is guaranteed.
-        var (state, error) = Generate(OnStarRequest(f, descendVia: true, altitude: 24000));
+        (AircraftState? state, string? error) = Generate(OnStarRequest(f, descendVia: true, altitude: 24000));
         Assert.Null(error);
         Assert.NotNull(state);
 
@@ -173,13 +173,13 @@ public class ArrivalStarSpawnTests
     [Fact]
     public void Level_HoldsAltitude_ThenDviaReactivatesDescent()
     {
-        var f = TryBuildFixture();
+        Fixture? f = TryBuildFixture();
         if (f is null)
         {
             return;
         }
 
-        var (state, error) = Generate(OnStarRequest(f, descendVia: false, altitude: 16000));
+        (AircraftState? state, string? error) = Generate(OnStarRequest(f, descendVia: false, altitude: 16000));
         Assert.Null(error);
         Assert.NotNull(state);
 
@@ -194,7 +194,7 @@ public class ArrivalStarSpawnTests
         Assert.DoesNotContain(state.Targets.NavigationRoute, t => t.AltitudeRestriction is not null);
 
         // DVIA reactivates the filed STAR (ActiveStarId was null → TryActivateFiledStar reads FlightPlan.Route).
-        var result = CommandDispatcher.Dispatch(new DescendViaCommand(null), state, TestDispatch.Context(Random.Shared));
+        CommandResult result = CommandDispatcher.Dispatch(new DescendViaCommand(null), state, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"DVIA should succeed via the filed route: {result.Message}");
         Assert.Equal(StarId, state.Procedure.ActiveStarId);

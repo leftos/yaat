@@ -36,7 +36,7 @@ public class ScenarioValidatorTypeMismatchTests
     [Fact]
     public void Validator_FlagsDifferentBaseTypes()
     {
-        var scenario = MakeScenario(
+        Scenario scenario = MakeScenario(
             "A388",
             new ScenarioFlightPlan
             {
@@ -46,9 +46,9 @@ public class ScenarioValidatorTypeMismatchTests
             }
         );
 
-        var result = ScenarioValidator.Validate(scenario);
+        ScenarioValidationResult result = ScenarioValidator.Validate(scenario);
 
-        var mismatch = Assert.Single(result.AircraftTypeMismatches);
+        AircraftTypeMismatch mismatch = Assert.Single(result.AircraftTypeMismatches);
         Assert.Equal("UAL123", mismatch.AircraftId);
         Assert.Equal("A388", mismatch.ActualType);
         Assert.Equal("B744", mismatch.FiledType);
@@ -61,7 +61,7 @@ public class ScenarioValidatorTypeMismatchTests
     [InlineData("3/F18H/P", "F18H")]
     public void Validator_IgnoresWakePrefixAndSuffix(string physicalType, string filedType)
     {
-        var scenario = MakeScenario(
+        Scenario scenario = MakeScenario(
             physicalType,
             new ScenarioFlightPlan
             {
@@ -71,7 +71,7 @@ public class ScenarioValidatorTypeMismatchTests
             }
         );
 
-        var result = ScenarioValidator.Validate(scenario);
+        ScenarioValidationResult result = ScenarioValidator.Validate(scenario);
 
         Assert.Empty(result.AircraftTypeMismatches);
     }

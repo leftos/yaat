@@ -41,8 +41,8 @@ public class AutoTrackStepTests
             return null;
         }
 
-        var engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        var scenario = engine.Scenario!;
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
         scenario.StudentPosition = Student;
         scenario.StudentTcp = TrackResolver.FindTcpByCode(scenario, "2B")!;
 
@@ -81,7 +81,7 @@ public class AutoTrackStepTests
             return;
         }
 
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         var loaded = new LoadedAircraft
         {
             State = engine.FindAircraft(AiTestFixture.Callsign)!,
@@ -95,7 +95,7 @@ public class AutoTrackStepTests
         Assert.True(loaded.State.Track.Owner!.MatchesPosition(Nct4U));
         Assert.Contains(loaded.AutoTrackMessages, msg => msg.Contains("[AutoTrack] Owned by", StringComparison.Ordinal));
 
-        var queued = Assert.Single(scenario.DelayedHandoffQueue);
+        DelayedHandoff queued = Assert.Single(scenario.DelayedHandoffQueue);
         Assert.Equal(AiTestFixture.Callsign, queued.Callsign);
         Assert.True(queued.Target.MatchesPosition(Student));
         Assert.Equal(30, queued.FireAtSeconds);
@@ -120,7 +120,7 @@ public class AutoTrackStepTests
 
         // The generators in this scenario carry an autoTrackConfiguration whose position id resolves through the
         // room's ARTCC config — the fallback the scenario's own (unresolved) ATC roster leaves to the config.
-        var scenario = engine.Scenario!;
+        SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
         Assert.NotEmpty(scenario.Generators);
         Assert.All(scenario.Generators, gen => Assert.NotNull(gen.Config.AutoTrackConfiguration));
@@ -136,7 +136,7 @@ public class AutoTrackStepTests
         Assert.NotNull(generated);
         Assert.NotNull(generated!.Track.Owner);
 
-        var record = scenario
+        RecordedAircraftSpawn? record = scenario
             .ActionLog.OfType<RecordedAircraftSpawn>()
             .FirstOrDefault(r => r.Aircraft.Callsign.Equals(generated.Callsign, StringComparison.OrdinalIgnoreCase));
         Assert.NotNull(record);
@@ -151,8 +151,8 @@ public class AutoTrackStepTests
             return;
         }
 
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
-        var lines = CaptureTerminal(engine);
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        List<string> lines = CaptureTerminal(engine);
 
         // Parked at OAK: below the acquisition floor, so the position that auto-tracks OAK departures leaves it.
         AiTestFixture.Tick(engine, 1);
@@ -175,8 +175,8 @@ public class AutoTrackStepTests
             return;
         }
 
-        var aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
-        var lines = CaptureTerminal(engine);
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        List<string> lines = CaptureTerminal(engine);
         aircraft.FlightPlan.CreatedByOwner = Nct4Q;
         aircraft.Transponder.AssignedCode = 1234;
         aircraft.Transponder.Code = 1200;

@@ -43,7 +43,7 @@ public class RecordedActionHostRoutingTests
         }
 
         var host = new AttendanceActionHost();
-        var callsign = AiTestFixture.Callsign;
+        string callsign = AiTestFixture.Callsign;
         engine.FindAircraft(callsign)!.Stars.AsdexAlertsInhibited = true;
         var asdex = new RecordedAsdexMutation(0, "EnableAllAlerts", null, null, null, null, null, null, null, null);
         var said = new RecordedSaidMutation(0, "Terminate", callsign, null, null, null, null, null, null, null);
@@ -51,7 +51,7 @@ public class RecordedActionHostRoutingTests
         engine.Actions.ApplyRecorded(asdex, host);
         engine.Actions.ApplyRecorded(said, host);
 
-        var stars = engine.FindAircraft(callsign)!.Stars;
+        AircraftStarsState stars = engine.FindAircraft(callsign)!.Stars;
         Assert.False(stars.AsdexAlertsInhibited);
         Assert.True(stars.SaidTerminated);
         Assert.Equal(callsign, Assert.Single(host.SaidTerminations));
@@ -101,8 +101,8 @@ public class RecordedActionHostRoutingTests
         var host = new AttendanceActionHost();
         engine.Scenario!.IsPaused = false;
 
-        var pause = engine.Actions.Apply(Recorded("PAUSE"), host);
-        var bookmark = engine.Actions.Apply(Recorded("BM ADD test"), host);
+        ActionOutcome pause = engine.Actions.Apply(Recorded("PAUSE"), host);
+        ActionOutcome bookmark = engine.Actions.Apply(Recorded("BM ADD test"), host);
 
         Assert.False(pause.Result.Success);
         Assert.Equal(new ActionTrace(RecordedCommandKind.Transport, ActionScope.Global), pause.Trace);

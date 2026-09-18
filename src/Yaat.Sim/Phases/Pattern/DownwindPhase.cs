@@ -310,7 +310,7 @@ public sealed class DownwindPhase : Phase
                 ? AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category)
                 : AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-            var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
+            double? adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
             if (adjusted is not null)
             {
                 // Spacing only ever SLOWS the follower below the leg baseline; a too-far
@@ -660,7 +660,7 @@ public sealed class DownwindPhase : Phase
 
     private static bool HasLandingClearance(PhaseContext ctx)
     {
-        var phases = ctx.Aircraft.Phases;
+        PhaseList? phases = ctx.Aircraft.Phases;
         if (phases is null)
         {
             return false;

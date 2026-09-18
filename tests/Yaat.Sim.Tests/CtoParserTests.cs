@@ -22,8 +22,8 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void BareCto_ParsesAsDefaultDeparture()
     {
-        var cmd = CommandParser.Parse("CTO");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.IsType<DefaultDeparture>(cto.Departure);
         Assert.Null(cto.AssignedAltitude);
         Assert.False(cto.CautionWakeTurbulence);
@@ -32,8 +32,8 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_CwtSuffix_ParsesAsDefaultDepartureWithWakeAdvisory()
     {
-        var cmd = CommandParser.Parse("CTO CWT");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO CWT");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.IsType<DefaultDeparture>(cto.Departure);
         Assert.True(cto.CautionWakeTurbulence);
         Assert.Equal("CTO CWT", CommandDescriber.DescribeCommand(cto));
@@ -43,8 +43,8 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_ModifierWithCwtSuffix_PreservesModifierAndAltitude()
     {
-        var cmd = CommandParser.Parse("CTO MRH 050 CWT");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MRH 050 CWT");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.IsType<RunwayHeadingDeparture>(cto.Departure);
         Assert.Equal(5000, cto.AssignedAltitude);
         Assert.True(cto.CautionWakeTurbulence);
@@ -55,13 +55,13 @@ public class CtoParserTests : IDisposable
     public void Cto_DctWithCwtSuffix_PreservesFix()
     {
         _scope.Dispose();
-        using var _ = NavigationDatabase.ScopedOverride(
+        using IDisposable _ = NavigationDatabase.ScopedOverride(
             NavigationDatabase.ForTesting(fixes: new Dictionary<string, (double Lat, double Lon)> { ["SUNOL"] = (37.5, -121.8) })
         );
 
-        var cmd = CommandParser.Parse("CTO DCT SUNOL CWT");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var dfd = Assert.IsType<DirectFixDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO DCT SUNOL CWT");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        DirectFixDeparture dfd = Assert.IsType<DirectFixDeparture>(cto.Departure);
         Assert.Equal("SUNOL", dfd.FixName);
         Assert.True(cto.CautionWakeTurbulence);
     }
@@ -69,9 +69,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_BareNumber_IsHeading()
     {
-        var cmd = CommandParser.Parse("CTO 050");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO 050");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        FlyHeadingDeparture fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
         Assert.Equal(50, fh.MagneticHeading.Degrees);
         Assert.Null(fh.Direction);
         Assert.Null(cto.AssignedAltitude);
@@ -80,9 +80,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_BareNumber_WithAltitude()
     {
-        var cmd = CommandParser.Parse("CTO 060 250");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO 060 250");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        FlyHeadingDeparture fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
         Assert.Equal(60, fh.MagneticHeading.Degrees);
         Assert.Null(fh.Direction);
         Assert.Equal(25000, cto.AssignedAltitude);
@@ -91,9 +91,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_360_IsHeading360()
     {
-        var cmd = CommandParser.Parse("CTO 360");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO 360");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        FlyHeadingDeparture fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
         // MagneticHeading normalizes [0, 360) so 360 → 0 degrees; display int is 360
         Assert.Equal(360, fh.MagneticHeading.ToDisplayInt());
         Assert.Null(cto.AssignedAltitude);
@@ -102,9 +102,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Mrc_RightCrosswind()
     {
-        var cmd = CommandParser.Parse("CTO MRC");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MRC");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        PatternExitDeparture ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
         Assert.Equal(PatternEntryLeg.Crosswind, ped.ExitLeg);
         Assert.Equal(PatternDirection.Right, ped.Direction);
     }
@@ -112,9 +112,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Mrc_WithAlt()
     {
-        var cmd = CommandParser.Parse("CTO MRC 014");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MRC 014");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        PatternExitDeparture ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
         Assert.Equal(PatternEntryLeg.Crosswind, ped.ExitLeg);
         Assert.Equal(PatternDirection.Right, ped.Direction);
         Assert.Equal(1400, cto.AssignedAltitude);
@@ -123,9 +123,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Mrd_RightDownwind()
     {
-        var cmd = CommandParser.Parse("CTO MRD");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MRD");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        PatternExitDeparture ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
         Assert.Equal(PatternEntryLeg.Downwind, ped.ExitLeg);
         Assert.Equal(PatternDirection.Right, ped.Direction);
     }
@@ -133,9 +133,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Mr270_ArbitraryRightTurn()
     {
-        var cmd = CommandParser.Parse("CTO MR270");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var rel = Assert.IsType<RelativeTurnDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MR270");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        RelativeTurnDeparture rel = Assert.IsType<RelativeTurnDeparture>(cto.Departure);
         Assert.Equal(270, rel.Degrees);
         Assert.Equal(TurnDirection.Right, rel.Direction);
     }
@@ -143,9 +143,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Mr45_WithAlt()
     {
-        var cmd = CommandParser.Parse("CTO MR45 050");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var rel = Assert.IsType<RelativeTurnDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MR45 050");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        RelativeTurnDeparture rel = Assert.IsType<RelativeTurnDeparture>(cto.Departure);
         Assert.Equal(45, rel.Degrees);
         Assert.Equal(TurnDirection.Right, rel.Direction);
         Assert.Equal(5000, cto.AssignedAltitude);
@@ -154,9 +154,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Mlc_LeftCrosswind()
     {
-        var cmd = CommandParser.Parse("CTO MLC");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MLC");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        PatternExitDeparture ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
         Assert.Equal(PatternEntryLeg.Crosswind, ped.ExitLeg);
         Assert.Equal(PatternDirection.Left, ped.Direction);
     }
@@ -164,9 +164,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Mld_LeftDownwind()
     {
-        var cmd = CommandParser.Parse("CTO MLD");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MLD");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        PatternExitDeparture ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
         Assert.Equal(PatternEntryLeg.Downwind, ped.ExitLeg);
         Assert.Equal(PatternDirection.Left, ped.Direction);
     }
@@ -174,9 +174,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Ml270_ArbitraryLeftTurn()
     {
-        var cmd = CommandParser.Parse("CTO ML270");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var rel = Assert.IsType<RelativeTurnDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO ML270");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        RelativeTurnDeparture rel = Assert.IsType<RelativeTurnDeparture>(cto.Departure);
         Assert.Equal(270, rel.Degrees);
         Assert.Equal(TurnDirection.Left, rel.Direction);
     }
@@ -184,32 +184,32 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Mrh_RunwayHeading()
     {
-        var cmd = CommandParser.Parse("CTO MRH");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MRH");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.IsType<RunwayHeadingDeparture>(cto.Departure);
     }
 
     [Fact]
     public void Cto_Mso_RunwayHeadingAlias()
     {
-        var cmd = CommandParser.Parse("CTO MSO");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MSO");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.IsType<RunwayHeadingDeparture>(cto.Departure);
     }
 
     [Fact]
     public void Cto_Rh_RunwayHeading()
     {
-        var cmd = CommandParser.Parse("CTO RH");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO RH");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.IsType<RunwayHeadingDeparture>(cto.Departure);
     }
 
     [Fact]
     public void Cto_Rh_WithAlt()
     {
-        var cmd = CommandParser.Parse("CTO RH 050");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO RH 050");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.IsType<RunwayHeadingDeparture>(cto.Departure);
         Assert.Equal(5000, cto.AssignedAltitude);
     }
@@ -217,9 +217,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_H270_FlyHeading()
     {
-        var cmd = CommandParser.Parse("CTO H270");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO H270");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        FlyHeadingDeparture fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
         Assert.Equal(270, fh.MagneticHeading.Degrees);
         Assert.Null(fh.Direction);
     }
@@ -227,9 +227,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Rh270_TurnRightHeading()
     {
-        var cmd = CommandParser.Parse("CTO RH270");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO RH270");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        FlyHeadingDeparture fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
         Assert.Equal(270, fh.MagneticHeading.Degrees);
         Assert.Equal(TurnDirection.Right, fh.Direction);
     }
@@ -237,9 +237,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Lh270_TurnLeftHeading()
     {
-        var cmd = CommandParser.Parse("CTO LH270");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO LH270");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        FlyHeadingDeparture fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
         Assert.Equal(270, fh.MagneticHeading.Degrees);
         Assert.Equal(TurnDirection.Left, fh.Direction);
     }
@@ -247,9 +247,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Lh270_WithAlt()
     {
-        var cmd = CommandParser.Parse("CTO LH270 014");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO LH270 014");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        FlyHeadingDeparture fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
         Assert.Equal(270, fh.MagneticHeading.Degrees);
         Assert.Equal(TurnDirection.Left, fh.Direction);
         Assert.Equal(1400, cto.AssignedAltitude);
@@ -258,9 +258,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Rt270_TurnRightHeading()
     {
-        var cmd = CommandParser.Parse("CTO RT270");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO RT270");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        FlyHeadingDeparture fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
         Assert.Equal(270, fh.MagneticHeading.Degrees);
         Assert.Equal(TurnDirection.Right, fh.Direction);
     }
@@ -268,9 +268,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Lt270_TurnLeftHeading()
     {
-        var cmd = CommandParser.Parse("CTO LT270");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO LT270");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        FlyHeadingDeparture fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
         Assert.Equal(270, fh.MagneticHeading.Degrees);
         Assert.Equal(TurnDirection.Left, fh.Direction);
     }
@@ -278,16 +278,16 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Oc_OnCourse()
     {
-        var cmd = CommandParser.Parse("CTO OC");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO OC");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.IsType<OnCourseDeparture>(cto.Departure);
     }
 
     [Fact]
     public void Cto_Oc_WithAlt()
     {
-        var cmd = CommandParser.Parse("CTO OC 050");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO OC 050");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.IsType<OnCourseDeparture>(cto.Departure);
         Assert.Equal(5000, cto.AssignedAltitude);
     }
@@ -296,12 +296,12 @@ public class CtoParserTests : IDisposable
     public void Cto_Dct_DirectFix()
     {
         _scope.Dispose();
-        using var _ = NavigationDatabase.ScopedOverride(
+        using IDisposable _ = NavigationDatabase.ScopedOverride(
             NavigationDatabase.ForTesting(fixes: new Dictionary<string, (double Lat, double Lon)> { ["SUNOL"] = (37.5, -121.8) })
         );
-        var cmd = CommandParser.Parse("CTO DCT SUNOL");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var dfd = Assert.IsType<DirectFixDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO DCT SUNOL");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        DirectFixDeparture dfd = Assert.IsType<DirectFixDeparture>(cto.Departure);
         Assert.Equal("SUNOL", dfd.FixName);
         Assert.Equal(37.5, dfd.Lat, 1);
         Assert.Equal(-121.8, dfd.Lon, 1);
@@ -311,12 +311,12 @@ public class CtoParserTests : IDisposable
     public void Cto_Dct_WithAlt()
     {
         _scope.Dispose();
-        using var _ = NavigationDatabase.ScopedOverride(
+        using IDisposable _ = NavigationDatabase.ScopedOverride(
             NavigationDatabase.ForTesting(fixes: new Dictionary<string, (double Lat, double Lon)> { ["SUNOL"] = (37.5, -121.8) })
         );
-        var cmd = CommandParser.Parse("CTO DCT SUNOL 050");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var dfd = Assert.IsType<DirectFixDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO DCT SUNOL 050");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        DirectFixDeparture dfd = Assert.IsType<DirectFixDeparture>(cto.Departure);
         Assert.Equal("SUNOL", dfd.FixName);
         Assert.Equal(5000, cto.AssignedAltitude);
     }
@@ -324,26 +324,26 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Mrt_RightClosedTraffic()
     {
-        var cmd = CommandParser.Parse("CTO MRT");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MRT");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ClosedTrafficDeparture ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
         Assert.Equal(PatternDirection.Right, ct.Direction);
     }
 
     [Fact]
     public void Cto_Mlt_LeftClosedTraffic()
     {
-        var cmd = CommandParser.Parse("CTO MLT");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MLT");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ClosedTrafficDeparture ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
         Assert.Equal(PatternDirection.Left, ct.Direction);
     }
 
     [Fact]
     public void Cto_Mrh_WithAlt()
     {
-        var cmd = CommandParser.Parse("CTO MRH 050");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MRH 050");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.IsType<RunwayHeadingDeparture>(cto.Departure);
         Assert.Equal(5000, cto.AssignedAltitude);
     }
@@ -353,9 +353,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Mrt_WithRunway_ParsesRunwayId()
     {
-        var cmd = CommandParser.Parse("CTO MRT 28R");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MRT 28R");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ClosedTrafficDeparture ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
         Assert.Equal(PatternDirection.Right, ct.Direction);
         Assert.Equal("28R", ct.RunwayId);
         Assert.Null(cto.AssignedAltitude);
@@ -364,9 +364,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Mlt_WithRunway_ParsesRunwayId()
     {
-        var cmd = CommandParser.Parse("CTO MLT 28L");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MLT 28L");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ClosedTrafficDeparture ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
         Assert.Equal(PatternDirection.Left, ct.Direction);
         Assert.Equal("28L", ct.RunwayId);
     }
@@ -374,9 +374,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Mrt_NoRunway_RunwayIdIsNull()
     {
-        var cmd = CommandParser.Parse("CTO MRT");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MRT");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ClosedTrafficDeparture ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
         Assert.Null(ct.RunwayId);
     }
 
@@ -387,7 +387,7 @@ public class CtoParserTests : IDisposable
     public void Cto_UnknownModifier_Fails()
     {
         // The reported bug: "TRD" is not a CTO modifier (the valid token is "TRDCT").
-        var cmd = CommandParser.Parse("CTO TRD OAK30NUM");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO TRD OAK30NUM");
         Assert.False(cmd.IsSuccess);
         Assert.Contains("TRD", cmd.Reason!, StringComparison.OrdinalIgnoreCase);
     }
@@ -396,12 +396,12 @@ public class CtoParserTests : IDisposable
     public void Cto_Trdct_KnownFix_TurnsRight()
     {
         _scope.Dispose();
-        using var _ = NavigationDatabase.ScopedOverride(
+        using IDisposable _ = NavigationDatabase.ScopedOverride(
             NavigationDatabase.ForTesting(fixes: new Dictionary<string, (double Lat, double Lon)> { ["SUNOL"] = (37.5, -121.8) })
         );
-        var cmd = CommandParser.Parse("CTO TRDCT SUNOL");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var dfd = Assert.IsType<DirectFixDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO TRDCT SUNOL");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        DirectFixDeparture dfd = Assert.IsType<DirectFixDeparture>(cto.Departure);
         Assert.Equal("SUNOL", dfd.FixName);
         Assert.Equal(TurnDirection.Right, dfd.Direction);
     }
@@ -409,35 +409,35 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Trdct_UnknownFix_Fails()
     {
-        var cmd = CommandParser.Parse("CTO TRDCT BADFIX");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO TRDCT BADFIX");
         Assert.False(cmd.IsSuccess);
     }
 
     [Fact]
     public void Cto_Dct_NoFix_Fails()
     {
-        var cmd = CommandParser.Parse("CTO DCT");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO DCT");
         Assert.False(cmd.IsSuccess);
     }
 
     [Fact]
     public void Cto_Modifier_TrailingJunk_Fails()
     {
-        var cmd = CommandParser.Parse("CTO RH JUNK");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO RH JUNK");
         Assert.False(cmd.IsSuccess);
     }
 
     [Fact]
     public void Cto_BareHeading_ExtraToken_Fails()
     {
-        var cmd = CommandParser.Parse("CTO 270 050 EXTRA");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO 270 050 EXTRA");
         Assert.False(cmd.IsSuccess);
     }
 
     [Fact]
     public void Cto_Mrt_TrailingJunk_Fails()
     {
-        var cmd = CommandParser.Parse("CTO MRT JUNK");
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MRT JUNK");
         Assert.False(cmd.IsSuccess);
     }
 
@@ -446,8 +446,8 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void BareCto_IsNotImmediate()
     {
-        var cmd = CommandParser.Parse("CTO");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.False(cto.Immediate);
     }
 
@@ -457,8 +457,8 @@ public class CtoParserTests : IDisposable
     [InlineData("CTO ND")]
     public void Cto_ImmediateAliases_SetImmediate(string input)
     {
-        var cmd = CommandParser.Parse(input);
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.IsType<DefaultDeparture>(cto.Departure);
         Assert.True(cto.Immediate);
         Assert.Equal("CTO IMM", CommandDescriber.DescribeCommand(cto));
@@ -468,9 +468,9 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_ImmediateWithTurnAndAltitude_PreservesEverything()
     {
-        var cmd = CommandParser.Parse("CTO RT280 050 IMM");
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO RT280 050 IMM");
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        FlyHeadingDeparture fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
         Assert.Equal(280, fh.MagneticHeading.Degrees);
         Assert.Equal(TurnDirection.Right, fh.Direction);
         Assert.Equal(5000, cto.AssignedAltitude);
@@ -483,8 +483,8 @@ public class CtoParserTests : IDisposable
     [InlineData("CTO CWT IMM")]
     public void Cto_ImmediateAndWakeTurbulence_AnyOrder_SetsBothFlags(string input)
     {
-        var cmd = CommandParser.Parse(input);
-        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
         Assert.True(cto.Immediate);
         Assert.True(cto.CautionWakeTurbulence);
         Assert.Equal("CTO CWT IMM", CommandDescriber.DescribeCommand(cto));
@@ -493,10 +493,10 @@ public class CtoParserTests : IDisposable
     [Fact]
     public void Cto_Immediate_CanonicalRoundTrips()
     {
-        var canonical = CommandDescriber.DescribeCommand(Assert.IsType<ClearedForTakeoffCommand>(CommandParser.Parse("CTO MRC 014 IMM").Value));
-        var reparsed = Assert.IsType<ClearedForTakeoffCommand>(CommandParser.Parse(canonical).Value);
+        string canonical = CommandDescriber.DescribeCommand(Assert.IsType<ClearedForTakeoffCommand>(CommandParser.Parse("CTO MRC 014 IMM").Value));
+        ClearedForTakeoffCommand reparsed = Assert.IsType<ClearedForTakeoffCommand>(CommandParser.Parse(canonical).Value);
         Assert.True(reparsed.Immediate);
-        var ped = Assert.IsType<PatternExitDeparture>(reparsed.Departure);
+        PatternExitDeparture ped = Assert.IsType<PatternExitDeparture>(reparsed.Departure);
         Assert.Equal(PatternEntryLeg.Crosswind, ped.ExitLeg);
         Assert.Equal(1400, reparsed.AssignedAltitude);
     }

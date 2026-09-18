@@ -47,7 +47,7 @@ public sealed class LevelOffTaperTests
     {
         // B738 at 5,800 descending to 5,000: profile rate ~2,660 fpm, but 800 ft to go
         // tapers to 800 × 1.5 = 1,200 fpm.
-        var ac = Aircraft("B738", 5800);
+        AircraftState ac = Aircraft("B738", 5800);
         ac.Targets.TargetAltitude = 5000;
 
         Assert.Equal(-1200, VerticalSpeedAfterOneTick(ac), 1.0);
@@ -57,7 +57,7 @@ public sealed class LevelOffTaperTests
     public void Descent_TaperFloorsAtFiveHundred()
     {
         // 200 ft to go: 200 × 1.5 = 300 would undershoot the AIM band; the 500 fpm floor holds.
-        var ac = Aircraft("B738", 5200);
+        AircraftState ac = Aircraft("B738", 5200);
         ac.Targets.TargetAltitude = 5000;
 
         Assert.Equal(-500, VerticalSpeedAfterOneTick(ac), 1.0);
@@ -67,7 +67,7 @@ public sealed class LevelOffTaperTests
     public void Climb_TapersInsideTheLastThousandFeet()
     {
         // B738 at 9,600 climbing to 10,000: 400 ft to go tapers to 600 fpm.
-        var ac = Aircraft("B738", 9600);
+        AircraftState ac = Aircraft("B738", 9600);
         ac.Targets.TargetAltitude = 10000;
 
         Assert.Equal(600, VerticalSpeedAfterOneTick(ac), 1.0);
@@ -78,7 +78,7 @@ public sealed class LevelOffTaperTests
     {
         // An SR22's 500 fpm profile descent sits at the band floor; 900 ft to go must not
         // raise it toward 1,350.
-        var ac = Aircraft("SR22", 2300);
+        AircraftState ac = Aircraft("SR22", 2300);
         ac.Targets.TargetAltitude = 1400;
         ac.IndicatedAirspeed = 115;
 
@@ -90,7 +90,7 @@ public sealed class LevelOffTaperTests
     {
         // A glidepath or crossing-restriction rate is a commanded vertical path — 300 ft from
         // the target it still flies the commanded 1,800 fpm, not a tapered 500.
-        var ac = Aircraft("B738", 5300);
+        AircraftState ac = Aircraft("B738", 5300);
         ac.Targets.TargetAltitude = 5000;
         ac.Targets.DesiredVerticalRate = -1800;
 
@@ -102,7 +102,7 @@ public sealed class LevelOffTaperTests
     {
         // Expedite raises the en-route rate, but the last-1,000-ft band still governs the
         // capture: an expedited B738 400 ft above the target descends at 600 fpm, not 4,000.
-        var ac = Aircraft("B738", 5400);
+        AircraftState ac = Aircraft("B738", 5400);
         ac.Targets.TargetAltitude = 5000;
         ac.Procedure.IsExpediting = true;
 
@@ -114,7 +114,7 @@ public sealed class LevelOffTaperTests
     {
         // 4,000 ft to go: the taper must not reach outside the AIM band. B738 at 9,000
         // descending to 5,000 flies the full profile rate (~3,300 fpm at that altitude).
-        var ac = Aircraft("B738", 9000);
+        AircraftState ac = Aircraft("B738", 9000);
         ac.Targets.TargetAltitude = 5000;
 
         double vs = VerticalSpeedAfterOneTick(ac);

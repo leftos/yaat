@@ -21,28 +21,28 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_ClimbMaintain_ReadsbackVerbatimWithSpokenAltitude()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000));
+        string? result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000));
         Assert.Equal("climb and maintain five thousand", result);
     }
 
     [Fact]
     public void Verbalize_DescendMaintain_ReadsbackVerbatimWithSpokenAltitude()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new DescendMaintainCommand(3500));
+        string? result = PhraseologyVerbalizer.Verbalize(new DescendMaintainCommand(3500));
         Assert.Equal("descend and maintain three thousand five hundred", result);
     }
 
     [Fact]
     public void Verbalize_ClimbMaintain_FlightLevel()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(33000));
+        string? result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(33000));
         Assert.Equal("climb and maintain flight level three three zero", result);
     }
 
     [Fact]
     public void Verbalize_VariedModerate_KeepsVerbatim()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), PilotPersonality.Varied, FrequencyActivityLevel.Moderate);
+        string? result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), PilotPersonality.Varied, FrequencyActivityLevel.Moderate);
 
         Assert.Equal("climb and maintain five thousand", result);
     }
@@ -52,7 +52,7 @@ public class PhraseologyVerbalizerTests
     [InlineData(FrequencyActivityLevel.Saturated)]
     public void Verbalize_VariedBusy_UsesShortestAltitudeShortcut(FrequencyActivityLevel activityLevel)
     {
-        var result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), PilotPersonality.Varied, activityLevel);
+        string? result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), PilotPersonality.Varied, activityLevel);
 
         Assert.Equal("up to five thousand", result);
     }
@@ -62,28 +62,28 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_FlyHeading_ThreeDigitForm()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new FlyHeadingCommand(new MagneticHeading(270)));
+        string? result = PhraseologyVerbalizer.Verbalize(new FlyHeadingCommand(new MagneticHeading(270)));
         Assert.Equal("fly heading two seven zero", result);
     }
 
     [Fact]
     public void Verbalize_TurnLeft_ThreeDigitForm()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new TurnLeftCommand(new MagneticHeading(90)));
+        string? result = PhraseologyVerbalizer.Verbalize(new TurnLeftCommand(new MagneticHeading(90)));
         Assert.Equal("turn left heading zero nine zero", result);
     }
 
     [Fact]
     public void Verbalize_TurnRight_ZeroPaddedDigits()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new TurnRightCommand(new MagneticHeading(5)));
+        string? result = PhraseologyVerbalizer.Verbalize(new TurnRightCommand(new MagneticHeading(5)));
         Assert.Equal("turn right heading zero zero five", result);
     }
 
     [Fact]
     public void Verbalize_VariedBusy_UsesShortestHeadingShortcut()
     {
-        var result = PhraseologyVerbalizer.Verbalize(
+        string? result = PhraseologyVerbalizer.Verbalize(
             new TurnLeftCommand(new MagneticHeading(90)),
             PilotPersonality.Varied,
             FrequencyActivityLevel.Busy
@@ -95,14 +95,14 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_RelativeLeft_TensWordsForm()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new LeftTurnCommand(30));
+        string? result = PhraseologyVerbalizer.Verbalize(new LeftTurnCommand(30));
         Assert.Equal("turn thirty degrees left", result);
     }
 
     [Fact]
     public void Verbalize_RelativeRight_TensWordsForm()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new RightTurnCommand(20));
+        string? result = PhraseologyVerbalizer.Verbalize(new RightTurnCommand(20));
         Assert.Equal("turn twenty degrees right", result);
     }
 
@@ -122,14 +122,14 @@ public class PhraseologyVerbalizerTests
         // Rule pattern is ["maintain", "{spd}", "knots"] (first declared in AltitudeSpeedRules).
         // SpeedCommand uses the SpeedWords colloquial form for round knots — "two fifty" not
         // "two five zero" — so Whisper handles the readback far better. See SpeedWords doc.
-        var result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250));
+        string? result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250));
         Assert.Equal("maintain two fifty knots", result);
     }
 
     [Fact]
     public void Verbalize_VariedBusy_SpeedShortcutKeepsKnots()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), PilotPersonality.Varied, FrequencyActivityLevel.Busy);
+        string? result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), PilotPersonality.Varied, FrequencyActivityLevel.Busy);
 
         Assert.Equal("two fifty knots", result);
     }
@@ -139,14 +139,14 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_Squawk_FourDigitsSpoken()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new SquawkCommand(1234));
+        string? result = PhraseologyVerbalizer.Verbalize(new SquawkCommand(1234));
         Assert.Equal("squawk one two three four", result);
     }
 
     [Fact]
     public void Verbalize_Squawk_PadsTo4DigitsForLowCodes()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new SquawkCommand(56));
+        string? result = PhraseologyVerbalizer.Verbalize(new SquawkCommand(56));
         Assert.Equal("squawk zero zero five six", result);
     }
 
@@ -154,14 +154,14 @@ public class PhraseologyVerbalizerTests
     public void Verbalize_Ident_LiteralFromRule()
     {
         // The rule is ["squawk", "ident"] (it's filed under transponder phraseology).
-        var result = PhraseologyVerbalizer.Verbalize(new IdentCommand());
+        string? result = PhraseologyVerbalizer.Verbalize(new IdentCommand());
         Assert.Equal("squawk ident", result);
     }
 
     [Fact]
     public void Verbalize_VariedBusy_NoShortcutFallsBackToVerbatim()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new IdentCommand(), PilotPersonality.Varied, FrequencyActivityLevel.Busy);
+        string? result = PhraseologyVerbalizer.Verbalize(new IdentCommand(), PilotPersonality.Varied, FrequencyActivityLevel.Busy);
 
         Assert.Equal("squawk ident", result);
     }
@@ -173,21 +173,21 @@ public class PhraseologyVerbalizerTests
     {
         // LineUpAndWaitCommand carries no runway. Verbalizer prefers the "line up and wait"
         // rule over "line up and wait runway {rwy}" because it has zero captures.
-        var result = PhraseologyVerbalizer.Verbalize(new LineUpAndWaitCommand());
+        string? result = PhraseologyVerbalizer.Verbalize(new LineUpAndWaitCommand());
         Assert.Equal("line up and wait", result);
     }
 
     [Fact]
     public void Verbalize_ClearedForTakeoff_PicksRuleWithoutRunway()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new ClearedForTakeoffCommand(new DefaultDeparture()));
+        string? result = PhraseologyVerbalizer.Verbalize(new ClearedForTakeoffCommand(new DefaultDeparture()));
         Assert.Equal("cleared for takeoff", result);
     }
 
     [Fact]
     public void Verbalize_ClearedToLand_PicksRuleWithoutRunway()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new ClearedToLandCommand());
+        string? result = PhraseologyVerbalizer.Verbalize(new ClearedToLandCommand());
         Assert.Equal("cleared to land", result);
     }
 
@@ -196,7 +196,7 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_UnsupportedCommand_ReturnsNull()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new UnsupportedCommand("ZZZ 999"));
+        string? result = PhraseologyVerbalizer.Verbalize(new UnsupportedCommand("ZZZ 999"));
         Assert.Null(result);
     }
 
@@ -205,16 +205,16 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_ClimbMaintain_RoundTripsViaPhraseologyMapper()
     {
-        var verbalized = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000))!;
-        var normalized = Yaat.Sim.Speech.AtcNumberParser.NormalizeDigits(verbalized);
+        string verbalized = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000))!;
+        string normalized = Yaat.Sim.Speech.AtcNumberParser.NormalizeDigits(verbalized);
         Assert.Equal("climb and maintain 5000", normalized);
     }
 
     [Fact]
     public void Verbalize_FlyHeading_RoundTripsViaPhraseologyMapper()
     {
-        var verbalized = PhraseologyVerbalizer.Verbalize(new FlyHeadingCommand(new MagneticHeading(270)))!;
-        var normalized = Yaat.Sim.Speech.AtcNumberParser.NormalizeDigits(verbalized);
+        string verbalized = PhraseologyVerbalizer.Verbalize(new FlyHeadingCommand(new MagneticHeading(270)))!;
+        string normalized = Yaat.Sim.Speech.AtcNumberParser.NormalizeDigits(verbalized);
         Assert.Equal("fly heading 270", normalized);
     }
 
@@ -294,8 +294,8 @@ public class PhraseologyVerbalizerTests
         // 08R → 8R; taxiway path → space-joined letters. Spoken form spells the phonetics; the
         // terminal form mirrors the same rule with compact tokens.
         var taxi = new TaxiCommand(["B", "C", "D"], [], DestinationRunway: "08R");
-        var spoken = PhraseologyVerbalizer.Verbalize(taxi);
-        var terminal = PhraseologyVerbalizer.VerbalizeTerminal(taxi);
+        string? spoken = PhraseologyVerbalizer.Verbalize(taxi);
+        string? terminal = PhraseologyVerbalizer.VerbalizeTerminal(taxi);
 
         Assert.Contains("eight right", spoken);
         Assert.Contains("bravo, charlie, delta", spoken);
@@ -375,7 +375,7 @@ public class PhraseologyVerbalizerTests
         // Pilot readbacks favor "two fifty" over the 7110.65 controller form "two five zero".
         // Whisper handles the colloquial form far better than the digit-by-digit form (the
         // ouroboros harness consistently mistranscribed "two zero zero knots" as "18.20").
-        var result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(speed));
+        string? result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(speed));
         Assert.Equal(expected, result);
     }
 
@@ -387,7 +387,7 @@ public class PhraseologyVerbalizerTests
         // Speeds not on a 10-knot boundary aren't real pilot-readback values, but if the system
         // is ever asked to verbalize one, fall back to digit-by-digit rather than guess at a
         // colloquial form.
-        var result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(speed));
+        string? result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(speed));
         Assert.Equal(expected, result);
     }
 
@@ -396,49 +396,49 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_EnterRightDownwind_WithRunway_IncludesRunwayPhrase()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new EnterRightDownwindCommand("28R"));
+        string? result = PhraseologyVerbalizer.Verbalize(new EnterRightDownwindCommand("28R"));
         Assert.Equal("enter right downwind runway two eight right", result);
     }
 
     [Fact]
     public void Verbalize_EnterRightDownwind_NoRunway_FallsBackToBareForm()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new EnterRightDownwindCommand());
+        string? result = PhraseologyVerbalizer.Verbalize(new EnterRightDownwindCommand());
         Assert.Equal("enter right downwind", result);
     }
 
     [Fact]
     public void Verbalize_EnterLeftDownwind_WithRunway_IncludesRunwayPhrase()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new EnterLeftDownwindCommand("10L"));
+        string? result = PhraseologyVerbalizer.Verbalize(new EnterLeftDownwindCommand("10L"));
         Assert.Equal("enter left downwind runway one zero left", result);
     }
 
     [Fact]
     public void Verbalize_EnterLeftBase_WithRunway_IncludesRunwayPhrase()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new EnterLeftBaseCommand("28R"));
+        string? result = PhraseologyVerbalizer.Verbalize(new EnterLeftBaseCommand("28R"));
         Assert.Equal("enter left base runway two eight right", result);
     }
 
     [Fact]
     public void Verbalize_EnterRightBase_WithRunway_IncludesRunwayPhrase()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new EnterRightBaseCommand("28R"));
+        string? result = PhraseologyVerbalizer.Verbalize(new EnterRightBaseCommand("28R"));
         Assert.Equal("enter right base runway two eight right", result);
     }
 
     [Fact]
     public void Verbalize_MakeLeftTraffic_WithRunway_IncludesRunwayPhrase()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new MakeLeftTrafficCommand("28R", null));
+        string? result = PhraseologyVerbalizer.Verbalize(new MakeLeftTrafficCommand("28R", null));
         Assert.Equal("make left traffic runway two eight right", result);
     }
 
     [Fact]
     public void Verbalize_MakeRightTraffic_WithRunway_IncludesRunwayPhrase()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new MakeRightTrafficCommand("28R", null));
+        string? result = PhraseologyVerbalizer.Verbalize(new MakeRightTrafficCommand("28R", null));
         Assert.Equal("make right traffic runway two eight right", result);
     }
 
@@ -451,7 +451,7 @@ public class PhraseologyVerbalizerTests
     public void Verbalize_CrossFix_At_ReadsBackBasicForm()
     {
         var cmd = new CrossFixCommand("CEPIN", 0, 0, 5000, CrossFixAltitudeType.At, null);
-        var result = PhraseologyVerbalizer.Verbalize(cmd);
+        string? result = PhraseologyVerbalizer.Verbalize(cmd);
         Assert.Equal("cross seppin at five thousand", result);
     }
 
@@ -459,7 +459,7 @@ public class PhraseologyVerbalizerTests
     public void Verbalize_CrossFix_AtOrAbove_ReadsBackWithModifier()
     {
         var cmd = new CrossFixCommand("CEPIN", 0, 0, 5000, CrossFixAltitudeType.AtOrAbove, null);
-        var result = PhraseologyVerbalizer.Verbalize(cmd);
+        string? result = PhraseologyVerbalizer.Verbalize(cmd);
         Assert.Equal("cross seppin at or above five thousand", result);
     }
 
@@ -467,7 +467,7 @@ public class PhraseologyVerbalizerTests
     public void Verbalize_CrossFix_AtOrBelow_ReadsBackWithModifier()
     {
         var cmd = new CrossFixCommand("CEPIN", 0, 0, 5000, CrossFixAltitudeType.AtOrBelow, null);
-        var result = PhraseologyVerbalizer.Verbalize(cmd);
+        string? result = PhraseologyVerbalizer.Verbalize(cmd);
         Assert.Equal("cross seppin at or below five thousand", result);
     }
 
@@ -475,7 +475,7 @@ public class PhraseologyVerbalizerTests
     public void Verbalize_CrossFix_AtFlightLevel_UsesFlightLevelForm()
     {
         var cmd = new CrossFixCommand("CEPIN", 0, 0, 25000, CrossFixAltitudeType.At, null);
-        var result = PhraseologyVerbalizer.Verbalize(cmd);
+        string? result = PhraseologyVerbalizer.Verbalize(cmd);
         Assert.Equal("cross seppin at flight level two five zero", result);
     }
 
@@ -483,7 +483,7 @@ public class PhraseologyVerbalizerTests
     public void Verbalize_CrossFix_WithSpeed_UsesAndMaintainSpeedForm()
     {
         var cmd = new CrossFixCommand("CEPIN", 0, 0, 5000, CrossFixAltitudeType.At, 250);
-        var result = PhraseologyVerbalizer.Verbalize(cmd);
+        string? result = PhraseologyVerbalizer.Verbalize(cmd);
         Assert.Equal("cross seppin at and maintain five thousand at two fifty knots", result);
     }
 
@@ -492,21 +492,21 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_ClimbVia_BareForm()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new ClimbViaCommand(null));
+        string? result = PhraseologyVerbalizer.Verbalize(new ClimbViaCommand(null));
         Assert.Equal("climb via sid", result);
     }
 
     [Fact]
     public void Verbalize_ClimbVia_ExceptMaintain()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new ClimbViaCommand(5000));
+        string? result = PhraseologyVerbalizer.Verbalize(new ClimbViaCommand(5000));
         Assert.Equal("climb via sid except maintain five thousand", result);
     }
 
     [Fact]
     public void Verbalize_ClimbVia_ExceptMaintain_FlightLevel()
     {
-        var result = PhraseologyVerbalizer.Verbalize(new ClimbViaCommand(18000));
+        string? result = PhraseologyVerbalizer.Verbalize(new ClimbViaCommand(18000));
         Assert.Equal("climb via sid except maintain flight level one eight zero", result);
     }
 
@@ -539,7 +539,7 @@ public class PhraseologyVerbalizerTests
         // flagged SttOnly to recover Whisper mistranscriptions of "descend" as "descent".
         // The verbalizer must skip SttOnly rules so the pilot AI never speaks "descent and maintain"
         // — that would be grammatically wrong and a regression of the canonical readback.
-        var result = PhraseologyVerbalizer.Verbalize(new DescendMaintainCommand(3000));
+        string? result = PhraseologyVerbalizer.Verbalize(new DescendMaintainCommand(3000));
         Assert.Equal("descend and maintain three thousand", result);
     }
 }

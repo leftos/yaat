@@ -42,10 +42,10 @@ public class FlightStripConfigurationLoadTests
     [Fact]
     public void FlightStripConfiguration_DeserializesFullShape()
     {
-        var scenario = JsonSerializer.Deserialize<Scenario>(ScenarioWithStripConfig);
+        Scenario? scenario = JsonSerializer.Deserialize<Scenario>(ScenarioWithStripConfig);
 
         Assert.NotNull(scenario);
-        var config = Assert.Single(scenario!.FlightStripConfigurations);
+        FlightStripConfiguration config = Assert.Single(scenario!.FlightStripConfigurations);
         Assert.Equal("OAK", config.FacilityId);
         Assert.Equal("BAY-GND-1", config.BayId);
         Assert.Equal(2, config.Rack);
@@ -55,11 +55,16 @@ public class FlightStripConfigurationLoadTests
     [Fact]
     public void Load_ResolvesStripBayAssignment_ByCallsign()
     {
-        var result = ScenarioLoader.Load(ScenarioWithStripConfig, groundData: null, new Random(0), MagneticDeclination.EvaluationDateUtc);
+        ScenarioLoadResult result = ScenarioLoader.Load(
+            ScenarioWithStripConfig,
+            groundData: null,
+            new Random(0),
+            MagneticDeclination.EvaluationDateUtc
+        );
 
         // ac1 → callsign N111 is configured; ac3 is referenced but not a real aircraft (skipped);
         // ac2/N222 is not configured.
-        Assert.True(result.InitialStripBayByCallsign.TryGetValue("N111", out var assignment));
+        Assert.True(result.InitialStripBayByCallsign.TryGetValue("N111", out ScenarioStripBayAssignment? assignment));
         Assert.Equal("BAY-GND-1", assignment!.BayId);
         Assert.Equal(2, assignment.Rack);
         Assert.Equal("OAK", assignment.FacilityId);
@@ -79,7 +84,7 @@ public class FlightStripConfigurationLoadTests
             }
             """;
 
-        var result = ScenarioLoader.Load(noConfig, groundData: null, new Random(0), MagneticDeclination.EvaluationDateUtc);
+        ScenarioLoadResult result = ScenarioLoader.Load(noConfig, groundData: null, new Random(0), MagneticDeclination.EvaluationDateUtc);
 
         Assert.Empty(result.InitialStripBayByCallsign);
     }

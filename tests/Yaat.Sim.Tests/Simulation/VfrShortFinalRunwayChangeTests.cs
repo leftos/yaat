@@ -6,6 +6,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -59,7 +60,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
     [Fact]
     public void N42416_VfrSlow_CanSwitchToParallelRunwayOnFinal()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -67,8 +68,8 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -76,7 +77,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(335);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(335);
             if (snapshot is null)
             {
                 output.WriteLine("No snapshot near t=335 — skipping");
@@ -85,7 +86,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
             engine.RestoreFromSnapshot(snapshot.State);
             output.WriteLine($"Restored snapshot at t={snapshot.ElapsedSeconds}");
 
-            var aircraft = engine.FindAircraft("N42416");
+            AircraftState? aircraft = engine.FindAircraft("N42416");
             Assert.NotNull(aircraft);
             output.WriteLine(
                 $"N42416: IsVfr={aircraft.FlightPlan.IsVfr} type={aircraft.AircraftType} IAS={aircraft.IndicatedAirspeed:F1} "
@@ -95,7 +96,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
 
             // Mirror what the user typed (`EF 28L`): EnterFinalCommand dispatches
             // with PatternDirection.Left.
-            var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+            CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
 
             output.WriteLine($"TryEnterPattern(28L) -> Success={result.Success} Message='{result.Message}'");
 
@@ -121,7 +122,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
     public void Vfr_InsideStandardEntryAligned_AcceptedViaCloseInPath()
     {
         TestVnasData.EnsureInitialized();
-        var rwy28R = TestVnasData.NavigationDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? rwy28R = TestVnasData.NavigationDb?.GetRunway("KOAK", "28R");
         if (rwy28R is null)
         {
             return;
@@ -136,7 +137,12 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
         double gsFtPerNm = GlideSlopeGeometry.FeetPerNm(GlideSlopeGeometry.AngleForCategory(AircraftCategory.Piston));
         double entryDistNm = patternAglFt / gsFtPerNm;
         double acDistNm = entryDistNm - 0.1;
-        var (lat, lon) = GeoMath.ProjectPoint(rwy28R.ThresholdLatitude, rwy28R.ThresholdLongitude, rwy28R.TrueHeading.ToReciprocal(), acDistNm);
+        (double lat, double lon) = GeoMath.ProjectPoint(
+            rwy28R.ThresholdLatitude,
+            rwy28R.ThresholdLongitude,
+            rwy28R.TrueHeading.ToReciprocal(),
+            acDistNm
+        );
 
         var ac = new AircraftState
         {
@@ -151,7 +157,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
         };
         SetUpFinalApproach(ac, rwy28R, AircraftCategory.Piston);
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28R", null);
 
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
         Assert.True(result.Success, $"Close-in aligned VFR aircraft must be accepted. Got: '{result.Message}'");
@@ -173,7 +179,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
     public void Ifr_Jet_ShortFinal_StillRejectedAfterVfrBranch()
     {
         TestVnasData.EnsureInitialized();
-        var rwy28L = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L");
+        RunwayInfo? rwy28L = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L");
         if (rwy28L is null)
         {
             return;
@@ -181,7 +187,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
 
         // 0.5 nm from threshold, aligned with 28L final — matches the existing
         // PatternCommandHandlerTests test that already passes today.
-        var (lat, lon) = GeoMath.ProjectPoint(rwy28L.ThresholdLatitude, rwy28L.ThresholdLongitude, rwy28L.TrueHeading.ToReciprocal(), 0.5);
+        (double lat, double lon) = GeoMath.ProjectPoint(rwy28L.ThresholdLatitude, rwy28L.ThresholdLongitude, rwy28L.TrueHeading.ToReciprocal(), 0.5);
 
         var ac = new AircraftState
         {
@@ -196,7 +202,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
         };
         SetUpFinalApproach(ac, rwy28L, AircraftCategory.Jet);
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28R", null);
 
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
         Assert.False(result.Success);

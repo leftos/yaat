@@ -105,10 +105,10 @@ public class TaxiSpeedCommandTests
     [Fact]
     public void Spd_WhileTaxiing_IsAccepted_AndSetsCommandedSpeed()
     {
-        var layout = BuildStraightLayout();
-        var (ac, _, _) = MakeTaxiing(layout);
+        AirportGroundLayout layout = BuildStraightLayout();
+        (AircraftState? ac, TaxiingPhase _, PhaseContext _) = MakeTaxiing(layout);
 
-        var result = Dispatch(new SpeedCommand(10), ac, layout);
+        CommandResult result = Dispatch(new SpeedCommand(10), ac, layout);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(10, ac.Ground.CommandedTaxiSpeedKts);
@@ -117,8 +117,8 @@ public class TaxiSpeedCommandTests
     [Fact]
     public void Spd_WhileTaxiing_AppliesCapToNavigator()
     {
-        var layout = BuildStraightLayout();
-        var (ac, phase, ctx) = MakeTaxiing(layout);
+        AirportGroundLayout layout = BuildStraightLayout();
+        (AircraftState? ac, TaxiingPhase? phase, PhaseContext? ctx) = MakeTaxiing(layout);
 
         Dispatch(new SpeedCommand(10), ac, layout);
         phase.OnTick(ctx);
@@ -129,8 +129,8 @@ public class TaxiSpeedCommandTests
     [Fact]
     public void Spd_AboveDefault_RaisesCapAboveCategoryDefault()
     {
-        var layout = BuildStraightLayout();
-        var (ac, phase, ctx) = MakeTaxiing(layout);
+        AirportGroundLayout layout = BuildStraightLayout();
+        (AircraftState? ac, TaxiingPhase? phase, PhaseContext? ctx) = MakeTaxiing(layout);
 
         Dispatch(new SpeedCommand(38), ac, layout);
         phase.OnTick(ctx);
@@ -142,8 +142,8 @@ public class TaxiSpeedCommandTests
     [Fact]
     public void Spd_BelowMinimum_ClampsToFloor()
     {
-        var layout = BuildStraightLayout();
-        var (ac, _, _) = MakeTaxiing(layout);
+        AirportGroundLayout layout = BuildStraightLayout();
+        (AircraftState? ac, TaxiingPhase _, PhaseContext _) = MakeTaxiing(layout);
 
         Dispatch(new SpeedCommand(3), ac, layout);
 
@@ -153,8 +153,8 @@ public class TaxiSpeedCommandTests
     [Fact]
     public void Spd_AboveMaximum_ClampsToExpediteCeiling()
     {
-        var layout = BuildStraightLayout();
-        var (ac, _, _) = MakeTaxiing(layout);
+        AirportGroundLayout layout = BuildStraightLayout();
+        (AircraftState? ac, TaxiingPhase _, PhaseContext _) = MakeTaxiing(layout);
 
         Dispatch(new SpeedCommand(100), ac, layout);
 
@@ -164,13 +164,13 @@ public class TaxiSpeedCommandTests
     [Fact]
     public void Spd0_ResumesNormalTaxiSpeed()
     {
-        var layout = BuildStraightLayout();
-        var (ac, phase, ctx) = MakeTaxiing(layout);
+        AirportGroundLayout layout = BuildStraightLayout();
+        (AircraftState? ac, TaxiingPhase? phase, PhaseContext? ctx) = MakeTaxiing(layout);
 
         Dispatch(new SpeedCommand(10), ac, layout);
         Assert.Equal(10, ac.Ground.CommandedTaxiSpeedKts);
 
-        var result = Dispatch(new ResumeNormalSpeedCommand(), ac, layout);
+        CommandResult result = Dispatch(new ResumeNormalSpeedCommand(), ac, layout);
         phase.OnTick(ctx);
 
         Assert.True(result.Success, result.Message);
@@ -181,8 +181,8 @@ public class TaxiSpeedCommandTests
     [Fact]
     public void Spd_ClearsExpediteTaxi()
     {
-        var layout = BuildStraightLayout();
-        var (ac, _, _) = MakeTaxiing(layout);
+        AirportGroundLayout layout = BuildStraightLayout();
+        (AircraftState? ac, TaxiingPhase _, PhaseContext _) = MakeTaxiing(layout);
         ac.Ground.IsExpeditingTaxi = true;
 
         Dispatch(new SpeedCommand(10), ac, layout);
@@ -194,11 +194,11 @@ public class TaxiSpeedCommandTests
     [Fact]
     public void ExpediteTaxi_ClearsCommandedSpeed()
     {
-        var layout = BuildStraightLayout();
-        var (ac, _, _) = MakeTaxiing(layout);
+        AirportGroundLayout layout = BuildStraightLayout();
+        (AircraftState? ac, TaxiingPhase _, PhaseContext _) = MakeTaxiing(layout);
         ac.Ground.CommandedTaxiSpeedKts = 10;
 
-        var result = Dispatch(new ExpediteCommand(), ac, layout);
+        CommandResult result = Dispatch(new ExpediteCommand(), ac, layout);
 
         Assert.True(result.Success, result.Message);
         Assert.True(ac.Ground.IsExpeditingTaxi);
@@ -208,8 +208,8 @@ public class TaxiSpeedCommandTests
     [Fact]
     public void CommandedSpeed_PersistsAcrossHoldAndResume()
     {
-        var layout = BuildStraightLayout();
-        var (ac, _, _) = MakeTaxiing(layout);
+        AirportGroundLayout layout = BuildStraightLayout();
+        (AircraftState? ac, TaxiingPhase _, PhaseContext _) = MakeTaxiing(layout);
 
         Dispatch(new SpeedCommand(10), ac, layout);
         Dispatch(new HoldPositionCommand(), ac, layout);
@@ -223,7 +223,7 @@ public class TaxiSpeedCommandTests
     [Fact]
     public void NewTaxi_ClearsCommandedSpeed()
     {
-        var layout = GroundCommandHandlerTestLayout();
+        AirportGroundLayout layout = GroundCommandHandlerTestLayout();
         var ac = new AircraftState
         {
             Callsign = "TEST1",
@@ -235,7 +235,7 @@ public class TaxiSpeedCommandTests
         };
         ac.Ground.CommandedTaxiSpeedKts = 10;
 
-        var result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(["A"], [], DestinationRunway: "28R"), layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(["A"], [], DestinationRunway: "28R"), layout);
 
         Assert.True(result.Success, result.Message);
         Assert.Null(ac.Ground.CommandedTaxiSpeedKts);
@@ -254,8 +254,8 @@ public class TaxiSpeedCommandTests
     [Fact]
     public void TaxiingAircraft_SlowsToCommandedSpeed_OnStraight()
     {
-        var layout = BuildStraightLayout();
-        var (ac, phase, ctx) = MakeTaxiing(layout);
+        AirportGroundLayout layout = BuildStraightLayout();
+        (AircraftState? ac, TaxiingPhase? phase, PhaseContext? ctx) = MakeTaxiing(layout);
 
         Dispatch(new SpeedCommand(10), ac, layout);
 

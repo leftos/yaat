@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -76,7 +77,7 @@ public class Issue206FollowOvertakeTests(ITestOutputHelper output)
     [Fact]
     public void Follower_DoesNotOverflyLead()
     {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
         {
             return;
@@ -84,8 +85,8 @@ public class Issue206FollowOvertakeTests(ITestOutputHelper output)
 
         using (archive)
         {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
             if (engine is null)
             {
                 return;
@@ -93,7 +94,7 @@ public class Issue206FollowOvertakeTests(ITestOutputHelper output)
 
             engine.Replay(recording, 0);
 
-            var snapshot = archive.ReadSnapshotAt(1900);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(1900);
             if (snapshot is null)
             {
                 return;
@@ -109,8 +110,8 @@ public class Issue206FollowOvertakeTests(ITestOutputHelper output)
             {
                 engine.ReplayRange(t, t + 1, recording.Actions);
 
-                var f = engine.FindAircraft(Follower);
-                var l = engine.FindAircraft(Leader);
+                AircraftState? f = engine.FindAircraft(Follower);
+                AircraftState? l = engine.FindAircraft(Leader);
                 if (f is null || l is null)
                 {
                     break;

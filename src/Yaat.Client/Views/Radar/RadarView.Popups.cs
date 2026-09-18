@@ -17,8 +17,8 @@ public partial class RadarView
     private void ShowInputPopup(string watermark, Func<string, Task> action)
     {
         _pendingInputAction = action;
-        var popup = this.FindControl<Popup>("InputPopup");
-        var textBox = this.FindControl<TextBox>("InputPopupText");
+        Popup? popup = this.FindControl<Popup>("InputPopup");
+        TextBox? textBox = this.FindControl<TextBox>("InputPopupText");
         if (popup is null || textBox is null)
         {
             return;
@@ -56,11 +56,11 @@ public partial class RadarView
 
     private void SubmitInputPopup()
     {
-        var textBox = this.FindControl<TextBox>("InputPopupText");
-        var text = textBox?.Text?.Trim();
+        TextBox? textBox = this.FindControl<TextBox>("InputPopupText");
+        string? text = textBox?.Text?.Trim();
         if (!string.IsNullOrEmpty(text) && _pendingInputAction is not null)
         {
-            var action = _pendingInputAction;
+            Func<string, Task> action = _pendingInputAction;
             CloseInputPopup();
             _ = action(text);
         }
@@ -73,7 +73,7 @@ public partial class RadarView
     private void CloseInputPopup()
     {
         _pendingInputAction = null;
-        var popup = this.FindControl<Popup>("InputPopup");
+        Popup? popup = this.FindControl<Popup>("InputPopup");
         if (popup is not null)
         {
             popup.IsOpen = false;
@@ -86,8 +86,8 @@ public partial class RadarView
     {
         _pendingListAction = action;
         _listPopupInitializing = true;
-        var popup = this.FindControl<Popup>("ListPopup");
-        var listBox = this.FindControl<ListBox>("ListPopupItems");
+        Popup? popup = this.FindControl<Popup>("ListPopup");
+        ListBox? listBox = this.FindControl<ListBox>("ListPopupItems");
         if (popup is null || listBox is null)
         {
             _listPopupInitializing = false;
@@ -99,7 +99,7 @@ public partial class RadarView
 
         if (selectedValue is not null)
         {
-            var idx = FindExactIndex(items, selectedValue);
+            int idx = FindExactIndex(items, selectedValue);
             if (idx < 0)
             {
                 idx = FindClosestIndex(items, selectedValue);
@@ -117,7 +117,7 @@ public partial class RadarView
 
     private static int FindExactIndex(IReadOnlyList<object> items, object target)
     {
-        for (var i = 0; i < items.Count; i++)
+        for (int i = 0; i < items.Count; i++)
         {
             if (Equals(items[i], target))
             {
@@ -135,13 +135,13 @@ public partial class RadarView
             return -1;
         }
 
-        var bestIdx = -1;
-        var bestDiff = int.MaxValue;
-        for (var i = 0; i < items.Count; i++)
+        int bestIdx = -1;
+        int bestDiff = int.MaxValue;
+        for (int i = 0; i < items.Count; i++)
         {
             if (items[i] is int val)
             {
-                var diff = Math.Abs(val - targetInt);
+                int diff = Math.Abs(val - targetInt);
                 if (diff < bestDiff)
                 {
                     bestDiff = diff;
@@ -165,13 +165,13 @@ public partial class RadarView
             return;
         }
 
-        var selected = e.AddedItems[0];
+        object? selected = e.AddedItems[0];
         if (selected is null)
         {
             return;
         }
 
-        var action = _pendingListAction;
+        Func<object, Task> action = _pendingListAction;
         CloseListPopup();
         _ = action(selected);
     }
@@ -179,8 +179,8 @@ public partial class RadarView
     private void CloseListPopup()
     {
         _pendingListAction = null;
-        var popup = this.FindControl<Popup>("ListPopup");
-        var listBox = this.FindControl<ListBox>("ListPopupItems");
+        Popup? popup = this.FindControl<Popup>("ListPopup");
+        ListBox? listBox = this.FindControl<ListBox>("ListPopupItems");
         if (listBox is not null)
         {
             listBox.SelectedIndex = -1;
@@ -199,9 +199,9 @@ public partial class RadarView
     {
         _pendingFilteredListAction = action;
         _filteredListAllNames = sortedNames;
-        var popup = this.FindControl<Popup>("FilteredListPopup");
-        var textBox = this.FindControl<TextBox>("FilteredListText");
-        var listBox = this.FindControl<ListBox>("FilteredListItems");
+        Popup? popup = this.FindControl<Popup>("FilteredListPopup");
+        TextBox? textBox = this.FindControl<TextBox>("FilteredListText");
+        ListBox? listBox = this.FindControl<ListBox>("FilteredListItems");
         if (popup is null || textBox is null || listBox is null)
         {
             return;
@@ -215,21 +215,21 @@ public partial class RadarView
 
     private void OnFilteredListTextChanged(object? sender, TextChangedEventArgs e)
     {
-        var textBox = this.FindControl<TextBox>("FilteredListText");
-        var listBox = this.FindControl<ListBox>("FilteredListItems");
+        TextBox? textBox = this.FindControl<TextBox>("FilteredListText");
+        ListBox? listBox = this.FindControl<ListBox>("FilteredListItems");
         if (textBox is null || listBox is null || _filteredListAllNames is null)
         {
             return;
         }
 
-        var prefix = textBox.Text?.Trim().ToUpperInvariant() ?? "";
+        string prefix = textBox.Text?.Trim().ToUpperInvariant() ?? "";
         if (prefix.Length == 0)
         {
             listBox.ItemsSource = Array.Empty<object>();
             return;
         }
 
-        var results = PrefixSearch(_filteredListAllNames, prefix, 50);
+        IReadOnlyList<object> results = PrefixSearch(_filteredListAllNames, prefix, 50);
         listBox.ItemsSource = results;
         if (results.Count > 0)
         {
@@ -239,7 +239,7 @@ public partial class RadarView
 
     private void OnFilteredListKeyDown(object? sender, KeyEventArgs e)
     {
-        var listBox = this.FindControl<ListBox>("FilteredListItems");
+        ListBox? listBox = this.FindControl<ListBox>("FilteredListItems");
         if (listBox is null)
         {
             return;
@@ -284,16 +284,16 @@ public partial class RadarView
             return;
         }
 
-        var textBox = this.FindControl<TextBox>("FilteredListText");
+        TextBox? textBox = this.FindControl<TextBox>("FilteredListText");
         if (textBox is not null && textBox.IsFocused)
         {
             return;
         }
 
-        var selected = e.AddedItems[0]?.ToString();
+        string? selected = e.AddedItems[0]?.ToString();
         if (!string.IsNullOrEmpty(selected))
         {
-            var action = _pendingFilteredListAction;
+            Func<string, Task> action = _pendingFilteredListAction;
             CloseFilteredListPopup();
             _ = action(selected);
         }
@@ -301,8 +301,8 @@ public partial class RadarView
 
     private void SubmitFilteredListPopup()
     {
-        var textBox = this.FindControl<TextBox>("FilteredListText");
-        var listBox = this.FindControl<ListBox>("FilteredListItems");
+        TextBox? textBox = this.FindControl<TextBox>("FilteredListText");
+        ListBox? listBox = this.FindControl<ListBox>("FilteredListItems");
         if (_pendingFilteredListAction is null)
         {
             CloseFilteredListPopup();
@@ -322,7 +322,7 @@ public partial class RadarView
 
         if (!string.IsNullOrEmpty(value))
         {
-            var action = _pendingFilteredListAction;
+            Func<string, Task> action = _pendingFilteredListAction;
             CloseFilteredListPopup();
             _ = action(value);
         }
@@ -336,8 +336,8 @@ public partial class RadarView
     {
         _pendingFilteredListAction = null;
         _filteredListAllNames = null;
-        var popup = this.FindControl<Popup>("FilteredListPopup");
-        var listBox = this.FindControl<ListBox>("FilteredListItems");
+        Popup? popup = this.FindControl<Popup>("FilteredListPopup");
+        ListBox? listBox = this.FindControl<ListBox>("FilteredListItems");
         if (listBox is not null)
         {
             listBox.SelectedIndex = -1;
@@ -353,13 +353,13 @@ public partial class RadarView
     private static IReadOnlyList<object> PrefixSearch(string[] sortedNames, string prefix, int maxResults)
     {
         var results = new List<object>();
-        var idx = Array.BinarySearch(sortedNames, prefix, StringComparer.OrdinalIgnoreCase);
+        int idx = Array.BinarySearch(sortedNames, prefix, StringComparer.OrdinalIgnoreCase);
         if (idx < 0)
         {
             idx = ~idx;
         }
 
-        for (var i = idx; i < sortedNames.Length && results.Count < maxResults; i++)
+        for (int i = idx; i < sortedNames.Length && results.Count < maxResults; i++)
         {
             if (sortedNames[i].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
@@ -381,10 +381,10 @@ public partial class RadarView
     private void ShowWaypointConditionPopup(string fixName, string? existingAltitude, string? existingCommands, Action<string?, string?> onSubmit)
     {
         _pendingWaypointConditionAction = onSubmit;
-        var popup = this.FindControl<Popup>("WaypointConditionPopup");
-        var header = this.FindControl<TextBlock>("WaypointConditionHeader");
-        var altBox = this.FindControl<TextBox>("WaypointConditionAltitude");
-        var cmdBox = this.FindControl<TextBox>("WaypointConditionCommands");
+        Popup? popup = this.FindControl<Popup>("WaypointConditionPopup");
+        TextBlock? header = this.FindControl<TextBlock>("WaypointConditionHeader");
+        TextBox? altBox = this.FindControl<TextBox>("WaypointConditionAltitude");
+        TextBox? cmdBox = this.FindControl<TextBox>("WaypointConditionCommands");
         if (popup is null || header is null || altBox is null || cmdBox is null)
         {
             return;
@@ -429,10 +429,10 @@ public partial class RadarView
 
     private void SubmitWaypointConditionPopup()
     {
-        var altBox = this.FindControl<TextBox>("WaypointConditionAltitude");
-        var cmdBox = this.FindControl<TextBox>("WaypointConditionCommands");
-        var altitude = altBox?.Text?.Trim();
-        var commands = cmdBox?.Text?.Trim();
+        TextBox? altBox = this.FindControl<TextBox>("WaypointConditionAltitude");
+        TextBox? cmdBox = this.FindControl<TextBox>("WaypointConditionCommands");
+        string? altitude = altBox?.Text?.Trim();
+        string? commands = cmdBox?.Text?.Trim();
 
         if (string.IsNullOrEmpty(altitude))
         {
@@ -451,7 +451,7 @@ public partial class RadarView
     private void CloseWaypointConditionPopup()
     {
         _pendingWaypointConditionAction = null;
-        var popup = this.FindControl<Popup>("WaypointConditionPopup");
+        Popup? popup = this.FindControl<Popup>("WaypointConditionPopup");
         if (popup is not null)
         {
             popup.IsOpen = false;
@@ -470,12 +470,12 @@ public partial class RadarView
     )
     {
         _pendingWarpAction = onSubmit;
-        var popup = this.FindControl<Popup>("WarpPopup");
-        var header = this.FindControl<TextBlock>("WarpPopupHeader");
-        var frdBox = this.FindControl<TextBox>("WarpPopupFrd");
-        var hdgBox = this.FindControl<TextBox>("WarpPopupHeading");
-        var altBox = this.FindControl<TextBox>("WarpPopupAltitude");
-        var spdBox = this.FindControl<TextBox>("WarpPopupSpeed");
+        Popup? popup = this.FindControl<Popup>("WarpPopup");
+        TextBlock? header = this.FindControl<TextBlock>("WarpPopupHeader");
+        TextBox? frdBox = this.FindControl<TextBox>("WarpPopupFrd");
+        TextBox? hdgBox = this.FindControl<TextBox>("WarpPopupHeading");
+        TextBox? altBox = this.FindControl<TextBox>("WarpPopupAltitude");
+        TextBox? spdBox = this.FindControl<TextBox>("WarpPopupSpeed");
         if (popup is null || header is null || frdBox is null || hdgBox is null || altBox is null || spdBox is null)
         {
             return;
@@ -516,12 +516,12 @@ public partial class RadarView
 
     private void SubmitWarpPopup()
     {
-        var frdBox = this.FindControl<TextBox>("WarpPopupFrd");
-        var hdgBox = this.FindControl<TextBox>("WarpPopupHeading");
-        var altBox = this.FindControl<TextBox>("WarpPopupAltitude");
-        var spdBox = this.FindControl<TextBox>("WarpPopupSpeed");
+        TextBox? frdBox = this.FindControl<TextBox>("WarpPopupFrd");
+        TextBox? hdgBox = this.FindControl<TextBox>("WarpPopupHeading");
+        TextBox? altBox = this.FindControl<TextBox>("WarpPopupAltitude");
+        TextBox? spdBox = this.FindControl<TextBox>("WarpPopupSpeed");
 
-        var frd = frdBox?.Text?.Trim();
+        string? frd = frdBox?.Text?.Trim();
         if (string.IsNullOrEmpty(frd) || _pendingWarpAction is null)
         {
             CloseWarpPopup();
@@ -529,16 +529,16 @@ public partial class RadarView
         }
 
         if (
-            !int.TryParse(hdgBox?.Text?.Trim(), out var heading)
-            || !int.TryParse(altBox?.Text?.Trim(), out var altitude)
-            || !int.TryParse(spdBox?.Text?.Trim(), out var speed)
+            !int.TryParse(hdgBox?.Text?.Trim(), out int heading)
+            || !int.TryParse(altBox?.Text?.Trim(), out int altitude)
+            || !int.TryParse(spdBox?.Text?.Trim(), out int speed)
         )
         {
             CloseWarpPopup();
             return;
         }
 
-        var action = _pendingWarpAction;
+        Action<string, int, int, int> action = _pendingWarpAction;
         CloseWarpPopup();
         action(frd, heading, altitude, speed);
     }
@@ -546,7 +546,7 @@ public partial class RadarView
     private void CloseWarpPopup()
     {
         _pendingWarpAction = null;
-        var popup = this.FindControl<Popup>("WarpPopup");
+        Popup? popup = this.FindControl<Popup>("WarpPopup");
         if (popup is not null)
         {
             popup.IsOpen = false;
@@ -558,7 +558,7 @@ public partial class RadarView
     private static IReadOnlyList<object> BuildHeadingList()
     {
         var items = new List<object>(72);
-        for (var h = 5; h <= 360; h += 5)
+        for (int h = 5; h <= 360; h += 5)
         {
             items.Add(h);
         }
@@ -574,7 +574,7 @@ public partial class RadarView
     private static IReadOnlyList<object> BuildSpeedList()
     {
         var items = new List<object>(21);
-        for (var s = 150; s <= 350; s += 10)
+        for (int s = 150; s <= 350; s += 10)
         {
             items.Add(s);
         }
@@ -585,21 +585,21 @@ public partial class RadarView
     private static IReadOnlyList<object> BuildFullAltitudeList(double fieldElevation)
     {
         var items = new List<object>();
-        var lowThreshold = (int)(fieldElevation + 5000);
+        int lowThreshold = (int)(fieldElevation + 5000);
 
-        var roundedLow = (int)(Math.Ceiling(fieldElevation / 100.0) * 100);
+        int roundedLow = (int)(Math.Ceiling(fieldElevation / 100.0) * 100);
         if (roundedLow < 100)
         {
             roundedLow = 100;
         }
 
-        for (var alt = roundedLow; alt < lowThreshold; alt += 100)
+        for (int alt = roundedLow; alt < lowThreshold; alt += 100)
         {
             items.Add(alt);
         }
 
-        var start500 = (int)(Math.Ceiling(lowThreshold / 500.0) * 500);
-        for (var alt = start500; alt <= 60000; alt += 500)
+        int start500 = (int)(Math.Ceiling(lowThreshold / 500.0) * 500);
+        for (int alt = start500; alt <= 60000; alt += 500)
         {
             items.Add(alt);
         }

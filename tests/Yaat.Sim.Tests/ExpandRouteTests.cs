@@ -12,7 +12,7 @@ public class ExpandRouteTests
     {
         // OAK6 is a radar-vectors SID with body [OAK] (colocated VOR)
         // Route: "OAK6 OAK SYRAH" should produce only [SYRAH]
-        var navData = BuildNavData(
+        NavDataSet navData = BuildNavData(
             sids: [new Sid { Id = "OAK6", Body = { "OAK" } }],
             airports:
             [
@@ -40,7 +40,7 @@ public class ExpandRouteTests
 
         var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
-        var result = db.ExpandRouteForNavigation("OAK6 OAK SYRAH", "OAK");
+        IReadOnlyList<string> result = db.ExpandRouteForNavigation("OAK6 OAK SYRAH", "OAK");
 
         Assert.Equal(["SYRAH"], result);
     }
@@ -51,7 +51,7 @@ public class ExpandRouteTests
         // CNDEL5 has body [LEJAY, CNDEL, PORTE]
         // Route: "CNDEL5 PORTE FFOIL" → [LEJAY, CNDEL, PORTE, FFOIL]
         // (PORTE deduped: last body fix = next route token)
-        var navData = BuildNavData(
+        NavDataSet navData = BuildNavData(
             sids: [new Sid { Id = "CNDEL5", Body = { "LEJAY", "CNDEL", "PORTE" } }],
             fixes:
             [
@@ -80,7 +80,7 @@ public class ExpandRouteTests
 
         var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
-        var result = db.ExpandRouteForNavigation("CNDEL5 PORTE FFOIL", null);
+        IReadOnlyList<string> result = db.ExpandRouteForNavigation("CNDEL5 PORTE FFOIL", null);
 
         Assert.Equal(["LEJAY", "CNDEL", "PORTE", "FFOIL"], result);
     }
@@ -88,7 +88,7 @@ public class ExpandRouteTests
     [Fact]
     public void ExpandRouteForNavigation_PlainRoute_PassesThrough()
     {
-        var navData = BuildNavData(
+        NavDataSet navData = BuildNavData(
             fixes:
             [
                 new Fix
@@ -111,7 +111,7 @@ public class ExpandRouteTests
 
         var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
-        var result = db.ExpandRouteForNavigation("OAK SYRAH V244 SUNOL", null);
+        IReadOnlyList<string> result = db.ExpandRouteForNavigation("OAK SYRAH V244 SUNOL", null);
 
         Assert.Equal(["OAK", "SYRAH", "V244", "SUNOL"], result);
     }
@@ -119,7 +119,7 @@ public class ExpandRouteTests
     [Fact]
     public void ExpandRouteForNavigation_SkipsNumericTokens()
     {
-        var navData = BuildNavData(
+        NavDataSet navData = BuildNavData(
             fixes:
             [
                 new Fix
@@ -132,7 +132,7 @@ public class ExpandRouteTests
 
         var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
-        var result = db.ExpandRouteForNavigation("SUNOL 050", null);
+        IReadOnlyList<string> result = db.ExpandRouteForNavigation("SUNOL 050", null);
 
         Assert.Equal(["SUNOL"], result);
     }
@@ -141,7 +141,7 @@ public class ExpandRouteTests
     public void ExpandRoute_Autocomplete_IncludesAllTransitionFixes()
     {
         // OAK6 with body [OAK] and transition fixes [PORTE, CNDEL]
-        var navData = BuildNavData(
+        NavDataSet navData = BuildNavData(
             sids:
             [
                 new Sid
@@ -168,7 +168,7 @@ public class ExpandRouteTests
 
         var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
-        var result = db.ExpandRoute("OAK6 SYRAH");
+        IReadOnlyList<string> result = db.ExpandRoute("OAK6 SYRAH");
 
         // Autocomplete should get all fixes: OAK (body) + PORTE, CNDEL (transition) + SYRAH
         Assert.Contains("OAK", result);
@@ -181,11 +181,11 @@ public class ExpandRouteTests
     public void ExpandRoute_Autocomplete_PreservesOrder()
     {
         // Published SID with ordered body
-        var navData = BuildNavData(sids: [new Sid { Id = "CNDEL5", Body = { "LEJAY", "CNDEL", "PORTE" } }]);
+        NavDataSet navData = BuildNavData(sids: [new Sid { Id = "CNDEL5", Body = { "LEJAY", "CNDEL", "PORTE" } }]);
 
         var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
-        var result = db.ExpandRoute("CNDEL5");
+        IReadOnlyList<string> result = db.ExpandRoute("CNDEL5");
 
         Assert.Equal(["LEJAY", "CNDEL", "PORTE"], result);
     }
@@ -193,7 +193,7 @@ public class ExpandRouteTests
     [Fact]
     public void ExpandRouteForNavigation_EmptyRoute_ReturnsEmpty()
     {
-        var navData = BuildNavData();
+        NavDataSet navData = BuildNavData();
         var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
         Assert.Empty(db.ExpandRouteForNavigation("", null));
@@ -204,7 +204,7 @@ public class ExpandRouteTests
     public void ExpandRouteForNavigation_SingleFixStar_StillEmitsFix()
     {
         // STAR with single body fix — the fix is still a valid waypoint
-        var navData = BuildNavData(
+        NavDataSet navData = BuildNavData(
             stars: [new Star { Id = "BDEGA4", Body = { "BDEGA" } }],
             fixes:
             [
@@ -223,7 +223,7 @@ public class ExpandRouteTests
 
         var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
-        var result = db.ExpandRouteForNavigation("SUNOL BDEGA4", null);
+        IReadOnlyList<string> result = db.ExpandRouteForNavigation("SUNOL BDEGA4", null);
 
         Assert.Equal(["SUNOL", "BDEGA"], result);
     }
@@ -239,7 +239,7 @@ public class ExpandRouteTests
         // Filed route "NIMI5 OAK V6 SAC" must NOT expand to a route that includes
         // CCR/PYE/SAU/SGD or repeat OAK — the aircraft is vectored away from the
         // departure airport and proceeds on V6 to SAC.
-        var navData = BuildNavData(
+        NavDataSet navData = BuildNavData(
             sids:
             [
                 new Sid
@@ -337,7 +337,7 @@ public class ExpandRouteTests
 
         var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
-        var result = db.ExpandRouteForNavigation("NIMI5 OAK V6 SAC", "OAK");
+        IReadOnlyList<string> result = db.ExpandRouteForNavigation("NIMI5 OAK V6 SAC", "OAK");
 
         // The expansion must follow only the real filed route: V6 from OAK to SAC.
         // Leading colocated OAK is stripped by ExpandRouteForNavigation.
@@ -354,7 +354,7 @@ public class ExpandRouteTests
     {
         // Filed "NIMI5 OAK CCR" — pilot vectored after departure, then direct CCR.
         // Must produce [CCR] (the OAK transit fix is paperwork-only).
-        var navData = BuildNavData(
+        NavDataSet navData = BuildNavData(
             sids:
             [
                 new Sid
@@ -399,7 +399,7 @@ public class ExpandRouteTests
 
         var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
-        var result = db.ExpandRouteForNavigation("NIMI5 OAK CCR", "OAK");
+        IReadOnlyList<string> result = db.ExpandRouteForNavigation("NIMI5 OAK CCR", "OAK");
 
         // No turn-back to OAK, no spurious PYE.
         Assert.DoesNotContain(result, n => string.Equals(n, "OAK", StringComparison.OrdinalIgnoreCase));
@@ -412,7 +412,7 @@ public class ExpandRouteTests
     {
         // Autocomplete-facing ExpandRoute keeps the "emit all transitions on
         // mismatch" behavior so the UI can suggest any transition's exit fix.
-        var navData = BuildNavData(
+        NavDataSet navData = BuildNavData(
             sids:
             [
                 new Sid
@@ -448,7 +448,7 @@ public class ExpandRouteTests
 
         var db = new NavigationDatabase(navData, "", artccsBaseDir: "");
 
-        var result = db.ExpandRoute("NIMI5");
+        IReadOnlyList<string> result = db.ExpandRoute("NIMI5");
 
         Assert.Contains("CCR", result);
         Assert.Contains("PYE", result);

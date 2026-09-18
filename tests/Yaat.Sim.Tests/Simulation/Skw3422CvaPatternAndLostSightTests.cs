@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
@@ -37,14 +38,14 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
             return null;
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 
         return new SimulationEngine(groundData);
@@ -60,8 +61,8 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
     [Fact]
     public void Skw3422_CvaRunway30_PicksRightDownwind()
     {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
+        SessionRecording? recording = LoadRecording();
+        SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
         {
             return;
@@ -70,16 +71,16 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
         // Replay through the CVA command at t=527.
         engine.Replay(recording, 528);
 
-        var aircraft = engine.FindAircraft("SKW3422");
+        AircraftState? aircraft = engine.FindAircraft("SKW3422");
         Assert.NotNull(aircraft);
         Assert.NotNull(aircraft.Phases);
 
-        var downwind = aircraft.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
+        DownwindPhase? downwind = aircraft.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
         Assert.NotNull(downwind);
         Assert.NotNull(downwind.Waypoints);
 
-        var navDb = NavigationDatabase.Instance;
-        var rwy = navDb.GetRunway("OAK", "30");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? rwy = navDb.GetRunway("OAK", "30");
         output.WriteLine(
             $"OAK runway 30: thresh=({rwy?.ThresholdLatitude:F4}, {rwy?.ThresholdLongitude:F4}) "
                 + $"end=({rwy?.EndLatitude:F4}, {rwy?.EndLongitude:F4}) trueHdg={rwy?.TrueHeading.Degrees:F1}"
@@ -125,7 +126,7 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
         // Project the aircraft 0.3 nm DOWN-runway from threshold (past it) at 100 ft AGL,
         // heading the runway direction. The airport reference (ARP) is now behind/below
         // the aircraft → BehindOwnship would fire under the old check.
-        var (acLat, acLon) = GeoMath.ProjectPointRaw(37.7196, -122.2206, 313.0, 0.3);
+        (double acLat, double acLon) = GeoMath.ProjectPointRaw(37.7196, -122.2206, 313.0, 0.3);
         var aircraft = new AircraftState
         {
             Callsign = "SKW3422",
@@ -139,7 +140,7 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
 
         // Confirm the geometry actually trips the old method (sanity check that the
         // configuration is the real-world short-final case, not something benign).
-        var oldResult = VisualDetection.TryAcquireAirportForRunway(
+        VisualAcquisitionResult oldResult = VisualDetection.TryAcquireAirportForRunway(
             aircraft,
             airportLat: 37.7240,
             airportLon: -122.2199,
@@ -155,7 +156,7 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
 
         // New method: weather/Class-A only, no finding-geometry checks. Should acquire
         // (10SM is the censored maximum, so visibility never caps here either).
-        var maintained = VisualDetection.TryMaintainAirportContact(
+        VisualAcquisitionResult maintained = VisualDetection.TryMaintainAirportContact(
             aircraft,
             airportElevation: 9.0,
             layers: null,
@@ -199,8 +200,8 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
             },
         };
 
-        var navDb = NavigationDatabase.Instance;
-        var rwy30 = navDb.GetRunway("OAK", "30");
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        RunwayInfo? rwy30 = navDb.GetRunway("OAK", "30");
         Assert.NotNull(rwy30);
 
         // Spawn 5 nm at bearing 350° from KOAK ARP, heading 090 (east). Same
@@ -209,7 +210,7 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
         // entry → downwind → base → final → landing.
         const double koakArpLat = 37.7240;
         const double koakArpLon = -122.2199;
-        var (spawnLat, spawnLon) = GeoMath.ProjectPointRaw(koakArpLat, koakArpLon, 350.0, 5.0);
+        (double spawnLat, double spawnLon) = GeoMath.ProjectPointRaw(koakArpLat, koakArpLon, 350.0, 5.0);
 
         double spawnMsl = rwy30.ElevationFt + entryAltAgl;
         var aircraft = new AircraftState
@@ -233,13 +234,13 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
         engine.World.AddAircraft(aircraft);
         output.WriteLine($"Spawned UAL738 at AGL={entryAltAgl} (MSL={spawnMsl:F0})");
 
-        var rfis = engine.SendCommand("UAL738", "RFIS");
+        CommandResult rfis = engine.SendCommand("UAL738", "RFIS");
         Assert.True(rfis.Success, $"RFIS failed: {rfis.Message}");
 
-        var cva = engine.SendCommand("UAL738", "CVA 30");
+        CommandResult cva = engine.SendCommand("UAL738", "CVA 30");
         Assert.True(cva.Success, $"CVA 30 failed: {cva.Message}");
 
-        var cland = engine.SendCommand("UAL738", "CLAND");
+        CommandResult cland = engine.SendCommand("UAL738", "CLAND");
         Assert.True(cland.Success, $"CLAND failed: {cland.Message}");
 
         // Tick until landed or timeout. Higher entry altitudes need longer to
@@ -262,7 +263,7 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
                 landed = true;
                 break;
             }
-            foreach (var w in aircraft.PendingWarnings)
+            foreach (string w in aircraft.PendingWarnings)
             {
                 if (w.Contains("going around", StringComparison.OrdinalIgnoreCase))
                 {
@@ -311,7 +312,7 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
 
         IReadOnlyList<MetarParser.CloudLayer> bkn1000 = [new MetarParser.CloudLayer(MetarParser.CloudCover.Broken, 1000)];
 
-        var result = VisualDetection.TryMaintainAirportContact(
+        VisualAcquisitionResult result = VisualDetection.TryMaintainAirportContact(
             aircraft,
             airportElevation: 9.0,
             layers: bkn1000,

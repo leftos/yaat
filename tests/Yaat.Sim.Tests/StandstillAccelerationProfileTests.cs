@@ -53,7 +53,7 @@ public sealed class StandstillAccelerationProfileTests
                 + $"idle={profile.IdleRateKtPerSec:F2}kt/s, steady={profile.SteadyRateKtPerSec:F2}kt/s, spool={profile.SpoolSeconds:F1}s) ==="
         );
         _output.WriteLine("t | kt | Δkt/s | m/s² | ft");
-        foreach (var row in measured.Rows)
+        foreach (RollSecond row in measured.Rows)
         {
             _output.WriteLine($"{row.Second} | {row.Ias:F2} | {row.DeltaKtPerSec:F2} | {row.Mps2:F2} | {row.DistanceFt:F1}");
         }
@@ -81,11 +81,11 @@ public sealed class StandstillAccelerationProfileTests
     [InlineData("DH8D")]
     public void Takeoff_Ksfo28L_speed_profile(string aircraftType)
     {
-        var category = AircraftCategorization.Categorize(aircraftType);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraftType);
         double vr = AircraftPerformance.RotationSpeed(aircraftType, category);
         var profile = GroundRollProfile.For(aircraftType, category);
 
-        var runway = TestRunwayFactory.Make(designator: "28L", airportId: "KSFO", heading: RunwayHeading, elevationFt: 0);
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "28L", airportId: "KSFO", heading: RunwayHeading, elevationFt: 0);
         var phase = new TakeoffPhase();
         var aircraft = new AircraftState
         {
@@ -156,7 +156,7 @@ public sealed class StandstillAccelerationProfileTests
 
         // Every whole second of the roll sits on the ramp's closed form — the strongest pin there is
         // on the discrete integration, which gains exactly SpeedAt(tEnd) - SpeedAt(tStart) per sub-tick.
-        foreach (var row in rows)
+        foreach (RollSecond row in rows)
         {
             Assert.Equal(profile.SpeedAt(row.Second), row.Ias, 0.01);
         }
@@ -203,7 +203,7 @@ public sealed class StandstillAccelerationProfileTests
     /// </summary>
     private static double OneSecondOfRollGainKts(double entrySpeedKts)
     {
-        var runway = TestRunwayFactory.Make(designator: "28L", airportId: "KSFO", heading: RunwayHeading, elevationFt: 0);
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "28L", airportId: "KSFO", heading: RunwayHeading, elevationFt: 0);
         var aircraft = new AircraftState
         {
             Callsign = "ROLL02",
@@ -256,7 +256,7 @@ public sealed class StandstillAccelerationProfileTests
     [Fact]
     public void Taxi_B738_Ksfo_from_standstill_speed_profile()
     {
-        var engine = BuildEngine();
+        SimulationEngine? engine = BuildEngine();
         if (engine is null)
         {
             _output.WriteLine("SKIP: navdata or SFO layout not available");
@@ -269,17 +269,17 @@ public sealed class StandstillAccelerationProfileTests
         int spawnHdgMag = (int)Math.Round(MagneticDeclination.TrueToMagnetic(118.6, spawnLat, spawnLon, MagneticDeclination.EvaluationDateUtc));
 
         string json = BuildScenarioJson(spawnLat, spawnLon, spawnHdgMag);
-        var warnings = engine.LoadScenario(json, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
-        foreach (var w in warnings)
+        List<string> warnings = engine.LoadScenario(json, rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        foreach (string w in warnings)
         {
             _output.WriteLine($"[WARN] {w}");
         }
 
-        var spawned = engine.FindAircraft("TEST1");
+        AircraftState? spawned = engine.FindAircraft("TEST1");
         Assert.NotNull(spawned);
 
         const int seconds = 60;
-        var ias = new double[seconds + 1];
+        double[] ias = new double[seconds + 1];
         ias[0] = spawned.IndicatedAirspeed;
 
         string previousPhase = spawned.Phases?.CurrentPhase?.Name ?? "(null)";
@@ -288,7 +288,7 @@ public sealed class StandstillAccelerationProfileTests
         for (int t = 1; t <= seconds; t++)
         {
             engine.TickOneSecond();
-            var ac = engine.FindAircraft("TEST1");
+            AircraftState? ac = engine.FindAircraft("TEST1");
             Assert.NotNull(ac);
             ias[t] = ac.IndicatedAirspeed;
 
@@ -360,8 +360,8 @@ public sealed class StandstillAccelerationProfileTests
     [Fact]
     public void Cto_from_luaw_rolls_on_second_subtick()
     {
-        var runway = TestRunwayFactory.Make(designator: "28L", airportId: "KSFO", heading: RunwayHeading, elevationFt: 0);
-        var init = AircraftInitializer.InitializeOnRunway(runway, AircraftCategory.Jet);
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "28L", airportId: "KSFO", heading: RunwayHeading, elevationFt: 0);
+        PhaseInitResult init = AircraftInitializer.InitializeOnRunway(runway, AircraftCategory.Jet);
         var aircraft = new AircraftState
         {
             Callsign = "LUAW01",
@@ -385,7 +385,7 @@ public sealed class StandstillAccelerationProfileTests
             Logger = NullLogger.Instance,
         };
 
-        var luaw = Assert.IsType<LinedUpAndWaitingPhase>(init.Phases.CurrentPhase);
+        LinedUpAndWaitingPhase luaw = Assert.IsType<LinedUpAndWaitingPhase>(init.Phases.CurrentPhase);
         Assert.True(luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff));
 
         PhaseRunner.Tick(aircraft, ctx);

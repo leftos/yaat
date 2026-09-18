@@ -59,10 +59,10 @@ public class Hussh2DepartureTransitionTests
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
-        var ac = MakeOakDeparture("HUSSH2 OAK SYRAH Q128 JSICA", "30", 300.0);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        AircraftState ac = MakeOakDeparture("HUSSH2 OAK SYRAH Q128 JSICA", "30", 300.0);
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
 
         Assert.NotNull(result);
         var names = result.Targets.Select(t => t.Name).ToList();
@@ -81,7 +81,7 @@ public class Hussh2DepartureTransitionTests
         );
 
         // No fix after NIITE may lie within 1 nm of KOAK — i.e. no reversal over the field.
-        var airportPos = TestVnasData.NavigationDb.GetFixPosition("KOAK");
+        (double Lat, double Lon)? airportPos = TestVnasData.NavigationDb.GetFixPosition("KOAK");
         Assert.NotNull(airportPos);
         int niiteIdx = names.IndexOf("NIITE");
         for (int i = niiteIdx + 1; i < result.Targets.Count; i++)
@@ -99,13 +99,13 @@ public class Hussh2DepartureTransitionTests
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
 
         // MLF is a real VOR but not a HUSSH2 enroute transition, so no transition excludes OAK.
         // The general rule still applies: the co-located OAK (first fix after the SID body) is dropped.
-        var ac = MakeOakDeparture("HUSSH2 OAK MLF", "30", 300.0);
+        AircraftState ac = MakeOakDeparture("HUSSH2 OAK MLF", "30", 300.0);
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
 
         Assert.NotNull(result);
         var names = result.Targets.Select(t => t.Name).ToList();
@@ -124,13 +124,13 @@ public class Hussh2DepartureTransitionTests
             return;
         }
 
-        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
 
         // OAK6 is a radar-vectors SID (empty core body); the co-located OAK is leading. It anchors any
         // following route element during expansion but must never appear as a flown waypoint.
-        var ac = MakeOakDeparture("OAK6 OAK SUNOL", "28R", 280.0);
+        AircraftState ac = MakeOakDeparture("OAK6 OAK SUNOL", "28R", 280.0);
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(ac);
 
         Assert.NotNull(result);
         var names = result.Targets.Select(t => t.Name).ToList();
