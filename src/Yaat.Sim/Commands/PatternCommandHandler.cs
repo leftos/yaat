@@ -3025,6 +3025,12 @@ internal static class PatternCommandHandler
 
         aircraft.Phases.LandingClearance = clearance;
         aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
+
+        // An option clearance amends an accepted LAHSO clearance (AIM 4-3-11.b.5): the landing terminator it
+        // just replaced was the hold, and a touch-and-go, stop-and-go or low approach holds short of nothing.
+        // Only a re-issued landing clearance leaves the target standing — that is the same clearance restated.
+        aircraft.Phases.LahsoHoldShort = null;
+
         string patternLabel = ApplyOptionClearancePattern(aircraft, modifier, patternRunway);
         EnsurePatternMode(aircraft);
 
@@ -4430,6 +4436,10 @@ internal static class PatternCommandHandler
         aircraft.Phases.ClearedRunwayId = null;
         // Cancelling the (CLANDF-granted) landing clearance also lifts the forced-landing override.
         aircraft.Phases.ForceLanding = false;
+        // The hold-short instruction is part of the landing clearance LAHSO grants (7110.65 §3-10-5.b), so it
+        // is cancelled with it — the amended-clearance case of AIM 4-3-11.b.5. Otherwise the aircraft would
+        // still brake to a point it no longer holds a clearance for.
+        aircraft.Phases.LahsoHoldShort = null;
         return CommandDispatcher.Ok($"Landing clearance cancelled{CommandDispatcher.RunwayLabel(aircraft)}");
     }
 

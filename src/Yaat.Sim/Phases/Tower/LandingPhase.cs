@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -43,6 +44,18 @@ public sealed class LandingPhase : Phase
     private const double MaxCenterlineCorrectionDeg = 10.0;
     private const double ComfortableBrakingMultiplier = 1.5;
     private const double MinSoftBrakingRateKtsPerSec = 0.5;
+
+    /// <summary>
+    /// Tick margin (nm ≈ 50 ft) held back from a LAHSO hold-short point, on top of the aircraft's nose offset.
+    /// The 50 ft covers discrete-tick overshoot alone — one sub-tick at coast speed is about 17 ft — because the
+    /// hold-short distance already carries the runway safety area setback and half the crossing runway's width.
+    /// The nose offset (<see cref="NoseOffsetNm"/>) is what puts the aircraft's nose rather than its centroid
+    /// short of the point: no part of the aircraft may extend beyond the marking (AIM 2-3-5.a.1).
+    /// </summary>
+    private const double LahsoStopMarginNm = 50.0 / GeoMath.FeetPerNm;
+
+    /// <summary>Length (ft) assumed for a type the FAA aircraft-characteristics database does not carry.</summary>
+    private const double UnknownTypeLengthFt = 60.0;
 
     // --- Stabilization gate (FSF ALAR Briefing Note 7.1; FAA InFO 11009 endorses FSF criteria) ---
 
@@ -133,6 +146,13 @@ public sealed class LandingPhase : Phase
     private bool _canGoAround;
     private double _lahsoHoldShortDistNm;
     private bool _hasLahso;
+
+    /// <summary>
+    /// Half the airframe's length (nm), resolved from the aircraft type on first use. Derived from the type the
+    /// aircraft already carries, so it stays out of the snapshot: a restored phase resolves the same number.
+    /// </summary>
+    private double? _noseOffsetNm;
+
     private double _stabilizedSinceSec;
     private double _touchdownLat;
     private double _touchdownLon;
@@ -453,6 +473,10 @@ public sealed class LandingPhase : Phase
             State.Flare => TickFlare(ctx, _plan),
             State.Touchdown => TickTouchdown(ctx, _plan),
             State.Rollout => TickRollout(ctx, _plan),
+            // A LAHSO lander restored straight into Handoff without a usable candidate would hand off to a
+            // runway exit the planner never cleared against the hold-short point. Back to the rollout, which
+            // re-resolves under the LAHSO filter and stops at the point when nothing fits.
+            State.Handoff when _hasLahso && (_candidateExit is not { Path.Count: >= 2 }) => TickRollout(ctx, _plan),
             State.Handoff => TickHandoff(ctx),
             State.Unable => TickUnable(ctx, _plan),
             State.FullStop => TickFullStop(ctx, _plan),
@@ -708,9 +732,10 @@ public sealed class LandingPhase : Phase
 
     private bool TickRollout(PhaseContext ctx, LandingPlan plan)
     {
-        // Steer along runway centerline with a bounded proportional XTE bias.
-        // Safe from the FlightPhysics.StationaryGroundSpeedKts guard because
-        // rollout hands off at coastSpeed ≥ 15 kt, never approaching 0.1 kt.
+        // Steer along runway centerline with a bounded proportional XTE bias. A rollout that hands off to the
+        // exit does so at coastSpeed ≥ 15 kt, well clear of the FlightPhysics.StationaryGroundSpeedKts floor;
+        // a LAHSO rollout braking to a stop crosses that floor at the end, where the guard stops turning the
+        // aircraft and it holds the heading it stopped on — which is what a stopped aircraft does.
         ctx.Targets.TargetTrueHeading = ComputeCenterlineSteeringTarget(ctx, plan);
         // Use ground turn rate so XTE corrections apply at taxi cadence, not
         // airborne cadence. Cleared when the phase hands off to RunwayExitPhase.
@@ -726,24 +751,24 @@ public sealed class LandingPhase : Phase
             _exitResolutionEnabled = currentPref is not null;
         }
 
-        // LAHSO: enforce stop at the hold-short distance
+        // LAHSO: the landing roll has to end short of the hold-short point — exit before it, or stop at it
+        // (AIM 2-3-5.a.2, AIM 4-3-11.b.6). Measured along the runway from the landing threshold — the datum the
+        // hold-short distance was computed against; the great-circle distance under-reads off centerline and
+        // brakes late. The stop target is set back far enough that the nose, not the centroid, stays clear.
+        double lahsoStopDistNm = 0;
         if (_hasLahso)
         {
-            double distFromThreshold = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.ThresholdLat, plan.ThresholdLon));
-            double distToHoldShort = _lahsoHoldShortDistNm - distFromThreshold;
+            double alongFromThreshold = GeoMath.AlongTrackDistanceNm(
+                ctx.Aircraft.Position,
+                new LatLon(plan.ThresholdLat, plan.ThresholdLon),
+                plan.RunwayHeading
+            );
+            double distToHoldShort = _lahsoHoldShortDistNm - alongFromThreshold;
+            lahsoStopDistNm = distToHoldShort - LahsoSetbackNm(ctx);
 
-            if (distToHoldShort <= 0)
+            if (lahsoStopDistNm <= 0)
             {
-                // Past the hold-short point — enforce immediate stop via a sub-coast target.
-                ctx.Targets.TargetSpeed = 0;
-                ctx.Targets.DesiredDecelRate = RolloutBraking.FirmBrakingRateKtsPerSec;
-                if (ctx.Aircraft.IndicatedAirspeed <= 0.5)
-                {
-                    StoppedForLahso = true;
-                    Log.LogDebug("[Landing] {Callsign}: LAHSO stop", ctx.Aircraft.Callsign);
-                    return true;
-                }
-                return false;
+                return TickLahsoStop(ctx, distToHoldShort);
             }
         }
 
@@ -841,6 +866,11 @@ public sealed class LandingPhase : Phase
             targetSpeed = ctx.Aircraft.IndicatedAirspeed; // freeze at current
         }
 
+        if (_hasLahso)
+        {
+            (targetSpeed, decelRateOverride) = ApplyLahsoCeiling(ctx, plan, targetSpeed, decelRateOverride, lahsoStopDistNm);
+        }
+
         ctx.Targets.TargetSpeed = targetSpeed;
         ctx.Targets.DesiredDecelRate = decelRateOverride;
 
@@ -864,13 +894,80 @@ public sealed class LandingPhase : Phase
             }
         }
 
-        if (!_hasLahso && !handoffBlocked && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed))
+        // A LAHSO lander hands off only with a candidate RunwayExitPhase will actually honour: one the resolver has
+        // restricted to a branch point before the hold-short point, that carries a real path, and whose hold-short
+        // is unclaimed. RunwayExitPhase drops a committed exit that fails either of the last two and re-searches
+        // the centerline with no knowledge of the hold-short point, which would put the exit back past it. Without
+        // such a candidate the aircraft stays in rollout under the LAHSO ceiling and stops at the point.
+        bool lahsoAllowsHandoff = !_hasLahso || ((_candidateExit is { Path.Count: >= 2 }) && !IsHoldShortOccupied(ctx, _candidateExit));
+
+        if (lahsoAllowsHandoff && !handoffBlocked && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed))
         {
             CurrentState = State.Handoff;
             return TickHandoff(ctx);
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// The LAHSO fallback (AIM 4-3-11.b.6): no room left to the hold-short point, so stop on the runway. Returns
+    /// true once stopped, which is what makes <see cref="PhaseRunner"/> hold the aircraft there instead of exiting.
+    /// A stop taken with the point already behind the aircraft is an overrun and says so in the log.
+    /// </summary>
+    private bool TickLahsoStop(PhaseContext ctx, double distToHoldShortNm)
+    {
+        // Braking effort: firm while the aircraft is still short of the marking and only inside the setback,
+        // maximum effort once the point itself is behind it — an overrun onto a crossing runway is the one
+        // place max-effort braking belongs, and the category rate caps what the aircraft can actually do.
+        double maxRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+        ctx.Targets.TargetSpeed = 0;
+        ctx.Targets.DesiredDecelRate = distToHoldShortNm <= 0 ? maxRate : Math.Min(RolloutBraking.FirmBrakingRateKtsPerSec, maxRate);
+
+        if (ctx.Aircraft.IndicatedAirspeed > 0.5)
+        {
+            return false;
+        }
+
+        StoppedForLahso = true;
+        if (distToHoldShortNm < 0)
+        {
+            Log.LogWarning(
+                "[Landing] {Callsign}: LAHSO overrun — stopped {OverrunFt:F0}ft past the hold-short point",
+                ctx.Aircraft.Callsign,
+                -distToHoldShortNm * GeoMath.FeetPerNm
+            );
+        }
+        else
+        {
+            Log.LogDebug("[Landing] {Callsign}: LAHSO stop", ctx.Aircraft.Callsign);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Caps the rollout plan to what still stops inside <paramref name="stopDistNm"/>. The speed ceiling is
+    /// planned at the rate the rollout brakes at anyway, so the slow-down starts early and stays comfortable —
+    /// a crew flying LAHSO front-loads the braking rather than holding coast speed up to the line and standing
+    /// on the brakes. The published rate is what the remaining distance requires, never below what the exit
+    /// planner already asked for and never above the category's max-effort rate, which is the only thing this
+    /// can lower the planner's rate to.
+    /// </summary>
+    private static (double TargetSpeed, double DecelRate) ApplyLahsoCeiling(
+        PhaseContext ctx,
+        LandingPlan plan,
+        double targetSpeed,
+        double decelRateOverride,
+        double stopDistNm
+    )
+    {
+        double maxRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+        double planningRate = Math.Min(plan.DefaultDecel, maxRate);
+        double cappedSpeed = Math.Min(targetSpeed, RolloutBraking.MaxEntrySpeedKts(stopDistNm, planningRate));
+        double requiredDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, 0, stopDistNm);
+        double cappedRate = Math.Min(Math.Max(decelRateOverride, requiredDecel), maxRate);
+        return (cappedSpeed, cappedRate);
     }
 
     private bool TickHandoff(PhaseContext ctx)
@@ -894,6 +991,15 @@ public sealed class LandingPhase : Phase
             if (_candidateExit is { Path.Count: >= 2 })
             {
                 ctx.Aircraft.Phases.ResolvedExit = _candidateExit;
+
+                // Exiting before the hold-short point satisfies the LAHSO clearance (AIM 4-3-11.b.6), so the
+                // landing is no longer a hold: PhaseRunner keys the runway-hold chain on this target being set.
+                // Tied to the commitment above, which the handoff gate requires of a LAHSO lander — the two can
+                // never disagree about whether the aircraft is leaving the runway before the point.
+                if (_hasLahso)
+                {
+                    ctx.Aircraft.Phases.LahsoHoldShort = null;
+                }
             }
         }
 
@@ -1076,6 +1182,46 @@ public sealed class LandingPhase : Phase
         _unableBranchPoints.Add(_candidateExit.BranchPointNode.Id);
     }
 
+    /// <summary>
+    /// True when another aircraft already claims <paramref name="candidate"/>'s hold-short node. The same test
+    /// <see cref="Ground.RunwayExitPhase"/> applies to a committed exit when it starts, asked here so a LAHSO
+    /// lander never hands off to an exit the exit phase would drop and replace with a centerline re-search.
+    /// </summary>
+    private static bool IsHoldShortOccupied(PhaseContext ctx, ResolvedExitInfo candidate) =>
+        ctx.OccupiedHoldShortNodes?.Contains(candidate.HoldShortNode.Id) ?? false;
+
+    /// <summary>
+    /// How far the aircraft's nose leads <c>AircraftState.Position</c>, which is the centroid: half the FAA
+    /// aircraft-characteristics length, the same source and 60 ft fallback <see cref="Ground.RunwayExitPhase"/>
+    /// uses for its tail-clearance offset. Resolved once and cached — the type does not change mid-landing.
+    /// </summary>
+    private double NoseOffsetNm(PhaseContext ctx)
+    {
+        _noseOffsetNm ??= (FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? UnknownTypeLengthFt) / 2.0 / GeoMath.FeetPerNm;
+        return _noseOffsetNm.Value;
+    }
+
+    /// <summary>
+    /// Distance short of the LAHSO hold-short point the aircraft's centroid has to stop at for the nose to stay
+    /// clear of the marking: the tick margin plus the nose offset.
+    /// </summary>
+    private double LahsoSetbackNm(PhaseContext ctx) => LahsoStopMarginNm + NoseOffsetNm(ctx);
+
+    /// <summary>
+    /// True when an aircraft turning off at <paramref name="branchNode"/> leaves the runway before the LAHSO
+    /// hold-short point — the branch point sits at or before the stop target, setback included. Only meaningful
+    /// while <see cref="_hasLahso"/> is set.
+    /// </summary>
+    private bool BranchFitsInsideLahso(PhaseContext ctx, GroundNode branchNode, LandingPlan plan)
+    {
+        double branchFromThreshold = GeoMath.AlongTrackDistanceNm(
+            branchNode.Position,
+            new LatLon(plan.ThresholdLat, plan.ThresholdLon),
+            plan.RunwayHeading
+        );
+        return branchFromThreshold <= (_lahsoHoldShortDistNm - LahsoSetbackNm(ctx));
+    }
+
     private void ResolveNextCandidate(PhaseContext ctx, LandingPlan plan)
     {
         if (ctx.GroundLayout is null)
@@ -1151,6 +1297,16 @@ public sealed class LandingPhase : Phase
             return;
         }
 
+        if (_hasLahso && !BranchFitsInsideLahso(ctx, result.Value.Node, plan))
+        {
+            Log.LogDebug(
+                "[Landing] {Callsign}: fallback exit {Taxiway} is past the LAHSO hold-short point",
+                ctx.Aircraft.Callsign,
+                result.Value.Taxiway
+            );
+            return;
+        }
+
         double? fallbackAngle = ctx.GroundLayout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, plan.RunwayHeading);
         double fallbackTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, fallbackAngle);
 
@@ -1204,6 +1360,20 @@ public sealed class LandingPhase : Phase
                 // via the BFS cluster expansion.
                 if (distToBranch <= 0)
                 {
+                    return AirportGroundLayout.CandidateVerdict.Skip;
+                }
+
+                // Under a LAHSO clearance an exit past the hold-short point is no use, however reachable it is:
+                // the aircraft has to be stopped short of the point. Skipped like an unreachable candidate, so
+                // the search moves on and the stop at the point remains the fallback.
+                if (_hasLahso && !BranchFitsInsideLahso(ctx, branchNode, plan))
+                {
+                    Log.LogDebug(
+                        "[Landing] {Callsign}: skipping exit {Taxiway} — branch point is past the LAHSO hold-short point at {HoldShort:F2}nm",
+                        ctx.Aircraft.Callsign,
+                        candidate.Taxiway,
+                        _lahsoHoldShortDistNm
+                    );
                     return AirportGroundLayout.CandidateVerdict.Skip;
                 }
 

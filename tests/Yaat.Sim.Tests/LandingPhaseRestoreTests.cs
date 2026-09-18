@@ -101,6 +101,82 @@ public sealed class LandingPhaseRestoreTests
     }
 
     /// <summary>
+    /// Starts a landing phase already cleared to land and hold short, mid-rollout: the LAHSO target is on the
+    /// phase list before <c>OnStart</c>, which is the only place the phase captures it.
+    /// </summary>
+    private static LandingPhase StartLahsoRollout(RunwayInfo runway)
+    {
+        AircraftState ac = MakePistonOnShortFinal(runway);
+        LandingPhase phase = StartLahsoRolloutOn(ac, runway, groundLayout: null);
+        return phase;
+    }
+
+    /// <summary>
+    /// The shared body of the LAHSO-rollout setups: hangs the hold-short target on the phase list before
+    /// <c>OnStart</c> — the only place the phase captures it — and leaves the phase Active in Rollout.
+    /// </summary>
+    private static LandingPhase StartLahsoRolloutOn(AircraftState ac, RunwayInfo runway, AirportGroundLayout? groundLayout)
+    {
+        var phase = new LandingPhase();
+        ac.Phases = new PhaseList { AssignedRunway = runway };
+        ac.Phases.Add(phase);
+        ac.Phases.LahsoHoldShort = MakeLahsoTarget();
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, groundLayout));
+
+        phase.OnStart(MakeRolloutContext(ac, runway, groundLayout));
+        phase.Status = PhaseStatus.Active;
+        phase.CurrentState = LandingPhase.State.Rollout;
+        return phase;
+    }
+
+    /// <summary>A hold-short target 0.87 nm down the runway — far enough that a rollout tick is still short of it.</summary>
+    private static LahsoTarget MakeLahsoTarget() =>
+        new()
+        {
+            Lat = 37.723,
+            Lon = -122.235,
+            DistFromThresholdNm = 0.87,
+            CrossingRunwayId = "33",
+        };
+
+    /// <summary>A rollout context: the ground layout the exit planner searches, when there is one.</summary>
+    private static PhaseContext MakeRolloutContext(AircraftState ac, RunwayInfo runway, AirportGroundLayout? groundLayout) =>
+        new()
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = runway.ElevationFt,
+            Logger = NullLogger.Instance,
+            Weather = null,
+            ScenarioElapsedSeconds = 120.0,
+            GroundLayout = groundLayout,
+        };
+
+    /// <summary>
+    /// A C172 rolling out on the real Oakland 28R, 0.15 nm past the threshold at 45 kt — fast enough to still be
+    /// planning an exit, slow enough that the planner can reach one.
+    /// </summary>
+    private static AircraftState MakePistonOnRollout(RunwayInfo runway, AirportGroundLayout layout)
+    {
+        LatLon onRunway = GeoMath.ProjectPoint(LandingThreshold.Resolve(runway, layout), runway.TrueHeading, 0.15);
+        var ac = new AircraftState
+        {
+            Callsign = "N123AB",
+            AircraftType = "C172",
+            Position = onRunway,
+            TrueHeading = runway.TrueHeading,
+            Altitude = runway.ElevationFt,
+            IndicatedAirspeed = 45,
+            IsOnGround = true,
+        };
+        ac.Ground.Layout = layout;
+        return ac;
+    }
+
+    /// <summary>
     /// A context whose phase list carries no assigned runway, so anything the restored phase reports about the
     /// runway has to have come out of the snapshot.
     /// </summary>
@@ -155,6 +231,97 @@ public sealed class LandingPhaseRestoreTests
 
         // Everything else, field by field, so a field added to the DTO without a restore path fails here.
         Assert.Equal(Serialize(first), Serialize(second));
+    }
+
+    /// <summary>
+    /// A rewind taken during a LAHSO rollout has to come back still holding short: the hold-short distance and the
+    /// LAHSO flag are what stop the aircraft at the point, and a lost flag lands it long.
+    /// </summary>
+    [Fact]
+    public void Snapshot_MidRollout_WithLahso_IsLossless()
+    {
+        RunwayInfo runway = Oak28R();
+        LandingPhase twin = StartLahsoRollout(runway);
+
+        LandingPhaseDto first = Assert.IsType<LandingPhaseDto>(twin.ToSnapshot());
+        Assert.True(first.HasLahso);
+        Assert.Equal(0.87, first.LahsoHoldShortDistNm, 6);
+        Assert.Equal((int)LandingPhase.State.Rollout, first.CurrentStateValue);
+
+        var restored = LandingPhase.FromSnapshot(first, groundLayout: null);
+        LandingPhaseDto second = Assert.IsType<LandingPhaseDto>(restored.ToSnapshot());
+
+        Assert.Equal(first.HasLahso, second.HasLahso);
+        Assert.Equal(first.LahsoHoldShortDistNm, second.LahsoHoldShortDistNm, 6);
+        Assert.Equal(first.StoppedForLahso, second.StoppedForLahso);
+        Assert.Equal(first.CurrentStateValue, second.CurrentStateValue);
+
+        // Everything else, field by field, so a field added to the DTO without a restore path fails here.
+        Assert.Equal(Serialize(first), Serialize(second));
+    }
+
+    /// <summary>
+    /// The committed exit has to survive the rewind too: a LAHSO lander hands off only to a candidate the
+    /// planner cleared against the hold-short point, so a candidate dropped at restore either strands the
+    /// aircraft at the point or sends it to an exit nobody checked. Restored against the real Oakland layout,
+    /// which is where the node ids the snapshot carries are resolved from. Silent skip without the fixtures.
+    /// </summary>
+    [Fact]
+    public void Snapshot_MidRollout_WithLahsoAndACommittedExit_KeepsTheCandidate()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        RunwayInfo? runway = NavigationDatabase.InstanceOrNull?.GetRunway("OAK", "28R");
+        if (layout is null || runway is null)
+        {
+            return;
+        }
+
+        AircraftState ac = MakePistonOnRollout(runway, layout);
+        LandingPhase twin = StartLahsoRolloutOn(ac, runway, layout);
+
+        // One rollout tick over the real layout is what commits the candidate — the planner runs from inside
+        // the phase, so there is no way to hand it one.
+        twin.OnTick(MakeRolloutContext(ac, runway, layout));
+        Assert.NotNull(twin.CandidateExit);
+
+        LandingPhaseDto first = Assert.IsType<LandingPhaseDto>(twin.ToSnapshot());
+        Assert.True(first.HasLahso);
+        Assert.NotNull(first.CandidateExitBranchPointId);
+
+        var restored = LandingPhase.FromSnapshot(first, layout);
+        LandingPhaseDto second = Assert.IsType<LandingPhaseDto>(restored.ToSnapshot());
+
+        Assert.Equal(first.CandidateExitBranchPointId, second.CandidateExitBranchPointId);
+        Assert.Equal(first.CandidateExitHoldShortId, second.CandidateExitHoldShortId);
+        Assert.Equal(first.CandidateExitTaxiway, second.CandidateExitTaxiway);
+        Assert.Equal(Serialize(first), Serialize(second));
+    }
+
+    /// <summary>
+    /// A LAHSO lander that was snapshotted in Handoff and comes back without a usable candidate must not finish
+    /// the landing on its first tick: completing there hands the aircraft to a runway exit the planner never
+    /// cleared against the hold-short point, and clears the hold-short target on the way out. It goes back to
+    /// the rollout instead, which re-resolves under the LAHSO filter and stops at the point when nothing fits.
+    /// </summary>
+    [Fact]
+    public void RestoredLahsoInHandoff_WithoutACandidate_KeepsRollingAndKeepsTheTarget()
+    {
+        RunwayInfo runway = Oak28R();
+        LandingPhase twin = StartLahsoRollout(runway);
+        twin.CurrentState = LandingPhase.State.Handoff;
+
+        LandingPhaseDto dto = Assert.IsType<LandingPhaseDto>(twin.ToSnapshot());
+        Assert.True(dto.HasLahso);
+        Assert.Null(dto.CandidateExitBranchPointId);
+
+        var restored = LandingPhase.FromSnapshot(dto, groundLayout: null);
+        AircraftState ac = MakePistonOnShortFinal(runway);
+        ac.Phases = new PhaseList { AssignedRunway = runway, LahsoHoldShort = MakeLahsoTarget() };
+
+        bool completed = restored.OnTick(MakeRolloutContext(ac, runway, groundLayout: null));
+
+        Assert.False(completed, "a LAHSO landing with no usable exit must not complete at the handoff gate");
+        Assert.NotNull(ac.Phases.LahsoHoldShort);
     }
 
     [Fact]

@@ -5,6 +5,11 @@
 ### Added
 - Right-click an aircraft you assumed from live traffic and pick **Release to live feed** to hand it back to the feed, the same as `UNASSUME`.
 
+### Fixed
+- A `LAHSO` lander brakes to a stop with its nose short of the hold-short point instead of coasting across it.
+- A `LAHSO` lander exits at a taxiway before the hold-short point when it can make one, and holds on the runway only when it cannot.
+- A go-around, `TG`/`SG`/`LA`/`COPT` or `CANCLAND` after `LAHSO` cancels the hold-short.
+
 ## v0.13.2-beta [2026/09/18]
 
 ### Highlights

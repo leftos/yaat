@@ -91,6 +91,13 @@ public class LahsoTests
     private static LahsoTarget ClearLahso(RunwayInfo runway, AirportGroundLayout layout)
     {
         AircraftState ac = MakeAircraft(runway);
+        ClearLahsoOn(ac, layout);
+        return ac.Phases!.LahsoHoldShort!;
+    }
+
+    /// <summary>Issues <c>LAHSO 33</c> to <paramref name="ac"/> and asserts the hold-short target took.</summary>
+    private static void ClearLahsoOn(AircraftState ac, AirportGroundLayout layout)
+    {
         CommandResult result = PatternCommandHandler.TryLandAndHoldShort(
             new LandAndHoldShortCommand("33"),
             ac,
@@ -98,7 +105,7 @@ public class LahsoTests
             TestDispatch.Context(Random.Shared)
         );
         Assert.True(result.Success, result.Message);
-        return ac.Phases!.LahsoHoldShort!;
+        Assert.NotNull(ac.Phases!.LahsoHoldShort);
     }
 
     private static AircraftState MakeAircraft(RunwayInfo runway)
@@ -285,6 +292,65 @@ public class LahsoTests
 
         Assert.True(result.Success);
         Assert.Contains(ac.Phases!.Phases, p => p is LandingPhase);
+    }
+
+    /// <summary>
+    /// AIM 4-3-11.b.5: an accepted LAHSO clearance stands "unless an amended clearance is obtained" — and a
+    /// go-around is one, since it voids the whole landing-family clearance (7110.65 §7-4-1 handles a broken-off
+    /// approach as any go-around). Left standing, the target would re-arm on the next landing this aircraft
+    /// flies, which may be on another runway entirely. <c>GA</c> routes here through <c>CommandDispatcher</c>.
+    /// </summary>
+    [Fact]
+    public void GoAround_AfterLahso_ClearsTheHoldShortTarget()
+    {
+        RunwayInfo runway = MakeLandingRunway();
+        AirportGroundLayout layout = MakeCrossingLayout();
+        AircraftState ac = MakeAircraft(runway);
+        ClearLahsoOn(ac, layout);
+
+        CommandResult result = PatternCommandHandler.TryGoAround(new GoAroundCommand(null, null, null), ac, layout);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.Phases!.LahsoHoldShort);
+    }
+
+    /// <summary>
+    /// The same amended-clearance rule (AIM 4-3-11.b.5) for the option clearances: <c>TG</c> replaces the
+    /// landing terminator with a touch-and-go, so the aircraft is no longer landing and no longer holding short
+    /// of anything. Left standing, the target would make the next landing brake for a hold short the controller
+    /// cancelled two clearances ago.
+    /// </summary>
+    [Fact]
+    public void TouchAndGo_AfterLahso_ClearsTheHoldShortTarget()
+    {
+        RunwayInfo runway = MakeLandingRunway();
+        AirportGroundLayout layout = MakeCrossingLayout();
+        AircraftState ac = MakeAircraft(runway);
+        ClearLahsoOn(ac, layout);
+
+        CommandResult result = PatternCommandHandler.TrySetupTouchAndGo(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.Phases!.LahsoHoldShort);
+    }
+
+    /// <summary>
+    /// The hold-short instruction is part of the landing clearance LAHSO grants (7110.65 §3-10-5.b), so
+    /// cancelling that clearance cancels it too — the amended-clearance case of AIM 4-3-11.b.5. Left standing,
+    /// a cancelled clearance would still be braking the aircraft to a point it was never cleared to.
+    /// </summary>
+    [Fact]
+    public void CancelLandingClearance_AfterLahso_ClearsTheHoldShortTarget()
+    {
+        RunwayInfo runway = MakeLandingRunway();
+        AirportGroundLayout layout = MakeCrossingLayout();
+        AircraftState ac = MakeAircraft(runway);
+        ClearLahsoOn(ac, layout);
+
+        CommandResult result = PatternCommandHandler.TryCancelLandingClearance(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.Phases!.LahsoHoldShort);
     }
 
     // -------------------------------------------------------------------------

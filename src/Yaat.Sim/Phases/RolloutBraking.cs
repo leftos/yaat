@@ -44,6 +44,24 @@ public static class RolloutBraking
     }
 
     /// <summary>
+    /// Fastest speed (kts) a stop at <paramref name="decelRateKtsPerSec"/> still fits inside
+    /// <paramref name="distanceNm"/>: v = sqrt(2·a·d), the inverse of <see cref="BrakingDistanceNm"/> against a
+    /// zero target. A non-positive distance or rate yields 0 — there is no room left, so no speed is slow enough.
+    /// </summary>
+    public static double MaxEntrySpeedKts(double distanceNm, double decelRateKtsPerSec)
+    {
+        if ((distanceNm <= 0) || (decelRateKtsPerSec <= 0))
+        {
+            return 0;
+        }
+
+        double distFt = distanceNm * GeoMath.FeetPerNm;
+        double decelFps2 = decelRateKtsPerSec * GeoMath.FeetPerNm / 3600.0;
+        double speedFps = Math.Sqrt(2.0 * decelFps2 * distFt);
+        return speedFps * 3600.0 / GeoMath.FeetPerNm;
+    }
+
+    /// <summary>
     /// Distance (nm) needed to brake between two speeds at a given rate — the inverse of
     /// <see cref="RequiredDecelKtsPerSec"/>: d = (v_i² - v_f²) / (2·a).
     /// </summary>

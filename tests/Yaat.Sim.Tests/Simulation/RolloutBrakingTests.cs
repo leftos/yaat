@@ -60,4 +60,33 @@ public class RolloutBrakingTests
     [Fact]
     public void BrakingDistance_WhenAlreadySlowEnough_IsNotPositive() =>
         Assert.True(RolloutBraking.BrakingDistanceNm(15.0, 15.0, RolloutBraking.FirmBrakingRateKtsPerSec) <= 0.0);
+
+    /// <summary>
+    /// The LAHSO speed ceiling is the braking distance read backwards: whatever
+    /// <see cref="RolloutBraking.MaxEntrySpeedKts"/> allows has to stop in exactly the distance it was given.
+    /// </summary>
+    [Theory]
+    [InlineData(0.05, 5.0)]
+    [InlineData(0.2, 5.0)]
+    [InlineData(0.008, 7.5)]
+    public void MaxEntrySpeed_IsTheInverseOfBrakingDistance(double distanceNm, double rate)
+    {
+        double entrySpeed = RolloutBraking.MaxEntrySpeedKts(distanceNm, rate);
+
+        Assert.Equal(distanceNm, RolloutBraking.BrakingDistanceNm(entrySpeed, 0.0, rate), 9);
+    }
+
+    /// <summary>No room left means no speed is slow enough — the caller's ceiling collapses to a stop.</summary>
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(-0.01)]
+    public void MaxEntrySpeed_WithNoDistanceLeft_IsZero(double distanceNm) =>
+        Assert.Equal(0.0, RolloutBraking.MaxEntrySpeedKts(distanceNm, RolloutBraking.FirmBrakingRateKtsPerSec));
+
+    /// <summary>
+    /// An aircraft that cannot brake cannot stop, however much runway is left: the ceiling is zero rather than
+    /// infinite, so a caller that passes a helicopter's zero rollout rate gets a stop target, not a free pass.
+    /// </summary>
+    [Fact]
+    public void MaxEntrySpeed_WithNoBrakingRate_IsZero() => Assert.Equal(0.0, RolloutBraking.MaxEntrySpeedKts(0.2, 0.0));
 }

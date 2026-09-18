@@ -213,6 +213,11 @@ internal static class GoAroundHelper
         phaseList.ClearedRunwayId = null;
         ctx.Aircraft.Pattern.PendingLandingClearance = null;
 
+        // The hold-short target goes with it: AIM 4-3-11.b.5 holds an accepted LAHSO clearance only "unless an
+        // amended clearance is obtained", and a go-around amends it. Left set, LandingPhase.OnStart re-arms the
+        // hold short on the next landing this aircraft flies — which may be a different runway.
+        phaseList.LahsoHoldShort = null;
+
         var phases = new List<Phase> { goAround };
         phases.AddRange(missedApproachPhases);
 
