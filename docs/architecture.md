@@ -141,7 +141,7 @@ tools/hooks/claude-guard-read.sh   # Claude Code PreToolUse(Read) guard: denies 
 tools/hooks/claude-guard-cases.jsonl    # Expected allow/deny table for the Bash guard.
 tools/hooks/test-claude-guards.sh       # Runs the table above; wired into prek (`claude-guards`) and triggered only when a guard file changes.
 tools/gate.sh                     # Wraps a build/test command: full output to a log, only the tail (plus the failure lines on red) on screen, exits with the command's own status, also failing when the log holds `Build FAILED` or `error CS`. Use for every dotnet build/test/run; `cmd | tee` floods the context with the whole log and reports tee's status.
-tools/drive-client-uia.ps1        # Dot-sourced Windows UI Automation helpers that drive the running desktop client (windows/menus/buttons by name, real-mouse clicks for Avalonia menus, screenshot of a rect). Seed for the client-driving MCP server in docs/plans/MAIN.md; how GitHub #437 was reproduced against a scratch YAAT_APPDATA_DIR.
+.mcp.json                         # Claude Code project MCP registration: `yaat-client-driver` → `dotnet run --project tools/Yaat.ClientDriver.Mcp --no-build`
 tools/measure-test-loop.ps1       # Measures the developer test loop (discovery, one-class, whole-project wall+CPU, incremental/cold build, full gate) as medians over N runs. Detects xunit.v3 vs TUnit from the csproj and picks the matching filter syntax, so a framework-migration branch can be diffed against main. Baseline numbers: docs/plans/tunit-migration.md.
 tools/analyze-test-schedule.py    # Reads a TRX of per-test durations and LPT-packs it onto N workers under both scheduling models (xunit's per-collection vs per-test), reporting the makespan gap. Answers "would a different scheduler help?" without changing frameworks — on this suite the gap measures 0.0s.
 tools/gen-synthetic-suite.py      # Emits a throwaway test project matching Yaat.Sim.Tests' shape (class/test/InlineData counts) in xunit.v3 or TUnit, with trivial bodies. Measures a framework's *compile* cost at our scale without converting real files — how the TUnit source generator was shown to add ~5s per incremental build at 9,306 cases.
@@ -1644,6 +1644,24 @@ Fakes/FakeFilePickerService.cs (not yet — MainWindow uses real AvaloniaFilePic
 ```
 
 The OAK clearances scenario `docs/atctrainer-scenario-examples/01H06NVK7VN8BS7MCDXHKJZ7MQ.json` is the canonical fixture for every "scenario loaded" scene.
+
+## Yaat.ClientDriver.Mcp — MCP server (`tools/Yaat.ClientDriver.Mcp/`)
+
+MCP stdio server that drives the real desktop client and a running CRC through Windows UI Automation (enumerate, click, type, screenshot, log tail). Windows-only TFM with `EnableWindowsTargeting` so the Linux CI solution build still compiles it. Reference: [`client-driver-mcp.md`](client-driver-mcp.md).
+
+```
+Program.cs                     # Per-monitor-v2 DPI awareness, then the MCP host: stdio transport, tools from the assembly, all logging to stderr (stdout is the protocol channel)
+ElementRegistry.cs             # Singleton: short element ids (e1, e2, …) ↔ AutomationElement, keyed by UIA runtime id; stale/disabled/timeout → McpException
+UiaQuery.cs                    # Find / describe / dump-tree helpers over System.Windows.Automation
+NativeInput.cs                 # P/Invoke: SendInput clicks, SetForegroundWindow, minimised test; one input gate serialises click and SendKeys sequences; blocked input throws
+WindowCapture.cs               # CopyFromScreen of a window's bounds, downscale, PNG under .tmp/client-driver/shots/
+Tools/ProcessTools.cs          # launch_yaat (Yaat.Client.exe only, scratch YAAT_APPDATA_DIR), list_processes, stop_process (pid + start time, or a Yaat.Client by name), tail_yaat_log
+Tools/InspectTools.cs          # list_windows, dump_tree, find_elements, get_value, screenshot
+Tools/InputTools.cs            # invoke, click, click_point, set_text, send_keys, focus
+McpStdio.ps1                   # Dot-sourced JSON-RPC-over-stdio plumbing for the two scripts
+smoke.ps1                      # Protocol smoke: stdout is pure JSON, every tool listed; opens no window
+live-check.ps1                 # Live pass against a real client (-WithInput types and clicks); captures CRC's first display window when CRC is running
+```
 
 ## stash-procedure.py — CLI tool (`tools/stash-procedure.py`)
 

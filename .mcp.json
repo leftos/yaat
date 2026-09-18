@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "yaat-client-driver": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": ["run", "--project", "tools/Yaat.ClientDriver.Mcp", "--no-build"]
+    }
+  }
+}
