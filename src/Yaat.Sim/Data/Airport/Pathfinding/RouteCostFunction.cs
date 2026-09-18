@@ -316,7 +316,6 @@ public static class RouteCostFunction
         if (edge is GroundArc arc && arc.TaxiwayNames.Length == 2)
         {
             GroundNode fromNode = arc.Nodes[0].Id == fromNodeId ? arc.Nodes[0] : arc.Nodes[1];
-            GroundNode toNode = arc.Nodes[0].Id == fromNodeId ? arc.Nodes[1] : arc.Nodes[0];
 
             foreach (IGroundEdge adjacentEdge in fromNode.Edges)
             {

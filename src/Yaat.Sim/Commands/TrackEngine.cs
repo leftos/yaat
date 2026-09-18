@@ -97,7 +97,7 @@ public static partial class TrackEngine
                 or CoordinationReorderCommand
                 or CoordinationModifyCommand;
 
-    public static CommandResult NotOwnedError(AircraftState ac, TrackOwner identity)
+    public static CommandResult NotOwnedError(AircraftState ac)
     {
         if (ac.Track.Owner is null)
         {

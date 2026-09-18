@@ -60,7 +60,6 @@ public static class EuroScopeTagLayout
         float originX,
         float originY,
         TextStyle style,
-        string? localUserInitials,
         bool showNoLandingClearance,
         bool showConflictAlerts,
         AircraftModel? conflictPeer
@@ -70,7 +69,7 @@ public static class EuroScopeTagLayout
         float lineH = style.LineHeight;
 
         float maxWidth = 0;
-        int lineCount = 0;
+        int lineCount;
 
         // Line 1: owner marker + callsign
         float y1Top = originY - style.Size;
@@ -82,7 +81,6 @@ public static class EuroScopeTagLayout
         string callsign = ac.AutoDeletePending ? $"{ac.Callsign}*" : ac.Callsign;
         x = AddField(fields, TagFieldId.Callsign, callsign, x, y1Top, y1Bot, style);
         maxWidth = MathF.Max(maxWidth, x - originX);
-        lineCount = 1;
 
         // Line 2: type/cwt + destination
         float y2Top = y1Top + lineH;
@@ -107,7 +105,6 @@ public static class EuroScopeTagLayout
         if (x > originX)
         {
             maxWidth = MathF.Max(maxWidth, x - originX);
-            lineCount = 2;
         }
 
         // Line 3: current altitude (assigned altitude) ASP(speed) AHDG(heading)
@@ -261,7 +258,6 @@ public static class EuroScopeTagLayout
             x = AddField(fields, TagFieldId.Note, ac.Note, x, yTop, yBot, style);
             maxWidth = MathF.Max(maxWidth, x - originX);
             lineCount++;
-            lastLineYTop = yTop;
         }
 
         var bounds = new SKRect(

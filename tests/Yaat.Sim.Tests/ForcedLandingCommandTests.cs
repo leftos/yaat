@@ -74,7 +74,7 @@ public sealed class ForcedLandingCommandTests
     {
         AircraftState ac = MakeOnFinal(MakeRunway());
 
-        CommandResult result = PatternCommandHandler.TryForceLanding(new ForceLandingCommand(), ac, TestDispatch.Context(new Random(1)));
+        CommandResult result = PatternCommandHandler.TryForceLanding(ac, TestDispatch.Context(new Random(1)));
 
         Assert.True(result.Success, result.Message);
         Assert.True(ac.Phases!.ForceLanding);
@@ -88,7 +88,7 @@ public sealed class ForcedLandingCommandTests
         AircraftState ac = MakeInGoAround(MakeRunway());
         Assert.IsType<GoAroundPhase>(ac.Phases!.CurrentPhase);
 
-        CommandResult result = PatternCommandHandler.TryForceLanding(new ForceLandingCommand(), ac, TestDispatch.Context(new Random(1)));
+        CommandResult result = PatternCommandHandler.TryForceLanding(ac, TestDispatch.Context(new Random(1)));
 
         Assert.True(result.Success, result.Message);
         Assert.True(ac.Phases.ForceLanding);
@@ -107,11 +107,7 @@ public sealed class ForcedLandingCommandTests
     {
         AircraftState ac = MakeOnFinal(MakeRunway());
 
-        CommandResult result = PatternCommandHandler.TryForceLanding(
-            new ForceLandingCommand(),
-            ac,
-            TestDispatch.Context(new Random(1), soloTrainingMode: true)
-        );
+        CommandResult result = PatternCommandHandler.TryForceLanding(ac, TestDispatch.Context(new Random(1), soloTrainingMode: true));
 
         Assert.False(result.Success);
         Assert.Contains("RPO-only", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -124,7 +120,7 @@ public sealed class ForcedLandingCommandTests
         AircraftState ac = MakeOnFinal(MakeRunway());
         ac.IsOnGround = true;
 
-        CommandResult result = PatternCommandHandler.TryForceLanding(new ForceLandingCommand(), ac, TestDispatch.Context(new Random(1)));
+        CommandResult result = PatternCommandHandler.TryForceLanding(ac, TestDispatch.Context(new Random(1)));
 
         Assert.False(result.Success);
         Assert.False(ac.Phases!.ForceLanding);

@@ -77,7 +77,7 @@ public static partial class TrackEngine
             // owned by someone else; the auto-claim below only happens when the track is unowned or already this position's.
             if ((existing.Track.Owner is not null) && !existing.Track.Owner.MatchesPosition(identity))
             {
-                return new GhostTrackOutcome(NotOwnedError(existing, identity), null);
+                return new GhostTrackOutcome(NotOwnedError(existing), null);
             }
 
             // IsOverlay distinguishes this from a pure phantom data block so the operator-facing Aircraft List keeps the row visible.

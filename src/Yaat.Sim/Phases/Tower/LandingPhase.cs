@@ -453,7 +453,7 @@ public sealed class LandingPhase : Phase
             State.Flare => TickFlare(ctx, _plan),
             State.Touchdown => TickTouchdown(ctx, _plan),
             State.Rollout => TickRollout(ctx, _plan),
-            State.Handoff => TickHandoff(ctx, _plan),
+            State.Handoff => TickHandoff(ctx),
             State.Unable => TickUnable(ctx, _plan),
             State.FullStop => TickFullStop(ctx, _plan),
             State.GoAround => true,
@@ -738,10 +738,7 @@ public sealed class LandingPhase : Phase
             if ((distToHoldShort > 0) && (ctx.Aircraft.IndicatedAirspeed > 1.0))
             {
                 double lahsoDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, 0, distToHoldShort);
-                if (lahsoDecel > decelRate)
-                {
-                    decelRate = lahsoDecel;
-                }
+                if (lahsoDecel > decelRate) { }
             }
             else if (distToHoldShort <= 0)
             {
@@ -878,13 +875,13 @@ public sealed class LandingPhase : Phase
         if (!_hasLahso && !handoffBlocked && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed))
         {
             CurrentState = State.Handoff;
-            return TickHandoff(ctx, plan);
+            return TickHandoff(ctx);
         }
 
         return false;
     }
 
-    private bool TickHandoff(PhaseContext ctx, LandingPlan plan)
+    private bool TickHandoff(PhaseContext ctx)
     {
         // Commit relaxed preference back to the aircraft so RunwayExitPhase sees it
         if (ctx.Aircraft.Phases is not null)

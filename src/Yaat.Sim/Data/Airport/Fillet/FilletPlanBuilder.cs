@@ -73,7 +73,7 @@ internal static class FilletPlanBuilder
         redirectedStraightConnectors = DedupByEndpointPair(redirectedStraightConnectors, op => (op.EndpointAtArmA, op.EndpointAtArmB), _ => true);
 
         var nodesToRemoveSet = nodesToRemove.ToHashSet();
-        FilletEdgeSplitPlanner.Result split = FilletEdgeSplitPlanner.Plan(layout, junctions, prunedCuts, redirect, nodesToRemoveSet);
+        FilletEdgeSplitPlanner.Result split = FilletEdgeSplitPlanner.Plan(junctions, prunedCuts, redirect, nodesToRemoveSet);
         warnings.AddRange(split.Warnings);
 
         // Use the anchor node IDs returned directly by ExtendWithStableAnchors rather than

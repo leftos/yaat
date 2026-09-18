@@ -259,7 +259,7 @@ public static class LiveTrafficAssumer
 
         // Lateral first: a STAR profile installed by the rejoin writes a speed restriction into the targets,
         // and the feed's cleared speed / the observed speed must win over it (seeded afterwards).
-        string lateral = SeedLateral(ac, lt, ctx, runway, kind, notes);
+        string lateral = SeedLateral(ac, lt, ctx, notes);
         SeedSpeed(ac, lt);
         if (ac.Phases?.ActiveApproach is not null)
         {
@@ -504,14 +504,7 @@ public static class LiveTrafficAssumer
 
     // --- lateral ---
 
-    private static string SeedLateral(
-        AircraftState ac,
-        AircraftLiveTraffic lt,
-        DispatchContext ctx,
-        RunwayInfo? runway,
-        RunwayUseKind? kind,
-        List<string> notes
-    )
+    private static string SeedLateral(AircraftState ac, AircraftLiveTraffic lt, DispatchContext ctx, List<string> notes)
     {
         if (TrySeedFinal(ac, ctx, notes) is { } finalSummary)
         {
@@ -523,7 +516,7 @@ public static class LiveTrafficAssumer
             return climbSummary;
         }
 
-        (string? rejoinSummary, bool rejoined) = TrySeedRouteRejoin(ac, lt, notes);
+        (string? rejoinSummary, bool rejoined) = TrySeedRouteRejoin(ac, notes);
         if (rejoined)
         {
             return rejoinSummary!;
@@ -658,7 +651,7 @@ public static class LiveTrafficAssumer
     /// Installs the filed route from the next fix ahead. Returns the summary and whether a route was
     /// installed; when not, the summary carries the reason for the terminal note.
     /// </summary>
-    private static (string? Summary, bool Rejoined) TrySeedRouteRejoin(AircraftState ac, AircraftLiveTraffic lt, List<string> notes)
+    private static (string? Summary, bool Rejoined) TrySeedRouteRejoin(AircraftState ac, List<string> notes)
     {
         if (string.IsNullOrWhiteSpace(ac.FlightPlan.Route))
         {

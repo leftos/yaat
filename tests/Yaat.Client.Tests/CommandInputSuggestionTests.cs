@@ -241,7 +241,7 @@ public class CommandInputSuggestionTests
         controller.UpdateSuggestions(text, 9, aircraft, Scheme);
         Assert.True(controller.IsSuggestionsVisible);
         controller.SelectedSuggestionIndex = 0;
-        (string Text, int Caret)? accepted = controller.AcceptSuggestion(text);
+        (string Text, int Caret)? accepted = controller.AcceptSuggestion();
 
         Assert.NotNull(accepted);
         Assert.Equal("FOLLOW AAL1234 D5L", accepted.Value.Text);
@@ -259,7 +259,7 @@ public class CommandInputSuggestionTests
         controller.UpdateSuggestions(text, text.Length, aircraft, Scheme);
         Assert.True(controller.IsSuggestionsVisible);
         controller.SelectedSuggestionIndex = 0;
-        (string Text, int Caret)? accepted = controller.AcceptSuggestion(text);
+        (string Text, int Caret)? accepted = controller.AcceptSuggestion();
 
         Assert.NotNull(accepted);
         Assert.Equal("FOLLOW AAL1234 ", accepted.Value.Text);
@@ -336,7 +336,7 @@ public class CommandInputSuggestionTests
 
         string text = "EXT DOWN";
         controller.UpdateSuggestions(text, text.Length, aircraft, Scheme);
-        (string Text, int Caret)? accepted = controller.AcceptSuggestion(text);
+        (string Text, int Caret)? accepted = controller.AcceptSuggestion();
 
         Assert.NotNull(accepted);
         Assert.Equal("EXT DOWNWIND ", accepted.Value.Text);

@@ -158,7 +158,7 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
         {
             return;
         }
-        (SimulationEngine? engine, AircraftState? ac) = setup.Value;
+        (SimulationEngine? engine, AircraftState? _) = setup.Value;
 
         CommandResult result = engine.SendCommand("N104NT", "CLAND 33");
         Assert.True(result.Success, result.Message);
@@ -167,7 +167,7 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
         for (int t = 1; t <= 260; t++)
         {
             engine.TickOneSecond();
-            ac = engine.FindAircraft("N104NT");
+            AircraftState? ac = engine.FindAircraft("N104NT");
             if (ac is null)
             {
                 break;

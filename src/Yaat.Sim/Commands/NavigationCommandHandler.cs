@@ -1820,7 +1820,7 @@ internal static class NavigationCommandHandler
     /// (<c>PilotResponder.BuildReadback</c>); this handler only records intent and returns the
     /// controller-facing echo. Dry-run safe — touches no <c>TerminalEmitter</c>.
     /// </summary>
-    internal static CommandResult DispatchReport(ReportCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    internal static CommandResult DispatchReport(ReportCommand cmd, AircraftState aircraft)
     {
         AircraftApproachState approach = aircraft.Approach;
         switch (cmd.Trigger)

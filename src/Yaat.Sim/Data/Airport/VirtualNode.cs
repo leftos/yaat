@@ -199,7 +199,7 @@ public static class VirtualNode
         double offsetNm
     ) => OffsetPastCore(layout, node, approachFromLat, approachFromLon, offsetNm);
 
-    private static GroundNode OffsetPastCore(AirportGroundLayout layout, GroundNode node, double approachLat, double approachLon, double offsetNm)
+    private static GroundNode OffsetPastCore(AirportGroundLayout _, GroundNode node, double approachLat, double approachLon, double offsetNm)
     {
         double remaining = offsetNm;
         GroundNode currentNode = node;

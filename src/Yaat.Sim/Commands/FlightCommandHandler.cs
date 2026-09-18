@@ -628,13 +628,7 @@ internal static class FlightCommandHandler
             : CommandDispatcher.Ok($"Proceed direct {fixNames}");
     }
 
-    internal static CommandResult ApplyTurnDirectTo(
-        List<ResolvedFix> fixes,
-        List<string> skippedFixes,
-        AircraftState aircraft,
-        bool validateDctFixes,
-        TurnDirection direction
-    )
+    internal static CommandResult ApplyTurnDirectTo(List<ResolvedFix> fixes, AircraftState aircraft, bool validateDctFixes, TurnDirection direction)
     {
         if (validateDctFixes)
         {
@@ -984,8 +978,7 @@ internal static class FlightCommandHandler
         // back to a spot node and '#' can name a parking node.
         bool atStand = node.Type is GroundNodeType.Parking or GroundNodeType.Helipad;
 
-        TrueHeading heading =
-            atStand && node.TrueHeading is { } standHeading ? standHeading : PickBestEdgeHeading(layout, node, aircraft.TrueHeading);
+        TrueHeading heading = atStand && node.TrueHeading is { } standHeading ? standHeading : PickBestEdgeHeading(node, aircraft.TrueHeading);
         aircraft.TrueHeading = heading;
         aircraft.TrueTrack = heading;
 
@@ -1113,14 +1106,14 @@ internal static class FlightCommandHandler
         return "";
     }
 
-    private static TrueHeading PickBestEdgeHeading(AirportGroundLayout layout, GroundNode node, TrueHeading currentHeading)
+    private static TrueHeading PickBestEdgeHeading(GroundNode node, TrueHeading currentHeading)
     {
         TrueHeading best = currentHeading;
         double bestDelta = 360;
 
         foreach (IGroundEdge edge in node.Edges)
         {
-            var bearing = new TrueHeading(EdgeBearing(layout, node, edge));
+            var bearing = new TrueHeading(EdgeBearing(node, edge));
             double delta = currentHeading.AbsAngleTo(bearing);
             if (delta < bestDelta)
             {
@@ -1132,7 +1125,7 @@ internal static class FlightCommandHandler
         return best;
     }
 
-    private static double EdgeBearing(AirportGroundLayout layout, GroundNode node, IGroundEdge edge)
+    private static double EdgeBearing(GroundNode node, IGroundEdge edge)
     {
         if (edge is GroundEdge straight)
         {

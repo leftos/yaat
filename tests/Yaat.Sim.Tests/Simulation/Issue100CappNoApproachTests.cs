@@ -66,8 +66,6 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
         Assert.Null(aircraft.Phases.ActiveApproach);
         Assert.Null(aircraft.Approach.Expected);
 
-        PhaseList phasesBefore = aircraft.Phases;
-
         // Issue CAPP — should fail because no approach is resolvable
         CommandResult result = engine.SendCommand("JSX170", "CAPP");
 

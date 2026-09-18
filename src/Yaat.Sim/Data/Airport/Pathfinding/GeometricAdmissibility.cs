@@ -137,7 +137,7 @@ public static class GeometricAdmissibility
     {
         if (edge is GroundArc arc)
         {
-            return arc.TangentBearingAt(fromNode, fromNode, toNode);
+            return arc.TangentBearingAt(fromNode, fromNode);
         }
 
         return GeoMath.BearingTo(fromNode.Position, toNode.Position);
@@ -153,7 +153,7 @@ public static class GeometricAdmissibility
     {
         if (edge is GroundArc arc)
         {
-            return arc.TangentBearingAt(toNode, fromNode, toNode);
+            return arc.TangentBearingAt(toNode, fromNode);
         }
 
         return GeoMath.BearingTo(fromNode.Position, toNode.Position);

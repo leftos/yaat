@@ -493,7 +493,7 @@ public static class ScenarioLoader
         List<string> warnings,
         string? primaryAirportId,
         string? primaryApproach,
-        Random rng
+        Random _
     )
     {
         string? runwayId = ac.StartingConditions.Runway;
@@ -540,7 +540,7 @@ public static class ScenarioLoader
         List<string> warnings,
         string? primaryAirportId,
         string? primaryApproach,
-        Random rng
+        Random _
     )
     {
         string? runwayId = ac.StartingConditions.Runway;
@@ -598,7 +598,7 @@ public static class ScenarioLoader
         string? primaryAirportId,
         List<string> warnings,
         string? primaryApproach,
-        Random rng
+        Random _
     )
     {
         StartingConditions cond = ac.StartingConditions;

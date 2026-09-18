@@ -125,7 +125,7 @@ public class InterceptCoursePhaseTests
         aircraft.Position = new LatLon(37.72, -122.24);
         aircraft.TrueHeading = new TrueHeading(278);
 
-        bool complete = phase.OnTick(ctx);
+        _ = phase.OnTick(ctx);
         // May or may not be complete depending on exact geometry,
         // but should never produce a notification
         Assert.Empty(aircraft.PendingWarnings);

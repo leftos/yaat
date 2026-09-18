@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
@@ -27,17 +27,7 @@ public class PatternAltitudeMemoryTests
             FlightPlan = new AircraftFlightPlan { Departure = "KTEST", Destination = "KTEST" },
         };
 
-        PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
-        );
+        _ = PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         phases.Add(currentPhase);
         phases.Start(CommandDispatcher.BuildMinimalContext(ac));
@@ -110,7 +100,7 @@ public class PatternAltitudeMemoryTests
             authoredRunway: null
         );
         var dw = new DownwindPhase { Waypoints = waypoints };
-        AircraftState ac = MakePatternAircraft(dw);
+        _ = MakePatternAircraft(dw);
 
         // CanAcceptCommand should return Allowed for CM
         CommandAcceptance acceptance = dw.CanAcceptCommand(CanonicalCommandType.ClimbMaintain);
@@ -132,7 +122,7 @@ public class PatternAltitudeMemoryTests
             authoredRunway: null
         );
         var bp = new BasePhase { Waypoints = waypoints };
-        AircraftState ac = MakePatternAircraft(bp);
+        _ = MakePatternAircraft(bp);
 
         CommandAcceptance acceptance = bp.CanAcceptCommand(CanonicalCommandType.DescendMaintain);
         Assert.Equal(CommandAcceptance.Allowed, acceptance);

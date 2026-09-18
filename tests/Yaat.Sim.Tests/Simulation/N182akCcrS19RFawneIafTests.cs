@@ -34,7 +34,7 @@ public class N182akCcrS19RFawneIafTests(ITestOutputHelper output)
         return TestVnasData.NavigationDb;
     }
 
-    private static AircraftState MakeC182NearFawne(NavigationDatabase navDb, double trueHeading)
+    private static AircraftState MakeC182NearFawne(double trueHeading)
     {
         // Position SSE of FAWNE matches recording snapshot at t=1490 (38.16606, -121.96502).
         // Hard-coded literal so the test geometry is explicit; FAWNE position itself comes from navdata.
@@ -82,7 +82,7 @@ public class N182akCcrS19RFawneIafTests(ITestOutputHelper output)
             return;
         }
 
-        AircraftState aircraft = MakeC182NearFawne(navDb, trueHeading: 28.0);
+        AircraftState aircraft = MakeC182NearFawne(trueHeading: 28.0);
         Assert.Empty(aircraft.Targets.NavigationRoute);
 
         CifpTransition? selected = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
@@ -109,7 +109,7 @@ public class N182akCcrS19RFawneIafTests(ITestOutputHelper output)
             return;
         }
 
-        AircraftState aircraft = MakeC182NearFawne(navDb, trueHeading: 28.0);
+        AircraftState aircraft = MakeC182NearFawne(trueHeading: 28.0);
 
         var cmd = new ClearedApproachCommand(
             "S19R",

@@ -2317,7 +2317,6 @@ public sealed class SoloTrainingEvaluator
                     preceding,
                     succeeding,
                     precedingState,
-                    succeedingState,
                     scenarioElapsedSeconds,
                     relation
                 ),
@@ -2325,7 +2324,6 @@ public sealed class SoloTrainingEvaluator
                     preceding,
                     succeeding,
                     precedingState,
-                    succeedingState,
                     scenarioElapsedSeconds,
                     relation
                 ),
@@ -2333,7 +2331,6 @@ public sealed class SoloTrainingEvaluator
                     preceding,
                     succeeding,
                     precedingState,
-                    succeedingState,
                     scenarioElapsedSeconds,
                     relation
                 ),
@@ -2384,7 +2381,7 @@ public sealed class SoloTrainingEvaluator
                 }
 
                 RunwayRelation relation = TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) ?? RunwayRelation.SameActive();
-                if (TryResolveDepartureWakeRequirement(preceding, succeeding, precedingState, succeedingState, relation) is not { } requirement)
+                if (TryResolveDepartureWakeRequirement(preceding, succeeding, succeedingState, relation) is not { } requirement)
                 {
                     continue;
                 }
@@ -2561,7 +2558,7 @@ public sealed class SoloTrainingEvaluator
                     }
 
                     RunwayRelation relation = TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) ?? RunwayRelation.SameActive();
-                    if (TryResolveDepartureWakeRequirement(preceding, succeeding, precedingState, succeedingState, relation) is not { } requirement)
+                    if (TryResolveDepartureWakeRequirement(preceding, succeeding, succeedingState, relation) is not { } requirement)
                     {
                         continue;
                     }
@@ -2679,7 +2676,6 @@ public sealed class SoloTrainingEvaluator
             RunwayOperation preceding,
             RunwayOperation succeeding,
             AircraftRunwayState precedingState,
-            AircraftRunwayState succeedingState,
             double scenarioElapsedSeconds,
             RunwayRelation relation
         )
@@ -2704,7 +2700,6 @@ public sealed class SoloTrainingEvaluator
             RunwayOperation preceding,
             RunwayOperation succeeding,
             AircraftRunwayState precedingState,
-            AircraftRunwayState succeedingState,
             double scenarioElapsedSeconds,
             RunwayRelation relation
         )
@@ -2738,7 +2733,6 @@ public sealed class SoloTrainingEvaluator
             RunwayOperation preceding,
             RunwayOperation succeeding,
             AircraftRunwayState precedingState,
-            AircraftRunwayState succeedingState,
             double scenarioElapsedSeconds,
             RunwayRelation relation
         )
@@ -3239,7 +3233,6 @@ public sealed class SoloTrainingEvaluator
         private static DepartureWakeRequirement? TryResolveDepartureWakeRequirement(
             RunwayOperation preceding,
             RunwayOperation succeeding,
-            AircraftRunwayState precedingState,
             AircraftRunwayState succeedingState,
             RunwayRelation relation
         )

@@ -775,7 +775,7 @@ public static class SegmentExpander
         if (next.IsNodeRef)
         {
             // Next is a node-ref: route from current taxiway terminus toward that node.
-            return RouteToNodeRef(head, current, next.ResolvedNodeId, ctx);
+            return RouteToNodeRef(head, next.ResolvedNodeId, ctx);
         }
 
         if (current.IsNodeRef)
@@ -2061,7 +2061,7 @@ public static class SegmentExpander
             if (current.HeadNodeId == junctionNodeId)
             {
                 // Found the junction: extract edges accumulated since the start.
-                List<DirectionalEdge> edges = ExtractEdgesSince(current, startHead.HeadNodeId, startHead.Depth);
+                List<DirectionalEdge> edges = ExtractEdgesSince(current, startHead.Depth);
                 ctx.DiagnosticLog?.Invoke(
                     $"[local] SUCCESS twy={taxiwayName} dest={junctionNodeId} expansions={expansions} "
                         + $"edges={edges.Count} cost={current.AccumulatedCost - startHead.AccumulatedCost:F3} "
@@ -2128,7 +2128,7 @@ public static class SegmentExpander
                 // Apply direction-reversal penalty for SegmentExpander local searches (§Decisions §7).
                 // When the edge bearing is more than 90° away from the overall segment direction
                 // (head → destination), treat it as a temporary reversal.
-                incrementalCost += ComputeDirectionReversalPenalty(current, edge, headNode, nextNode, destNode);
+                incrementalCost += ComputeDirectionReversalPenalty(edge, headNode, nextNode, destNode);
 
                 // req ①: penalise leaving the walked taxiway onto a membership taxiway-junction arc
                 // ("X - Y", both taxiways) as a CONTINUATION — a single-name continuation must win.
@@ -2224,13 +2224,7 @@ public static class SegmentExpander
     /// Compute the direction-reversal penalty for a candidate edge in a local segment search.
     /// Fires when the edge departs more than 90° away from the start-of-segment → junction-node direction.
     /// </summary>
-    private static double ComputeDirectionReversalPenalty(
-        PartialRoute current,
-        IGroundEdge edge,
-        GroundNode headNode,
-        GroundNode nextNode,
-        GroundNode destNode
-    )
+    private static double ComputeDirectionReversalPenalty(IGroundEdge edge, GroundNode headNode, GroundNode nextNode, GroundNode destNode)
     {
         double departureBearing = GeometricAdmissibility.GetDepartureBearing(edge, headNode, nextNode);
         double segmentBearing = GeoMath.BearingTo(headNode.Position, destNode.Position);
@@ -2240,9 +2234,9 @@ public static class SegmentExpander
 
     /// <summary>
     /// Extract the directed edges from <paramref name="route"/> that were added after the
-    /// node with id <paramref name="startNodeId"/> at <paramref name="startDepth"/>.
+    /// node at <paramref name="startDepth"/>.
     /// </summary>
-    private static List<DirectionalEdge> ExtractEdgesSince(PartialRoute route, int startNodeId, int startDepth)
+    private static List<DirectionalEdge> ExtractEdgesSince(PartialRoute route, int startDepth)
     {
         int edgeCount = route.Depth - startDepth;
         if (edgeCount <= 0)
@@ -2369,8 +2363,8 @@ public static class SegmentExpander
                     // reverse one can be the cheapest step, dead-ending the greedy walk mid-crossing.
                     // Demote such arcs below single-name edges; they stay usable when nothing else
                     // continues the taxiway.
-                    double departure = runwayJunctionArc.TangentBearingAt(headNode, headNode, nextNode);
-                    double arrivalTangent = runwayJunctionArc.TangentBearingAt(nextNode, headNode, nextNode);
+                    double departure = runwayJunctionArc.TangentBearingAt(headNode, headNode);
+                    double arrivalTangent = runwayJunctionArc.TangentBearingAt(nextNode, headNode);
                     isJunctionArc = GeoMath.AbsBearingDifference(departure, arrivalTangent) > 90.0;
                 }
 
@@ -2542,7 +2536,6 @@ public static class SegmentExpander
 
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) RouteToNodeRef(
         PartialRoute head,
-        WaypointToken currentToken,
         int targetNodeId,
         SearchContext ctx
     ) =>
@@ -2568,7 +2561,7 @@ public static class SegmentExpander
         }
 
         // Treat the node-ref as a single-node "taxiway" and find the best junction to nextTaxiway.
-        List<GroundNode> junctionCandidates = FindJunctionCandidates(ctx.Layout, nodeRefNode, nextTaxiway);
+        List<GroundNode> junctionCandidates = FindJunctionCandidates(nodeRefNode, nextTaxiway);
         if (junctionCandidates.Count == 0)
         {
             return TryDetour(head, $"#{nodeRefId}", nextTaxiway, ctx);
@@ -2603,7 +2596,7 @@ public static class SegmentExpander
     /// <summary>
     /// Find junction candidates from a specific node (rather than all nodes on a taxiway).
     /// </summary>
-    private static List<GroundNode> FindJunctionCandidates(AirportGroundLayout layout, GroundNode fromNode, string toTaxiway)
+    private static List<GroundNode> FindJunctionCandidates(GroundNode fromNode, string toTaxiway)
     {
         var result = new List<GroundNode>();
         foreach (IGroundEdge edge in fromNode.Edges)
@@ -2896,7 +2889,7 @@ public static class SegmentExpander
                 ctx.DiagnosticLog?.Invoke(
                     $"[variant] auto-picked {bestVariant} (nearest {destinationRunway} threshold) from {distinctVariants.Count} variants"
                 );
-                return ExtendToVariant(head, lastTaxiwayName, bestVariant, bestHsNodes, destinationRunway, ctx);
+                return ExtendToVariant(head, lastTaxiwayName, bestVariant, bestHsNodes, ctx);
             }
 
             var candidateList = distinctVariants.OrderBy(s => s).ToList();
@@ -2917,7 +2910,7 @@ public static class SegmentExpander
         string chosenVariant = distinctVariants.First();
         var variantHsNodes = variants.Where(v => v.Name.Equals(chosenVariant, StringComparison.OrdinalIgnoreCase)).Select(v => v.HsNode).ToList();
 
-        return ExtendToVariant(head, lastTaxiwayName, chosenVariant, variantHsNodes, destinationRunway, ctx);
+        return ExtendToVariant(head, lastTaxiwayName, chosenVariant, variantHsNodes, ctx);
     }
 
     private static List<(GroundNode HsNode, string Name)> FindVariantHoldShorts(AirportGroundLayout layout, string baseName, string runwayId)
@@ -3225,7 +3218,6 @@ public static class SegmentExpander
         string baseTaxiway,
         string variantName,
         List<GroundNode> variantHsNodes,
-        string destinationRunway,
         SearchContext ctx
     )
     {
@@ -3258,7 +3250,7 @@ public static class SegmentExpander
         ctx.DiagnosticLog?.Invoke($"[variant] extending {baseTaxiway}→{variantName} to hold-short #{targetHs.Id}");
 
         // Route from head to the variant hold-short via local search.
-        (List<DirectionalEdge>? segEdges, PartialRoute? _, double cost) = LocalSearchToJunction(head, variantName, targetHs.Id, ctx);
+        (List<DirectionalEdge>? segEdges, PartialRoute? _, double _) = LocalSearchToJunction(head, variantName, targetHs.Id, ctx);
         if (segEdges is not null)
         {
             return (segEdges, null);

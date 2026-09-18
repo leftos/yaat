@@ -729,7 +729,6 @@ public sealed class GroundRenderer : IDisposable
         // Project all 4 corners through the viewport (handles rotation)
         (float blX, float blY) = vp.LatLonToScreen(image.BottomLeftLat, image.BottomLeftLon);
         (float trX, float trY) = vp.LatLonToScreen(image.TopRightLat, image.TopRightLon);
-        (float brX, float brY) = vp.LatLonToScreen(image.BottomLeftLat, image.TopRightLon);
         (float tlX, float tlY) = vp.LatLonToScreen(image.TopRightLat, image.BottomLeftLon);
 
         // Source: image rectangle
@@ -738,7 +737,7 @@ public sealed class GroundRenderer : IDisposable
         // Destination: the 4 projected screen corners
         // Image top-left → screen top-left, top-right → screen top-right, etc.
         // Note: image Y=0 is top, geo top-right lat is the "top" of the image
-        SKMatrix matrix = ComputeBitmapTransform(srcRect, new SKPoint(tlX, tlY), new SKPoint(trX, trY), new SKPoint(brX, brY), new SKPoint(blX, blY));
+        SKMatrix matrix = ComputeBitmapTransform(srcRect, new SKPoint(tlX, tlY), new SKPoint(trX, trY), new SKPoint(blX, blY));
 
         byte alpha = (byte)Math.Clamp(brightness * 255 / 100, 0, 255);
         // Linear filtering with a linear mipmap chain. Mipmaps let Skia build a downscale chain on
@@ -760,7 +759,7 @@ public sealed class GroundRenderer : IDisposable
     /// Maps: src(0,0)→dstTL, src(w,0)→dstTR, src(0,h)→dstBL.
     /// Solves the 2x3 affine system directly.
     /// </summary>
-    private static SKMatrix ComputeBitmapTransform(SKRect src, SKPoint dstTL, SKPoint dstTR, SKPoint dstBR, SKPoint dstBL)
+    private static SKMatrix ComputeBitmapTransform(SKRect src, SKPoint dstTL, SKPoint dstTR, SKPoint dstBL)
     {
         float sx0 = src.Left,
             sy0 = src.Top;

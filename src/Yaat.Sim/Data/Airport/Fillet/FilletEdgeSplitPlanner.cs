@@ -19,7 +19,6 @@ internal static class FilletEdgeSplitPlanner
     private readonly record struct CutOnEdge(double Frac, FilletEndpoint Endpoint);
 
     public static Result Plan(
-        AirportGroundLayout layout,
         IReadOnlyList<JunctionPlan> junctions,
         IReadOnlyDictionary<CutId, ResolvedArmCut> prunedCuts,
         IReadOnlyDictionary<CutId, FilletEndpoint> redirect,

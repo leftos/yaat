@@ -70,7 +70,6 @@ public class RouteCostFunctionTests
     private static PartialRoute ExtendRoute(PartialRoute current, IGroundEdge edge, GroundNode nextNode, SearchContext ctx)
     {
         GroundNode headNode = edge.Nodes[0].Id == current.HeadNodeId ? edge.Nodes[0] : edge.Nodes[1];
-        double departureBearing = GeometricAdmissibility.GetDepartureBearing(edge, headNode, nextNode);
         double arrivalBearing = GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
         double cost = RouteCostFunction.IncrementalCost(current, edge, nextNode, ctx);
         return current with
@@ -148,7 +147,6 @@ public class RouteCostFunctionTests
         // n0 → n1 heading north (bearing ≈ 0°), n1 → n2 heading south (bearing ≈ 180°).
         GroundNode n0 = MakeNode(0, 37.700, -122.200);
         GroundNode n1 = MakeNode(1, 37.701, -122.200);
-        GroundNode n2 = MakeNode(2, 37.700, -122.200);
 
         // Duplicate position would be degenerate — nudge n2 slightly south.
         GroundNode n2b = MakeNode(2, 37.6995, -122.200);
@@ -189,7 +187,7 @@ public class RouteCostFunctionTests
         SearchContext ctx = MakeContext(layout, 0);
         PartialRoute r0 = StartRoute(0);
 
-        double costE1 = RouteCostFunction.IncrementalCost(r0, eAB, n1, ctx);
+        _ = RouteCostFunction.IncrementalCost(r0, eAB, n1, ctx);
         PartialRoute r1 = ExtendRoute(r0, eAB, n1, ctx);
 
         double costE2 = RouteCostFunction.IncrementalCost(r1, eBB, n2, ctx);

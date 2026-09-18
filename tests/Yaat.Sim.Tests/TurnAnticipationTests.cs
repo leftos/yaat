@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Approach;
 
@@ -500,7 +500,6 @@ public class TurnAnticipationTests
     {
         // Create a fly-by IAF followed by IF with a turn
         (double Lat, double Lon) iaf = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 0.4); // within 0.5nm
-        (double Lat, double Lon) ifFix = GeoMath.ProjectPoint(iaf.Lat, iaf.Lon, new TrueHeading(90), 5.0);
 
         var fix1 = new ApproachFix("IAF", iaf.Lat, iaf.Lon, Role: CifpFixRole.IAF);
 

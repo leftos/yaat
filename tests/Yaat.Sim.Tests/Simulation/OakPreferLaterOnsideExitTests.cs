@@ -82,7 +82,6 @@ public class OakPreferLaterOnsideExitTests(ITestOutputHelper output)
         int? plannerCandidateHs = null;
         string? plannerCandidateTaxiway = null;
         int? finalResolvedHs = null;
-        string? finalResolvedTaxiway = null;
         bool reachedRunwayExit = false;
         bool reachedHolding = false;
         ExitSide? inferredSide = null;
@@ -119,7 +118,6 @@ public class OakPreferLaterOnsideExitTests(ITestOutputHelper output)
                 if ((finalResolvedHs is null) && (runwayExit.TargetHoldShortNodeId is { } targetId))
                 {
                     finalResolvedHs = targetId;
-                    finalResolvedTaxiway = runwayExit.RunwayId;
                     output.WriteLine($"t+{t}: RunwayExit targeting: HS={finalResolvedHs}");
                 }
             }

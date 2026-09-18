@@ -938,9 +938,9 @@ public static class CommandDispatcher
             case AppendForceDirectToCommand cmd:
                 return FlightCommandHandler.ApplyAppendForceDirectTo(cmd, aircraft);
             case TurnLeftDirectToCommand cmd:
-                return FlightCommandHandler.ApplyTurnDirectTo(cmd.Fixes, cmd.SkippedFixes, aircraft, validateDctFixes, TurnDirection.Left);
+                return FlightCommandHandler.ApplyTurnDirectTo(cmd.Fixes, aircraft, validateDctFixes, TurnDirection.Left);
             case TurnRightDirectToCommand cmd:
-                return FlightCommandHandler.ApplyTurnDirectTo(cmd.Fixes, cmd.SkippedFixes, aircraft, validateDctFixes, TurnDirection.Right);
+                return FlightCommandHandler.ApplyTurnDirectTo(cmd.Fixes, aircraft, validateDctFixes, TurnDirection.Right);
 
             // --- Warp ---
             case WarpCommand cmd:
@@ -977,7 +977,7 @@ public static class CommandDispatcher
                 ctx.TerminalEmitter?.Invoke(new TerminalEntry("Say", aircraft.Callsign, sayCmd.Text));
                 return Ok("");
             case ReportCommand reportCmd:
-                return NavigationCommandHandler.DispatchReport(reportCmd, aircraft, ctx);
+                return NavigationCommandHandler.DispatchReport(reportCmd, aircraft);
             case SaySpeedCommand:
                 ctx.TerminalEmitter?.Invoke(new TerminalEntry("SaySpeed", aircraft.Callsign, PilotSayBuilder.BuildSpeed(aircraft)));
                 return Ok("");
@@ -1209,8 +1209,8 @@ public static class CommandDispatcher
             // --- Tower commands (also dispatched via TryApplyTowerCommand in the phase path) ---
             case ClearedToLandCommand ctl:
                 return PatternCommandHandler.TryClearedToLand(ctl, aircraft, ctx);
-            case ForceLandingCommand flc:
-                return PatternCommandHandler.TryForceLanding(flc, aircraft, ctx);
+            case ForceLandingCommand:
+                return PatternCommandHandler.TryForceLanding(aircraft, ctx);
             case LandAndHoldShortCommand lahso:
                 return PatternCommandHandler.TryLandAndHoldShort(lahso, aircraft, ctx.GroundLayout, ctx);
             case CancelLandingClearanceCommand:
@@ -2254,8 +2254,8 @@ public static class CommandDispatcher
             case ClearedToLandCommand ctl:
                 return PatternCommandHandler.TryClearedToLand(ctl, aircraft, ctx);
 
-            case ForceLandingCommand flc:
-                return PatternCommandHandler.TryForceLanding(flc, aircraft, ctx);
+            case ForceLandingCommand:
+                return PatternCommandHandler.TryForceLanding(aircraft, ctx);
 
             case LandAndHoldShortCommand lahso:
                 return PatternCommandHandler.TryLandAndHoldShort(lahso, aircraft, groundLayout, ctx);

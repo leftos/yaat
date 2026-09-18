@@ -536,8 +536,8 @@ public sealed class LineUpPhase : Phase
                 brakeToSpeedKts: PathPlan.ArcSpeedKts,
                 onArrive: PathPlan.InitialArcState is null ? State.Rollout : State.Arc
             ),
-            State.Arc => TickArcPlayback(ctx, PathPlan, onComplete: State.Rollout),
-            State.PivotTurn1 => TickArcPlayback(ctx, PathPlan, onComplete: State.PivotStraight),
+            State.Arc => TickArcPlayback(ctx, onComplete: State.Rollout),
+            State.PivotTurn1 => TickArcPlayback(ctx, onComplete: State.PivotStraight),
             State.PivotStraight => TickStraight(
                 ctx,
                 PathPlan,
@@ -548,7 +548,7 @@ public sealed class LineUpPhase : Phase
                 brakeToSpeedKts: null,
                 onArrive: State.PivotTurn2
             ),
-            State.PivotTurn2 => TickArcPlayback(ctx, PathPlan, onComplete: State.Rollout),
+            State.PivotTurn2 => TickArcPlayback(ctx, onComplete: State.Rollout),
             State.Rollout => TickRollout(ctx, PathPlan),
             State.Stop => TickStop(ctx, PathPlan),
             State.Faulted => TickFaulted(ctx),
@@ -659,7 +659,7 @@ public sealed class LineUpPhase : Phase
         return false;
     }
 
-    private bool TickArcPlayback(PhaseContext ctx, LineUpPathPlan plan, State onComplete)
+    private bool TickArcPlayback(PhaseContext ctx, State onComplete)
     {
         // I7 speed floor — arc refuses to advance when aircraft is stopped.
         // Physics is still driven by target speed so it re-accelerates us.

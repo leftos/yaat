@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -4258,7 +4258,7 @@ internal static class PatternCommandHandler
     /// regardless of energy state. RPO-only (rejected in solo training). Canceled by GA, by
     /// cancelling the landing clearance (CLC/CTLC), or by touchdown.
     /// </summary>
-    internal static CommandResult TryForceLanding(ForceLandingCommand flc, AircraftState aircraft, DispatchContext ctx)
+    internal static CommandResult TryForceLanding(AircraftState aircraft, DispatchContext ctx)
     {
         if (ctx.SoloTrainingMode)
         {

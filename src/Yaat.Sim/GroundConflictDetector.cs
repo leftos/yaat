@@ -287,7 +287,7 @@ public static class GroundConflictDetector
                 }
 
                 double distFt = distNm * FtPerNm;
-                PairKind kind = ClassifyPair(a, stateA, b, stateB, distFt, layout);
+                PairKind kind = ClassifyPair(a, stateA, b, stateB, layout);
 
                 // Make the controller-supplied GIVEWAY relationship visible. The pair
                 // resolution is still Stationary-driven (one aircraft is held, so it
@@ -340,7 +340,7 @@ public static class GroundConflictDetector
                     }
 
                     case PairKind.Crossing:
-                        ResolveCrossing(a, stateA, dirA, b, stateB, dirB, distFt, layout is not null, diagnosticLog);
+                        ResolveCrossing(a, stateA, b, stateB, distFt, layout is not null, diagnosticLog);
                         break;
                 }
             }
@@ -478,14 +478,7 @@ public static class GroundConflictDetector
         return (MovementState.Untracked, ac.TrueHeading.Degrees);
     }
 
-    private static PairKind ClassifyPair(
-        AircraftState a,
-        MovementState stateA,
-        AircraftState b,
-        MovementState stateB,
-        double distFt,
-        AirportGroundLayout? layout
-    )
+    private static PairKind ClassifyPair(AircraftState a, MovementState stateA, AircraftState b, MovementState stateB, AirportGroundLayout? layout)
     {
         if (stateA == MovementState.Stationary && stateB == MovementState.Stationary)
         {
@@ -1574,10 +1567,8 @@ public static class GroundConflictDetector
     private static void ResolveCrossing(
         AircraftState a,
         MovementState stateA,
-        double? dirA,
         AircraftState b,
         MovementState stateB,
-        double? dirB,
         double distFt,
         bool routesKnown,
         Action<string>? diagnosticLog

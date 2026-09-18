@@ -378,7 +378,7 @@ public static class PatternGeometry
         double patternSize = sizeOverrideNm ?? defaultSize;
 
         // Deconfliction: shrink pattern if downwind would encroach on another runway
-        patternSize = ApplyRunwayDeconfliction(runway, direction, crosswindHdg, patternSize, airportRunways);
+        patternSize = ApplyRunwayDeconfliction(runway, direction, patternSize, airportRunways);
 
         // Flyability floor — wins over the category default, authored/command sizes, AND the
         // deconfliction shrink: an unflyable width overshoots the final onto whatever lies
@@ -460,7 +460,6 @@ public static class PatternGeometry
     private static double ApplyRunwayDeconfliction(
         RunwayInfo runway,
         PatternDirection direction,
-        TrueHeading crosswindHdg,
         double patternSize,
         IReadOnlyList<RunwayInfo>? airportRunways
     )

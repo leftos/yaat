@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -2510,7 +2510,6 @@ public static class CommandParser
                     speedOpen = false;
                     continue;
                 }
-                speedOpen = false;
             }
 
             return PR.Fail($"invalid warp argument '{token}' (no remaining slot accepts it)");

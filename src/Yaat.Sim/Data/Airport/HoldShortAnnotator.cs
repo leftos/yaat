@@ -405,12 +405,7 @@ internal static class HoldShortAnnotator
     /// Appends a hold-short point at the last segment node, marking it as
     /// the destination runway hold position.
     /// </summary>
-    internal static void AddDestinationHoldShort(
-        AirportGroundLayout layout,
-        List<TaxiRouteSegment> segments,
-        List<HoldShortPoint> holdShorts,
-        string runwayId
-    )
+    internal static void AddDestinationHoldShort(List<TaxiRouteSegment> segments, List<HoldShortPoint> holdShorts, string runwayId)
     {
         if (segments.Count == 0)
         {

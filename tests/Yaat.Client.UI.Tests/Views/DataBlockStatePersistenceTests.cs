@@ -344,7 +344,7 @@ public class DataBlockStatePersistenceTests
     private static RadarCanvas BindRadarView(RadarViewModel vm)
     {
         var view = new RadarView { DataContext = vm };
-        Window window = ShowInWindow(view);
+        _ = ShowInWindow(view);
         RadarCanvas? canvas = view.FindControl<RadarCanvas>("Canvas");
         Assert.NotNull(canvas);
         return canvas!;

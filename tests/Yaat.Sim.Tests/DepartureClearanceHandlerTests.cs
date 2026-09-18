@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -1264,7 +1264,6 @@ public class DepartureClearanceHandlerTests
             return;
         }
 
-        RunwayInfo rwy28R = Runway28R();
         var destHs = new HoldShortPoint
         {
             NodeId = 10,
@@ -1297,8 +1296,6 @@ public class DepartureClearanceHandlerTests
             return;
         }
 
-        RunwayInfo rwy33 = Runway33();
-        RunwayInfo rwy28R = Runway28R();
         var destHs = new HoldShortPoint
         {
             NodeId = 10,

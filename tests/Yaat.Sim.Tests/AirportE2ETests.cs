@@ -29,7 +29,7 @@ public class AirportE2ETests
 
     private static readonly Helpers.TestAirportGroundData GroundData = new();
 
-    private static AirportGroundLayout? LoadLayout(string airportId, string subdir) => GroundData.GetLayout(airportId);
+    private static AirportGroundLayout? LoadLayout(string airportId) => GroundData.GetLayout(airportId);
 
     private static AircraftState MakeGroundAircraft(string departure = "OAK", LatLon? position = null)
     {
@@ -77,7 +77,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiFromParking_D_Succeeds()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -103,7 +103,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiFromParking_DC_ReachesC()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -135,7 +135,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiFromParking_DCBW_ToRunway30_HasHoldShortAndPhases()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -167,7 +167,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiDCBTUW_HasHoldShortsForBothRunways()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -256,7 +256,7 @@ public class AirportE2ETests
 
         // OAK runways: 30/12, 28L/10R, 28R/10L, 15/33.
         // NavigationDatabase.GetRunway queries by individual designator; each RunwayInfo handles both ends via Id.Contains.
-        var navDb = NavigationDatabase.ForTesting(
+        _ = NavigationDatabase.ForTesting(
             runways:
             [
                 MakeWidthRunway(airportId, "30", "12", widthFt),
@@ -289,7 +289,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_PushbackFromParking_FacingD_Succeeds()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -310,7 +310,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiDF_MultipleHoldShorts_CrossesRunway15_33()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -352,7 +352,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiDKF_AutoCrossRunway_ClearsHoldShorts()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -394,7 +394,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_FullTaxiToTakeoff_DCBW_HoldShort30_HasPhases()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -431,7 +431,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_PushbackThenTaxi_NEW7_PushD_TaxiDC()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -471,7 +471,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiD_NeedsVariantForRunway30()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -493,7 +493,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_HoldShortNodes_NotAtJunctions()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -531,7 +531,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_NoDuplicateEdgesOnNodes()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -611,7 +611,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_FindRoutes_FromC_ToRunway30_PrefersCBW()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -673,7 +673,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_FindRoutes_RankedByTaxiwayTransitions()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -707,7 +707,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_FindRoutes_FromParking_ToRunway30_FirstRouteIsReasonable()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -745,7 +745,7 @@ public class AirportE2ETests
     [Fact]
     public void SFO_LayoutLoads_HasMultipleRunwayHoldShorts()
     {
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -767,7 +767,7 @@ public class AirportE2ETests
     [Fact]
     public void SFO_TaxiRoute_HasVariantInference()
     {
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -832,7 +832,7 @@ public class AirportE2ETests
     {
         // Demonstrates the bug: TAXI T7A from the pushback node walks south
         // to the dead end because WalkTaxiway has no directional context.
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -874,7 +874,7 @@ public class AirportE2ETests
     {
         // TAXI $7A — A* direct from pushback node to gate 7A.
         // Should route north along T7A toward the gate.
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -909,7 +909,7 @@ public class AirportE2ETests
     {
         // TAXI T7A $7A — explicit T7A path extended to gate 7A.
         // ResolveExplicitPath walks T7A (south to dead end), then A* extends to 7A.
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -947,7 +947,7 @@ public class AirportE2ETests
     {
         // Verify Bug 2 fix: after TAXI T7A completes (at dead end),
         // aircraft has HoldingInPositionPhase — not phase-less.
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -1007,7 +1007,7 @@ public class AirportE2ETests
     {
         // End-to-end: TAXI $7A completes, aircraft is in HoldingInPositionPhase,
         // then a second taxi command succeeds.
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -1048,7 +1048,7 @@ public class AirportE2ETests
         // A taxi spot is an intermediate waypoint the aircraft waits on, not a stand. TAXI $7A issued
         // while the aircraft already stands on 7A takes the zero-segment shortcut, which must reach the
         // same terminal phase TaxiingPhase.CompleteRoute picks when the aircraft has to drive there.
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -1072,7 +1072,7 @@ public class AirportE2ETests
     {
         // The counter-case to the spot shortcut: a gate is a stand, so the zero-segment TAXI @D3 still
         // parks the aircraft and records the stand it occupies.
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -1103,7 +1103,7 @@ public class AirportE2ETests
     [Fact]
     public void SFO_TaxiCE_ToRunway28R_ShouldSucceed()
     {
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -1127,7 +1127,7 @@ public class AirportE2ETests
     [Fact]
     public void SFO_TaxiwayE_HasHoldShortFor28R()
     {
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -1165,7 +1165,7 @@ public class AirportE2ETests
     [Fact]
     public void SFO_TaxiM1_ToRunway1L_ShouldSucceed()
     {
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -1189,7 +1189,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiFromPCM_B_ToRunway28L_StopsAtFirstHoldShort()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;
@@ -1233,7 +1233,7 @@ public class AirportE2ETests
     {
         // PUSH @A9 from parking A4: a tug move whose last planned move ends on A9, with no taxi route (a
         // pushback is towed to the stand, it does not taxi there).
-        AirportGroundLayout? layout = LoadLayout("SFO", "sfo");
+        AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
         {
             return;
@@ -1271,7 +1271,7 @@ public class AirportE2ETests
     [Fact]
     public void OAK_TaxiGFromRunway28RExit_ToSIG1_DoesNotCrossRunway()
     {
-        AirportGroundLayout? layout = LoadLayout("OAK", "oak");
+        AirportGroundLayout? layout = LoadLayout("OAK");
         if (layout is null)
         {
             return;

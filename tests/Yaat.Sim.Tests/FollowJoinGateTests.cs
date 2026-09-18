@@ -319,7 +319,7 @@ public class FollowJoinGateTests
     [Fact]
     public void IsAtOrPastDownwindEntry_PastAbeamOnTrack_True()
     {
-        (PatternWaypoints? wp, RunwayInfo? rwy) = ComputePattern();
+        (PatternWaypoints? wp, RunwayInfo? _) = ComputePattern();
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
         AircraftState ac = MakeVfr(Follower, GeoMath.ProjectPoint(abeam, wp.DownwindHeading, 0.5), wp.DownwindHeading, wp.PatternAltitude, 90);
 
@@ -329,7 +329,7 @@ public class FollowJoinGateTests
     [Fact]
     public void IsAtOrPastDownwindEntry_WellBeforeAbeam_False()
     {
-        (PatternWaypoints? wp, RunwayInfo? rwy) = ComputePattern();
+        (PatternWaypoints? wp, RunwayInfo? _) = ComputePattern();
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
         AircraftState ac = MakeVfr(
             Follower,
@@ -347,7 +347,7 @@ public class FollowJoinGateTests
     {
         // 6 nm past the abeam point is out on the ARRIVAL side of the circuit (well past the
         // base turn) — that aircraft flies a normal entry, not a present-position join.
-        (PatternWaypoints? wp, RunwayInfo? rwy) = ComputePattern();
+        (PatternWaypoints? wp, RunwayInfo? _) = ComputePattern();
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
         AircraftState ac = MakeVfr(
             Follower,
@@ -380,7 +380,7 @@ public class FollowJoinGateTests
         // cannot absorb the descent at the pattern rate, so the aircraft takes the normal
         // (longer) entry, whose extra track miles are the descent room (mirrors the ERB
         // "too high for base" feasibility check).
-        (PatternWaypoints? wp, RunwayInfo? rwy) = ComputePattern();
+        (PatternWaypoints? wp, RunwayInfo? _) = ComputePattern();
         var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
         AircraftState ac = MakeVfr(Follower, GeoMath.ProjectPoint(abeam, wp.DownwindHeading, 0.5), wp.DownwindHeading, wp.PatternAltitude + 3000, 90);
 

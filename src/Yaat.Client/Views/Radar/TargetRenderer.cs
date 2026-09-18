@@ -1207,7 +1207,6 @@ public sealed class TargetRenderer : IDisposable
             blockX,
             blockY,
             DataBlockStyle,
-            LocalUserInitials,
             FlashNoLandingClearance,
             ShowConflictAlerts,
             ResolveConflictPeer(ac)

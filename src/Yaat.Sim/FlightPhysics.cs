@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
@@ -1077,7 +1077,6 @@ public static class FlightPhysics
         bool below10k = !aircraft.IsOnGround && aircraft.Altitude < 10_000;
         bool minimumSafeSpeedWaived = AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType);
         bool militaryRouteWaived = aircraft.MilitaryRoute.SpeedLimitWaived;
-        bool speedLimitWaived = minimumSafeSpeedWaived || militaryRouteWaived;
         double regulatoryLimit = RegulatorySpeedLimit(aircraft, below10k, militaryRouteWaived, minimumSafeSpeedWaived);
 
         // Mach hold: recompute equivalent IAS each tick so the aircraft maintains constant Mach.

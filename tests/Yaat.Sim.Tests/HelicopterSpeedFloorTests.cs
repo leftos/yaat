@@ -72,7 +72,7 @@ public class HelicopterSpeedFloorTests
             Altitude = 3000,
         };
 
-        CommandResult result = FlightCommandHandler.ApplySpeed(new SpeedCommand(30), jet, TestDispatch.Context(Random.Shared));
+        _ = FlightCommandHandler.ApplySpeed(new SpeedCommand(30), jet, TestDispatch.Context(Random.Shared));
 
         Assert.Equal(30, jet.Targets.TargetSpeed);
     }

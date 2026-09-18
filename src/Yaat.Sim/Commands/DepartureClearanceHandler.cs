@@ -279,15 +279,7 @@ internal static class DepartureClearanceHandler
         // Set the assigned runway and insert tower phases
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Procedure.DepartureRunway = runway.Designator;
-        DepartureRouteResult? routeResult = InsertTowerPhasesAfterCurrent(
-            aircraft,
-            clearanceType,
-            departure,
-            assignedAltitude,
-            runway,
-            holding.HoldShort.NodeId,
-            logger
-        );
+        DepartureRouteResult? routeResult = InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, logger);
         SyncControllerAssignedAltitude(aircraft, clearanceType, assignedAltitude);
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude) with
@@ -321,7 +313,7 @@ internal static class DepartureClearanceHandler
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
         aircraft.Procedure.DepartureRunway = runway.Designator;
-        DepartureRouteResult? routeResult = InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, null, logger);
+        DepartureRouteResult? routeResult = InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, logger);
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
         SyncControllerAssignedAltitude(aircraft, clearanceType, assignedAltitude);
 
@@ -462,7 +454,6 @@ internal static class DepartureClearanceHandler
         DepartureInstruction departure,
         int? assignedAltitude,
         RunwayInfo runway,
-        int? holdShortNodeId,
         ILogger logger
     )
     {

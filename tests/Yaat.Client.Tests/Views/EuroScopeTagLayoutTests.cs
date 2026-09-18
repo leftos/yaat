@@ -41,7 +41,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -62,7 +61,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -85,7 +83,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -97,7 +94,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -120,7 +116,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -147,7 +142,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -170,7 +164,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: true,
             showConflictAlerts: false,
             conflictPeer: null
@@ -191,7 +184,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -215,7 +207,6 @@ public class EuroScopeTagLayoutTests
                 originX: 100,
                 originY: 100,
                 style,
-                localUserInitials: null,
                 showNoLandingClearance: true,
                 showConflictAlerts: false,
                 conflictPeer: null
@@ -241,7 +232,6 @@ public class EuroScopeTagLayoutTests
                 originX: 100,
                 originY: 100,
                 style,
-                localUserInitials: null,
                 showNoLandingClearance: true,
                 showConflictAlerts: false,
                 conflictPeer: null
@@ -273,7 +263,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: true,
             showConflictAlerts: false,
             conflictPeer: null
@@ -288,7 +277,6 @@ public class EuroScopeTagLayoutTests
                 originX: 100,
                 originY: 100,
                 style,
-                localUserInitials: null,
                 showNoLandingClearance: true,
                 showConflictAlerts: false,
                 conflictPeer: null
@@ -329,7 +317,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: true,
             conflictPeer: peer
@@ -345,7 +332,6 @@ public class EuroScopeTagLayoutTests
                 originX: 100,
                 originY: 100,
                 style,
-                localUserInitials: null,
                 showNoLandingClearance: false,
                 showConflictAlerts: true,
                 conflictPeer: peer
@@ -378,7 +364,6 @@ public class EuroScopeTagLayoutTests
                 originX: 100,
                 originY: 100,
                 style,
-                localUserInitials: null,
                 showNoLandingClearance: false,
                 showConflictAlerts: true,
                 conflictPeer: CreateConflictPeer()
@@ -415,7 +400,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -436,7 +420,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -457,7 +440,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -469,7 +451,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -497,7 +478,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -520,7 +500,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -542,7 +521,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -567,7 +545,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null
@@ -589,7 +566,6 @@ public class EuroScopeTagLayoutTests
             originX: 100,
             originY: 100,
             style,
-            localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null

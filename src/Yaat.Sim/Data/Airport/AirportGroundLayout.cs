@@ -562,11 +562,11 @@ public sealed class GroundArc : IGroundEdge
 
     /// <summary>
     /// Returns the tangent bearing at <paramref name="atNode"/> when traversing the arc
-    /// from <paramref name="fromNode"/> to <paramref name="toNode"/>.
+    /// from <paramref name="fromNode"/> toward the arc's other end.
     /// Computed from the bezier tangent direction at the relevant endpoint.
-    /// <paramref name="atNode"/> must be one of <paramref name="fromNode"/> or <paramref name="toNode"/>.
+    /// <paramref name="atNode"/> must be one of the arc's two nodes.
     /// </summary>
-    public double TangentBearingAt(GroundNode atNode, GroundNode fromNode, GroundNode toNode)
+    public double TangentBearingAt(GroundNode atNode, GroundNode fromNode)
     {
         CubicBezier bezier = ToBezier();
         bool forward = fromNode.Id == Nodes[0].Id;
@@ -605,7 +605,7 @@ public sealed class DirectionalEdge
     /// For straight edges: bearing from FromNode to ToNode.
     /// </summary>
     public double DepartureBearing =>
-        Edge is GroundArc arc ? arc.TangentBearingAt(FromNode, FromNode, ToNode) : GeoMath.BearingTo(FromNode.Position, ToNode.Position);
+        Edge is GroundArc arc ? arc.TangentBearingAt(FromNode, FromNode) : GeoMath.BearingTo(FromNode.Position, ToNode.Position);
 
     /// <summary>
     /// Bearing at the end of traversal (arriving at ToNode).
@@ -613,7 +613,7 @@ public sealed class DirectionalEdge
     /// For straight edges: bearing from FromNode to ToNode (same as departure).
     /// </summary>
     public double ArrivalBearing =>
-        Edge is GroundArc arc ? arc.TangentBearingAt(ToNode, FromNode, ToNode) : GeoMath.BearingTo(FromNode.Position, ToNode.Position);
+        Edge is GroundArc arc ? arc.TangentBearingAt(ToNode, FromNode) : GeoMath.BearingTo(FromNode.Position, ToNode.Position);
 }
 
 public sealed class GroundRunway
@@ -2113,7 +2113,7 @@ public sealed class AirportGroundLayout
 
                 if (edge is GroundArc arc)
                 {
-                    double departureBearing = arc.TangentBearingAt(clusterNode, clusterNode, neighbor);
+                    double departureBearing = arc.TangentBearingAt(clusterNode, clusterNode);
                     double bearingDiff = runwayHeading.AbsAngleTo(new TrueHeading(departureBearing));
                     if (bearingDiff > 95)
                     {
@@ -2135,7 +2135,7 @@ public sealed class AirportGroundLayout
                     // aircraft pointing >95° off the runway heading is a doubled-back turn, not an
                     // exit. The hold-short beyond it stays reachable through the preserved straight
                     // edges (seeded in the second pass) and scores as the back-exit it is.
-                    double arrivalBearing = arc.TangentBearingAt(neighbor, clusterNode, neighbor);
+                    double arrivalBearing = arc.TangentBearingAt(neighbor, clusterNode);
                     double arrivalDiff = runwayHeading.AbsAngleTo(new TrueHeading(arrivalBearing));
                     if (arrivalDiff > 95)
                     {
@@ -2736,7 +2736,7 @@ public sealed class AirportGroundLayout
         IGroundEdge? edge =
             from.Edges.FirstOrDefault(e => (e is GroundArc) && (e.OtherNode(from).Id == to.Id))
             ?? from.Edges.FirstOrDefault(e => e.OtherNode(from).Id == to.Id);
-        double bearing = edge is GroundArc arc ? arc.TangentBearingAt(to, from, to) : GeoMath.BearingTo(from.Position, to.Position);
+        double bearing = edge is GroundArc arc ? arc.TangentBearingAt(to, from) : GeoMath.BearingTo(from.Position, to.Position);
         return runwayHeading.AbsAngleTo(new TrueHeading(bearing));
     }
 

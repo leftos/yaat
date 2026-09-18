@@ -116,7 +116,6 @@ internal static class TaxiwayWalk
     )
     {
         double remaining = targetDistFt;
-        GroundEdge? prevEdge = null;
 
         for (int i = 0; i < walk.Steps.Count; i++)
         {
@@ -135,7 +134,6 @@ internal static class TaxiwayWalk
             }
 
             remaining -= stepLenFt;
-            prevEdge = step.Edge;
         }
 
         GroundNode terminal = walk.TerminalNode;

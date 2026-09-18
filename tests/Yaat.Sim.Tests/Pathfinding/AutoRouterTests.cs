@@ -148,7 +148,6 @@ public class AutoRouterTests
         GroundNode n0 = Node(0, 37.700, -122.200);
         GroundNode n1 = Node(1, 37.701, -122.200);
         GroundNode n2 = Node(2, 37.701, -122.190); // offset east
-        AirportGroundLayout layout = Layout(n0, n1, n2);
         GroundEdge e01 = Edge(n0, n1, "A");
         GroundEdge e12 = Edge(n1, n2, "A");
 

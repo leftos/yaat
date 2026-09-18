@@ -79,7 +79,6 @@ public class IssueFllRolloutOverrunTests(ITestOutputHelper output)
         string? overrunPhase = null;
         double overrunAlongTrackNm = 0;
         bool exitedRunway = false;
-        int? exitTime = null;
         string? finalPhase = null;
         double finalIas = 0;
 
@@ -122,7 +121,6 @@ public class IssueFllRolloutOverrunTests(ITestOutputHelper output)
             else if (sawLanding && !exitedRunway)
             {
                 exitedRunway = true;
-                exitTime = t;
                 output.WriteLine(
                     $"t={t}: NKS461 transitioned past RunwayExit, phase={phaseName}, "
                         + $"alongTrack={alongTrackNm * 6076.12:F0}ft "

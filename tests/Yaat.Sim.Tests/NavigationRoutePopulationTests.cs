@@ -16,7 +16,7 @@ public class NavigationRoutePopulationTests
         TestVnasData.EnsureInitialized();
     }
 
-    private static ScenarioLoadResult LoadWithNavPath(string navigationPath, NavigationDatabase navDb)
+    private static ScenarioLoadResult LoadWithNavPath(string navigationPath)
     {
         string scenarioJson = $$"""
             {
@@ -71,7 +71,7 @@ public class NavigationRoutePopulationTests
         var navDb = NavigationDatabase.ForTesting(fixes, airways: airways);
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        ScenarioLoadResult result = LoadWithNavPath("FIX_A V108 FIX_C", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("FIX_A V108 FIX_C");
 
         Assert.Single(result.ImmediateAircraft);
         string[] names = RouteFixNames(result);
@@ -99,7 +99,7 @@ public class NavigationRoutePopulationTests
         var navDb = NavigationDatabase.ForTesting(fixes, airways: airways);
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        ScenarioLoadResult result = LoadWithNavPath("FIX_A V108 FIX_B", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("FIX_A V108 FIX_B");
 
         Assert.DoesNotContain(result.Warnings, w => w.Contains("V108"));
     }
@@ -120,7 +120,7 @@ public class NavigationRoutePopulationTests
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // V108 is the first token — no previous fix to expand from
-        ScenarioLoadResult result = LoadWithNavPath("V108 FIX_B", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("V108 FIX_B");
 
         Assert.Single(result.ImmediateAircraft);
         // Should still resolve FIX_B as a regular fix
@@ -144,7 +144,7 @@ public class NavigationRoutePopulationTests
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
         // V108 is the last token — no next fix to expand to
-        ScenarioLoadResult result = LoadWithNavPath("FIX_A V108", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("FIX_A V108");
 
         Assert.Single(result.ImmediateAircraft);
         string[] names = RouteFixNames(result);
@@ -166,7 +166,7 @@ public class NavigationRoutePopulationTests
         var navDb = NavigationDatabase.ForTesting(fixes);
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        ScenarioLoadResult result = LoadWithNavPath("C83", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("C83");
 
         Assert.Single(result.ImmediateAircraft);
         string[] names = RouteFixNames(result);
@@ -188,7 +188,7 @@ public class NavigationRoutePopulationTests
         var navDb = NavigationDatabase.ForTesting(fixes);
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        ScenarioLoadResult result = LoadWithNavPath("Q136", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("Q136");
 
         Assert.Single(result.ImmediateAircraft);
         string[] names = RouteFixNames(result);
@@ -209,7 +209,7 @@ public class NavigationRoutePopulationTests
         var navDb = NavigationDatabase.ForTesting(fixes);
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        ScenarioLoadResult result = LoadWithNavPath("BDEGA4", navDb);
+        ScenarioLoadResult result = LoadWithNavPath("BDEGA4");
 
         Assert.Single(result.ImmediateAircraft);
         string[] names = RouteFixNames(result);

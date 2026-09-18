@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -92,7 +92,6 @@ public class OakGroundE2ETests(ITestOutputHelper output)
 
         // --- Phase 2: Tick until N569SX exits runway (HoldingAfterExitPhase) ---
         bool n569ExitedRunway = false;
-        int exitTime = 0;
 
         for (int t = 1; t <= 600; t++)
         {
@@ -108,7 +107,6 @@ public class OakGroundE2ETests(ITestOutputHelper output)
             if (phaseName == "Holding After Exit" && !n569ExitedRunway)
             {
                 n569ExitedRunway = true;
-                exitTime = t;
                 output.WriteLine($"t={t}: N569SX exited runway at ({n569.Position.Lat:F6}, {n569.Position.Lon:F6}) on {n569.Ground.CurrentTaxiway}");
 
                 // Send TAXI G @SIG1

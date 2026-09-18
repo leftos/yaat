@@ -293,17 +293,10 @@ public static class ApproachCommandHandler
     public static CommandResult TryJoinApproach(string approachId, string? airportCode, bool force, bool straightIn, AircraftState aircraft)
     {
         ResolvedApproach resolved = ResolveApproach(approachId, airportCode, aircraft);
-        return AttachProcedureSourceAdvisory(TryJoinApproachCore(approachId, airportCode, force, straightIn, aircraft, resolved), resolved);
+        return AttachProcedureSourceAdvisory(TryJoinApproachCore(force, straightIn, aircraft, resolved), resolved);
     }
 
-    private static CommandResult TryJoinApproachCore(
-        string approachId,
-        string? airportCode,
-        bool force,
-        bool straightIn,
-        AircraftState aircraft,
-        ResolvedApproach resolved
-    )
+    private static CommandResult TryJoinApproachCore(bool force, bool straightIn, AircraftState aircraft, ResolvedApproach resolved)
     {
         if (!resolved.Success)
         {

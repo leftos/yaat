@@ -172,7 +172,7 @@ public partial class CommandInputView : UserControl
                         input.SelectedSuggestionIndex = 0;
                     }
 
-                    (string Text, int Caret)? accepted = input.AcceptSuggestion(vm.CommandText);
+                    (string Text, int Caret)? accepted = input.AcceptSuggestion();
                     if (accepted is not null)
                     {
                         vm.CommandText = accepted.Value.Text;
@@ -185,7 +185,7 @@ public partial class CommandInputView : UserControl
             case Key.Enter:
                 if (input.IsSuggestionsVisible && input.SelectedSuggestionIndex >= 0 && vm.Preferences.AutoExpandSuggestionOnEnter)
                 {
-                    (string Text, int Caret)? expanded = input.AcceptSuggestion(vm.CommandText);
+                    (string Text, int Caret)? expanded = input.AcceptSuggestion();
                     if (expanded is not null)
                     {
                         vm.CommandText = expanded.Value.Text;
@@ -210,7 +210,7 @@ public partial class CommandInputView : UserControl
             return;
         }
 
-        (string Text, int Caret)? accepted = vm.CommandInput.AcceptSuggestion(vm.CommandText);
+        (string Text, int Caret)? accepted = vm.CommandInput.AcceptSuggestion();
         if (accepted is not null)
         {
             vm.CommandText = accepted.Value.Text;

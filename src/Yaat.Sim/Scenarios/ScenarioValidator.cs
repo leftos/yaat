@@ -10,7 +10,7 @@ public static class ScenarioValidator
 
     public static ScenarioValidationResult Validate(Scenario scenario)
     {
-        NavigationDatabase navDb = NavigationDatabase.Instance;
+        _ = NavigationDatabase.Instance;
         var failures = new List<PresetParseFailure>();
         int totalPresets = 0;
         int parsedOk = 0;

@@ -336,7 +336,7 @@ public sealed class InterceptCoursePhase : Phase
             // JFAC/JLOC join captures at any angle too, but must hold altitude until established.
             clearance.ForcedInterceptCapture = ForcedIntercept;
 
-            CheckInterceptLegality(ctx, clearance, captureDistNm, aircraftHeading);
+            CheckInterceptLegality(ctx, clearance, captureDistNm);
         }
 
         double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
@@ -364,7 +364,7 @@ public sealed class InterceptCoursePhase : Phase
         return true;
     }
 
-    private void CheckInterceptLegality(PhaseContext ctx, ApproachClearance clearance, double captureDistNm, TrueHeading aircraftHeading)
+    private void CheckInterceptLegality(PhaseContext ctx, ApproachClearance clearance, double captureDistNm)
     {
         // VFR and visual approaches are not subject to 7110.65 §5-9-1
         if (ctx.Aircraft.FlightPlan.IsVfr)

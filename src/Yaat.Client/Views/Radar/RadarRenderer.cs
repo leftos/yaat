@@ -347,7 +347,6 @@ public sealed class RadarRenderer : IDisposable
         IReadOnlyList<AircraftModel> aircraft,
         AircraftModel? selectedAircraft,
         bool showRangeRings,
-        double rangeNm,
         double centerLat,
         double centerLon,
         bool showFixes,

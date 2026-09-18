@@ -358,7 +358,7 @@ public sealed class MilitaryRoutePhase : Phase
             return;
         }
 
-        double? reference = block.HasAglBound ? ResolveGroundReference(ctx, point) : null;
+        double? reference = block.HasAglBound ? ResolveGroundReference(point) : null;
         if (block.HasAglBound && reference is null)
         {
             ctx.Logger.LogWarning(
@@ -444,7 +444,7 @@ public sealed class MilitaryRoutePhase : Phase
     /// local ground — and erring high is the safe direction for a floor. Nearest-airport elevation
     /// errs the wrong way, because airports sit in valleys, so it is only the fallback.
     /// </summary>
-    private static double? ResolveGroundReference(PhaseContext ctx, MilitaryRoutePoint point)
+    private static double? ResolveGroundReference(MilitaryRoutePoint point)
     {
         double? fromMva = Data.Mva.MvaDatabase.Default.GetFloorFtMsl(point.Position) is { } mva ? mva - MvaObstacleBufferFt : null;
         double? fromAirport = NavigationDatabase.Instance.FindNearestAirportElevation(point.Position, AglReferenceRangeNm);

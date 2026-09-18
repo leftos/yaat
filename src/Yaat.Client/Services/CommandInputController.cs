@@ -211,25 +211,25 @@ public partial class CommandInputController : ObservableObject
             // lead (the common "type a partial callsign to select" case).
             if (IsKnownVerb(activeTokenText, scheme))
             {
-                AddCommandVerbSuggestions(activeTokenText, text, scheme, targetAircraft, parsed);
-                AddCallsignSuggestions(activeTokenText, aircraft, text, parsed);
+                AddCommandVerbSuggestions(text, scheme, targetAircraft, parsed);
+                AddCallsignSuggestions(aircraft, text, parsed);
             }
             else
             {
-                AddCallsignSuggestions(activeTokenText, aircraft, text, parsed);
-                AddCommandVerbSuggestions(activeTokenText, text, scheme, targetAircraft, parsed);
+                AddCallsignSuggestions(aircraft, text, parsed);
+                AddCommandVerbSuggestions(text, scheme, targetAircraft, parsed);
             }
-            AddConditionSuggestions(activeTokenText, text, parsed);
+            AddConditionSuggestions(text, parsed);
         }
         // Cursor on first token (the callsign) when verb is at index 1
         else if (parsed.ActiveTokenIndex == 0 && parsed.VerbIndex == 1 && hasUserPartial)
         {
-            AddCallsignSuggestions(activeTokenText, aircraft, text, parsed);
+            AddCallsignSuggestions(aircraft, text, parsed);
         }
         // Cursor on the verb position (index 1 after callsign)
         else if (parsed.ActiveTokenIndex == 1 && !firstTokenIsVerb && hasUserPartial)
         {
-            AddCommandVerbSuggestions(activeTokenText, text, scheme, targetAircraft, parsed);
+            AddCommandVerbSuggestions(text, scheme, targetAircraft, parsed);
         }
         else if (
             AddCommandSuggester.TryAddAddArgumentSuggestions(
@@ -285,7 +285,7 @@ public partial class CommandInputController : ObservableObject
         }
     }
 
-    public (string Text, int Caret)? AcceptSuggestion(string currentText)
+    public (string Text, int Caret)? AcceptSuggestion()
     {
         if (SelectedSuggestionIndex < 0 || SelectedSuggestionIndex >= Suggestions.Count)
         {
@@ -979,7 +979,7 @@ public partial class CommandInputController : ObservableObject
         return fragment[argStrippedStart..];
     }
 
-    private void AddConditionSuggestions(string activeTokenText, string text, CommandInputParseResult parsed)
+    private void AddConditionSuggestions(string text, CommandInputParseResult parsed)
     {
         string partial = text[parsed.ActiveTokenStart..parsed.CaretIndex].TrimStart().ToUpperInvariant();
         if (partial.Length == 0)
@@ -1061,12 +1061,7 @@ public partial class CommandInputController : ObservableObject
 
     private static string BuildMacroDescription(MacroDefinition macro) => macro.Expansion;
 
-    private void AddCallsignSuggestions(
-        string activeTokenText,
-        IReadOnlyCollection<AircraftModel> aircraft,
-        string text,
-        CommandInputParseResult parsed
-    )
+    private void AddCallsignSuggestions(IReadOnlyCollection<AircraftModel> aircraft, string text, CommandInputParseResult parsed)
     {
         string partial = text[parsed.ActiveTokenStart..parsed.CaretIndex];
         AddCallsignSuggestionsForActiveToken(text, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, aircraft);
@@ -1114,13 +1109,7 @@ public partial class CommandInputController : ObservableObject
         CanonicalCommandType.Delete,
     ];
 
-    private void AddCommandVerbSuggestions(
-        string activeTokenText,
-        string text,
-        CommandScheme scheme,
-        AircraftModel? targetAircraft,
-        CommandInputParseResult parsed
-    )
+    private void AddCommandVerbSuggestions(string text, CommandScheme scheme, AircraftModel? targetAircraft, CommandInputParseResult parsed)
     {
         bool isDelayed = targetAircraft?.IsDelayed == true;
         string partial = text[parsed.ActiveTokenStart..parsed.CaretIndex];

@@ -1182,7 +1182,6 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.Aircraft,
             s.SelectedAircraft,
             s.ShowRangeRings,
-            s.RangeNm,
             s.RadarCenterLat,
             s.RadarCenterLon,
             s.ShowFixes,

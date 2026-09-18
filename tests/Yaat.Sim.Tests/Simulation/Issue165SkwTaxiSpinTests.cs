@@ -222,8 +222,6 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
 
         int consecutiveStuckSec = 0;
         int maxStuckSecObserved = 0;
-        double stuckEpisodeStartLat = 0;
-        double stuckEpisodeStartLon = 0;
         double worstStuckLat = 0;
         double worstStuckLon = 0;
         string? worstStuckPhase = null;
@@ -255,11 +253,6 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
 
             if (ac.IndicatedAirspeed < StuckThresholdKts && !atHoldShort && !conflictHeld)
             {
-                if (consecutiveStuckSec == 0)
-                {
-                    stuckEpisodeStartLat = ac.Position.Lat;
-                    stuckEpisodeStartLon = ac.Position.Lon;
-                }
                 consecutiveStuckSec++;
                 if (consecutiveStuckSec > maxStuckSecObserved)
                 {

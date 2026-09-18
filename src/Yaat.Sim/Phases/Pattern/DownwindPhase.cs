@@ -505,7 +505,6 @@ public sealed class DownwindPhase : Phase
         double baseDescentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
 
         double midAlt;
-        double baseExtForFloor;
         double descentRate;
         double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ctx.Aircraft, ctx.Category), ctx.Category);
 
@@ -516,7 +515,6 @@ public sealed class DownwindPhase : Phase
             double finalLen = CategoryPerformance.MinShortApproachFinalNm(ctx.Category);
             double diagonalNm = Math.Sqrt(patternSize * patternSize + finalLen * finalLen);
             midAlt = thresholdElev + diagonalNm * GlideSlopeGeometry.FeetPerNm(gsAngle);
-            baseExtForFloor = CategoryPerformance.ShortApproachBaseExtensionNm(ctx.Category);
 
             // Required rate to lose the altitude delta over the remaining distance
             // to the base-turn point. Clamped at the category default (won't be slower
@@ -537,7 +535,7 @@ public sealed class DownwindPhase : Phase
             // key 2), then the descent tracks the glide path the rollout will capture,
             // regardless of TPA. Never above the current altitude — an aircraft already
             // below the intercept holds rather than climbs.
-            baseExtForFloor = Math.Max(_baseTurnAlongTrack - _abeamAlongTrack, 0);
+            double baseExtForFloor = Math.Max(_baseTurnAlongTrack - _abeamAlongTrack, 0);
             double gsInterceptAlt = GlideSlopeGeometry.AltitudeAtDistance(baseExtForFloor + turnRadiusNm, thresholdElev, ctx.Category);
             midAlt = Math.Min(ctx.Aircraft.Altitude, gsInterceptAlt);
             descentRate = baseDescentRate;

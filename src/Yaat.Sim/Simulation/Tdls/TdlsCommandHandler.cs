@@ -329,7 +329,7 @@ public static class TdlsCommandHandler
         AircraftState? ac = engine.World.GetSnapshot().FirstOrDefault(a => string.Equals(a.Callsign, callsign, StringComparison.OrdinalIgnoreCase));
         engine.Tdls.Configs.TryGetValue(facility, out TdlsConfig? cfg);
 
-        string message = FormatPilotPdcMessage(callsign, facility, ac, cfg, payload);
+        string message = FormatPilotPdcMessage(callsign, ac, cfg, payload);
         engine.EmitTerminal("Tdls", callsign, message);
     }
 
@@ -342,7 +342,7 @@ public static class TdlsCommandHandler
     /// SID/Transition IDs from the canonical command are resolved to names via the facility's
     /// TDLS config; the other field values are already in display form on the wire.
     /// </summary>
-    public static string FormatPilotPdcMessage(string callsign, string facility, AircraftState? ac, TdlsConfig? cfg, TdlsClearance payload)
+    public static string FormatPilotPdcMessage(string callsign, AircraftState? ac, TdlsConfig? cfg, TdlsClearance payload)
     {
         AircraftFlightPlan? fp = ac?.FlightPlan;
         // The bare designator, not the filed string: a plan filed as "H/B763/L" already carries the suffix, and the

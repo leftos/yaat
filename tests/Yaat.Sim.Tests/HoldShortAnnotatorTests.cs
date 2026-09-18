@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Tests;
@@ -382,11 +382,10 @@ public class HoldShortAnnotatorTests
     [Fact]
     public void AddDestinationHoldShort_AddsHoldShortAtLastSegmentNode()
     {
-        AirportGroundLayout layout = EmptyLayout();
         var segments = new List<TaxiRouteSegment> { Seg(1, 2), Seg(2, 3) };
         var holdShorts = new List<HoldShortPoint>();
 
-        HoldShortAnnotator.AddDestinationHoldShort(layout, segments, holdShorts, "28R");
+        HoldShortAnnotator.AddDestinationHoldShort(segments, holdShorts, "28R");
 
         HoldShortPoint hs = Assert.Single(holdShorts);
         Assert.Equal(3, hs.NodeId);
@@ -397,10 +396,9 @@ public class HoldShortAnnotatorTests
     [Fact]
     public void AddDestinationHoldShort_EmptySegments_NoHoldShortAdded()
     {
-        AirportGroundLayout layout = EmptyLayout();
         var holdShorts = new List<HoldShortPoint>();
 
-        HoldShortAnnotator.AddDestinationHoldShort(layout, [], holdShorts, "28R");
+        HoldShortAnnotator.AddDestinationHoldShort([], holdShorts, "28R");
 
         Assert.Empty(holdShorts);
     }

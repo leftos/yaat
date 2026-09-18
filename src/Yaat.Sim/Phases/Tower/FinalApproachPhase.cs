@@ -828,7 +828,6 @@ public sealed class FinalApproachPhase : Phase
 
         TrueHeading lateralCourse = _finalApproachCourse;
         LatLon lateralAnchor = new(_anchorLat, _anchorLon);
-        double rampT = 0.0;
 
         if (facVsRunwayDeg >= FacRampMinOffsetDeg)
         {
@@ -850,7 +849,7 @@ public sealed class FinalApproachPhase : Phase
                 linearT = (rampStart - agl) / (rampStart - rampEnd);
             }
 
-            rampT = (linearT * linearT) * (3.0 - (2.0 * linearT));
+            double rampT = (linearT * linearT) * (3.0 - (2.0 * linearT));
             lateralCourse = TrueHeading.Lerp(_finalApproachCourse, _runwayHeading, rampT);
             lateralAnchor = LatLon.Lerp(new LatLon(_anchorLat, _anchorLon), new LatLon(_thresholdLat, _thresholdLon), rampT);
         }

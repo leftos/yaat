@@ -46,7 +46,7 @@ internal static class ShownRouteBuilder
         List<DrawnWaypoint> waypoints = ResolveNavigationRouteWaypoints(ac);
 
         // Tail from procedure VM/VA, if any
-        VectorTail? tail = TryGetProcedureVectorTail(ac, navDb, waypoints);
+        VectorTail? tail = TryGetProcedureVectorTail(ac, navDb);
 
         // Pure-vector aircraft: no fixes in the route, but the controller has assigned a
         // heading — draw the heading from the aircraft position. (When the route still has
@@ -161,7 +161,7 @@ internal static class ShownRouteBuilder
         return result;
     }
 
-    private static VectorTail? TryGetProcedureVectorTail(AircraftModel ac, NavigationDatabase navDb, List<DrawnWaypoint> waypoints)
+    private static VectorTail? TryGetProcedureVectorTail(AircraftModel ac, NavigationDatabase navDb)
     {
         // STAR takes priority when arriving; SID for departures. ActiveSidId clears once the
         // aircraft sequences off the SID, ActiveStarId once the approach is loaded.
