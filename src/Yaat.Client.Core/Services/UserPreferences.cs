@@ -78,6 +78,47 @@ public sealed class UserPreferences
             .HiddenTerminalKinds.Where(s => Enum.TryParse<TerminalEntryKind>(s, out _))
             .Select(s => Enum.Parse<TerminalEntryKind>(s))
             .ToHashSet();
+        MigratePreferences();
+    }
+
+    /// <summary>
+    /// Version of the preferences file this build writes. It gates one-time preference migrations: a file below it is
+    /// migrated once when loaded and saved back at this version, so a migrated value the user changes afterwards is
+    /// kept. A file written before the field existed (≤ 0.13.1) reads as 0.
+    /// </summary>
+    private const int CurrentPreferencesVersion = 1;
+
+    /// <summary>
+    /// Runs the one-time migrations a file below <see cref="CurrentPreferencesVersion"/> needs, then saves it at that
+    /// version. v0 → v1: auto arrival spacing on occupied runway now defaults off for a TWR student, and 0.13.1 saved
+    /// its earlier default (on) to disk, so the TWR flag is reset to off once.
+    /// </summary>
+    private void MigratePreferences()
+    {
+        int fromVersion = _data.PreferencesVersion;
+        if (fromVersion >= CurrentPreferencesVersion)
+        {
+            return;
+        }
+
+        if (fromVersion < 1)
+        {
+            _data.AutoArrivalSpacingOnOccupiedRunwayTwr = false;
+            Log.LogInformation("Preferences v{From} → v1: auto arrival spacing on occupied runway (TWR) reset to off", fromVersion);
+        }
+
+        _data.PreferencesVersion = CurrentPreferencesVersion;
+
+        // Runs from the constructor, so a failed write must not throw out of it: the migrated values stay in memory
+        // for this session and the file stays below the current version, so the next launch migrates and retries.
+        try
+        {
+            Save();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogWarning(ex, "Could not save migrated preferences to {Path}; the migration is retried on the next launch", ConfigPath);
+        }
     }
 
     public CommandScheme CommandScheme => _commandScheme;
@@ -1681,6 +1722,11 @@ public sealed class UserPreferences
             var saved = JsonSerializer.Deserialize<SavedPrefs>(json, JsonOptions);
             if (saved is not null)
             {
+                // Full deserialization leaves a missing property at its initializer (the current version), so the
+                // version is read from the raw file: one written before the field existed has to read as 0.
+                using var doc = JsonDocument.Parse(json);
+                saved.PreferencesVersion =
+                    (doc.RootElement.TryGetProperty("preferencesVersion", out var version) && version.TryGetInt32(out var number)) ? number : 0;
                 return ApplyDefaultServers(saved);
             }
         }
@@ -1789,7 +1835,8 @@ public sealed class UserPreferences
             AutoGoAroundOnOccupiedRunway = GetFieldOr(obj, "autoGoAroundOnOccupiedRunway", true),
             AutoRejectTakeoffOnOccupiedRunway = GetFieldOr(obj, "autoRejectTakeoffOnOccupiedRunway", true),
             AutoArrivalSpacingOnOccupiedRunwayGnd = GetFieldOr(obj, "autoArrivalSpacingOnOccupiedRunwayGnd", true),
-            AutoArrivalSpacingOnOccupiedRunwayTwr = GetFieldOr(obj, "autoArrivalSpacingOnOccupiedRunwayTwr", true),
+            AutoArrivalSpacingOnOccupiedRunwayTwr = GetFieldOr(obj, "autoArrivalSpacingOnOccupiedRunwayTwr", false),
+            PreferencesVersion = GetFieldOr(obj, "preferencesVersion", 0),
             SoloTrainingMode = GetFieldOr(obj, "soloTrainingMode", false),
             SoloParkingInitialCallupRatePercent = GetFieldOr(obj, "soloParkingInitialCallupRatePercent", 100),
             SoloArrivalGeneratorRatePercent = GetFieldOr(obj, "soloArrivalGeneratorRatePercent", 100),
@@ -2078,7 +2125,10 @@ public sealed class UserPreferences
         public bool AutoGoAroundOnOccupiedRunway { get; set; } = true;
         public bool AutoRejectTakeoffOnOccupiedRunway { get; set; } = true;
         public bool AutoArrivalSpacingOnOccupiedRunwayGnd { get; set; } = true;
-        public bool AutoArrivalSpacingOnOccupiedRunwayTwr { get; set; } = true;
+        public bool AutoArrivalSpacingOnOccupiedRunwayTwr { get; set; }
+
+        // A fresh install writes the current version; a file from before the field existed reads as 0 (see Load).
+        public int PreferencesVersion { get; set; } = CurrentPreferencesVersion;
 
         // How far the VFR-only command set opens up for IFR aircraft: "None", "EnterFinalOnly",
         // or "All". Stored as a string (like RendererMode) so enum reordering can't misassign it.
